@@ -16,6 +16,8 @@ Deepr accelerates the execution of complex research tasks in domains such as:
 
 Its design focuses on automation, consistency, and scalability, enabling both ad hoc investigations and production-scale pipelines.
 
+![Screenshot](assets/screenshot.png)
+
 ## Core Capabilities
 
 ### Model Selection
