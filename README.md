@@ -89,6 +89,7 @@ Deepr integrates with `manager.py` to allow job listing, inspection, cancellatio
 
 To install all necessary dependencies:
 pip install openai flask python-dotenv colorama python-docx
+To set up Ngrok, download the executable from ngrok.com/download and place it in a directory. Add this directory to your system's PATH. Verify installation by running ngrok version in the terminal.
 
 ## Setup
 
