@@ -118,46 +118,29 @@ Status: In_Progress | Elapsed time: 02:10
 Reports will be saved in the reports/ folder.
 
 ## Command-Line Options
-Submit a One-Off Research Request:
-
-python deepr.py --research "Key trends in digital therapeutics market 2025"
-Use a Cost-Sensitive Mode (Lighter Model, Fewer Tools):
-
+Submit a One-Off Research Request: python deepr.py --research "Key trends in digital therapeutics market 2025"
+Use a Cost-Sensitive Mode (Lighter Model, Fewer Tools): 
 python deepr.py --cost-sensitive --research "Urban climate adaptation trends"
-Disable Live Web Search (Use Pretrained Knowledge):
-
 python deepr.py --output-title "AI Regulation Watchlist" --research "..."
-Run Batch Research (One Prompt Per Line):
-
-python deepr.py --batch-file queue.txt
-Append Extracted Links Under a "References" Section:
-
-python deepr.py --append-references --research "VC adaptation to AI-native startups"
-Bypass Automatic Prompt Refinement:
-
-python deepr.py --raw --research "Explore sentiment trends in climate reporting"
-Override the System Message:
-
-python deepr.py --briefing "You are a futurist creating speculative design insights."
+Run Batch Research (One Prompt Per Line): python deepr.py --batch-file queue.txt
+Append Extracted Links Under a "References" Section: python deepr.py --append-references --research "VC adaptation to AI-native startups"
+Bypass Automatic Prompt Refinement: python deepr.py --raw --research "Explore sentiment trends in climate reporting"
+Override the System Message: python deepr.py --briefing "You are a futurist creating speculative design insights."
 
 ## Output Format
 Each completed research job will generate:
-
 reports/
 ├── ExampleReportAbc123.json
 ├── ExampleReportAbc123.md
 ├── ExampleReportAbc123.docx
 └── ExampleReportAbc123.txt
+└── ExampleReportAbc123.pdf
 Markdown and Word files include the report title as a top-level heading.
-
 .docx output includes semantic styles (headings, bullets, spacing).
-
 URLs are excluded from the main body unless --append-references is used.
-
 Logs are saved to logs/job_log.jsonl.
 
 Example Metadata Entry:
-
 {
   "timestamp": "2025-07-04T17:10:23Z",
   "run_id": "f6e2e738",
@@ -194,9 +177,6 @@ Yes—in interactive mode only. Clarification is skipped in scripted/batch runs.
 
 How are filenames created?
 GPT-4 generates a sanitized, filesystem-safe name based on the prompt content.
-
-Can I disable web search?
-Yes. Use --no-web-search to rely only on pretrained model knowledge.
 
 How do I reduce API costs?
 Use --cost-sensitive to switch to a cheaper model and reduce tool usage.
