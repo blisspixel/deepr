@@ -179,8 +179,9 @@ Yes—in interactive mode only. Clarification is skipped in scripted/batch runs.
 How are filenames created?
 GPT-4 generates a sanitized, filesystem-safe name based on the prompt content.
 
-How do I reduce API costs?
+**How do I reduce API costs?**
 Use --cost-sensitive to switch to a cheaper model and reduce tool usage.
+Be Careful! You can spend $100 asking why the sky is blue with repeated queries.
 
 Where do extracted links go?
 They are excluded unless --append-references is enabled, in which case they appear in a footer section.
