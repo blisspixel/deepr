@@ -1,0 +1,8 @@
+openai
+flask
+python-dotenv
+colorama
+docx
+requests
+docx2pdf
+pytz
