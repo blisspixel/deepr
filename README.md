@@ -18,6 +18,59 @@ Its design focuses on automation, consistency, and scalability, enabling both ad
 
 ![Screenshot](assets/screenshot.png)
 
+
+## Installation & Usage (Best Practice)
+
+**Recommended:** Install Deepr using the modern Python packaging standard (`pyproject.toml`) for global CLI access.
+
+1. From the project directory, run:
+  ```
+  pip install .
+  ```
+  or for development mode:
+  ```
+  pip install -e .
+  ```
+
+
+2. After installation, you can run Deepr from anywhere using:
+  ```
+  deepr --research "your prompt here" ...
+  ```
+
+Or run Deepr directly with Python:
+  ```
+  python deepr.py --research "your prompt here" ...
+  ```
+
+
+---
+
+## API Key Setup
+
+Deepr requires an OpenAI API key to function. You have two options:
+
+**Option 1: .env file (Recommended for local/project use)**
+
+- Create a file named `.env` in your working directory (or project root) with the following line:
+  ```
+  OPENAI_API_KEY=sk-...
+  ```
+- Deepr will automatically load this file if present.
+
+**Option 2: Global Environment Variable (Recommended for global CLI use)**
+
+- Set the environment variable `OPENAI_API_KEY` in your system so it is available everywhere.
+- On Windows (PowerShell), run:
+  ```powershell
+  $env:OPENAI_API_KEY="sk-..."
+  ```
+- Or set it permanently via System Properties > Environment Variables.
+
+If neither is set, Deepr will not run and will show an error. See above for setup instructions.
+
+---
+
 ## Core Capabilities
 
 ### Model Selection
@@ -41,7 +94,7 @@ If all retries fail, Deepr falls back to `manager.py`, which is known to reliabl
 
 ### Prompt Refinement
 
-GPT-4.1 is used in interactive mode to rewrite vague or unclear prompts, ensuring that the research query is focused and actionable. Skipped by default in `--research` or `--batch-file` modes unless overridden with `--raw`.
+GPT-5 is used in interactive mode to rewrite vague or unclear prompts, ensuring that the research query is focused and actionable. Skipped by default in `--research` or `--batch-file` modes unless overridden with `--raw`.
 
 ### Smart Title & Filename Generation
 
@@ -252,7 +305,7 @@ Can the model ask follow-up questions?
 Yes—in interactive mode only. Clarification is skipped in scripted/batch runs.
 
 How are filenames created?
-GPT-4 generates a sanitized, filesystem-safe name based on the prompt content.
+GPT-5 generates a sanitized, filesystem-safe name based on the prompt content.
 
 **How do I reduce API costs?**
 Use --cost-sensitive to switch to a cheaper model and reduce tool usage.
