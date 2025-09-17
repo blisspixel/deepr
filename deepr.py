@@ -149,7 +149,7 @@ Ask only what is necessary. Do not generate the refined prompt yet.
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": prompt}
@@ -196,7 +196,7 @@ The Research Agent will use this prompt to search for data and build a detailed,
 
         # Send the combined information to OpenAI to get the refined prompt
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-5",
             messages=messages
         )
         refined = response.choices[0].message.content.strip()
@@ -778,11 +778,11 @@ def main():
             CLI_ARGS.cost_sensitive = True
 
     if not CLI_ARGS.raw:
-        clarify = input("Would you like to clarify and refine this prompt with GPT-4? (Y/n, Enter for Yes): ").strip().lower()
-        if clarify != "n" and clarify != "":
+        clarify = input("Would you like to clarify and refine this prompt with GPT-5? (Yes or Enter for Yes, n for No): ").strip().lower()
+        if clarify in ("y", "yes", ""):
             questions = clarify_prompt(prompt)
             if questions:
-                print(f"\n{Fore.CYAN}GPT-4 asks for clarification:{Style.RESET_ALL}\n{questions}\n")
+                print(f"\n{Fore.CYAN}GPT-5 asks for clarification:{Style.RESET_ALL}\n{questions}\n")
                 print(f"{Fore.CYAN}Enter your clarification below (press DEEPR when done):{Style.RESET_ALL}")
                 clarification_lines = []
                 while True:
