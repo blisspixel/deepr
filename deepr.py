@@ -32,8 +32,16 @@ import normalize
 # Initialize colorama for colored CLI output (auto-reset after each print)
 init(autoreset=True)
 
+
 # Load environment variables from .env file (.env should contain OPENAI_API_KEY)
-load_dotenv()
+from pathlib import Path
+env_loaded = load_dotenv()
+if not env_loaded or not os.getenv("OPENAI_API_KEY"):
+    # Try loading .env from the installed package directory
+    package_dir = Path(__file__).parent.resolve()
+    env_path = package_dir / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
 
 # Flask app handles webhook callbacks from OpenAI
 app = Flask(__name__)
@@ -224,7 +232,7 @@ def convert_docx_to_pdf(docx_path):
 def generate_report_title(prompt):
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-5",
             messages=[
                 {
                     "role": "system",
@@ -398,8 +406,18 @@ def submit_research_query(prompt, webhook_url, force_web_search=False):
             report_title = CLI_ARGS.output_title.strip()
             words = re.findall(r"[A-Za-z0-9]+", report_title)
             filename_safe = ''.join(word.capitalize() for word in words)
+
         else:
             report_title, filename_safe = generate_report_title(final_prompt)
+            # If filename_safe is missing or generic, use sanitized original prompt
+            if not filename_safe or filename_safe.startswith("Report"):
+                # Sanitize original prompt for filename: remove non-alphanumerics, capitalize words, limit length
+                words = re.findall(r"[A-Za-z0-9]+", prompt)
+                prompt_filename = ''.join(word.capitalize() for word in words)
+                if prompt_filename:
+                    filename_safe = prompt_filename[:100]
+                else:
+                    filename_safe = f"Report{str(uuid.uuid4())[:8]}"
 
         print(f"{Fore.GREEN}Report title: {report_title}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}Filename base: {filename_safe}{Style.RESET_ALL}")
@@ -676,7 +694,7 @@ def start_webhook_server():
     app.run(host="0.0.0.0", port=PORT)
 
 # === CLI ===
-def main():
+def main(CLI_ARGS):
     print(f"{Fore.GREEN}=== Deepr CLI OpenAI Deep Research ==={Style.RESET_ALL}")
 
     try:
@@ -849,27 +867,35 @@ def main():
     # Stop ngrok after all tasks are done
     ngrok_process, webhook_url = start_ngrok()  # Ensure ngrok is stopped after all tasks complete
 
-# === ENTRY ===
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="OpenAI Deep Research CLI")
-    parser.add_argument("--research", type=str, help="Submit a single research topic (non-interactive)")
+
+# === CLI ENTRY POINT FOR CONSOLE_SCRIPTS ===
+def cli_entry():
+    parser = argparse.ArgumentParser(
+        prog="deepr",
+        description="Deepr: Automated research pipeline using OpenAI's Deep Research API.\n\n"
+                    "Usage: deepr [options]\n\n"
+                    "Examples:\n"
+                    "  deepr --research 'What are the top AI trends for 2025?'\n"
+                    "  deepr --batch-file prompts.txt --cost-sensitive\n\n"
+                    "For full documentation, see the README.md."
+    )
+    parser.add_argument("--research", type=str, metavar="PROMPT", help="Submit a single research topic (non-interactive)")
     parser.add_argument("--raw", action="store_true", help="Skip prompt refinement and submit original input")
-    parser.add_argument("--briefing", type=str, help="Override system_message.json at runtime")
-    parser.add_argument("--batch-file", type=str, help="Path to a .txt or .csv file containing prompts (one per line)")
+    parser.add_argument("--briefing", type=str, metavar="TEXT", help="Override system_message.json at runtime")
+    parser.add_argument("--batch-file", type=str, metavar="FILE", help="Path to a .txt or .csv file containing prompts (one per line)")
     parser.add_argument("--cost-sensitive", action="store_true", help="Limit tool usage and model to reduce cost")
     parser.add_argument("--no-web-search", action="store_true", help="Disable web search tool for this run")
-    parser.add_argument("--output-title", type=str, help="Optional custom title for output report files")
-    parser.add_argument("--append-references", action="store_true", help="If set, appends extracted links at the end under a References section")
+    parser.add_argument("--output-title", type=str, metavar="TITLE", help="Optional custom title for output report files")
+    parser.add_argument("--append-references", action="store_true", help="Append extracted links at the end under a References section")
     parser.add_argument("--no-pdf", action="store_true", help="Skip PDF generation from the Word document")
     CLI_ARGS = parser.parse_args()
-
-    server_thread = Thread(target=start_webhook_server, daemon=True)
-    server_thread.start()
-    time.sleep(2)
-
     try:
-        main()
+        main(CLI_ARGS)
     except KeyboardInterrupt:
         print(f"\n{Fore.RED}Interrupted by user. Exiting...{Style.RESET_ALL}")
         sys.exit(1)
+
+# === ENTRY ===
+if __name__ == "__main__":
+    cli_entry()
 
