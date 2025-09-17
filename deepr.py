@@ -73,7 +73,7 @@ MODEL = "o3-deep-research-2025-06-26"        # Default model for research
 PORT = 5000                                   # Webhook server port
 REPORT_DIR = "reports"                       # Directory for output reports
 MAX_WAIT = 1800                               # Max wait time for jobs (seconds)
-NGROK_PATH = "ngrok"                         # Path to ngrok executable
+NGROK_PATH = os.getenv("NGROK_PATH", "ngrok")  # Path to ngrok executable (from env or default)
 CLI_ARGS = None                               # CLI arguments placeholder
 LOG_FILE = os.path.join(LOG_DIR, "job_log.jsonl")
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -86,15 +86,24 @@ def load_system_message():
     if CLI_ARGS.briefing:
         return CLI_ARGS.briefing
     try:
-        with open("system_message.json", "r", encoding="utf-8") as f:
-            return json.load(f)["message"]
+        from pathlib import Path
+        package_dir = Path(__file__).parent.resolve()
+        msg_path = package_dir / "system_message.json"
+        if msg_path.exists():
+            with open(msg_path, "r", encoding="utf-8") as f:
+                return json.load(f)["message"]
+        # fallback: try current working directory
+        if Path("system_message.json").exists():
+            with open("system_message.json", "r", encoding="utf-8") as f:
+                return json.load(f)["message"]
     except Exception:
-        return (
-            "You are a professional researcher writing clear, structured, data-informed reports. "
-            "Do not include inline links or references in the main body. If necessary, summarize sources in a short appendix. "
-            "Use a mix of paragraphs and bullet points where appropriate. Avoid em-dashes and emojis. "
-            "Be direct, detailed, and concise—no fluff or filler."
-        )
+        pass
+    return (
+        "You are a professional researcher writing clear, structured, data-informed reports. "
+        "Do not include inline links or references in the main body. If necessary, summarize sources in a short appendix. "
+        "Use a mix of paragraphs and bullet points where appropriate. Avoid em-dashes and emojis. "
+        "Be direct, detailed, and concise—no fluff or filler."
+    )
 
 # === START NGROK AND GET PUBLIC URL ===
 # Start ngrok and get public URL
@@ -694,7 +703,7 @@ def start_webhook_server():
     app.run(host="0.0.0.0", port=PORT)
 
 # === CLI ===
-def main(CLI_ARGS):
+def main():
     print(f"{Fore.GREEN}=== Deepr CLI OpenAI Deep Research ==={Style.RESET_ALL}")
 
     try:
@@ -888,9 +897,10 @@ def cli_entry():
     parser.add_argument("--output-title", type=str, metavar="TITLE", help="Optional custom title for output report files")
     parser.add_argument("--append-references", action="store_true", help="Append extracted links at the end under a References section")
     parser.add_argument("--no-pdf", action="store_true", help="Skip PDF generation from the Word document")
+    global CLI_ARGS
     CLI_ARGS = parser.parse_args()
     try:
-        main(CLI_ARGS)
+        main()
     except KeyboardInterrupt:
         print(f"\n{Fore.RED}Interrupted by user. Exiting...{Style.RESET_ALL}")
         sys.exit(1)
