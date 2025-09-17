@@ -401,29 +401,38 @@ def submit_research_query(prompt, webhook_url, force_web_search=False):
         model = "o4-mini-deep-research" if CLI_ARGS.cost_sensitive else MODEL
         max_tool_calls = 5 if CLI_ARGS.cost_sensitive else None
 
-        # Submit research request
-        response = client.responses.create(
-            model=model,
-            input=[{
-                "role": "developer",
-                "content": [{"type": "input_text", "text": load_system_message()}]
-            }, {
-                "role": "user",
-                "content": [{"type": "input_text", "text": final_prompt}]
-            }],
-            reasoning={"summary": "auto"},
-            tools=tool_config,
-            tool_choice="auto",
-            max_tool_calls=max_tool_calls,
-            metadata={
+        # Build the request payload
+        request_payload = {
+            "model": model,
+            "input": [
+                {
+                    "role": "developer",
+                    "content": [{"type": "input_text", "text": load_system_message()}]
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": final_prompt}]
+                }
+            ],
+            "reasoning": {"summary": "auto"},
+            "tools": tool_config,
+            "tool_choice": "auto",
+            "metadata": {
                 "run_id": run_id,
                 "report_title": report_title,
                 "filename_safe": filename_safe
             },
-            extra_headers={"OpenAI-Hook-URL": webhook_url},
-            store=True,
-            background=True
-        )
+            "extra_headers": {"OpenAI-Hook-URL": webhook_url},
+            "store": True,
+            "background": True
+        }
+
+        # Include max_tool_calls only if tools are present
+        if tool_config and max_tool_calls is not None:
+            request_payload["max_tool_calls"] = max_tool_calls
+
+        # Submit the request
+        response = client.responses.create(**request_payload)
 
         print(f"{Fore.GREEN}Submitted successfully. Response ID: {response.id}{Style.RESET_ALL}")
 
@@ -708,9 +717,23 @@ def main():
                 response_id = submit_research_query(prompt, webhook_url)
                 if response_id:
                     print(f"{Fore.YELLOW}Tracking job status for Response ID: {response_id}{Style.RESET_ALL}")
-                    poll_status(response_id, prompt)  # Pass prompt as research_request
+                    status = poll_status(response_id, prompt)
+                    if status == "failed":
+                        print(f"{Fore.YELLOW}Job failed. Pausing for 5 minutes before retrying...{Style.RESET_ALL}")
+                        time.sleep(300)
+                        print(f"{Fore.YELLOW}Retrying failed prompt...{Style.RESET_ALL}")
+                        response_id_retry = submit_research_query(prompt, webhook_url)
+                        if response_id_retry:
+                            print(f"{Fore.YELLOW}Tracking job status for Response ID: {response_id_retry}{Style.RESET_ALL}")
+                            poll_status(response_id_retry, prompt)
+                        else:
+                            print(f"{Fore.RED}Retry submission failed for prompt {i}.{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.RED}Submission failed for prompt {i}.{Style.RESET_ALL}")
+                # Pause every 5 prompts for 3 minutes
+                if i % 5 == 0 and i != len(prompts):
+                    print(f"{Fore.YELLOW}Pausing for 3 minutes to avoid rate limits...{Style.RESET_ALL}")
+                    time.sleep(180)
         except Exception as e:
             print(f"{Fore.RED}Failed to process batch file: {e}{Style.RESET_ALL}")
         return

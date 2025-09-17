@@ -208,3 +208,5 @@ __marimo__/
 logs/job_log.jsonl
 /reports
 ngrok.exe
+queue.txt
+to do.txt
