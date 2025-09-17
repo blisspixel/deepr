@@ -1,3 +1,10 @@
+"""
+Deepr: Automated research pipeline using OpenAI's Deep Research API.
+
+This script provides a command-line interface and webhook server for submitting, tracking, and saving structured research reports. It integrates with OpenAI's Deep Research API and supports automated report generation, formatting, and delivery.
+"""
+
+# --- Imports ---
 from openai import OpenAI
 from flask import Flask, request
 from dotenv import load_dotenv
@@ -7,7 +14,6 @@ from docx import Document
 from normalize import normalize_markdown
 from datetime import datetime, timezone
 from docx2pdf import convert
-
 import os
 import sys
 import re
@@ -19,25 +25,40 @@ import select
 import argparse
 import requests
 import subprocess
-import itertools
-import normalize
 import style
+import normalize
 
-# === INIT ===
+# --- Initialization ---
+# Initialize colorama for colored CLI output (auto-reset after each print)
 init(autoreset=True)
+
+# Load environment variables from .env file (.env should contain OPENAI_API_KEY)
 load_dotenv()
+
+# Flask app handles webhook callbacks from OpenAI
 app = Flask(__name__)
+
+# Global flag to control polling loop for job status
 polling_stopped = False
+import time
+import uuid
+import shlex
+import select
+import argparse
+import requests
+import subprocess
+import style
+import normalize
 
 # === CONFIG ===
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL = "o3-deep-research-2025-06-26"
-PORT = 5000
-REPORT_DIR = "reports"
-MAX_WAIT = 1800  # 30 minutes
-NGROK_PATH = "ngrok"
-CLI_ARGS = None
-LOG_DIR = "logs"
+LOG_DIR = "logs"                             # Directory for logs
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # OpenAI API key from .env
+MODEL = "o3-deep-research-2025-06-26"        # Default model for research
+PORT = 5000                                   # Webhook server port
+REPORT_DIR = "reports"                       # Directory for output reports
+MAX_WAIT = 1800                               # Max wait time for jobs (seconds)
+NGROK_PATH = "ngrok"                         # Path to ngrok executable
+CLI_ARGS = None                               # CLI arguments placeholder
 LOG_FILE = os.path.join(LOG_DIR, "job_log.jsonl")
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -210,24 +231,6 @@ def generate_report_title(prompt):
                         "- Capitalize each word in the filename and concatenate them without separators.\n"
                         "- Strip illegal characters from both fields (e.g., slashes, colons, quotes, parentheses, etc)."
                     )
-                },
-                {
-                    "role": "user",
-                    "content": f"Generate a title and filename for this research request:\n\n{prompt}"
-                }
-            ],
-            functions=[
-                {
-                    "name": "set_report_metadata",
-                    "description": "Returns a human-readable title and a filesystem-safe filename",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "title": {"type": "string"},
-                            "filename": {"type": "string"}
-                        },
-                        "required": ["title", "filename"]
-                    }
                 }
             ],
             function_call="auto"
