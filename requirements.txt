@@ -2,7 +2,7 @@ openai
 flask
 python-dotenv
 colorama
-docx
+python-docx
 requests
 docx2pdf
 pytz

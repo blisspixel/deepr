@@ -190,16 +190,51 @@ Example Metadata Entry:
   "status": "submitted"
 }
 
-## Job Management with manager.py
-You can manage jobs using manager.py:
-List active or recent jobs:
-python manager.py --list
-Download a report by ID:
-python manager.py --download resp_abc123...
-Cancel an in-flight job:
-python manager.py --cancel resp_abc123...
-Cancel all open jobs:
-python manager.py --cancel-all
+## Job Management with `manager.py`
+
+`manager.py` is a companion utility to `deepr.py` that provides operational visibility and control over research jobs submitted to OpenAI's asynchronous endpoint. It enables you to inspect, manage, and troubleshoot long-running or background tasks created by Deepr. It works in both interactive and scripted environments and integrates with the shared `job_log.jsonl`.
+
+**Responsibilities:**
+- Parse and display job metadata from the job log
+- Refresh job statuses via OpenAI's API
+- Display compact summaries or detailed metadata
+- Cancel submitted or in-progress jobs
+- Download and persist job outputs
+- Automatically prune old jobs from the log
+
+**Features:**
+- Job summaries: Displays recent or active jobs, sorted by creation time, with status, job ID, timestamps, and prompt excerpts
+- Detailed inspection: Shows full metadata for any job, including model, token usage, and full prompt
+- Report download: Saves output to `reports/report_<job_id>.txt` and previews the first portion in the terminal
+- Job cancellation: Cancels active jobs via the API and marks them as cancelled in the log
+- Automatic cleanup: Removes completed jobs older than 7 days at startup
+
+**Log File Format:**
+All jobs are stored in `job_log.jsonl`, a newline-delimited JSON file. Each entry includes metadata such as:
+```json
+{
+  "response_id": "resp_abc123",
+  "status": "completed",
+  "timestamp": "2025-07-04T13:45:00Z",
+  "prompt": "Summarize recent AI advancements...",
+  "model": "gpt-4o",
+  "temperature": 0.7,
+  "usage": {
+    "total_tokens": 1450
+  }
+}
+```
+Entries are automatically updated or pruned based on status and timestamp.
+
+**Command Line Usage:**
+- Interactive mode: `python manager.py --interactive`
+- List most recent completed jobs: `python manager.py --list`
+- List all jobs: `python manager.py --list --all`
+- View detailed metadata: `python manager.py --details <response_id>`
+- Download output: `python manager.py --download <response_id>`
+- Cancel an in-progress job: `python manager.py --cancel <response_id>`
+- Cancel all active jobs: `python manager.py --cancel-all`
+- Clear the log file: `python manager.py --clear`
 
 ## Best Practices
 Write clear prompts: Be specific, define your goals, and use full sentences.
