@@ -15,7 +15,23 @@ from openai import OpenAI
 init(autoreset=True)
 
 # Load environment variables from .env file
+
+from pathlib import Path
 load_dotenv()
+
+def get_system_message():
+    try:
+        package_dir = Path(__file__).parent.resolve()
+        msg_path = package_dir / "system_message.json"
+        if msg_path.exists():
+            with open(msg_path, "r", encoding="utf-8") as f:
+                return json.load(f)["message"]
+        if Path("system_message.json").exists():
+            with open("system_message.json", "r", encoding="utf-8") as f:
+                return json.load(f)["message"]
+    except Exception:
+        pass
+    return "You are a professional researcher writing clear, structured, data-informed reports."
 
 # Retrieve OpenAI API key from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -96,14 +112,10 @@ def clean_old_completed_jobs():
 
 def get_prompt_from_log(job_id):
     """
-    Retrieve the prompt (original or refined) for a given job ID from the job log.
-    Returns 'Prompt Not Available' if not found.
+    Search the job log for a given job ID and return the associated prompt.
+    Returns the refined prompt if available, otherwise the original prompt.
+    Returns 'Prompt Not Available' if the job is not found or log is missing/corrupt.
     """
-        """
-        Search the job log for a given job ID and return the associated prompt.
-        Returns the refined prompt if available, otherwise the original prompt.
-        Returns 'Prompt Not Available' if the job is not found or log is missing/corrupt.
-        """
     log_file = "logs/job_log.jsonl"
     if not os.path.exists(log_file):
         return "Prompt Not Available"
@@ -122,13 +134,9 @@ def get_prompt_from_log(job_id):
 
 def refresh_job_statuses():
     """
-    Update statuses of all jobs in the log by querying the OpenAI API.
-    Returns the number of jobs updated.
+    Poll the OpenAI API to update the status of all jobs in the log that are not yet completed or cancelled.
+    Ensures local job status is consistent with remote state. Returns the number of jobs updated.
     """
-        """
-        Poll the OpenAI API to update the status of all jobs in the log that are not yet completed or cancelled.
-        Ensures local job status is consistent with remote state. Returns the number of jobs updated.
-        """
     if not os.path.exists(LOG_FILE):
         return
     updated_lines = []
@@ -167,10 +175,8 @@ def calculate_cost(input_tokens, output_tokens, model):
 
     total_cost = round(input_cost + output_cost, 4)  # Total cost rounded to 4 decimal places
     return total_cost
-        """
-        Estimate the dollar cost of a job based on token usage and model pricing.
-        Pricing is hardcoded for supported models. Returns total cost as a float.
-        """
+    # Estimate the dollar cost of a job based on token usage and model pricing.
+    # Pricing is hardcoded for supported models. Returns total cost as a float.
 
 def list_jobs(show_all=False, limit=100):
     if not os.path.exists(LOG_FILE):
@@ -235,11 +241,9 @@ def list_jobs(show_all=False, limit=100):
     print_group("Completed Jobs", Fore.GREEN, completed)
     print(f"{Fore.WHITE}Job Summary: {len(active)} active, {len(completed)} completed, {len(jobs)} total.{Style.RESET_ALL}")
     return active + completed
-        """
-        List jobs from the log file, sorted by creation time (newest first).
-        Returns a list of job info dicts. If show_all is False, prints a summary and returns active jobs only.
-        Each job dict includes id, status, created time, elapsed time, and summary.
-        """
+    # List jobs from the log file, sorted by creation time (newest first).
+    # Returns a list of job info dicts. If show_all is False, prints a summary and returns active jobs only.
+    # Each job dict includes id, status, created time, elapsed time, and summary.
 
 def cancel_job(job_id):
     print(f"{Fore.YELLOW}Attempting to cancel job {job_id}...{Style.RESET_ALL}")
