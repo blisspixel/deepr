@@ -16,7 +16,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "deepr = deepr:cli_entry"
+            "deepr = deepr:cli_entry",
+            "manager = manager:main"
         ]
     },
     author="blisspixel",
