@@ -120,6 +120,26 @@ The CLI will show the progress of the research job:
 Status: In_Progress | Elapsed time: 02:10
 Reports will be saved in the reports/ folder.
 
+### Example: Researching Multiple Topics with One Command
+
+You can automate research for multiple topics by using the batch mode with a text file (e.g., `queue.txt`). Each line in the file should be a separate research prompt.
+
+**Example `queue.txt`:**
+```
+The impact of quantum computing on cybersecurity
+Trends in sustainable urban development
+```
+
+Run batch research for all topics in the file:
+```sh
+python deepr.py --batch-file queue.txt
+```
+
+This will process each topic as a separate research job and save the results in the `reports/` folder.
+
+> **Automation Tip:**
+> You can build an AI agent or script to generate new research topics, append them to `queue.txt`, and then run the batch command above. This enables scalable, automated research pipelines for teams or individuals.
+
 ## Command-Line Options
 Submit a One-Off Research Request: python deepr.py --research "Key trends in digital therapeutics market 2025"
 
