@@ -9,56 +9,70 @@ from dotenv import load_dotenv
 from colorama import Fore, Style, init
 from openai import OpenAI
 
-# Initialize and configure environment, logging, and API client
+
+# --- Initialization and Configuration ---
+# Set up colorama for colored CLI output
 init(autoreset=True)
+
+# Load environment variables from .env file
 load_dotenv()
 
+# Retrieve OpenAI API key from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise RuntimeError("Set OPENAI_API_KEY in your .env file.")
 
+# Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-RETENTION_DAYS = 7
-LOG_DIR = "logs"
+# Job retention and logging configuration
+RETENTION_DAYS = 7  # Number of days to retain completed jobs in log
+LOG_DIR = "logs"    # Directory for job logs
 LOG_FILE = os.path.join(LOG_DIR, "job_log.jsonl")
 os.makedirs(LOG_DIR, exist_ok=True)
 
-# Configure logging (setting logging level to avoid API logs)
+# Configure logging to suppress verbose API logs
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def parse_timestamp(ts_str):
+    """
+    Parse a timestamp string (ISO 8601 or Unix) and return seconds since epoch (EST).
+    Returns 0 if parsing fails.
+    """
     try:
-        # Handle ISO 8601 formatted timestamp (e.g., '2025-07-05T18:22:49.565537+00:00')
         if isinstance(ts_str, str) and 'T' in ts_str:
-            # Convert to datetime with timezone info (UTC)
             dt = datetime.fromisoformat(ts_str)
-            # Convert UTC time to EST (or your preferred local time zone)
             est = pytz.timezone('US/Eastern')
-            dt = dt.astimezone(est)  # Convert UTC to EST
-            return dt.timestamp()  # Convert back to a timestamp (seconds since epoch)
-        
-        # If it's not in ISO format, assume it's a Unix timestamp
+            dt = dt.astimezone(est)
+            return dt.timestamp()
         if ts_str:
             return float(ts_str)
-        
-        return 0  # If the timestamp is empty, return 0
+        return 0
     except Exception as e:
         logging.error(f"Failed to parse timestamp {ts_str}: {e}")
-        return 0  # Return 0 as fallback
+        return 0
 
 def format_local_time(ts):
-    # Convert from Unix timestamp to datetime object (in EST)
+    """
+    Format a Unix timestamp as a human-readable EST datetime string.
+    """
     dt = datetime.fromtimestamp(ts, pytz.timezone('US/Eastern'))
     return dt.strftime("%b %d, %I:%M %p").lstrip("0").replace(" 0", " ")
 
 def human_elapsed(created_ts):
+    """
+    Return elapsed time since created_ts as a human-readable string (e.g., '2h 15m').
+    """
     delta = int(time.time() - created_ts)
     hours, remainder = divmod(delta, 3600)
     minutes, _ = divmod(remainder, 60)
     return f"{hours}h {minutes}m" if hours else f"{minutes}m"
 
 def clean_old_completed_jobs():
+    """
+    Remove completed jobs older than RETENTION_DAYS from the log file.
+    Returns the number of jobs cleaned.
+    """
     if not os.path.exists(LOG_FILE):
         return 0
     now = time.time()
@@ -82,18 +96,22 @@ def clean_old_completed_jobs():
 
 def get_prompt_from_log(job_id):
     """
-    Reads the job log file and retrieves the prompt (either original or refined) for a given job ID.
+    Retrieve the prompt (original or refined) for a given job ID from the job log.
+    Returns 'Prompt Not Available' if not found.
     """
+        """
+        Search the job log for a given job ID and return the associated prompt.
+        Returns the refined prompt if available, otherwise the original prompt.
+        Returns 'Prompt Not Available' if the job is not found or log is missing/corrupt.
+        """
     log_file = "logs/job_log.jsonl"
     if not os.path.exists(log_file):
         return "Prompt Not Available"
-    
     with open(log_file, "r", encoding="utf-8") as f:
         for line in f:
             try:
                 entry = json.loads(line)
                 if entry.get("response_id") == job_id:
-                    # Check for the prompt in the job log (either original or refined)
                     if "refined_prompt" in entry:
                         return entry["refined_prompt"]
                     elif "original_prompt" in entry:
@@ -103,6 +121,14 @@ def get_prompt_from_log(job_id):
     return "Prompt Not Available"
 
 def refresh_job_statuses():
+    """
+    Update statuses of all jobs in the log by querying the OpenAI API.
+    Returns the number of jobs updated.
+    """
+        """
+        Poll the OpenAI API to update the status of all jobs in the log that are not yet completed or cancelled.
+        Ensures local job status is consistent with remote state. Returns the number of jobs updated.
+        """
     if not os.path.exists(LOG_FILE):
         return
     updated_lines = []
@@ -141,6 +167,10 @@ def calculate_cost(input_tokens, output_tokens, model):
 
     total_cost = round(input_cost + output_cost, 4)  # Total cost rounded to 4 decimal places
     return total_cost
+        """
+        Estimate the dollar cost of a job based on token usage and model pricing.
+        Pricing is hardcoded for supported models. Returns total cost as a float.
+        """
 
 def list_jobs(show_all=False, limit=100):
     if not os.path.exists(LOG_FILE):
@@ -205,6 +235,11 @@ def list_jobs(show_all=False, limit=100):
     print_group("Completed Jobs", Fore.GREEN, completed)
     print(f"{Fore.WHITE}Job Summary: {len(active)} active, {len(completed)} completed, {len(jobs)} total.{Style.RESET_ALL}")
     return active + completed
+        """
+        List jobs from the log file, sorted by creation time (newest first).
+        Returns a list of job info dicts. If show_all is False, prints a summary and returns active jobs only.
+        Each job dict includes id, status, created time, elapsed time, and summary.
+        """
 
 def cancel_job(job_id):
     print(f"{Fore.YELLOW}Attempting to cancel job {job_id}...{Style.RESET_ALL}")
