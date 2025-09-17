@@ -52,7 +52,15 @@ import normalize
 
 # === CONFIG ===
 LOG_DIR = "logs"                             # Directory for logs
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # OpenAI API key from .env
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError(
+        "\n[ERROR] Missing OpenAI API Key!\n"
+        "You must create a .env file in the project directory with the following line:\n"
+        "OPENAI_API_KEY=sk-...\n"
+        "Refer to the README.md for setup instructions.\n"
+        "Exiting."
+    )
 MODEL = "o3-deep-research-2025-06-26"        # Default model for research
 PORT = 5000                                   # Webhook server port
 REPORT_DIR = "reports"                       # Directory for output reports
@@ -61,9 +69,6 @@ NGROK_PATH = "ngrok"                         # Path to ngrok executable
 CLI_ARGS = None                               # CLI arguments placeholder
 LOG_FILE = os.path.join(LOG_DIR, "job_log.jsonl")
 os.makedirs(LOG_DIR, exist_ok=True)
-
-if not OPENAI_API_KEY:
-    raise RuntimeError("Set OPENAI_API_KEY in your .env file.")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 os.makedirs(REPORT_DIR, exist_ok=True)
