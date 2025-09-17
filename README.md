@@ -243,7 +243,25 @@ Example Metadata Entry:
   "status": "submitted"
 }
 
-## Job Management with `manager.py`
+
+## PowerShell Utility: Cancel All Active Jobs
+
+For Windows/PowerShell users, you can use the provided script `Utility_Cancell_Active_Jobs.ps1` to automatically cancel all active jobs and display a notification if none are found.
+
+**Usage:**
+
+1. Open PowerShell in your project directory.
+2. Run the script:
+  ```powershell
+  .\Utility_Cancell_Active_Jobs.ps1
+  ```
+3. The script will:
+  - Call `python manager.py --cancel-all` to cancel all running jobs.
+  - Display the job summary and notify you if no active jobs are found.
+  - Wait 20 seconds before exiting.
+
+This utility is useful for quickly managing and cleaning up research jobs without manually running commands.
+
 
 `manager.py` is a companion utility to `deepr.py` that provides operational visibility and control over research jobs submitted to OpenAI's asynchronous endpoint. It enables you to inspect, manage, and troubleshoot long-running or background tasks created by Deepr. It works in both interactive and scripted environments and integrates with the shared `job_log.jsonl`.
 
