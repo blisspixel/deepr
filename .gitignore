@@ -210,3 +210,5 @@ logs/job_log.jsonl
 ngrok.exe
 queue.txt
 to do.txt
+Documentation Using Docs.txt
+last_response.json
