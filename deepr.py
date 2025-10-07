@@ -1,4 +1,19 @@
 """
+DEPRECATED - LEGACY VERSION 1.x
+
+This file is preserved for backward compatibility only.
+It will be removed in version 3.0.
+
+For NEW CODE, use the modular API:
+    from deepr import AppConfig
+    from deepr.providers import create_provider
+    from deepr.storage import create_storage
+    from deepr.core import ResearchOrchestrator
+
+See: docs/migration-guide.md and QUICKSTART_V2.md
+
+---
+
 Deepr: Automated research pipeline using OpenAI's Deep Research API.
 
 This script provides a command-line interface and webhook server for submitting, tracking,

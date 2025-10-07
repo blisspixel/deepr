@@ -1,0 +1,9 @@
+# Web application dependencies
+-r base.txt
+
+flask>=3.0.0
+flask-cors>=4.0.0
+gunicorn>=21.0.0
+azure-identity>=1.15.0
+azure-storage-blob>=12.19.0
+azure-cosmos>=4.5.0
