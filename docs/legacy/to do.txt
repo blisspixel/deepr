@@ -1,0 +1,23 @@
+So sometimes i get ... Report title: Artificial Intelligence Applications in Business Operations A Study on Edwards Lifesciences Corporation
+Filename base: ArtificialIntelligenceApplicationsInBusinessOperationsAStudyOnEdwardsLifesciencesCorporation
+Submitted successfully. Response ID: resp_6869d01234f08199993200e55b6a64740c2f54d3027e4b6e
+Tracking job status for Response ID: resp_6869d01234f08199993200e55b6a64740c2f54d3027e4b6e
+Job in Queue, ID: resp_6869d01234f08199993200e55b6a64740c2f54d3027e4b6e
+Research can take between 5-30 minutes depending on task complexity.
+Status: Completed | Elapsed time: 10:57
+Research complete. Waiting 20 seconds before fetching results...
+
+Error retrieving final output: 'MockValSer' object cannot be converted to 'SchemaSerializer'
+
+To run this same task directly next time, use:
+python deepr.py --research "Please ...."
+
+
+
+Right. So when that happens, I have the manager which can download it.  Maybe if we get "Error retrieving final output: 'MockValSer' object cannot be converted to 'SchemaSerializer'" -> we in 1 minute try to get the report the same way the manager does?  ... since the report is there... I think maybe it wasn't ready yet.  Or just try again in 3 minutes if get that error?
+
+
+
+---------------
+
+Also... use the 40 page Edward jones file to refine the style.py.

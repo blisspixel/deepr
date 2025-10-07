@@ -13,8 +13,6 @@ Deepr is a production-ready research pipeline supporting both CLI and web interf
 - v1.x (deepr.py, manager.py) - Functional but monolithic, deprecated
 - v2.x - Modular architecture with provider abstraction, queue system, cost controls
 
-**Note:** This is aspirational documentation. v2.x is under active development. For current working functionality, see v1.x files (deepr.py, manager.py) marked as deprecated.
-
 See [docs/development/IMPLEMENTATION_STATUS.md](docs/development/IMPLEMENTATION_STATUS.md) for detailed status.
 
 ## Purpose
@@ -324,17 +322,46 @@ Core dependencies:
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for detailed feature roadmap and timelines.
+### Version 2.0 (In Progress)
+- [x] Provider abstraction (OpenAI + Azure)
+- [x] Storage abstraction (Local + Blob)
+- [x] Queue system (SQLite + Service Bus)
+- [x] Cost estimation and controls
+- [x] Configuration management
+- [ ] CLI integration with new architecture
+- [ ] Worker process implementation
+- [ ] Web interface (Flask + templates)
+- [ ] REST API endpoints
+- [ ] Real provider integration tests
 
-**Current Focus (v2.0):**
-- Completing CLI integration with new modular architecture
-- Worker process for queue-based job execution  
-- Real provider integration tests with cost controls
-- Web interface foundation
+### Version 2.1 (Planned)
+- [ ] Azure deployment guides
+- [ ] Docker containerization
+- [ ] Kubernetes manifests
+- [ ] Authentication and authorization
+- [ ] Multi-tenancy support
+- [ ] Usage analytics dashboard
+- [ ] PDF output support
 
-**Next (v2.1):** Docker deployment, REST API, Azure deployment guides
+### Version 2.2 (Future)
+- [ ] Multi-user web interface
+- [ ] Real-time job monitoring
+- [ ] Advanced queue management UI
+- [ ] Cost analytics and reporting
+- [ ] Custom output templates
+- [ ] Webhook integrations
+- [ ] API rate limiting
+- [ ] Job scheduling (cron-style)
 
-**Future (v2.2+):** Multi-tenancy, advanced analytics, enterprise features
+### Version 3.0 (Vision)
+- [ ] Multi-region deployment
+- [ ] High availability configuration
+- [ ] Advanced caching strategies
+- [ ] Result deduplication
+- [ ] Machine learning cost prediction
+- [ ] Automated report quality scoring
+- [ ] Enterprise SSO integration
+- [ ] Advanced audit logging
 
 ## Testing
 
