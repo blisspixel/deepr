@@ -1,0 +1,7 @@
+# CLI-specific dependencies
+-r base.txt
+
+colorama>=0.4.6
+python-docx>=1.1.0
+docx2pdf>=0.1.8
+pytz>=2024.1

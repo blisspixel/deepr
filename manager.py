@@ -1,3 +1,16 @@
+"""
+DEPRECATED - LEGACY VERSION 1.x
+
+This file is preserved for backward compatibility only.
+It will be removed in version 3.0.
+
+For NEW CODE, use:
+    from deepr.core import JobManager
+    from deepr.queue import SQLiteQueue
+
+See: docs/migration-guide.md
+"""
+
 import os
 import json
 import time
