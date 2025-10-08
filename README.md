@@ -66,7 +66,7 @@ deepr prep execute   # Submit all jobs
 ```
 
 How it works:
-- Agentic planner (GPT-4) reasons about information needs and dependencies
+- Agentic planner (GPT-5) reasons about information needs and dependencies
 - Context chaining: Phase 2 prompts explicitly reference Phase 1 findings
 - Context summarization: Cuts token usage ~70% while preserving key information
 - Smart task mix: Balances documentation (factual gathering) vs analysis (synthesis)
@@ -81,7 +81,7 @@ Single Job:
 User → SQLite Queue → Worker polls OpenAI → Result saved as markdown
 
 Multi-Phase Campaign:
-User → GPT-4 Planner → Research Plan (with dependencies)
+User → GPT-5 Planner → Research Plan (with dependencies)
          ↓
      Phase 1 (parallel execution)
          ↓ [inject summarized results as context]

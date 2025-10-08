@@ -26,7 +26,7 @@ class ContextBuilder:
         """
         Summarize a research report for use as context.
 
-        Uses GPT-4 (cheap, fast) to extract key findings.
+        Uses GPT-5-mini (fast, cheap reasoning model) to extract key findings.
 
         Args:
             report_content: Full research report (could be 10+ pages)
@@ -54,10 +54,10 @@ Research Report:
 Summary (bullet list, ~{target_words} words):"""
 
         response = self.client.chat.completions.create(
-            model="gpt-4",  # Fast and cheap for summarization
+            model="gpt-5-mini",  # Fast and cheap reasoning model for summarization
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,  # Lower temp for factual extraction
-            max_tokens=max_tokens + 100,  # Allow some buffer
+            max_completion_tokens=max_tokens + 100,  # Allow some buffer
         )
 
         return response.choices[0].message.content.strip()
