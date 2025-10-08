@@ -48,12 +48,12 @@ class CostEstimator:
             "input": 1.10,   # $1.10 per 1M input tokens
             "output": 4.40,  # $4.40 per 1M output tokens
         },
-        "gpt-4": {
-            "input": 0.03,
-            "output": 0.06,
+        "gpt-5": {
+            "input": 0.05,   # GPT-5 reasoning model
+            "output": 0.15,
         },
-        "gpt-4-turbo": {
-            "input": 0.01,
+        "gpt-5-mini": {
+            "input": 0.01,   # GPT-5-mini (fast reasoning)
             "output": 0.03,
         },
     }
