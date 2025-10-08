@@ -40,6 +40,31 @@ class UsageStats:
     output_tokens: int = 0
     total_tokens: int = 0
     reasoning_tokens: int = 0
+    cost: float = 0.0  # Calculated cost in USD
+
+    @classmethod
+    def calculate_cost(cls, input_tokens: int, output_tokens: int, model: str) -> float:
+        """
+        Calculate cost based on token usage and model.
+
+        Pricing (as of 2025):
+        - o3-deep-research: $11/M input, $44/M output
+        - o4-mini-deep-research: $1.10/M input, $4.40/M output
+        """
+        pricing = {
+            "o3-deep-research": {"input": 11.0, "output": 44.0},
+            "o3-deep-research-2025-06-26": {"input": 11.0, "output": 44.0},
+            "o4-mini-deep-research": {"input": 1.10, "output": 4.40},
+            "o4-mini-deep-research-2025-06-26": {"input": 1.10, "output": 4.40},
+        }
+
+        # Default to o4-mini pricing if model not found
+        prices = pricing.get(model, pricing["o4-mini-deep-research"])
+
+        input_cost = (input_tokens / 1_000_000) * prices["input"]
+        output_cost = (output_tokens / 1_000_000) * prices["output"]
+
+        return round(input_cost + output_cost, 6)
 
 
 @dataclass

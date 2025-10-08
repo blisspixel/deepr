@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+"""Run Deepr API server."""
+
+import os
+import sys
+import logging
+from deepr.api.app import create_app, socketio
+
+
+def main():
+    """Start the API server."""
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
+    # Create app
+    app = create_app()
+
+    # Get config from environment
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = int(os.getenv("API_PORT", 5000))
+    debug = os.getenv("FLASK_ENV", "production") == "development"
+
+    print(f"""
+===============================================================================
+
+    ########   ##########  ##########  ########      #######
+    ##    ##   ##          ##          ##     ##     ##    ##
+    ##     ##  ########    ########    ########      ########
+    ##    ##   ##          ##          ##            ##    ##
+    ########   ##########  ##########  ##            ##     ##
+
+                         API Server
+              Deepr Research Automation Platform
+
+===============================================================================
+
+Starting server on {host}:{port}
+Debug mode: {debug}
+API endpoints: http://{host}:{port}/api/v1
+WebSocket: http://{host}:{port}
+Health check: http://{host}:{port}/health
+
+Press Ctrl+C to stop
+    """)
+
+    # Run with SocketIO
+    try:
+        socketio.run(
+            app,
+            host=host,
+            port=port,
+            debug=debug,
+            allow_unsafe_werkzeug=True  # For development only
+        )
+    except KeyboardInterrupt:
+        print("\n\nShutting down API server...")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

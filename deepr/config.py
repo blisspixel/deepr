@@ -4,6 +4,10 @@ import os
 from typing import Optional, Literal, Dict
 from pydantic import BaseModel, Field, validator
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 
 class ProviderConfig(BaseModel):
@@ -67,7 +71,7 @@ class StorageConfig(BaseModel):
     )
 
     # Local Storage Configuration
-    local_path: str = Field(default="./reports", description="Local storage directory path")
+    local_path: str = Field(default="data/reports", description="Local storage directory path")
 
     # Azure Blob Storage Configuration
     azure_connection_string: Optional[str] = Field(
@@ -160,10 +164,10 @@ class DatabaseConfig(BaseModel):
     )
 
     # JSONL Configuration
-    jsonl_path: str = Field(default="logs/job_log.jsonl", description="Path to JSONL log file")
+    jsonl_path: str = Field(default="data/logs/job_log.jsonl", description="Path to JSONL log file")
 
     # SQLite Configuration
-    sqlite_path: str = Field(default="logs/jobs.db", description="Path to SQLite database")
+    sqlite_path: str = Field(default="data/logs/jobs.db", description="Path to SQLite database")
 
     # Cosmos DB Configuration
     cosmosdb_endpoint: Optional[str] = Field(default=None, description="Cosmos DB endpoint")
@@ -229,7 +233,7 @@ class AppConfig(BaseModel):
 
         storage = StorageConfig(
             type=storage_type,
-            local_path=os.getenv("DEEPR_REPORTS_PATH", "./reports"),
+            local_path=os.getenv("DEEPR_REPORTS_PATH", "data/reports"),
             azure_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
             azure_account_url=os.getenv("AZURE_STORAGE_ACCOUNT_URL"),
             azure_container=os.getenv("AZURE_STORAGE_CONTAINER", "reports"),
@@ -255,7 +259,7 @@ class AppConfig(BaseModel):
 
         database = DatabaseConfig(
             type=os.getenv("DEEPR_DATABASE_TYPE", "jsonl"),
-            jsonl_path=os.getenv("DEEPR_JSONL_PATH", "logs/job_log.jsonl"),
+            jsonl_path=os.getenv("DEEPR_JSONL_PATH", "data/logs/job_log.jsonl"),
         )
 
         return cls(
@@ -341,3 +345,26 @@ class AppConfig(BaseModel):
 
         env_prefix = "DEEPR_"
         case_sensitive = False
+
+
+def load_config() -> Dict:
+    """
+    Load configuration as a simple dictionary.
+
+    Returns:
+        Dictionary with configuration values
+    """
+    config = AppConfig.from_env()
+
+    return {
+        "provider": config.provider.type,
+        "api_key": config.provider.openai_api_key if config.provider.type == "openai" else config.provider.azure_api_key,
+        "azure_endpoint": config.provider.azure_endpoint,
+        "queue": "local",  # Default to local queue
+        "queue_db_path": "queue/research_queue.db",
+        "storage": config.storage.type,
+        "results_dir": config.storage.local_path,
+        "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "10.0")),
+        "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "100.0")),
+        "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "1000.0")),
+    }
