@@ -1,7 +1,8 @@
-# Environment
+# Environment (.env.example should be tracked as template)
 .env
 .env.local
 .env.*.local
+.env.azure
 
 # Python
 __pycache__/
@@ -26,15 +27,34 @@ wheels/
 *.egg
 MANIFEST
 
-# Generated/Runtime files
+# Generated/Runtime files (now in data/)
 last_response.json
 *.deprecated
-logs/
-reports/
-queue/
+data/logs/
+data/reports/
+data/queue/
+data/results/
+data/uploads/
+data/*.db
+data/*.db-journal
 backups/
-*.db
-*.db-journal
+
+# Logs (all locations)
+logs/
+*.log
+
+# Queue databases (runtime - all locations)
+queue/*.db
+queue/*.db-journal
+**/*.db-journal
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+tests/*.db
+tests/**/*.db
 
 # IDE
 .vscode/
@@ -43,12 +63,6 @@ backups/
 *.swo
 *~
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
 # OS
 Thumbs.db
 .DS_Store
@@ -56,11 +70,13 @@ Thumbs.db
 # Ngrok
 ngrok.exe
 ngrok
+bin/ngrok.exe
 
-# Runtime directories
-results/
-uploads/
+# Frontend (React + Vite)
+deepr/web/frontend/node_modules/
+deepr/web/frontend/dist/
+deepr/web/frontend/.vite/
 
-# Azure environment
-.env.azure
-/.claude
+# Claude/AI session data
+.claude/
+.deepr/

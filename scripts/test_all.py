@@ -16,6 +16,10 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Add parent directory to path to import deepr modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from deepr.branding import print_banner
+
 
 def run_command(cmd, description):
     """Run command and report results."""
@@ -39,10 +43,10 @@ def run_command(cmd, description):
 
 def main():
     """Run all test suites."""
-    print("="*60)
-    print("Deepr Local Test Validation")
-    print("="*60)
-    print("\nRunning all tests without API calls...")
+    print_banner("setup")
+    print("Test Validation")
+    print()
+    print("Running all tests without API calls...")
 
     results = {}
 

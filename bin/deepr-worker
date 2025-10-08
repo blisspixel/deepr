@@ -1,0 +1,52 @@
+#!/usr/bin/env python
+"""Run Deepr worker process."""
+
+import os
+import sys
+import asyncio
+import logging
+from deepr.worker.poller import run_poller
+
+
+def main():
+    """Start the worker process."""
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
+    # Get config from environment
+    poll_interval = int(os.getenv("DEEPR_POLL_INTERVAL", 30))
+
+    print(f"""
+===============================================================================
+
+    ########   ##########  ##########  ########      #######
+    ##    ##   ##          ##          ##     ##     ##    ##
+    ##     ##  ########    ########    ########      ########
+    ##    ##   ##          ##          ##            ##    ##
+    ########   ##########  ##########  ##            ##     ##
+
+                         Worker Process
+              Polling for job status updates
+
+===============================================================================
+
+Poll interval: {poll_interval} seconds
+Queue: Local SQLite
+Provider: {os.getenv('DEEPR_PROVIDER', 'openai')}
+
+Press Ctrl+C to stop
+    """)
+
+    # Run poller
+    try:
+        asyncio.run(run_poller(poll_interval=poll_interval))
+    except KeyboardInterrupt:
+        print("\n\nShutting down worker...")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

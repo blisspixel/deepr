@@ -1,233 +1,355 @@
-# Deepr Roadmap
+# Deepr Development Roadmap
 
-**Status:** This roadmap is aspirational and represents the vision for Deepr's evolution from v1.x to v3.0.
+## Vision: Agentic Research Automation
 
-**Current Reality:** v1.x (deepr.py, manager.py) is functional but monolithic. v2.x architecture is partially complete with core abstractions in place but not yet integrated with CLI or worker processes.
+Deepr is an intelligent research system that:
+- Reasons about information needs
+- Plans multi-phase research campaigns
+- Sequences tasks based on dependencies
+- Chains context across research phases
+- Synthesizes insights that span multiple findings
 
-This roadmap outlines planned features and architectural improvements for Deepr. The project is transitioning from a monolithic v1.x implementation to a fully modular v2.x architecture with enterprise-scale capabilities.
+This creates analysis greater than the sum of its parts.
 
-## Version 2.0 (Current - In Progress)
+## Current Status
 
-**Goal:** Complete modular architecture with local and cloud deployment options
+### v2.0: Core Infrastructure (Complete)
 
-### Core Architecture
-- [x] Provider abstraction layer (OpenAI + Azure)
-- [x] Storage abstraction (local filesystem + Azure Blob)
-- [x] Queue system (SQLite local + Azure Service Bus stubs)
-- [x] Cost estimation and control system
-- [x] Configuration management with environment variables
-- [x] Test infrastructure (30 passing tests, zero API costs)
+Working now:
+- SQLite queue with all operations
+- Local filesystem storage
+- OpenAI Deep Research integration (validated with live jobs)
+- Worker: Background polling with stuck job detection (auto-cancels queued >10min)
+- Cost tracking from token usage
+- CLI: submit, wait, status, result, cancel, queue list/stats
+- Web UI: ChatGPT-style interface (React + Vite + TailwindCSS)
+  - Job queue with real-time updates
+  - Cost analytics dashboard with budget tracking
+  - Submit research jobs
+  - Minimal monochrome design (no distracting colors)
+- API: Flask REST endpoints for web UI
+- Results saved as markdown with inline citations
 
-### CLI and Integration
-- [ ] Wire CLI to new modular components
-- [ ] Implement worker process for queue processing
-- [ ] Background job execution
-- [ ] Job status monitoring
-- [ ] Result retrieval and formatting
+You can submit research jobs via CLI or web UI, worker auto-polls OpenAI and downloads results when complete.
 
-### API Alignment
-- [ ] Full compatibility with OpenAI Deep Research API
-- [ ] Background mode support with webhooks
-- [ ] Prompt clarification workflow
-- [ ] Prompt enrichment/rewriting
-- [ ] MCP (Model Context Protocol) server integration
-- [ ] Vector store and file search support
-- [ ] Code interpreter integration
-- [ ] Inline citations and annotations
+### v2.1: Agentic Planning (Active Development)
 
-### Testing
-- [ ] Provider integration tests (with cheap prompts)
-- [ ] Azure Service Bus integration tests
-- [ ] End-to-end workflow tests
-- [ ] Performance benchmarks
+The innovation: Multi-phase research with intelligent task mix and context chaining.
 
-### Documentation
-- [ ] Complete API documentation
-- [ ] CLI usage guide
-- [ ] Configuration reference
-- [ ] Troubleshooting guide
+Traditional approach: Isolated reports, manual synthesis.
 
-**Target:** Q2 2025
+Our approach:
+- Intelligent planner reasons about information architecture
+- Generates smart mix of documentation and analysis tasks
+- Identifies research dependencies
+- Sequences tasks to build context
+- Injects prior findings into later research
+- Synthesizes across all phases
+
+**Smart Task Mix**
+
+The planner distinguishes between:
+
+Documentation tasks (gather facts):
+- "Document latest OpenAI Deep Research API pricing and features (2025)"
+- "Compile comprehensive list of Python async/await patterns"
+- Purpose: Create factual reference materials
+- Cheaper, faster (factual gathering)
+
+Analysis tasks (generate insights):
+- "Analyze trade-offs between SQLite and PostgreSQL for queue backend"
+- "Evaluate cost-effectiveness of different LLM providers for batch processing"
+- Purpose: Synthesize information, make recommendations
+- More expensive, benefits from having docs as context
+
+Example:
+```
+User: "Analyze EV market"
+
+Planner generates:
+  Phase 1 (parallel):
+    - Document: Latest EV sales data and projections (2025)
+    - Document: Key players market share and financials
+    - Research: Technology landscape and trends
+
+  Phase 2 (uses Phase 1 context):
+    - Analysis: Competitive dynamics [feeds: market data + players]
+    - Analysis: Technology roadmap implications [feeds: tech landscape]
+
+  Phase 3 (uses all):
+    - Synthesis: Strategic implications [feeds: all findings]
+```
+
+**Cost-Effective Strategy (Research-Backed)**
+
+We used Deepr to research "best practices for context injection in multi-step LLM workflows" - cost $0.17, findings directly informed this design:
+
+- Phase 1: Mix of cheap documentation + foundational research
+- Phase 2: Analysis tasks USE summarized Phase 1 context (cuts token usage by ~70%)
+- Phase 3: Synthesis integrates facts AND insights
+- Explicit context references: "Using the market data from Phase 1..."
+- Skip obvious information or things we already have
+- Reduces context dilution (focused context improves quality)
+- Balance comprehensive coverage with cost control
+
+Key insight: Summarization saves cost AND improves quality by preventing context dilution where key instructions get buried in irrelevant detail.
+
+Status now:
+- ResearchPlanner service (uses GPT-5)
+- ContextBuilder service (summarizes results for context injection)
+- BatchExecutor service (orchestrates multi-phase execution)
+- DocReviewer service (analyzes docs and identifies gaps)
+- CLI commands: plan, review, execute, **docs analyze** (NEW!)
+- Phase/dependency logic working
+- Context chaining implemented
+- Agentic doc analysis workflow complete
+
+**NEW: Agentic Documentation Analysis**
+
+`deepr docs analyze <path> <scenario>` - Fully agentic workflow:
+1. User points to ANY docs location
+2. Agent scans and analyzes with GPT-5
+3. Agent identifies gaps for the scenario
+4. Agent generates research plan
+5. User approves
+6. Agent executes and saves results
+
+This is properly dynamic - works anywhere, adapts to any scenario.
+
+We're dogfooding: Used Deepr to analyze its own docs, identified 8 gaps, queued 6 research jobs. Cost: $3-12, Time: 60-120 minutes.
+
+## Building Next: Intelligent Doc Reuse & Planner Enhancements
+
+Now that context chaining is implemented, focus is on making the planner smarter about task mix and avoiding redundant research.
+
+**Doc Reuse Intelligence** (Priority 1)
+
+Before generating a plan, use GPT-5 to check existing docs:
+- Scan docs/ directory for relevant research
+- Ask GPT-5: "Is this existing doc sufficient for the scenario? Or do we need updated/better research?"
+- If sufficient: Include in context, skip redundant task
+- If outdated: Queue new research with clear prompt (e.g., "Update X with 2025 data")
+- If insufficient: Queue deeper research with specific gaps to address
+
+Implementation:
+```python
+class DocReviewer:
+    def check_existing_docs(self, scenario: str) -> List[Dict]:
+        # Scan docs/research and documentation/
+        # Use GPT-5 to evaluate relevance and sufficiency
+        # Return: [{"path": ..., "relevant": bool, "gaps": str}]
+```
+
+Benefits:
+- Save money by reusing existing research
+- Update only what's outdated
+- Build on prior work instead of starting from scratch
+
+**Planner Enhancements** (Priority 2)
+
+Task mix improvements (already implemented):
+- Distinguish documentation vs analysis tasks
+- Cost-awareness (docs ~30% cheaper)
+- Different prompts for each type
+
+Additional needed:
+- Skip obvious/low-value tasks
+- Better dependency reasoning
+- Cost-benefit analysis per task
+
+**Market Context** (Based on competitive analysis)
+
+Provider landscape:
+- **OpenAI**: Market leader, turnkey deep research API (our current focus)
+- **Azure OpenAI**: Enterprise version with Bing Search integration
+- **Anthropic**: SDK approach with Extended Thinking, more control
+- **Google**: Batch API for high-throughput parallel tasks (different use case)
+- **Perplexity**: Real-time search API (different use case)
+
+**Our Position: Provider-Agnostic Platform**
+
+Deepr is NOT a wrapper for one API - it's a research automation platform that works with multiple providers.
+
+Current status:
+- OpenAI fully implemented (most mature offering)
+- Azure OpenAI supported (same backend)
+- Anthropic planned (SDK integration)
+- Architecture designed for multi-provider support
+
+Our unique value:
+- Not just "one prompt → one report" (that's commodity)
+- Intelligent multi-phase planning with context chaining
+- Smart mix of documentation + analysis
+- Doc reuse to minimize cost
+- Provider-agnostic (use best provider for each task)
+- All via simple CLI (no complex orchestration needed)
+
+Long-term vision: When you have multiple provider keys configured, Deepr intelligently routes each task to the best provider:
+- Quick documentation gathering → o4-mini (fast, cheap)
+- Deep analysis → o3 or Claude with Extended Thinking (thorough)
+- Synthesis → Best model available
+- Auto-fallback if one provider is down
+
+Testing:
+- Generate plans for various scenarios
+- Validate doc reuse logic works
+- Measure cost savings from reusing docs
+- Use Deepr itself to research optimal strategies
+
+## Future: Multi-Provider Support
+
+**v2.2: Additional Providers**
+
+Implement support for alternative providers:
+
+Anthropic integration:
+- Claude Agent SDK adapter
+- Extended Thinking for complex analysis
+- Custom tool support
+- Developer-managed agentic loop
+
+Provider routing logic:
+- Auto-select best provider per task type
+- Consider: cost, speed, quality, availability
+- Fallback if provider unavailable
+- User override: `--provider anthropic`
+
+Example intelligent routing:
+```python
+# Documentation task (cheap, fast)
+if task.type == "documentation":
+    provider = "openai-o4-mini"  # Fastest, cheapest
+
+# Deep analysis (thorough)
+elif task.type == "analysis" and task.complexity == "high":
+    provider = "anthropic-claude-extended"  # Extended Thinking
+
+# Synthesis (integrate findings)
+elif task.type == "synthesis":
+    provider = "openai-o3"  # Best synthesis
+```
+
+Configuration:
+```bash
+# User provides multiple keys
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+
+# Deepr automatically uses best provider per task
+deepr prep execute  # Auto-routes each task
+```
+
+**v2.3: Platform Maturity**
+
+CLI improvements:
+- Output formatting options (JSON, markdown)
+- Better progress indicators
+
+Worker improvements:
+- Service setup (systemd/Windows)
+- Health checks
+- Auto-restart
+
+Web UI improvements:
+- Results library (browse completed research)
+- Job detail pages with full output
+- Real-time job progress indicators
+- Export results (PDF, DOCX)
+
+Templates:
+- Pre-built patterns (market analysis, due diligence, competitor analysis)
+- Custom template creation
+- Template library
+
+Cost management:
+- Budget tracking and alerts
+- Usage analytics
+- Per-provider cost comparison
+
+## Non-Goals
+
+Explicitly NOT building:
+- Chat interface (use regular GPT)
+- Real-time responses (deep research takes minutes by design)
+- Sub-$1 research (comprehensive research costs money)
+- Mobile apps (CLI/web sufficient)
+- Complex export formats (markdown is clean and simple)
+- Features that might not work reliably
+- Vendor lock-in or favoring one provider over another
+
+## Philosophy
+
+Every feature should:
+- Support long-running research workflows
+- Build context across research phases
+- Synthesize insights from multiple sources
+- Save users from manual integration work
+- Work across providers (platform, not wrapper)
+
+Focus on:
+- Intelligence layer (planning, sequencing, synthesis, routing)
+- Clean, simple outputs (markdown)
+- Reliable execution
+- Cost transparency
+- Provider flexibility
+
+Not on:
+- Complex formatting that might break
+- Premature optimization
+- Features without clear value
+- Vendor lock-in
+
+## The Core Insight
+
+Most AI tools give answers. Deepr gives understanding.
+
+Difference:
+- Answers are isolated facts
+- Understanding comes from seeing connections
+- Connections emerge from context chaining
+- Context chaining requires intelligent sequencing
+
+Agentic planning is profound because it automates research strategy, not just research execution.
+
+## Dogfooding
+
+We use Deepr to build Deepr. When we hit implementation questions:
+- Formulate research question
+- Submit to Deepr
+- Get comprehensive answer with citations
+- Implement based on findings
+- Document the research
+
+This validates the tool while generating implementation guidance.
+
+Recent example: "Research best practices for context injection in multi-step LLM workflows"
+- Cost: $0.17, Time: 6 minutes, Tokens: 94K
+- Result: 15KB comprehensive report with inline citations
+- Key findings: Summarization cuts tokens by ~70%, prevents context dilution, improves quality
+- Direct impact: Validated our ContextBuilder design, informed Phase 2 prompt engineering
+- ROI: Implementation guidance that would have taken hours of manual research
+
+This is proper dogfooding - using Deepr to research how to build Deepr's core features.
+
+## Contributing
+
+High-value areas:
+- Context chaining logic
+- Synthesis prompts (integrating findings)
+- Cost optimization
+- Template patterns (proven research strategies)
+
+Most impactful work is on intelligence layer, not infrastructure.
 
 ---
 
-## Version 2.1 (Planned)
+**Current focus:**
+- v2.1: Context chaining with smart task mix and doc reuse
+- OpenAI as primary provider (most mature)
+- Architecture designed for multi-provider support
 
-**Goal:** Production deployment capabilities and web interface
+**Future focus:**
+- v2.2: Add Anthropic provider with intelligent routing
+- v2.3: Platform maturity (templates, cost management, monitoring)
 
-### Web Application
-- [ ] Flask-based web interface
-- [ ] Job submission UI
-- [ ] Queue visualization
-- [ ] Real-time status updates
-- [ ] Result browsing and download
-- [ ] Cost tracking dashboard
-
-### REST API
-- [ ] RESTful API endpoints
-- [ ] API authentication (API keys)
-- [ ] Rate limiting
-- [ ] OpenAPI/Swagger documentation
-- [ ] Webhook configuration
-
-### Deployment
-- [ ] Docker containerization
-- [ ] Docker Compose for local deployment
-- [ ] Azure deployment guide
-  - App Service configuration
-  - Blob Storage setup
-  - Service Bus configuration
-  - Identity and access management
-- [ ] Environment-specific configs
-- [ ] Health check endpoints
-- [ ] Logging and monitoring setup
-
-### Output Enhancements
-- [ ] PDF generation
-- [ ] Custom templates
-- [ ] Improved citation formatting
-- [ ] Export options (CSV for metadata)
-
-**Target:** Q3 2025
-
----
-
-## Version 2.2 (Future)
-
-**Goal:** Enterprise features and advanced capabilities
-
-### Multi-Tenancy
-- [ ] Organization support
-- [ ] User management
-- [ ] Role-based access control (RBAC)
-- [ ] Resource quotas per tenant
-- [ ] Isolated storage per tenant
-
-### Advanced Queue Management
-- [ ] Priority queue UI
-- [ ] Job scheduling (cron-style)
-- [ ] Job dependencies
-- [ ] Retry policies
-- [ ] Dead letter queue handling
-
-### Analytics and Reporting
-- [ ] Usage analytics dashboard
-- [ ] Cost analytics and forecasting
-- [ ] Performance metrics
-- [ ] Custom reports
-- [ ] Data export capabilities
-
-### Integrations
-- [ ] Slack notifications
-- [ ] Email notifications
-- [ ] Microsoft Teams integration
-- [ ] Zapier/Make.com connectors
-- [ ] Custom webhook endpoints
-
-### Developer Experience
-- [ ] Python SDK
-- [ ] JavaScript/TypeScript SDK
-- [ ] CLI plugins system
-- [ ] VS Code extension
-
-**Target:** Q4 2025
-
----
-
-## Version 3.0 (Vision)
-
-**Goal:** Large-scale enterprise deployment and AI enhancements
-
-### High Availability
-- [ ] Multi-region deployment
-- [ ] Load balancing
-- [ ] Database replication
-- [ ] Failover mechanisms
-- [ ] Disaster recovery
-
-### Performance Optimization
-- [ ] Result caching
-- [ ] Query deduplication
-- [ ] Prompt similarity detection
-- [ ] Incremental research updates
-- [ ] Batch optimization
-
-### AI Enhancements
-- [ ] ML-based cost prediction
-- [ ] Automatic prompt optimization
-- [ ] Research quality scoring
-- [ ] Automated result summarization
-- [ ] Topic clustering and insights
-
-### Enterprise Integration
-- [ ] SSO (SAML, OAuth, Azure AD)
-- [ ] LDAP/Active Directory integration
-- [ ] Audit logging and compliance
-- [ ] SOC 2 compliance features
-- [ ] GDPR data handling
-
-### Advanced Features
-- [ ] Multi-model orchestration (o3 + o4-mini)
-- [ ] Research collaboration workflows
-- [ ] Version control for research
-- [ ] Research lineage tracking
-- [ ] Competitive research pipelines
-
-**Target:** 2026
-
----
-
-## Ongoing Priorities
-
-### Platform Compatibility
-- Windows and Linux first-class support
-- PowerShell and Bash scripts for all operations
-- Cross-platform Python tooling
-- Docker support for both platforms
-
-### Cost Management
-- Aggressive cost estimation
-- Budget alerts
-- Auto-stop on budget limits
-- Cost optimization recommendations
-- Cheap test modes
-
-### Developer Experience
-- Comprehensive documentation
-- Example workflows
-- Video tutorials
-- Community templates
-- Best practices guides
-
-### Security
-- API key rotation
-- Secrets management
-- Encryption at rest
-- Encryption in transit
-- Vulnerability scanning
-
----
-
-## How to Contribute
-
-See development priorities in [docs/development/IMPLEMENTATION_STATUS.md](docs/development/IMPLEMENTATION_STATUS.md)
-
-**Get involved:**
-1. Check GitHub Issues for tasks
-2. Review the architecture in [docs/development/architecture-vision.md](docs/development/architecture-vision.md)
-3. Run local tests: `python -m pytest tests/unit/ -v`
-4. Submit pull requests with tests
-
----
-
-## Feature Requests
-
-Have an idea? Open an issue on GitHub with:
-- Use case description
-- Expected behavior
-- Why it matters
-- Any implementation ideas
-
----
-
-**Last Updated:** 2025-10-07
+**Philosophy:** Research automation platform, not vendor wrapper. Best provider for each task, no lock-in.

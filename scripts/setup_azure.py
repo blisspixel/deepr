@@ -15,6 +15,10 @@ import os
 from pathlib import Path
 import json
 
+# Add parent directory to path to import deepr modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from deepr.branding import print_banner
+
 
 def check_azure_cli():
     """Check if Azure CLI is installed and user is logged in."""
@@ -275,6 +279,9 @@ DEEPR_ENABLE_WEB_SEARCH=true
 
 def main():
     """Run Azure setup."""
+    print_banner("setup")
+    print()
+
     import argparse
 
     parser = argparse.ArgumentParser(

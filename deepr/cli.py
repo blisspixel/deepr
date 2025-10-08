@@ -15,6 +15,7 @@ from .storage import create_storage
 from .queue import create_queue
 from .core.costs import CostEstimator, CostController, CHEAP_TEST_PROMPTS
 from .queue.base import ResearchJob
+from .branding import print_banner, print_section_header
 
 
 class DeeprCLI:
@@ -61,9 +62,8 @@ class DeeprCLI:
 
     async def status(self):
         """Display system status and configuration."""
-        print("Deepr v2.x System Status")
-        print("=" * 60)
-        print()
+        print_banner("main")
+        print_section_header("System Status")
         print(f"Provider:      {type(self.provider).__name__}")
         print(f"Storage:       {type(self.storage).__name__}")
         print(f"Queue:         {type(self.queue).__name__}")
@@ -247,8 +247,12 @@ class DeeprCLI:
 
 def main():
     """Main CLI entry point."""
+    # Show banner on help or no command
+    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help']):
+        print_banner("main")
+
     parser = argparse.ArgumentParser(
-        description="Deepr v2 - Deep Research Automation (Preview)",
+        description="Deepr v2 - Deep Research Automation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 

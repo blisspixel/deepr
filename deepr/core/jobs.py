@@ -33,7 +33,7 @@ class JobManager:
     - CosmosDB: Azure Cosmos DB (future)
     """
 
-    def __init__(self, backend_type: str = "jsonl", log_path: str = "logs/job_log.jsonl"):
+    def __init__(self, backend_type: str = "jsonl", log_path: str = "data/logs/job_log.jsonl"):
         """
         Initialize job manager.
 
