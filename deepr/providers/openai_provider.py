@@ -115,11 +115,16 @@ class OpenAIProvider(DeepResearchProvider):
             # Parse usage stats
             usage = None
             if hasattr(response, "usage") and response.usage:
+                input_tokens = getattr(response.usage, "input_tokens", 0)
+                output_tokens = getattr(response.usage, "output_tokens", 0)
+                model = getattr(response, "model", "o4-mini-deep-research-2025-06-26")
+
                 usage = UsageStats(
-                    input_tokens=getattr(response.usage, "input_tokens", 0),
-                    output_tokens=getattr(response.usage, "output_tokens", 0),
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                     total_tokens=getattr(response.usage, "total_tokens", 0),
                     reasoning_tokens=getattr(response.usage, "reasoning_tokens", 0),
+                    cost=UsageStats.calculate_cost(input_tokens, output_tokens, model),
                 )
 
             # Parse output
@@ -132,7 +137,7 @@ class OpenAIProvider(DeepResearchProvider):
                             {"type": item.type, "text": getattr(item, "text", "")}
                             for item in block.content
                         ]
-                        if hasattr(block, "content")
+                        if hasattr(block, "content") and block.content
                         else [],
                     }
                     for block in response.output

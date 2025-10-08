@@ -1,0 +1,536 @@
+Deep Research tool (preview)
+07/10/2025
+ Note
+
+The o3-deep-research model is available for use only with the Deep Research tool. It is not available in the Azure OpenAI Chat Completions and Responses APIs.
+The parent AI Foundry project resource and the contained o3-deep-research model and GPT models must exist in the same Azure subscription and region. Supported regions are West US and Norway East.
+The Deep Research tool in the Azure AI Foundry Agent Service enables you to integrate a web-based research capability into your systems. The Deep Research capability is a specialized AI capability designed to perform in-depth, multi-step research using data from the public web.
+
+Usage support
+The deep research tool is a code-only release and available for use using the Agents Python SDK once you complete the Azure AI Foundry project setup described in the following sections.
+
+Azure AI foundry portal	Python SDK	C# SDK	JavaScript SDK	REST API	Basic agent setup	Standard agent setup
+✔️	✔️	✔️		✔️	✔️
+ Note
+
+Once the agent is running, some elements of the agent and thread runs can show up in the Azure AI Foundry user interface.
+
+Integrated with Grounding with Bing Search
+The deep research tool is tightly integrated with Grounding with Bing Search and only supports web-based research. Once the task is scoped, the agent using the Deep Research tool invokes the Grounding with Bing Search tool to gather a curated set of recent web data designed to provide the research model with a foundation of authoritative, high quality, up-to-date sources.
+
+ Important
+
+Your usage of Grounding with Bing Search can incur costs. See the pricing page for details.
+By creating and using a Grounding with Bing Search resource through code-first experience, such as Azure CLI, or deploying through deployment template, you agree to be bound by and comply with the terms available at https://www.microsoft.com/en-us/bing/apis/grounding-legal, which may be updated from time to time.
+When you use Grounding with Bing Search, your customer data is transferred outside of the Azure compliance boundary to the Grounding with Bing Search service. Grounding with Bing Search is not subject to the same data processing terms (including location of processing) and does not have the same compliance standards and certifications as the Azure AI Foundry Agent Service, as described in the Grounding with Bing Search Terms of Use. It is your responsibility to assess whether use of Grounding with Bing Search in your agent meets your needs and requirements.
+ Note
+
+When using Grounding with Bing Search, only the Bing search query, tool parameters, and your resource key are sent to Bing, and no end user-specific information is included. Your resource key is sent to Bing solely for billing and rate limiting purposes.
+
+Regions supported
+The Deep Research tool is supported in the following regions where the deep research model is available for deployment.
+
+West US	Norway East
+✔️	✔️
+GPT-4o model for clarifying research scope
+The Deep Research tool uses the gpt-4o model to clarify the question contained in the user prompt, gather additional context if needed, and precisely scope the research task. This model is deployed during configuration of the Deep Research tool.
+
+ Note
+
+Other GPT-series models including GPT-4o-mini and the GPT-4.1 series are not supported for scope clarification.
+
+Deep research model for analysis
+Model name: o3-deep-research
+Deployment type: Global Standard
+Available regions: West US, Norway East
+Quotas and limits: Enterprise: 30K RPS / 30M TPM, Default: 3K RPS / 3M TPM
+Research tool prerequisites
+If you already have access to the Azure OpenAI o3 model, no request is required to access the o3-deep-research model. Otherwise, fill out the request form.
+An Azure subscription with the ability to create AI Foundry project, Grounding with Bing Search, deep research model and GPT model resources Set up your environment in the West US and Norway East regions.
+Grounding with Bing Search tool resource for connecting to your Azure AI Foundry project.
+Model deployments for the following models
+o3-deep-research version 2025-06-26. This model is available in West US and Norway East.
+The gpt-4o model for intent clarification. Deploy this model in the same region.
+Research tool setup
+To use the Deep Research tool, you need to create the Azure AI Foundry type project, add your Grounding with Bing Search resource as a new connection, deploy the o3-deep-research-model, and deploy the selected Azure OpenAI GPT model.
+
+A diagram of the steps to set up the deep research tool.
+
+Navigate to the Azure AI Foundry portal and create a new project.
+
+A screenshot of the project creation button.
+
+Select the Azure AI Foundry project type.
+
+A screenshot of the Azure AI Foundry project type.
+
+Update the project name and description.
+
+A screenshot of an example project name.
+
+Navigate to the Models + Endpoints tab.
+
+A screenshot of the models and endpoints page.
+
+Deploy the o3-deep-research-model model.
+
+A screenshot of a deep research model deployment.
+
+Deploy an Azure OpenAI GPT model. For example gpt-4o.
+
+A screenshot of an Azure OpenAI GPT 4o model deployment.
+
+Connect a Grounding with Bing Search account.
+
+A screenshot showing a connection to a Grounding with Bing search account.
+
+Transparency, safety, and compliance
+The output is a structured report that documents not only the comprehensive answer, but also provides source citations and describes the model's reasoning path, including any clarifications requested during the session. This makes every answer fully auditable. See the Transparency note for Azure OpenAI for more information.
+
+How to use the Deep Research tool
+07/25/2025
+What would you like to see?
+ Note
+
+The o3-deep-research model is available for use only with the Deep Research tool. It is not available in the Azure OpenAI Chat Completions and Responses APIs.
+The parent AI Foundry project resource and the contained o3-deep-research model and GPT models must exist in the same Azure subscription and region. Supported regions are West US and Norway East.
+Use this article to learn how to use the Deep Research tool with the Azure AI Projects SDK, including code examples and setup instructions.
+
+Prerequisites
+The requirements in the Deep Research overview.
+
+Your Azure AI Foundry Project endpoint.
+
+You can find your endpoint in the overview for your project in the Azure AI Foundry portal, under Libraries > Azure AI Foundry.
+
+A screenshot showing the endpoint in the Azure AI Foundry portal.
+
+Save this endpoint to an environment variable named PROJECT_ENDPOINT.
+
+The deployment names of your o3-deep-research-model and gpt-4o models. You can find them in Models + Endpoints in the left navigation menu.
+
+A screenshot showing the model deployment screen the AI Foundry portal.
+
+Save the name of your o3-deep-research deployment name as an environment variable named DEEP_RESEARCH_MODEL_DEPLOYMENT_NAME and the gpt-4o deployment name as an environment variable named MODEL_DEPLOYMENT_NAME.
+
+ Note
+
+Other GPT-series models including GPT-4o-mini and the GPT-4.1 series are not supported for scope clarification.
+
+The name of your Grounding with Bing Search resource name. You can find it in the Azure AI Foundry portal by selecting Management center from the left navigation menu. Select Connected resources, then select your Grounding with Bing Search resource.
+
+A screenshot showing the Grounding with Bing Search resource name. 
+
+Copy the ID, and save it to an environment variable named AZURE_BING_CONECTION_ID.
+
+A screenshot showing the Grounding with Bing Search resource ID. 
+
+Save this endpoint to an environment variable named BING_RESOURCE_NAME.
+
+Create an agent with the Deep Research tool
+ Note
+
+You need the latest preview version of the @azure/ai-projects package.
+
+TypeScript
+
+Copy
+import type {
+  MessageTextContent,
+  ThreadMessage,
+  DeepResearchToolDefinition,
+  MessageTextUrlCitationAnnotation,
+} from "@azure/ai-agents";
+import { AgentsClient, isOutputOfType } from "@azure/ai-agents";
+import { DefaultAzureCredential } from "@azure/identity";
+
+import "dotenv/config";
+
+const projectEndpoint = process.env["PROJECT_ENDPOINT"] || "<project endpoint>";
+const modelDeploymentName = process.env["MODEL_DEPLOYMENT_NAME"] || "gpt-4o";
+const deepResearchModelDeploymentName =
+  process.env["DEEP_RESEARCH_MODEL_DEPLOYMENT_NAME"];
+const bingConnectionId = process.env["AZURE_BING_CONNECTION_ID"] || "<connection-id>";
+
+/**
+ * Fetches and prints new agent response from the thread
+ * @param threadId - The thread ID
+ * @param client - The AgentsClient instance
+ * @param lastMessageId - The ID of the last message processed
+ * @returns The ID of the newest message, or undefined if no new message
+ */
+async function fetchAndPrintNewAgentResponse(
+  threadId: string,
+  client: AgentsClient,
+  lastMessageId?: string,
+): Promise<string | undefined> {
+  const messages = client.messages.list(threadId);
+  let latestMessage: ThreadMessage | undefined;
+  for await (const msg of messages) {
+    if (msg.role === "assistant") {
+      latestMessage = msg;
+      break;
+    }
+  }
+
+  if (!latestMessage || latestMessage.id === lastMessageId) {
+    return lastMessageId;
+  }
+
+  console.log("\nAgent response:");
+
+  // Print text content
+  for (const content of latestMessage.content) {
+    if (isOutputOfType<MessageTextContent>(content, "text")) {
+      console.log(content.text.value);
+    }
+  }
+
+  const urlCitations = getUrlCitationsFromMessage(latestMessage);
+  if (urlCitations.length > 0) {
+    console.log("\nURL Citations:");
+    for (const citation of urlCitations) {
+      console.log(`URL Citations: [${citation.title}](${citation.url})`);
+    }
+  }
+
+  return latestMessage.id;
+}
+
+/**
+ * Extracts URL citations from a thread message
+ * @param message - The thread message
+ * @returns Array of URL citations
+ */
+function getUrlCitationsFromMessage(message: ThreadMessage): Array<{ title: string; url: string }> {
+  const citations: Array<{ title: string; url: string }> = [];
+
+  for (const content of message.content) {
+    if (isOutputOfType<MessageTextContent>(content, "text")) {
+      for (const annotation of content.text.annotations) {
+        if (isOutputOfType<MessageTextUrlCitationAnnotation>(annotation, "url_citation")) {
+          citations.push({
+            title: annotation.urlCitation.title || annotation.urlCitation.url,
+            url: annotation.urlCitation.url,
+          });
+        }
+      }
+    }
+  }
+
+  return citations;
+}
+
+/**
+ * Creates a research summary from the final message
+ * @param message - The thread message containing the research results
+ * @param filepath - The file path to write the summary to
+ */
+function createResearchSummary(message: ThreadMessage): void {
+  if (!message) {
+    console.log("No message content provided, cannot create research summary.");
+    return;
+  }
+
+  let content = "";
+
+  // Write text summary
+  const textSummaries: string[] = [];
+  for (const contentItem of message.content) {
+    if (isOutputOfType<MessageTextContent>(contentItem, "text")) {
+      textSummaries.push(contentItem.text.value.trim());
+    }
+  }
+  content += textSummaries.join("\n\n");
+
+  // Write unique URL citations, if present
+  const urlCitations = getUrlCitationsFromMessage(message);
+  if (urlCitations.length > 0) {
+    content += "\n\n## References\n";
+    const seenUrls = new Set<string>();
+    for (const citation of urlCitations) {
+      if (!seenUrls.has(citation.url)) {
+        content += `- [${citation.title}](${citation.url})\n`;
+        seenUrls.add(citation.url);
+      }
+    }
+  }
+
+  // writeFileSync(filepath, content, "utf-8");
+  console.log(`Research summary created:\n${content}`);
+  // console.log(`Research summary written to '${filepath}'.`);
+}
+
+export async function main(): Promise<void> {
+  // Create an Azure AI Client
+  const client = new AgentsClient(projectEndpoint, new DefaultAzureCredential());
+
+  // Create Deep Research tool definition
+  const deepResearchTool: DeepResearchToolDefinition = {
+    type: "deep_research",
+    deepResearch: {
+      deepResearchModel: deepResearchModelDeploymentName,
+      deepResearchBingGroundingConnections: [
+        {
+          connectionId: bingConnectionId,
+        },
+      ],
+    },
+  };
+
+  // Create agent with the Deep Research tool
+  const agent = await client.createAgent(modelDeploymentName, {
+    name: "my-agent",
+    instructions: "You are a helpful Agent that assists in researching scientific topics.",
+    tools: [deepResearchTool],
+  });
+  console.log(`Created agent, ID: ${agent.id}`);
+
+  // Create thread for communication
+  const thread = await client.threads.create();
+  console.log(`Created thread, ID: ${thread.id}`);
+
+  // Create message to thread
+  const message = await client.messages.create(
+    thread.id,
+    "user",
+    "Research the current scientific understanding of orca intelligence and communication, focusing on recent (preferably past 5 years) peer-reviewed studies, comparisons with other intelligent species such as dolphins or primates, specific cognitive abilities like problem-solving and social learning, and detailed analyses of vocal and non-vocal communication systems—please include notable authors or landmark papers if applicable.",
+  );
+  console.log(`Created message, ID: ${message.id}`);
+
+  console.log("Start processing the message... this may take a few minutes to finish. Be patient!");
+
+  // Create and poll the run
+  const run = await client.runs.create(thread.id, agent.id);
+  let lastMessageId: string | undefined;
+
+  // Poll the run status
+  let currentRun = run;
+  while (currentRun.status === "queued" || currentRun.status === "in_progress") {
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
+    currentRun = await client.runs.get(thread.id, run.id);
+
+    lastMessageId = await fetchAndPrintNewAgentResponse(thread.id, client, lastMessageId);
+    console.log(`Run status: ${currentRun.status}`);
+  }
+
+  console.log(`Run finished with status: ${currentRun.status}, ID: ${currentRun.id}`);
+
+  if (currentRun.status === "failed") {
+    console.log(`Run failed: ${currentRun.lastError}`);
+  }
+
+  // Fetch the final message from the agent and create a research summary
+  const messages = client.messages.list(thread.id, { order: "desc", limit: 10 });
+  let finalMessage: ThreadMessage | undefined;
+
+  for await (const msg of messages) {
+    if (msg.role === "assistant") {
+      finalMessage = msg;
+      break;
+    }
+  }
+
+  if (finalMessage) {
+    createResearchSummary(finalMessage);
+  }
+
+  // Clean-up and delete the agent once the run is finished
+  await client.deleteAgent(agent.id);
+  console.log("Deleted agent");
+}
+
+main().catch((err) => {
+  console.error("The sample encountered an error:", err);
+});
+
+How to use the Deep Research tool
+07/25/2025
+What would you like to see?
+ Note
+
+The o3-deep-research model is available for use only with the Deep Research tool. It is not available in the Azure OpenAI Chat Completions and Responses APIs.
+The parent AI Foundry project resource and the contained o3-deep-research model and GPT models must exist in the same Azure subscription and region. Supported regions are West US and Norway East.
+Use this article to learn how to use the Deep Research tool with the Azure AI Projects SDK, including code examples and setup instructions.
+
+Prerequisites
+The requirements in the Deep Research overview.
+
+Your Azure AI Foundry Project endpoint.
+
+You can find your endpoint in the overview for your project in the Azure AI Foundry portal, under Libraries > Azure AI Foundry.
+
+A screenshot showing the endpoint in the Azure AI Foundry portal.
+
+Save this endpoint to an environment variable named PROJECT_ENDPOINT.
+
+The deployment names of your o3-deep-research-model and gpt-4o models. You can find them in Models + Endpoints in the left navigation menu.
+
+A screenshot showing the model deployment screen the AI Foundry portal.
+
+Save the name of your o3-deep-research deployment name as an environment variable named DEEP_RESEARCH_MODEL_DEPLOYMENT_NAME and the gpt-4o deployment name as an environment variable named MODEL_DEPLOYMENT_NAME.
+
+ Note
+
+Other GPT-series models including GPT-4o-mini and the GPT-4.1 series are not supported for scope clarification.
+
+The name of your Grounding with Bing Search resource name. You can find it in the Azure AI Foundry portal by selecting Management center from the left navigation menu. Then select Connected resources.
+
+A screenshot showing the Grounding with Bing Search resource name. 
+
+Save this endpoint to an environment variable named BING_RESOURCE_NAME.
+
+Create an agent with the Deep Research tool
+The Deep Research tool requires the latest prerelease versions of the azure-ai-projects library. First we recommend creating a virtual environment to work in:
+
+Console
+
+Copy
+python -m venv env
+# after creating the virtual environment, activate it with:
+.\env\Scripts\activate
+You can install the package with the following command:
+
+Console
+
+Copy
+pip install --pre azure-ai-projects
+Python
+
+Copy
+import os, time
+from typing import Optional
+from azure.ai.projects import AIProjectClient
+from azure.identity import DefaultAzureCredential
+from azure.ai.agents import AgentsClient
+from azure.ai.agents.models import DeepResearchTool, MessageRole, ThreadMessage
+
+
+def fetch_and_print_new_agent_response(
+    thread_id: str,
+    agents_client: AgentsClient,
+    last_message_id: Optional[str] = None,
+) -> Optional[str]:
+    response = agents_client.messages.get_last_message_by_role(
+        thread_id=thread_id,
+        role=MessageRole.AGENT,
+    )
+    if not response or response.id == last_message_id:
+        return last_message_id  # No new content
+
+    print("\nAgent response:")
+    print("\n".join(t.text.value for t in response.text_messages))
+
+    for ann in response.url_citation_annotations:
+        print(f"URL Citation: [{ann.url_citation.title}]({ann.url_citation.url})")
+
+    return response.id
+
+
+def create_research_summary(
+        message : ThreadMessage,
+        filepath: str = "research_summary.md"
+) -> None:
+    if not message:
+        print("No message content provided, cannot create research summary.")
+        return
+
+    with open(filepath, "w", encoding="utf-8") as fp:
+        # Write text summary
+        text_summary = "\n\n".join([t.text.value.strip() for t in message.text_messages])
+        fp.write(text_summary)
+
+        # Write unique URL citations, if present
+        if message.url_citation_annotations:
+            fp.write("\n\n## References\n")
+            seen_urls = set()
+            for ann in message.url_citation_annotations:
+                url = ann.url_citation.url
+                title = ann.url_citation.title or url
+                if url not in seen_urls:
+                    fp.write(f"- [{title}]({url})\n")
+                    seen_urls.add(url)
+
+    print(f"Research summary written to '{filepath}'.")
+
+
+project_client = AIProjectClient(
+    endpoint=os.environ["PROJECT_ENDPOINT"],
+    credential=DefaultAzureCredential(),
+)
+
+conn_id = project_client.connections.get(name=os.environ["BING_RESOURCE_NAME"]).id
+
+
+# Initialize a Deep Research tool with Bing Connection ID and Deep Research model deployment name
+deep_research_tool = DeepResearchTool(
+    bing_grounding_connection_id=conn_id,
+    deep_research_model=os.environ["DEEP_RESEARCH_MODEL_DEPLOYMENT_NAME"],
+)
+
+# Create Agent with the Deep Research tool and process Agent run
+with project_client:
+
+    with project_client.agents as agents_client:
+
+        # Create a new agent that has the Deep Research tool attached.
+        # NOTE: To add Deep Research to an existing agent, fetch it with `get_agent(agent_id)` and then,
+        # update the agent with the Deep Research tool.
+        agent = agents_client.create_agent(
+            model=os.environ["MODEL_DEPLOYMENT_NAME"],
+            name="my-agent",
+            instructions="You are a helpful Agent that assists in researching scientific topics.",
+            tools=deep_research_tool.definitions,
+        )
+
+        # [END create_agent_with_deep_research_tool]
+        print(f"Created agent, ID: {agent.id}")
+
+        # Create thread for communication
+        thread = agents_client.threads.create()
+        print(f"Created thread, ID: {thread.id}")
+
+        # Create message to thread
+        message = agents_client.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=(
+                "Give me the latest research into quantum computing over the last year."
+            ),
+        )
+        print(f"Created message, ID: {message.id}")
+
+        print(f"Start processing the message... this may take a few minutes to finish. Be patient!")
+        # Poll the run as long as run status is queued or in progress
+        run = agents_client.runs.create(thread_id=thread.id, agent_id=agent.id)
+        last_message_id = None
+        while run.status in ("queued", "in_progress"):
+            time.sleep(1)
+            run = agents_client.runs.get(thread_id=thread.id, run_id=run.id)
+
+            last_message_id = fetch_and_print_new_agent_response(
+                thread_id=thread.id,
+                agents_client=agents_client,
+                last_message_id=last_message_id,
+            )
+            print(f"Run status: {run.status}")
+
+        print(f"Run finished with status: {run.status}, ID: {run.id}")
+
+        if run.status == "failed":
+            print(f"Run failed: {run.last_error}")
+
+        # Fetch the final message from the agent in the thread and create a research summary
+        final_message = agents_client.messages.get_last_message_by_role(
+            thread_id=thread.id, role=MessageRole.AGENT
+        )
+        if final_message:
+            create_research_summary(final_message)
+
+        # Clean-up and delete the agent once the run is finished.
+        # NOTE: Comment out this line if you plan to reuse the agent later.
+        agents_client.delete_agent(agent.id)
+        print("Deleted agent")
+ Note
+
+Limitation: The Deep Research tool is currently recommended only in nonstreaming scenarios. Using it with streaming can work, but it might occasionally time out and is therefore not recommended.

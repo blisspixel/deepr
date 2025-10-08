@@ -14,6 +14,10 @@ from pathlib import Path
 import sqlite3
 import json
 
+# Add parent directory to path to import deepr modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from deepr.branding import print_banner, print_section_header, CHECK, CROSS
+
 
 def create_directories():
     """Create required local directories."""
@@ -28,7 +32,7 @@ def create_directories():
     for dir_name in dirs:
         path = Path(dir_name)
         path.mkdir(exist_ok=True)
-        print(f"  ✓ {dir_name}/")
+        print(f"  {CHECK} {dir_name}/")
 
 
 def initialize_database():
@@ -75,7 +79,7 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-    print(f"  ✓ Database initialized at {db_path}")
+    print(f"  {CHECK} Database initialized at {db_path}")
 
 
 def create_config_template():
@@ -123,12 +127,12 @@ DEEPR_UPLOADS_DIR=uploads
     if not env_example_path.exists():
         print("Creating .env.example template...")
         env_example_path.write_text(template)
-        print(f"  ✓ .env.example created")
+        print(f"  {CHECK} .env.example created")
 
     if not env_path.exists():
         print("Creating .env file...")
         env_path.write_text(template)
-        print(f"  ✓ .env created (EDIT THIS FILE with your API keys)")
+        print(f"  {CHECK} .env created (EDIT THIS FILE with your API keys)")
     else:
         print("  .env already exists (not overwriting)")
 
@@ -152,19 +156,17 @@ def check_dependencies():
     if missing:
         print("\nMissing required packages:")
         for pkg in missing:
-            print(f"  ✗ {pkg}")
+            print(f"  {CROSS} {pkg}")
         print("\nInstall with: pip install -r requirements.txt")
         return False
 
-    print("\n✓ All required packages installed")
+    print(f"\n{CHECK} All required packages installed")
     return True
 
 
 def main():
     """Run local setup."""
-    print("="*60)
-    print("Deepr Local Environment Setup")
-    print("="*60)
+    print_banner("setup")
     print()
 
     try:
@@ -182,21 +184,21 @@ def main():
         print()
         print("="*60)
         if deps_ok:
-            print("✓ Local setup complete!")
+            print(f"{CHECK} Local setup complete!")
             print()
             print("Next steps:")
             print("  1. Edit .env with your API keys")
             print("  2. Run: python -m deepr.cli status")
             print("  3. Run: python -m deepr.cli research 'your prompt'")
         else:
-            print("⚠ Setup incomplete - install missing dependencies")
+            print(f"{CROSS} Setup incomplete - install missing dependencies")
             return 1
         print("="*60)
 
         return 0
 
     except Exception as e:
-        print(f"\n✗ Setup failed: {e}")
+        print(f"\n{CROSS} Setup failed: {e}")
         return 1
 
 
