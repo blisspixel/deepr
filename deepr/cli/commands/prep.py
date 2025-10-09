@@ -701,7 +701,10 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
         # Execute Round 1
         click.echo(f"\nSubmitting {len(plan_data['tasks'])} research tasks to queue...")
-        _execute_plan_sync(plan_data)
+        phase_results = _execute_plan_sync(plan_data)
+
+        # Save results to plan
+        plan_data["phase_1_results"] = phase_results
 
         # Subsequent rounds
         for round_num in range(2, rounds + 1):
@@ -748,7 +751,14 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
                 "tasks": new_tasks,
                 "metadata": plan_data["metadata"]
             }
-            _execute_plan_sync(phase_plan)
+            phase_results = _execute_plan_sync(phase_plan)
+
+            # Save results
+            plan_data[f"phase_{round_num}_results"] = phase_results
+
+            # Save updated plan with results
+            with open(plan_path, "w") as f:
+                json.dump(plan_data, f, indent=2)
 
         click.echo(f"\n{'='*70}")
         click.echo(f"{CHECK} AUTONOMOUS RESEARCH COMPLETE")
@@ -762,8 +772,8 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         raise click.Abort()
 
 
-def _execute_plan_sync(plan_data: dict):
-    """Execute plan synchronously and wait for completion."""
+def _execute_plan_sync(plan_data: dict) -> dict:
+    """Execute plan synchronously and wait for completion. Returns results."""
     import asyncio
     import time
     from deepr.queue.local_queue import SQLiteQueue
@@ -792,9 +802,10 @@ def _execute_plan_sync(plan_data: dict):
     # Submit tasks
     tasks = plan_data.get("tasks", [])
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(executor.execute_campaign(tasks, campaign_id))
+    results = loop.run_until_complete(executor.execute_campaign(tasks, campaign_id))
 
     click.echo(f"\n{CHECK} All tasks completed")
+    return results
 
 
 def _load_completed_results() -> list:
@@ -811,23 +822,18 @@ def _load_completed_results() -> list:
     with open(plan_path, "r") as f:
         plan_data = json.load(f)
 
-    # Load results for each task
-    from deepr.storage.local import LocalStorage
-    storage = LocalStorage()
-
-    for task in plan_data.get("tasks", []):
-        task_id = task.get("id")
-        job_id = f"campaign-*-task-{task_id}"  # Will need to find actual job_id
-
-        # Try to find and load result
-        try:
-            # This is simplified - in reality we'd need to track job_id per task
-            results.append({
-                "task_id": task_id,
-                "title": task.get("title", ""),
-                "result": "",  # Would load from storage
-            })
-        except:
-            pass
+    # Load results from all completed phases
+    for key in plan_data.keys():
+        if key.startswith("phase_") and key.endswith("_results"):
+            phase_results = plan_data[key]
+            # phase_results is a dict like {1: {...}, 2: {...}, ...}
+            for task_id, result_data in phase_results.items():
+                if result_data.get("status") == "completed":
+                    results.append({
+                        "task_id": task_id,
+                        "title": result_data.get("title", ""),
+                        "result": result_data.get("result", ""),
+                        "cost": result_data.get("cost", 0.0),
+                    })
 
     return results
