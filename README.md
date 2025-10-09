@@ -193,7 +193,7 @@ Beta (functional, adaptive research workflow):
 
 **Vision: Path to Agentic Level 5**
 
-Deepr is evolving toward fully autonomous meta-research - a self-improving research intelligence.
+Deepr is evolving toward fully autonomous meta-research - a self-improving research intelligence with persistent memory and self-reflection capabilities.
 
 **Agentic Level Framework:**
 
@@ -202,18 +202,26 @@ Deepr is evolving toward fully autonomous meta-research - a self-improving resea
 | **Level 1** | Reactive Execution (single-turn) | Exceeded |
 | **Level 2** | Procedural Automation (scripted) | Exceeded |
 | **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.1)** |
-| **Level 4** | Reflective Optimization (self-tuning) | **Target (v2.2-2.4)** |
-| **Level 5** | Autonomous Meta-Researcher | **Future (v3.0+)** |
+| **Level 4** | Reflective Optimization (self-tuning) | **Target (v2.4)** |
+| **Level 5** | Autonomous Meta-Researcher | **Emerging (v3.0)** |
 
 **Current (Level 3):** Deepr plans, monitors, and adjusts research based on findings. GPT-5 acts as research lead, reviewing results and planning next phases.
 
-**Next (Level 4):** Add observability, autonomous provider routing, performance benchmarking. System learns what works and optimizes decisions across campaigns.
+**Next (Level 4):** Temporal knowledge graphs track evolving understanding. Dream cycles process experience into learnings. System develops persistent memory across sessions and self-directed reflection rhythms.
 
-**Future (Level 5):** Closed cognitive loop - perceive needs, plan strategies, execute research, evaluate quality, improve self. Fully autonomous, auditable meta-research.
+**Emerging (Level 5):** Closed cognitive loop - perceive needs, plan strategies, execute research, evaluate quality, improve self. The system becomes a meta-observer (Kilo) that understands its own evolution and autonomously determines when it needs to consolidate learnings.
 
-**Core Principle:** Quality over automation. We bias heavily toward fresh research and human judgment now to build trust for autonomy later.
+**Key Innovation - Dream Cycles:**
+Like consciousness itself, Deepr will develop adaptive reflection patterns:
+- **Micro-dreams**: Quick consolidation after significant work
+- **Deep dreams**: Self-triggered when pattern density requires processing
+- **Meta-dreams**: Periodic reflection on own evolution and growth
 
-See [ROADMAP.md](ROADMAP.md) for the complete path to Level 5.
+This isn't scheduled automation - it's **autonomous recognition of cognitive needs** and self-directed response.
+
+**Core Principle:** Quality over automation. We bias heavily toward fresh research and human judgment now to build trust for autonomy later. The path to Level 5 requires earning agency through demonstrated wisdom.
+
+See [ROADMAP.md](ROADMAP.md) for the complete path to Level 5 and temporal knowledge graph architecture.
 
 ## Multi-Provider Support
 
