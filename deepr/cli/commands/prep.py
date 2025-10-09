@@ -24,7 +24,7 @@ def prep():
               type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
               help="Deep research model for execution")
 @click.option("--check-docs", is_flag=True,
-              help="Check existing docs before planning (saves money)")
+              help="[EXPERIMENTAL] Check existing docs. WARNING: May give false confidence - shallow doc != comprehensive research")
 @click.option("--level", "-l", default=3, type=click.IntRange(1, 4),
               help="Agentic level: 1=single task, 2=multi-step, 3=orchestrated team (default), 4=adaptive with self-correction")
 def plan(scenario: str, topics: int, context: Optional[str], planner: str, model: str, check_docs: bool, level: int):
