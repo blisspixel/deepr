@@ -71,20 +71,41 @@ deepr prep auto "What should Ford do in EVs for 2026?" --rounds 3
 # Cost: ~$3-5, Time: 40-60 minutes
 ```
 
-**Why this matters:**
+**Why context management is critical:**
+
+Context is everything. Without proper context injection, research goes off-target. We proved this ourselves - when we asked Deepr to research "how to improve Deepr", it found unrelated crypto projects named "Deepr" instead of analyzing our platform.
+
+The fix: Inject context explicitly.
+
+**Bad (research goes wrong):**
+```bash
+deepr research submit "Research our competitive landscape" --yes
+# Result: AI searches web blindly, finds wrong products
+```
+
+**Good (research stays on-target):**
+```bash
+deepr prep plan "Research competitive landscape for research automation. Context: We are Deepr - $(cat README.md | head -50)" --topics 4
+# Result: AI knows WHO you are, researches correctly
+```
+
+**Multi-phase (best - adaptive with context):**
 - Later phases informed by actual findings, not guesses
 - GPT-5 acts as research lead, reviewing and planning next steps
 - Each round builds on real data from previous rounds
-- Works with context: call transcripts, documents, specific scenarios
+- Context summarization cuts token usage 70% while preserving meaning
+- Works with call transcripts, documents, specific scenarios
 
-**Example use case:**
+**Example:**
 ```bash
-deepr prep auto "Review the attached call transcript with DemoCorp's CEO. Research their competitive position, market trends, and provide strategic recommendations." --rounds 3 --context "$(cat call.txt)"
+deepr prep auto "Review call transcript with DemoCorp's CEO. Research their competitive position and provide strategic recommendations. Context: $(cat call.txt)" --rounds 3
 ```
 
-Round 1 researches DemoCorp and market. Round 2 reviews findings and researches specific gaps. Round 3 synthesizes strategic recommendations grounded in research.
+Round 1: Research DemoCorp + market (with call context)
+Round 2: GPT-5 reviews results, identifies gaps, researches specifics
+Round 3: Synthesize strategy grounded in research + call insights
 
-This is agentic AI with research depth—not just reasoning, but researching between reasoning steps.
+This is agentic AI with research depth—not just reasoning, but researching between reasoning steps with proper context management.
 
 ## Architecture
 
@@ -120,6 +141,18 @@ User → GPT-5 Planner → Research Plan (with dependencies)
 o3-deep-research costs ~10x more than o4-mini but is more thorough.
 
 Multi-phase campaigns multiply by number of tasks, but context chaining reduces redundancy.
+
+## Context Management Best Practices
+
+Context injection determines research quality. Follow these practices:
+
+1. **Always identify yourself** - Include "We are X, we do Y..." in prompts
+2. **Inject context explicitly** - Use `--context "$(cat file.txt)"` to provide docs/transcripts/data
+3. **Start broad, narrow with reviews** - Phase 1 foundation, let GPT-5 review and plan Phase 2 specifics
+4. **Trust summarization** - gpt-5-mini cuts 70% tokens while preserving key information
+5. **Use prep continue** - GPT-5 acts as research lead, identifies gaps better than guessing upfront
+
+Without context, research goes off-target. With proper context injection, you get accurate, focused analysis.
 
 ## Use Cases
 
