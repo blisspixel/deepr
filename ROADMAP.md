@@ -356,8 +356,9 @@ deepr team analyze "Should we pivot to enterprise?" --team-size 5
 - Role-specific research tasks (each member stays in their lane)
 - Synthesis with attribution (credit team members)
 - Conflict highlighting (where perspectives disagree)
-- Grounded personas (research actual company leadership for realistic team members)
-- Adversarial mode (weight team toward skeptical/devil's advocate perspectives)
+- Grounded personas (research actual company leadership)
+- Cultural/demographic lens (analyze through any perspective)
+- Adversarial mode (weight team toward skeptical perspectives)
 
 **Examples:**
 
@@ -370,6 +371,10 @@ deepr team analyze "Our Q2 launch plan" --adversarial
 
 # Grounded in actual company leadership
 deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"
+
+# Cultural/demographic perspective lens
+deepr team analyze "Market expansion strategy" --perspective "Japanese business culture"
+deepr team analyze "Product positioning" --perspective "Gen Z"
 ```
 
 **Future Enhancements:**
