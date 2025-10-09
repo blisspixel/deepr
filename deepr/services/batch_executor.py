@@ -167,7 +167,7 @@ class BatchExecutor:
         metadata: Dict,
     ) -> str:
         """Submit a single task to the queue."""
-        from deepr.providers.openai_provider import ResearchRequest, ToolConfig
+        from deepr.providers.base import ResearchRequest, ToolConfig
 
         # Create job in queue
         job = ResearchJob(

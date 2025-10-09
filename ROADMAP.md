@@ -32,19 +32,27 @@ Working now:
 
 You can submit research jobs via CLI or web UI, worker auto-polls OpenAI and downloads results when complete.
 
-### v2.1: Agentic Planning (Active Development)
+### v2.1: Adaptive Research Workflow (Beta)
 
-The innovation: Multi-phase research with intelligent task mix and context chaining.
+The innovation: Research team workflow that adapts based on findings.
 
-Traditional approach: Isolated reports, manual synthesis.
+Traditional approach: Plan everything upfront, execute all at once, hope it's comprehensive.
 
-Our approach:
-- Intelligent planner reasons about information architecture
-- Generates smart mix of documentation and analysis tasks
-- Identifies research dependencies
-- Sequences tasks to build context
-- Injects prior findings into later research
-- Synthesizes across all phases
+Deepr's approach: **Plan → Execute → Review → Plan next phase**
+
+How it works:
+- GPT-5 plans Phase 1 (foundation research)
+- System executes research and waits for completion
+- GPT-5 reviews actual findings, identifies gaps
+- GPT-5 plans Phase 2 based on what was learned
+- Repeat until ready for final synthesis
+
+This replicates how human research teams actually work:
+- Team lead assigns initial research
+- Team researches and reports back
+- Lead reviews findings, spots gaps
+- Lead assigns next round of research to fill gaps
+- Continue until comprehensive
 
 **Smart Task Mix**
 
@@ -95,14 +103,49 @@ We used Deepr to research "best practices for context injection in multi-step LL
 Key insight: Summarization saves cost AND improves quality by preventing context dilution where key instructions get buried in irrelevant detail.
 
 Status now:
-- ResearchPlanner service (uses GPT-5)
-- ContextBuilder service (summarizes results for context injection)
+- ResearchPlanner service (GPT-5 generates initial plans)
+- ResearchReviewer service (GPT-5 reviews results, plans next phase)
+- ContextBuilder service (gpt-5-mini summarizes for context injection)
 - BatchExecutor service (orchestrates multi-phase execution)
-- DocReviewer service (analyzes docs and identifies gaps)
-- CLI commands: plan, review, execute, **docs analyze** (NEW!)
+- CLI commands:
+  - `deepr prep plan` - Generate Phase 1 plan
+  - `deepr prep execute` - Execute current plan
+  - `deepr prep continue` - Review and plan next phase (NEW!)
+  - `deepr prep auto` - Fully autonomous multi-round (NEW!)
 - Phase/dependency logic working
 - Context chaining implemented
-- Agentic doc analysis workflow complete
+- Adaptive review-and-continue workflow complete
+
+**Real-World Example:**
+
+```bash
+# Scenario: Strategic guidance from call transcript
+deepr prep auto "Review the attached call transcript with DemoCorp's CEO discussing AI strategy. Research DemoCorp's current position, competitive landscape, and provide strategic recommendations for next 12 months." --rounds 3 --context "$(cat call_transcript.txt)"
+
+# What happens:
+# Round 1 (Foundation - GPT-5 plans):
+#   - Research DemoCorp's AI capabilities and market position
+#   - Research competitors' AI strategies
+#   - Research technologies mentioned in call
+#   [Executes 3 jobs, ~15 min]
+
+# Round 2 (Analysis - GPT-5 reviews Round 1, plans next):
+#   - "Based on Round 1, DemoCorp is weak in ML infrastructure but strong in data"
+#   - Research infrastructure catch-up options
+#   - Research data monetization strategies
+#   [Executes 2-3 jobs, ~15 min]
+
+# Round 3 (Synthesis - GPT-5 reviews everything):
+#   - Strategic roadmap leveraging data strength
+#   - Implementation plan addressing infrastructure gap
+#   - Risk mitigation based on competitive position
+#   [Executes 1 synthesis job, ~10 min]
+
+# Result: Comprehensive strategic guidance grounded in research + call insights
+# Cost: ~$3-5, Time: 40-50 minutes
+```
+
+This is **agentic AI with research depth** - not just reasoning, but researching between reasoning steps.
 
 **NEW: Agentic Documentation Analysis**
 
