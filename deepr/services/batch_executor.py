@@ -168,10 +168,14 @@ class BatchExecutor:
     ) -> str:
         """Submit a single task to the queue."""
         from deepr.providers.base import ResearchRequest, ToolConfig
+        import uuid
+
+        # Generate unique job ID for this task
+        job_id = f"{campaign_id}-task-{task_id}"
 
         # Create job in queue
         job = ResearchJob(
-            id=str(task_id),
+            id=job_id,
             prompt=prompt,
             model="o4-mini-deep-research",
             enable_web_search=True,
