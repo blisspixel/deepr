@@ -362,4 +362,4 @@ Under the hood: GPT-5 orchestrates, o3/o4-mini executes deep research, context f
 
 Created by **Nick Seal**.
 
-Deepr is an open-source research automation platform designed to make comprehensive research accessible and affordable. Built with the philosophy that AI should replicate human workflows, not replace human thinking.
+Deepr is an open-source research automation platform building toward Agentic Level 5 - a fully autonomous, self-improving meta-researcher. Philosophy: Automate research execution and strategy, but never sacrifice quality for automation. Context is everything.
