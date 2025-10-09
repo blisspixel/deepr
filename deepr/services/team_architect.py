@@ -43,7 +43,8 @@ class TeamArchitect:
         question: str,
         context: Optional[str] = None,
         team_size: int = 5,
-        research_company: Optional[str] = None
+        research_company: Optional[str] = None,
+        adversarial: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Design optimal research team for this question.
@@ -53,6 +54,7 @@ class TeamArchitect:
             context: Additional context
             team_size: Number of team members
             research_company: Company name to research for grounded personas
+            adversarial: Weight team toward skeptical/devil's advocate perspectives
 
         Returns:
             List of team members with roles, focus, perspective
@@ -79,7 +81,7 @@ class TeamArchitect:
         if research_company:
             company_intel = self._research_company_people(research_company)
 
-        prompt = self._build_team_design_prompt(question, context, team_size, company_intel)
+        prompt = self._build_team_design_prompt(question, context, team_size, company_intel, adversarial)
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -171,7 +173,8 @@ Only include people you find with actual research. If unable to find information
         question: str,
         context: Optional[str],
         team_size: int,
-        company_intel: Optional[Dict[str, Any]] = None
+        company_intel: Optional[Dict[str, Any]] = None,
+        adversarial: bool = False
     ) -> str:
         """Build prompt for GPT-5 to design team."""
 
@@ -204,6 +207,12 @@ Only include people you find with actual research. If unable to find information
 
             parts.append("**IMPORTANT:** Create personas grounded in these actual people's backgrounds and expertise. Don't use their exact names, but use their real experience to inform persona design.\n\n")
 
+        if adversarial:
+            parts.append("\n## ADVERSARIAL MODE\n")
+            parts.append("Weight the team HEAVILY toward skeptical, critical, and devil's advocate perspectives.\n")
+            parts.append("Goal: Find flaws, challenge assumptions, identify risks before reality does.\n")
+            parts.append("Majority of team should be focused on what could go wrong, not what could go right.\n\n")
+
         parts.append(f"""
 ## Your Task
 
@@ -211,12 +220,13 @@ Design the optimal {team_size}-person research team for THIS specific question.
 
 **Requirements:**
 
-1. **Diverse perspectives** - Not all optimistic, not all skeptical
+1. **Diverse perspectives**{' - WEIGHTED TOWARD SKEPTICAL in adversarial mode' if adversarial else ' - Not all optimistic, not all skeptical'}
    - Include data-driven perspectives (objective facts)
-   - Include optimistic perspectives (opportunities, upside)
-   - Include skeptical perspectives (risks, problems, reality check)
+   {'' if adversarial else '- Include optimistic perspectives (opportunities, upside)'}
+   - Include skeptical perspectives (risks, problems, reality check){' - MAJORITY' if adversarial else ''}
    - Include customer/user perspectives (real-world experience)
-   - Include creative perspectives (unconventional angles)
+   {'' if adversarial else '- Include creative perspectives (unconventional angles)'}
+   {'- Include adversarial perspectives (challenge core assumptions, find fatal flaws)' if adversarial else ''}
 
 2. **Relevant expertise** - Specific to this question, not generic
    - Bad: "Data Analyst" (too generic)
