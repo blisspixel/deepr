@@ -25,20 +25,37 @@ def prep():
               help="Deep research model for execution")
 @click.option("--check-docs", is_flag=True,
               help="Check existing docs before planning (saves money)")
-def plan(scenario: str, topics: int, context: Optional[str], planner: str, model: str, check_docs: bool):
+@click.option("--level", "-l", default=3, type=click.IntRange(1, 4),
+              help="Agentic level: 1=single task, 2=multi-step, 3=orchestrated team (default), 4=adaptive with self-correction")
+def plan(scenario: str, topics: int, context: Optional[str], planner: str, model: str, check_docs: bool, level: int):
     """
     Generate multi-phase research plan with dependencies.
 
     Uses GPT-5 (cheap, fast) to decompose high-level goal into phased research tasks.
     Shows what research depends on what, lets you review before executing.
 
+    Agentic Levels (Multi-Agent System depth):
+        Level 1: Single task execution (use 'deepr research submit' instead)
+        Level 2: Multi-step reasoning within single agent
+        Level 3: Orchestrated team with structured workflow (default)
+        Level 4: Adaptive with self-correction loops (use 'deepr prep auto')
+
     Example:
         deepr prep plan "Analyze electric vehicle market" --topics 5
-        deepr prep plan "Build AI code review tool" --topics 7
+        deepr prep plan "Build AI code review tool" --topics 7 --level 4
     """
     print_section_header("Research Planning")
 
-    click.echo(f"\nScenario: {scenario}")
+    # Show agentic level info
+    level_descriptions = {
+        1: "Level 1: Single task execution",
+        2: "Level 2: Multi-step reasoning",
+        3: "Level 3: Orchestrated team (Multi-Agent System)",
+        4: "Level 4: Adaptive with self-correction"
+    }
+
+    click.echo(f"\nAgentic Level: {level_descriptions.get(level, 'Unknown')}")
+    click.echo(f"Scenario: {scenario}")
     if context:
         click.echo(f"Context: {context}")
     click.echo(f"\nUsing {planner} to generate {topics} research topics...")
