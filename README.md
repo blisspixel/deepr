@@ -263,12 +263,13 @@ deepr prep execute --yes                          # Execute Phase 1
 deepr prep continue --topics 3                    # GPT-5 reviews, plans Phase 2
 deepr prep auto "High-level goal" --rounds 3      # Fully autonomous multi-round
 
-# Dynamic dream team research
+# Dynamic dream team research (experimental - dynamic team assembly)
 deepr team analyze "Should we pivot to enterprise?" --team-size 5
 deepr team analyze "Our Q2 launch plan" --adversarial  # Devil's advocate mode
 deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"  # Grounded personas
-# GPT-5 assembles optimal team for THIS question
-# Each member researches from their unique perspective
+deepr team analyze "Market entry strategy" --perspective "Japanese business culture"  # Cultural lens
+# GPT-5 assembles optimal team for each specific question
+# Different questions get different teams optimized for that analysis
 # Final synthesis shows agreements, conflicts, recommendations
 
 # Queue management
