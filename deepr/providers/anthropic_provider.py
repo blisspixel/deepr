@@ -84,7 +84,7 @@ class AnthropicProvider(DeepResearchProvider):
 
         self.model = model
         self.thinking_budget = max(1024, thinking_budget)
-        self.client = Anthropic(api_key=self.api_key)
+        self.client = Anthropic(api_key=self.api_key, timeout=1200.0)  # 20 min timeout
 
         # Initialize tool executor
         self.tool_executor = ToolRegistry.create_executor(
@@ -113,7 +113,7 @@ class AnthropicProvider(DeepResearchProvider):
 
             # Get tool definitions if web search enabled
             tools = None
-            if request.web_search_enabled:
+            if hasattr(request, 'web_search_enabled') and request.web_search_enabled:
                 tools = self.tool_executor.get_tool_definitions(format="anthropic")
 
             # Execute research with Extended Thinking (multi-turn for tool calls)
@@ -127,7 +127,7 @@ class AnthropicProvider(DeepResearchProvider):
             for turn in range(max_turns):
                 response = self.client.messages.create(
                     model=self.model,
-                    max_tokens=8000,
+                    max_tokens=self.thinking_budget + 16000,  # Must be > thinking budget
                     thinking={
                         "type": "enabled",
                         "budget_tokens": self.thinking_budget
@@ -137,8 +137,10 @@ class AnthropicProvider(DeepResearchProvider):
                     tools=tools,
                 )
 
-                # Extract thinking + content
+                # Extract thinking + content + collect tool uses
                 has_tool_use = False
+                tool_results_to_send = []
+
                 for block in response.content:
                     if block.type == "thinking":
                         thinking_content.append(block.thinking)
@@ -157,19 +159,22 @@ class AnthropicProvider(DeepResearchProvider):
                             "success": tool_result.success
                         })
 
-                        # Add tool result to conversation
-                        messages.append({"role": "assistant", "content": response.content})
-                        messages.append({
-                            "role": "user",
-                            "content": [{
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": json.dumps(tool_result.data) if tool_result.success else tool_result.error
-                            }]
+                        # Collect tool result for next message
+                        tool_results_to_send.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps(tool_result.data) if tool_result.success else tool_result.error
                         })
 
-                # If no tool use, we're done
-                if not has_tool_use:
+                # If we made tool calls, add assistant message + tool results
+                if has_tool_use:
+                    messages.append({"role": "assistant", "content": response.content})
+                    messages.append({
+                        "role": "user",
+                        "content": tool_results_to_send
+                    })
+                else:
+                    # No tool use, we're done
                     break
 
             # Format report with thinking trace (for transparency)
@@ -297,10 +302,10 @@ Always show your work. Transparency builds trust."""
         """Build user message for research request."""
         parts = [f"Research Question: {request.prompt}"]
 
-        if request.additional_instructions:
+        if hasattr(request, 'additional_instructions') and request.additional_instructions:
             parts.append(f"\nAdditional Context:\n{request.additional_instructions}")
 
-        if request.web_search_enabled:
+        if hasattr(request, 'web_search_enabled') and request.web_search_enabled:
             parts.append("\nYou have access to web_search tool. Use it to gather current information.")
 
         parts.append("\nProduce a comprehensive research report.")
