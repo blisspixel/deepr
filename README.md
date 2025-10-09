@@ -306,20 +306,22 @@ Think like a human, use AI. Or in this case: **think like a small research team,
 
 Research is the foundation of good decision-making. Comprehensive research requires understanding what you need to know, sequencing research intelligently, building context across findings, and synthesizing insights.
 
-**Deepr is a Level 4 Multi-Agent System** (though you don't need to know that to use it):
+**Deepr is your AI research dream team**—where diverse perspectives create better research:
 
-Deepr replicates how human research teams actually work:
-- **Blue Hat (Orchestrator)**: ResearchPlanner + BatchExecutor manage the process
-- **White Hat (Facts)**: Documentation tasks gather objective data
-- **Green Hat (Creative)**: ResearchReviewer identifies new research angles
-- **Yellow/Black Hats (Analysis)**: Tasks evaluate opportunities and risks
-- **Synthesis**: GPT-5 weaves everything into coherent insights
+- **The Conductor** (Blue Hat): Orchestrates the research process, decides what to investigate when
+- **The Analyst** (White Hat): Gathers facts and data without bias or interpretation
+- **The Creative** (Green Hat): Identifies gaps and suggests new angles you haven't considered
+- **The Optimist** (Yellow Hat): Finds opportunities and upside potential
+- **The Skeptic** (Black Hat): Identifies risks, problems, and reasons things might fail
+- **The Synthesizer**: Weaves diverse perspectives into coherent, balanced insights
 
-This isn't just metaphor—it's architecture. Deepr implements proven multi-agent orchestration patterns from decades of MAS (Multi-Agent Systems) research. The key insight: **success comes from robust orchestration, not sophisticated prompts**.
+This isn't just metaphor—**conflict between perspectives is a feature, not a bug**. When the Optimist finds opportunities the Skeptic identifies risks, you get balanced analysis instead of blind spots. Real research teams work this way. Deepr automates it.
 
-The difference: Your "research team" is GPT-5 (planning and reviewing) + o3/o4-mini (executing deep research). Cost: $3-5 per campaign instead of $5,000+ consulting fees. Time: 40-60 minutes instead of weeks.
+Under the hood: GPT-5 orchestrates, o3/o4-mini executes deep research, context flows between phases. But you don't need to know that—just give it a question and watch your research team work.
 
-**Future (v2.3):** Explicit Six Thinking Hats mode, Red Team analysis, conflict resolution, agentic level control.
+Cost: $3-5 per campaign instead of $5,000+ consulting fees. Time: 40-60 minutes instead of weeks.
+
+**Future (v2.3):** Explicit "hats" commands where you choose cognitive roles. Red Team mode for adversarial pre-mortems. Make the dream team dynamics visible and controllable.
 
 **Do your homework. Knowledge is power. Automate it.**
 
