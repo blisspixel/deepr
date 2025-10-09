@@ -656,7 +656,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
     click.echo(f"Rounds: {rounds}")
     click.echo(f"Tasks per round: {topics_per_round}")
     click.echo("\nThis will run completely autonomously.")
-    click.echo("Each round: plan → execute → wait → review → next round")
+    click.echo("Each round: plan > execute > wait > review > next round")
     click.echo(f"\nEstimated time: {rounds * 30}-{rounds * 60} minutes")
     click.echo(f"Estimated cost: ${rounds * topics_per_round * 0.50:.2f} - ${rounds * topics_per_round * 1.00:.2f}")
 
