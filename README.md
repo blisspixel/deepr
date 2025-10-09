@@ -263,6 +263,12 @@ deepr prep execute --yes                          # Execute Phase 1
 deepr prep continue --topics 3                    # GPT-5 reviews, plans Phase 2
 deepr prep auto "High-level goal" --rounds 3      # Fully autonomous multi-round
 
+# Dynamic dream team research
+deepr team analyze "Should we pivot to enterprise?" --team-size 5
+# GPT-5 assembles optimal team for THIS question
+# Each member researches from their unique perspective
+# Final synthesis shows agreements, conflicts, recommendations
+
 # Queue management
 deepr queue list                   # List all jobs
 deepr queue stats                  # Show queue statistics
