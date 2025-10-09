@@ -306,14 +306,20 @@ Think like a human, use AI. Or in this case: **think like a small research team,
 
 Research is the foundation of good decision-making. Comprehensive research requires understanding what you need to know, sequencing research intelligently, building context across findings, and synthesizing insights.
 
+**Deepr is a Level 4 Multi-Agent System** (though you don't need to know that to use it):
+
 Deepr replicates how human research teams actually work:
-- Research lead plans initial foundation research
-- Team executes and reports findings
-- Lead reviews results, identifies gaps
-- Lead plans next phase based on what was learned
-- Repeat until comprehensive
+- **Blue Hat (Orchestrator)**: ResearchPlanner + BatchExecutor manage the process
+- **White Hat (Facts)**: Documentation tasks gather objective data
+- **Green Hat (Creative)**: ResearchReviewer identifies new research angles
+- **Yellow/Black Hats (Analysis)**: Tasks evaluate opportunities and risks
+- **Synthesis**: GPT-5 weaves everything into coherent insights
+
+This isn't just metaphor—it's architecture. Deepr implements proven multi-agent orchestration patterns from decades of MAS (Multi-Agent Systems) research. The key insight: **success comes from robust orchestration, not sophisticated prompts**.
 
 The difference: Your "research team" is GPT-5 (planning and reviewing) + o3/o4-mini (executing deep research). Cost: $3-5 per campaign instead of $5,000+ consulting fees. Time: 40-60 minutes instead of weeks.
+
+**Future (v2.3):** Explicit Six Thinking Hats mode, Red Team analysis, conflict resolution, agentic level control.
 
 **Do your homework. Knowledge is power. Automate it.**
 

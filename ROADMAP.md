@@ -290,11 +290,77 @@ ANTHROPIC_API_KEY=...
 deepr prep execute  # Auto-routes each task
 ```
 
-**v2.3: Platform Maturity**
+**v2.3: Agentic Dream Team - Multi-Agent Orchestration**
+
+**The Revelation:** Deepr is already a Level 4 multi-agent system! We just haven't exposed it as such.
+
+Current architecture (implicit agents):
+- Blue Hat (Orchestrator): BatchExecutor + ResearchPlanner
+- White Hat (Facts/Data): Documentation tasks
+- Green Hat (Creative): ResearchReviewer generating new angles
+- Yellow/Black Hats (Optimist/Critic): Analysis tasks
+- **Missing**: Explicit role assignment, conflict resolution, Red Team
+
+**Key Insight from Research:** "The most critical determinant of a multi-agent project's success is not the sophistication of any single agent's persona, but rather the robustness of the system's architecture for collaboration, communication, and conflict resolution."
+
+This validates Deepr's design: We focused on orchestration, context management, and structured workflows—exactly what matters.
+
+**New Capabilities:**
+
+1. **Agentic Level Control** - Let users choose orchestration depth:
+   ```bash
+   deepr prep plan "..." --level 3  # Structured workflow (current default)
+   deepr prep plan "..." --level 4  # Adaptive with self-correction (auto mode)
+   ```
+
+2. **Six Thinking Hats Mode** - Structured multi-perspective analysis:
+   ```bash
+   deepr prep hats "Analyze our product roadmap decision"
+   # Assigns tasks to distinct cognitive roles:
+   # - White Hat: Facts and data about current state
+   # - Red Hat: User sentiment and intuitive reactions
+   # - Black Hat: Risks and potential problems
+   # - Yellow Hat: Benefits and opportunities
+   # - Green Hat: Creative alternatives
+   # - Blue Hat: Orchestrates and synthesizes
+   ```
+
+3. **Red Team Mode** - Adversarial analysis for critical decisions:
+   ```bash
+   deepr prep redteam "Launch plan for new feature"
+   # Employs adversarial techniques:
+   # - Pre-mortem: Assume failure, work backward
+   # - Assumptions challenge: Question every premise
+   # - Devil's troika: Triple-pass contrarian analysis
+   # - Alternative futures: Explore negative scenarios
+   ```
+
+4. **Conflict Resolution** - Make disagreements explicit and valuable:
+   - When Black Hat (risks) contradicts Yellow Hat (opportunities)
+   - Blue Hat orchestrator arbitrates and synthesizes balanced view
+   - Logged for transparency and learning
+
+5. **Traceability & Audit Trails** - Already have this, just expose it:
+   - Complete log of every agent's contributions
+   - Reasoning traces for all decisions
+   - Attribution when things go wrong
+
+**Why This Matters:**
+
+Research shows that most MAS failures stem from **flawed organizational structure**, not individual agent limitations. Deepr's architecture is robust because we:
+- Designed orchestration first (BatchExecutor)
+- Implemented structured communication (research_plan.json)
+- Built context management (ContextBuilder)
+- Created adaptive workflows (ResearchReviewer)
+
+We were building a proper multi-agent system without realizing it!
+
+**v2.4: Platform Maturity**
 
 CLI improvements:
 - Output formatting options (JSON, markdown)
 - Better progress indicators
+- Agentic level flags
 
 Worker improvements:
 - Service setup (systemd/Windows)
@@ -305,10 +371,13 @@ Web UI improvements:
 - Results library (browse completed research)
 - Job detail pages with full output
 - Real-time job progress indicators
+- Agent interaction visualization
 - Export results (PDF, DOCX)
 
 Templates:
 - Pre-built patterns (market analysis, due diligence, competitor analysis)
+- Six Thinking Hats templates
+- Red Team templates
 - Custom template creation
 - Template library
 
@@ -316,6 +385,7 @@ Cost management:
 - Budget tracking and alerts
 - Usage analytics
 - Per-provider cost comparison
+- Per-agent cost attribution
 
 ## Non-Goals
 
