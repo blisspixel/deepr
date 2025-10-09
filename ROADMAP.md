@@ -171,7 +171,7 @@ We also successfully researched the competitive landscape (Elicit, Perplexity, C
 
 ## Building Next: Planner Enhancements & Observability
 
-**⚠️ Doc Reuse Intelligence** (Priority 1 - IMPLEMENTED BUT DISABLED)
+**WARNING: Doc Reuse Intelligence** (Priority 1 - IMPLEMENTED BUT DISABLED)
 
 Implemented doc checker but discovered fundamental limitation - DISABLED BY DEFAULT:
 
@@ -279,50 +279,252 @@ Testing:
 - Measure cost savings from reusing docs
 - Use Deepr itself to research optimal strategies
 
-## Future: Multi-Provider Support
+## Future: Toward Agentic Level 5
 
-**v2.2: Additional Providers**
+**Vision:** Transform Deepr from an adaptive planning system (Level 3) into a fully autonomous, self-improving meta-researcher (Level 5).
 
-Implement support for alternative providers:
+**Agentic Levels Framework:**
 
-Anthropic integration:
-- Claude Agent SDK adapter
-- Extended Thinking for complex analysis
-- Custom tool support
-- Developer-managed agentic loop
+| Level | Description | Deepr Status |
+|-------|-------------|--------------|
+| 1 | **Reactive Execution** - Single-turn, no planning | Exceeded |
+| 2 | **Procedural Automation** - Scripted sequences | Exceeded |
+| 3 | **Adaptive Planning** - Plans and adjusts based on feedback | **Current (v2.1)** |
+| 4 | **Reflective Optimization** - Learns from outcomes, self-tunes | **Target (v2.2-2.4)** |
+| 5 | **Autonomous Meta-Researcher** - Self-directing, goal-defining | **Future (v3.0+)** |
 
-Provider routing logic:
-- Auto-select best provider per task type
-- Consider: cost, speed, quality, availability
-- Fallback if provider unavailable
-- User override: `--provider anthropic`
+**Level 5 Requirements (the closed cognitive loop):**
 
-Example intelligent routing:
-```python
-# Documentation task (cheap, fast)
-if task.type == "documentation":
-    provider = "openai-o4-mini"  # Fastest, cheapest
+1. **Perceive** - Detect research needs and quality gaps automatically
+2. **Plan** - Generate optimal research strategies without templates
+3. **Act** - Execute research with autonomous provider/task selection
+4. **Evaluate** - Score outcomes, detect shallow/incorrect research
+5. **Update Self** - Improve planning heuristics based on results
 
-# Deep analysis (thorough)
-elif task.type == "analysis" and task.complexity == "high":
-    provider = "anthropic-claude-extended"  # Extended Thinking
+**Roadmap Alignment:**
 
-# Synthesis (integrate findings)
-elif task.type == "synthesis":
-    provider = "openai-o3"  # Best synthesis
+- **v2.2-2.3: Foundation for Level 4**
+  - Observability by design (understand what the system does)
+  - Autonomous routing and context discovery (reduce manual work)
+  - Human oversight when needed (trust-building)
+
+- **v2.4: Emerging Level 4**
+  - Lightweight memory (learn from past research)
+  - Basic verification (detect quality issues)
+  - Performance benchmarking (measure what works)
+
+- **v3.0+: Achieve Level 5**
+  - Continuous evaluation loop (self-assessment)
+  - Self-optimizing planner (autonomous strategy improvement)
+  - Advanced verification (self-correcting research)
+  - Full cognitive autonomy (human sets goals, system handles everything else)
+
+**Critical Principle: Quality Over Automation**
+
+- Notify, don't auto-inject (context discovery vs. blind reuse)
+- Bias toward over-research, not cost savings
+- Transparent by default, autonomous where proven
+- Human judgment for quality, machine execution for scale
+
+**Strategic Shift:** Previous roadmap emphasized adding providers and features. This refined roadmap builds toward Level 5:
+1. **Observability** - Make reasoning visible and understandable (trust foundation)
+2. **Autonomy** - Context discovery, provider routing, metadata tracking (reduce manual work)
+3. **Learning** - Benchmarking, scoring, feedback loops (reflective optimization)
+4. **Meta-intelligence** - Self-improving strategies, goal-driven research (Level 5)
+
+**Priorities:**
+- v2.2: Transparent automation + observability (Level 3 → Level 4 foundation)
+- v2.3: Cognitive diversity made visible (trust through transparency)
+- v2.4: Memory + verification basics (emerging Level 4)
+- v3.0+: Continuous learning + meta-research (achieve Level 5)
+
+**v2.2: Intelligence Layer - Transparent Automation**
+
+Focus: Make AI reasoning visible and controllable while automating context management.
+
+**Priority 1: Observability by Design**
+
+Machine-readable transparency with human-friendly views:
+
+1. **Automatic Metadata Generation**:
+   - Every task emits structured JSON: prompt, context used, model, tokens, cost
+   - Reasoning timelines auto-generated from phase transitions
+   - Context lineage graph built automatically from dependencies
+   - Zero manual logging, full auditability
+
+2. **Tiered Transparency** - Machine-first, human on demand:
+   ```bash
+   deepr research result <job-id>                    # Clean summary
+   deepr research result <job-id> --explain          # Why this path?
+   deepr research result <job-id> --timeline         # Reasoning evolution
+   deepr research result <job-id> --full-trace       # Complete audit (JSON)
+   ```
+
+3. **Cost Attribution Dashboard**:
+   - Auto-tracked per phase, per perspective, per provider
+   - Cost/insight ratio analysis
+   - Budget alerts and trend visualization
+
+4. **Planner Decision Logs**:
+   - "I chose to research X before Y because [gap analysis]"
+   - "Reviewer identified: missing market data, requested Phase 2"
+   - Natural language explanations generated automatically
+
+**Priority 2: Human-in-the-Loop Controls**
+
+Balance automation with human oversight:
+
+1. **Plan Review Checkpoints**:
+   ```bash
+   deepr prep plan "..." --review-before-execute
+   # GPT-5 generates plan, user approves/edits before execution
+   ```
+
+2. **Mid-Campaign Intervention**:
+   ```bash
+   deepr prep pause <campaign-id>
+   deepr prep edit-plan <campaign-id>  # Adjust next phase
+   deepr prep resume <campaign-id>
+   ```
+
+3. **Annotation Mode** - Add human corrections/validations:
+   - Flag findings as "verified", "disputed", or "outdated"
+   - Add commentary visible in synthesis
+   - Export annotated reports
+
+**Priority 3: Context Discovery (Default: Never Reuse)**
+
+**Critical principle: Context is everything. Bad context = bad research. Default to fresh research.**
+
+**The Context Quality Problem:**
+
+You can't judge research quality from metadata alone:
+- Title says "EV market analysis" - but was it comprehensive or surface-level?
+- Date says "2 weeks old" - but did the market shift since then?
+- Cost was "$2.40" - but was it o3-deep or o4-mini? Depth matters.
+- Had 47 citations - but were they relevant or generic?
+- Wrong perspective - research from investor POV when you need technical analysis
+
+**Auto-reuse is toxic:** Injecting mediocre, outdated, or wrong-perspective research poisons new campaigns. The cost "savings" destroy quality.
+
+**Deepr's Approach: Discovery, Not Reuse**
+
+1. **Detection (Optional, Disabled by Default)**:
+   ```bash
+   deepr prep plan "Research Ford's EV strategy"
+   # By default: NO notification, just do fresh research
+
+   # With discovery enabled:
+   deepr prep plan "Research Ford's EV strategy" --check-related
+
+   INFO: Found potentially related research:
+   - "EV market trends 2025" (Sep 15, $2.40, o3-deep, 47 cites) [You rated: 4/5]
+   - "Tesla competitive analysis" (Aug 20, $1.80, o4-mini, 23 cites) [Not rated]
+
+   Continue with fresh research? [Y/n]
+   ```
+
+2. **Explicit Reuse Only (High Friction by Design)**:
+   ```bash
+   # User must:
+   # 1. Read the prior research themselves
+   # 2. Judge: "Is this comprehensive enough?"
+   # 3. Explicitly specify job IDs to inject
+
+   deepr prep plan "..." --reuse-context job-123,job-456
+
+   WARNING: Reusing prior research
+   - job-123: "EV market trends" (Sep 15, $2.40, 12K tokens)
+   - job-456: "Tesla analysis" (Aug 20, $1.80, 8K tokens)
+
+   Context injection can poison results if research is shallow/outdated.
+   Proceed? [y/N]  # Default is NO
+   ```
+
+3. **No Automatic Reuse - Ever**:
+   - No `--auto-reuse-if-recent` flag
+   - No "smart" threshold detection
+   - No ML-based quality scoring (not in v2.x)
+   - User reads, user judges, user decides
+   - System never assumes prior research is good enough
+
+4. **Quality Gates (Help User Decide)**:
+   When user reviews prior research, show:
+   ```
+   Research Summary: job-123 "EV market trends"
+   - Date: 2025-09-15 (24 days old) WARNING: Market may have shifted
+   - Model: o4-mini (faster, less thorough than o3)
+   - Cost: $2.40 (medium investment)
+   - Citations: 47 sources
+   - Your rating: 4/5 "Good overview, lacks technical depth"
+   - Perspective: Industry analyst (not technical/engineering)
+
+   RISK: This research may not match your current needs
+   RECOMMENDED: Do fresh research
+   ```
+
+**Default Behavior:**
+
+```bash
+# Standard workflow - NO reuse checking
+deepr prep plan "Research Ford's EV strategy"
+# → Just does fresh research, no questions asked
+
+# Explicit reuse (high friction)
+deepr prep plan "..." --reuse-context job-123
+# → Shows warnings, requires confirmation
+
+# Discovery mode (informational only)
+deepr prep plan "..." --check-related
+# → Shows related research, defaults to fresh anyway
 ```
+
+**Why Extreme Bias Against Reuse:**
+- Context quality determines research quality
+- Shallow research on wrong topic/perspective/timeframe is worse than no context
+- Cost savings from reuse (~30-70% tokens) not worth quality degradation
+- If research was good enough, you wouldn't need new research
+- Better to over-research than to confidently deliver garbage
+
+**v3.0+ Only:** After 1000+ campaigns, IF we can prove quality preservation:
+- ML-based quality scoring (train on user ratings)
+- "What's new since job-123?" delta research mode
+- Smart reuse suggestions (still requires user approval)
+
+**Priority 4: Autonomous Provider Routing**
+
+Move from rule-based to continuously optimized selection:
+
+1. **Real-Time Benchmarking**:
+   - Track per provider: cost, latency, citation quality, success rate
+   - Rolling 30-day performance stats
+   - Auto-select best provider per task type
+
+2. **Resilience & Fallback**:
+   - Auto-retry with alternate provider on failure/timeout
+   - Graceful degradation (o4-mini fallback if o3 unavailable)
+   - Auto-resume campaigns after provider recovery
+
+3. **Provider Health Monitoring**:
+   - Detect degraded performance, adjust routing
+   - User notifications only on failures (not every decision)
+
+4. **Anthropic Integration**:
+   - Claude Extended Thinking for planning transparency
+   - Auto-route analysis tasks needing visible reasoning
+   - Provider choice invisible to user
 
 Configuration:
 ```bash
-# User provides multiple keys
+# User provides keys once
 OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 
-# Deepr automatically uses best provider per task
-deepr prep execute  # Auto-routes each task
+# System handles everything
+deepr prep execute  # Auto-routes, auto-retries, auto-optimizes
 ```
 
-**v2.3: Dream Team - Make the Magic Visible**
+**v2.3: Dream Team - Cognitive Diversity Made Visible**
 
 **Status: CORE IMPLEMENTED** - Dynamic team assembly working, observability in progress
 
@@ -442,37 +644,189 @@ We built robust orchestration without realizing it:
 
 That's why Deepr works—we solved the hard orchestration problems first. Now we make the magic visible.
 
-**v2.4: Platform Maturity**
+**v2.4: Knowledge Persistence and Ecosystem Integration**
+
+Focus: Lightweight memory, verification basics, and ecosystem fit.
+
+**Research Library (Not "Memory" - Distinction Matters):**
+
+Knowledge repository for reference, NOT automatic reuse:
+
+1. **Semantic Search Library**:
+   - Store completed research in searchable index (ChromaDB/Faiss)
+   - Web UI: Browse and search past research
+   - CLI: `deepr library search "EV market"`
+   - Purpose: Help users find what they've already researched
+
+2. **Research Viewing, Not Injection**:
+   ```bash
+   # User wants to check what they know about EVs
+   deepr library search "EV market"
+
+   Results:
+   1. "EV market trends 2025" (Sep 15, $2.40, o3-deep, 47 cites) [4/5]
+   2. "Tesla competitive analysis" (Aug 20, $1.80, o4-mini, 23 cites)
+
+   # User can:
+   deepr library view job-123          # Read the research
+   deepr library export job-123 --pdf  # Export for reference
+
+   # If user decides it's good enough to reuse:
+   deepr prep plan "..." --reuse-context job-123  # Explicit, confirmed
+   ```
+
+3. **Library UI Features**:
+   - Semantic search (not just keyword)
+   - Filter by date, model, cost, rating
+   - View research inline
+   - Export to PDF/markdown
+   - Tag/organize campaigns
+   - NO "inject this" buttons (too easy to misuse)
+
+4. **NO Automatic Suggestions**:
+   - System never says "you might want to reuse X"
+   - No notifications about related research during planning
+   - No "smart" threshold detection
+   - Library is pull-based (user searches), never push-based
+
+**Why Library, Not Memory:**
+
+**"Memory"** implies automatic reuse - dangerous:
+- System can't judge if prior research matches current needs
+- Topical relevance ≠ quality or perspective match
+- Time-sensitive information decays unpredictably
+- User context (why they're researching) isn't machine-readable
+
+**"Library"** is reference material - safe:
+- User searches when they want to check prior work
+- User reads and judges quality themselves
+- User decides if reuse makes sense for THIS question
+- No automation means no accidental quality degradation
+
+**Context Reuse is v3.0+ (If Ever):**
+
+Only after:
+- 1000+ campaigns with user quality ratings
+- Proven ability to predict research quality from metadata
+- ML models trained on successful/failed reuse patterns
+- User trust in system's judgment
+
+Even then: Suggestions only, never automatic injection.
+
+**Basic Verification Layer:**
+
+Start simple, scale later:
+
+1. **Internal Contradiction Detection**:
+   - Flag claims that conflict within same report
+   - Simple: "Section 2 says X, Section 4 says NOT X"
+   - No external fact-checking yet (v3.0+)
+
+2. **Citation Coverage Metrics**:
+   - What % of claims have citations?
+   - Which sections lack sources?
+   - Quality indicator, not enforcement
+
+**Workflow Integrations:**
+- API endpoints for Notion, Obsidian, Airtable
+- Semantic export options (JSON-LD, schema.org metadata)
+- Report summarizer: Condense multi-round research into executive briefings
+- Slack/Teams notifications for campaign completion
+
+**Developer Experience:**
+- Plugin SDK for custom agent roles (Legal Analyst, Data Scientist, etc.)
+- Plugin manifest schema with auto-loading from directory
+- Manual approval for new plugins (security > automation)
+- Unit-test harness for prompt reliability
+
+**Platform Polish:**
 
 CLI improvements:
-- Output formatting options (JSON, markdown)
-- Better progress indicators
-- Agentic level flags
+- Output formatting options (JSON, markdown, structured)
+- Better progress indicators with phase visualization
+- Interactive plan editing before execution
+
+Web UI improvements:
+- Results library with semantic search
+- Context lineage visualization (interactive graphs)
+- Reasoning timeline view (how thinking evolved)
+- Export results (PDF, DOCX, annotated markdown)
 
 Worker improvements:
 - Service setup (systemd/Windows)
-- Health checks
-- Auto-restart
-
-Web UI improvements:
-- Results library (browse completed research)
-- Job detail pages with full output
-- Real-time job progress indicators
-- Agent interaction visualization
-- Export results (PDF, DOCX)
+- Health checks and auto-restart
+- Provider status monitoring
 
 Templates:
-- Pre-built patterns (market analysis, due diligence, competitor analysis)
+- Pre-built patterns (market analysis, due diligence, competitor research)
 - Six Thinking Hats templates
-- Red Team templates
-- Custom template creation
-- Template library
+- Red Team/adversarial templates
+- Custom template creation and sharing
 
-Cost management:
-- Budget tracking and alerts
-- Usage analytics
-- Per-provider cost comparison
-- Per-agent cost attribution
+**v3.0+: Self-Improving Research Engine (Future)**
+
+These features require battle-tested core workflows and substantial usage data:
+
+**Continuous Evaluation Loop:**
+
+Automated performance feedback and optimization:
+
+1. **Post-Campaign Scoring**:
+   - Composite metrics: accuracy, novelty, citation diversity, efficiency
+   - User ratings: "Was this research helpful?" (1-5 scale)
+   - Outcome tracking: Which findings led to decisions?
+
+2. **Self-Optimizing Planner**:
+   - Log task metadata: cost, tokens, user ratings
+   - Periodically re-tune heuristics using historical data
+   - Auto-optimize task mix (docs vs analysis) for cost/insight ratio
+   - A/B test research strategies, keep best performers
+
+3. **Template Auto-Generation**:
+   - Archive high-performing campaigns as reusable patterns
+   - "Ford EV strategy" → becomes template for "competitor strategy"
+   - User can browse and apply proven strategies
+
+**Advanced Verification Pipeline:**
+
+Multi-layered fact-checking:
+
+1. **Citation Confidence Scoring**:
+   - Evaluate source credibility (academic vs blog, date, author)
+   - Cross-reference claims across multiple citations
+   - Flag low-confidence assertions
+
+2. **Cross-Provider Consistency Checks**:
+   - Run same query on multiple providers
+   - Detect and flag contradictory findings
+   - Human review for conflicts
+
+3. **Automated Fact-Checking**:
+   - Second-pass model verifies key claims
+   - External knowledge base lookups (Wikidata, fact-check APIs)
+   - Auto-re-research flagged sections (if budget allows)
+
+**Advanced Memory Systems:**
+
+Full knowledge graph persistence:
+
+1. **Research Graph Storage**:
+   - Persist complete dependency graphs between sessions
+   - Version control for evolving knowledge
+   - Track claim provenance across campaigns
+
+2. **Incremental Learning**:
+   - "What's new since last research?" mode
+   - Delta updates instead of full re-research
+   - Knowledge freshness tracking per claim
+
+**Why defer to v3.0+:**
+- Requires ground truth validation infrastructure (user feedback collection)
+- Needs 1000+ campaigns to train reliable learning loops
+- ML training infrastructure (overfitting risk with small data)
+- Complex graph storage/versioning (engineering complexity)
+- Better to perfect transparent automation (v2.2-2.4) first
+- Users need to trust Deepr before accepting full autonomy
 
 ## Non-Goals
 
@@ -551,13 +905,85 @@ Most impactful work is on intelligence layer, not infrastructure.
 
 ---
 
-**Current focus:**
-- v2.1: Context chaining with smart task mix and doc reuse
-- OpenAI as primary provider (most mature)
-- Architecture designed for multi-provider support
+## Summary: Roadmap Evolution
 
-**Future focus:**
-- v2.2: Add Anthropic provider with intelligent routing
-- v2.3: Platform maturity (templates, cost management, monitoring)
+**What Changed:**
 
-**Philosophy:** Research automation platform, not vendor wrapper. Best provider for each task, no lock-in.
+Previous roadmap focused on horizontal expansion:
+- More providers (Anthropic, Azure, Google when available)
+- More features (templates, exports, UI improvements)
+- More infrastructure (monitoring, deployment)
+
+**New roadmap trajectory: Agentic Level 3 → Level 5**
+
+| Version | Agentic Level | Focus |
+|---------|---------------|-------|
+| v2.1 (current) | **Level 3** | Adaptive planning with feedback |
+| v2.2-2.3 | **Level 3 → 4** | Transparent automation + observability |
+| v2.4 | **Level 4** | Reflective optimization (memory, verification) |
+| v3.0+ | **Level 5** | Autonomous meta-researcher |
+
+**Current State (v2.1 - Level 3):**
+- Adaptive research workflow (plan → execute → review → replan) [DONE]
+- Context chaining with smart task mix [DONE]
+- Dream team dynamic assembly [DONE]
+- GPT-5 planner adjusts based on findings [DONE]
+
+**Path to Level 4 (v2.2-v2.4):**
+
+- **v2.2: Transparent Automation Foundation**
+  - Observability by design (auto-metadata, reasoning logs)
+  - Context discovery (notify, don't auto-inject - quality first)
+  - Autonomous provider routing (benchmarking, auto-fallback)
+  - Human oversight when needed (checkpoints, intervention)
+
+- **v2.3: Cognitive Diversity Visibility**
+  - Show team member contributions and conflicts
+  - Reasoning timeline visualization
+  - Context lineage graphs
+  - Trust through transparency
+
+- **v2.4: Reflective Optimization**
+  - Research discovery (embedding-based, notify-only default)
+  - Basic verification (contradiction detection, citation metrics)
+  - Performance benchmarking (what works, what doesn't)
+  - Ecosystem integrations and developer SDK
+
+**Path to Level 5 (v3.0+):**
+- Continuous evaluation loop (self-assessment of quality)
+- Self-optimizing planner (learns from outcomes)
+- Advanced verification (self-correction)
+- Full cognitive autonomy (closed loop: perceive → plan → act → evaluate → update)
+
+**Core Principles:**
+
+1. **Quality Over Everything**
+   - Context is everything: Bad context = bad research
+   - Default to fresh research, always
+   - No automatic reuse - ever (not in v2.x)
+   - Cost "savings" from reuse aren't worth quality degradation
+   - Better to over-research than confidently deliver garbage
+
+2. **Library, Not Memory**
+   - "Memory" implies automatic reuse (dangerous)
+   - "Library" is reference material (safe)
+   - Pull-based search, never push-based suggestions
+   - User searches, reads, judges, decides
+   - System never assumes prior research is good enough
+
+3. **Transparency Enables Autonomy**
+   - Users trust what they understand
+   - Observability first, then automation
+   - Make reasoning visible before making decisions autonomous
+   - Extreme quality bias now → enables trust for autonomy later
+
+4. **Incremental Autonomy**
+   - Level 3 → 4: Build trust through transparency (v2.2-2.4)
+   - Level 4 → 5: Enable self-improvement (v3.0+)
+   - Never sacrifice quality for automation
+   - Prove quality preservation before enabling smart reuse (v3.0+, if ever)
+
+5. **Local-First, Provider-Agnostic**
+   - Best tool for each task, no vendor lock-in
+   - Self-hosted knowledge and benchmarks
+   - User controls data and decisions
