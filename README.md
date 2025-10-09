@@ -4,6 +4,8 @@
 
 Automate deep research using OpenAI's Deep Research API. Queue jobs via CLI or web UI, get comprehensive reports with inline citations. Built for multi-phase research campaigns where each phase builds on previous findings.
 
+**Philosophy:** Think like a human, use AI. Or in this case: think like a small research team, use Deepr.
+
 ## Quick Start
 
 ```bash
@@ -40,39 +42,49 @@ deepr research wait <job-id>
 - Output: Comprehensive markdown reports with inline citations
 - Queue-based: Worker polls OpenAI, downloads results when complete
 
-**Multi-Phase Research Campaigns** (in development)
+**Multi-Phase Research Campaigns** (beta - adaptive research workflow)
 
-Orchestrate interconnected research where each phase builds on previous findings:
+Replicates how a human research team works: plan → execute → review → plan next phase.
 
+**Human-in-the-loop workflow:**
 ```bash
-deepr prep plan "Analyze electric vehicle market" --topics 7
+# Round 1: Foundation research
+deepr prep plan "What should Ford do in EVs for 2026?" --topics 3
+deepr prep execute --yes
+# Wait for completion (~15 min)...
 
-# Generates intelligent plan:
-Phase 1: Foundation (parallel)
-  - Market sizing and growth trends
-  - Key players and market share
-  - Technology landscape
+# Round 2: GPT-5 reviews Phase 1 results, plans Phase 2
+deepr prep continue --topics 2
+# AI research lead reviews findings, identifies gaps
+# Suggests next research questions based on what was learned
+# User reviews and executes
 
-Phase 2: Analysis (uses Phase 1 as context)
-  - Competitive dynamics [feeds: market data + players]
-  - Technology roadmap [feeds: landscape analysis]
-
-Phase 3: Synthesis (integrates all findings)
-  - Strategic implications
-  - Executive summary
-
-deepr prep review    # Review generated plan
-deepr prep execute   # Submit all jobs
+# Round 3: Final synthesis
+deepr prep continue --topics 1
 ```
 
-How it works:
-- Agentic planner (GPT-5) reasons about information needs and dependencies
-- Context chaining: Phase 2 prompts explicitly reference Phase 1 findings
-- Context summarization: Cuts token usage ~70% while preserving key information
-- Smart task mix: Balances documentation (factual gathering) vs analysis (synthesis)
-- Doc reuse: Checks existing research to avoid redundant work
+**Fully autonomous workflow:**
+```bash
+deepr prep auto "What should Ford do in EVs for 2026?" --rounds 3
+# Complete autonomous research:
+# Plan Phase 1 → Execute → Review → Plan Phase 2 → Execute → Review → Plan Phase 3 → Execute
+# Cost: ~$3-5, Time: 40-60 minutes
+```
 
-Result: Comprehensive, interconnected analysis—not isolated reports.
+**Why this matters:**
+- Later phases informed by actual findings, not guesses
+- GPT-5 acts as research lead, reviewing and planning next steps
+- Each round builds on real data from previous rounds
+- Works with context: call transcripts, documents, specific scenarios
+
+**Example use case:**
+```bash
+deepr prep auto "Review the attached call transcript with DemoCorp's CEO. Research their competitive position, market trends, and provide strategic recommendations." --rounds 3 --context "$(cat call.txt)"
+```
+
+Round 1 researches DemoCorp and market. Round 2 reviews findings and researches specific gaps. Round 3 synthesizes strategic recommendations grounded in research.
+
+This is agentic AI with research depth—not just reasoning, but researching between reasoning steps.
 
 ## Architecture
 
@@ -125,23 +137,29 @@ Multi-phase campaigns multiply by number of tasks, but context chaining reduces 
 
 ## Current Status
 
-**v2.0 - Production Ready**
+**v2.1 - Current Release**
 
-Working now:
-- CLI: submit, wait, status, result, cancel, queue management
+Stable:
+- Single deep research jobs: CLI + web UI for o3/o4-mini-deep-research
 - Worker: Background polling with stuck job detection (auto-cancels queued >10min)
 - Web UI: ChatGPT-style interface with real-time job queue, cost analytics, minimal monochrome design
 - Cost tracking: Automatic from OpenAI token usage
 - SQLite queue + filesystem storage
-- Validated with live jobs
 
-**v2.1 - Active Development**
+Beta (functional, adaptive research workflow):
+- `deepr prep plan` - GPT-5 generates research plan
+- `deepr prep execute` - Execute plan with context chaining
+- `deepr prep continue` - GPT-5 reviews results, plans next phase
+- `deepr prep auto` - Fully autonomous multi-round research
+- ResearchReviewer: GPT-5 acts as research lead, adapting strategy based on findings
 
-Building now:
-- Agentic planner: Multi-phase research with dependencies
-- Context chaining: Feed prior research to later phases
+**v2.2 - Next Up**
+
+Future features:
 - Doc analysis: `deepr docs analyze` scans existing research, identifies gaps
 - Results library: Browse and view completed research
+- Multi-provider routing: Auto-select best provider per task
+- Advanced dependency graphs: Visualize research campaign flow
 
 See [ROADMAP.md](ROADMAP.md) for details.
 
@@ -200,10 +218,11 @@ deepr research status <job-id>     # Check status
 deepr research result <job-id>     # Display result
 deepr research cancel <job-id>     # Cancel job
 
-# Multi-phase campaign (in development)
-deepr prep plan "High-level goal" --topics 5
-deepr prep review                  # Review generated plan
-deepr prep execute                 # Submit all jobs
+# Multi-phase research (adaptive workflow)
+deepr prep plan "High-level goal" --topics 5      # Plan Phase 1
+deepr prep execute --yes                          # Execute Phase 1
+deepr prep continue --topics 3                    # GPT-5 reviews, plans Phase 2
+deepr prep auto "High-level goal" --rounds 3      # Fully autonomous multi-round
 
 # Queue management
 deepr queue list                   # List all jobs
@@ -245,8 +264,25 @@ See [docs/DEEP_RESEARCH_EXPLAINED.md](docs/DEEP_RESEARCH_EXPLAINED.md) for detai
 
 ## Philosophy
 
+Think like a human, use AI. Or in this case: **think like a small research team, use Deepr.**
+
 Research is the foundation of good decision-making. Comprehensive research requires understanding what you need to know, sequencing research intelligently, building context across findings, and synthesizing insights.
 
-Deepr automates this entire process. State your goal once, get comprehensive interconnected analysis.
+Deepr replicates how human research teams actually work:
+- Research lead plans initial foundation research
+- Team executes and reports findings
+- Lead reviews results, identifies gaps
+- Lead plans next phase based on what was learned
+- Repeat until comprehensive
+
+The difference: Your "research team" is GPT-5 (planning and reviewing) + o3/o4-mini (executing deep research). Cost: $3-5 per campaign instead of $5,000+ consulting fees. Time: 40-60 minutes instead of weeks.
 
 **Do your homework. Knowledge is power. Automate it.**
+
+---
+
+## Credits
+
+Created by **Nick Seal**.
+
+Deepr is an open-source research automation platform designed to make comprehensive research accessible and affordable. Built with the philosophy that AI should replicate human workflows, not replace human thinking.

@@ -17,9 +17,9 @@ def prep():
               help="Number of research topics to generate (1-10)")
 @click.option("--context", "-c", default=None,
               help="Additional context for planning")
-@click.option("--planner", "-p", default="gpt-5-mini",
+@click.option("--planner", "-p", default="gpt-5",
               type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-              help="GPT-5 model for planning (cheap, fast)")
+              help="GPT-5 model for planning (reasoning model)")
 @click.option("--model", "-m", default="o4-mini-deep-research",
               type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
               help="Deep research model for execution")
@@ -287,7 +287,7 @@ def execute(yes: bool):
         from pathlib import Path
         from deepr.config import load_config
         from deepr.queue.local_queue import SQLiteQueue
-        from deepr.storage.local_storage import LocalStorage
+        from deepr.storage.local import LocalStorage
         from deepr.providers.openai_provider import OpenAIProvider
         from deepr.services.context_builder import ContextBuilder
         from deepr.services.batch_executor import BatchExecutor
@@ -338,7 +338,9 @@ def execute(yes: bool):
         # Initialize services
         config = load_config()
         queue = SQLiteQueue(config["queue_db_path"])
-        storage = LocalStorage(config["storage_path"])
+        # Use reports_path or default to data/reports
+        storage_path = config.get("reports_path", "data/reports")
+        storage = LocalStorage(storage_path)
         provider = OpenAIProvider(api_key=config["api_key"])
         context_builder = ContextBuilder(api_key=config["api_key"])
         executor = BatchExecutor(
@@ -365,6 +367,12 @@ def execute(yes: bool):
             return results
 
         results = asyncio.run(run_campaign())
+
+        # Save campaign_id to plan for continue command
+        plan["last_campaign_id"] = campaign_id
+        plan["current_phase"] = 1
+        with open(plan_file, "w") as f:
+            json.dump(plan, f, indent=2)
 
         # Show results
         click.echo(f"\n{CHECK} Campaign completed!")
@@ -453,4 +461,247 @@ def status(batch_id: str):
 
     except Exception as e:
         click.echo(f"\n{CROSS} Error: {e}", err=True)
+        raise click.Abort()
+
+
+@prep.command()
+@click.option("--topics", "-n", default=5, type=click.IntRange(1, 10),
+              help="Number of research tasks for next phase")
+@click.option("--yes", "-y", is_flag=True,
+              help="Auto-execute without confirmation")
+def continue_research(topics: int, yes: bool):
+    """
+    Continue research campaign by planning next phase based on completed results.
+
+    Replicates research team workflow:
+    1. Reviews completed research from previous phase
+    2. Identifies gaps and what's needed next
+    3. Plans Phase N+1 research tasks
+    4. Optionally executes immediately
+
+    Example:
+        deepr prep plan "..." --topics 4
+        deepr prep execute --yes
+        # Wait for completion...
+        deepr prep continue --topics 3 --yes
+        # Continues with Phase 2 based on Phase 1 findings
+    """
+    print_section_header("Continue Research Campaign")
+
+    try:
+        import json
+        import asyncio
+        from pathlib import Path
+        from deepr.config import load_config
+        from deepr.storage.local import LocalStorage
+        from deepr.queue.local_queue import SQLiteQueue
+        from deepr.services.research_reviewer import ResearchReviewer
+
+        # Load last campaign
+        plan_dir = Path(".deepr/plans")
+        plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+        if not plan_files:
+            click.echo(f"\n{CROSS} No previous campaign found. Run 'deepr prep plan' first.", err=True)
+            raise click.Abort()
+
+        plan_file = plan_files[0]
+        with open(plan_file, "r") as f:
+            plan = json.load(f)
+
+        scenario = plan.get("scenario", "Unknown")
+        current_phase = plan.get("current_phase", 1)
+
+        click.echo(f"\nScenario: {scenario}")
+        click.echo(f"Current Phase: {current_phase}")
+        click.echo(f"\nReviewing Phase {current_phase} results with GPT-5...")
+
+        # Get completed results
+        config = load_config()
+        storage_path = config.get("reports_path", "data/reports")
+        storage = LocalStorage(storage_path)
+        queue = SQLiteQueue(config["queue_db_path"])
+
+        # Load results from last execution
+        completed_results = []
+        if "last_campaign_id" in plan:
+            campaign_id = plan["last_campaign_id"]
+            # Try to load campaign results
+            try:
+                campaign_data = asyncio.run(storage.get_report(campaign_id, "campaign_results.json"))
+                campaign_json = json.loads(campaign_data.decode("utf-8"))
+
+                # Extract completed task results
+                for task_id, task_info in campaign_json.get("tasks", {}).items():
+                    if task_info.get("status") == "completed":
+                        job_id = task_info.get("job_id")
+                        try:
+                            result_data = asyncio.run(storage.get_report(job_id, "report.md"))
+                            completed_results.append({
+                                "title": task_info.get("title"),
+                                "result": result_data.decode("utf-8")
+                            })
+                        except:
+                            pass
+            except:
+                click.echo(f"{CROSS} Could not load previous campaign results", err=True)
+                raise click.Abort()
+
+        if not completed_results:
+            click.echo(f"\n{CROSS} No completed results found from previous phase.", err=True)
+            click.echo("Make sure you ran 'deepr prep execute' and tasks completed.", err=True)
+            raise click.Abort()
+
+        click.echo(f"Found {len(completed_results)} completed research tasks")
+
+        # Review with GPT-5
+        reviewer = ResearchReviewer(model="gpt-5")
+        review_result = reviewer.review_and_plan_next(
+            scenario=scenario,
+            completed_results=completed_results,
+            current_phase=current_phase,
+            max_tasks=topics
+        )
+
+        # Display review
+        click.echo(f"\n{CHECK} Review complete\n")
+        click.echo(f"Analysis: {review_result.get('analysis', 'No analysis')}\n")
+
+        if review_result.get("status") == "ready_for_synthesis":
+            click.echo("Status: Ready for final synthesis")
+        else:
+            click.echo(f"Status: Continue with Phase {review_result['phase']}")
+
+        # Display next tasks
+        next_tasks = review_result.get("next_tasks", [])
+        if next_tasks:
+            click.echo(f"\nProposed Phase {review_result['phase']} Tasks:")
+            for i, task in enumerate(next_tasks, 1):
+                click.echo(f"\n{i}. {task['title']}")
+                click.echo(f"   Rationale: {task.get('rationale', 'N/A')}")
+                click.echo(f"   Prompt: {task['prompt'][:100]}...")
+
+        # Save updated plan
+        plan["current_phase"] = review_result["phase"]
+        plan["tasks"] = [
+            {
+                "id": i,
+                "phase": review_result["phase"],
+                "title": task["title"],
+                "prompt": task["prompt"],
+                "type": "synthesis" if review_result.get("status") == "ready_for_synthesis" else "analysis"
+            }
+            for i, task in enumerate(next_tasks, 1)
+        ]
+
+        with open(plan_file, "w") as f:
+            json.dump(plan, f, indent=2)
+
+        click.echo(f"\n{CHECK} Plan updated: {plan_file.name}")
+
+        # Ask if should execute
+        if not yes:
+            if not click.confirm(f"\nExecute Phase {review_result['phase']} now?"):
+                click.echo(f"\n{CROSS} Cancelled. Run 'deepr prep execute' when ready.")
+                return
+
+        # Execute
+        click.echo(f"\n{CHECK} Executing Phase {review_result['phase']}...")
+        from click.testing import CliRunner
+        runner = CliRunner()
+        result = runner.invoke(execute, ['--yes'])
+        if result.exit_code != 0:
+            click.echo(f"\n{CROSS} Execution failed")
+            raise click.Abort()
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@prep.command()
+@click.argument("scenario")
+@click.option("--rounds", "-r", default=3, type=click.IntRange(2, 5),
+              help="Number of research rounds (2-5)")
+@click.option("--topics-per-round", "-n", default=4,
+              help="Tasks per round")
+def auto(scenario: str, rounds: int, topics_per_round: int):
+    """
+    Fully autonomous multi-round research (plan → execute → review → repeat).
+
+    Replicates complete research team workflow:
+    - Round 1: Plan foundation → Execute → Review
+    - Round 2: Plan analysis → Execute → Review
+    - Round 3: Plan synthesis → Execute → Done
+
+    Example:
+        deepr prep auto "What should Ford do in EVs for 2026?" --rounds 3
+
+    This will:
+    1. Generate Phase 1 (foundation research)
+    2. Execute Phase 1 and wait for completion
+    3. Review Phase 1 results with GPT-5
+    4. Generate Phase 2 (analysis based on Phase 1)
+    5. Execute Phase 2 and wait
+    6. Review Phase 2 results
+    7. Generate Phase 3 (final synthesis)
+    8. Execute Phase 3
+    9. Done - comprehensive multi-phase research complete
+    """
+    print_section_header("Autonomous Multi-Round Research")
+
+    click.echo(f"\nScenario: {scenario}")
+    click.echo(f"Rounds: {rounds}")
+    click.echo(f"Tasks per round: {topics_per_round}")
+    click.echo("\nThis will run completely autonomously.")
+    click.echo("Each round: plan → execute → wait → review → next round")
+    click.echo(f"\nEstimated time: {rounds * 30}-{rounds * 60} minutes")
+    click.echo(f"Estimated cost: ${rounds * topics_per_round * 0.50:.2f} - ${rounds * topics_per_round * 1.00:.2f}")
+
+    if not click.confirm("\nProceed with autonomous research?"):
+        click.echo(f"\n{CROSS} Cancelled")
+        return
+
+    try:
+        from click.testing import CliRunner
+        runner = CliRunner()
+
+        # Round 1: Initial plan
+        click.echo(f"\n{'='*70}")
+        click.echo(f"ROUND 1: Foundation Research")
+        click.echo(f"{'='*70}\n")
+
+        result = runner.invoke(plan, [scenario, '--topics', str(topics_per_round)])
+        if result.exit_code != 0:
+            click.echo(f"\n{CROSS} Planning failed")
+            raise click.Abort()
+
+        result = runner.invoke(execute, ['--yes'])
+        if result.exit_code != 0:
+            click.echo(f"\n{CROSS} Execution failed")
+            raise click.Abort()
+
+        # Subsequent rounds
+        for round_num in range(2, rounds + 1):
+            click.echo(f"\n{'='*70}")
+            click.echo(f"ROUND {round_num}: {'Synthesis' if round_num == rounds else 'Analysis'}")
+            click.echo(f"{'='*70}\n")
+
+            # Review and plan next
+            result = runner.invoke(continue_research, ['--topics', str(topics_per_round), '--yes'])
+            if result.exit_code != 0:
+                click.echo(f"\n{CROSS} Continue failed")
+                raise click.Abort()
+
+        click.echo(f"\n{'='*70}")
+        click.echo(f"{CHECK} AUTONOMOUS RESEARCH COMPLETE")
+        click.echo(f"{'='*70}\n")
+        click.echo("View results: deepr prep review")
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
         raise click.Abort()
