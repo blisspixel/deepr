@@ -18,12 +18,14 @@ def team():
               help="Number of team members (3-8)")
 @click.option("--context", "-c", default=None,
               help="Additional context for research")
+@click.option("--company", default=None,
+              help="Company name to research for grounded personas (e.g., 'Anthropic', 'OpenAI')")
 @click.option("--model", "-m", default="o4-mini-deep-research",
               type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
               help="Deep research model for execution")
 @click.option("--yes", "-y", is_flag=True,
               help="Skip confirmation and execute immediately")
-def analyze(question: str, team_size: int, context: Optional[str], model: str, yes: bool):
+def analyze(question: str, team_size: int, context: Optional[str], company: Optional[str], model: str, yes: bool):
     """
     Dynamically assemble optimal research team for your question.
 
@@ -35,12 +37,15 @@ def analyze(question: str, team_size: int, context: Optional[str], model: str, y
         deepr team analyze "Should we pivot to enterprise?"
         deepr team analyze "How do we compete with Notion?" --team-size 6
         deepr team analyze "Future of AI coding tools?" --context "$(cat context.txt)"
+        deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"
     """
     print_section_header("Dynamic Dream Team Research")
 
     click.echo(f"\nQuestion: {question}")
     if context:
         click.echo(f"Context: {context[:100]}..." if len(context) > 100 else f"Context: {context}")
+    if company:
+        click.echo(f"Company: {company} (will research leadership for grounded personas)")
     click.echo(f"Team size: {team_size} members")
     click.echo(f"Model: {model}\n")
 
@@ -54,13 +59,17 @@ def analyze(question: str, team_size: int, context: Optional[str], model: str, y
         from deepr.storage.local import LocalStorage
 
         # Phase 1: GPT-5 designs optimal team for THIS question
+        if company:
+            click.echo(f"[Phase 0] Researching {company}'s leadership for grounded personas...\n")
+
         click.echo("[Phase 1] GPT-5 assembling dream team for this question...\n")
 
         architect = TeamArchitect(model="gpt-5")
         team = architect.design_team(
             question=question,
             context=context,
-            team_size=team_size
+            team_size=team_size,
+            research_company=company
         )
 
         click.echo(f"Assembled {len(team)}-person dream team:\n")

@@ -42,7 +42,8 @@ class TeamArchitect:
         self,
         question: str,
         context: Optional[str] = None,
-        team_size: int = 5
+        team_size: int = 5,
+        research_company: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Design optimal research team for this question.
@@ -51,6 +52,7 @@ class TeamArchitect:
             question: Research question
             context: Additional context
             team_size: Number of team members
+            research_company: Company name to research for grounded personas
 
         Returns:
             List of team members with roles, focus, perspective
@@ -72,7 +74,12 @@ class TeamArchitect:
                 ...
             ]
         """
-        prompt = self._build_team_design_prompt(question, context, team_size)
+        # If company specified, first research actual people
+        company_intel = None
+        if research_company:
+            company_intel = self._research_company_people(research_company)
+
+        prompt = self._build_team_design_prompt(question, context, team_size, company_intel)
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -92,11 +99,79 @@ class TeamArchitect:
         result = json.loads(response.choices[0].message.content)
         return result.get("team", [])
 
+    def _research_company_people(self, company: str) -> Optional[Dict[str, Any]]:
+        """
+        Research actual executives/board members for grounded personas.
+
+        Args:
+            company: Company name
+
+        Returns:
+            Dict with executives, board members, and backgrounds
+        """
+        prompt = f"""Research {company}'s current leadership team.
+
+Find:
+1. CEO and C-suite executives (names, backgrounds, previous roles)
+2. Board members (names, backgrounds, notable experience)
+3. Key advisors or notable investors if public
+
+Focus on:
+- Current roles and previous companies
+- Areas of expertise
+- Notable achievements or specializations
+- Educational background if relevant
+
+Return JSON:
+{{
+  "executives": [
+    {{
+      "name": "Full Name",
+      "role": "Current role",
+      "background": "Brief summary of previous experience",
+      "expertise": ["area1", "area2"]
+    }}
+  ],
+  "board": [
+    {{
+      "name": "Full Name",
+      "role": "Board position",
+      "background": "Brief summary",
+      "expertise": ["area1", "area2"]
+    }}
+  ],
+  "summary": "Brief overview of leadership's collective background"
+}}
+
+Only include people you find with actual research. If unable to find information, return empty lists."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o",  # Use fast model for research
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a research analyst. Find factual information about company leadership."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                response_format={"type": "json_object"}
+            )
+
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            print(f"Warning: Could not research company people: {e}")
+            return None
+
     def _build_team_design_prompt(
         self,
         question: str,
         context: Optional[str],
-        team_size: int
+        team_size: int,
+        company_intel: Optional[Dict[str, Any]] = None
     ) -> str:
         """Build prompt for GPT-5 to design team."""
 
@@ -107,6 +182,27 @@ class TeamArchitect:
 
         if context:
             parts.append(f"\n## Context\n{context}\n")
+
+        if company_intel:
+            parts.append("\n## Company Leadership Intelligence\n")
+            parts.append("Use this research to ground personas in real people:\n\n")
+
+            if company_intel.get("executives"):
+                parts.append("**Executives:**\n")
+                for exec in company_intel["executives"]:
+                    parts.append(f"- {exec['name']} ({exec['role']}): {exec['background']}\n")
+                parts.append("\n")
+
+            if company_intel.get("board"):
+                parts.append("**Board:**\n")
+                for board in company_intel["board"]:
+                    parts.append(f"- {board['name']} ({board['role']}): {board['background']}\n")
+                parts.append("\n")
+
+            if company_intel.get("summary"):
+                parts.append(f"**Summary:** {company_intel['summary']}\n\n")
+
+            parts.append("**IMPORTANT:** Create personas grounded in these actual people's backgrounds and expertise. Don't use their exact names, but use their real experience to inform persona design.\n\n")
 
         parts.append(f"""
 ## Your Task
