@@ -171,28 +171,36 @@ We also successfully researched the competitive landscape (Elicit, Perplexity, C
 
 ## Building Next: Planner Enhancements & Observability
 
-**✅ Doc Reuse Intelligence** (Priority 1 - COMPLETE)
+**⚠️ Doc Reuse Intelligence** (Priority 1 - IMPLEMENTED BUT DISABLED)
 
-Before generating a plan, use GPT-5 to check existing docs - IMPLEMENTED:
-- Scans `docs/research and documentation/` for relevant research
-- GPT-5 evaluates: sufficient (reuse), needs update (2024→2025), or gaps (new research)
-- CLI: `deepr prep plan --check-docs` flag
-- Shows which docs to reuse, which need updates, what's missing
+Implemented doc checker but discovered fundamental limitation - DISABLED BY DEFAULT:
 
-Implementation:
+The Problem:
+- GPT-5 sees 500 char preview + filename, can't judge actual research depth
+- False confidence: "We have a doc" != "We have PhD-level comprehensive research"
+- Wrong optimization: Saves money but may deliver shallow results
+- Testing revealed: suitable for API docs, NOT for deep research
+
+Implementation exists:
 ```python
 class DocReviewer:
     def review_docs(self, scenario: str) -> Dict:
         # Scans docs/ directory
-        # Uses GPT-5 to evaluate relevance
-        # Returns: {"sufficient": [], "needs_update": [], "gaps": [], "recommendations": []}
+        # GPT-5 evaluates with limited context
+        # RISK: Can't judge depth from preview
 ```
 
-Benefits delivered:
-- Saves money by reusing existing research (potentially 50%+ cost reduction)
-- Updates only what's outdated
-- Builds on prior work instead of starting from scratch
-- Addresses dogfooding lesson: context management is critical
+Current Status:
+- Disabled by default
+- `--check-docs` flag with warning
+- Only use for factual/API documentation
+- NOT recommended for comprehensive research
+
+Lesson Learned:
+- Premature optimization that may hurt quality
+- "Does doc exist?" is wrong question for deep research
+- Right question: "Is research comprehensive enough?" (can't answer from preview)
+- Better to over-research than under-research with false confidence
 
 **Planner Enhancements** (Priority 2)
 
