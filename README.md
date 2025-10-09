@@ -216,9 +216,10 @@ Deepr is designed to work with multiple deep research providers:
 - Enterprise compliance and deployment
 
 **Anthropic** (Claude with Extended Thinking):
-- SDK-based approach with more control
-- Custom tool integration
-- Future provider support
+- Extended Thinking for reasoning transparency
+- NOT a Deep Research equivalent (we manage workflow)
+- Suitable for analysis tasks, not comprehensive research
+- Implemented but OpenAI remains primary for deep research
 
 Provider selection:
 - Default: OpenAI (most mature)
