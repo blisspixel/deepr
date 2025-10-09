@@ -265,6 +265,8 @@ deepr prep auto "High-level goal" --rounds 3      # Fully autonomous multi-round
 
 # Dynamic dream team research
 deepr team analyze "Should we pivot to enterprise?" --team-size 5
+deepr team analyze "Our Q2 launch plan" --adversarial  # Devil's advocate mode
+deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"  # Grounded personas
 # GPT-5 assembles optimal team for THIS question
 # Each member researches from their unique perspective
 # Final synthesis shows agreements, conflicts, recommendations
