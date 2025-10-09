@@ -208,38 +208,64 @@ Additional needed:
 - Better dependency reasoning
 - Cost-benefit analysis per task
 
-**Market Context** (Based on competitive analysis)
+**Market Context** (As of October 2025)
 
-Provider landscape:
-- **OpenAI**: Market leader, turnkey deep research API (our current focus)
+Provider landscape for Deep Research:
+- **OpenAI**: **ONLY provider with turnkey Deep Research API**
+  - Models: o3-deep-research, o4-mini-deep-research
+  - Submit query → get comprehensive report (asynchronous)
+  - Our primary execution engine
+
 - **Azure OpenAI**: Enterprise version with Bing Search integration
-- **Anthropic**: SDK approach with Extended Thinking, more control
-- **Google**: Batch API for high-throughput parallel tasks (different use case)
-- **Perplexity**: Real-time search API (different use case)
+  - Uses OpenAI's o3-deep-research backend
+  - Integrated into Azure AI Foundry Agent Service
 
-**Our Position: Provider-Agnostic Platform**
+- **Google Gemini**: Has "Deep Research" in consumer product
+  - **NOT available as API** for developers (Oct 2025)
+  - Batch API is for parallel tasks, not deep research
 
-Deepr is NOT a wrapper for one API - it's a research automation platform that works with multiple providers.
+- **Anthropic Claude**: Extended Thinking + Agent SDK
+  - **NO Deep Research API equivalent**
+  - DIY framework - you manage research loop yourself
+  - Useful for reasoning transparency, not turnkey research
 
-Current status:
-- OpenAI fully implemented (most mature offering)
-- Azure OpenAI supported (same backend)
-- Anthropic planned (SDK integration)
-- Architecture designed for multi-provider support
+- **Perplexity/Cohere**: Different use cases (real-time search, RAG components)
 
-Our unique value:
-- Not just "one prompt → one report" (that's commodity)
+**The Truth About Multi-Provider Support**
+
+Research finding (from our own dogfooding):
+> "OpenAI's Deep Research API is the seminal offering in this category... OpenAI and Microsoft Azure are the definitive leaders in this category, offering tightly integrated and powerful services that set the benchmark for the industry."
+
+**Current Reality:**
+- OpenAI is the ONLY provider with API access to deep research (Oct 2025)
+- We built multi-provider architecture anticipating competitors would follow
+- As of now, no alternatives exist via API
+
+**Our Position:**
+- OpenAI Deep Research for execution (comprehensive reports)
+- GPT-5 for planning and review (adaptive workflows)
+- Architecture ready for future providers when they arrive
+
+**What About Anthropic?**
+- Implemented Extended Thinking provider for reasoning transparency
+- Useful for analysis tasks requiring visible thought process
+- NOT a replacement for Deep Research
+- Could be used for planning role (GPT-5 alternative)
+
+**Our Unique Value** (beyond single-provider wrappers):
 - Intelligent multi-phase planning with context chaining
-- Smart mix of documentation + analysis
+- Smart mix of documentation + analysis tasks
 - Doc reuse to minimize cost
-- Provider-agnostic (use best provider for each task)
+- Adaptive workflows (Plan → Execute → Review → Replan)
+- Dream team dynamics (diverse cognitive perspectives)
 - All via simple CLI (no complex orchestration needed)
 
-Long-term vision: When you have multiple provider keys configured, Deepr intelligently routes each task to the best provider:
-- Quick documentation gathering → o4-mini (fast, cheap)
-- Deep analysis → o3 or Claude with Extended Thinking (thorough)
-- Synthesis → Best model available
-- Auto-fallback if one provider is down
+**Future Vision:**
+When other providers launch Deep Research APIs, Deepr will intelligently route:
+- Quick documentation → o4-mini (fast, cheap)
+- Deep analysis → o3 or competitor equivalent
+- Planning → GPT-5 or Claude Extended Thinking
+- Auto-fallback if provider unavailable
 
 Testing:
 - Generate plans for various scenarios
