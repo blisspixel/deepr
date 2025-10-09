@@ -356,21 +356,25 @@ deepr team analyze "Should we pivot to enterprise?" --team-size 5
 - Role-specific research tasks (each member stays in their lane)
 - Synthesis with attribution (credit team members)
 - Conflict highlighting (where perspectives disagree)
+- Grounded personas (research actual company leadership for realistic team members)
+- Adversarial mode (weight team toward skeptical/devil's advocate perspectives)
+
+**Examples:**
+
+```bash
+# Balanced analysis
+deepr team analyze "Should we pivot to enterprise?" --team-size 5
+
+# Devil's advocate mode (weighted toward skeptical perspectives)
+deepr team analyze "Our Q2 launch plan" --adversarial
+
+# Grounded in actual company leadership
+deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"
+```
 
 **Future Enhancements:**
 
-1. **Red Team Mode** - Play devil's advocate with your own plans:
-   ```bash
-   deepr team redteam "Our Q2 launch plan"
-
-   # Pre-mortem: Assume it failed. Why?
-   # Assumption challenge: What if our core beliefs are wrong?
-   # Alternative futures: What are the worst-case scenarios?
-
-   # Goal: Find the flaws before reality does
-   ```
-
-2. **Enhanced Observability** - Make reasoning traces visible:
+1. **Enhanced Observability** - Make reasoning traces visible:
    - Show Extended Thinking traces from Anthropic provider
    - Tag findings by team member role
    - Highlight where perspectives converge vs diverge
