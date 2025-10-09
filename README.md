@@ -46,7 +46,7 @@ deepr research wait <job-id>
 
 Replicates how a human research team works: plan → execute → review → plan next phase.
 
-**Human-in-the-loop workflow:**
+**Recommended workflow (stable):**
 ```bash
 # Round 1: Foundation research
 deepr prep plan "What should Ford do in EVs for 2026?" --topics 3
@@ -96,14 +96,19 @@ deepr prep plan "Research competitive landscape for research automation. Context
 - Context summarization cuts token usage 70% while preserving meaning
 - Works with call transcripts, documents, specific scenarios
 
-**Example:**
+**Example with context injection:**
 ```bash
-deepr prep auto "Review call transcript with DemoCorp's CEO. Research their competitive position and provide strategic recommendations. Context: $(cat call.txt)" --rounds 3
+# Manual workflow (recommended)
+deepr prep plan "Review call transcript with DemoCorp's CEO. Research their competitive position and provide strategic recommendations. Context: $(cat call.txt)" --topics 3
+deepr prep execute --yes
+# Wait for Phase 1 completion...
+deepr prep continue --topics 2  # GPT-5 reviews and plans Phase 2
 ```
 
-Round 1: Research DemoCorp + market (with call context)
-Round 2: GPT-5 reviews results, identifies gaps, researches specifics
-Round 3: Synthesize strategy grounded in research + call insights
+How it works:
+- Round 1: Research DemoCorp + market (with call context)
+- Round 2: GPT-5 reviews results, identifies gaps, researches specifics
+- Round 3: Synthesize strategy grounded in research + call insights
 
 This is agentic AI with research depth—not just reasoning, but researching between reasoning steps with proper context management.
 
@@ -183,7 +188,7 @@ Beta (functional, adaptive research workflow):
 - `deepr prep plan` - GPT-5 generates research plan
 - `deepr prep execute` - Execute plan with context chaining
 - `deepr prep continue` - GPT-5 reviews results, plans next phase
-- `deepr prep auto` - Fully autonomous multi-round research
+- `deepr prep auto` - Fully autonomous multi-round research (working)
 - ResearchReviewer: GPT-5 acts as research lead, adapting strategy based on findings
 
 **v2.2 - Next Up**

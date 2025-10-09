@@ -237,26 +237,7 @@ class BatchExecutor:
                 job_id = job_ids[task_id]
                 job = await self.queue.get_job(job_id)
 
-                if job.status == JobStatus.COMPLETED:
-                    # Retrieve result
-                    result_data = await self.storage.get_report(
-                        job_id=job_id,
-                        filename="report.md",
-                    )
-
-                    results[task_id] = {
-                        "title": task_titles[task_id],
-                        "job_id": job_id,
-                        "status": "completed",
-                        "result": result_data.decode("utf-8"),
-                        "cost": job.cost,
-                        "tokens_used": job.tokens_used,
-                    }
-
-                    pending.remove(task_id)
-                    print(f"  [OK] Task {task_id}: {task_titles[task_id]} (${job.cost:.2f})")
-
-                elif job.status == JobStatus.FAILED:
+                if job.status == JobStatus.FAILED:
                     results[task_id] = {
                         "title": task_titles[task_id],
                         "job_id": job_id,
@@ -267,6 +248,38 @@ class BatchExecutor:
 
                     pending.remove(task_id)
                     print(f"  [FAIL] Task {task_id}: {task_titles[task_id]} (FAILED)")
+
+                elif job.status == JobStatus.COMPLETED:
+                    # Retrieve result
+                    try:
+                        result_data = await self.storage.get_report(
+                            job_id=job_id,
+                            filename="report.md",
+                        )
+
+                        results[task_id] = {
+                            "title": task_titles[task_id],
+                            "job_id": job_id,
+                            "status": "completed",
+                            "result": result_data.decode("utf-8"),
+                            "cost": job.cost,
+                            "tokens_used": job.tokens_used,
+                        }
+
+                        pending.remove(task_id)
+                        print(f"  [OK] Task {task_id}: {task_titles[task_id]} (${job.cost:.2f})")
+                    except Exception as e:
+                        # Handle case where job is marked complete but report is missing
+                        results[task_id] = {
+                            "title": task_titles[task_id],
+                            "job_id": job_id,
+                            "status": "failed",
+                            "result": f"Error retrieving report: {e}",
+                            "cost": job.cost if hasattr(job, 'cost') else 0.0,
+                        }
+
+                        pending.remove(task_id)
+                        print(f"  [FAIL] Task {task_id}: {task_titles[task_id]} (Report error: {e})")
 
         return results
 
