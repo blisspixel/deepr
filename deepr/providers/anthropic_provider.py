@@ -38,6 +38,7 @@ from deepr.providers.base import (
     VectorStore,
     ProviderError,
 )
+from deepr.tools import ToolRegistry, ToolExecutor
 
 
 class AnthropicProvider(DeepResearchProvider):
@@ -61,6 +62,7 @@ class AnthropicProvider(DeepResearchProvider):
         api_key: Optional[str] = None,
         model: str = "claude-sonnet-4-5",
         thinking_budget: int = 16000,  # Recommended for complex tasks
+        web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
     ):
         """
         Initialize Anthropic provider.
@@ -69,6 +71,7 @@ class AnthropicProvider(DeepResearchProvider):
             api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
             model: Claude model supporting Extended Thinking
             thinking_budget: Token budget for Extended Thinking (min 1024, rec 16k+)
+            web_search_backend: Web search backend (brave, tavily, duckduckgo, auto)
         """
         if not ANTHROPIC_AVAILABLE:
             raise ImportError(
@@ -82,6 +85,12 @@ class AnthropicProvider(DeepResearchProvider):
         self.model = model
         self.thinking_budget = max(1024, thinking_budget)
         self.client = Anthropic(api_key=self.api_key)
+
+        # Initialize tool executor
+        self.tool_executor = ToolRegistry.create_executor(
+            web_search=True,
+            backend=web_search_backend
+        )
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """
@@ -102,51 +111,72 @@ class AnthropicProvider(DeepResearchProvider):
             # Build user message with context
             user_message = self._build_research_prompt(request)
 
-            # Define web search tool if enabled
-            tools = []
+            # Get tool definitions if web search enabled
+            tools = None
             if request.web_search_enabled:
-                tools.append({
-                    "name": "web_search",
-                    "description": "Search the web for current information. Returns relevant search results.",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Search query"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                })
+                tools = self.tool_executor.get_tool_definitions(format="anthropic")
 
-            # Execute research with Extended Thinking
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=8000,  # Output budget for final report
-                thinking={
-                    "type": "enabled",
-                    "budget_tokens": self.thinking_budget
-                },
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
-                tools=tools if tools else None,
-            )
-
-            # Extract thinking + response
+            # Execute research with Extended Thinking (multi-turn for tool calls)
+            messages = [{"role": "user", "content": user_message}]
             thinking_content = []
             response_content = []
+            tool_calls_made = []
 
-            for block in response.content:
-                if block.type == "thinking":
-                    thinking_content.append(block.thinking)
-                elif block.type == "text":
-                    response_content.append(block.text)
+            # Multi-turn loop for tool use
+            max_turns = 5  # Prevent infinite loops
+            for turn in range(max_turns):
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=8000,
+                    thinking={
+                        "type": "enabled",
+                        "budget_tokens": self.thinking_budget
+                    },
+                    system=system_prompt,
+                    messages=messages,
+                    tools=tools,
+                )
+
+                # Extract thinking + content
+                has_tool_use = False
+                for block in response.content:
+                    if block.type == "thinking":
+                        thinking_content.append(block.thinking)
+                    elif block.type == "text":
+                        response_content.append(block.text)
+                    elif block.type == "tool_use":
+                        has_tool_use = True
+                        # Execute tool
+                        tool_result = await self.tool_executor.execute(
+                            block.name,
+                            **block.input
+                        )
+                        tool_calls_made.append({
+                            "tool": block.name,
+                            "input": block.input,
+                            "success": tool_result.success
+                        })
+
+                        # Add tool result to conversation
+                        messages.append({"role": "assistant", "content": response.content})
+                        messages.append({
+                            "role": "user",
+                            "content": [{
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps(tool_result.data) if tool_result.success else tool_result.error
+                            }]
+                        })
+
+                # If no tool use, we're done
+                if not has_tool_use:
+                    break
 
             # Format report with thinking trace (for transparency)
             report = self._format_research_report(
                 thinking="\n\n".join(thinking_content),
                 findings="\n\n".join(response_content),
+                tool_calls=tool_calls_made,
                 request=request
             )
 
@@ -281,6 +311,7 @@ Always show your work. Transparency builds trust."""
         self,
         thinking: str,
         findings: str,
+        tool_calls: List[Dict[str, Any]],
         request: ResearchRequest
     ) -> str:
         """Format research report with thinking trace."""
@@ -297,6 +328,16 @@ Always show your work. Transparency builds trust."""
             parts.append("## Research Process\n")
             parts.append("<details><summary>View reasoning trace</summary>\n")
             parts.append(f"\n{thinking}\n")
+            parts.append("</details>\n\n")
+
+        # Include tool calls for observability
+        if tool_calls:
+            parts.append("## Tool Usage\n")
+            parts.append("<details><summary>View tool calls</summary>\n\n")
+            for i, call in enumerate(tool_calls, 1):
+                parts.append(f"{i}. **{call['tool']}**\n")
+                parts.append(f"   - Input: `{call['input']}`\n")
+                parts.append(f"   - Success: {call['success']}\n\n")
             parts.append("</details>\n\n")
 
         parts.append("## Findings\n")
