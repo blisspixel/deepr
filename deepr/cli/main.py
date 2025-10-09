@@ -32,7 +32,7 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import research, queue, prep, cost, interactive, docs
+from deepr.cli.commands import research, queue, prep, cost, interactive, docs, team
 
 cli.add_command(research.research)
 cli.add_command(queue.queue)
@@ -40,6 +40,7 @@ cli.add_command(prep.prep)
 cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
+cli.add_command(team.team)
 
 
 def main():
