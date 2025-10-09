@@ -330,22 +330,29 @@ Think like a human, use AI. Or in this case: **think like a small research team,
 
 Research is the foundation of good decision-making. Comprehensive research requires understanding what you need to know, sequencing research intelligently, building context across findings, and synthesizing insights.
 
-**Deepr is your AI research dream team**—where diverse perspectives create better research:
+**Deepr is your AI research dream team** - but not with fixed roles. Instead, GPT-5 dynamically assembles the optimal team for each specific question:
 
-- **The Conductor** (Blue Hat): Orchestrates the research process, decides what to investigate when
-- **The Analyst** (White Hat): Gathers facts and data without bias or interpretation
-- **The Creative** (Green Hat): Identifies gaps and suggests new angles you haven't considered
-- **The Optimist** (Yellow Hat): Finds opportunities and upside potential
-- **The Skeptic** (Black Hat): Identifies risks, problems, and reasons things might fail
-- **The Synthesizer**: Weaves diverse perspectives into coherent, balanced insights
+- Question about enterprise pivot? Get enterprise SaaS analysts, procurement leads, CFOs
+- Question about technical architecture? Get infrastructure engineers, security experts, platform architects
+- Question about market strategy? Get market researchers, competitive analysts, customer advocates
 
-This isn't just metaphor—**conflict between perspectives is a feature, not a bug**. When the Optimist finds opportunities the Skeptic identifies risks, you get balanced analysis instead of blind spots. Real research teams work this way. Deepr automates it.
+**Dynamic team assembly beats static templates** because different questions need different expertise. The system:
+1. Analyzes your research question
+2. Designs an optimal team with diverse perspectives
+3. Each team member researches from their specific viewpoint
+4. Synthesis shows where perspectives agree, conflict, and converge
 
-Under the hood: GPT-5 orchestrates, o3/o4-mini executes deep research, context flows between phases. But you don't need to know that—just give it a question and watch your research team work.
+**Conflict between perspectives is a feature, not a bug.** When optimistic and skeptical views clash, you get balanced analysis instead of blind spots. Real research teams work this way. Deepr automates it.
 
-Cost: $3-5 per campaign instead of $5,000+ consulting fees. Time: 40-60 minutes instead of weeks.
+**Current capabilities:**
+- `deepr team analyze "question"` - Dynamic team assembly
+- `--adversarial` flag - Weight toward skeptical perspectives (devil's advocate mode)
+- `--company "Name"` - Ground personas in actual company leadership
+- `--perspective "lens"` - Analyze through cultural/demographic perspectives
 
-**Future (v2.3):** Explicit "hats" commands where you choose cognitive roles. Red Team mode for adversarial pre-mortems. Make the dream team dynamics visible and controllable.
+Under the hood: GPT-5 orchestrates, o3/o4-mini executes deep research, context flows between phases. Cost: $3-5 per campaign instead of $5,000+ consulting fees. Time: 40-60 minutes instead of weeks.
+
+**Building toward Agentic Level 5:** Deepr is evolving from adaptive planning (Level 3) toward fully autonomous meta-research (Level 5) - a self-improving research intelligence that learns from outcomes and optimizes its own strategies.
 
 **Do your homework. Knowledge is power. Automate it.**
 
