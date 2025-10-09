@@ -1,12 +1,23 @@
 """
 Doc Reuse Intelligence - Review existing research before planning new tasks.
 
-Scans docs/ directory for relevant research and evaluates:
-- Is this existing doc sufficient for the scenario?
-- Is it outdated (needs refresh with 2025 data)?
-- What gaps remain (what new research is needed)?
+WARNING: This is experimental and may hurt research quality.
 
-Saves money by reusing existing research and only queuing updates/new topics.
+The Problem:
+- GPT-5 sees 500 char preview + filename, can't judge actual depth
+- A shallow 2-paragraph doc vs comprehensive 60KB research both get "evaluated"
+- False confidence: "We have a doc" != "We have sufficient research"
+- Wrong optimization: Saves money but delivers worse results
+
+Safe Use Cases:
+- API documentation (version-specific facts)
+- Recent competitive research (< 6 months old)
+- Pricing/factual data
+- NOT for: Deep analysis, strategic research, PhD-level synthesis
+
+Current Status: Disabled by default (--check-docs flag required)
+
+Recommendation: Only use for factual/API docs, never for comprehensive research.
 """
 
 import os
