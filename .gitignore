@@ -80,3 +80,4 @@ deepr/web/frontend/.vite/
 # Claude/AI session data
 .claude/
 .deepr/
+/data/campaigns
