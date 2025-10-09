@@ -147,7 +147,7 @@ Only include people you find with actual research. If unable to find information
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",  # Use fast model for research
+                model="gpt-5",  # Use latest model for research
                 messages=[
                     {
                         "role": "system",
