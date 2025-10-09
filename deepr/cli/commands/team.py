@@ -20,6 +20,8 @@ def team():
               help="Additional context for research")
 @click.option("--company", default=None,
               help="Company name to research for grounded personas (e.g., 'Anthropic', 'OpenAI')")
+@click.option("--perspective", "-p", default=None,
+              help="Cultural/demographic perspective lens (e.g., 'Japanese business culture', 'Jewish perspective', 'Gen Z', 'Rural American')")
 @click.option("--adversarial", is_flag=True,
               help="Weight team toward skeptical/devil's advocate perspectives")
 @click.option("--model", "-m", default="o4-mini-deep-research",
@@ -27,7 +29,7 @@ def team():
               help="Deep research model for execution")
 @click.option("--yes", "-y", is_flag=True,
               help="Skip confirmation and execute immediately")
-def analyze(question: str, team_size: int, context: Optional[str], company: Optional[str], adversarial: bool, model: str, yes: bool):
+def analyze(question: str, team_size: int, context: Optional[str], company: Optional[str], perspective: Optional[str], adversarial: bool, model: str, yes: bool):
     """
     Dynamically assemble optimal research team for your question.
 
@@ -41,6 +43,8 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
         deepr team analyze "Future of AI coding tools?" --context "$(cat context.txt)"
         deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"
         deepr team analyze "Our Q2 launch plan" --adversarial  # Devil's advocate mode
+        deepr team analyze "How should we enter the Japanese market?" --perspective "Japanese business culture"
+        deepr team analyze "Community engagement strategy" --perspective "Gen Z social media users"
     """
     print_section_header("Dynamic Dream Team Research")
 
@@ -49,6 +53,8 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
         click.echo(f"Context: {context[:100]}..." if len(context) > 100 else f"Context: {context}")
     if company:
         click.echo(f"Company: {company} (will research leadership for grounded personas)")
+    if perspective:
+        click.echo(f"Perspective lens: {perspective}")
     if adversarial:
         click.echo(f"Mode: Adversarial (weighted toward skeptical/devil's advocate perspectives)")
     click.echo(f"Team size: {team_size} members")
@@ -75,6 +81,7 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
             context=context,
             team_size=team_size,
             research_company=company,
+            perspective_lens=perspective,
             adversarial=adversarial
         )
 
