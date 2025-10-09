@@ -363,6 +363,35 @@ Deepr automates that dynamic. But right now, users only see the final synthesisâ
 - Spot when one voice dominates (might be a problem)
 - Control how much debate you want
 
+**Observability & Trust Principles:**
+
+Following "Design for Trust" research (Agentic AI Engineering):
+
+1. **Glass Box Transparency** - Show the work, not just results:
+   - Reasoning traces visible (Extended Thinking, o3 reasoning tokens)
+   - Source attribution for every finding
+   - Decision logs (why Planner chose tasks, why Reviewer requested next phase)
+   - Cost breakdown per task
+
+2. **Semantic Traces** - Make debugging and auditing trivial:
+   - Every task tracks: prompt, context used, model, tokens, cost
+   - Phase results persist: what was learned, what gaps remain
+   - Link findings back to source tasks
+
+3. **No Hidden Reasoning** - Free speech for AI perspectives:
+   - Never hide or censor AI reasoning
+   - Surface conflicts between perspectives openly
+   - Trust users to evaluate evidence themselves
+   - Provide full context, not filtered summaries
+
+4. **Observability Without Noise** - Clean but complete:
+   - Primary UX stays minimal (no distracting verbosity)
+   - But ALL details available on demand (`--verbose`, debug logs)
+   - Web UI shows reasoning traces in expandable sections
+   - Export full audit trails for compliance
+
+This builds trust through transparency while keeping UX clean.
+
 **The Technical Foundation (for the curious):**
 
 We built robust orchestration without realizing it:
