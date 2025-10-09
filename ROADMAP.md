@@ -290,70 +290,88 @@ ANTHROPIC_API_KEY=...
 deepr prep execute  # Auto-routes each task
 ```
 
-**v2.3: Agentic Dream Team - Multi-Agent Orchestration**
+**v2.3: Dream Team - Make the Magic Visible**
 
-**The Revelation:** Deepr is already a Level 4 multi-agent system! We just haven't exposed it as such.
+**The Insight:** Deepr already works like a research team with diverse perspectives. We just need to make that visible and controllable.
 
-Current architecture (implicit agents):
-- Blue Hat (Orchestrator): BatchExecutor + ResearchPlanner
-- White Hat (Facts/Data): Documentation tasks
-- Green Hat (Creative): ResearchReviewer generating new angles
-- Yellow/Black Hats (Optimist/Critic): Analysis tasks
-- **Missing**: Explicit role assignment, conflict resolution, Red Team
+Current state (working, but implicit):
+- Conductor orchestrates research flow
+- Analyst gathers facts
+- Creative identifies gaps
+- Optimist finds opportunities
+- Skeptic identifies risks
+- Synthesis weaves it together
 
-**Key Insight from Research:** "The most critical determinant of a multi-agent project's success is not the sophistication of any single agent's persona, but rather the robustness of the system's architecture for collaboration, communication, and conflict resolution."
+**The Problem:** Users don't see the cognitive diversity at work. They submit research and get results, but miss **why** the results are balanced—because different perspectives challenged each other.
 
-This validates Deepr's design: We focused on orchestration, context management, and structured workflows—exactly what matters.
+**The Vision:** Make the dream team dynamics explicit. Let users see perspectives in action. Enable them to choose cognitive roles for specific questions.
 
 **New Capabilities:**
 
-1. **Agentic Level Control** - Let users choose orchestration depth:
+1. **Thinking Hats Mode** - Force diverse perspectives to argue it out:
    ```bash
-   deepr prep plan "..." --level 3  # Structured workflow (current default)
-   deepr prep plan "..." --level 4  # Adaptive with self-correction (auto mode)
+   deepr prep hats "Should we build feature X or Y?"
+
+   # What happens:
+   # Analyst: Pulls market data and user metrics
+   # Creative: "What if we built both? Here are 3 hybrid approaches..."
+   # Optimist: "Feature X could capture the enterprise market"
+   # Skeptic: "Feature X has 3 critical dependencies we don't control"
+   # Conductor: Weighs all perspectives, makes call
+
+   # Result: You see the debate, not just the conclusion
    ```
 
-2. **Six Thinking Hats Mode** - Structured multi-perspective analysis:
+2. **Red Team Mode** - Play devil's advocate with your own plans:
    ```bash
-   deepr prep hats "Analyze our product roadmap decision"
-   # Assigns tasks to distinct cognitive roles:
-   # - White Hat: Facts and data about current state
-   # - Red Hat: User sentiment and intuitive reactions
-   # - Black Hat: Risks and potential problems
-   # - Yellow Hat: Benefits and opportunities
-   # - Green Hat: Creative alternatives
-   # - Blue Hat: Orchestrates and synthesizes
+   deepr prep redteam "Our Q2 launch plan"
+
+   # Pre-mortem: Assume it failed. Why?
+   # Assumption challenge: What if our core beliefs are wrong?
+   # Alternative futures: What are the worst-case scenarios?
+
+   # Goal: Find the flaws before reality does
    ```
 
-3. **Red Team Mode** - Adversarial analysis for critical decisions:
-   ```bash
-   deepr prep redteam "Launch plan for new feature"
-   # Employs adversarial techniques:
-   # - Pre-mortem: Assume failure, work backward
-   # - Assumptions challenge: Question every premise
-   # - Devil's troika: Triple-pass contrarian analysis
-   # - Alternative futures: Explore negative scenarios
+3. **Perspective Tracking** - See which "hat" generated each finding:
+   - When reading results, see tags: [Analyst], [Skeptic], [Creative]
+   - Understand why conclusions are balanced
+   - Spot when one perspective dominates (might be blind spot)
+
+4. **Conflict Logs** - When perspectives clash, make it visible:
+   ```
+   Finding 1: Market opportunity is $50M [Optimist]
+   Finding 2: 4 competitors own 80% market share [Skeptic]
+   Synthesis: Opportunity exists but requires differentiation [Conductor]
    ```
 
-4. **Conflict Resolution** - Make disagreements explicit and valuable:
-   - When Black Hat (risks) contradicts Yellow Hat (opportunities)
-   - Blue Hat orchestrator arbitrates and synthesizes balanced view
-   - Logged for transparency and learning
-
-5. **Traceability & Audit Trails** - Already have this, just expose it:
-   - Complete log of every agent's contributions
-   - Reasoning traces for all decisions
-   - Attribution when things go wrong
+5. **Depth Control** - Choose how much debate you want:
+   ```bash
+   --depth quick    # Just gather facts, minimal synthesis
+   --depth balanced # Current default, all perspectives
+   --depth adversarial # Maximum debate, challenge everything
+   ```
 
 **Why This Matters:**
 
-Research shows that most MAS failures stem from **flawed organizational structure**, not individual agent limitations. Deepr's architecture is robust because we:
-- Designed orchestration first (BatchExecutor)
-- Implemented structured communication (research_plan.json)
-- Built context management (ContextBuilder)
-- Created adaptive workflows (ResearchReviewer)
+Diverse perspectives catch blind spots. The Optimist alone would miss risks. The Skeptic alone would miss opportunities. Real research teams work because people with different cognitive styles challenge each other.
 
-We were building a proper multi-agent system without realizing it!
+Deepr automates that dynamic. But right now, users only see the final synthesis—they miss the creative tension that made it good. v2.3 makes the dream team visible:
+
+- See which perspectives contributed what
+- Understand why conclusions are balanced
+- Spot when one voice dominates (might be a problem)
+- Control how much debate you want
+
+**The Technical Foundation (for the curious):**
+
+We built robust orchestration without realizing it:
+- Conductor (BatchExecutor) manages workflow
+- Structured communication (research_plan.json)
+- Context flows between phases (ContextBuilder)
+- Adaptive review cycles (ResearchReviewer)
+
+That's why Deepr works—we solved the hard orchestration problems first. Now we make the magic visible.
 
 **v2.4: Platform Maturity**
 
