@@ -169,32 +169,30 @@ This is proper dogfooding - using your product, finding real failure modes, fixi
 
 We also successfully researched the competitive landscape (Elicit, Perplexity, Consensus, SciSpace) and identified key gaps: no integrated workflows, no developer extensibility, no collaboration features. That research was valuable ($0.13 well spent).
 
-## Building Next: Intelligent Doc Reuse & Planner Enhancements
+## Building Next: Planner Enhancements & Observability
 
-Now that context chaining is implemented, focus is on making the planner smarter about task mix and avoiding redundant research.
+**✅ Doc Reuse Intelligence** (Priority 1 - COMPLETE)
 
-**Doc Reuse Intelligence** (Priority 1)
-
-Before generating a plan, use GPT-5 to check existing docs:
-- Scan docs/ directory for relevant research
-- Ask GPT-5: "Is this existing doc sufficient for the scenario? Or do we need updated/better research?"
-- If sufficient: Include in context, skip redundant task
-- If outdated: Queue new research with clear prompt (e.g., "Update X with 2025 data")
-- If insufficient: Queue deeper research with specific gaps to address
+Before generating a plan, use GPT-5 to check existing docs - IMPLEMENTED:
+- Scans `docs/research and documentation/` for relevant research
+- GPT-5 evaluates: sufficient (reuse), needs update (2024→2025), or gaps (new research)
+- CLI: `deepr prep plan --check-docs` flag
+- Shows which docs to reuse, which need updates, what's missing
 
 Implementation:
 ```python
 class DocReviewer:
-    def check_existing_docs(self, scenario: str) -> List[Dict]:
-        # Scan docs/research and documentation/
-        # Use GPT-5 to evaluate relevance and sufficiency
-        # Return: [{"path": ..., "relevant": bool, "gaps": str}]
+    def review_docs(self, scenario: str) -> Dict:
+        # Scans docs/ directory
+        # Uses GPT-5 to evaluate relevance
+        # Returns: {"sufficient": [], "needs_update": [], "gaps": [], "recommendations": []}
 ```
 
-Benefits:
-- Save money by reusing existing research
-- Update only what's outdated
-- Build on prior work instead of starting from scratch
+Benefits delivered:
+- Saves money by reusing existing research (potentially 50%+ cost reduction)
+- Updates only what's outdated
+- Builds on prior work instead of starting from scratch
+- Addresses dogfooding lesson: context management is critical
 
 **Planner Enhancements** (Priority 2)
 
