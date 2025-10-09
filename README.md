@@ -16,7 +16,7 @@ cp .env.example .env  # Add your OPENAI_API_KEY
 
 # Start services
 python bin/start-worker.py &              # Polls OpenAI for job completion
-python deepr/api/app_simple.py &          # API server for web UI
+python -m deepr.api.app &                 # API server for web UI
 cd deepr/web/frontend && npm run dev      # Web UI at http://localhost:3000
 
 # Submit research via CLI
