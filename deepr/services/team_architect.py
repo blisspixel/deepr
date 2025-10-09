@@ -44,6 +44,7 @@ class TeamArchitect:
         context: Optional[str] = None,
         team_size: int = 5,
         research_company: Optional[str] = None,
+        perspective_lens: Optional[str] = None,
         adversarial: bool = False
     ) -> List[Dict[str, Any]]:
         """
@@ -54,6 +55,7 @@ class TeamArchitect:
             context: Additional context
             team_size: Number of team members
             research_company: Company name to research for grounded personas
+            perspective_lens: Cultural/demographic perspective (e.g., "Japanese business culture", "Gen Z")
             adversarial: Weight team toward skeptical/devil's advocate perspectives
 
         Returns:
@@ -81,7 +83,7 @@ class TeamArchitect:
         if research_company:
             company_intel = self._research_company_people(research_company)
 
-        prompt = self._build_team_design_prompt(question, context, team_size, company_intel, adversarial)
+        prompt = self._build_team_design_prompt(question, context, team_size, company_intel, perspective_lens, adversarial)
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -174,6 +176,7 @@ Only include people you find with actual research. If unable to find information
         context: Optional[str],
         team_size: int,
         company_intel: Optional[Dict[str, Any]] = None,
+        perspective_lens: Optional[str] = None,
         adversarial: bool = False
     ) -> str:
         """Build prompt for GPT-5 to design team."""
@@ -185,6 +188,14 @@ Only include people you find with actual research. If unable to find information
 
         if context:
             parts.append(f"\n## Context\n{context}\n")
+
+        if perspective_lens:
+            parts.append(f"\n## Perspective Lens\n")
+            parts.append(f"**IMPORTANT:** All team members must analyze this question through the lens of: **{perspective_lens}**\n\n")
+            parts.append(f"This means:\n")
+            parts.append(f"- Team members should represent or understand this perspective deeply\n")
+            parts.append(f"- Research focus should consider cultural context, values, and priorities of this group\n")
+            parts.append(f"- Analysis should reflect how {perspective_lens} would approach this question\n\n")
 
         if company_intel:
             parts.append("\n## Company Leadership Intelligence\n")
