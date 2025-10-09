@@ -20,12 +20,14 @@ def team():
               help="Additional context for research")
 @click.option("--company", default=None,
               help="Company name to research for grounded personas (e.g., 'Anthropic', 'OpenAI')")
+@click.option("--adversarial", is_flag=True,
+              help="Weight team toward skeptical/devil's advocate perspectives")
 @click.option("--model", "-m", default="o4-mini-deep-research",
               type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
               help="Deep research model for execution")
 @click.option("--yes", "-y", is_flag=True,
               help="Skip confirmation and execute immediately")
-def analyze(question: str, team_size: int, context: Optional[str], company: Optional[str], model: str, yes: bool):
+def analyze(question: str, team_size: int, context: Optional[str], company: Optional[str], adversarial: bool, model: str, yes: bool):
     """
     Dynamically assemble optimal research team for your question.
 
@@ -38,6 +40,7 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
         deepr team analyze "How do we compete with Notion?" --team-size 6
         deepr team analyze "Future of AI coding tools?" --context "$(cat context.txt)"
         deepr team analyze "What's Anthropic's AI strategy?" --company "Anthropic"
+        deepr team analyze "Our Q2 launch plan" --adversarial  # Devil's advocate mode
     """
     print_section_header("Dynamic Dream Team Research")
 
@@ -46,6 +49,8 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
         click.echo(f"Context: {context[:100]}..." if len(context) > 100 else f"Context: {context}")
     if company:
         click.echo(f"Company: {company} (will research leadership for grounded personas)")
+    if adversarial:
+        click.echo(f"Mode: Adversarial (weighted toward skeptical/devil's advocate perspectives)")
     click.echo(f"Team size: {team_size} members")
     click.echo(f"Model: {model}\n")
 
@@ -69,7 +74,8 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
             question=question,
             context=context,
             team_size=team_size,
-            research_company=company
+            research_company=company,
+            adversarial=adversarial
         )
 
         click.echo(f"Assembled {len(team)}-person dream team:\n")
