@@ -324,39 +324,44 @@ deepr prep execute  # Auto-routes each task
 
 **v2.3: Dream Team - Make the Magic Visible**
 
+**Status: CORE IMPLEMENTED** - Dynamic team assembly working, observability in progress
+
 **The Insight:** Deepr already works like a research team with diverse perspectives. We just need to make that visible and controllable.
 
-Current state (working, but implicit):
-- Conductor orchestrates research flow
-- Analyst gathers facts
-- Creative identifies gaps
-- Optimist finds opportunities
-- Skeptic identifies risks
-- Synthesis weaves it together
+**IMPLEMENTED: Dynamic Dream Team**
 
-**The Problem:** Users don't see the cognitive diversity at work. They submit research and get results, but miss **why** the results are balanced—because different perspectives challenged each other.
+```bash
+deepr team analyze "Should we pivot to enterprise?" --team-size 5
 
-**The Vision:** Make the dream team dynamics explicit. Let users see perspectives in action. Enable them to choose cognitive roles for specific questions.
+# Phase 1: GPT-5 assembles optimal team for THIS question
+# Team changes based on what the question actually needs
+# Example for enterprise pivot:
+#   - Enterprise SaaS Market Analyst (quantitative data)
+#   - Former Enterprise Procurement Lead (buyer perspective)
+#   - Head of Product-Led Sales (execution path)
+#   - CFO from high-growth SaaS (unit economics)
+#   - Enterprise Customer (honest feedback)
 
-**New Capabilities:**
+# Phase 2: Each member researches independently from their role
+# Phase 3: Lead Researcher synthesizes with attribution
+# Shows: agreements, conflicts, balanced recommendations
 
-1. **Thinking Hats Mode** - Force diverse perspectives to argue it out:
+# Result: See the debate AND the conclusion
+```
+
+**Key Design Principle:** Fully dynamic, not static personas. GPT-5 determines optimal team composition for each specific question. "Should we pivot to enterprise?" gets a different team than "How do we compete with Notion?"
+
+**What Works Now:**
+- Dynamic team assembly (GPT-5 designs team per question)
+- Role-specific research tasks (each member stays in their lane)
+- Synthesis with attribution (credit team members)
+- Conflict highlighting (where perspectives disagree)
+
+**Future Enhancements:**
+
+1. **Red Team Mode** - Play devil's advocate with your own plans:
    ```bash
-   deepr prep hats "Should we build feature X or Y?"
-
-   # What happens:
-   # Analyst: Pulls market data and user metrics
-   # Creative: "What if we built both? Here are 3 hybrid approaches..."
-   # Optimist: "Feature X could capture the enterprise market"
-   # Skeptic: "Feature X has 3 critical dependencies we don't control"
-   # Conductor: Weighs all perspectives, makes call
-
-   # Result: You see the debate, not just the conclusion
-   ```
-
-2. **Red Team Mode** - Play devil's advocate with your own plans:
-   ```bash
-   deepr prep redteam "Our Q2 launch plan"
+   deepr team redteam "Our Q2 launch plan"
 
    # Pre-mortem: Assume it failed. Why?
    # Assumption challenge: What if our core beliefs are wrong?
@@ -365,19 +370,13 @@ Current state (working, but implicit):
    # Goal: Find the flaws before reality does
    ```
 
-3. **Perspective Tracking** - See which "hat" generated each finding:
-   - When reading results, see tags: [Analyst], [Skeptic], [Creative]
-   - Understand why conclusions are balanced
-   - Spot when one perspective dominates (might be blind spot)
+2. **Enhanced Observability** - Make reasoning traces visible:
+   - Show Extended Thinking traces from Anthropic provider
+   - Tag findings by team member role
+   - Highlight where perspectives converge vs diverge
+   - Cost breakdown per team member
 
-4. **Conflict Logs** - When perspectives clash, make it visible:
-   ```
-   Finding 1: Market opportunity is $50M [Optimist]
-   Finding 2: 4 competitors own 80% market share [Skeptic]
-   Synthesis: Opportunity exists but requires differentiation [Conductor]
-   ```
-
-5. **Depth Control** - Choose how much debate you want:
+3. **Depth Control** - Choose how much debate you want:
    ```bash
    --depth quick    # Just gather facts, minimal synthesis
    --depth balanced # Current default, all perspectives
