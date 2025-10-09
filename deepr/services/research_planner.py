@@ -29,7 +29,7 @@ class ResearchPlanner:
 
     def __init__(
         self,
-        model: str = "gpt-5-mini",
+        model: str = "gpt-5",
         use_azure: bool = False,
         azure_endpoint: Optional[str] = None,
     ):
@@ -174,7 +174,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.7,
+                # Note: GPT-5 reasoning models don't support temperature parameter
             )
 
             # Extract the response text

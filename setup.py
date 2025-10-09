@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="deepr",
-    version="2.0.0",
+    version="2.1.0",
     packages=find_packages(),
     install_requires=[
         "openai>=1.0.0",
@@ -24,8 +24,9 @@ setup(
             "deepr=deepr.cli.main:main",
         ]
     },
-    author="blisspixel",
-    description="Local-first research automation platform with AI-powered deep research.",
+    author="Nick Seal",
+    author_email="nick@pueo.io",
+    description="Research automation platform that replicates human research team workflows using AI.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="MIT",
