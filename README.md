@@ -191,15 +191,29 @@ Beta (functional, adaptive research workflow):
 - `deepr prep auto` - Fully autonomous multi-round research (working)
 - ResearchReviewer: GPT-5 acts as research lead, adapting strategy based on findings
 
-**v2.2 - Next Up**
+**Vision: Path to Agentic Level 5**
 
-Future features:
-- Doc analysis: `deepr docs analyze` scans existing research, identifies gaps
-- Results library: Browse and view completed research
-- Multi-provider routing: Auto-select best provider per task
-- Advanced dependency graphs: Visualize research campaign flow
+Deepr is evolving toward fully autonomous meta-research - a self-improving research intelligence.
 
-See [ROADMAP.md](ROADMAP.md) for details.
+**Agentic Level Framework:**
+
+| Level | Description | Deepr Status |
+|-------|-------------|--------------|
+| **Level 1** | Reactive Execution (single-turn) | Exceeded |
+| **Level 2** | Procedural Automation (scripted) | Exceeded |
+| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.1)** |
+| **Level 4** | Reflective Optimization (self-tuning) | **Target (v2.2-2.4)** |
+| **Level 5** | Autonomous Meta-Researcher | **Future (v3.0+)** |
+
+**Current (Level 3):** Deepr plans, monitors, and adjusts research based on findings. GPT-5 acts as research lead, reviewing results and planning next phases.
+
+**Next (Level 4):** Add observability, autonomous provider routing, performance benchmarking. System learns what works and optimizes decisions across campaigns.
+
+**Future (Level 5):** Closed cognitive loop - perceive needs, plan strategies, execute research, evaluate quality, improve self. Fully autonomous, auditable meta-research.
+
+**Core Principle:** Quality over automation. We bias heavily toward fresh research and human judgment now to build trust for autonomy later.
+
+See [ROADMAP.md](ROADMAP.md) for the complete path to Level 5.
 
 ## Multi-Provider Support
 
