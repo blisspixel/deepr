@@ -74,20 +74,25 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             from deepr.services.doc_reviewer import DocReviewer
 
             reviewer = DocReviewer(model=planner)
-            doc_analysis = reviewer.check_existing_docs(scenario)
+            doc_review = reviewer.review_docs(scenario, context=context)
 
             # Show what we found
-            relevant = doc_analysis.get("relevant_docs", [])
-            if relevant:
-                click.echo(f"\nFound {len(relevant)} relevant docs:")
-                for doc in relevant:
-                    quality = doc.get("quality", "unknown")
-                    click.echo(f"  - {Path(doc['path']).name} ({quality})")
+            sufficient = doc_review.get("sufficient", [])
+            if sufficient:
+                click.echo(f"\n[OK] Found {len(sufficient)} sufficient docs:")
+                for doc in sufficient:
+                    click.echo(f"  - {doc.get('name')} (reuse)")
 
-            gaps = doc_analysis.get("gaps", [])
+            needs_update = doc_review.get("needs_update", [])
+            if needs_update:
+                click.echo(f"\n[UPDATE] {len(needs_update)} docs need updating:")
+                for doc in needs_update:
+                    click.echo(f"  - {doc.get('name')}: {doc.get('what_to_update')}")
+
+            gaps = doc_review.get("gaps", [])
             if gaps:
-                click.echo(f"\nGaps to address: {len(gaps)}")
-                for gap in gaps[:3]:  # Show first 3
+                click.echo(f"\n[GAPS] {len(gaps)} topics need new research:")
+                for gap in gaps[:5]:  # Show first 5
                     click.echo(f"  - {gap}")
 
             # Generate enhanced context for planner

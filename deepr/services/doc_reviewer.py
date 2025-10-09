@@ -1,227 +1,274 @@
 """
-Doc Reviewer Service
+Doc Reuse Intelligence - Review existing research before planning new tasks.
 
-Uses GPT-5 to intelligently check existing documentation and determine:
-1. Is existing research relevant to the current scenario?
-2. Is it sufficient, or do we need updated/deeper research?
-3. What gaps exist that should be addressed?
+Scans docs/ directory for relevant research and evaluates:
+- Is this existing doc sufficient for the scenario?
+- Is it outdated (needs refresh with 2025 data)?
+- What gaps remain (what new research is needed)?
 
-This avoids redundant research and saves money by reusing existing work.
+Saves money by reusing existing research and only queuing updates/new topics.
 """
 
 import os
-from pathlib import Path
-from typing import List, Dict, Optional
-from openai import OpenAI
+import glob
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+import json
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 
 class DocReviewer:
     """
-    Reviews existing documentation to avoid redundant research.
+    Reviews existing documentation to determine reuse opportunities.
 
-    Uses GPT-5 to evaluate whether existing docs are:
-    - Relevant to the scenario
-    - Sufficiently comprehensive
-    - Up-to-date
-
-    Returns guidance on what can be reused vs what needs new research.
+    Workflow:
+    1. Scan docs/ directory for relevant files
+    2. Use GPT-5 to evaluate relevance and sufficiency
+    3. Return: which docs to reuse, which need updates, what gaps remain
     """
 
-    def __init__(self, model: str = "gpt-5-mini"):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "gpt-5",
+        docs_path: str = "docs/research and documentation"
+    ):
         """
         Initialize doc reviewer.
 
         Args:
-            model: GPT-5 model to use for evaluation (cheap, fast)
+            api_key: OpenAI API key (defaults to OPENAI_API_KEY env)
+            model: Model for evaluation (default: gpt-5)
+            docs_path: Path to docs directory
         """
-        self.model = model
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        if OpenAI is None:
+            raise ImportError("OpenAI SDK required. Run: pip install openai")
 
-    def check_existing_docs(
-        self,
-        scenario: str,
-        docs_dir: str = "docs/research and documentation",
-    ) -> Dict[str, any]:
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY not found")
+
+        self.client = OpenAI(api_key=self.api_key)
+        self.model = model
+        self.docs_path = docs_path
+
+    def scan_docs(self, pattern: str = "**/*.txt") -> List[Dict[str, Any]]:
         """
-        Check existing docs for relevance to scenario.
+        Scan docs directory for files matching pattern.
 
         Args:
-            scenario: The research scenario to evaluate against
-            docs_dir: Directory to scan for existing research
+            pattern: Glob pattern (e.g., "**/*.txt", "**/*.md")
+
+        Returns:
+            List of dicts with file metadata
+        """
+        docs = []
+
+        search_pattern = os.path.join(self.docs_path, pattern)
+        files = glob.glob(search_pattern, recursive=True)
+
+        for file_path in files:
+            try:
+                stat = os.stat(file_path)
+                modified = datetime.fromtimestamp(stat.st_mtime)
+                size = stat.st_size
+
+                # Read first few lines for preview
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    preview = f.read(500)  # First 500 chars
+
+                docs.append({
+                    "path": file_path,
+                    "name": os.path.basename(file_path),
+                    "modified": modified.isoformat(),
+                    "size_bytes": size,
+                    "preview": preview
+                })
+            except Exception as e:
+                # Skip files we can't read
+                continue
+
+        return docs
+
+    def review_docs(
+        self,
+        scenario: str,
+        context: Optional[str] = None,
+        max_docs_to_review: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Review existing docs for relevance to scenario.
+
+        Args:
+            scenario: Research scenario/question
+            context: Additional context about the project
+            max_docs_to_review: Max number of docs to analyze
 
         Returns:
             Dict with:
-            - relevant_docs: List of docs that can be reused
-            - gaps: List of gaps that need new research
-            - recommendations: Specific guidance for planner
+                - sufficient: List of docs that fully address scenario
+                - needs_update: List of docs that are relevant but outdated
+                - gaps: List of topics not covered by existing docs
+                - recommendations: What new research to queue
         """
-        # Scan for existing research files
-        docs_path = Path(docs_dir)
-        if not docs_path.exists():
+        # Scan for existing docs
+        all_docs = self.scan_docs()
+
+        if not all_docs:
             return {
-                "relevant_docs": [],
-                "gaps": ["No existing documentation found"],
-                "recommendations": "Generate full research plan"
+                "sufficient": [],
+                "needs_update": [],
+                "gaps": [scenario],
+                "recommendations": [
+                    {"action": "research", "topic": scenario, "reason": "No existing docs found"}
+                ]
             }
 
-        # Find all markdown and text files
-        existing_docs = []
-        for ext in ["*.md", "*.txt"]:
-            existing_docs.extend(docs_path.glob(ext))
+        # Limit to most recent docs
+        all_docs.sort(key=lambda d: d["modified"], reverse=True)
+        docs_to_review = all_docs[:max_docs_to_review]
 
-        if not existing_docs:
-            return {
-                "relevant_docs": [],
-                "gaps": ["No existing documentation found"],
-                "recommendations": "Generate full research plan"
-            }
+        # Build evaluation prompt
+        prompt = self._build_evaluation_prompt(scenario, context, docs_to_review)
 
-        # Read doc titles/summaries (first 200 chars)
-        doc_summaries = []
-        for doc in existing_docs[:20]:  # Limit to 20 most recent
-            try:
-                with open(doc, "r", encoding="utf-8") as f:
-                    content = f.read(500)  # Read first 500 chars
-                    doc_summaries.append({
-                        "path": str(doc),
-                        "preview": content[:200]
-                    })
-            except Exception:
-                continue
+        # Call GPT-5 for evaluation
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a research strategist evaluating existing documentation for reuse opportunities. Your goal is to save costs by reusing good existing research and only requesting updates or new research where genuinely needed."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            response_format={"type": "json_object"}
+        )
 
-        if not doc_summaries:
-            return {
-                "relevant_docs": [],
-                "gaps": ["No readable documentation found"],
-                "recommendations": "Generate full research plan"
-            }
+        # Parse response
+        result = json.loads(response.choices[0].message.content)
+        return result
 
-        # Use GPT-5 to evaluate relevance
-        system_prompt = """You are a research evaluation expert. Your job is to analyze existing documentation and determine:
-
-1. Which docs are RELEVANT to the current scenario
-2. Whether existing docs are SUFFICIENT or if new research is needed
-3. What GAPS exist that require new research
-
-Be cost-conscious:
-- If existing docs are good enough, recommend reusing them
-- If docs are outdated (e.g., 2024 data when we need 2025), recommend updating
-- If docs miss key angles, identify specific gaps to research
-
-Return your analysis as JSON:
-{
-  "relevant_docs": [
-    {"path": "...", "reason": "Why it's relevant", "quality": "sufficient|outdated|insufficient"}
-  ],
-  "gaps": ["Specific gap 1", "Specific gap 2"],
-  "recommendations": "Brief guidance for planner (1-2 sentences)"
-}"""
-
-        user_prompt = f"""Scenario: {scenario}
-
-Existing documentation:
-"""
-        for doc in doc_summaries:
-            user_prompt += f"\n- {doc['path']}\n  Preview: {doc['preview'][:150]}...\n"
-
-        user_prompt += """
-
-Please analyze whether these docs are relevant and sufficient for the scenario, or if new research is needed. Return ONLY JSON, no other text."""
-
-        try:
-            response = self.client.responses.create(
-                model=self.model,
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-            )
-
-            # Extract response text
-            response_text = ""
-            if hasattr(response, 'output_text'):
-                response_text = response.output_text
-            elif hasattr(response, 'output') and response.output:
-                for item in response.output:
-                    if hasattr(item, 'type') and item.type == 'message':
-                        for content in item.content:
-                            if hasattr(content, 'type') and content.type == 'output_text':
-                                response_text = content.text
-                                break
-
-            # Parse JSON
-            import json
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
-
-            analysis = json.loads(response_text)
-            return analysis
-
-        except Exception as e:
-            print(f"Error evaluating docs: {e}")
-            return {
-                "relevant_docs": [],
-                "gaps": [f"Could not evaluate existing docs: {e}"],
-                "recommendations": "Proceed with full research plan"
-            }
-
-    def generate_enhanced_plan_context(
+    def _build_evaluation_prompt(
         self,
         scenario: str,
-        doc_analysis: Dict,
+        context: Optional[str],
+        docs: List[Dict[str, Any]]
     ) -> str:
-        """
-        Generate context for the planner based on doc analysis.
+        """Build prompt for GPT-5 to evaluate docs."""
 
-        This tells the planner:
-        - What existing docs to reference
-        - What gaps to focus on
-        - How to avoid redundant research
+        parts = [
+            "# Research Scenario",
+            f"\n{scenario}\n"
+        ]
+
+        if context:
+            parts.append(f"\n## Additional Context\n{context}\n")
+
+        parts.append("\n## Existing Documentation\n")
+
+        for i, doc in enumerate(docs, 1):
+            parts.append(f"\n### Doc {i}: {doc['name']}")
+            parts.append(f"**Path:** {doc['path']}")
+            parts.append(f"**Last Modified:** {doc['modified']}")
+            parts.append(f"**Preview:**\n```\n{doc['preview']}\n```\n")
+
+        parts.append("\n## Your Task\n")
+        parts.append("""
+Evaluate which docs are relevant to the scenario. For each doc, determine:
+
+1. **Sufficient** - Fully addresses the scenario, no updates needed
+2. **Needs Update** - Relevant but outdated (e.g., references 2024 data when we're in 2025)
+3. **Not Relevant** - Doesn't address this scenario
+
+Then identify:
+- **Gaps** - Topics the scenario needs that aren't covered by existing docs
+- **Recommendations** - Specific research tasks to queue
+
+Return JSON:
+```json
+{
+    "sufficient": [
+        {"path": "...", "name": "...", "reason": "why it's sufficient"}
+    ],
+    "needs_update": [
+        {"path": "...", "name": "...", "reason": "why it needs update", "what_to_update": "specific gaps"}
+    ],
+    "gaps": [
+        "topic 1 not covered",
+        "topic 2 not covered"
+    ],
+    "recommendations": [
+        {"action": "reuse", "doc": "path/to/doc.txt", "reason": "..."},
+        {"action": "update", "doc": "path/to/doc.txt", "topic": "Update X with 2025 data", "reason": "..."},
+        {"action": "research", "topic": "New topic Y", "reason": "..."}
+    ]
+}
+```
+
+**Important:**
+- Be conservative with "sufficient" - only if doc truly addresses scenario completely
+- Flag outdated info (e.g., 2024 data when we're in 2025)
+- In recommendations, prefer "reuse" and "update" over "research" (saves money)
+- Be specific about what to update (not just "needs update")
+""")
+
+        return "".join(parts)
+
+    def generate_tasks_from_review(
+        self,
+        review_result: Dict[str, Any],
+        max_tasks: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert review recommendations into research tasks.
 
         Args:
-            scenario: The research scenario
-            doc_analysis: Output from check_existing_docs()
+            review_result: Output from review_docs()
+            max_tasks: Maximum number of tasks to generate
 
         Returns:
-            Context string to pass to ResearchPlanner
+            List of task dicts ready for BatchExecutor
         """
-        context_parts = []
+        tasks = []
+        task_id = 1
 
-        # Add relevant docs
-        relevant = doc_analysis.get("relevant_docs", [])
-        if relevant:
-            context_parts.append("EXISTING RESEARCH AVAILABLE:")
-            for doc in relevant:
-                quality = doc.get("quality", "unknown")
-                context_parts.append(f"- {doc['path']} ({quality}): {doc['reason']}")
+        for rec in review_result.get("recommendations", [])[:max_tasks]:
+            action = rec.get("action")
 
-        # Add gaps
-        gaps = doc_analysis.get("gaps", [])
-        if gaps:
-            context_parts.append("\nGAPS TO ADDRESS:")
-            for gap in gaps:
-                context_parts.append(f"- {gap}")
+            if action == "reuse":
+                # Not a task - just include existing doc as context
+                continue
 
-        # Add recommendations
-        recs = doc_analysis.get("recommendations", "")
-        if recs:
-            context_parts.append(f"\nGUIDANCE: {recs}")
+            elif action == "update":
+                # Task to update existing research
+                doc_name = rec.get("doc", "").split("/")[-1]
+                task = {
+                    "id": task_id,
+                    "title": f"Update: {rec.get('topic', doc_name)}",
+                    "prompt": f"Update research: {rec.get('topic')}. Reason: {rec.get('reason')}. Focus on what has changed since the previous research.",
+                    "type": "documentation",
+                    "reason": rec.get("reason")
+                }
+                tasks.append(task)
+                task_id += 1
 
-        context_parts.append("\nFocus research on gaps and updates. Avoid duplicating existing sufficient docs.")
+            elif action == "research":
+                # New research task
+                task = {
+                    "id": task_id,
+                    "title": rec.get("topic"),
+                    "prompt": f"Research: {rec.get('topic')}. {rec.get('reason', '')}",
+                    "type": "documentation",
+                    "reason": rec.get("reason")
+                }
+                tasks.append(task)
+                task_id += 1
 
-        return "\n".join(context_parts)
-
-
-def create_doc_reviewer(model: str = "gpt-5-mini") -> DocReviewer:
-    """
-    Factory function to create a doc reviewer.
-
-    Args:
-        model: GPT-5 model to use
-
-    Returns:
-        Configured DocReviewer instance
-    """
-    return DocReviewer(model=model)
+        return tasks
