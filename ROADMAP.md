@@ -159,7 +159,15 @@ This is **agentic AI with research depth** - not just reasoning, but researching
 
 This is properly dynamic - works anywhere, adapts to any scenario.
 
-We're dogfooding: Used Deepr to analyze its own docs, identified 8 gaps, queued 6 research jobs. Cost: $3-12, Time: 60-120 minutes.
+**Dogfooding Lesson - Context Management is Critical:**
+
+We used Deepr to research "how to improve Deepr" without providing context about what Deepr actually is. Result: The AI found unrelated crypto projects named "Deepr.fun" and "Deepr Finance" instead of analyzing our platform. Cost: $0.36 to learn what we already knew.
+
+**The lesson:** Context injection is THE critical feature. Without it, research goes completely off-target. We immediately updated the README to emphasize context management best practices and added concrete examples of bad vs good prompting.
+
+This is proper dogfooding - using your product, finding real failure modes, fixing the product based on learnings.
+
+We also successfully researched the competitive landscape (Elicit, Perplexity, Consensus, SciSpace) and identified key gaps: no integrated workflows, no developer extensibility, no collaboration features. That research was valuable ($0.13 well spent).
 
 ## Building Next: Intelligent Doc Reuse & Planner Enhancements
 
