@@ -6,16 +6,12 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 
 ## Current Status
 
-### v2.2 - File Upload, Prompt Refinement & Observability (Current Release - October 2025)
+### v2.2 - File Upload & Prompt Refinement (Released October 2025)
 
-**Production-ready:**
+**Production-ready (tested in real usage):**
 - Single deep research jobs (CLI + web UI)
 - **File upload with vector store support** (PDF, DOCX, TXT, MD, code files)
 - **Automatic prompt refinement** (--refine-prompt flag adds date context, structure, clarity)
-- **Ad-hoc result retrieval** (`deepr research get` downloads results without continuous worker)
-- **Detailed cost breakdowns** (`--cost` flag shows token usage, pricing, calculations)
-- **Human-in-the-loop controls** (--review-before-execute requires approval before execution)
-- **Provider resilience** (auto-retry with exponential backoff, graceful degradation o3→o4-mini)
 - OpenAI Deep Research integration (o3-deep-research, o4-mini-deep-research models)
 - Background worker with automatic polling
 - Cost tracking and budget management
@@ -51,67 +47,96 @@ Deepr's development follows a progression toward autonomy:
 
 ## Near-Term Development
 
-### v2.3 - Observability & UX Improvements (Q1 2026)
+### v2.3 - Observability & UX Improvements (In Development - October 2025)
 
-**Priority 1: File Upload Enhancements**
+**Status:** Implementation complete, testing in progress. Most features functional but need validation in production scenarios.
 
-File upload now works! Additional enhancements planned:
+**Priority 1: File Upload Enhancements - Implemented (needs testing)**
+
+Vector store management commands implemented:
 
 ```bash
-# Persistent vector stores for reuse (planned)
-deepr vector create --name "company-knowledge" --files docs/
-deepr research submit "Query about X" --vector-store company-knowledge --yes
-
-# ZIP archive support (planned)
-deepr research submit "Research based on our internal docs" --files company-docs.zip --yes
+# Persistent vector stores for reuse
+deepr vector create --name "company-knowledge" --files docs/*.pdf
+deepr vector list
+deepr vector info <vector-store-id>
+deepr vector delete <vector-store-id>
+deepr research submit "Query" --vector-store company-knowledge --yes
 ```
 
-**Remaining work:**
-- Persistent vector store management (create, list, delete)
-- ZIP archive extraction and upload
-- Vector store reuse across multiple jobs
+**Implemented:**
+- Vector store CRUD operations
+- Reuse across jobs
+- ID/name lookup
 
-**Priority 2: Prompt Refinement Enhancements**
+**Known limitations:**
+- Not tested with large file sets
+- Error handling needs validation
+- Performance with many stores unknown
 
-Prompt refinement now works! Additional features planned:
+**TODO:**
+- ZIP archive support
+- Comprehensive testing
+- Performance optimization
+
+**Priority 2: Prompt Refinement Enhancements - Implemented (needs testing)**
 
 ```bash
-# Dry-run mode: show refinement without submitting (planned)
-deepr research "competitive analysis" --refine-prompt --dry-run
+# Dry-run mode
+deepr research "query" --refine-prompt --dry-run
 
-# Always-on refinement via config (planned)
+# Always-on refinement
 # Add to .env: DEEPR_AUTO_REFINE=true
 ```
 
-**Remaining work:**
-- Dry-run mode (show refinement, don't submit)
-- Config option for always-on refinement
-- Save/load prompt templates
+**Implemented:**
+- Dry-run mode
+- DEEPR_AUTO_REFINE config
+- Date context injection
+- Structured deliverables
 
-**Priority 3: Ad-Hoc Job Management - COMPLETE**
+**Known limitations:**
+- Refinement quality varies by prompt type
+- No template persistence yet
+- Manual testing only
 
-The `deepr research get` command is now production-ready! Download research results without running a continuous worker.
+**TODO:**
+- Template save/load functionality
+- More refinement patterns
+- Quality validation
+
+**Priority 3: Ad-Hoc Job Management - Implemented (needs testing)**
+
+The `deepr research get` command has been implemented to download research results without running a continuous worker.
 
 ```bash
-deepr research get <job-id>          # Download results from provider if ready
+deepr research get <job-id>          # Download specific job results from provider
+deepr research get --all             # Download all completed jobs
+deepr queue sync                     # Sync all jobs with provider status
 ```
 
-**Remaining enhancements (planned):**
-```bash
-deepr research get --all             # Download all completed jobs (planned)
-deepr queue sync                     # Sync entire queue with provider (planned)
-```
+**Implemented functionality:**
+- Download specific job results by ID
+- Batch download all completed jobs
+- Queue synchronization with provider
+- Ad-hoc polling without worker
 
-**Benefits delivered:**
-- Daily check-ins without running worker 24/7
-- CI/CD integration (check job in pipeline)
-- Ad-hoc usage patterns
-- Lower resource usage for casual users
+**Known limitations:**
+- Job ID lookup issues (shortened vs full UUID)
+- Not tested with large job queues
+- Error handling for failed downloads needs validation
+- Timeout behavior not thoroughly tested
+
+**TODO:**
+- Test with various job states (pending, running, failed)
+- Validate batch download with many jobs
+- Improve job ID resolution
+- Add progress indicators for batch operations
 
 **Priority 4: Observability & Transparency (PARTIALLY COMPLETE)**
 
 **Completed:**
-- ✅ **Cost attribution:** `deepr research result <job-id> --cost` shows detailed breakdown
+- **Cost attribution:** `deepr research result <job-id> --cost` shows detailed breakdown
   - Token usage (input, output, reasoning)
   - Cost calculation (input cost, output cost, total)
   - Pricing information (per 1M tokens)
@@ -127,30 +152,57 @@ deepr research result <job-id> --explain      # Why this research path? (planned
 deepr research result <job-id> --timeline     # Reasoning evolution (planned)
 ```
 
-**Priority 5: Human-in-the-Loop Controls (PARTIALLY COMPLETE)**
+**Priority 5: Human-in-the-Loop Controls - Implemented (needs testing)**
 
-**Completed:**
-- ✅ **Review before execution:** `deepr prep plan "..." --review-before-execute`
+**Implemented:**
+- **Review before execution:** `deepr prep plan "..." --review-before-execute`
   - Tasks start as unapproved when flag is used
   - Requires explicit human approval via `deepr prep review`
   - Prevents autonomous execution without oversight
+- **Pause/Resume campaigns:** Mid-campaign intervention
+  - `deepr prep pause` - Pause active campaign
+  - `deepr prep resume` - Resume paused campaign
+  - Execute command checks pause status before running
 
-**Remaining work:**
+**Known limitations:**
+- Not tested with multi-phase campaigns
+- Pause state persistence not validated
+- Resume behavior after errors unclear
+- Review workflow only manually tested
+
+**TODO:**
+- Test pause/resume across campaign phases
+- Validate state persistence after restarts
+- Add tests for edge cases (pause during execution)
+- Implement plan editing before resume
+
+**Future enhancements (planned):**
 ```bash
-deepr prep pause <campaign-id>       # Mid-campaign intervention (planned)
-deepr prep edit-plan <campaign-id>   # Adjust next phase (planned)
+deepr prep edit-plan <campaign-id>   # Modify plan before resuming (planned)
 ```
 
-**Priority 6: Provider Resilience (COMPLETE)**
+**Priority 6: Provider Resilience - Implemented (needs testing)**
 
 **Implemented:**
-- ✅ **Auto-retry with exponential backoff**
+- **Auto-retry with exponential backoff**
   - 3 retry attempts with 1s, 2s, 4s delays
   - Handles rate limits, connection errors, timeouts
-- ✅ **Graceful degradation**
+- **Graceful degradation**
   - o3-deep-research → o4-mini-deep-research fallback
   - Automatic model downgrade on persistent failures
-  - Ensures research completes even if preferred model unavailable
+  - Aims to ensure research completes even if preferred model unavailable
+
+**Known limitations:**
+- Retry logic not tested under actual rate limits
+- Fallback behavior not validated in production
+- No metrics on retry success rates
+- Unclear how it handles partial failures
+
+**TODO:**
+- Test retry behavior with actual API rate limits
+- Validate graceful degradation under failures
+- Add retry/fallback metrics and logging
+- Test with various error conditions
 
 **Future enhancements:**
 - Provider health monitoring dashboard
@@ -468,10 +520,11 @@ This validates the tool while generating implementation guidance. When we hit de
 Deepr is evolving from an adaptive planning system (Level 3) toward a self-improving research platform (Level 4-5) that serves both humans and AI agents.
 
 **Near-term focus (v2.3-2.4):**
-- Prompt refinement for best practices
+- Testing and validating v2.3 implementations
+- Prompt refinement improvements
 - Better UX (ad-hoc job management, observability)
 - MCP server (AI agent integration)
-- Provider resilience
+- Provider resilience validation
 
 **Medium-term (v2.5):**
 - Learning from outcomes

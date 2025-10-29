@@ -290,6 +290,36 @@ class OpenAIProvider(DeepResearchProvider):
                 original_error=e,
             )
 
+    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+        """List all OpenAI vector stores."""
+        try:
+            vector_stores = []
+            response = await self.client.vector_stores.list(limit=limit)
+
+            for vs in response.data:
+                # Get file IDs for this vector store
+                files_response = await self.client.vector_stores.files.list(
+                    vector_store_id=vs.id
+                )
+                file_ids = [f.id for f in files_response.data]
+
+                vector_stores.append(
+                    VectorStore(
+                        id=vs.id,
+                        name=vs.name,
+                        file_ids=file_ids
+                    )
+                )
+
+            return vector_stores
+
+        except Exception as e:
+            raise ProviderError(
+                message=f"Failed to list vector stores: {str(e)}",
+                provider="openai",
+                original_error=e,
+            )
+
     async def delete_vector_store(self, vector_store_id: str) -> bool:
         """Delete OpenAI vector store."""
         try:

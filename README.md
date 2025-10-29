@@ -16,34 +16,47 @@ Deepr is the open-source, multi-provider platform for autonomous research and ex
 
 **Prerequisites:** Python 3.9+, Node.js 16+ (for web UI)
 
-**1. Install:**
+### Installation
+
 ```bash
-pip install -r requirements.txt
+# Install Deepr globally
+pip install .
+
+# Or install in development mode
 pip install -e .
+
+# Verify installation
+deepr --version
 ```
 
-**2. Configure:**
+**Platform-specific installation:** See [INSTALL.md](INSTALL.md) for detailed instructions for Linux, macOS, and Windows.
+
+### Configuration
+
 ```bash
+# Copy example configuration
 cp .env.example .env
+
 # Edit .env and add your OPENAI_API_KEY
+nano .env  # or use your preferred editor
 ```
 
-**3. Run Services:**
-```bash
-python bin/start-worker.py &              # Worker fetches completed jobs from OpenAI
-python -m deepr.api.app &                 # API backend (http://localhost:5000)
-cd deepr/web/frontend && npm run dev      # Frontend (http://localhost:3000)
-```
+### Submit Your First Research
 
-**4. Submit Research:**
 ```bash
-deepr research submit "Analyze AI code editor market" --yes
+# Submit research job
+deepr research submit "Analyze AI code editor market as of October 2025" --yes
+
+# Wait for completion and view results
 deepr research wait <job-id>
+
+# Or check status anytime
+deepr research get <job-id>
 ```
 
-**Note on costs:** Deep research jobs use OpenAI's API and incur costs ($1-15 per job depending on depth). Deepr tracks usage per job - check the Web UI analytics or use `deepr queue stats` to monitor spending. Set budget limits in your config to avoid surprises.
+**Note on costs:** Deep research jobs use OpenAI's API and incur costs ($1-15 per job depending on depth). Deepr tracks usage per job. Use `deepr cost summary` to monitor spending. Set budget limits in `.env` to avoid surprises.
 
-Full setup guide: [docs/QUICKSTART.md](docs/QUICKSTART.md)
+**Full documentation:** See [INSTALL.md](INSTALL.md) for installation and [docs/QUICKSTART.md](docs/QUICKSTART.md) for advanced usage.
 
 ## What It Does
 
@@ -310,6 +323,15 @@ deepr research "compare AI code editors" --refine-prompt --yes
 
 The refinement happens instantly (GPT-5-mini call, ~$0.001) before submitting to deep research. You see exactly what changed and can cancel if needed.
 
+**Always-on refinement:**
+
+Add to your [.env](.env.example):
+```bash
+DEEPR_AUTO_REFINE=true  # Automatically refine all research prompts
+```
+
+With this enabled, every research submission automatically gets optimized without needing the `--refine-prompt` flag.
+
 ## Use Cases
 
 **Curiosity-driven research (no context needed):**
@@ -344,20 +366,26 @@ The refinement happens instantly (GPT-5-mini call, ~$0.001) before submitting to
 - Isolated queries that don't benefit from depth
 - Situations requiring sub-minute response times
 
-## Current Status (v2.2)
+## Current Status (v2.3 in development)
 
-**Production-ready:**
+**Production-ready (tested in real usage):**
 - Single deep research jobs via CLI and web UI
 - File upload with vector store support (PDF, DOCX, TXT, MD, code files)
 - Automatic prompt refinement (adds date context, structure, clarity)
-- Ad-hoc result retrieval (get results without running worker 24/7)
-- Detailed cost breakdowns (token usage, pricing, per-job attribution)
-- Human-in-the-loop controls (review plans before execution)
-- Provider resilience (auto-retry with exponential backoff, graceful degradation)
 - Background worker with stuck job detection
 - Cost tracking from OpenAI token usage
 - Web UI with real-time job queue and cost analytics
 - SQLite queue and filesystem storage
+
+**Implemented (needs testing):**
+- Ad-hoc result retrieval (get results without running worker 24/7)
+- Detailed cost breakdowns (token usage, pricing, per-job attribution)
+- Human-in-the-loop controls (review plans before execution, pause/resume)
+- Provider resilience (auto-retry with exponential backoff, graceful degradation)
+- Vector store management (create, list, delete persistent stores)
+- Configuration validation and management
+- Analytics and usage insights
+- Prompt templates with placeholders
 
 **Beta (functional, use with supervision):**
 - Multi-phase campaigns (`deepr prep plan/execute/continue/auto`)
@@ -445,6 +473,9 @@ AZURE_OPENAI_ENDPOINT=...
 # Anthropic (optional, for Extended Thinking in planning tasks)
 ANTHROPIC_API_KEY=...
 
+# Prompt refinement (optional, automatically optimizes all research queries)
+DEEPR_AUTO_REFINE=false  # Set to true to always apply best practices
+
 # Cost limits (optional safeguards)
 DEEPR_MAX_COST_PER_JOB=10.0
 DEEPR_MAX_COST_PER_DAY=100.0
@@ -458,17 +489,28 @@ DEEPR_MAX_COST_PER_MONTH=1000.0
 deepr research submit "<prompt>" --yes
 deepr research submit "<prompt>" -f file1.pdf -f file2.md --yes       # With file uploads
 deepr research submit "<prompt>" --refine-prompt --yes                # Auto-optimize prompt
+deepr research submit "<prompt>" --refine-prompt --dry-run            # Preview refinement (NEW)
 deepr research get <job-id>        # Get results - downloads from provider if ready (NEW in v2.2)
+deepr research get --all           # Download all completed jobs (NEW in v2.3)
 deepr research wait <job-id>       # Wait for completion and display when ready
 deepr research status <job-id>     # Check status (local database only)
 deepr research result <job-id>     # Display previously downloaded result
 deepr research result <job-id> --cost  # Detailed cost breakdown (NEW in v2.2)
 deepr research cancel <job-id>     # Cancel running job
 
+# Vector store management (persistent file indexes for reuse) - NEW in v2.3, needs testing
+deepr vector create --name "company-docs" --files docs/*.pdf          # Create persistent vector store
+deepr vector list                                                     # List all vector stores
+deepr vector info <vector-store-id>                                   # Show vector store details
+deepr vector delete <vector-store-id>                                 # Delete vector store
+deepr research submit "prompt" --vector-store company-docs --yes      # Use existing vector store
+
 # Multi-phase research (adaptive workflow)
 deepr prep plan "High-level goal" --topics 5                    # Plan Phase 1
-deepr prep plan "Goal" --topics 5 --review-before-execute       # Human-in-the-loop (NEW in v2.2)
+deepr prep plan "Goal" --topics 5 --review-before-execute       # Human-in-the-loop (needs testing)
 deepr prep execute --yes                                        # Execute Phase 1
+deepr prep pause                                                # Pause active campaign (needs testing)
+deepr prep resume                                               # Resume paused campaign (needs testing)
 deepr prep continue --topics 3                                  # GPT-5 reviews, plans Phase 2
 deepr prep auto "High-level goal" --rounds 3                    # Fully autonomous multi-round
 
@@ -481,6 +523,24 @@ deepr team analyze "Market entry strategy" --perspective "Japanese business cult
 # Queue management
 deepr queue list                   # List all jobs
 deepr queue stats                  # Show queue statistics
+deepr queue sync                   # Sync all jobs with provider status (needs testing)
+
+# Configuration management - NEW in v2.3, needs testing
+deepr config validate              # Validate config and test API connectivity
+deepr config show                  # Display current configuration
+deepr config set KEY VALUE         # Update configuration value
+
+# Analytics and insights - NEW in v2.3, needs testing
+deepr analytics report             # Usage analytics with success rates
+deepr analytics report --period month  # Monthly analytics
+deepr analytics trends             # Daily trends over past week
+deepr analytics failures           # Analyze failed jobs for patterns
+
+# Prompt templates - NEW in v2.3, needs testing
+deepr templates save NAME "prompt with {placeholders}"  # Save reusable template
+deepr templates list               # List all templates
+deepr templates use NAME --key value --yes  # Use template
+deepr templates delete NAME        # Delete template
 
 # Background worker (required for automatic job completion)
 python bin/start-worker.py         # Polls OpenAI every 30s, downloads results
@@ -597,7 +657,7 @@ Deepr aims to be **the** open-source platform for agentic learning and knowledge
 
 We're ambitious about the potential: autonomous research systems that earn trust through demonstrated wisdom, not hype. Quality and transparency before automation and scale.
 
-**Current status:** v2.2 is production-ready for single jobs with file upload, prompt refinement, and ad-hoc retrieval. Multi-phase research is beta. MCP integration and autonomous learning features planned for v2.3-v2.4.
+**Current status:** v2.3 in development. Single jobs with file upload and prompt refinement are production-ready. Many v2.3 features implemented but need real-world testing. Multi-phase research is beta. MCP integration and autonomous learning features planned for v2.4-v2.5.
 
 ## Credits
 

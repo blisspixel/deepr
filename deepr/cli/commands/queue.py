@@ -205,3 +205,108 @@ def watch(interval: int):
 
     except KeyboardInterrupt:
         click.echo(f"\n\n{CHECK} Stopped watching")
+
+
+@queue.command()
+def sync():
+    """
+    Sync entire queue with provider - check all pending jobs and update statuses.
+
+    Similar to 'deepr research get --all' but updates local queue status
+    for all jobs without downloading results.
+
+    Example:
+        deepr queue sync
+    """
+    print_section_header("Sync Queue with Provider")
+
+    try:
+        import asyncio
+        from deepr.queue import create_queue
+        from deepr.providers import create_provider
+        from deepr.config import load_config
+        from deepr.queue.base import JobStatus
+
+        config = load_config()
+        queue_svc = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
+        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+
+        async def sync_all():
+            jobs = await queue_svc.list_jobs()
+
+            # Filter to jobs with provider IDs that aren't in terminal states
+            active_jobs = [
+                j for j in jobs
+                if j.provider_job_id and j.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
+            ]
+
+            if not active_jobs:
+                click.echo(f"\nNo active jobs to sync")
+                return []
+
+            click.echo(f"\nSyncing {len(active_jobs)} active job(s) with provider...\n")
+
+            synced = []
+            for job in active_jobs:
+                click.echo(f"Job {job.id[:8]}... | Local: {job.status.value.upper()}")
+
+                try:
+                    # Check status at provider
+                    response = await provider.get_status(job.provider_job_id)
+                    click.echo(f"                  | Provider: {response.status.upper()}")
+
+                    # Update if status changed
+                    if response.status == "completed" and job.status != JobStatus.COMPLETED:
+                        click.echo(f"   {CHECK} Status changed to COMPLETED")
+
+                        # Update with usage info but don't download results
+                        cost = response.usage.cost if response.usage else 0
+                        tokens = response.usage.total_tokens if response.usage else 0
+
+                        await queue_svc.update_results(
+                            job_id=job.id,
+                            report_paths={},
+                            cost=cost,
+                            tokens_used=tokens
+                        )
+
+                        await queue_svc.update_status(job.id, JobStatus.COMPLETED)
+                        synced.append(job)
+
+                    elif response.status == "failed" and job.status != JobStatus.FAILED:
+                        click.echo(f"   {CROSS} Status changed to FAILED")
+                        await queue_svc.update_status(
+                            job_id=job.id,
+                            status=JobStatus.FAILED,
+                            error=response.error or "Unknown error"
+                        )
+                        synced.append(job)
+
+                    elif response.status == "in_progress" and job.status != JobStatus.PROCESSING:
+                        click.echo(f"   Status changed to PROCESSING")
+                        await queue_svc.update_status(job.id, JobStatus.PROCESSING)
+                        synced.append(job)
+
+                    else:
+                        click.echo(f"   No change")
+
+                except Exception as e:
+                    click.echo(f"   {CROSS} Error: {e}")
+
+                click.echo()
+
+            return synced
+
+        synced = asyncio.run(sync_all())
+
+        if synced:
+            click.echo(f"\n{CHECK} Synced {len(synced)} job(s)")
+            click.echo(f"\nTo download results: deepr research get --all")
+        else:
+            click.echo(f"\nAll jobs already in sync")
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()

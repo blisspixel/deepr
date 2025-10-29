@@ -5,6 +5,89 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v2.3
+
+### Added
+
+**Always-On Prompt Refinement**
+- Added `DEEPR_AUTO_REFINE` configuration option in .env
+- When enabled, automatically applies prompt refinement to all research submissions
+- No need to specify `--refine-prompt` flag each time
+- Provides seamless best practices for all queries
+
+**Campaign Pause/Resume Controls**
+- Added `deepr prep pause` command to pause active research campaigns
+- Added `deepr prep resume` command to resume paused campaigns
+- Execute command now checks pause status before running
+- Enables mid-campaign intervention for human oversight
+- Supports both specific plan IDs and most recent campaign
+
+**Persistent Vector Store Management**
+- Added `deepr vector create` command to create reusable vector stores
+- Added `deepr vector list` command to list all vector stores
+- Added `deepr vector info` command to show vector store details
+- Added `deepr vector delete` command to remove vector stores
+- Added `--vector-store` flag to `deepr research submit` for reusing existing stores
+- Vector stores can be looked up by ID or name
+- Enables document indexing once, reuse across multiple research jobs
+
+**Batch Job Download and Queue Sync**
+- Added `--all` flag to `deepr research get` for downloading all completed jobs
+- Added `deepr queue sync` command to update all job statuses without downloading
+- Automatically checks provider for all pending jobs and downloads completed ones
+- Useful for batch processing after submitting multiple research jobs
+- Queue sync updates local status to match provider without downloading results
+
+**Enhanced Cost Management**
+- Added `--period` flag to `deepr cost summary` (today, week, month, all)
+- Cost breakdown by model showing per-model spending and job counts
+- Budget tracking with percentage of daily/monthly limits
+- Improved statistics with total jobs, completed count, and averages
+
+**Research Export**
+- Added `deepr research export` command for exporting in multiple formats
+- Supports markdown, txt, json, and html export formats
+- Automatic output path generation or custom output location
+- Includes job metadata, content, and usage statistics in exports
+
+**Build and Installation**
+- Added pyproject.toml for modern Python packaging
+- Created INSTALL.md with platform-specific instructions
+- Added install scripts for Linux/macOS (install.sh) and Windows (install.bat)
+- Added Makefile for common development tasks
+- Added build scripts (build.bat for Windows)
+- Updated setup.py to version 2.3.0
+- Console script entry point enables `deepr` command globally
+
+**Configuration Management**
+- Added `deepr config validate` command to check configuration and API connectivity
+- Added `deepr config show` command to display current settings (sanitized)
+- Added `deepr config set` command to update configuration values
+- Validates API keys, directories, and budget limits
+- Tests provider connectivity during validation
+
+**Analytics and Insights**
+- Added `deepr analytics report` command for usage analytics
+- Success rates, model performance, cost analysis by time period
+- Added `deepr analytics trends` showing daily job counts and costs
+- Added `deepr analytics failures` for failure pattern analysis
+- Identifies most cost-effective models and provides recommendations
+
+**Prompt Templates**
+- Added `deepr templates save` to save reusable prompts with placeholders
+- Added `deepr templates list` to view all saved templates
+- Added `deepr templates show` to display template details
+- Added `deepr templates delete` to remove templates
+- Added `deepr templates use` to submit research using templates
+- Tracks usage count for each template
+- Supports placeholder substitution (e.g., {industry}, {region})
+
+### Changed
+- Execute command now prevents execution of paused campaigns
+- Improved human-in-the-loop controls with pause/resume workflow
+- Research submit command now supports both new file uploads and existing vector stores
+- Simplified README Quick Start to focus on pip install workflow
+
 ## [2.2.0] - 2025-10-29
 
 ### Added
