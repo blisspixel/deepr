@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepr"
+version = "2.3.0"
+description = "Research automation platform that replicates human research team workflows using AI"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Nick Seal", email = "nick@pueo.io"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+keywords = ["research", "ai", "automation", "deep-research", "knowledge-graph", "llm"]
+
+dependencies = [
+    "openai>=1.0.0",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "flask-socketio>=5.3.0",
+    "python-socketio>=5.10.0",
+    "python-dotenv>=1.0.0",
+    "click>=8.1.0",
+    "pydantic>=2.0.0",
+    "aiofiles>=23.0.0",
+    "python-docx>=0.8.11",
+    "azure-identity>=1.12.0",
+    "azure-servicebus>=7.11.0",
+    "azure-storage-blob>=12.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+deepr = "deepr.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/anthropics/deepr"
+Documentation = "https://docs.deepr.ai"
+Repository = "https://github.com/anthropics/deepr"
+Issues = "https://github.com/anthropics/deepr/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["deepr*"]
+exclude = ["tests*", "docs*"]

@@ -202,6 +202,22 @@ class DeepResearchProvider(ABC):
         pass
 
     @abstractmethod
+    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+        """
+        List all vector stores.
+
+        Args:
+            limit: Maximum number of vector stores to return
+
+        Returns:
+            List of vector store information
+
+        Raises:
+            ProviderError: If listing fails
+        """
+        pass
+
+    @abstractmethod
     async def delete_vector_store(self, vector_store_id: str) -> bool:
         """
         Delete a vector store.
