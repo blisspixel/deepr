@@ -113,13 +113,22 @@ class TestOpenAIProviderIntegration:
         return OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    @pytest.mark.skip(reason="Costs money - run explicitly with: pytest -m 'requires_api'")
     async def test_real_research_submission(self, provider):
-        """Test real research submission (short, cheap query)."""
+        """Test real research submission (short, cheap query).
+
+        COSTS ~$0.10 - Only run when explicitly testing real API.
+        Run with: pytest -m 'requires_api' tests/unit/test_providers/test_openai_provider.py
+        """
+        from deepr.providers.base import Tool
+
         request = ResearchRequest(
             prompt="What is 2+2? Answer in one word.",
             model="o4-mini-deep-research",  # Use cheaper model
             system_message="You are a calculator. Answer concisely.",
-            tools=[],  # No tools to keep it fast and cheap
+            tools=[Tool(type="web_search_preview")],  # Required for deep research models
             metadata={"test": "integration"},
         )
 

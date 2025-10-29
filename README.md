@@ -76,14 +76,38 @@ deepr research "Analyze this product spec and identify risks" \
   -f product-spec.pdf -f requirements.md --yes
 ```
 
+### Model Selection
+Deepr defaults to `o3-deep-research` (higher quality) but also supports `o4-mini-deep-research` (faster, cheaper):
+
+```bash
+# Default: o3-deep-research (comprehensive, higher cost)
+deepr research "Research topic" --yes
+
+# Use o4-mini-deep-research (faster, lower cost)
+deepr research "Quick research topic" --model o4-mini-deep-research --yes
+
+# Change default in .env
+echo "DEEPR_DEFAULT_MODEL=o4-mini-deep-research" >> .env
+```
+
+**When to use each:**
+- `o3-deep-research`: Complex analysis, comprehensive reports, strategic decisions
+- `o4-mini-deep-research`: Quick lookups, fact-checking, simpler questions
+
 ### Automatic Prompt Refinement
-Optimize queries with GPT-5-mini before submission:
+Optimize queries with GPT-5-mini before submission (adds date context, best practices guidance, structured deliverables):
 ```bash
 deepr research "compare AI code editors" --refine-prompt --yes
 
 # Or enable always-on refinement
 echo "DEEPR_AUTO_REFINE=true" >> .env
 ```
+
+**Refinement improvements:**
+- Adds current date context for temporal queries
+- Requests current best practices and latest approaches
+- Prioritizes trusted, authoritative sources
+- Structures vague queries into actionable deliverables
 
 ### Vector Store Management
 Create reusable document indexes:
@@ -130,23 +154,24 @@ Output: Competitive matrix with strategic recommendations." --yes
 # Result: Targeted analysis of YOUR actual competitive landscape
 ```
 
-### Context Injection Patterns
+### Context Injection with Files
 
-**File injection:**
+**Upload files directly (recommended):**
 ```bash
-deepr research "Context: $(cat company-brief.txt). Task: ..." --yes
+# Single file
+deepr research "Analyze this product spec and identify risks" \
+  -f product-spec.pdf --yes
+
+# Multiple files
+deepr research "Analyze call transcript and provide recommendations" \
+  -f call-transcript.txt \
+  -f product-brief.pdf \
+  -f fintech-overview.md --yes
 ```
 
-**Multi-file context:**
-```bash
-deepr research "
-Context: Call transcript: $(cat call.txt).
-Our product: $(cat product-brief.txt).
-Customer industry: $(cat fintech-overview.txt).
-Task: Analyze call and provide recommendations." --yes
-```
+Files are automatically indexed and semantically searched during research. Supports PDF, DOCX, TXT, MD, and code files.
 
-**Structured format:**
+**Structured prompt format:**
 ```bash
 deepr research "
 Research Task: [Your goal]
