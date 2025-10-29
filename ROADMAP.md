@@ -6,11 +6,17 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 
 ## Current Status
 
-### v2.1 - Adaptive Research Workflow (Current Release)
+### v2.2 - File Upload, Prompt Refinement & Observability (Current Release - October 2025)
 
 **Production-ready:**
 - Single deep research jobs (CLI + web UI)
-- OpenAI Deep Research integration (o3/o4-mini)
+- **File upload with vector store support** (PDF, DOCX, TXT, MD, code files)
+- **Automatic prompt refinement** (--refine-prompt flag adds date context, structure, clarity)
+- **Ad-hoc result retrieval** (`deepr research get` downloads results without continuous worker)
+- **Detailed cost breakdowns** (`--cost` flag shows token usage, pricing, calculations)
+- **Human-in-the-loop controls** (--review-before-execute requires approval before execution)
+- **Provider resilience** (auto-retry with exponential backoff, graceful degradation o3→o4-mini)
+- OpenAI Deep Research integration (o3-deep-research, o4-mini-deep-research models)
 - Background worker with automatic polling
 - Cost tracking and budget management
 - SQLite queue + filesystem storage
@@ -18,7 +24,7 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 
 **Beta (functional, use with supervision):**
 - Multi-phase campaigns (`deepr prep plan/execute/continue/auto`)
-- GPT-5 as research lead, reviewing and planning next phases
+- GPT-5 (or latest OpenAI flagship) as research lead, reviewing and planning next phases
 - Context chaining with automatic summarization
 - Adaptive workflow: plan → execute → review → replan
 
@@ -27,7 +33,7 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 - Team assembly optimized per question
 - Multiple perspectives with conflict highlighting
 
-**Key Innovation:** Research workflows that adapt based on findings, mirroring how human research teams work.
+**Key Innovation:** File upload enables semantic search over uploaded documents, eliminating the need for text injection workarounds.
 
 ## Agentic Levels Framework
 
@@ -37,97 +43,121 @@ Deepr's development follows a progression toward autonomy:
 |-------|-------------|--------|
 | **Level 1** | Reactive Execution (single-turn) | Complete |
 | **Level 2** | Procedural Automation (scripted sequences) | Complete |
-| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.1)** |
-| **Level 4** | Reflective Optimization (learns from outcomes) | Target (v2.4) |
+| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.2)** |
+| **Level 4** | Reflective Optimization (learns from outcomes) | Target (v2.5) |
 | **Level 5** | Autonomous Meta-Research (self-improving) | Vision (v3.0+) |
 
 **Philosophy:** Quality over automation. We build trust through transparency and demonstrated quality before enabling greater autonomy.
 
 ## Near-Term Development
 
-### v2.2 - UX & Observability (Q1 2026)
+### v2.3 - Observability & UX Improvements (Q1 2026)
 
-**Priority 1: File Upload & Vector Store Support**
+**Priority 1: File Upload Enhancements**
 
-**Critical missing feature:** OpenAI Deep Research natively supports file search via vector stores, but Deepr doesn't expose this yet.
+File upload now works! Additional enhancements planned:
 
-**Adding:**
 ```bash
-# Upload documents for context
-deepr research submit "Analyze this product spec" --files spec.pdf requirements.md --yes
-
-# Upload zip of related docs
-deepr research submit "Research based on our internal docs" --files company-docs.zip --yes
-
-# Persistent vector stores for reuse
+# Persistent vector stores for reuse (planned)
 deepr vector create --name "company-knowledge" --files docs/
 deepr research submit "Query about X" --vector-store company-knowledge --yes
+
+# ZIP archive support (planned)
+deepr research submit "Research based on our internal docs" --files company-docs.zip --yes
 ```
 
-**Implementation:**
-- Upload files to OpenAI vector stores automatically
-- Pass `vector_store_ids` to Deep Research API
-- Support: PDF, DOCX, TXT, MD, code files, ZIP archives
-- Automatic vectorization and chunking
-- Reusable vector stores for common document sets
+**Remaining work:**
+- Persistent vector store management (create, list, delete)
+- ZIP archive extraction and upload
+- Vector store reuse across multiple jobs
 
-**Benefits:**
-- Document analysis (specs, transcripts, reports)
-- Internal knowledge research
-- Batch research over document collections
-- No more `$(cat)` workarounds for large files
+**Priority 2: Prompt Refinement Enhancements**
 
-**Priority 2: Ad-Hoc Job Management**
+Prompt refinement now works! Additional features planned:
 
-Current limitation: Requires continuous worker process to check job status.
-
-**Adding:**
 ```bash
-deepr research poll <job-id>        # Check OpenAI once, download if ready
-deepr research poll --all           # Update all processing jobs
-deepr queue refresh                 # Sync entire queue with OpenAI
+# Dry-run mode: show refinement without submitting (planned)
+deepr research "competitive analysis" --refine-prompt --dry-run
+
+# Always-on refinement via config (planned)
+# Add to .env: DEEPR_AUTO_REFINE=true
 ```
 
-**Benefits:**
+**Remaining work:**
+- Dry-run mode (show refinement, don't submit)
+- Config option for always-on refinement
+- Save/load prompt templates
+
+**Priority 3: Ad-Hoc Job Management - COMPLETE**
+
+The `deepr research get` command is now production-ready! Download research results without running a continuous worker.
+
+```bash
+deepr research get <job-id>          # Download results from provider if ready
+```
+
+**Remaining enhancements (planned):**
+```bash
+deepr research get --all             # Download all completed jobs (planned)
+deepr queue sync                     # Sync entire queue with provider (planned)
+```
+
+**Benefits delivered:**
 - Daily check-ins without running worker 24/7
 - CI/CD integration (check job in pipeline)
 - Ad-hoc usage patterns
 - Lower resource usage for casual users
 
-**Priority 3: Observability & Transparency**
+**Priority 4: Observability & Transparency (PARTIALLY COMPLETE)**
 
-Make reasoning visible and auditable:
+**Completed:**
+- ✅ **Cost attribution:** `deepr research result <job-id> --cost` shows detailed breakdown
+  - Token usage (input, output, reasoning)
+  - Cost calculation (input cost, output cost, total)
+  - Pricing information (per 1M tokens)
+  - Job metadata (model, times, prompt)
 
-- **Metadata generation:** Auto-track prompt, context used, model, tokens, cost per task
+**Remaining work:**
 - **Decision logs:** "GPT-5 chose Phase 2 topics because [gap analysis]"
-- **Cost attribution:** Per-phase, per-perspective breakdowns
 - **Reasoning traces:** Timeline view of how research evolved
 
-**CLI additions:**
+**CLI additions (planned):**
 ```bash
-deepr research result <job-id> --explain      # Why this research path?
-deepr research result <job-id> --timeline     # Reasoning evolution
-deepr research result <job-id> --cost         # Detailed cost breakdown
+deepr research result <job-id> --explain      # Why this research path? (planned)
+deepr research result <job-id> --timeline     # Reasoning evolution (planned)
 ```
 
-**Priority 3: Human-in-the-Loop Controls**
+**Priority 5: Human-in-the-Loop Controls (PARTIALLY COMPLETE)**
 
-Balance automation with oversight:
+**Completed:**
+- ✅ **Review before execution:** `deepr prep plan "..." --review-before-execute`
+  - Tasks start as unapproved when flag is used
+  - Requires explicit human approval via `deepr prep review`
+  - Prevents autonomous execution without oversight
 
+**Remaining work:**
 ```bash
-deepr prep plan "..." --review-before-execute    # Approve plan first
-deepr prep pause <campaign-id>                   # Mid-campaign intervention
-deepr prep edit-plan <campaign-id>               # Adjust next phase
+deepr prep pause <campaign-id>       # Mid-campaign intervention (planned)
+deepr prep edit-plan <campaign-id>   # Adjust next phase (planned)
 ```
 
-**Priority 4: Provider Resilience**
+**Priority 6: Provider Resilience (COMPLETE)**
 
-- Auto-retry with fallback providers on failure
-- Graceful degradation (o4-mini if o3 unavailable)
-- Provider health monitoring
+**Implemented:**
+- ✅ **Auto-retry with exponential backoff**
+  - 3 retry attempts with 1s, 2s, 4s delays
+  - Handles rate limits, connection errors, timeouts
+- ✅ **Graceful degradation**
+  - o3-deep-research → o4-mini-deep-research fallback
+  - Automatic model downgrade on persistent failures
+  - Ensures research completes even if preferred model unavailable
+
+**Future enhancements:**
+- Provider health monitoring dashboard
 - Auto-resume campaigns after recovery
+- Multi-provider failover (OpenAI → Anthropic → Google)
 
-### v2.3 - MCP Server & Ecosystem (Q2 2026)
+### v2.4 - MCP Server & Ecosystem (Q2 2026)
 
 **Priority 1: Model Context Protocol Server**
 
@@ -167,7 +197,7 @@ Make team perspectives visible:
 - Cost breakdown per team member
 - Export debate structure along with synthesis
 
-### v2.4 - Learning & Optimization (Q3 2026)
+### v2.5 - Learning & Optimization (Q3 2026)
 
 **Moving toward Level 4: System learns from outcomes**
 
@@ -271,6 +301,8 @@ Simulated expert panel challenges agent's understanding:
 - Fails if gaps found, researches more, tries again
 - Passes when understanding withstands scrutiny
 
+Implementation via Constitutional AI: Encode assessment rules ("admit uncertainty", "provide reasoning steps") in model constitution, enabling self-critique and calibrated confidence (e.g., ECE < 5%, accuracy ≥95%).
+
 **Humble Expertise:**
 
 Even after validation, maintains beginner's mind:
@@ -322,20 +354,20 @@ Even after validation, maintains beginner's mind:
 ## Multi-Provider Strategy
 
 **Current Reality (October 2025):**
-- **OpenAI is the only provider with turnkey Deep Research API**
-- o3-deep-research and o4-mini-deep-research
-- GPT-5 for planning and review
 
-**Architecture Ready For:**
-- **Azure OpenAI** - Same models, enterprise deployment
-- **Anthropic** - Extended Thinking implemented for reasoning transparency
-- **Future providers** - When Google, others launch deep research APIs
+Multiple providers now offer deep research capabilities:
+
+- **OpenAI**: GPT-5 family with Deep Research API (o3-deep-research, o4-mini-deep-research)
+- **Anthropic**: Claude Opus 4.1, Sonnet 4.5, Haiku 4.5 with Web Search tools
+- **Google**: Gemini 2.5 Pro/Flash/Flash-Lite with Deep Research (Enterprise+)
+- **xAI**: Grok 4 and Grok 4 Fast with agentic tool-calling
+- **Azure OpenAI**: GPT-5 family via Azure AI Foundry (enterprise deployment)
 
 **Provider Selection Strategy:**
-- Default: OpenAI (most mature offering)
-- Manual: `--provider openai|azure|anthropic` flag
-- Future: Automatic routing based on task type and performance benchmarks
-- No vendor lock-in
+- Current: OpenAI Deep Research API (most mature, turnkey solution)
+- Manual: `--provider openai|azure|anthropic|google|xai` flag
+- Planned: Automatic routing based on task type, cost, and performance
+- Architecture: Provider-agnostic design, no vendor lock-in
 
 **Deepr's Value Beyond Single-Provider Wrappers:**
 - Intelligent multi-phase planning with context chaining
@@ -435,13 +467,13 @@ This validates the tool while generating implementation guidance. When we hit de
 
 Deepr is evolving from an adaptive planning system (Level 3) toward a self-improving research platform (Level 4-5) that serves both humans and AI agents.
 
-**Near-term focus (v2.2-2.3):**
-- Better UX (ad-hoc job management)
+**Near-term focus (v2.3-2.4):**
+- Prompt refinement for best practices
+- Better UX (ad-hoc job management, observability)
 - MCP server (AI agent integration)
-- Observability and transparency
 - Provider resilience
 
-**Medium-term (v2.4):**
+**Medium-term (v2.5):**
 - Learning from outcomes
 - Quality metrics and benchmarking
 - Basic verification
