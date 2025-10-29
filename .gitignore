@@ -1,16 +1,28 @@
-# Environment (.env.example should be tracked as template)
+# ==============================================================================
+# Environment & Secrets
+# ==============================================================================
+# Never commit .env files (use .env.example as template)
 .env
-.env.local
-.env.*.local
-.env.azure
-.env.anthropic
-.env.openai
+.env.*
+!.env.example
 
+# ==============================================================================
 # Python
+# ==============================================================================
+# Bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+virtualenv/
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -24,71 +36,148 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# Generated/Runtime files (now in data/)
-last_response.json
-*.deprecated
+# PyInstaller
+*.manifest
+*.spec
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+tests/*.db
+tests/**/*.db
+.hypothesis/
+pytest_debug.log
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# ==============================================================================
+# Deepr Runtime Data
+# ==============================================================================
+# SQLite databases (queue, results)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Generated/Runtime directories (both data/ and root-level)
 data/logs/
 data/reports/
 data/queue/
 data/results/
 data/uploads/
-data/*.db
-data/*.db-journal
-backups/
-archive/
+data/campaigns/
+data/templates/
+data/vector_stores/
 
-# Logs (all locations)
-logs/
+# Root-level runtime directories (legacy, should be in data/)
+/logs/
+/queue/
+/reports/
+/backups/
+/archive/
+/DEPRECATED/
+
+# Logs
 *.log
 
-# Queue databases (runtime - all locations)
-queue/*.db
-queue/*.db-journal
-**/*.db-journal
+# Deprecated/temporary files
+last_response.json
+*.deprecated
+*.tmp
+*.bak
+*.old
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-tests/*.db
-tests/**/*.db
+# ==============================================================================
+# Frontend (React + Vite)
+# ==============================================================================
+deepr/web/frontend/node_modules/
+deepr/web/frontend/dist/
+deepr/web/frontend/.vite/
+deepr/web/frontend/.cache/
+deepr/web/frontend/build/
 
-# IDE
+# ==============================================================================
+# IDEs and Editors
+# ==============================================================================
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
 .idea/
+*.iml
+
+# Vim
 *.swp
 *.swo
 *~
 
-# OS
-Thumbs.db
-.DS_Store
+# Emacs
+\#*\#
+.\#*
 
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ==============================================================================
+# Operating System
+# ==============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+
+# Linux
+.directory
+.Trash-*
+
+# ==============================================================================
+# Tools and Services
+# ==============================================================================
 # Ngrok
 ngrok.exe
 ngrok
 bin/ngrok.exe
 
-# Frontend (React + Vite)
-deepr/web/frontend/node_modules/
-deepr/web/frontend/dist/
-deepr/web/frontend/.vite/
-
 # Claude/AI session data
 .claude/
 .deepr/
 
-# Runtime data (generated during use)
-data/campaigns/
+# Docker
+*.dockerignore
+docker-compose.override.yml
 
-# Personal notes and exploration (not part of core project)
+# ==============================================================================
+# Documentation (Personal)
+# ==============================================================================
+# Archive old documentation, personal notes excluded, but keep main docs/ directory
+docs/archive/
 docs/**/personal/
 docs/**/*notes*.txt
 docs/**/*exploration*.md
-/docs
+docs/**/.private/
