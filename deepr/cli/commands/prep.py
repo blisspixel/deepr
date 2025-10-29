@@ -25,9 +25,11 @@ def prep():
               help="Deep research model for execution")
 @click.option("--check-docs", is_flag=True,
               help="[EXPERIMENTAL] Check existing docs. WARNING: May give false confidence - shallow doc != comprehensive research")
+@click.option("--review-before-execute", is_flag=True,
+              help="Require manual approval before executing the plan (human-in-the-loop)")
 @click.option("--level", "-l", default=3, type=click.IntRange(1, 4),
               help="Agentic level: 1=single task, 2=multi-step, 3=orchestrated team (default), 4=adaptive with self-correction")
-def plan(scenario: str, topics: int, context: Optional[str], planner: str, model: str, check_docs: bool, level: int):
+def plan(scenario: str, topics: int, context: Optional[str], planner: str, model: str, check_docs: bool, review_before_execute: bool, level: int):
     """
     Generate multi-phase research plan with dependencies.
 
@@ -117,7 +119,8 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
         phases = {}
         for i, task in enumerate(tasks, 1):
             task['id'] = i
-            task['approved'] = True  # Default to approved
+            # If review-before-execute, tasks start unapproved
+            task['approved'] = not review_before_execute
             phase = task.get('phase', 1)
             if phase not in phases:
                 phases[phase] = []
@@ -178,6 +181,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             "planner": planner,
             "tasks": tasks,
             "phases": len(phases),
+            "requires_review": review_before_execute,
             "created_at": datetime.utcnow().isoformat()
         }
 
@@ -186,9 +190,17 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
 
         click.echo(f"\nPlan saved: {plan_file}")
         click.echo()
-        click.echo("Next steps:")
-        click.echo(f"  deepr prep review    # Review and approve/remove tasks")
-        click.echo(f"  deepr prep execute   # Execute approved tasks")
+
+        if review_before_execute:
+            click.echo(f"{CHECK} Human-in-the-loop enabled: All tasks require approval before execution")
+            click.echo()
+            click.echo("Next steps:")
+            click.echo(f"  deepr prep review    # Review and approve/remove tasks (REQUIRED)")
+            click.echo(f"  deepr prep execute   # Execute approved tasks only")
+        else:
+            click.echo("Next steps:")
+            click.echo(f"  deepr prep review    # Review and approve/remove tasks (optional)")
+            click.echo(f"  deepr prep execute   # Execute all tasks")
 
     except Exception as e:
         click.echo(f"\n{CROSS} Error: {e}", err=True)

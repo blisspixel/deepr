@@ -55,57 +55,94 @@ class OpenAIProvider(DeepResearchProvider):
         return self.model_mappings.get(model_key, model_key)
 
     async def submit_research(self, request: ResearchRequest) -> str:
-        """Submit research job to OpenAI."""
-        try:
-            # Map model name
-            model = self.get_model_name(request.model)
+        """Submit research job to OpenAI with retry logic."""
+        import asyncio
+        from openai import RateLimitError, APIConnectionError, APITimeoutError
 
-            # Convert tools to OpenAI format
-            tools = []
-            for tool in request.tools:
-                tool_dict = {"type": tool.type}
-                if tool.type == "file_search" and tool.vector_store_ids:
-                    tool_dict["vector_store_ids"] = tool.vector_store_ids
-                elif tool.type == "code_interpreter" and tool.container:
-                    tool_dict["container"] = tool.container
-                tools.append(tool_dict)
+        max_retries = 3
+        retry_delay = 1  # seconds
+        fallback_model = None
 
-            # Build request payload
-            payload = {
-                "model": model,
-                "input": [
-                    {
-                        "role": "developer",
-                        "content": [{"type": "input_text", "text": request.system_message}],
-                    },
-                    {"role": "user", "content": [{"type": "input_text", "text": request.prompt}]},
-                ],
-                "reasoning": {"summary": "auto"},
-                "tools": tools if tools else None,
-                "tool_choice": request.tool_choice,
-                "metadata": request.metadata,
-                "store": request.store,
-                "background": request.background,
-            }
+        # Determine fallback model if o3 fails
+        if "o3-deep-research" in request.model:
+            fallback_model = "o4-mini-deep-research"
 
-            # Add webhook if provided
-            if request.webhook_url:
-                payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
+        for attempt in range(max_retries):
+            try:
+                # Map model name
+                model = self.get_model_name(request.model)
 
-            # Add temperature if specified
-            if request.temperature is not None:
-                payload["temperature"] = request.temperature
+                # Convert tools to OpenAI format
+                tools = []
+                for tool in request.tools:
+                    tool_dict = {"type": tool.type}
+                    if tool.type == "file_search" and tool.vector_store_ids:
+                        tool_dict["vector_store_ids"] = tool.vector_store_ids
+                    elif tool.type == "code_interpreter" and tool.container:
+                        tool_dict["container"] = tool.container
+                    tools.append(tool_dict)
 
-            # Submit request
-            response = await self.client.responses.create(**payload)
-            return response.id
+                # Build request payload
+                payload = {
+                    "model": model,
+                    "input": [
+                        {
+                            "role": "developer",
+                            "content": [{"type": "input_text", "text": request.system_message}],
+                        },
+                        {"role": "user", "content": [{"type": "input_text", "text": request.prompt}]},
+                    ],
+                    "reasoning": {"summary": "auto"},
+                    "tools": tools if tools else None,
+                    "tool_choice": request.tool_choice,
+                    "metadata": request.metadata,
+                    "store": request.store,
+                    "background": request.background,
+                }
 
-        except Exception as e:
-            raise ProviderError(
-                message=f"Failed to submit research: {str(e)}",
-                provider="openai",
-                original_error=e,
-            )
+                # Add webhook if provided
+                if request.webhook_url:
+                    payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
+
+                # Add temperature if specified
+                if request.temperature is not None:
+                    payload["temperature"] = request.temperature
+
+                # Submit request
+                response = await self.client.responses.create(**payload)
+                return response.id
+
+            except (RateLimitError, APIConnectionError, APITimeoutError) as e:
+                # Retryable errors
+                if attempt < max_retries - 1:
+                    # Exponential backoff
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"Provider error (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                elif fallback_model and attempt == max_retries - 1:
+                    # Last attempt: try fallback model
+                    print(f"Max retries reached for {request.model}")
+                    print(f"Graceful degradation: Falling back to {fallback_model}")
+                    request.model = fallback_model
+                    continue
+                else:
+                    raise ProviderError(f"Failed after {max_retries} retries: {e}")
+
+            except Exception as e:
+                # Non-retryable errors
+                raise ProviderError(
+                    message=f"Failed to submit research: {str(e)}",
+                    provider="openai",
+                    original_error=e,
+                )
+
+        # If we exhausted all retries
+        raise ProviderError(
+            message="Failed to submit research after all retries",
+            provider="openai"
+        )
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """Get research job status from OpenAI."""
