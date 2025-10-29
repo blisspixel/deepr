@@ -19,11 +19,15 @@ def research():
               help="Deep research model (o4-mini faster/cheaper, o3 more comprehensive)")
 @click.option("--priority", "-p", default=3, type=click.IntRange(1, 5),
               help="Priority (1=high, 5=low)")
+@click.option("--files", "-f", multiple=True, type=click.Path(exists=True),
+              help="Upload files for context (PDF, DOCX, TXT, MD, code files)")
+@click.option("--refine-prompt", is_flag=True,
+              help="Automatically refine prompt to follow best practices (adds date context, structure)")
 @click.option("--web-search/--no-web-search", default=True,
               help="Enable web search (default: enabled, required for deep research)")
 @click.option("--yes", "-y", is_flag=True,
               help="Skip confirmation prompt")
-def submit(prompt: str, model: str, priority: int, web_search: bool, yes: bool):
+def submit(prompt: str, model: str, priority: int, files: tuple, refine_prompt: bool, web_search: bool, yes: bool):
     """
     Submit a deep research job.
 
@@ -36,10 +40,53 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, yes: bool):
     """
     print_section_header("Submit Deep Research Job")
 
+    # Refine prompt if requested
+    original_prompt = prompt
+    if refine_prompt:
+        try:
+            from deepr.services.prompt_refiner import PromptRefiner
+            click.echo(f"\n{CHECK} Refining prompt...")
+            refiner = PromptRefiner()
+            refinement = refiner.refine(prompt, has_files=bool(files))
+
+            prompt = refinement["refined_prompt"]
+
+            # Show what changed
+            if refinement["changes_made"] and refinement["changes_made"][0] != "No refinement needed - prompt already follows best practices":
+                click.echo(f"\n   Improvements made:")
+                for change in refinement["changes_made"]:
+                    # Handle Unicode issues on Windows
+                    try:
+                        click.echo(f"   - {change}")
+                    except UnicodeEncodeError:
+                        # Fallback: ASCII-safe version
+                        click.echo(f"   - {change.encode('ascii', 'replace').decode('ascii')}")
+
+                if refinement.get("needs_context"):
+                    try:
+                        click.echo(f"\n   Note: {refinement.get('context_suggestion', 'Consider adding more context')}")
+                    except UnicodeEncodeError:
+                        pass
+
+                click.echo(f"\n   Original: {original_prompt[:80]}...")
+                click.echo(f"   Refined:  {prompt[:80]}...")
+            else:
+                click.echo(f"   Prompt already follows best practices - no changes needed")
+
+        except Exception as e:
+            click.echo(f"\n   Warning: Could not refine prompt: {e}")
+            click.echo(f"   Continuing with original prompt...")
+            prompt = original_prompt
+
     click.echo(f"\nConfiguration:")
     click.echo(f"   Model: {model}")
     click.echo(f"   Priority: {priority} ({'high' if priority <= 2 else 'normal' if priority <= 4 else 'low'})")
     click.echo(f"   Web Search: {'enabled' if web_search else 'disabled'}")
+    if files:
+        click.echo(f"   Files: {len(files)} file(s)")
+        for f in files:
+            import os
+            click.echo(f"      - {os.path.basename(f)}")
     click.echo(f"   Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
 
     click.echo(f"\nNote: Deep research jobs typically take 2-10 minutes for simple queries,")
@@ -91,12 +138,46 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, yes: bool):
         async def submit_job():
             await queue.enqueue(job)
 
+            # Handle file uploads if provided
+            vector_store_id = None
+            if files:
+                click.echo(f"\n{CHECK} Uploading {len(files)} file(s)...")
+
+                # Upload files
+                file_ids = []
+                for file_path in files:
+                    import os
+                    click.echo(f"   Uploading {os.path.basename(file_path)}...")
+                    file_id = await provider.upload_document(file_path, purpose="assistants")
+                    file_ids.append(file_id)
+                    click.echo(f"   {CHECK} Uploaded (ID: {file_id[:8]}...)")
+
+                # Create vector store
+                import time
+                vs_name = f"research-{job_id[:8]}-{int(time.time())}"
+                click.echo(f"\n{CHECK} Creating vector store '{vs_name}'...")
+                vector_store = await provider.create_vector_store(vs_name, file_ids)
+                vector_store_id = vector_store.id
+                click.echo(f"   {CHECK} Vector store created (ID: {vector_store_id[:8]}...)")
+
+                # Wait for vector store to be ready
+                click.echo(f"   Waiting for file indexing...")
+                await provider.wait_for_vector_store(vector_store_id, timeout=300)
+                click.echo(f"   {CHECK} Files indexed and ready!")
+
+            # Build tools list
+            tools = []
+            if web_search:
+                tools.append(ToolConfig(type="web_search_preview"))
+            if vector_store_id:
+                tools.append(ToolConfig(type="file_search", vector_store_ids=[vector_store_id]))
+
             # Submit to provider
             request = ResearchRequest(
                 prompt=prompt,
                 model=model,
                 system_message="You are a helpful AI research assistant. Provide comprehensive, well-researched responses with inline citations.",
-                tools=[ToolConfig(type="web_search_preview")] if web_search else [],
+                tools=tools,
                 background=True,
             )
 
@@ -188,12 +269,14 @@ def status(job_id: str):
 
 @research.command()
 @click.argument("job_id")
-def result(job_id: str):
+@click.option("--cost", is_flag=True, help="Show detailed cost breakdown")
+def result(job_id: str, cost: bool):
     """
     View result of a completed research job.
 
     Example:
         deepr research result abc123
+        deepr research result abc123 --cost    # Detailed cost breakdown
     """
     print_section_header(f"Research Result: {job_id[:8]}...")
 
@@ -235,6 +318,49 @@ def result(job_id: str):
             click.echo(f"\nCheck status: deepr research status {job_id[:8]}")
             raise click.Abort()
 
+        # If --cost flag, show detailed breakdown
+        if cost:
+            click.echo(f"\n{CHECK} Cost Breakdown:\n")
+            click.echo(f"Job Details:")
+            click.echo(f"   ID: {job.id}")
+            click.echo(f"   Model: {job.model}")
+            click.echo(f"   Submitted: {job.submitted_at}")
+            click.echo(f"   Completed: {job.completed_at}")
+
+            if response.usage:
+                click.echo(f"\nToken Usage:")
+                click.echo(f"   Input tokens:  {response.usage.input_tokens:,}")
+                click.echo(f"   Output tokens: {response.usage.output_tokens:,}")
+                if response.usage.reasoning_tokens:
+                    click.echo(f"   Reasoning tokens: {response.usage.reasoning_tokens:,}")
+                click.echo(f"   Total tokens:  {response.usage.total_tokens:,}")
+
+                click.echo(f"\nCost Calculation:")
+                # Calculate input and output costs separately
+                from deepr.providers.base import UsageStats
+                input_cost = UsageStats.calculate_cost(response.usage.input_tokens, 0, response.model or job.model)
+                output_cost = UsageStats.calculate_cost(0, response.usage.output_tokens, response.model or job.model)
+
+                click.echo(f"   Input cost:  ${input_cost:.4f} ({response.usage.input_tokens:,} tokens)")
+                click.echo(f"   Output cost: ${output_cost:.4f} ({response.usage.output_tokens:,} tokens)")
+                click.echo(f"   Total cost:  ${response.usage.cost:.4f}")
+
+                # Show pricing info
+                click.echo(f"\nPricing (per 1M tokens):")
+                if "o3-deep-research" in (response.model or job.model):
+                    click.echo(f"   Model: o3-deep-research")
+                    click.echo(f"   Input:  $11.00/M tokens")
+                    click.echo(f"   Output: $44.00/M tokens")
+                elif "o4-mini" in (response.model or job.model):
+                    click.echo(f"   Model: o4-mini-deep-research")
+                    click.echo(f"   Input:  $1.10/M tokens")
+                    click.echo(f"   Output: $4.40/M tokens")
+
+            click.echo(f"\nPrompt:")
+            click.echo(f"   {job.prompt[:200]}{'...' if len(job.prompt) > 200 else ''}")
+            return
+
+        # Normal result display
         click.echo(f"\n{CHECK} Research Report:\n")
 
         # Print the message content
@@ -262,6 +388,7 @@ def result(job_id: str):
             click.echo(f"   Output tokens: {response.usage.output_tokens:,}")
             click.echo(f"   Total tokens: {response.usage.total_tokens:,}")
             click.echo(f"   Cost: ${response.usage.cost:.4f}")
+            click.echo(f"\nTip: Use 'deepr research result {job_id[:8]} --cost' for detailed breakdown")
 
     except Exception as e:
         click.echo(f"\n{CROSS} Error: {e}", err=True)
@@ -353,6 +480,136 @@ def cancel(job_id: str, yes: bool):
         asyncio.run(do_cancel())
 
         click.echo(f"\n{CHECK} Job cancelled successfully!")
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        raise click.Abort()
+
+
+@research.command()
+@click.argument("job_id")
+def get(job_id: str):
+    """
+    Get research results - checks provider and downloads if ready.
+
+    Unlike 'wait', this checks once and returns immediately.
+    Perfect for checking on jobs without running a continuous worker.
+
+    Example:
+        deepr research get abc123
+    """
+    import asyncio
+    from deepr.queue import create_queue
+    from deepr.providers import create_provider
+    from deepr.config import load_config
+    from deepr.queue.base import JobStatus
+
+    print_section_header(f"Getting Research: {job_id[:8]}...")
+
+    try:
+        config = load_config()
+        queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
+        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+
+        async def check_and_download():
+            # Get job from queue
+            job = await queue.get_job(job_id)
+            if not job:
+                return None, "Job not found"
+
+            if not job.provider_job_id:
+                return job, "No provider job ID - job may not have been submitted"
+
+            click.echo(f"\nLocal status: {job.status.value.upper()}")
+            click.echo(f"Checking with provider...")
+
+            # Check status at provider
+            response = await provider.get_status(job.provider_job_id)
+
+            click.echo(f"Provider status: {response.status.upper()}")
+
+            # Update local queue if status changed
+            if response.status == "completed" and job.status != JobStatus.COMPLETED:
+                click.echo(f"\n{CHECK} Job completed! Downloading results...")
+
+                # Extract content
+                from deepr.storage import create_storage
+                from deepr.config import load_config
+
+                content = ""
+                if response.output:
+                    for block in response.output:
+                        if block.get('type') == 'message':
+                            for item in block.get('content', []):
+                                text = item.get('text', '')
+                                if text:
+                                    content += text + "\n"
+
+                # Save to storage
+                config2 = load_config()
+                storage = create_storage(
+                    config2.get("storage", "local"),
+                    base_path=config2.get("results_dir", "data/reports")
+                )
+
+                await storage.save_report(
+                    job_id=job.id,
+                    filename="report.md",
+                    content=content.encode('utf-8'),
+                    content_type="text/markdown"
+                )
+
+                # Update queue with cost/tokens
+                cost = response.usage.cost if response.usage else 0
+                tokens = response.usage.total_tokens if response.usage else 0
+
+                await queue.update_results(
+                    job_id=job.id,
+                    report_paths={"markdown": "report.md"},
+                    cost=cost,
+                    tokens_used=tokens
+                )
+
+                # Mark as completed
+                await queue.update_status(job.id, JobStatus.COMPLETED)
+
+                click.echo(f"   Results saved! Cost: ${cost:.4f}")
+
+                return job, response
+
+            elif response.status == "failed":
+                click.echo(f"\n{CROSS} Job failed at provider")
+                await queue.update_status(
+                    job_id=job.id,
+                    status=JobStatus.FAILED,
+                    error=response.error or "Unknown error"
+                )
+                return job, None
+
+            else:
+                click.echo(f"\nJob still {response.status}... check again later")
+                return job, None
+
+        job, response = asyncio.run(check_and_download())
+
+        if not job:
+            click.echo(f"\n{CROSS} {response}", err=True)
+            raise click.Abort()
+
+        if response and hasattr(response, 'output'):
+            # Display result
+            click.echo(f"\n{CHECK} Result downloaded!\n")
+
+            if response.output:
+                for block in response.output:
+                    if block.get('type') == 'message':
+                        for content in block.get('content', []):
+                            text = content.get('text', '')
+                            if text:
+                                click.echo(text)
+
+            if response.usage:
+                click.echo(f"\n\nCost: ${response.usage.cost:.4f} | Tokens: {response.usage.total_tokens:,}")
 
     except Exception as e:
         click.echo(f"\n{CROSS} Error: {e}", err=True)
