@@ -21,13 +21,17 @@ def research():
               help="Priority (1=high, 5=low)")
 @click.option("--files", "-f", multiple=True, type=click.Path(exists=True),
               help="Upload files for context (PDF, DOCX, TXT, MD, code files)")
+@click.option("--vector-store", "-v", default=None,
+              help="Use existing vector store by ID or name (created with 'deepr vector create')")
 @click.option("--refine-prompt", is_flag=True,
               help="Automatically refine prompt to follow best practices (adds date context, structure)")
+@click.option("--dry-run", is_flag=True,
+              help="Show what would be done without actually submitting (useful with --refine-prompt)")
 @click.option("--web-search/--no-web-search", default=True,
               help="Enable web search (default: enabled, required for deep research)")
 @click.option("--yes", "-y", is_flag=True,
               help="Skip confirmation prompt")
-def submit(prompt: str, model: str, priority: int, files: tuple, refine_prompt: bool, web_search: bool, yes: bool):
+def submit(prompt: str, model: str, priority: int, files: tuple, vector_store: Optional[str], refine_prompt: bool, dry_run: bool, web_search: bool, yes: bool):
     """
     Submit a deep research job.
 
@@ -40,12 +44,19 @@ def submit(prompt: str, model: str, priority: int, files: tuple, refine_prompt: 
     """
     print_section_header("Submit Deep Research Job")
 
-    # Refine prompt if requested
+    # Check if auto-refine is enabled in config
+    import os
+    auto_refine = os.getenv("DEEPR_AUTO_REFINE", "false").lower() in ("true", "1", "yes")
+
+    # Refine prompt if requested OR if auto-refine is enabled
     original_prompt = prompt
-    if refine_prompt:
+    if refine_prompt or auto_refine:
         try:
             from deepr.services.prompt_refiner import PromptRefiner
-            click.echo(f"\n{CHECK} Refining prompt...")
+            if auto_refine and not refine_prompt:
+                click.echo(f"\n{CHECK} Auto-refining prompt (DEEPR_AUTO_REFINE=true)...")
+            else:
+                click.echo(f"\n{CHECK} Refining prompt...")
             refiner = PromptRefiner()
             refinement = refiner.refine(prompt, has_files=bool(files))
 
@@ -77,6 +88,29 @@ def submit(prompt: str, model: str, priority: int, files: tuple, refine_prompt: 
             click.echo(f"\n   Warning: Could not refine prompt: {e}")
             click.echo(f"   Continuing with original prompt...")
             prompt = original_prompt
+
+    # If dry-run, show configuration and exit
+    if dry_run:
+        click.echo(f"\n{CHECK} Dry-run mode - showing what would be submitted:\n")
+        click.echo(f"Configuration:")
+        click.echo(f"   Model: {model}")
+        click.echo(f"   Priority: {priority} ({'high' if priority <= 2 else 'normal' if priority <= 4 else 'low'})")
+        click.echo(f"   Web Search: {'enabled' if web_search else 'disabled'}")
+        if files:
+            click.echo(f"   Files: {len(files)} file(s)")
+            for f in files:
+                import os
+                click.echo(f"      - {os.path.basename(f)}")
+
+        click.echo(f"\nFinal Prompt:")
+        click.echo(f"   {prompt}")
+
+        # Estimate cost
+        avg_cost = 0.50 if "mini" in model else 5.0
+        click.echo(f"\nEstimated cost: ~${avg_cost:.2f}")
+        click.echo(f"Estimated time: 5-15 minutes")
+        click.echo(f"\nTo actually submit this research, remove the --dry-run flag")
+        return
 
     click.echo(f"\nConfiguration:")
     click.echo(f"   Model: {model}")
@@ -138,9 +172,33 @@ def submit(prompt: str, model: str, priority: int, files: tuple, refine_prompt: 
         async def submit_job():
             await queue.enqueue(job)
 
-            # Handle file uploads if provided
+            # Handle file uploads or vector store
             vector_store_id = None
-            if files:
+
+            # Check for existing vector store
+            if vector_store:
+                click.echo(f"\n{CHECK} Using existing vector store: {vector_store}")
+
+                # Look up vector store by ID or name
+                stores = await provider.list_vector_stores(limit=100)
+                found = False
+                for vs in stores:
+                    if vs.id == vector_store or vs.name == vector_store:
+                        vector_store_id = vs.id
+                        found = True
+                        click.echo(f"   {CHECK} Found vector store: {vs.name} ({vs.id[:8]}...)")
+                        click.echo(f"   Files: {len(vs.file_ids)}")
+                        break
+
+                if not found:
+                    click.echo(f"\n{CROSS} Vector store not found: {vector_store}", err=True)
+                    click.echo(f"Available vector stores:")
+                    for vs in stores[:5]:
+                        click.echo(f"  - {vs.name} ({vs.id})")
+                    raise Exception(f"Vector store not found: {vector_store}")
+
+            # Otherwise handle file uploads
+            elif files:
                 click.echo(f"\n{CHECK} Uploading {len(files)} file(s)...")
 
                 # Upload files
@@ -156,8 +214,8 @@ def submit(prompt: str, model: str, priority: int, files: tuple, refine_prompt: 
                 import time
                 vs_name = f"research-{job_id[:8]}-{int(time.time())}"
                 click.echo(f"\n{CHECK} Creating vector store '{vs_name}'...")
-                vector_store = await provider.create_vector_store(vs_name, file_ids)
-                vector_store_id = vector_store.id
+                vs_obj = await provider.create_vector_store(vs_name, file_ids)
+                vector_store_id = vs_obj.id
                 click.echo(f"   {CHECK} Vector store created (ID: {vector_store_id[:8]}...)")
 
                 # Wait for vector store to be ready
@@ -487,8 +545,9 @@ def cancel(job_id: str, yes: bool):
 
 
 @research.command()
-@click.argument("job_id")
-def get(job_id: str):
+@click.argument("job_id", required=False)
+@click.option("--all", is_flag=True, help="Download all completed jobs from provider")
+def get(job_id: Optional[str], all: bool):
     """
     Get research results - checks provider and downloads if ready.
 
@@ -496,7 +555,8 @@ def get(job_id: str):
     Perfect for checking on jobs without running a continuous worker.
 
     Example:
-        deepr research get abc123
+        deepr research get abc123          # Get specific job
+        deepr research get --all           # Download all completed jobs
     """
     import asyncio
     from deepr.queue import create_queue
@@ -504,12 +564,108 @@ def get(job_id: str):
     from deepr.config import load_config
     from deepr.queue.base import JobStatus
 
-    print_section_header(f"Getting Research: {job_id[:8]}...")
+    # Validate arguments
+    if all and job_id:
+        click.echo(f"\n{CROSS} Cannot specify both job_id and --all", err=True)
+        raise click.Abort()
+
+    if not all and not job_id:
+        click.echo(f"\n{CROSS} Must specify either job_id or --all", err=True)
+        raise click.Abort()
+
+    if all:
+        print_section_header("Download All Completed Jobs")
+    else:
+        print_section_header(f"Getting Research: {job_id[:8]}...")
 
     try:
         config = load_config()
         queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
         provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+
+        if all:
+            # Get all jobs with provider_job_id that are not completed
+            async def download_all():
+                jobs = await queue.list_jobs()
+
+                # Filter to jobs that have provider IDs but aren't completed
+                pending_jobs = [j for j in jobs if j.provider_job_id and j.status != JobStatus.COMPLETED]
+
+                if not pending_jobs:
+                    click.echo(f"\nNo pending jobs to check")
+                    return []
+
+                click.echo(f"\nFound {len(pending_jobs)} pending job(s) to check\n")
+
+                results = []
+                for job in pending_jobs:
+                    click.echo(f"Checking job {job.id[:8]}...")
+
+                    try:
+                        # Check status at provider
+                        response = await provider.get_status(job.provider_job_id)
+
+                        if response.status == "completed":
+                            click.echo(f"   {CHECK} Completed! Downloading...")
+
+                            # Extract content
+                            from deepr.storage import create_storage
+
+                            content = ""
+                            if response.output:
+                                for block in response.output:
+                                    if block.get('type') == 'message':
+                                        for item in block.get('content', []):
+                                            text = item.get('text', '')
+                                            if text:
+                                                content += text + "\n"
+
+                            # Save to storage
+                            storage = create_storage(
+                                config.get("storage", "local"),
+                                base_path=config.get("results_dir", "data/reports")
+                            )
+
+                            await storage.save_report(
+                                job_id=job.id,
+                                filename="report.md",
+                                content=content.encode('utf-8'),
+                                content_type="text/markdown"
+                            )
+
+                            # Update queue
+                            cost = response.usage.cost if response.usage else 0
+                            tokens = response.usage.total_tokens if response.usage else 0
+
+                            await queue.update_results(
+                                job_id=job.id,
+                                report_paths={"markdown": "report.md"},
+                                cost=cost,
+                                tokens_used=tokens
+                            )
+
+                            await queue.update_status(job.id, JobStatus.COMPLETED)
+
+                            click.echo(f"   Saved! Cost: ${cost:.4f}")
+                            results.append((job, response))
+                        else:
+                            click.echo(f"   Still {response.status}...")
+
+                    except Exception as e:
+                        click.echo(f"   {CROSS} Error: {e}")
+
+                    click.echo()
+
+                return results
+
+            results = asyncio.run(download_all())
+
+            if results:
+                click.echo(f"\n{CHECK} Downloaded {len(results)} completed job(s)")
+            else:
+                click.echo(f"\nNo new completions found")
+
+            return
 
         async def check_and_download():
             # Get job from queue
@@ -699,6 +855,100 @@ def wait(job_id: str, timeout: int):
         # Print usage
         if response.usage:
             click.echo(f"\n\nCost: ${response.usage.cost:.4f} | Tokens: {response.usage.total_tokens:,}")
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        raise click.Abort()
+
+
+@research.command()
+@click.argument("job_id")
+@click.option("--format", "-f",
+              type=click.Choice(["markdown", "txt", "json", "html"]),
+              default="markdown",
+              help="Export format")
+@click.option("--output", "-o", help="Output file path")
+def export(job_id: str, format: str, output: Optional[str]):
+    """
+    Export research results in different formats.
+
+    Example:
+        deepr research export abc123 --format json
+        deepr research export abc123 --format html --output report.html
+    """
+    print_section_header(f"Export Research: {job_id[:8]}...")
+
+    try:
+        import asyncio
+        import json
+        from pathlib import Path
+        from deepr.queue import create_queue
+        from deepr.providers import create_provider
+        from deepr.config import load_config
+        from deepr.queue.base import JobStatus
+
+        config = load_config()
+        queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
+        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+
+        async def get_research():
+            job = await queue.get_job(job_id)
+            if not job:
+                return None, "Job not found"
+
+            if job.status != JobStatus.COMPLETED:
+                return None, f"Job not completed (status: {job.status.value})"
+
+            if not job.provider_job_id:
+                return None, "No provider job ID"
+
+            response = await provider.get_status(job.provider_job_id)
+            return job, response
+
+        job, response = asyncio.run(get_research())
+
+        if not job:
+            click.echo(f"\n{CROSS} {response}", err=True)
+            raise click.Abort()
+
+        if not isinstance(response, str) and response.output:
+            # Extract content
+            content = ""
+            for block in response.output:
+                if block.get('type') == 'message':
+                    for item in block.get('content', []):
+                        text = item.get('text', '')
+                        if text:
+                            content += text + "\n"
+
+            # Output path
+            if not output:
+                Path("reports").mkdir(exist_ok=True)
+                ext = format if format != "txt" else "txt"
+                output = f"reports/{job_id[:8]}.{ext}"
+
+            # Format content
+            if format == "json":
+                output_content = json.dumps({
+                    "job_id": job.id,
+                    "model": job.model,
+                    "prompt": job.prompt,
+                    "content": content,
+                    "cost": response.usage.cost if response.usage else 0
+                }, indent=2)
+            else:
+                output_content = content
+
+            # Write
+            Path(output).parent.mkdir(parents=True, exist_ok=True)
+            with open(output, 'w', encoding='utf-8') as f:
+                f.write(output_content)
+
+            click.echo(f"\n{CHECK} Exported to: {output}")
+
+        else:
+            click.echo(f"\n{CROSS} No content to export", err=True)
+            raise click.Abort()
 
     except Exception as e:
         click.echo(f"\n{CROSS} Error: {e}", err=True)

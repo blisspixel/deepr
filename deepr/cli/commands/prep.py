@@ -343,6 +343,12 @@ def execute(yes: bool):
         all_tasks = plan_data["tasks"]
         model = plan_data["model"]
 
+        # Check if plan is paused
+        if plan_data.get("status") == "paused":
+            click.echo(f"\n{CROSS} Campaign is paused: {scenario}", err=True)
+            click.echo(f"\nTo resume: deepr prep resume {plan_file.stem}")
+            raise click.Abort()
+
         # Filter to approved tasks only
         tasks = [t for t in all_tasks if t.get('approved', True)]
 
@@ -495,6 +501,165 @@ def status(batch_id: str):
 
     except Exception as e:
         click.echo(f"\n{CROSS} Error: {e}", err=True)
+        raise click.Abort()
+
+
+@prep.command()
+@click.argument("plan_id", required=False)
+def pause(plan_id: Optional[str]):
+    """
+    Pause an active research campaign.
+
+    Marks the plan as paused to prevent further execution until resumed.
+    Useful for mid-campaign intervention and human oversight.
+
+    Example:
+        deepr prep pause                    # Pause the most recent plan
+        deepr prep pause analyze_electric_vehicle_market  # Pause specific plan
+    """
+    print_section_header("Pause Research Campaign")
+
+    try:
+        import json
+        from pathlib import Path
+        from datetime import datetime
+
+        # Load plan
+        plan_dir = Path(".deepr/plans")
+
+        if plan_id:
+            # Look for specific plan
+            plan_file = plan_dir / f"{plan_id}.json"
+            if not plan_file.exists():
+                click.echo(f"\n{CROSS} Plan not found: {plan_id}", err=True)
+                click.echo(f"Available plans:")
+                for f in sorted(plan_dir.glob("*.json")):
+                    click.echo(f"  - {f.stem}")
+                raise click.Abort()
+        else:
+            # Get most recent plan
+            plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+            if not plan_files:
+                click.echo(f"\n{CROSS} No plans found. Run 'deepr prep plan' first.", err=True)
+                raise click.Abort()
+            plan_file = plan_files[0]
+
+        # Load plan data
+        with open(plan_file, "r") as f:
+            plan_data = json.load(f)
+
+        scenario = plan_data["scenario"]
+        current_status = plan_data.get("status", "active")
+
+        # Check if already paused
+        if current_status == "paused":
+            click.echo(f"\n{CHECK} Campaign is already paused: {scenario}")
+            click.echo(f"\nTo resume: deepr prep resume {plan_file.stem}")
+            return
+
+        # Mark as paused
+        plan_data["status"] = "paused"
+        plan_data["paused_at"] = datetime.utcnow().isoformat()
+
+        # Save
+        with open(plan_file, "w") as f:
+            json.dump(plan_data, f, indent=2)
+
+        click.echo(f"\n{CHECK} Campaign paused: {scenario}")
+        click.echo(f"Plan file: {plan_file.stem}")
+        click.echo(f"\nNext steps:")
+        click.echo(f"  deepr prep resume {plan_file.stem}    # Resume execution")
+        click.echo(f"  deepr prep edit-plan {plan_file.stem}  # Edit before resuming (planned)")
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@prep.command()
+@click.argument("plan_id", required=False)
+def resume(plan_id: Optional[str]):
+    """
+    Resume a paused research campaign.
+
+    Re-activates a paused plan so it can be executed again.
+
+    Example:
+        deepr prep resume                   # Resume the most recently paused plan
+        deepr prep resume analyze_electric_vehicle_market  # Resume specific plan
+    """
+    print_section_header("Resume Research Campaign")
+
+    try:
+        import json
+        from pathlib import Path
+        from datetime import datetime
+
+        # Load plan
+        plan_dir = Path(".deepr/plans")
+
+        if plan_id:
+            # Look for specific plan
+            plan_file = plan_dir / f"{plan_id}.json"
+            if not plan_file.exists():
+                click.echo(f"\n{CROSS} Plan not found: {plan_id}", err=True)
+                click.echo(f"Available plans:")
+                for f in sorted(plan_dir.glob("*.json")):
+                    click.echo(f"  - {f.stem}")
+                raise click.Abort()
+        else:
+            # Get most recent paused plan
+            plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+            if not plan_files:
+                click.echo(f"\n{CROSS} No plans found. Run 'deepr prep plan' first.", err=True)
+                raise click.Abort()
+
+            # Find first paused plan
+            plan_file = None
+            for pf in plan_files:
+                with open(pf, "r") as f:
+                    pd = json.load(f)
+                if pd.get("status") == "paused":
+                    plan_file = pf
+                    break
+
+            if not plan_file:
+                click.echo(f"\n{CROSS} No paused plans found.", err=True)
+                click.echo(f"Use: deepr prep pause <plan-id>")
+                raise click.Abort()
+
+        # Load plan data
+        with open(plan_file, "r") as f:
+            plan_data = json.load(f)
+
+        scenario = plan_data["scenario"]
+        current_status = plan_data.get("status", "active")
+
+        # Check if not paused
+        if current_status != "paused":
+            click.echo(f"\n{CHECK} Campaign is already active: {scenario}")
+            click.echo(f"\nTo execute: deepr prep execute")
+            return
+
+        # Mark as active
+        plan_data["status"] = "active"
+        plan_data["resumed_at"] = datetime.utcnow().isoformat()
+
+        # Save
+        with open(plan_file, "w") as f:
+            json.dump(plan_data, f, indent=2)
+
+        click.echo(f"\n{CHECK} Campaign resumed: {scenario}")
+        click.echo(f"Plan file: {plan_file.stem}")
+        click.echo(f"\nNext steps:")
+        click.echo(f"  deepr prep execute    # Execute the plan")
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
         raise click.Abort()
 
 

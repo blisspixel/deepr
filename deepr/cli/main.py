@@ -21,7 +21,7 @@ from deepr.branding import print_banner, print_section_header, CHECK, CROSS
 
 
 @click.group()
-@click.version_option(version="2.0.0", prog_name="Deepr")
+@click.version_option(version="2.3.0", prog_name="Deepr")
 def cli():
     """
     Deepr - Research automation platform.
@@ -32,7 +32,7 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import research, queue, prep, cost, interactive, docs, team
+from deepr.cli.commands import research, queue, prep, cost, interactive, docs, team, vector, config, analytics, templates
 
 cli.add_command(research.research)
 cli.add_command(queue.queue)
@@ -41,6 +41,10 @@ cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
 cli.add_command(team.team)
+cli.add_command(vector.vector)
+cli.add_command(config.config)
+cli.add_command(analytics.analytics)
+cli.add_command(templates.templates)
 
 
 def main():
