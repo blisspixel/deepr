@@ -4,6 +4,10 @@ import pytest
 import os
 import asyncio
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file for API keys in integration/E2E tests
+load_dotenv()
 
 
 @pytest.fixture(scope="session")
