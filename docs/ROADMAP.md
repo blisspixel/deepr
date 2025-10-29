@@ -39,7 +39,7 @@ Deepr's development follows a progression toward autonomy:
 |-------|-------------|--------|
 | **Level 1** | Reactive Execution (single-turn) | Complete |
 | **Level 2** | Procedural Automation (scripted sequences) | Complete |
-| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.2)** |
+| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.3)** |
 | **Level 4** | Reflective Optimization (learns from outcomes) | Target (v2.5) |
 | **Level 5** | Autonomous Meta-Research (self-improving) | Vision (v3.0+) |
 
@@ -209,9 +209,32 @@ deepr prep edit-plan <campaign-id>   # Modify plan before resuming (planned)
 - Auto-resume campaigns after recovery
 - Multi-provider failover (OpenAI → Anthropic → Google)
 
-### v2.4 - MCP Server & Ecosystem (Q2 2026)
+### v2.4 - MCP Server & Expert Capability (Q2 2026)
 
-**Priority 1: Model Context Protocol Server**
+**Priority 1: Deepr Expert - Chat with Research (Research in progress)**
+
+Enable conversational access to accumulated research findings:
+
+```bash
+deepr expert chat                          # Interactive chat with all research
+deepr expert export --format zip           # Export knowledge package
+```
+
+**Vision:**
+- Chat interface that leverages temporal knowledge graphs of all research
+- AI agent with access to full research history and context
+- Export comprehensive knowledge packages (ZIP with all findings, citations, perspectives)
+- Use exported packages in any LLM/RAG/agentic setup
+
+**Research questions (in progress):**
+- How to use temporal knowledge graphs to organize and validate research findings?
+- Best practices for building TKGs from research outputs?
+- Architecture for chat agent with full research context?
+- Export format for maximum compatibility with LLM/RAG systems?
+
+**Status:** Research phase - investigating TKG approaches, validation methods, and export formats
+
+**Priority 2: Model Context Protocol Server**
 
 Enable AI agents and tools to use Deepr as a research capability:
 
@@ -232,7 +255,7 @@ deepr mcp serve --transport http   # Network-accessible MCP server
 - Long-running jobs supported via MCP notifications
 - Progress updates streamed to clients
 
-**Priority 2: MCP Client (Connect to Data Sources)**
+**Priority 3: MCP Client (Connect to Data Sources)**
 
 Deepr can use other MCP servers as data sources:
 
@@ -241,7 +264,7 @@ Deepr can use other MCP servers as data sources:
 - Context injection from external sources
 - Standardized data access across tools
 
-**Priority 3: Dynamic Research Teams - Observability**
+**Priority 4: Dynamic Research Teams - Observability**
 
 Make team perspectives visible:
 - Show which team member contributed what findings

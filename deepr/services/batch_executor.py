@@ -299,12 +299,25 @@ class BatchExecutor:
         results: Dict,
     ):
         """Save campaign results to storage."""
+        # Extract campaign prompt/goal if available (from first task)
+        campaign_prompt = "Multi-phase research campaign"
+        if results.get("tasks"):
+            first_task = list(results["tasks"].values())[0]
+            campaign_prompt = first_task.get("title", campaign_prompt)
+
         # Save as JSON
         results_json = json.dumps(results, indent=2)
         await self.storage.save_report(
             job_id=campaign_id,
             filename="campaign_results.json",
             content=results_json.encode("utf-8"),
+            content_type="application/json",
+            metadata={
+                "prompt": campaign_prompt,
+                "type": "campaign",
+                "task_count": len(results.get("tasks", {})),
+                "total_cost": results.get("total_cost", 0.0),
+            }
         )
 
         # Also create a summary report
@@ -313,6 +326,7 @@ class BatchExecutor:
             job_id=campaign_id,
             filename="campaign_summary.md",
             content=summary.encode("utf-8"),
+            content_type="text/markdown",
         )
 
     def _generate_campaign_summary(self, results: Dict) -> str:
