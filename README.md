@@ -2,27 +2,46 @@
 
 **Agentic learning and knowledge automation**
 
-Deepr is the open-source, multi-provider platform for autonomous research and expertise acquisition. From preparing for tomorrow's meeting to becoming expert on complex topics, Deepr autonomously researches, learns, and delivers understanding at any depth you need.
+Deepr is the open-source, multi-provider platform for autonomous research and expertise acquisition. From preparing for tomorrow's meeting to becoming an expert on complex topics, Deepr autonomously researches, learns, and delivers understanding at any depth you need.
 
-For humans and AI agents who need to understand, not just search.
+**For:** Researchers, analysts, product teams, developers, and AI agents who need deep understanding, not just keyword search.
+
+**Why Deepr?**
+- **MIT-licensed & locally deployable** - No vendor lock-in, run it on your infrastructure
+- **Multi-provider architecture** - Works with OpenAI today, designed for any LLM provider tomorrow
+- **Cited research reports** - Unlike chatbots, every claim includes source attributions for verification
+- **Deep research, not search** - Multi-step reasoning with web search, not just keyword matching
 
 ## Quick Start
 
+**Prerequisites:** Python 3.9+, Node.js 16+ (for web UI)
+
+**1. Install:**
 ```bash
-# Install
 pip install -r requirements.txt
 pip install -e .
-cp .env.example .env  # Add your OPENAI_API_KEY
+```
 
-# Start services
-python bin/start-worker.py &              # Polls OpenAI for job completion
-python -m deepr.api.app &                 # API server for web UI
-cd deepr/web/frontend && npm run dev      # Web UI at http://localhost:3000
+**2. Configure:**
+```bash
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+```
 
-# Submit research via CLI
+**3. Run Services:**
+```bash
+python bin/start-worker.py &              # Worker fetches completed jobs from OpenAI
+python -m deepr.api.app &                 # API backend (http://localhost:5000)
+cd deepr/web/frontend && npm run dev      # Frontend (http://localhost:3000)
+```
+
+**4. Submit Research:**
+```bash
 deepr research submit "Analyze AI code editor market" --yes
 deepr research wait <job-id>
 ```
+
+**Note on costs:** Deep research jobs use OpenAI's API and incur costs ($1-15 per job depending on depth). Deepr tracks usage per job - check the Web UI analytics or use `deepr queue stats` to monitor spending. Set budget limits in your config to avoid surprises.
 
 Full setup guide: [docs/QUICKSTART.md](docs/QUICKSTART.md)
 
@@ -31,38 +50,44 @@ Full setup guide: [docs/QUICKSTART.md](docs/QUICKSTART.md)
 Deepr automates research at any depth - from quick focused queries to comprehensive expertise acquisition:
 
 **Quick, focused research (no context needed):**
+
+These examples demonstrate curiosity-driven research where no business context is required:
+
 ```bash
 # Genuinely curious questions that work standalone
 deepr research "Explain quantum entanglement from the perspective of someone who is blind from birth" --yes
-# Time: 5-10 minutes, Cost: $1-2, Result: Novel perspective on abstract physics
+# Estimated: 5-10 min, ~$1-2 | Result: Novel perspective on abstract physics
 
 deepr research "What are the ethical arguments for and against gene editing in humans? Include perspectives from bioethicists, disability rights advocates, and religious scholars." --yes
-# Time: 10-15 minutes, Cost: $2-3, Result: Multi-perspective analysis
+# Estimated: 10-15 min, ~$2-3 | Result: Multi-perspective analysis
 
 deepr research "Analyze the economics of vertical farming. Is it viable at scale?" --yes
-# Time: 10-15 minutes, Cost: $2-3, Result: Cost-benefit analysis with citations
+# Estimated: 10-15 min, ~$2-3 | Result: Cost-benefit analysis with citations
 ```
 
 **Research with explicit context injection:**
+
+For business-specific queries, provide explicit context to make research actionable:
+
 ```bash
 # Meeting prep WITH context (shows how to actually do it right)
-deepr research "Research fintech payment processing landscape. Context: I'm meeting with Stripe's enterprise team tomorrow. Our company is $(cat company-brief.txt). Focus on: what Stripe offers vs competitors, pricing models, integration complexity, and questions I should ask. Output: Brief with key talking points and smart questions." --yes
-# Time: 10-15 minutes, Cost: $2-3, Result: Contextualized prep
+deepr research "Research fintech payment processing landscape. Context: I'm meeting with Stripe's enterprise team tomorrow. Our company is $(cat company-brief.txt). Focus on what Stripe offers vs competitors, pricing models, integration complexity, and questions I should ask. Output: Brief with key talking points and smart questions." --yes
+# Estimated: 10-15 min, ~$2-3 | Result: Contextualized prep
 
-# Document analysis (current: text injection)
-deepr research "Analyze this product spec and identify technical risks and missing requirements. Context: $(cat product-spec.md)" --yes
-# Time: 5-10 minutes, Cost: $1-2, Result: Gap analysis and risk assessment
+# Document analysis with file upload (NEW in v2.2)
+deepr research "Analyze this product spec and identify technical risks" -f product-spec.pdf -f requirements.md --yes
+# Estimated: 5-10 min, ~$1-2 | Result: Gap analysis with semantic search over uploaded docs
 
-# Document analysis (coming v2.2: file upload with vector search)
-deepr research "Analyze this product spec and identify technical risks" --files product-spec.pdf requirements.md --yes
-# Uploads to vector store, enables semantic search over docs
+# Multiple documents for comprehensive analysis
+deepr research "Analyze our competitive positioning" -f company-overview.pdf -f market-research.pdf -f competitor-analysis.xlsx --yes
+# Uploads to vector store, enables semantic search across all documents
 ```
 
 **Comprehensive autonomous expertise:**
 ```bash
 # Multi-round research until mastery
 deepr prep auto "Become expert on quantum computing commercialization. Research: technical readiness, market landscape, commercialization barriers, investment trends, and 5-year outlook. Validate understanding through simulated expert review." --rounds 5
-# Time: 40-60 minutes, Cost: $5-10, Result: PhD-level understanding with adversarial validation
+# Estimated: 40-60 min, ~$5-10 | Result: PhD-level understanding with adversarial validation
 ```
 
 ### Single Deep Research Jobs (Production Ready)
@@ -206,21 +231,84 @@ User → Agent → Self-directed research loop
 - Local-first (SQLite queue, filesystem storage, no external database required)
 - Provider-agnostic (OpenAI primary, architecture ready for multi-provider)
 
-## Cost & Time
+## Investment & Quality
 
-| Type | Cost | Time |
-|------|------|------|
-| Meeting prep / quick brief | $1-2 | 5-10 minutes |
-| Simple queries | $0.05-$0.20 | 2-5 minutes |
-| Medium reports | $0.20-$0.80 | 5-15 minutes |
-| Comprehensive | $1-$3 | 15-30 minutes |
-| Multi-phase campaigns | $3-$10 | 40-90 minutes |
-| Deep expertise acquisition | $5-$15 | 60-120 minutes |
+Deep research takes time and resources because it's **comprehensive, not superficial**. The investment reflects the depth and quality you get.
 
-**Notes:**
-- o3-deep-research costs approximately 10x more than o4-mini but provides more thorough analysis
-- Multi-phase campaigns multiply by number of tasks
-- Context chaining reduces redundancy between phases
+| Research Depth | Investment | Time | What You Get |
+|----------------|------------|------|--------------|
+| Quick insights | $1-2 | 5-10 min | Focused analysis with citations |
+| Thorough reports | $1-$5 | 15-30 min | Comprehensive synthesis from diverse sources |
+| Multi-phase campaigns | $5-$15 | 40-90 min | Adaptive research that builds cumulative understanding |
+| PhD-level expertise | $10-$20 | 60-120 min | World-class analysis with adversarial validation |
+
+**Quality philosophy:**
+- **o3-deep-research**: Use for breakthrough-quality research when you need the absolute best
+- **o4-mini-deep-research**: Use for rapid exploration and iteration
+- **Multi-phase**: Each round builds deeper understanding than starting from scratch
+- **Context chaining**: Enables cumulative intelligence - later phases leverage earlier insights
+
+**Accessible knowledge:** PhD-level research for $15 makes deep expertise available to individuals, startups, researchers, and AI agents - accelerating knowledge impact across the board.
+
+## Best Practices for Research Prompts
+
+**Include temporal context for current information:**
+
+Research models need to know "today's date" to search for and prioritize recent information:
+
+```bash
+# Good: Includes date context for latest information
+deepr research "As of October 2025, what are the latest developments in quantum computing commercialization? Focus on breakthroughs from 2024-2025, current technical readiness levels, and near-term market opportunities." --yes
+
+# Bad: Ambiguous temporal context
+deepr research "What are the latest developments in quantum computing?" --yes
+# Problem: "Latest" is ambiguous - latest when? Model may return older information
+```
+
+**Be specific about scope and depth:**
+
+```bash
+# Good: Clear scope and deliverables
+deepr research "Research the competitive landscape for AI code review tools as of October 2025. Include: (1) Top 5 players by market share, (2) Feature comparison matrix, (3) Pricing models, (4) Recent funding/M&A activity. Focus on enterprise segment." --yes
+
+# Bad: Vague scope
+deepr research "Research AI code review tools" --yes
+# Problem: Too broad - unclear what aspects matter or what depth is needed
+```
+
+**Provide explicit context when it matters:**
+
+```bash
+# Good: Context makes the research actionable
+deepr research "Research customer onboarding best practices for B2B SaaS. Context: We sell API infrastructure to developers, typical ACV $50K, 90-day sales cycle. Focus on: time-to-first-value optimization, technical documentation strategies, and reducing support burden during first 30 days." --yes
+
+# Bad: Generic research without context
+deepr research "Research customer onboarding best practices" --yes
+# Problem: Generic advice won't be tailored to your specific situation
+```
+
+**Automatic prompt refinement (NEW in v2.2):**
+
+Use `--refine-prompt` to automatically optimize your query following best practices:
+
+```bash
+# Before: Vague query
+deepr research "compare AI code editors" --refine-prompt --yes
+
+# After refinement (automatic):
+# "As of October 2025, perform a comparative research analysis of AI-assisted
+# code editors. Include: (1) Feature comparison, (2) Performance benchmarks,
+# (3) Pricing models, (4) Integration capabilities, (5) Security/compliance.
+# Focus on: GitHub Copilot, Cursor, Windsurf, Codeium, Tabnine..."
+
+# What it does:
+# - Adds current date context ("As of October 2025")
+# - Suggests structured deliverables
+# - Flags missing business context needs
+# - Improves clarity and specificity
+```
+
+The refinement happens instantly (GPT-5-mini call, ~$0.001) before submitting to deep research. You see exactly what changed and can cancel if needed.
 
 ## Use Cases
 
@@ -256,10 +344,16 @@ User → Agent → Self-directed research loop
 - Isolated queries that don't benefit from depth
 - Situations requiring sub-minute response times
 
-## Current Status (v2.1)
+## Current Status (v2.2)
 
 **Production-ready:**
 - Single deep research jobs via CLI and web UI
+- File upload with vector store support (PDF, DOCX, TXT, MD, code files)
+- Automatic prompt refinement (adds date context, structure, clarity)
+- Ad-hoc result retrieval (get results without running worker 24/7)
+- Detailed cost breakdowns (token usage, pricing, per-job attribution)
+- Human-in-the-loop controls (review plans before execution)
+- Provider resilience (auto-retry with exponential backoff, graceful degradation)
 - Background worker with stuck job detection
 - Cost tracking from OpenAI token usage
 - Web UI with real-time job queue and cost analytics
@@ -284,8 +378,8 @@ Deepr is evolving from adaptive planning toward autonomous expertise acquisition
 |-------|-------------|--------------|
 | **Level 1** | Reactive Execution (single-turn) | Complete |
 | **Level 2** | Procedural Automation (scripted) | Complete |
-| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.1)** |
-| **Level 4** | Reflective Optimization (learns from outcomes) | Target (v2.4) |
+| **Level 3** | Adaptive Planning (feedback-driven) | **Current (v2.2)** |
+| **Level 4** | Reflective Optimization (learns from outcomes) | Target (v2.5) |
 | **Level 5** | Autonomous Expertise Acquisition | Vision (v3.0+) |
 
 **Where we are (Level 3):**
@@ -310,6 +404,8 @@ Deepr is evolving from adaptive planning toward autonomous expertise acquisition
 
 This isn't consciousness - it's autonomous expertise acquisition. The agent becomes knowledgeable on any topic through self-directed learning.
 
+**Implementation approach:** Building on proven AI research patterns - ReAct for execution, Reflexion for learning from mistakes, Tree-of-Thoughts for strategic planning. These patterns have demonstrated 10-20x improvement in complex reasoning tasks.
+
 **Our philosophy:** Quality over automation. We bias heavily toward fresh research and human judgment now to build trust for autonomy later. Autonomous systems must earn agency through demonstrated wisdom, not hype.
 
 See [ROADMAP.md](ROADMAP.md) for detailed development plans.
@@ -317,19 +413,22 @@ See [ROADMAP.md](ROADMAP.md) for detailed development plans.
 ## Multi-Provider Support
 
 **Current reality (October 2025):**
-- **OpenAI** is the only provider with a turnkey Deep Research API
-- o3-deep-research and o4-mini-deep-research for comprehensive reports
-- GPT-5 for planning and review in multi-phase campaigns
 
-**Architecture ready for:**
-- **Azure OpenAI** - Same models via Azure AI Foundry (enterprise deployment)
-- **Anthropic** - Claude Extended Thinking implemented for reasoning transparency
-- **Future providers** - When others launch Deep Research APIs, we'll integrate
+Multiple providers now offer deep research capabilities with different strengths:
 
-**Provider selection:**
-- Default: OpenAI (most mature Deep Research offering)
-- Manual: `--provider openai|azure|anthropic` flag
-- Future: Automatic routing to optimal provider per task type
+| Provider | Latest Models | Deep Research API | Pricing (per 1M tokens) |
+|----------|--------------|-------------------|------------------------|
+| **OpenAI** | GPT-5, GPT-5-mini, GPT-5-nano | Yes (turnkey) | GPT-5: $1.25 in / $10 out<br>Mini: $0.25 in / $2 out |
+| **Anthropic** | Claude Opus 4.1, Sonnet 4.5, Haiku 4.5 | Yes (Web Search tools) | Opus: $15 in / $75 out<br>Sonnet: $3 in / $15 out<br>Haiku: $1 in / $5 out |
+| **Google** | Gemini 2.5 Pro/Flash/Flash-Lite | Yes (Enterprise+) | Pro: $0.625-$1.25 in / $5-$7.50 out<br>Flash: $0.30 in / $2.50 out<br>Flash-Lite: $0.10 in / $0.40 out |
+| **xAI** | Grok 4, Grok 4 Fast | Yes (agentic tools) | Grok 4: $3 in / $15 out<br>Fast: $0.20 in / $0.50 out |
+| **Azure OpenAI** | GPT-5 family via Azure | Yes (enterprise) | Matches OpenAI pricing + enterprise features |
+
+**Deepr's approach:**
+- Currently using OpenAI's Deep Research API (o3-deep-research, o4-mini-deep-research)
+- Architecture designed for multi-provider orchestration
+- Provider selection: `--provider openai|azure|anthropic|google|xai`
+- Planned: Automatic routing to optimal provider per task type
 
 ## Configuration
 
@@ -357,16 +456,21 @@ DEEPR_MAX_COST_PER_MONTH=1000.0
 ```bash
 # Single research job
 deepr research submit "<prompt>" --yes
-deepr research wait <job-id>       # Wait for completion (passive - checks local status)
+deepr research submit "<prompt>" -f file1.pdf -f file2.md --yes       # With file uploads
+deepr research submit "<prompt>" --refine-prompt --yes                # Auto-optimize prompt
+deepr research get <job-id>        # Get results - downloads from provider if ready (NEW in v2.2)
+deepr research wait <job-id>       # Wait for completion and display when ready
 deepr research status <job-id>     # Check status (local database only)
-deepr research result <job-id>     # Display result (if downloaded)
-deepr research cancel <job-id>     # Cancel job
+deepr research result <job-id>     # Display previously downloaded result
+deepr research result <job-id> --cost  # Detailed cost breakdown (NEW in v2.2)
+deepr research cancel <job-id>     # Cancel running job
 
 # Multi-phase research (adaptive workflow)
-deepr prep plan "High-level goal" --topics 5      # Plan Phase 1
-deepr prep execute --yes                          # Execute Phase 1
-deepr prep continue --topics 3                    # GPT-5 reviews, plans Phase 2
-deepr prep auto "High-level goal" --rounds 3      # Fully autonomous multi-round
+deepr prep plan "High-level goal" --topics 5                    # Plan Phase 1
+deepr prep plan "Goal" --topics 5 --review-before-execute       # Human-in-the-loop (NEW in v2.2)
+deepr prep execute --yes                                        # Execute Phase 1
+deepr prep continue --topics 3                                  # GPT-5 reviews, plans Phase 2
+deepr prep auto "High-level goal" --rounds 3                    # Fully autonomous multi-round
 
 # Dynamic research teams (experimental)
 deepr team analyze "Should we pivot to enterprise?" --team-size 5
@@ -465,7 +569,7 @@ The most impactful work is on the intelligence layer (planning, context manageme
 
 ## License
 
-Open source (license details in repository).
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -493,7 +597,7 @@ Deepr aims to be **the** open-source platform for agentic learning and knowledge
 
 We're ambitious about the potential: autonomous research systems that earn trust through demonstrated wisdom, not hype. Quality and transparency before automation and scale.
 
-**Current status:** Production-ready for single and multi-phase research. Beta for dynamic research teams. MCP integration and autonomous learning features planned for v2.3+.
+**Current status:** v2.2 is production-ready for single jobs with file upload, prompt refinement, and ad-hoc retrieval. Multi-phase research is beta. MCP integration and autonomous learning features planned for v2.3-v2.4.
 
 ## Credits
 
