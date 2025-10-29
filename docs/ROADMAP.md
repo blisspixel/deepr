@@ -8,15 +8,16 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 
 ### v2.2 - File Upload & Prompt Refinement (Released October 2025)
 
-**Production-ready (tested in real usage):**
-- Single deep research jobs (CLI + web UI)
-- **File upload with vector store support** (PDF, DOCX, TXT, MD, code files)
-- **Automatic prompt refinement** (--refine-prompt flag adds date context, structure, clarity)
-- OpenAI Deep Research integration (o3-deep-research, o4-mini-deep-research models)
+**Core functionality (has been used successfully):**
+- Single deep research jobs via CLI
+- File upload with vector store support (PDF, DOCX, TXT, MD, code files)
+- Prompt refinement (--refine-prompt flag adds date context, structure)
+- OpenAI Deep Research integration (o3-deep-research, o4-mini-deep-research)
 - Background worker with automatic polling
 - Cost tracking and budget management
 - SQLite queue + filesystem storage
-- Web UI with real-time updates and cost analytics
+
+**Note:** "Tested in real usage" means manually verified to work, not systematically tested with real API calls across different scenarios.
 
 **Beta (functional, use with supervision):**
 - Multi-phase campaigns (`deepr prep plan/execute/continue/auto`)
@@ -49,7 +50,46 @@ Deepr's development follows a progression toward autonomy:
 
 ### v2.3 - Observability & UX Improvements (In Development - October 2025)
 
-**Status:** Implementation complete, testing in progress. Most features functional but need validation in production scenarios.
+**Status:** Core modules tested with mocked APIs. Real API validation in progress.
+
+**Test Coverage:**
+- 47/47 unit tests passing (mocked)
+- 5/5 integration tests passing (real API calls)
+- See [TESTING_STATUS.md](TESTING_STATUS.md)
+
+**Real API Tests Validated (October 29, 2025):**
+- Minimal research (o4-mini-deep-research): Works, cost $0.01-0.02, time 30-35s
+- Realistic research (o4-mini-deep-research): Works, cost $0.11, time 6-7 min
+- File upload & vector search: Works, cost $0.02, time 2 min
+- Prompt refinement (gpt-5-mini): Works, cost <$0.001, time 5-25s
+- Cost tracking: Works, estimates within 0.2-1.7x of actual
+
+**Key Findings from Real API Tests:**
+- Output format uses 'output_text' not 'text' (fixed in code)
+- Cost estimates tend to be conservative (actual 20-84% of estimate for simple queries)
+- Deep research models trigger web searches even for trivial queries
+- OpenAI API has intermittent failures (tests handle gracefully)
+- Vector stores work correctly for semantic search over uploaded files
+
+**What's Tested (Unit + Mocked):**
+- Cost estimation logic - 17 unit tests (calculations only)
+- SQLite queue operations - 11 unit tests (local database)
+- Storage with human-readable naming - 17 unit tests (filesystem)
+- OpenAI provider - 4 unit tests (fully mocked)
+- Context chaining - 3 unit tests (logic only)
+
+**What Still Needs Real API Validation:**
+- Multi-phase campaign execution
+- Ad-hoc job retrieval from OpenAI
+- Analytics on real job data
+- Provider error handling edge cases
+
+**What Needs Testing (Not Validated at All):**
+- Vector store management commands
+- Config validation
+- Human-in-the-loop controls
+- Provider resilience/fallback
+- Template system
 
 **Priority 1: File Upload Enhancements - Implemented (needs testing)**
 
@@ -94,11 +134,16 @@ deepr research "query" --refine-prompt --dry-run
 - DEEPR_AUTO_REFINE config
 - Date context injection
 - Structured deliverables
+- Uses gpt-5-mini (fast, cheap reasoning model)
 
-**Known limitations:**
-- Refinement quality varies by prompt type
-- No template persistence yet
-- Manual testing only
+**Validated (Real API test):**
+- Transforms vague prompts into structured research questions
+- Adds temporal context automatically (current date)
+- Requests current best practices and latest approaches for technology topics
+- Prioritizes trusted, authoritative sources (academic, official docs, industry reports)
+- 100% improvement score in test (added date + structure + best practices)
+- Time: 5-25s depending on load
+- Example: "how to build microservices" becomes 15-section structured research brief with current best practices, authoritative sources, and actionable deliverables
 
 **TODO:**
 - Template save/load functionality
@@ -209,9 +254,104 @@ deepr prep edit-plan <campaign-id>   # Modify plan before resuming (planned)
 - Auto-resume campaigns after recovery
 - Multi-provider failover (OpenAI → Anthropic → Google)
 
-### v2.4 - MCP Server & Expert Capability (Q2 2026)
+### v2.4 - MCP Server & Multi-Provider Support (Q2 2026)
 
-**Priority 1: Deepr Expert - Chat with Research (Research in progress)**
+**Priority 1: Google Gemini Provider**
+
+Add Google Gemini 2.5 as a research provider alongside OpenAI:
+
+```bash
+# Top-tier reasoning (equivalent to o3-deep-research)
+deepr research "query" --provider gemini --model gemini-2.5-pro
+
+# Fast/efficient (equivalent to o4-mini-deep-research)
+deepr research "query" --provider gemini --model gemini-2.5-flash
+
+# Cost-optimized for simpler tasks
+deepr research "query" --provider gemini --model gemini-2.5-flash-lite
+
+# Campaign planning
+deepr prep plan "scenario" --provider gemini --planner gemini-2.5-flash
+```
+
+**Gemini 2.5 Models (October 2025):**
+- `gemini-2.5-pro`: Flagship reasoning, 1M token context, multimodal
+- `gemini-2.5-flash`: Speed/efficiency optimized, 1M tokens, still high quality
+- `gemini-2.5-flash-lite`: Lower cost, good for high-volume or simpler tasks
+
+**Benefits:**
+- Cost comparison: Gemini often cheaper than OpenAI
+- Different research perspectives from different models
+- Provider redundancy and failover
+- 1M token context window for extremely long documents
+- Native multimodal support (text, image, audio, video)
+- Grounding with Google Search integration
+
+**Implementation notes:**
+- Leverage existing provider abstraction
+- Support Gemini's native search/grounding capabilities
+- Handle multimodal inputs for advanced use cases
+- Cost tracking for Gemini pricing structure
+- Support stable vs latest model aliases
+
+**Priority 2: Web Content Extraction (MCP Tool)**
+
+Extract structured content from specific URLs to inform research. Exposed as both CLI and MCP tool:
+
+```bash
+# CLI usage
+deepr research "Analyze X" --extract-from https://company.com/about
+
+# Pre-extract and add to vector store
+deepr vector create --name "company-sites" --extract https://company.com/*
+
+# Standalone extraction
+deepr extract https://company.com/about --format markdown
+```
+
+**MCP Tool Exposure:**
+```typescript
+// Other agents can call Deepr's extraction capability
+{
+  name: "extract_web_content",
+  description: "Extract structured content from URLs",
+  parameters: {
+    url: "https://company.com/page",
+    format: "markdown" | "json" | "text",
+    depth: 1  // How many links deep to follow
+  }
+}
+```
+
+**Use cases:**
+- Company research: Extract from their site, competitors, news articles
+- Product analysis: Pull official docs, pricing pages, feature lists
+- Technical research: Extract from documentation, GitHub READMEs, blog posts
+- Due diligence: Structured extraction from multiple relevant sources
+- Agent workflows: Any MCP-compatible agent can use Deepr's extraction as a tool
+
+**Why this complements web search:**
+- Web search (native in o3/o4): Broad discovery across the internet
+- Content extraction: Deep, structured analysis of specific known sources
+- Together: "Find the right sources (web search), then deeply analyze them (extraction)"
+- MCP integration: Makes Deepr's extraction available to any agent ecosystem
+
+**Architectural fit with MCP:**
+- Deepr as MCP Server: Exposes extract_web_content tool to other agents
+- Deepr as MCP Client: Can call other MCP servers for data access
+- Web extraction becomes a reusable capability across agent workflows
+- Research tasks can automatically extract from discovered sources
+
+**Implementation considerations:**
+- Respect robots.txt and rate limits
+- Handle authentication for internal sources
+- Extract and structure content intelligently (not just raw HTML)
+- Cache extractions to avoid redundant requests
+- Support multiple content types (HTML, PDF, markdown, JSON APIs)
+- Rate limiting and politeness delays
+- Configurable extraction depth and scope
+
+**Priority 3: Deepr Expert - Chat with Research (Research in progress)**
 
 Enable conversational access to accumulated research findings:
 
@@ -234,9 +374,9 @@ deepr expert export --format zip           # Export knowledge package
 
 **Status:** Research phase - investigating TKG approaches, validation methods, and export formats
 
-**Priority 2: Model Context Protocol Server**
+**Priority 4: Model Context Protocol Server (Key Goal)**
 
-Enable AI agents and tools to use Deepr as a research capability:
+Enable AI agents and tools to use Deepr as a research capability. This is the primary extension point after CLI is solid:
 
 ```bash
 deepr mcp serve                    # Start MCP server (stdio or HTTP)
@@ -248,6 +388,9 @@ deepr mcp serve --transport http   # Network-accessible MCP server
 - `get_report(job_id)` → Returns markdown report
 - `list_jobs()` → Returns job queue
 - `cancel_job(job_id)` → Cancels running job
+- `extract_web_content(url, format)` → Returns structured content from URL (Priority 2 feature)
+- `upload_files(files)` → Creates vector store and returns ID
+- `refine_prompt(query)` → Returns optimized research prompt
 
 **Agent Integration:**
 - Claude Desktop, Cursor, Windsurf can call Deepr
@@ -255,7 +398,7 @@ deepr mcp serve --transport http   # Network-accessible MCP server
 - Long-running jobs supported via MCP notifications
 - Progress updates streamed to clients
 
-**Priority 3: MCP Client (Connect to Data Sources)**
+**Priority 5: MCP Client (Connect to Data Sources)**
 
 Deepr can use other MCP servers as data sources:
 
@@ -264,13 +407,23 @@ Deepr can use other MCP servers as data sources:
 - Context injection from external sources
 - Standardized data access across tools
 
-**Priority 4: Dynamic Research Teams - Observability**
+**Priority 6: Dynamic Research Teams - Observability**
 
 Make team perspectives visible:
 - Show which team member contributed what findings
 - Highlight where perspectives converge vs. diverge
 - Cost breakdown per team member
 - Export debate structure along with synthesis
+
+**Priority 7: Web UI (Low Priority)**
+
+Browser-based interface for convenience. Built after CLI is solid and MCP server is working:
+- Optional UX layer on top of CLI functionality
+- Real-time job monitoring
+- Cost dashboard
+- Report browsing
+
+**Status:** Some implementation exists but low priority. CLI is primary interface. MCP server takes precedence over web UI.
 
 ### v2.5 - Learning & Optimization (Q3 2026)
 
@@ -459,11 +612,11 @@ Multiple providers now offer deep research capabilities:
 - Transparent by default
 - Autonomous where proven reliable
 
-**CLI First, Multi-Interface:**
-- Command-line primary for power users
-- Web UI for interactive use
-- MCP server for AI agent integration
-- REST API for programmatic access
+**CLI First, Platform Agnostic:**
+- Command-line is the primary interface (fully functional)
+- MCP server for AI agent integration (primary extension point)
+- Web UI optional (low priority, UX convenience only)
+- Open source, works on any platform
 
 **Local-First, Provider-Agnostic:**
 - SQLite queue (no external database required)
