@@ -28,24 +28,41 @@ Full setup guide: [docs/QUICKSTART.md](docs/QUICKSTART.md)
 
 ## What It Does
 
-Deepr automates research at any depth - from quick meeting prep to comprehensive expertise acquisition:
+Deepr automates research at any depth - from quick focused queries to comprehensive expertise acquisition:
 
-**Simple, everyday use:**
+**Quick, focused research (no context needed):**
 ```bash
-# Prepare for tomorrow's meeting
-deepr research "Help me prepare for tomorrow's board meeting about Q4 strategy" --yes
-# Time: 5-10 minutes, Cost: $1-2, Result: Talking points and anticipated concerns
+# Genuinely curious questions that work standalone
+deepr research "Explain quantum entanglement from the perspective of someone who is blind from birth" --yes
+# Time: 5-10 minutes, Cost: $1-2, Result: Novel perspective on abstract physics
 
-# Research before customer call
-deepr research "Meeting a fintech customer tomorrow. What should I know?" --yes
-# Time: 5-10 minutes, Cost: $1-2, Result: Industry context and relevant questions
+deepr research "What are the ethical arguments for and against gene editing in humans? Include perspectives from bioethicists, disability rights advocates, and religious scholars." --yes
+# Time: 10-15 minutes, Cost: $2-3, Result: Multi-perspective analysis
+
+deepr research "Analyze the economics of vertical farming. Is it viable at scale?" --yes
+# Time: 10-15 minutes, Cost: $2-3, Result: Cost-benefit analysis with citations
 ```
 
-**Comprehensive expertise:**
+**Research with explicit context injection:**
 ```bash
-# Autonomous multi-round research
-deepr prep auto "Become expert on quantum computing commercialization" --rounds 5
-# Time: 40-60 minutes, Cost: $5-10, Result: PhD-level understanding validated through adversarial testing
+# Meeting prep WITH context (shows how to actually do it right)
+deepr research "Research fintech payment processing landscape. Context: I'm meeting with Stripe's enterprise team tomorrow. Our company is $(cat company-brief.txt). Focus on: what Stripe offers vs competitors, pricing models, integration complexity, and questions I should ask. Output: Brief with key talking points and smart questions." --yes
+# Time: 10-15 minutes, Cost: $2-3, Result: Contextualized prep
+
+# Document analysis (current: text injection)
+deepr research "Analyze this product spec and identify technical risks and missing requirements. Context: $(cat product-spec.md)" --yes
+# Time: 5-10 minutes, Cost: $1-2, Result: Gap analysis and risk assessment
+
+# Document analysis (coming v2.2: file upload with vector search)
+deepr research "Analyze this product spec and identify technical risks" --files product-spec.pdf requirements.md --yes
+# Uploads to vector store, enables semantic search over docs
+```
+
+**Comprehensive autonomous expertise:**
+```bash
+# Multi-round research until mastery
+deepr prep auto "Become expert on quantum computing commercialization. Research: technical readiness, market landscape, commercialization barriers, investment trends, and 5-year outlook. Validate understanding through simulated expert review." --rounds 5
+# Time: 40-60 minutes, Cost: $5-10, Result: PhD-level understanding with adversarial validation
 ```
 
 ### Single Deep Research Jobs (Production Ready)
@@ -123,22 +140,39 @@ We learned this the hard way: When we asked Deepr to research "how to improve De
 
 **Bad (research goes wrong):**
 ```bash
-deepr research submit "Research our competitive landscape" --yes
-# Result: AI searches web blindly, finds wrong products
+# Vague, no context - AI has to guess
+deepr research "Research our competitive landscape" --yes
+# Result: Searches for random "competitive landscape" - useless
+
+# Assumes AI knows your company
+deepr research "Prepare for board meeting about Q4 strategy" --yes
+# Result: Generic advice, no relevance to your actual situation
 ```
 
-**Good (research stays on-target):**
+**Good (explicit context):**
 ```bash
-deepr prep plan "Research competitive landscape for research automation. Context: We are Deepr, an open-source platform that $(cat README.md | head -50)" --topics 4
-# Result: AI knows who you are, researches correctly
+# Identify yourself and inject context
+deepr research "Research competitive landscape for research automation platforms. Context: We are Deepr, an open-source multi-provider deep research platform. Our tech stack: $(cat tech-summary.txt). Our differentiators: multi-phase adaptive research, MCP integration, provider-agnostic. Competitors: Perplexity, Elicit, Consensus. Focus on: feature comparison, pricing models, and our unique positioning. Output: Competitive matrix with strategic recommendations." --yes
+# Result: Targeted analysis of YOUR actual competitive landscape
+
+# Context from multiple files
+deepr research "Analyze this customer call and provide strategic recommendations. Context: Call transcript: $(cat call-transcript.txt). Our product capabilities: $(cat product-brief.txt). Customer's industry: $(cat fintech-overview.txt). Output: Key insights, customer needs, recommended next steps, and questions to ask in follow-up." --yes
+# Result: Contextualized analysis actually useful for your situation
+```
+
+**Pattern: Structured context injection**
+```bash
+# Use the format from our best practices research
+deepr research "Research Task: [Your goal]. Context: [Who you are, what you're doing]. Scope: [Boundaries - timeframe, geography, specific focus]. Include: [What sections/analysis you need]. Output: [Desired format and structure]." --yes
 ```
 
 **Best practices:**
-1. Always identify yourself in prompts ("We are X, we do Y...")
-2. Inject relevant context explicitly using `$(cat file.txt)`
-3. Start broad in Phase 1, let GPT-5 review and narrow in Phase 2
-4. Use `deepr prep continue` - GPT-5 acts as research lead, identifying gaps
-5. Trust summarization - cuts 70% tokens while preserving meaning
+1. **Never assume AI knows your context** - Always inject it explicitly
+2. **Use file injection** - `$(cat file.txt)` for documents, specs, transcripts
+3. **Be specific about scope** - Timeframes, geography, industry, depth
+4. **Define output format** - "Executive summary + 3 sections + recommendations"
+5. **Identify yourself** - "We are X, we do Y, we're researching Z"
+6. **Multi-file context** - Chain multiple `$(cat)` for comprehensive context
 
 ## Architecture
 
@@ -190,25 +224,31 @@ User → Agent → Self-directed research loop
 
 ## Use Cases
 
-**Practical, everyday:**
-- Meeting preparation and briefings
-- Customer research before calls
-- Industry context for conversations
-- Quick competitor analysis
-- Market trend updates
+**Curiosity-driven research (no context needed):**
+- Novel perspectives on complex topics ("Explain X from Y's perspective")
+- Ethical debates with multiple viewpoints
+- Technical concepts explained for different audiences
+- Feasibility analysis of emerging technologies
+- Historical or scientific deep dives
 
-**Strategic, comprehensive:**
-- Market analysis requiring multiple angles and perspectives
-- Technical due diligence with dependencies between research topics
-- Strategic planning needing comprehensive context
-- Research where initial findings inform subsequent questions
-- Autonomous expertise acquisition on complex topics
+**Contextualized business research (requires explicit context):**
+- Meeting prep with customer/company context injected
+- Competitive analysis for YOUR specific product/market
+- Document analysis (specs, transcripts, reports)
+- Strategic planning with company context and constraints
+- Customer research grounded in your actual product/service
 
-**For AI agents:**
-- On-demand research capability via MCP
+**Autonomous expertise acquisition:**
+- Multi-round research until PhD-level understanding
+- Self-directed gap identification and filling
+- Validation through simulated expert review
+- Building comprehensive domain expertise from scratch
+
+**For AI agents (via MCP):**
+- On-demand research capability for autonomous systems
 - Grounding LLM reasoning in fresh, cited data
-- Multi-step knowledge gathering for complex tasks
-- Autonomous learning in agentic workflows
+- Multi-step knowledge gathering for complex agent tasks
+- Research infrastructure for digital consciousness systems
 
 **Not suitable for:**
 - Quick facts (use regular GPT instead - seconds, $0.01)
