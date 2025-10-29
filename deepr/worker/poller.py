@@ -186,7 +186,13 @@ class JobPoller:
                 job_id=job.id,
                 filename="report.md",
                 content=content.encode('utf-8'),
-                content_type="text/markdown"
+                content_type="text/markdown",
+                metadata={
+                    "prompt": job.prompt,
+                    "model": job.model,
+                    "status": "completed",
+                    "provider_job_id": job.provider_job_id,
+                }
             )
 
             # Extract cost and tokens
