@@ -47,7 +47,37 @@ Deepr's development follows a progression toward autonomy:
 
 ### v2.2 - UX & Observability (Q1 2026)
 
-**Priority 1: Ad-Hoc Job Management**
+**Priority 1: File Upload & Vector Store Support**
+
+**Critical missing feature:** OpenAI Deep Research natively supports file search via vector stores, but Deepr doesn't expose this yet.
+
+**Adding:**
+```bash
+# Upload documents for context
+deepr research submit "Analyze this product spec" --files spec.pdf requirements.md --yes
+
+# Upload zip of related docs
+deepr research submit "Research based on our internal docs" --files company-docs.zip --yes
+
+# Persistent vector stores for reuse
+deepr vector create --name "company-knowledge" --files docs/
+deepr research submit "Query about X" --vector-store company-knowledge --yes
+```
+
+**Implementation:**
+- Upload files to OpenAI vector stores automatically
+- Pass `vector_store_ids` to Deep Research API
+- Support: PDF, DOCX, TXT, MD, code files, ZIP archives
+- Automatic vectorization and chunking
+- Reusable vector stores for common document sets
+
+**Benefits:**
+- Document analysis (specs, transcripts, reports)
+- Internal knowledge research
+- Batch research over document collections
+- No more `$(cat)` workarounds for large files
+
+**Priority 2: Ad-Hoc Job Management**
 
 Current limitation: Requires continuous worker process to check job status.
 
@@ -64,7 +94,7 @@ deepr queue refresh                 # Sync entire queue with OpenAI
 - Ad-hoc usage patterns
 - Lower resource usage for casual users
 
-**Priority 2: Observability & Transparency**
+**Priority 3: Observability & Transparency**
 
 Make reasoning visible and auditable:
 
