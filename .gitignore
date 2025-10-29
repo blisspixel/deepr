@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 .env.azure
+.env.anthropic
+.env.openai
 
 # Python
 __pycache__/
@@ -38,6 +40,7 @@ data/uploads/
 data/*.db
 data/*.db-journal
 backups/
+archive/
 
 # Logs (all locations)
 logs/
@@ -80,9 +83,12 @@ deepr/web/frontend/.vite/
 # Claude/AI session data
 .claude/
 .deepr/
-/data/campaigns
-/docs/research and documentation
-docs/Pueos Pule.txt
-docs/The no spoon moment.txt
-docs/TEMPORAL_KNOWLEDGE_GRAPH.md
-docs/this sounds like agi to me.txt
+
+# Runtime data (generated during use)
+data/campaigns/
+
+# Personal notes and exploration (not part of core project)
+docs/**/personal/
+docs/**/*notes*.txt
+docs/**/*exploration*.md
+/docs
