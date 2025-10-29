@@ -1,6 +1,8 @@
 """Local filesystem storage implementation."""
 
 import os
+import re
+import json
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -21,8 +23,81 @@ class LocalStorage(StorageBackend):
         self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
 
+        # Create campaigns subdirectory for multi-phase campaigns
+        self.campaigns_path = self.base_path / "campaigns"
+        self.campaigns_path.mkdir(parents=True, exist_ok=True)
+
+    def _create_readable_dirname(self, job_id: str, prompt: str, is_campaign: bool = False) -> str:
+        """
+        Create a human-readable directory name with timestamp and topic.
+
+        Format: YYYY-MM-DD_HHMM_topic-slug_shortid
+        Example: 2025-10-29_0825_ai-code-editor-market_ac2d48e1
+
+        Args:
+            job_id: UUID or campaign ID
+            prompt: Research prompt to extract topic from
+            is_campaign: Whether this is a campaign
+
+        Returns:
+            Human-readable directory name
+        """
+        # Get timestamp
+        now = datetime.now()
+        timestamp = now.strftime("%Y-%m-%d_%H%M")
+
+        # Create slug from prompt (first 50 chars, cleaned)
+        slug = prompt[:50].lower()
+        # Remove special characters, keep alphanumeric and spaces
+        slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+        # Replace spaces with hyphens
+        slug = re.sub(r'\s+', '-', slug.strip())
+        # Remove multiple consecutive hyphens
+        slug = re.sub(r'-+', '-', slug)
+        # Trim to reasonable length
+        slug = slug[:40].rstrip('-')
+
+        # Extract short ID (last 8 chars of UUID or campaign ID)
+        if job_id.startswith('campaign-'):
+            # For campaign IDs like "campaign-86285e7bcd24" or "campaign-1759970251"
+            short_id = job_id.replace('campaign-', '')[:12]
+        else:
+            # For UUIDs, take last segment
+            short_id = job_id.split('-')[-1][:8]
+
+        return f"{timestamp}_{slug}_{short_id}"
+
     def _get_job_dir(self, job_id: str) -> Path:
-        """Get directory path for a specific job."""
+        """
+        Get directory path for a specific job.
+
+        Supports both legacy job_id lookup and new human-readable names.
+        """
+        # First, check if this is already a full path (for new format)
+        if job_id.startswith(str(self.base_path)):
+            return Path(job_id)
+
+        # Check campaigns folder first (for campaign-* IDs)
+        if job_id.startswith('campaign-'):
+            # Look in campaigns folder for matching directory
+            for dir_path in self.campaigns_path.iterdir():
+                if dir_path.is_dir() and job_id in dir_path.name:
+                    return dir_path
+            # Fallback to direct path
+            return self.campaigns_path / job_id
+
+        # For regular UUIDs, search in base reports directory
+        # First try direct match (legacy format)
+        direct_path = self.base_path / job_id
+        if direct_path.exists():
+            return direct_path
+
+        # Then search for human-readable directory containing this job_id
+        for dir_path in self.base_path.iterdir():
+            if dir_path.is_dir() and job_id in dir_path.name:
+                return dir_path
+
+        # If not found, return the job_id as-is (will be created on save)
         return self.base_path / job_id
 
     def _get_report_path(self, job_id: str, filename: str) -> Path:
@@ -37,15 +112,43 @@ class LocalStorage(StorageBackend):
         content_type: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> ReportMetadata:
-        """Save report to local filesystem."""
+        """Save report to local filesystem with human-readable naming."""
         try:
-            # Create job directory if it doesn't exist
+            # Determine if we should create a human-readable directory name
+            # Only for new jobs (not existing legacy ones)
             job_dir = self._get_job_dir(job_id)
+
+            # If directory doesn't exist, create with readable name
+            if not job_dir.exists() and metadata and 'prompt' in metadata:
+                prompt = metadata['prompt']
+                is_campaign = job_id.startswith('campaign-')
+                readable_name = self._create_readable_dirname(job_id, prompt, is_campaign)
+
+                # Use campaigns subfolder for campaigns
+                if is_campaign:
+                    job_dir = self.campaigns_path / readable_name
+                else:
+                    job_dir = self.base_path / readable_name
+
+            # Create directory
             job_dir.mkdir(parents=True, exist_ok=True)
 
             # Write report file
-            report_path = self._get_report_path(job_id, filename)
+            report_path = job_dir / filename
             report_path.write_bytes(content)
+
+            # Save metadata.json if metadata provided
+            if metadata:
+                metadata_path = job_dir / "metadata.json"
+                metadata_content = {
+                    "job_id": job_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "filename": filename,
+                    "content_type": content_type,
+                    "size_bytes": len(content),
+                    **metadata  # Include all additional metadata
+                }
+                metadata_path.write_text(json.dumps(metadata_content, indent=2))
 
             # Get file stats
             stat = report_path.stat()
