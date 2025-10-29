@@ -47,7 +47,7 @@ class LocalStorage(StorageBackend):
         timestamp = now.strftime("%Y-%m-%d_%H%M")
 
         # Create slug from prompt (first 50 chars, cleaned)
-        slug = prompt[:50].lower()
+        slug = prompt[:50].lower() if prompt else ""
         # Remove special characters, keep alphanumeric and spaces
         slug = re.sub(r'[^a-z0-9\s-]', '', slug)
         # Replace spaces with hyphens
@@ -56,6 +56,10 @@ class LocalStorage(StorageBackend):
         slug = re.sub(r'-+', '-', slug)
         # Trim to reasonable length
         slug = slug[:40].rstrip('-')
+
+        # If slug is empty, use a default
+        if not slug:
+            slug = "research"
 
         # Extract short ID (last 8 chars of UUID or campaign ID)
         if job_id.startswith('campaign-'):
@@ -80,24 +84,30 @@ class LocalStorage(StorageBackend):
         # Check campaigns folder first (for campaign-* IDs)
         if job_id.startswith('campaign-'):
             # Look in campaigns folder for matching directory
-            for dir_path in self.campaigns_path.iterdir():
-                if dir_path.is_dir() and job_id in dir_path.name:
-                    return dir_path
+            if self.campaigns_path.exists():
+                for dir_path in self.campaigns_path.iterdir():
+                    if dir_path.is_dir() and job_id in dir_path.name:
+                        return dir_path
             # Fallback to direct path
             return self.campaigns_path / job_id
 
-        # For regular UUIDs, search in base reports directory
-        # First try direct match (legacy format)
+        # For regular UUIDs, search ALL possible locations before falling back
+        # Check for human-readable directory containing job_id OR short_id
+        short_id = job_id.split('-')[-1][:8] if '-' in job_id else job_id[:8]
+
+        if self.base_path.exists():
+            for dir_path in self.base_path.iterdir():
+                if dir_path.is_dir() and dir_path.name != 'campaigns':
+                    # Match full job_id or short_id in directory name
+                    if job_id in dir_path.name or short_id in dir_path.name:
+                        return dir_path
+
+        # Try direct match (legacy format) as fallback
         direct_path = self.base_path / job_id
         if direct_path.exists():
             return direct_path
 
-        # Then search for human-readable directory containing this job_id
-        for dir_path in self.base_path.iterdir():
-            if dir_path.is_dir() and job_id in dir_path.name:
-                return dir_path
-
-        # If not found, return the job_id as-is (will be created on save)
+        # If not found anywhere, return the job_id as-is (will be created on save)
         return self.base_path / job_id
 
     def _get_report_path(self, job_id: str, filename: str) -> Path:

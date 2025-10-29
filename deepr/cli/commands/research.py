@@ -616,9 +616,11 @@ def get(job_id: Optional[str], all: bool):
                                 for block in response.output:
                                     if block.get('type') == 'message':
                                         for item in block.get('content', []):
-                                            text = item.get('text', '')
-                                            if text:
-                                                content += text + "\n"
+                                            # OpenAI Deep Research uses 'output_text' not 'text'
+                                            if item.get('type') in ['output_text', 'text']:
+                                                text = item.get('text', '')
+                                                if text:
+                                                    content += text + "\n"
 
                             # Save to storage
                             storage = create_storage(
@@ -703,9 +705,11 @@ def get(job_id: Optional[str], all: bool):
                     for block in response.output:
                         if block.get('type') == 'message':
                             for item in block.get('content', []):
-                                text = item.get('text', '')
-                                if text:
-                                    content += text + "\n"
+                                # OpenAI Deep Research uses 'output_text' not 'text'
+                                if item.get('type') in ['output_text', 'text']:
+                                    text = item.get('text', '')
+                                    if text:
+                                        content += text + "\n"
 
                 # Save to storage
                 config2 = load_config()

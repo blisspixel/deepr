@@ -216,13 +216,23 @@ class SQLiteQueue(QueueBackend):
         return await asyncio.to_thread(self._get_job_sync, job_id)
 
     def _get_job_sync(self, job_id: str) -> Optional[ResearchJob]:
-        """Synchronous get job operation."""
+        """Synchronous get job operation. Supports partial ID matching."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
+        # Try exact match first
         cursor.execute("SELECT * FROM research_queue WHERE id = ?", (job_id,))
         row = cursor.fetchone()
+
+        # If no exact match and ID is short (< 36 chars), try prefix match
+        if not row and len(job_id) < 36:
+            cursor.execute("SELECT * FROM research_queue WHERE id LIKE ?", (f"{job_id}%",))
+            rows = cursor.fetchall()
+
+            # If multiple matches, take first one (ambiguous but functional)
+            if rows:
+                row = rows[0]
 
         conn.close()
 
