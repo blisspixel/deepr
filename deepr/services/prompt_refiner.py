@@ -54,8 +54,10 @@ Best practices:
 1. **Temporal context**: If query mentions "latest", "recent", "current", add explicit date context (e.g., "As of {current_date}...")
 2. **Structured deliverables**: If scope is vague, suggest specific sections/analysis (e.g., "Include: (1) X, (2) Y, (3) Z")
 3. **Clear scope**: Add specificity about timeframes, geography, industry segments if missing
-4. **Context flags**: If query seems business-specific but lacks context, note that context injection recommended
-5. **Maintain intent**: Don't change the core question, only enhance clarity and structure
+4. **Best practices and current approaches**: For technology/methodology queries, explicitly request current best practices, latest approaches, and up-to-date information from trusted sources
+5. **Quality sources**: Encourage the research to prioritize authoritative, recent sources (academic papers, official documentation, industry reports)
+6. **Context flags**: If query seems business-specific but lacks context, note that context injection recommended
+7. **Maintain intent**: Don't change the core question, only enhance clarity and structure
 
 Files uploaded: {"Yes - user has provided documents for context" if has_files else "No"}
 
@@ -72,7 +74,13 @@ If the prompt is already good (clear, specific, well-structured), return it unch
         user_prompt = f"""Original research prompt:
 \"\"\"{prompt}\"\"\"
 
-Refine this prompt to follow best practices. Focus on high-impact improvements that will lead to better research results."""
+Refine this prompt to follow best practices. Focus on high-impact improvements that will lead to better research results.
+
+Key considerations:
+- Add temporal context (current date: {current_date})
+- For technology/methodology topics, explicitly request current best practices and latest approaches
+- Request prioritization of trusted, authoritative, up-to-date sources
+- Add structured deliverables if scope is vague"""
 
         response = self.client.chat.completions.create(
             model=self.model,

@@ -14,15 +14,15 @@ def prep():
 @prep.command()
 @click.argument("scenario")
 @click.option("--topics", "-n", default=5, type=click.IntRange(1, 10),
-              help="Number of research topics to generate (1-10)")
+              help="Number of research topics (default: 5, range: 1-10)")
 @click.option("--context", "-c", default=None,
               help="Additional context for planning")
 @click.option("--planner", "-p", default="gpt-5",
               type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-              help="GPT-5 model for planning (reasoning model)")
-@click.option("--model", "-m", default="o4-mini-deep-research",
+              help="Reasoning model for planning (default: gpt-5)")
+@click.option("--model", "-m", default="o3-deep-research",
               type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-              help="Deep research model for execution")
+              help="Deep research model (default: o3-deep-research for quality)")
 @click.option("--check-docs", is_flag=True,
               help="[EXPERIMENTAL] Check existing docs. WARNING: May give false confidence - shallow doc != comprehensive research")
 @click.option("--review-before-execute", is_flag=True,
