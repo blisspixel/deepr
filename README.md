@@ -27,11 +27,14 @@ See [docs/INSTALL.md](docs/INSTALL.md) for platform-specific instructions.
 ### Your First Research Job
 
 ```bash
-# Submit research
-deepr research submit "Analyze AI code editor market as of October 2025" --yes
+# One-time setup: Set monthly budget
+deepr budget set 50  # $50/month
 
-# Wait for results
-deepr research wait <job-id>
+# Now run research freely (auto-executes if under budget)
+deepr run "Analyze AI code editor market as of October 2025"
+
+# Check budget anytime
+deepr budget status
 ```
 
 **Cost:** $1-5 per report | **Time:** 5-30 minutes | **Output:** Comprehensive markdown with citations
@@ -44,26 +47,28 @@ Deepr uses OpenAI's deep research models to conduct autonomous, multi-step resea
 
 ### Three Research Modes
 
-**1. Single Research Jobs** - Submit one-off research queries
+**1. Single Research** - Quick, focused research
 ```bash
-deepr research submit "What are the latest trends in quantum computing?" --yes
+deepr run "What are the latest trends in quantum computing?"
 ```
 
 **2. Multi-Phase Campaigns** - Adaptive research that builds understanding over multiple rounds
 ```bash
-# Manual control
-deepr prep plan "What should Ford do in EVs for 2026?" --topics 3
-deepr prep execute --yes
-deepr prep continue --topics 2  # GPT-5 reviews and plans next phase
-
-# Fully autonomous
-deepr prep auto "What should Ford do in EVs for 2026?" --rounds 3
+deepr run campaign "What should Ford do in EVs for 2026?"
+# GPT-5 creates phased plan, executes with context chaining
 ```
 
-**3. Dynamic Research Teams** (Experimental) - Multiple perspectives research independently
+**3. Dynamic Research Teams** - Think tank with diverse perspectives
 ```bash
-deepr team analyze "Should we pivot to enterprise?" --team-size 5
+deepr run team "Should we pivot to enterprise?"
+# GPT-5 assembles dream team, each researches independently, then synthesizes
 ```
+
+The dream team approach:
+- GPT-5 designs optimal team for your specific question
+- Each team member (e.g., optimist, skeptic, technical expert) researches from their perspective
+- Independent research prevents groupthink
+- Final synthesis highlights agreements, conflicts, and balanced recommendations
 
 ---
 
