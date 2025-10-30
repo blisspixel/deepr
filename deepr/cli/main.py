@@ -32,10 +32,13 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate
+from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs
 
-# Core commands - verb-first pattern
+# Core commands - new structure
 cli.add_command(run.run)
+cli.add_command(jobs.jobs)
+
+# Deprecated commands (kept for backward compatibility with warnings)
 cli.add_command(status.status)
 cli.add_command(status.get)
 cli.add_command(status.list_jobs, name="list")
