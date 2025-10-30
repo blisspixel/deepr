@@ -81,6 +81,9 @@ class OpenAIProvider(DeepResearchProvider):
                     elif tool.type == "code_interpreter":
                         # Code interpreter requires container parameter
                         tool_dict["container"] = tool.container if tool.container else {"type": "auto"}
+                    elif tool.type == "web_search_preview":
+                        # Web search also requires container parameter
+                        tool_dict["container"] = tool.container if tool.container else {"type": "auto"}
                     tools.append(tool_dict)
 
                 # Build request payload
