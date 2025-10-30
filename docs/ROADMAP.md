@@ -4,35 +4,92 @@
 
 Deepr is the open-source, multi-provider platform for deep research automation. This roadmap outlines our path from adaptive planning (Level 3) toward more autonomous, self-improving research systems (Level 4-5).
 
+## What's Going On - CLI Command Structure (November 2025)
+
+**Problem:** Two competing entry points and mixed command grammar
+
+**Current State:**
+- `run` is the real, local, queue-backed executor with subcommands `single | campaign | team`
+- `research.py` exists with `submit/status/get`, but it is NOT wired into main.py. It's effectively dead code from an older, provider-specific flow
+- Mixed command grammar: Verbs-as-commands (`run`, `status`, `get`, `list`, `cancel`) + Noun groups (`budget`, `cost`, `analytics`, `vector`, `templates`)
+- Jargon: `single`, `campaign`, `team` are not self-explanatory
+- Roadmap tension: Phase-2 envisions `research --mode focus|project|team|documentation`, but there's already an unused `research.py`. Naming collision + migration ambiguity
+
+**Recommendation (minimal breakage, maximal clarity):**
+
+1. **Keep `run` as execution verb, rename modes to match intent**
+   - `deepr run focus` (was `single`) - Quick, focused research
+   - `deepr run project` (was `campaign`) - Multi-phase, context-chained
+   - `deepr run team` (unchanged semantics, multi-perspective research)
+   - `deepr run docs` (new: documentation-oriented research)
+   - Provide aliases for backward compatibility: `single -> focus`, `campaign -> project`
+
+2. **Make job management a single noun group: `jobs`**
+   - `deepr jobs list`
+   - `deepr jobs status <job-id>`
+   - `deepr jobs get <job-id>`
+   - `deepr jobs cancel <job-id>`
+   - Add compatibility shims for current commands with deprecation warnings
+
+3. **Resolve research.py**
+   - **Option A (preferred):** Delete `research.py`. Fold anything useful into `run` and `jobs`. Avoids two top-level concepts doing the same thing
+   - **Option B:** Make `research` canonical and turn `run` into alias. More churn
+   - **Decision:** Option A is simpler and avoids breaking current usage
+
+4. **Keep stable noun groups**
+   - `deepr budget`, `cost`, `analytics`, `config`, `templates`, `vector`, `docs`, `migrate`, `interactive`
+   - Consider folding `prep` into `deepr run project --plan-only` or renaming to `deepr plan`
+
+**Migration Plan (low risk):**
+- **Release N:** Add new subcommands and `jobs` group. Keep old commands as aliases with deprecation notices
+- **Release N:** Update --help, README, examples to show new structure
+- **Release N+1:** Delete `research.py` or integrate its bits
+- **Release N+2:** Remove deprecated aliases once telemetry shows low usage
+
 ## Current Status
 
-### v2.2 - File Upload & Prompt Refinement (Released October 2025)
+### v2.3 - Multi-Provider Support (In Development - October 30, 2025)
 
-**Core functionality (has been used successfully):**
-- Single deep research jobs via CLI
-- File upload with vector store support (PDF, DOCX, TXT, MD, code files)
-- Prompt refinement (--refine-prompt flag adds date context, structure)
-- OpenAI Deep Research integration (o3-deep-research, o4-mini-deep-research)
-- Background worker with automatic polling
-- Cost tracking and budget management
-- SQLite queue + filesystem storage
+**Production-Ready Features:**
 
-**Note:** "Tested in real usage" means manually verified to work, not systematically tested with real API calls across different scenarios.
+**Multi-Provider Architecture**
+- OpenAI Deep Research API (o3, o4-mini) - Validated, production-ready
+- Google Gemini Thinking Models (2.5-flash, 2.5-pro, 2.5-flash-lite) - Validated, production-ready
+- Azure OpenAI (o3, o4-mini) - Production-ready, enterprise deployment
+- xAI Grok (4-fast, 4, 3-mini) - In development, requires chat adapter
+- Provider-agnostic architecture ready for future additions
 
-**Beta (functional, use with supervision):**
-- Multi-phase campaigns (`deepr prep plan/execute/continue/auto`)
-  - GPT-5 as research lead, reviewing and planning next phases
+**CLI Improvements (October 30, 2025)**
+- Fixed critical bug: Jobs now properly submit to provider APIs
+- Provider-specific parameter handling (background, metadata, tools)
+- Gemini synchronous execution with immediate results
+- Cost tracking per provider with token usage
+- Provider selection via --provider flag
+
+**Core Research Capabilities**
+- Single research jobs (`deepr run single`) - All providers
+- Multi-phase campaigns (`deepr run campaign`) - OpenAI validated
+  - GPT-5 as research lead, reviewing and planning
   - Context chaining with automatic summarization
-  - Adaptive workflow: plan → execute → review → replan
+  - Adaptive workflow: plan, execute, review, replan
+  - Validated: 2-phase campaign, $0.33 cost, excellent quality
+- File upload with vector store support (PDF, DOCX, TXT, MD, code)
+- Prompt refinement with date context and structured deliverables
+- Budget management and cost tracking
+- SQLite queue with filesystem storage
 
-- Dynamic research teams (`deepr team analyze`)
-  - GPT-5 assembles optimal dream team for each question
-  - Each team member researches independently from their perspective
-  - Prevents groupthink through diverse cognitive roles
-  - Final synthesis shows agreements, conflicts, and balanced recommendations
-  - Based on validated frameworks (Six Thinking Hats, Red Teaming)
+**Beta (needs more validation):**
+- Dynamic research teams (`deepr run team`)
+  - GPT-5 assembles optimal perspectives
+  - Independent research prevents groupthink
+  - Synthesis shows agreements, conflicts, recommendations
+- Background worker with polling
+- Human-in-the-loop controls
 
-**Key Innovation:** File upload enables semantic search over uploaded documents, eliminating the need for text injection workarounds.
+**Key Innovations:**
+- Multi-provider support means model choice doesn't lock you in
+- Immediate Gemini completion vs. OpenAI background jobs
+- Framework extends to any provider (deep research, reasoning, or agentic)
 
 ## Agentic Levels Framework
 
@@ -59,12 +116,16 @@ Deepr's development follows a progression toward autonomy:
 - 5/5 integration tests passing (real API calls)
 - See [TESTING_STATUS.md](TESTING_STATUS.md)
 
-**Real API Tests Validated (October 29, 2025):**
+**Real API Tests Validated (October 29-30, 2025):**
 - Minimal research (o4-mini-deep-research): Works, cost $0.01-0.02, time 30-35s
 - Realistic research (o4-mini-deep-research): Works, cost $0.11, time 6-7 min
 - File upload & vector search: Works, cost $0.02, time 2 min
 - Prompt refinement (gpt-5-mini): Works, cost <$0.001, time 5-25s
 - Cost tracking: Works, estimates within 0.2-1.7x of actual
+- Multi-phase campaign (o4-mini-deep-research): Works, cost $0.33, 2 phases completed
+  - Phase 1: Comprehensive inventory (19K chars, $0.17, excellent citations)
+  - Phase 2: Strategic analysis (32K chars, $0.16, builds on Phase 1 context)
+  - Context chaining validated: Phase 2 references and analyzes Phase 1 results
 
 **Key Findings from Real API Tests:**
 - Output format uses 'output_text' not 'text' (fixed in code)
@@ -103,7 +164,7 @@ deepr vector create --name "company-knowledge" --files docs/*.pdf
 deepr vector list
 deepr vector info <vector-store-id>
 deepr vector delete <vector-store-id>
-deepr research submit "Query" --vector-store company-knowledge --yes
+deepr run single "Query" --vector-store company-knowledge
 ```
 
 **Implemented:**
@@ -125,7 +186,7 @@ deepr research submit "Query" --vector-store company-knowledge --yes
 
 ```bash
 # Dry-run mode
-deepr research "query" --refine-prompt --dry-run
+deepr run single "query" --dry-run  # Refinement auto-enabled via DEEPR_AUTO_REFINE=true
 
 # Always-on refinement
 # Add to .env: DEEPR_AUTO_REFINE=true
@@ -154,12 +215,12 @@ deepr research "query" --refine-prompt --dry-run
 
 **Priority 3: Ad-Hoc Job Management - Implemented (needs testing)**
 
-The `deepr research get` command has been implemented to download research results without running a continuous worker.
+The `deepr get` command has been implemented to download research results without running a continuous worker.
 
 ```bash
-deepr research get <job-id>          # Download specific job results from provider
-deepr research get --all             # Download all completed jobs
-deepr queue sync                     # Sync all jobs with provider status
+deepr get <job-id>                   # Download specific job results from provider (checks OpenAI if not local)
+deepr list                           # View all jobs
+deepr list -s processing             # Filter by status
 ```
 
 **Implemented functionality:**
@@ -183,7 +244,7 @@ deepr queue sync                     # Sync all jobs with provider status
 **Priority 4: Observability & Transparency (PARTIALLY COMPLETE)**
 
 **Completed:**
-- **Cost attribution:** `deepr research result <job-id> --cost` shows detailed breakdown
+- **Cost attribution:** `deepr status <job-id>` shows cost and token usage
   - Token usage (input, output, reasoning)
   - Cost calculation (input cost, output cost, total)
   - Pricing information (per 1M tokens)
@@ -195,21 +256,22 @@ deepr queue sync                     # Sync all jobs with provider status
 
 **CLI additions (planned):**
 ```bash
-deepr research result <job-id> --explain      # Why this research path? (planned)
-deepr research result <job-id> --timeline     # Reasoning evolution (planned)
+deepr status <job-id> --explain      # Why this research path? (planned)
+deepr status <job-id> --timeline     # Reasoning evolution (planned)
 ```
 
 **Priority 5: Human-in-the-Loop Controls - Implemented (needs testing)**
 
 **Implemented:**
-- **Review before execution:** `deepr prep plan "..." --review-before-execute`
-  - Tasks start as unapproved when flag is used
-  - Requires explicit human approval via `deepr prep review`
-  - Prevents autonomous execution without oversight
-- **Pause/Resume campaigns:** Mid-campaign intervention
-  - `deepr prep pause` - Pause active campaign
-  - `deepr prep resume` - Resume paused campaign
-  - Execute command checks pause status before running
+- **Budget-based approval:** Set monthly budget, auto-execute under threshold
+  - `deepr budget set 50` - Set $50/month limit
+  - `deepr budget status` - Check current spending
+  - Auto-executes jobs under 80% of budget
+- **Manual confirmation:** Per-job approval for expensive operations
+  - Jobs over budget threshold require confirmation
+  - `-y` flag to skip confirmation
+- **Pause/Resume campaigns:** Mid-campaign intervention (planned)
+  - Pause/resume functionality exists but not exposed in new CLI yet
 
 **Known limitations:**
 - Not tested with multi-phase campaigns
@@ -225,7 +287,7 @@ deepr research result <job-id> --timeline     # Reasoning evolution (planned)
 
 **Future enhancements (planned):**
 ```bash
-deepr prep edit-plan <campaign-id>   # Modify plan before resuming (planned)
+deepr campaign edit <id>   # Modify plan before resuming (planned)
 ```
 
 **Priority 6: Provider Resilience - Implemented (needs testing)**
@@ -258,22 +320,22 @@ deepr prep edit-plan <campaign-id>   # Modify plan before resuming (planned)
 
 ### v2.4 - MCP Server & Multi-Provider Support (Q2 2026)
 
-**Priority 1: Google Gemini Provider**
+**Priority 1: Google Gemini Provider** [IMPLEMENTED]
 
-Add Google Gemini 2.5 as a research provider alongside OpenAI:
+Google Gemini 2.5 added as a research provider with agentic capabilities:
 
 ```bash
 # Top-tier reasoning (equivalent to o3-deep-research)
-deepr research "query" --provider gemini --model gemini-2.5-pro
+deepr run single "query" --provider gemini --model gemini-2.5-pro
 
 # Fast/efficient (equivalent to o4-mini-deep-research)
-deepr research "query" --provider gemini --model gemini-2.5-flash
+deepr run single "query" --provider gemini --model gemini-2.5-flash
 
 # Cost-optimized for simpler tasks
-deepr research "query" --provider gemini --model gemini-2.5-flash-lite
+deepr run single "query" --provider gemini --model gemini-2.5-flash-lite
 
 # Campaign planning
-deepr prep plan "scenario" --provider gemini --planner gemini-2.5-flash
+deepr run campaign "scenario" --provider gemini --planner gemini-2.5-flash
 ```
 
 **Gemini 2.5 Models (October 2025):**
@@ -296,13 +358,88 @@ deepr prep plan "scenario" --provider gemini --planner gemini-2.5-flash
 - Cost tracking for Gemini pricing structure
 - Support stable vs latest model aliases
 
+**Implementation status:** Complete. See [docs/GEMINI_IMPLEMENTATION.md](GEMINI_IMPLEMENTATION.md)
+
+**xAI Grok Provider** [IMPLEMENTED]
+
+xAI Grok 4 added as a research provider with agentic tool calling:
+
+```bash
+# Agentic web/X search (recommended)
+deepr run single "query" --provider grok --model grok-4-fast
+
+# Deep reasoning
+deepr run single "complex problem" --provider grok --model grok-4
+
+# Fast and economical
+deepr run single "simple query" --provider grok --model grok-3-mini
+```
+
+**Grok Models (October 2025):**
+- `grok-4-fast`: Agentic search specialist, web/X search, reasoning ($0.20/$0.50 per M tokens)
+- `grok-4`: Deep reasoning, encrypted thinking ($3.00/$15.00 per M tokens)
+- `grok-3-mini`: Fast, economical ($0.30/$0.50 per M tokens)
+
+**Agentic Capabilities:**
+- Server-side tool calling (web_search, x_search, code_execution)
+- Autonomous multi-step research with tool orchestration
+- Reasoning traces with encrypted content for persistence
+- Real-time X (Twitter) post search and analysis
+- Citations and source traceability
+
+**Implementation notes:**
+- OpenAI API-compatible (extends OpenAIProvider)
+- Custom endpoint: https://api.x.ai/v1
+- Server-side tools executed autonomously by xAI
+- Minimal implementation due to API compatibility
+
+**Implementation status:** Complete. See [docs/MULTI_PROVIDER_SUMMARY.md](MULTI_PROVIDER_SUMMARY.md)
+
+**Documentation Research Mode** [IMPLEMENTED]
+
+Specialized research mode for generating technical documentation that stays current:
+
+**What it does:**
+- Automatically includes current date in prompts
+- Structured for developers (API details, pricing, architecture patterns)
+- Emphasizes recent changes and updates
+- Formatted as reference documentation
+
+**Usage:**
+```bash
+# API Documentation
+deepr run single "Document OpenAI API as of today - models, pricing, rate limits, auth"
+
+# Cloud Service Reference
+deepr run single "AWS Lambda documentation - features, pricing, patterns, recent updates"
+
+# Framework Guide
+deepr run single "React 19 migration guide - breaking changes, new features, upgrade path"
+```
+
+**Use cases:**
+- Cloud service documentation (AWS, Azure, GCP)
+- AI model/API references
+- Framework and library docs
+- Architecture patterns and best practices
+- Service pricing and limits (always changing)
+
+**Why it's useful:**
+APIs and cloud services change constantly. Traditional documentation goes stale.
+With documentation research mode, you can generate fresh, current documentation on demand
+by simply prompting for what you need with "as of today" or "latest" in the query.
+
+**Best provider:** Gemini Flash - excellent at structured output, fast, cost-effective ($0.02 avg)
+
+**Template:** See `deepr/templates/documentation_research.md` for prompt structure
+
 **Priority 2: Web Content Extraction (MCP Tool)**
 
 Extract structured content from specific URLs to inform research. Exposed as both CLI and MCP tool:
 
 ```bash
 # CLI usage
-deepr research "Analyze X" --extract-from https://company.com/about
+deepr run single "Analyze X" --extract-from https://company.com/about
 
 # Pre-extract and add to vector store
 deepr vector create --name "company-sites" --extract https://company.com/*
@@ -353,21 +490,67 @@ deepr extract https://company.com/about --format markdown
 - Rate limiting and politeness delays
 - Configurable extraction depth and scope
 
-**Priority 3: CLI UX Improvements**
+**Priority 3: CLI UX Improvements - In Progress (October 30, 2025)**
 
-Simplify the CLI to follow modern best practices with clear, consistent verb-first patterns.
+The CLI is being redesigned with unified research verb and mode-based commands.
 
-**Current Issues:**
-- Inconsistent patterns: `deepr research submit` (noun-verb) vs `deepr team analyze` (noun-verb)
-- Too much nesting: `deepr research submit "query"` is verbose for the primary action
-- Unclear action hierarchy: "research" vs "prep" vs "team" overlap conceptually
-- Not intuitive: Users want to "run research" not "submit to research subsystem"
+**Phase 1 - Completed (October 30):**
+- Old: `deepr research submit` → New: `deepr run single`
+- Old: `deepr prep plan/execute` → New: `deepr run campaign`
+- Old: `deepr team analyze` → New: `deepr run team`
+- Old: `deepr queue list` → New: `deepr list`
+- Old: `deepr research status` → New: `deepr status`
+- CLI bug fixed: Jobs now properly submit to provider APIs
 
-**Proposed Redesign (v2.4):**
+**Phase 2 - Planned (November 2025):**
+
+Unified research verb with mode-based interface:
+
+```bash
+# Research (canonical form)
+deepr research "QUERY" --mode documentation|focus|project|team \
+  [--provider openai|gemini|grok|azure] [-m MODEL] \
+  [--upload FILE ...] [--index NAME] [--limit USD]
+
+# Ergonomic aliases for humans
+deepr docs "OpenAI API as of today: models, pricing, limits, examples"
+deepr study "Latest trends in quantum error correction"
+deepr project "EV strategy for 2026" --phases 4
+deepr team "Should we pivot to enterprise?" --perspectives 6
+
+# Jobs (noun-based grouping)
+deepr jobs list
+deepr jobs status <id>
+deepr jobs get <id>
+deepr jobs cancel <id>
+
+# Budget and cost
+deepr budget set 50
+deepr budget status
+deepr cost summary [--period week]
+
+# Context data (renamed from vector)
+deepr index create --name company-docs --files docs/*.pdf
+deepr index list
+deepr index delete <id>
+
+# Analytics and config
+deepr analytics report
+deepr config validate
+```
+
+**Migration mapping:**
+- `deepr run single "..."` → `deepr research "..." --mode focus` (alias: `deepr study`)
+- `deepr run campaign "..."` → `deepr research "..." --mode project` (alias: `deepr project`)
+- `deepr run team "..."` → `deepr research "..." --mode team` (alias: `deepr team`)
+- Documentation: `deepr docs "..."` → `deepr research "..." --mode documentation`
+- `deepr vector ...` → `deepr index ...`
+
+**Current CLI Structure (Phase 1):**
 
 ```bash
 # Primary actions (auto-execute if under budget)
-deepr run "query"                           # Single research
+deepr run single "query"                    # Single research
 deepr run campaign "scenario"               # Multi-phase
 deepr run team "question"                   # Dream team
 
@@ -380,21 +563,13 @@ deepr budget history                        # Spending over time
 deepr status <job-id>                       # Check status
 deepr get <job-id>                          # Get results
 deepr cancel <job-id>                       # Cancel job
-deepr list [--running|--failed|--today]     # List jobs
+deepr list                                  # List jobs
+deepr list -s processing                    # Filter by status
 
-# Files and context
-deepr upload <files>                        # Create vector store
-deepr upload list                           # List vector stores
-deepr extract <url>                         # Web content extraction
-
-# Utilities
-deepr refine "prompt"                       # Standalone prompt refinement
-deepr estimate "query"                      # Cost estimation
-deepr config [set|get|validate]             # Configuration
-
-# Advanced
-deepr analytics report
-deepr migrate organize
+# Quick aliases
+deepr r "query"                             # Alias for 'run single'
+deepr s <job-id>                            # Alias for 'status'
+deepr l                                     # Alias for 'list'
 ```
 
 **Budget-Based Approval:**
@@ -423,25 +598,33 @@ deepr budget status                         # Check spending anytime
 - `deepr budget set 0`: Confirm every job (cautious mode)
 - `deepr budget set unlimited`: Never confirm (trust mode)
 
-**Implementation Approach:**
-- Breaking change - clean slate (we're pre-1.0, rapid development phase)
-- Remove old command structure entirely
-- Add convenient aliases: `deepr r` → `deepr run`, `deepr s` → `deepr status`
-- Update all documentation and examples simultaneously
-- One clean, intuitive interface from the start
+**Implementation Details:**
+- Breaking change - clean slate approach (pre-1.0 rapid development)
+- Old command structure removed entirely
+- Convenient aliases added: `deepr r`, `deepr s`, `deepr l`
+- All documentation updated simultaneously
+- Budget checking integrated into submission flow
+
+**Files Created/Modified:**
+- `deepr/cli/commands/run.py` - New run command with single/campaign/team subcommands
+- `deepr/cli/commands/status.py` - Job management (status, get, list, cancel) with ad-hoc retrieval
+- `deepr/cli/commands/budget.py` - Budget management (set, status, history)
+- `deepr/cli/commands/team.py` - Added run_dream_team() wrapper for new CLI
+- Updated `deepr/cli/main.py` - Registered new commands, removed old structure
+
+**Key Features:**
+- Ad-hoc retrieval: `deepr get` checks OpenAI directly if job not completed locally
+- Large report preview: Shows first 2000 chars for reports over 5000 chars
+- Fixed storage paths: Uses actual saved paths instead of hardcoded ones
+- Windows compatibility: ASCII-safe status indicators instead of Unicode
 
 **User Benefits:**
-- **Intuitive**: `deepr run "query"` - you run research, not "submit to research subsystem"
+- **Intuitive**: `deepr run single "query"` - you run research, not "submit to research subsystem"
 - **Consistent**: All commands follow verb-first pattern (like git, docker, kubectl)
 - **Shorter**: Primary actions have minimal nesting
-- **Clear hierarchy**: `run` is the top-level action with variants (campaign, team)
+- **Clear hierarchy**: `run` is the top-level action with variants (single, campaign, team)
 - **Discoverable**: `deepr --help` shows actions you can take, not system subsections
-
-**Design Principles:**
-1. **Action-oriented**: Commands describe what you want to do (run, get, cancel)
-2. **Consistent verbs**: Same verb structure across all commands
-3. **Minimal nesting**: Most common actions have fewest keystrokes
-4. **Clear scoping**: Qualifiers come after the verb (run team, list running)
+- **Friction-free**: Set budget once, run freely without constant confirmations
 
 **Priority 4: Deepr Expert - Chat with Research (Research in progress)**
 

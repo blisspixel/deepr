@@ -6,6 +6,62 @@ from typing import Optional
 from deepr.branding import print_section_header
 
 
+async def run_dream_team(question: str, model: str = "o4-mini-deep-research", perspectives: int = 6):
+    """
+    Execute dream team research (async wrapper for new CLI).
+
+    This is called by the new 'deepr run team' command.
+    """
+    from deepr.services.team_architect import TeamArchitect
+    from deepr.services.batch_executor import BatchExecutor
+    from deepr.storage.local import LocalStorage
+    from deepr.queue import create_queue
+    from deepr.queue.base import ResearchJob, JobStatus
+    from datetime import datetime
+    import uuid
+
+    # Phase 1: Design team
+    architect = TeamArchitect(model="gpt-5")
+    team = architect.design_team(
+        question=question,
+        context=None,
+        team_size=perspectives,
+        research_company=None,
+        perspective_lens=None,
+        adversarial=False
+    )
+
+    # Phase 2: Submit research jobs for each perspective
+    queue = create_queue("local")
+    job_ids = []
+
+    for member in team:
+        # Create research prompt for this perspective
+        prompt = f"""Question: {question}
+
+Perspective: {member['role']}
+Focus: {member['focus']}
+Rationale: {member['rationale']}
+
+Provide your analysis from this perspective."""
+
+        job = ResearchJob(
+            id=f"team-{uuid.uuid4().hex[:12]}",
+            prompt=prompt,
+            model=model,
+            status=JobStatus.QUEUED,
+            submitted_at=datetime.utcnow(),
+            enable_web_search=True,
+            metadata={"team_role": member['role'], "question": question}
+        )
+
+        job_id = await queue.enqueue(job)
+        job_ids.append(job_id)
+
+    click.echo(f"Submitted {len(job_ids)} research jobs for team perspectives")
+    return job_ids
+
+
 @click.group()
 def team():
     """Assemble dynamic research teams with diverse perspectives."""
