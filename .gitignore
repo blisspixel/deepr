@@ -182,3 +182,4 @@ docs/**/*notes*.txt
 docs/**/*exploration*.md
 docs/**/.private/
 /tests/data/reports
+/tests/data
