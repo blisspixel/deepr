@@ -65,18 +65,18 @@ async def test_openai_file_upload_basic(test_file):
     # Upload file
     file_id = await provider.upload_document(str(test_file))
     assert file_id is not None
-    assert file_id.startswith("file_")
+    assert file_id.startswith("file-") or file_id.startswith("file_")  # OpenAI uses file- format
 
     # Create vector store
-    vector_store_id = await provider.create_vector_store(
+    vector_store = await provider.create_vector_store(
         file_ids=[file_id],
         name="test_vector_store"
     )
-    assert vector_store_id is not None
-    assert vector_store_id.startswith("vs_")
+    assert vector_store is not None
+    assert vector_store.id.startswith("vs-") or vector_store.id.startswith("vs_")  # Handle both formats
 
     print(f"File uploaded: {file_id}")
-    print(f"Vector store created: {vector_store_id}")
+    print(f"Vector store created: {vector_store.id}")
 
 
 @pytest.mark.asyncio
@@ -100,7 +100,7 @@ async def test_openai_research_with_file_upload(test_file):
 
     # Upload file
     file_id = await provider.upload_document(str(test_file))
-    vector_store_id = await provider.create_vector_store(
+    vector_store = await provider.create_vector_store(
         file_ids=[file_id],
         name="test_research_vector_store"
     )
@@ -112,7 +112,7 @@ async def test_openai_research_with_file_upload(test_file):
         model="o4-mini-deep-research",
         system_message="You are a helpful assistant. Use the uploaded document to answer.",
         tools=[
-            ToolConfig(type="file_search", vector_store_ids=[vector_store_id]),
+            ToolConfig(type="file_search", vector_store_ids=[vector_store.id]),
             ToolConfig(type="web_search_preview"),
             ToolConfig(type="code_interpreter"),
         ],
@@ -122,13 +122,13 @@ async def test_openai_research_with_file_upload(test_file):
     # This should NOT raise BadRequestError about unknown/missing container parameters
     job_id = await provider.submit_research(request)
     assert job_id is not None
-    assert job_id.startswith("resp_")
+    assert job_id.startswith("resp-") or job_id.startswith("resp_")  # Handle both formats
 
     print(f"Research submitted successfully: {job_id}")
 
     # Poll for completion (with reasonable timeout)
-    max_wait = 120  # 2 minutes
-    poll_interval = 5
+    max_wait = 300  # 5 minutes (deep research can take a while)
+    poll_interval = 10
     elapsed = 0
 
     while elapsed < max_wait:
@@ -200,12 +200,15 @@ async def test_openai_tool_parameter_validation():
     assert job_id_1 is not None
     print(f"web_search_preview test passed: {job_id_1}")
 
-    # Test with code_interpreter (MUST have container)
+    # Test with code_interpreter (MUST have container) + web_search (required by deep research)
     request_code = ResearchRequest(
         prompt="Calculate 2+2 using code.",
         model="o4-mini-deep-research",
         system_message="You are a calculator. Use code to calculate.",
-        tools=[ToolConfig(type="code_interpreter")],
+        tools=[
+            ToolConfig(type="web_search_preview"),  # Required by deep research
+            ToolConfig(type="code_interpreter")      # Has container
+        ],
         background=True
     )
 
@@ -277,7 +280,7 @@ This is a test project for validating file upload with multiple files.
     file_id_2 = await provider.upload_document(str(roadmap))
 
     # Create vector store with both files
-    vector_store_id = await provider.create_vector_store(
+    vector_store = await provider.create_vector_store(
         file_ids=[file_id_1, file_id_2],
         name="test_multi_file_vector_store"
     )
@@ -288,7 +291,7 @@ This is a test project for validating file upload with multiple files.
         model="o4-mini-deep-research",
         system_message="You are a helpful assistant. Use the uploaded documents.",
         tools=[
-            ToolConfig(type="file_search", vector_store_ids=[vector_store_id]),
+            ToolConfig(type="file_search", vector_store_ids=[vector_store.id]),
             ToolConfig(type="web_search_preview"),
             ToolConfig(type="code_interpreter"),
         ],

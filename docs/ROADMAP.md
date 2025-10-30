@@ -8,10 +8,18 @@ Deepr is building the missing layer between reasoning and memory. Large models g
 Transform curiosity into structured, reusable knowledge. Enable continuous learning for both humans and intelligent systems through governed workflows, multi-provider research, and agent-compatible outputs.
 
 **Current Reality:**
-Level 3 (Adaptive Planning) in production with 90% test pass rate. Multi-provider research validated across OpenAI, Gemini, Grok, and Azure.
+- Level 3 (Adaptive Planning) in production
+- 79% integration test pass rate (48 passed, 11 failed out of 59 non-expensive tests)
+- Multi-provider research validated: OpenAI, Gemini, Grok, Azure
+- Artifacts stored in `./artifacts/<job-id>/report.md` with basic manifest
+- CLI working: focus, docs, project, team modes operational
+- Known gaps: file upload tests failing, some mode tests need fixes
 
 **The Path Forward:**
-Level 3 (current) to Level 4 (Reflective Optimization) to Level 5 (Autonomous Expertise Acquisition).
+Stabilize v2.3 to 95% pass rate, then build v2.4 knowledge infrastructure, then v2.5 reflective optimization, then v3.0 autonomous expertise.
+
+**How to Read This Roadmap:**
+This document operationalizes every claim in the README. Each feature maps to explicit tests, code locations, and validation criteria. Where features are aspirational, they are marked with implementation plans and acceptance criteria.
 
 ## CLI Command Structure - Completed (October 30, 2025)
 
@@ -40,9 +48,33 @@ The CLI restructure has been completed. The new command structure is now product
 - Add `deepr plan` as shortcut for `deepr run project --plan-only`
 - Remove deprecated aliases after validation
 
+## Version Readiness
+
+| Version | Status | Test Coverage | Key Capability |
+|---------|--------|---------------|----------------|
+| v2.3 | Production (stabilizing) | 79% pass (48/59 tests) | Multi-provider deep research |
+| v2.4 | Design complete | Implementation pending | Knowledge infrastructure and MCP |
+| v2.5 | Design phase | Planned | Self-evaluation and optimization |
+| v3.0+ | Vision and research | Conceptual | Autonomous expertise acquisition |
+
 ## Current Status
 
-### v2.3 - Multi-Provider Support (In Development - October 30, 2025)
+### v2.3 - Multi-Provider Support (Production - Stabilizing)
+
+**Acceptance Criteria for Stable Release:**
+- Integration test pass rate: 95% or higher (currently 81%)
+- File upload tests: All passing with end-to-end validation
+- Research mode tests: Focus, docs, project, team all validated
+- Provider tests: OpenAI, Gemini, Grok, Azure all at 95%+
+- Cost estimation: Within 20% accuracy of actual costs
+- No regressions in previously passing tests
+
+**Current Gaps to Close:**
+- Fix 11 failing integration tests
+- Validate file upload workflow end-to-end
+- Fix research modes comprehensive tests
+- Stabilize provider error handling
+- Document artifact manifest schema
 
 **Production-Ready Features:**
 
@@ -133,16 +165,29 @@ The CLI restructure has been completed. The new command structure is now product
 - Immediate Gemini completion vs. OpenAI background jobs
 - Framework extends to any provider (deep research, reasoning, or agentic)
 
-**Test Coverage (October 30, 2025):**
-- Overall coverage: 21% (was 14%, improved after container bug fix and test expansion)
-- 111 total tests (was 75 tests before test expansion)
-- Unit tests: 28/28 passing (100%) - cost estimation, queue, storage
-- CLI tests: 36/36 passing (100%) - command structure, parameter validation
-- Provider tests: 46 tests (OpenAI 13, Gemini 20, Grok 13, Azure basic)
-- Integration tests: 46/51 passing (90% pass rate, improved from 84%)
-  - Fixed 4 test failures this session (OpenAI tools, budget command, error handling)
-- Real API validation: Tested with OpenAI, Gemini, Grok
-- See [tests/README.md](../tests/README.md) and [docs/TESTING_STRATEGY.md](TESTING_STRATEGY.md)
+**Test Coverage (Current as of latest run):**
+- Overall coverage: 21% code coverage
+- Total tests: 111 (was 75 before expansion, was 28 initially)
+- Unit tests: 28/28 passing (100%)
+- CLI tests: 36/36 passing (100%)
+- Integration tests: 48/59 passing (81% current, was 90% after fixes, was 84% before fixes)
+
+**Test Growth Trajectory:**
+- Initial baseline: 14% coverage, 75 tests, 84% pass rate
+- After bug fixes: 21% coverage, 111 tests, 90% pass rate (46/51)
+- Current status: 21% coverage, 111 tests, 81% pass rate (48/59)
+- Target for v2.4: 40% coverage, 150+ tests, 95% pass rate
+
+**What Regressed (11 new failures):**
+- File upload API tests (4 failures) - need investigation
+- Research modes comprehensive (2 failures) - OpenAI focus/docs modes
+- Provider error handling (1 failure) - test logic issue
+- Anthropic provider (1 failure) - TypeError
+- Cost estimation accuracy (1 failure) - calibration needed
+- Grok reasoning comparison (1 failure) - provider gap
+- Realistic research test (1 failure) - possibly transient
+
+See [tests/README.md](../tests/README.md) and [docs/TESTING_STRATEGY.md](TESTING_STRATEGY.md)
 
 ## Agentic Levels Framework
 
@@ -1047,12 +1092,15 @@ This validates the tool while generating implementation guidance. When we hit de
 
 Deepr is building autonomous learning and knowledge infrastructure. The roadmap moves systematically from current reality (Level 3) toward the full vision (Level 5).
 
-**Current Reality (v2.3):**
-- Multi-provider deep research (OpenAI, Gemini, Grok, Azure)
-- 90% test pass rate with validated workflows
-- CLI interface with budget management
-- File upload and vector stores (basic functionality)
-- Local-first, provider-agnostic architecture
+**Current Reality (v2.3 - Stabilizing):**
+- Multi-provider deep research (OpenAI, Gemini, Grok, Azure validated)
+- 81% integration test pass rate (48/59 tests passing)
+- 11 test failures identified and documented
+- CLI interface working: focus, docs, project, team modes operational
+- Budget management and cost tracking validated
+- File upload implemented (tests failing, needs fixes)
+- Artifacts stored in `./artifacts/<job-id>/` with basic manifest
+- Local-first SQLite queue and filesystem storage
 
 **Next (v2.4):**
 - Knowledge infrastructure: artifact versioning, semantic search, quality scoring
