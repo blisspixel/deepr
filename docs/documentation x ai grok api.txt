@@ -1,0 +1,1886 @@
+Step 1: Create an xAI Account
+First, you'll need to create an xAI account to access xAI API. Sign up for an account here.
+
+Once you've created an account, you'll need to load it with credits to start using the API.
+
+Step 2: Generate an API Key
+Create an API key via the API Keys Page in the xAI API Console.
+
+After generating an API key, we need to save it somewhere safe! We recommend you export it as an environment variable in your terminal or save it to a 
+.env
+ file.
+
+bash
+
+
+export XAI_API_KEY="your_api_key"
+Step 3: Make your first request
+With your xAI API key exported as an environment variable, you're ready to make your first API request.
+
+Let's test out the API using 
+curl
+. Paste the following directly into your terminal.
+
+bash
+
+
+curl https://api.x.ai/v1/chat/completions \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer $XAI_API_KEY" \
+-m 3600 \
+-d '{
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are Grok, a highly intelligent, helpful AI assistant."
+        },
+        {
+            "role": "user",
+            "content": "What is the meaning of life, the universe, and everything?"
+        }
+    ],
+    "model": "grok-4",
+    "stream": false
+}'
+Step 4: Make a request from Python or Javascript
+As well as a native xAI Python SDK, the majority our APIs are fully compatible with the OpenAI and Anthropic SDKs. For example, we can make the same request from Python or Javascript like so:
+
+
+python (xAI SDK)
+
+
+# In your terminal, first run:
+# pip install xai-sdk
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    timeout=3600, # Override default timeout with longer timeout for reasoning models
+)
+
+chat = client.chat.create(model="grok-4")
+chat.append(system("You are Grok, a highly intelligent, helpful AI assistant."))
+chat.append(user("What is the meaning of life, the universe, and everything?"))
+
+response = chat.sample()
+print(response.content)
+Certain models also support Structured Outputs, which allows you to enforce a schema for the LLM output.
+
+For an in-depth guide about using Grok for text responses, check out our Chat Guide.
+
+Step 5: Use Grok to analyze images
+Certain grok models can accept both text AND images as an input. For example:
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user, image
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    timeout=3600, # Override default timeout with longer timeout for reasoning models
+)
+
+chat = client.chat.create(model="grok-4")
+chat.append(
+    user(
+        "What's in this image?",
+        image("https://science.nasa.gov/wp-content/uploads/2023/09/web-first-images-release.png")
+    )
+)
+
+response = chat.sample()
+print(response.content)
+And voila! Grok will tell you exactly what's in the image:
+
+This image is a photograph of a region in space, specifically a part of the Carina Nebula, captured by the James Webb Space Telescope. It showcases a stunning view of interstellar gas and dust, illuminated by young, hot stars. The bright points of light are stars, and the colorful clouds are composed of various gases and dust particles. The image highlights the intricate details and beauty of star formation within a nebula.
+
+To learn how to use Grok vision for more advanced use cases, check out our Image Understanding Guide.
+
+Monitoring usage
+As you use your API key, you will be charged for the number of tokens used. For an overview, you can monitor your usage on the xAI Console Usage Page.
+
+If you want a more granular, per request usage tracking, the API response includes a usage object that provides detail on prompt (input) and completion (output) token usage.
+
+json
+
+
+"usage": {
+    "prompt_tokens":37,
+    "completion_tokens":530,
+    "total_tokens":800,
+    "prompt_tokens_details": {
+        "text_tokens":37,
+        "audio_tokens":0,
+        "image_tokens":0,
+        "cached_tokens":8
+    },
+    "completion_tokens_details": {
+        "reasoning_tokens":233,
+        "audio_tokens":0,
+        "accepted_prediction_tokens":0,
+        "rejected_prediction_tokens":0
+    },
+    "num_sources_used":0
+}
+If you send requests too frequently or with long prompts, you might run into rate limits and get an error response. For more information, read Consumption and Rate Limits.
+
+Model Pricing
+Model
+Modalities
+Capabilities
+Context
+Rate limits
+Pricing
+Language models		Per million tokens
+grok-code-fast-1
+
+
+
+
+
+
+
+256,000	
+2M
+tpm
+480
+rpm
+
+$0.20
+$1.50
+grok-4-fast-reasoning
+
+
+
+
+
+
+
+2,000,000	
+4M
+tpm
+480
+rpm
+
+$0.20
+$0.50
+grok-4-fast-non-reasoning
+
+
+
+
+
+
+
+2,000,000	
+4M
+tpm
+480
+rpm
+
+$0.20
+$0.50
+grok-4-0709
+
+
+
+
+
+
+
+256,000	
+2M
+tpm
+480
+rpm
+
+$3.00
+$15.00
+grok-3-mini
+
+
+
+
+
+
+
+131,072	
+480
+rpm
+
+$0.30
+$0.50
+grok-3
+
+
+
+
+
+
+
+131,072	
+600
+rpm
+
+$3.00
+$15.00
+grok-2-vision-1212us-east-1
+
+
+
+
+
+
+
+32,768	
+600
+rpm
+
+$2.00
+$10.00
+grok-2-vision-1212eu-west-1
+
+
+
+
+
+
+
+32,768	
+50
+rps
+
+$2.00
+$10.00
+Image generation models		Per image output
+grok-2-image-1212
+
+
+
+
+
+
+
+300
+rpm
+
+$0.07
+Grok 4 Information for Grok 3 Users
+When moving from 
+grok-3
+/
+grok-3-mini
+ to 
+grok-4
+, please note the following differences:
+
+• Grok 4 is a reasoning model. There are no non-reasoning mode when using Grok 4.
+• 
+presencePenalty
+, 
+frequencyPenalty
+ and 
+stop
+ parameters are not supported by reasoning models. Adding them in the request would result in error.
+• Grok 4 does not have a 
+reasoning_effort
+ parameter. If a 
+reasoning_effort
+ is provided, the request will return error.
+Tools Pricing
+Requests which make use of xAI provided server-side tools are priced based on two components: token usage and server-side tool invocations. Since the agent autonomously decides how many tools to call, costs scale with query complexity.
+
+Token Costs
+All standard token types are billed at the rate for the model used in the request:
+
+Input tokens: Your query and conversation history
+Reasoning tokens: Agent's internal thinking and planning
+Completion tokens: The final response
+Image tokens: Visual content analysis (when applicable)
+Cached prompt tokens: Prompt tokens that were served from cache rather than recomputed
+Tool Invocation Costs
+Tool	Cost per 1,000 calls	Description
+Web Search	$10	Internet search and page browsing
+X Search	$10	X posts, users, and threads
+Code Execution	$10	Python code execution environment
+View Image	Token-based only	Image analysis within search results
+View X Video	Token-based only	Video analysis within X posts
+For the view image and view x video tools, you will not be charged for the tool invocation itself but will be charged for the image tokens used to process the image or video.
+
+For more information on using Tools, please visit our guide on Tools.
+
+Live Search Pricing
+The advanced agentic search capabilities powering grok.com are generally available in the new agentic tool calling API, and the Live Search API will be deprecated by December 15, 2025.
+
+Live Search costs $25 per 1,000 sources requested, each source used (Web, X, News, RSS) in a request counts toward the usage. That means a search using 4 sources costs $0.10 while a search using 1 source is $0.025. A source (e.g. Web) may return multiple citations, but you will be charged for only one source.
+
+The number of sources used can be found in the 
+response
+ object, which contains a field called 
+response.usage.num_sources_used
+.
+
+For more information on using Live Search, visit our guide on Live Search or look for 
+search_parameters
+ parameter on API Reference - Chat Completions.
+
+Documents Search Pricing
+For users using our Collections API and Documents Search, the following pricing applies:
+
+Item
+Price
+Documents Search
+$2.50/1k requests
+File Storage
+free
+Collections Storage
+free
+Usage Guidelines Violation Fee
+A rare occurrence for most users, when your request is deemed to be in violation of our usage guideline by our system, we will charge a $0.05 per request usage guidelines violation fee.
+
+Additional Information Regarding Models
+No access to realtime events without Live Search enabled
+Grok has no knowledge of current events or data beyond what was present in its training data.
+To incorporate realtime data with your request, please use Live Search function, or pass any realtime data as context in your system prompt.
+Chat models
+No role order limitation: You can mix 
+system
+, 
+user
+, or 
+assistant
+ roles in any sequence for your conversation context.
+Image input models
+Maximum image size: 
+20MiB
+Maximum number of images: No limit
+Supported image file types: 
+jpg/jpeg
+ or 
+png
+.
+Any image/text input order is accepted (e.g. text prompt can precede image prompt)
+The knowledge cut-off date of Grok 3 and Grok 4 are November, 2024.
+
+Model Aliases
+Some models have aliases to help user automatically migrate to the next version of the same model. In general:
+
+<modelname>
+ is aliased to the latest stable version.
+<modelname>-latest
+ is aliased to the latest version. This is suitable for users who want to access the latest features.
+<modelname>-<date>
+ refers directly to a specific model release. This will not be updated and is for workflows that demand consistency.
+For most users, the aliased 
+<modelname>
+ or 
+<modelname>-latest
+ are recommended, as you would receive the latest features automatically.
+
+Billing and Availability
+Your model access might vary depending on various factors such as geographical location, account limitations, etc.
+
+For how the bills are charged, visit Manage Billing for more information.
+
+For the most up-to-date information on your team's model availability, visit Models Page on xAI Console.
+
+Model Input and Output
+Each model can have one or multiple input and output capabilities. The input capabilities refer to which type(s) of prompt can the model accept in the request message body. The output capabilities refer to which type(s) of completion will the model generate in the response message body.
+
+This is a prompt example for models with 
+text
+ input capability:
+
+json
+
+
+[
+  {
+    "role": "system",
+    "content": "You are Grok, a chatbot inspired by the Hitchhikers Guide to the Galaxy."
+  },
+  {
+    "role": "user",
+    "content": "What is the meaning of life, the universe, and everything?"
+  }
+]
+This is a prompt example for models with 
+text
+ and 
+image
+ input capabilities:
+
+json
+
+
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "data:image/jpeg;base64,<base64_image_string>",
+          "detail": "high"
+        }
+      },
+      {
+        "type": "text",
+        "text": "Describe what's in this image."
+      }
+    ]
+  }
+]
+This is a prompt example for models with 
+text
+ input and 
+image
+ output capabilities:
+
+json
+
+
+// The entire request body
+{
+  "model": "grok-4",
+  "prompt": "A cat in a tree",
+  "n": 4
+}
+Context Window
+The context window determines the maximum amount of token accepted by the model in the prompt.
+
+For more information on how token is counted, visit Consumption and Rate Limits.
+
+If you are sending the entire conversation history in the prompt for use cases like chat assistant, the sum of all the prompts in your conversation history must be no greater than the context window.
+
+Cached prompt tokens
+Trying to run the same prompt multiple times? You can now use cached prompt tokens to incur less cost on repeated prompts. By reusing stored prompt data, you save on processing expenses for identical requests. Enable caching in your settings and start saving today!
+
+The caching is automatically enabled for all requests without user input. You can view the cached prompt token consumption in the 
+"usage"
+ object.
+
+Collections
+Collections offers xAI API users a robust set of tools and methods to seamlessly integrate their enterprise requirements and internal knowledge bases with the xAI API. This feature enables efficient management, retrieval, and utilization of documents to enhance AI-driven workflows and applications.
+
+There are two entities that user can create within Collections service:
+
+file
+A 
+file
+ is a single entity of a user-uploaded file.
+collection
+A 
+collection
+ is a group of 
+files
+ linked together, with an embedding index for efficient retrieval of each 
+file
+.
+When you create a 
+collection
+ you have the option to automatically generate embeddings for any files uploaded to that 
+collection
+. You can then perform semantic search across files in multiple 
+collections
+.
+A single 
+file
+ can belong to multiple 
+collections
+ but must be part of at least one 
+collection
+.
+File storage and retrieval
+Visit the Collections tab on the xAI Console to create a new 
+collection
+. Once created, you can add 
+files
+ to the 
+collection
+.
+
+All your 
+collections
+ and their associated 
+files
+ can be viewed in the Collections tab.
+
+Your 
+files
+ and their embedding index are securely encrypted and stored on our servers. The index enables efficient retrieval of 
+files
+ during a relevance search.
+
+Data Privacy
+We do not use user data stored on Collections for model training purposes by default, unless user has given consent.
+
+Using Management API
+Some enterprise users may prefer to manage their account details programmatically rather than manually through the xAI Console. For this reason, we have developed a Management API to enable enterprise users to efficiently manage their team details.
+
+You can read the endpoint specifications and descriptions at Management API Reference.
+
+You need to get a management key, which is separate from your API key, to use the management API. The management key can be obtained at xAI Console -> Settings -> Management Keys.
+
+Management API keys table in xAI Console settings showing available management keys
+The base URL is at 
+https://management-api.x.ai
+, which is also different from the inference API.
+
+Operations related to API Keys
+You can create, list, update and delete API keys via the management API.
+
+You can also manage the access control lists (ACLs) associated with the API keys.
+
+The available ACL types are:
+
+api-key:model
+api-key:endpoint
+To enable all models and endpoints available to your team, use:
+
+api-key:model:*
+api-key:endpoint:*
+Or if you need to specify the particular endpoint available to the API:
+
+api-key:endpoint:chat
+ for chat and vision models
+api-key:endpoint:image
+ for image generation models
+And to specify models the API key has access to:
+
+api-key:model:<model name such as grok-4>
+Create an API key
+An example to create an API key with all models and endpoints enabled, limiting requests to 5 queries per second and 100 queries per minute, without token number restrictions.
+
+bash
+
+
+curl https://management-api.x.ai/auth/teams/{teamId}/api-keys \
+    -X POST \
+    -H "Authorization: Bearer <Your Management API Key>" \
+    -d '{
+            "name": "My API key",
+            "acls": ["api-key:model:*", "api-key:endpoint:*"],
+            "qps": 5,
+            "qpm": 100,
+            "tpm": null
+        }'
+Specify 
+tpm
+ to any integer string to limit the number of tokens produced/consumed per minute. When the token rate limit is triggered, new requests will be rejected and in-flight requests will continue processing.
+
+The newly-created API key will be returned in the 
+"apiKey"
+ field of the response object. The API Key ID is returned as 
+"apiKeyId"
+ in the response body as well, which is useful for updating and deleting operations.
+
+List API keys
+To retrieve a list of API keys from a team, you can run the following:
+
+bash
+
+
+curl https://management-api.x.ai/auth/teams/{teamId}/api-keys?pageSize=10&paginationToken= \
+    -H "Authorization: Bearer <Your Management API Key>"
+You can customize the query parameters such as 
+pageSize
+ and 
+paginationToken
+.
+
+Update an API key
+You can update an API key after it has been created. For example, to update the 
+qpm
+ of an API key:
+
+bash
+
+
+curl https://management-api.x.ai/auth/teams/{teamId}/api-keys \
+    -X PUT \
+    -d '{
+            "apiKey": "<The apiKey Object with updated qpm>",
+            "fieldMask": "qpm",
+        }'
+Or to update the 
+name
+ of an API key:
+
+bash
+
+
+curl https://management-api.x.ai/auth/teams/{teamId}/api-keys \
+    -X PUT \
+    -d '{
+            "apiKey": "<The apiKey Object with updated name>",
+            "fieldMask": "name",
+        }'
+Delete an API key
+You can also delete an API key with the following:
+
+bash
+
+
+curl https://management-api.x.ai/auth/api-keys/{apiKeyId} \
+    -X DELETE \
+    -H "Authorization: Bearer <Your Management API Key>"
+Check propagation status of API key across clusters
+There could be a slight delay between creating an API key, and the API key being available for use across all clusters.
+
+You can check the propagation status of the API key via API.
+
+bash
+
+
+curl https://management-api.x.ai/auth/api-keys/{apiKeyId}/propagation \
+    -H "Authorization: Bearer <Your Management API Key>"
+List all models available for the team
+You can list all the available models for a team with our management API as well.
+
+The model names in the output can be used with setting ACL string on an API key as 
+api-key:model:<model-name>
+
+bash
+
+
+curl https://management-api.x.ai/auth/teams/{teamId}/models \
+    -H "Authorization: Bearer <Your Management API Key>"
+Access Control List (ACL) management
+We also offer endpoint to list possible ACLs for a team. You can then apply the endpoint ACL strings to your API keys.
+
+To view possible endpoint ACLs for a team's API keys:
+
+bash
+
+
+curl https://management-api.x.ai/auth/teams/{teamId}/endpoints \
+    -H "Authorization: Bearer <Your Management API Key>"
+
+Stateful Response with Responses API
+Responses API is a new way of interacting with our models via API. It allows a stateful interaction with our models, where previous input prompts, reasoning content and model responses are saved by us. A user can continue the interaction by appending new prompt messages, rather than sending all of the previous messages.
+
+Although you don't need to enter the conversation history in the request body, you will still be billed for the entire conversation history when using Responses API. The cost might be reduced as the conversation history might be automatically cached.
+
+The responses will be stored for 30 days, after which they will be removed. If you want to continue a response after 30 days, please store your responses history as well as the encrypted thinking content to create a new response. The encrypted thinking content can then be sent in the request body to give you a better result. See Returning encrypted thinking content for more information on retrieving encrypted content.
+
+Prerequisites
+xAI Account: You need an xAI account to access the API.
+API Key: Ensure that your API key has access to the chat endpoint and the chat model is enabled.
+If you don't have these and are unsure of how to create one, follow the Hitchhiker's Guide to Grok.
+
+You can create an API key on the xAI Console API Keys Page.
+
+Set your API key in your environment:
+
+bash
+
+
+export XAI_API_KEY="your_api_key"
+Creating a new model response
+The first step in using Responses API is analogous to using Chat Completions API. You will create a new response with prompts.
+
+instructions
+ parameter is currently not supported. The API will return an error if it is specified.
+
+When sending images, it is advised to set 
+store
+ parameters to 
+false
+. Otherwise the request may fail.
+
+
+python (xAI SDK)
+
+
+import os
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    management_api_key=os.getenv("XAI_MANAGEMENT_API_KEY"),
+    timeout=3600,
+)
+
+chat = client.chat.create(model="grok-4", store_messages=True)
+chat.append(system("You are Grok, a chatbot inspired by the Hitchhiker's Guide to the Galaxy."))
+chat.append(user("What is the meaning of life, the universe, and everything?"))
+response = chat.sample()
+
+print(response)
+
+# The response id that can be used to continue the conversation later
+
+print(response.id)
+If no system prompt is desired, for non-xAI SDK users, the request's input parameter can be simplified as a string user prompt:
+
+
+python (xAI SDK)
+
+
+import os
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    management_api_key=os.getenv("XAI_MANAGEMENT_API_KEY"),
+    timeout=3600,
+)
+
+chat = client.chat.create(model="grok-4", store_messages=True)
+chat.append(user("What is 101*3"))
+response = chat.sample()
+
+print(response)
+
+# The response id that can be used to continue the conversation later
+
+print(response.id)
+Returning encrypted thinking content
+If you want to return the encrypted thinking traces, you need to specify 
+use_encrypted_content=True
+ in xAI SDK or gRPC request message, or 
+include: ["reasoning.encrypted_content"]
+ in the request body.
+
+Modify the steps to create a chat client (xAI SDK) or change the request body as following:
+
+
+python (xAI SDK)
+
+
+chat = client.chat.create(model="grok-4",
+        store_messages=True,
+        use_encrypted_content=True)
+See Adding encrypted thinking content on how to use the returned encrypted thinking content.
+
+Chaining the conversation
+We now have the 
+id
+ of the first response. With Chat Completions API, we typically send a stateless new request with all the previous messages.
+
+With Responses API, we can send the 
+id
+ of the previous response, and the new messages to append to it.
+
+
+python (xAI SDK)
+
+
+import os
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    management_api_key=os.getenv("XAI_MANAGEMENT_API_KEY"),
+    timeout=3600,
+)
+
+chat = client.chat.create(model="grok-4", store_messages=True)
+chat.append(system("You are Grok, a chatbot inspired by the Hitchhiker's Guide to the Galaxy."))
+chat.append(user("What is the meaning of life, the universe, and everything?"))
+response = chat.sample()
+
+print(response)
+
+# The response id that can be used to continue the conversation later
+
+print(response.id)
+
+# New steps
+
+chat = client.chat.create(
+    model="grok-4",
+    previous_response_id=response.id,
+    store_messages=True,
+)
+chat.append(user("What is the meaning of 42?"))
+second_response = chat.sample()
+
+print(second_response)
+
+# The response id that can be used to continue the conversation later
+
+print(second_response.id)
+Adding encrypted thinking content
+After returning the encrypted thinking content, you can also add it to a new response's input:
+
+
+python (xAI SDK)
+
+
+import os
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    management_api_key=os.getenv("XAI_MANAGEMENT_API_KEY"),
+    timeout=3600,
+)
+
+chat = client.chat.create(model="grok-4", store_messages=True, use_encrypted_content=True)
+chat.append(system("You are Grok, a chatbot inspired by the Hitchhiker's Guide to the Galaxy."))
+chat.append(user("What is the meaning of life, the universe, and everything?"))
+response = chat.sample()
+
+print(response)
+
+# The response id that can be used to continue the conversation later
+
+print(response.id)
+
+# New steps
+
+chat.append(response)  ## Append the response and the SDK will automatically add the outputs from response to message history
+
+chat.append(user("What is the meaning of 42?"))
+second_response = chat.sample()
+
+print(second_response)
+
+# The response id that can be used to continue the conversation later
+
+print(second_response.id)
+Retrieving a previous model response
+If you have a previous response's ID, you can retrieve the content of the response.
+
+
+python (xAI SDK)
+
+
+import os
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    management_api_key=os.getenv("XAI_MANAGEMENT_API_KEY"),
+    timeout=3600,
+)
+
+response = client.chat.get_stored_completion("<The previous response's id>")
+
+print(response)
+Delete a model response
+If you no longer want to store the previous model response, you can delete it.
+
+
+python (xAI SDK)
+
+
+import os
+from xai_sdk import Client
+from xai_sdk.chat import user, system
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    management_api_key=os.getenv("XAI_MANAGEMENT_API_KEY"),
+    timeout=3600,
+)
+
+response = client.chat.delete_stored_completion("<The previous response's id>")
+print(response)
+
+Reasoning
+grok-4-non-reasoning
+ variants are based on 
+grok-4
+ with reasoning disabled.
+
+presencePenalty
+, 
+frequencyPenalty
+ and 
+stop
+ parameters are not supported by reasoning models. Adding them in the request would result in error.
+
+Key Features
+Think Before Responding: Thinks through problems step-by-step before delivering an answer.
+Math & Quantitative Strength: Excels at numerical challenges and logic puzzles.
+Reasoning Trace: The model's thoughts are available via the 
+reasoning_content
+ or 
+encrypted_content
+ field in the response completion object (see example below).
+You can access the model's raw thinking trace via the 
+message.reasoning_content
+ of the chat completion response.
+
+grok-4
+ does not return 
+reasoning_content
+. It may optionally return encrypted reasoning content instead.
+Encrypted Reasoning Content
+For 
+grok-4
+, the reasoning content is encrypted by us and sent back if 
+use_encrypted_content
+ is set to 
+true
+. You can send the encrypted content back to provide more context to a previous conversation. See Stateful Response with Responses API for more details on how to use the content.
+
+Control how hard the model thinks
+reasoning_effort
+ is not supported by 
+grok-4
+. Specifying 
+reasoning_effort
+ parameter will get an error response.
+
+The 
+reasoning_effort
+ parameter controls how much time the model spends thinking before responding. It must be set to one of these values:
+
+low
+: Minimal thinking time, using fewer tokens for quick responses.
+high
+: Maximum thinking time, leveraging more tokens for complex problems.
+Choosing the right level depends on your task: use 
+low
+ for simple queries that should complete quickly, and 
+high
+ for harder problems where response latency is less important.
+
+Usage Example
+Here’s a simple example using 
+grok-4
+ to multiply 101 by 3.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import system, user
+
+client = Client(
+    api_key=os.getenv("XAI_API_KEY"),
+    timeout=3600, # Override default timeout with longer timeout for reasoning models
+)
+
+chat = client.chat.create(
+    model="grok-4",
+    messages=[system("You are a highly intelligent AI assistant.")],
+)
+chat.append(user("What is 101*3?"))
+
+response = chat.sample()
+
+print("Final Response:")
+print(response.content)
+
+print("Number of completion tokens:")
+print(response.usage.completion_tokens)
+
+print("Number of reasoning tokens:")
+print(response.usage.reasoning_tokens)
+Sample Output
+output
+
+
+
+Final Response:
+The result of 101 multiplied by 3 is 303.
+
+Number of completion tokens:
+14
+
+Number of reasoning tokens:
+310
+Notes on Consumption
+When you use a reasoning model, the reasoning tokens are also added to your final consumption amount. The reasoning token consumption will likely increase when you use a higher 
+reasoning_effort
+ setting.
+
+Search Tools
+Agentic search represents one of the most compelling applications of agentic tool calling, with 
+grok-4-fast
+ specifically trained to excel in this domain. Leveraging its speed and reasoning capabilities, the model iteratively calls search tools—analyzing responses and making follow-up queries as needed—to seamlessly navigate web pages and X posts, uncovering difficult-to-find information or insights that would otherwise require extensive human analysis.
+
+xAI Python SDK Users: Version 1.3.1 of the xai-sdk package is required to use the agentic tool calling API.
+
+Available Search Tools
+You can use the following server-side search tools in your request:
+
+Web Search - allows the agent to search the web and browse pages
+X Search - allows the agent to perform keyword search, semantic search, user search, and thread fetch on X
+You can customize which tools are enabled in a given request by listing the needed tools in the 
+tools
+ parameter in the request.
+
+Tool	xAI SDK	OpenAI Responses API
+Web Search	
+web_search
+web_search
+X Search	
+x_search
+x_search
+Retrieving Citations
+Citations provide traceability for sources used during agentic search. Access them from the response object:
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import web_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[web_search()],
+)
+
+chat.append(user("What is xAI?"))
+
+is_thinking = True
+for response, chunk in chat.stream():
+    # View the server-side tool calls as they are being made in real-time
+    for tool_call in chunk.tool_calls:
+        print(f"\nCalling tool: {tool_call.function.name} with arguments: {tool_call.function.arguments}")
+    if response.usage.reasoning_tokens and is_thinking:
+        print(f"\rThinking... ({response.usage.reasoning_tokens} tokens)", end="", flush=True)
+    if chunk.content and is_thinking:
+        print("\n\nFinal Response:")
+        is_thinking = False
+    if chunk.content and not is_thinking:
+        print(chunk.content, end="", flush=True)
+
+print("\n\nCitations:")
+print(response.citations)
+print("\n\nUsage:")
+print(response.usage)
+print(response.server_side_tool_usage)
+print("\n\nServer Side Tool Calls:")
+print(response.tool_calls)
+As mentioned in the overview page, the citations array contains the URLs of all sources the agent encountered during its search process, meaning that not every URL here will necessarily be relevant to the final answer, as the agent may examine a particular source and determine it is not sufficiently relevant to the user's original query.
+
+For complete details on citations, including when they're available and usage notes, see the overview page.
+
+Applying Search Filters to Control Agentic Search
+Each search tool supports a set of optional search parameters to help you narrow down the search space and limit the sources/information the agent is exposed to during its search process.
+
+Tool	Supported Filter Parameters
+Web Search	
+allowed_domains
+, 
+excluded_domains
+, 
+enable_image_understanding
+X Search	
+allowed_x_handles
+, 
+excluded_x_handles
+, 
+from_date
+, 
+to_date
+, 
+enable_image_understanding
+, 
+enable_video_understanding
+Web Search Parameters
+Only Search in Specific Domains
+Use 
+allowed_domains
+ to make the web search only perform the search and web browsing on web pages that fall within the specified domains.
+
+allowed_domains
+ can include a maximum of five domains.
+
+allowed_domains
+ cannot be set together with 
+excluded_domains
+ in the same request.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import web_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        web_search(allowed_domains=["wikipedia.org"]),
+    ],
+)
+
+chat.append(user("What is xAI?"))
+
+# stream or sample the response...
+Exclude Specific Domains
+Use 
+excluded_domains
+ to prevent the model from including the specified domains in any web search tool invocations and from browsing any pages on those domains.
+
+excluded_domains
+ can include a maximum of five domains.
+
+excluded_domains
+ cannot be set together with 
+allowed_domains
+ in the same request.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import web_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        web_search(excluded_domains=["wikipedia.org"]),
+    ],
+)
+
+chat.append(user("What is xAI?"))
+
+# stream or sample the response...
+Enable Image Understanding
+Setting 
+enable_image_understanding
+ to true equips the agent with access to the 
+view_image
+ tool, allowing it to invoke this tool on any image URLs encountered during the search process. The model can then interpret and analyze image contents, incorporating this visual information into its context to potentially influence the trajectory of follow-up tool calls.
+
+When the model invokes this tool, you will see it as an entry in 
+chunk.tool_calls
+ and 
+response.tool_calls
+ with the 
+image_url
+ as a parameter. Additionally, 
+SERVER_SIDE_TOOL_VIEW_IMAGE
+ will appear in 
+response.server_side_tool_usage
+ along with the number of times it was called when using the xAI Python SDK.
+
+Note that enabling this feature increases token usage, as images are processed and represented as image tokens in the model's context.
+
+Enabling this parameter for Web Search will also enable the image understanding for X Search tool if it's also included in the request.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import web_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        web_search(enable_image_understanding=True),
+    ],
+)
+
+chat.append(user("What is included in the image in xAI's official website?"))
+
+# stream or sample the response...
+X Search Parameters
+Only Consider X Posts from Specific Handles
+Use 
+allowed_x_handles
+ to consider X posts only from a given list of X handles. The maximum number of handles you can include is 10.
+
+allowed_x_handles
+ cannot be set together with 
+excluded_x_handles
+ in the same request.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import x_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        x_search(allowed_x_handles=["elonmusk"]),
+    ],
+)
+
+chat.append(user("What is the current status of xAI?"))
+
+# stream or sample the response...
+Exclude X Posts from Specific Handles
+Use 
+excluded_x_handles
+ to prevent the model from including X posts from the specified handles in any X search tool invocations. The maximum number of handles you can exclude is 10.
+
+excluded_x_handles
+ cannot be set together with 
+allowed_x_handles
+ in the same request.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import x_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        x_search(excluded_x_handles=["elonmusk"]),
+    ],
+)
+
+chat.append(user("What is the current status of xAI?"))
+
+# stream or sample the response...
+Date Range
+You can restrict the date range of search data used by specifying 
+from_date
+ and 
+to_date
+. This limits the data to the period from 
+from_date
+ to 
+to_date
+, including both dates.
+
+Both fields need to be in ISO8601 format, e.g., "YYYY-MM-DD". If you're using the xAI Python SDK, the 
+from_date
+ and 
+to_date
+ fields can be passed as 
+datetime.datetime
+ objects.
+
+The fields can also be used independently. With only 
+from_date
+ specified, the data used will be from the 
+from_date
+ to today, and with only 
+to_date
+ specified, the data used will be all data until the 
+to_date
+.
+
+
+python (xAI SDK)
+
+
+import os
+from datetime import datetime
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import x_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        x_search(
+            from_date=datetime(2025, 10, 1),
+            to_date=datetime(2025, 10, 10),
+        ),
+    ],
+)
+
+chat.append(user("What is the current status of xAI?"))
+
+# stream or sample the response...
+Enable Image Understanding
+Setting 
+enable_image_understanding
+ to true equips the agent with access to the 
+view_image
+ tool, allowing it to invoke this tool on any image URLs encountered during the search process. The model can then interpret and analyze image contents, incorporating this visual information into its context to potentially influence the trajectory of follow-up tool calls.
+
+When the model invokes this tool, you will see it as an entry in 
+chunk.tool_calls
+ and 
+response.tool_calls
+ with the 
+image_url
+ as a parameter. Additionally, 
+SERVER_SIDE_TOOL_VIEW_IMAGE
+ will appear in 
+response.server_side_tool_usage
+ along with the number of times it was called when using the xAI Python SDK.
+
+Note that enabling this feature increases token usage, as images are processed and represented as image tokens in the model's context.
+
+Enabling this parameter for X Search will also enable the image understanding for Web Search tool if it's also included in the request.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import x_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        x_search(enable_image_understanding=True),
+    ],
+)
+
+chat.append(user("What images are being shared in recent xAI posts?"))
+
+# stream or sample the response...
+Enable Video Understanding
+Setting 
+enable_video_understanding
+ to true equips the agent with access to the 
+view_x_video
+ tool, allowing it to invoke this tool on any video URLs encountered in X posts during the search process. The model can then analyze video content, incorporating this information into its context to potentially influence the trajectory of follow-up tool calls.
+
+When the model invokes this tool, you will see it as an entry in 
+chunk.tool_calls
+ and 
+response.tool_calls
+ with the 
+video_url
+ as a parameter. Additionally, 
+SERVER_SIDE_TOOL_VIEW_X_VIDEO
+ will appear in 
+response.server_side_tool_usage
+ along with the number of times it was called when using the xAI Python SDK.
+
+Note that enabling this feature increases token usage, as video content is processed and represented as tokens in the model's context.
+
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import x_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        x_search(enable_video_understanding=True),
+    ],
+)
+
+chat.append(user("What is the latest video talking about from the xAI official X account?"))
+
+# stream or sample the response...
+
+Overview
+The xAI API supports agentic server-side tool calling which enables the model to autonomously explore, search, and execute code to solve complex queries. Unlike traditional tool-calling where clients must handle each tool invocation themselves, xAI's agentic API manages the entire reasoning and tool-execution loop on the server side.
+
+xAI Python SDK Users: Version 1.3.1 of the xai-sdk package is required to use the agentic tool calling API.
+
+Tools Pricing
+Agentic requests are priced based on two components: token usage and tool invocations. Since the agent autonomously decides how many tools to call, costs scale with query complexity.
+
+For more details of Tools pricing, please check out the pricing page.
+
+Agentic Tool Calling
+When you provide server-side tools to a request, the xAI server orchestrates an autonomous reasoning loop rather than returning tool calls for you to execute. This creates a seamless experience where the model acts as an intelligent agent that researches, analyzes, and responds automatically.
+
+Behind the scenes, the model follows an iterative reasoning process:
+
+Analyzes the query and current context to determine what information is needed
+Decides what to do next: Either make a tool call to gather more information or provide a final answer
+If making a tool call: Selects the appropriate tool and parameters based on the reasoning
+Executes the tool in real-time on the server and receives the results
+Processes the tool response and integrates it with previous context and reasoning
+Repeats the loop: Uses the new information to decide whether more research is needed or if a final answer can be provided
+Returns the final response once the agent determines it has sufficient information to answer comprehensively
+This autonomous orchestration enables complex multi-step research and analysis to happen automatically, with clients seeing the final result as well as optional real-time progress indicators like tool call notifications during streaming.
+
+Core Capabilities
+Web Search: Real-time search across the internet with the ability to both search the web and browse web pages.
+X Search: Semantic and keyword search across X posts, users, and threads.
+Code Execution: The model can write and execute Python code for calculations, data analysis, and complex computations.
+Image/Video Understanding: Optional visual content understanding and analysis for the search results encountered (video understanding is only available for X posts).
+Quick Start
+We strongly recommend using the xAI Python SDK in streaming mode when using agentic tool calling. Doing so grants you the full feature set of the API, including the ability to get real-time observability and immediate feedback during potentially long-running requests.
+
+Here is a quick start example of using the agentic tool calling API.
+
+python (xAI SDK)
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import web_search, x_search, code_execution
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    # All server-side tools active
+    tools=[
+        web_search(),
+        x_search(),
+        code_execution(),
+    ],
+)
+
+# Feel free to change the query here to a question of your liking
+chat.append(user("What are the latest updates from xAI?"))
+
+is_thinking = True
+for response, chunk in chat.stream():
+    # View the server-side tool calls as they are being made in real-time
+    for tool_call in chunk.tool_calls:
+        print(f"\nCalling tool: {tool_call.function.name} with arguments: {tool_call.function.arguments}")
+    if response.usage.reasoning_tokens and is_thinking:
+        print(f"\rThinking... ({response.usage.reasoning_tokens} tokens)", end="", flush=True)
+    if chunk.content and is_thinking:
+        print("\n\nFinal Response:")
+        is_thinking = False
+    if chunk.content and not is_thinking:
+        print(chunk.content, end="", flush=True)
+
+print("\n\nCitations:")
+print(response.citations)
+print("\n\nUsage:")
+print(response.usage)
+print(response.server_side_tool_usage)
+print("\n\nServer Side Tool Calls:")
+print(response.tool_calls)
+You will be able to see output like:
+
+output
+
+
+Thinking... (270 tokens)
+Calling tool: x_user_search with arguments: {"query":"xAI official","count":1}
+Thinking... (348 tokens)
+Calling tool: x_user_search with arguments: {"query":"xAI","count":5}
+Thinking... (410 tokens)
+Calling tool: x_keyword_search with arguments: {"query":"from:xai","limit":10,"mode":"Latest"}
+Thinking... (667 tokens)
+Calling tool: web_search with arguments: {"query":"xAI latest updates site:x.ai","num_results":5}
+Thinking... (850 tokens)
+Calling tool: browse_page with arguments: {"url": "https://x.ai/news"}
+Thinking... (1215 tokens)
+
+Final Response:
+### Latest Updates from xAI (as of October 12, 2025)
+
+xAI primarily shares real-time updates via their official X (Twitter) account (@xai), with more formal announcements on their website (x.ai). Below is a summary of the most recent developments...
+
+... full response omitted for brevity
+
+Citations:
+[
+'https://x.com/i/user/1912644073896206336',
+'https://x.com/i/user/1019237602585645057',
+'https://x.com/i/status/1975607901571199086',
+'https://x.com/i/status/1975608122845896765',
+'https://x.com/i/status/1975608070245175592',
+'https://x.com/i/user/1603826710016819209',
+'https://x.com/i/status/1975608007250829383',
+'https://status.x.ai/',
+'https://x.com/i/user/150543432',
+'https://x.com/i/status/1975608184711880816',
+'https://x.com/i/status/1971245659660718431',
+'https://x.com/i/status/1975608132530544900',
+'https://x.com/i/user/1661523610111193088',
+'https://x.com/i/status/1977121515587223679',
+'https://x.ai/news/grok-4-fast',
+'https://x.com/i/status/1975608017396867282',
+'https://x.ai/',
+'https://x.com/i/status/1975607953391755740',
+'https://x.com/i/user/1875560944044273665',
+'https://x.ai/news',
+'https://docs.x.ai/docs/release-notes'
+]
+
+
+Usage:
+completion_tokens: 1216
+prompt_tokens: 29137
+total_tokens: 31568
+prompt_text_tokens: 29137
+reasoning_tokens: 1215
+cached_prompt_text_tokens: 22565
+server_side_tools_used: SERVER_SIDE_TOOL_X_SEARCH
+server_side_tools_used: SERVER_SIDE_TOOL_X_SEARCH
+server_side_tools_used: SERVER_SIDE_TOOL_X_SEARCH
+server_side_tools_used: SERVER_SIDE_TOOL_WEB_SEARCH
+server_side_tools_used: SERVER_SIDE_TOOL_WEB_SEARCH
+
+{'SERVER_SIDE_TOOL_X_SEARCH': 3, 'SERVER_SIDE_TOOL_WEB_SEARCH': 2}
+
+
+Server Side Tool Calls:
+[id: "call_51132959"
+function {
+  name: "x_user_search"
+  arguments: "{"query":"xAI official","count":1}"
+}
+, id: "call_00956753"
+function {
+  name: "x_user_search"
+  arguments: "{"query":"xAI","count":5}"
+}
+, id: "call_07881908"
+function {
+  name: "x_keyword_search"
+  arguments: "{"query":"from:xai","limit":10,"mode":"Latest"}"
+}
+, id: "call_43296276"
+function {
+  name: "web_search"
+  arguments: "{"query":"xAI latest updates site:x.ai","num_results":5}"
+}
+, id: "call_70310550"
+function {
+  name: "browse_page"
+  arguments: "{"url": "https://x.ai/news"}"
+}
+]
+Understanding the Agentic Tool Calling Response
+The agentic tool calling API provides rich observability into the autonomous research process. This section dives deep into the original code snippet above, covering key ways to effectively use the API and understand both real-time streaming responses and final results:
+
+Real-time server-side tool calls
+When executing agentic requests using streaming, you can observe every tool call decision the model makes in real-time via the 
+tool_calls
+ attribute on the 
+chunk
+ object. This shows the exact parameters the agent chose for each tool invocation, giving you visibility into its search strategy. Occasionally the model may decide to invoke multiple tools in parallel during a single turn, in which case each entry in the list of 
+tool_calls
+ would represent one of those parallel tool calls; otherwise, only a single entry would be present in 
+tool_calls
+.
+
+Note: Only the tool call invocations themselves are shown - server-side tool call outputs are not returned in the API response. The agent uses these outputs internally to formulate its final response, but they are not exposed to the user.
+
+When using the xAI Python SDK in streaming mode, it will automatically accumulate the 
+tool_calls
+ into the 
+response
+ object for you, letting you access a final list of all the server-side tool calls made during the agentic loop, this is demonstrated in the section below.
+
+python
+
+
+for tool_call in chunk.tool_calls:
+    print(f"\nCalling tool: {tool_call.function.name} with arguments: {tool_call.function.arguments}")
+output
+
+
+Calling tool: x_user_search with arguments: {"query":"xAI official","count":1}
+Calling tool: x_user_search with arguments: {"query":"xAI","count":5}
+Calling tool: x_keyword_search with arguments: {"query":"from:xai","limit":10,"mode":"Latest"}
+Calling tool: web_search with arguments: {"query":"xAI latest updates site:x.ai","num_results":5}
+Calling tool: browse_page with arguments: {"url": "https://x.ai/news"}
+Citations
+The 
+citations
+ attribute on the 
+response
+ object provides a comprehensive list of URLs for all sources the agent encountered during its search process. They are only returned when the agentic request completes and are not available in real-time during streaming. Citations are automatically collected from successful tool executions and provide full traceability of the agent's information sources.
+
+Note that not every URL here will necessarily be relevant to the final answer, as the agent may examine a particular source and determine it is not sufficiently relevant to the user's original query.
+
+python
+
+
+response.citations
+output
+
+
+[
+'https://x.com/i/user/1912644073896206336',
+'https://x.com/i/status/1975607901571199086',
+'https://x.ai/news',
+'https://docs.x.ai/docs/release-notes',
+...
+]
+Server-side Tool Calls vs Tool Usage
+The API provides two related but distinct metrics for server-side tool executions:
+
+tool_calls
+ - All Attempted Calls
+
+python
+
+
+response.tool_calls
+Returns a list of all attempted tool calls made during the agentic process. Each entry is a ToolCall object containing:
+
+id
+: Unique identifier for the tool call
+function.name
+: The name of the specific server-side tool called
+function.arguments
+: The parameters passed to the server-side tool
+This includes every tool call attempt, even if some fail.
+
+output
+
+
+[id: "call_51132959"
+function {
+  name: "x_user_search"
+  arguments: "{"query":"xAI official","count":1}"
+}
+, id: "call_07881908"
+function {
+  name: "x_keyword_search"
+  arguments: "{"query":"from:xai","limit":10,"mode":"Latest"}"
+}
+, id: "call_43296276"
+function {
+  name: "web_search"
+  arguments: "{"query":"xAI latest updates site:x.ai","num_results":5}"
+}
+]
+server_side_tool_usage
+ - Successful Calls (Billable)
+
+python
+
+
+response.server_side_tool_usage
+Returns a map of successfully executed tools and their invocation counts. This represents only the tool calls that returned meaningful responses and is what determines your billing.
+
+output
+
+
+{'SERVER_SIDE_TOOL_X_SEARCH': 3, 'SERVER_SIDE_TOOL_WEB_SEARCH': 2}
+Tool Call Function Names vs Usage Categories
+The function names in 
+tool_calls
+ represent the precise/exact name of the tool invoked by the model, while the entries in 
+server_side_tool_usage
+ provide a more high-level categorization that aligns with the original tool passed in the 
+tools
+ array of the request.
+
+Function Name to Usage Category Mapping:
+
+Usage Category	Function Name(s)
+SERVER_SIDE_TOOL_WEB_SEARCH
+web_search
+, 
+web_search_with_snippets
+, 
+browse_page
+SERVER_SIDE_TOOL_X_SEARCH
+x_user_search
+, 
+x_keyword_search
+, 
+x_semantic_search
+, 
+x_thread_fetch
+SERVER_SIDE_TOOL_CODE_EXECUTION
+code_execution
+SERVER_SIDE_TOOL_VIEW_X_VIDEO
+view_x_video
+SERVER_SIDE_TOOL_VIEW_IMAGE
+view_image
+When Tool Calls and Usage Differ
+In most cases, 
+tool_calls
+ and 
+server_side_tool_usage
+ will show the same tools. However, they can differ when:
+
+Failed tool executions: The model attempts to browse a non-existent webpage, fetch a deleted X post, or encounters other execution errors
+Invalid parameters: Tool calls with malformed arguments that can't be processed
+Network or service issues: Temporary failures in the tool execution pipeline
+The agentic system is robust enough to handle these failures gracefully, updating its trajectory and continuing with alternative approaches when needed.
+
+Billing Note: Only successful tool executions (
+server_side_tool_usage
+) are billed. Failed attempts are not charged.
+
+Understanding Token Usage
+Agentic requests have unique token usage patterns compared to standard chat completions. Here's how each token field in the usage object is calculated:
+
+completion_tokens
+Represents only the final text output of the model - the comprehensive answer returned to the user. This is typically much smaller than you might expect for such rich, research-driven responses, as the agent performs all its intermediate reasoning and tool orchestration internally.
+
+prompt_tokens
+Represents the cumulative input tokens across all inference requests made during the agentic process. Since agentic workflows involve multiple reasoning steps with tool calls, the model makes several inference requests throughout the research process. Each request includes the full conversation history up to that point, which grows as the agent progresses through its research.
+
+While this can result in higher 
+prompt_tokens
+ counts, agentic requests benefit significantly from prompt caching. The majority of the prompt (the conversation prefix) remains unchanged between inference steps, allowing for efficient caching of the shared context. This means that while the total 
+prompt_tokens
+ may appear high, much of the computation is optimized through intelligent caching of the stable conversation history, leading to better cost efficiency overall.
+
+reasoning_tokens
+Represents the tokens used for the model's internal reasoning process during agentic workflows. This includes the computational work the agent performs to plan tool calls, analyze results, and formulate responses, but excludes the final output tokens.
+
+cached_prompt_text_tokens
+Indicates how many prompt tokens were served from cache rather than recomputed. This shows the efficiency gains from prompt caching - higher values indicate better cache utilization and lower costs.
+
+prompt_image_tokens
+Represents the tokens derived from visual content that the agent processes during the request. These tokens are produced when visual understanding is enabled and the agent views images (e.g., via web browsing) or analyzes video frames on X. They are counted separately from text tokens and reflect the cost of ingesting visual features alongside the textual context. If no images or videos are processed, this value will be zero.
+
+prompt_text_tokens
+ and 
+total_tokens
+prompt_text_tokens
+ reflects the actual text tokens in prompts (excluding any special tokens), while 
+total_tokens
+ is the sum of all token types used in the request.
+
+Synchronous Agentic Requests (Non-streaming)
+Although not typically recommended, for simpler use cases or when you want to wait for the complete agentic workflow to finish before processing the response, you can use synchronous requests:
+
+python
+
+
+import os
+
+from xai_sdk import Client
+from xai_sdk.chat import user
+from xai_sdk.tools import code_execution, web_search, x_search
+
+client = Client(api_key=os.getenv("XAI_API_KEY"))
+chat = client.chat.create(
+    model="grok-4-fast",  # reasoning model
+    tools=[
+        web_search(),
+        x_search(),
+        code_execution(),
+    ],
+)
+
+chat.append(user("What is the latest update from xAI?"))
+
+# Get the final response in one go once it's ready
+response = chat.sample()
+
+print("\n\nFinal Response:")
+print(response.content)
+
+# Access the citations of the final response
+print("\n\nCitations:")
+print(response.citations)
+
+# Access the usage details from the entire search process
+print("\n\nUsage:")
+print(response.usage)
+print(response.server_side_tool_usage)
+
+# Access the server side tool calls of the final response
+print("\n\nServer Side Tool Calls:")
+print(response.tool_calls)
+Synchronous requests will wait for the entire agentic process to complete before returning the response. This is simpler for basic use cases but provides less visibility into the intermediate steps compared to streaming.
+
+Using Tools with OpenAI Responses API
+We also support using the OpenAI Responses API in both streaming and non-streaming modes.
+
+
+python (OpenAI SDK)
+
+
+import os
+from openai import OpenAI
+
+api_key = os.getenv("XAI_API_KEY")
+client = OpenAI(
+    api_key=api_key,
+    base_url="https://api.x.ai/v1",
+)
+
+response = client.responses.create(
+    model="grok-4-fast",
+    input=[
+        {
+            "role": "user",
+            "content": "what is the latest update from xAI?",
+        },
+    ],
+    tools=[
+        {
+            "type": "web_search",
+        },
+        {
+            "type": "x_search",
+        },
+    ],
+)
+
+print(response)
+Agentic Tool Calling Requirements and Limitations
+Model Compatibility
+Supported Models: 
+grok-4
+, 
+grok-4-fast
+, 
+grok-4-fast-non-reasoning
+Strongly Recommended: 
+grok-4-fast
+ - specifically trained to excel at agentic tool calling
+Tool Configuration
+Server-side only: Cannot mix server-side tools with client-side tools in the same request
+Request Constraints
+No batch requests: 
+n > 1
+ not supported
+No response format: Structured output not yet available with agentic tool calling
+Limited sampling params: Only 
+temperature
+ and 
+top_p
+ are respected
+Note: These constraints may be relaxed in future releases based on user feedback.
+
+FAQ and Troubleshooting
+I'm seeing empty or incorrect content when using agentic tool calling with the xAI Python SDK
+Please make sure to upgrade to the latest version of the xAI SDK, agentic tool calling requires version 
+1.3.1
+ or above.
+

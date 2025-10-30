@@ -95,10 +95,15 @@ class OpenAIProvider(DeepResearchProvider):
                     "reasoning": {"summary": "auto"},
                     "tools": tools if tools else None,
                     "tool_choice": request.tool_choice,
-                    "metadata": request.metadata,
-                    "store": request.store,
-                    "background": request.background,
                 }
+
+                # Only include optional parameters if set (some providers don't support them)
+                if request.background:
+                    payload["background"] = True
+                if request.store:
+                    payload["store"] = True
+                if request.metadata:
+                    payload["metadata"] = request.metadata
 
                 # Add webhook if provided
                 if request.webhook_url:

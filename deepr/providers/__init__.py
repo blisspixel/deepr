@@ -4,8 +4,10 @@ from typing import Literal
 from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
 from .openai_provider import OpenAIProvider
 from .azure_provider import AzureProvider
+from .gemini_provider import GeminiProvider
+from .grok_provider import GrokProvider
 
-ProviderType = Literal["openai", "azure"]
+ProviderType = Literal["openai", "azure", "gemini", "grok"]
 
 
 def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvider:
@@ -13,7 +15,7 @@ def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvid
     Factory function to create the appropriate provider instance.
 
     Args:
-        provider_type: Either "openai" or "azure"
+        provider_type: "openai", "azure", "gemini", or "grok"
         **kwargs: Provider-specific configuration
 
     Returns:
@@ -26,6 +28,10 @@ def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvid
         return OpenAIProvider(**kwargs)
     elif provider_type == "azure":
         return AzureProvider(**kwargs)
+    elif provider_type == "gemini":
+        return GeminiProvider(**kwargs)
+    elif provider_type == "grok":
+        return GrokProvider(**kwargs)
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
 
@@ -37,6 +43,8 @@ __all__ = [
     "ToolConfig",
     "OpenAIProvider",
     "AzureProvider",
+    "GeminiProvider",
+    "GrokProvider",
     "create_provider",
     "ProviderType",
 ]
