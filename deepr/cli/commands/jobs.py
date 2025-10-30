@@ -88,6 +88,8 @@ def get(job_id: str):
 
 async def _get_results(job_id: str):
     """Display job results - checks provider if not completed locally."""
+    from datetime import datetime, timezone
+
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
 
@@ -98,6 +100,23 @@ async def _get_results(job_id: str):
     # If not completed locally, try fetching from provider
     if job.status != JobStatus.COMPLETED and job.provider_job_id:
         click.echo(f"Job status: {job.status.value}")
+
+        # Calculate elapsed time
+        if job.submitted_at:
+            if isinstance(job.submitted_at, str):
+                submitted = datetime.fromisoformat(job.submitted_at.replace('Z', '+00:00'))
+            else:
+                submitted = job.submitted_at
+
+            elapsed = datetime.now(timezone.utc) - submitted.replace(tzinfo=timezone.utc)
+            elapsed_minutes = elapsed.total_seconds() / 60
+            click.echo(f"Elapsed time: {elapsed_minutes:.1f} minutes")
+
+            # Warn if job is taking unusually long
+            if elapsed_minutes > 60:
+                click.echo(f"[!] Warning: Job has been running for over an hour")
+                click.echo(f"[!] This may indicate a stale status - checking provider...")
+
         click.echo(f"Checking provider for results...")
 
         try:
@@ -147,10 +166,16 @@ async def _get_results(job_id: str):
 
                 job = await queue.get_job(job_id)
             elif response.status == "failed":
-                click.echo(f"[X] Job failed: {response.error}")
+                click.echo(f"[X] Job failed at provider: {response.error}")
+                await queue.update_status(job_id, JobStatus.FAILED)
+                return
+            elif response.status in ["expired", "cancelled"]:
+                click.echo(f"[X] Job {response.status} at provider")
+                await queue.update_status(job_id, JobStatus.FAILED if response.status == "expired" else JobStatus.CANCELLED)
                 return
             else:
-                click.echo(f"Job still {response.status}")
+                click.echo(f"[OK] Confirmed with provider: Job still {response.status}")
+                click.echo(f"Use 'deepr jobs status {job_id}' to check progress")
                 return
 
         except Exception as e:
