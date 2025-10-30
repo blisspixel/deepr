@@ -380,15 +380,21 @@ class GeminiProvider(DeepResearchProvider):
             path = pathlib.Path(file_path)
 
             # Determine MIME type
-            mime_type, _ = mimetypes.guess_type(file_path)
-            if not mime_type:
-                # Default to application/octet-stream
-                mime_type = "application/octet-stream"
+            mime_type, _ = mimetypes.guess_type(str(file_path))
 
-            # Upload file
+            # Override for markdown files (mimetypes might not detect them)
+            if file_path.endswith('.md') or file_path.endswith('.markdown'):
+                mime_type = "text/markdown"
+            elif file_path.endswith('.txt'):
+                mime_type = "text/plain"
+            elif not mime_type:
+                # Default to plain text for unknown types
+                mime_type = "text/plain"
+
+            # Upload file - Gemini File API
             file_obj = self.client.files.upload(
                 file=path,
-                config={"mime_type": mime_type} if mime_type else None
+                config={"mime_type": mime_type}
             )
 
             return file_obj.name

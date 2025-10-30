@@ -52,7 +52,7 @@ Deepr is built for depth and reproducibility, not immediacy.
 ## Quick Demo
 
 ```bash
-deepr run single "Analyze the AI code editor market as of October 2025"
+deepr run focus "Analyze the AI code editor market as of October 2025"
 # Produces: a cited markdown report with trends, pricing, and sources
 ```
 
@@ -103,18 +103,16 @@ deepr budget set 50  # $50/month limit
 ### Run Your First Research
 
 ```bash
-# Simple test
-deepr run single "What is 2+2?"
-
-# Real research
-deepr run single "Latest developments in quantum computing as of 2025"
+# Real research example
+deepr run focus "Latest breakthroughs in AI ethics as of 2025"
 
 # With specific provider
-deepr run single "Explain transformers" --provider gemini -m gemini-2.5-flash
+deepr run focus "Explain transformers" --provider gemini -m gemini-2.5-flash
 
-# Check results
-deepr list              # View all jobs
-deepr get <job-id>      # Get results
+# Check results (research runs in background)
+deepr jobs list         # View all jobs
+deepr jobs status <job-id>  # Check job status
+deepr jobs get <job-id> # Get results when complete
 ```
 
 **Cost:** $0.02-5.00 per query (depending on model) | **Time:** 5-30 minutes | **Output:** Comprehensive markdown with citations
@@ -131,24 +129,24 @@ Deepr connects to multiple AI research providers (OpenAI Deep Research, Google G
 
 **1. Focus Research** - Quick, focused research
 ```bash
-deepr run single "What are the latest trends in quantum computing?"
+deepr run focus "What are the latest trends in quantum computing?"
 ```
 
 **2. Documentation Research** - Technical documentation for APIs, services, architectures
 ```bash
 # Get latest API details with pricing, limits, best practices
-deepr run single "Document Google Gemini API as of today - pricing, capabilities, integration guide"
+deepr run docs "Google Gemini API - pricing, capabilities, integration guide"
 
 # Cloud service documentation
-deepr run single "AWS Lambda documentation - features, pricing, architecture patterns, recent updates"
+deepr run docs "AWS Lambda - features, pricing, architecture patterns"
 
 # Framework reference
-deepr run single "Next.js 14 developer guide - new features, API changes, migration path"
+deepr run docs "Next.js 14 developer guide - new features, API changes"
 ```
 
 **3. Multi-Phase Projects** - Adaptive research that builds understanding over multiple rounds
 ```bash
-deepr run campaign "What should Ford do in EVs for 2026?"
+deepr run project "What should Ford do in EVs for 2026?"
 # GPT-5 creates phased plan, executes with context chaining
 ```
 
@@ -176,7 +174,7 @@ Use documentation mode when you need living technical references that stay curre
 
 **Example:**
 ```bash
-deepr run single "React 19 migration guide: breaking changes, new features, upgrade path"
+deepr run docs "React 19 migration guide: breaking changes, new features, upgrade path"
 ```
 
 **What makes documentation research different:**
@@ -189,16 +187,16 @@ deepr run single "React 19 migration guide: breaking changes, new features, upgr
 **Use cases:**
 ```bash
 # API Documentation - Get latest details
-deepr run single "OpenAI API documentation - models, pricing, rate limits, authentication"
+deepr run docs "OpenAI API documentation - models, pricing, rate limits, authentication"
 
 # Cloud Service Reference
-deepr run single "Azure Functions pricing and limits - consumption vs premium plans"
+deepr run focus "Azure Functions pricing and limits - consumption vs premium plans"
 
 # Framework Guide
-deepr run single "React 19 migration guide - breaking changes, new features, upgrade path"
+deepr run focus "React 19 migration guide - breaking changes, new features, upgrade path"
 
 # Library Reference
-deepr run single "LangChain latest capabilities - agents, chains, tools, what's new"
+deepr run focus "LangChain latest capabilities - agents, chains, tools, what's new"
 ```
 
 **Prompt structure for documentation:**
@@ -222,7 +220,7 @@ Document [SERVICE/API] as of today:
 
 Upload documents for semantic search during research:
 ```bash
-deepr run single "Analyze this product spec and identify risks" \
+deepr run focus "Analyze this product spec and identify risks" \
   --upload product-spec.pdf --upload requirements.md
 ```
 
@@ -232,19 +230,19 @@ Deepr supports multiple research providers with different strengths:
 
 ```bash
 # OpenAI (default): Deep Research API with native web search
-deepr run single "Research topic"
+deepr run focus "Research topic"
 
 # Google Gemini: Thinking models with Google Search grounding
-deepr run single "Research topic" --provider gemini -m gemini-2.5-flash
+deepr run focus "Research topic" --provider gemini -m gemini-2.5-flash
 
 # Gemini Pro: Maximum reasoning for complex analysis
-deepr run single "Complex problem" --provider gemini -m gemini-2.5-pro
+deepr run focus "Complex problem" --provider gemini -m gemini-2.5-pro
 
 # xAI Grok: Agentic search with web/X integration
-deepr run single "Latest from xAI" --provider grok -m grok-4-fast
+deepr run focus "Latest from xAI" --provider grok -m grok-4-fast
 
 # Azure OpenAI: Enterprise deployment
-deepr run single "Research topic" --provider azure
+deepr run focus "Research topic" --provider azure
 ```
 
 **OpenAI Models:**
@@ -278,7 +276,7 @@ Optimize queries with GPT-5-mini before submission (adds date context, best prac
 # Enable always-on refinement
 echo "DEEPR_AUTO_REFINE=true" >> .env
 
-deepr run single "compare AI code editors"
+deepr run focus "compare AI code editors"
 # Automatically optimizes prompt before submission
 ```
 
@@ -293,7 +291,7 @@ deepr run single "compare AI code editors"
 Create reusable document indexes:
 ```bash
 deepr vector create --name "company-docs" --files docs/*.pdf
-deepr run single "Analyze competitive landscape" --vector-store company-docs
+deepr run focus "Analyze competitive landscape" --vector-store company-docs
 ```
 
 ### Cost Tracking & Analytics
@@ -315,13 +313,13 @@ deepr analytics report          # Success rates, trends
 
 **Bad (vague, no context):**
 ```bash
-deepr run single "Research our competitive landscape"
+deepr run focus "Research our competitive landscape"
 # Result: Generic analysis, not useful
 ```
 
 **Good (explicit context):**
 ```bash
-deepr run single "Research the competitive landscape for research automation platforms as of October 2025. Include pricing, recent funding, and enterprise features. We are Deepr, an open-source, multi-provider research OS. Output a comparison matrix and recommendations."
+deepr run focus "Research the competitive landscape for research automation platforms as of October 2025. Include pricing, recent funding, and enterprise features. We are Deepr, an open-source, multi-provider research OS. Output a comparison matrix and recommendations."
 # Result: Targeted analysis of YOUR actual competitive landscape
 ```
 
@@ -330,11 +328,11 @@ deepr run single "Research the competitive landscape for research automation pla
 **Upload files directly (recommended):**
 ```bash
 # Single file
-deepr run single "Analyze this product spec and identify risks" \
+deepr run focus "Analyze this product spec and identify risks" \
   --upload product-spec.pdf
 
 # Multiple files
-deepr run single "Analyze call transcript and provide recommendations" \
+deepr run focus "Analyze call transcript and provide recommendations" \
   --upload call-transcript.txt \
   --upload product-brief.pdf \
   --upload fintech-overview.md
@@ -344,7 +342,7 @@ Files are automatically indexed and semantically searched during research. Suppo
 
 **Structured prompt format:**
 ```bash
-deepr run single "
+deepr run focus "
 Research Task: [Your goal]
 Context: [Who you are, what you're doing]
 Scope: [Timeframe, geography, specific focus]
@@ -357,20 +355,20 @@ Output: [Desired format and structure]"
 **Include temporal context:**
 ```bash
 # Good: Includes date context for latest information
-deepr run single "As of October 2025, what are the latest developments in quantum computing commercialization? Focus on breakthroughs from 2024-2025, current technical readiness levels, and near-term market opportunities."
+deepr run focus "As of October 2025, what are the latest developments in quantum computing commercialization? Focus on breakthroughs from 2024-2025, current technical readiness levels, and near-term market opportunities."
 
 # Bad: Ambiguous temporal context
-deepr run single "What are the latest developments in quantum computing?"
+deepr run focus "What are the latest developments in quantum computing?"
 # Problem: "Latest" is ambiguous - model may return older information
 ```
 
 **Be specific about scope and depth:**
 ```bash
 # Good: Clear scope and deliverables
-deepr run single "Research the competitive landscape for AI code review tools as of October 2025. Include: (1) Top 5 players by market share, (2) Feature comparison matrix, (3) Pricing models, (4) Recent funding/M&A activity. Focus on enterprise segment."
+deepr run focus "Research the competitive landscape for AI code review tools as of October 2025. Include: (1) Top 5 players by market share, (2) Feature comparison matrix, (3) Pricing models, (4) Recent funding/M&A activity. Focus on enterprise segment."
 
 # Bad: Vague scope
-deepr run single "Research AI code review tools"
+deepr run focus "Research AI code review tools"
 # Problem: Too broad - unclear what aspects matter or what depth is needed
 ```
 
@@ -383,7 +381,7 @@ Enable DEEPR_AUTO_REFINE in .env to use GPT-5-mini to optimize your query follow
 echo "DEEPR_AUTO_REFINE=true" >> .env
 
 # Before: Vague query
-deepr run single "compare AI code editors"
+deepr run focus "compare AI code editors"
 
 # After refinement (automatic):
 # "As of October 2025, perform a comparative research analysis of AI-assisted
@@ -448,39 +446,46 @@ User → GPT-5 Planner → Research Plan (with dependencies)
 ### Core Research Commands
 
 ```bash
-# Single research
-deepr run single "Your research query"
-deepr run single "Query" -m o3-deep-research  # Change model
-deepr run single "Query" --upload file.pdf    # With files
-deepr run single "Query" --limit 5.00         # Cost limit
-deepr run single "Query" --provider gemini -m gemini-2.5-flash
+# Focused research (quick, single-turn)
+deepr run focus "Your research query"
+deepr run focus "Query" -m o3-deep-research  # Change model
+deepr run focus "Query" --upload file.pdf    # With files
+deepr run focus "Query" --limit 5.00         # Cost limit
+deepr run focus "Query" --provider gemini -m gemini-2.5-flash
 
-# Multi-phase campaign
-deepr run campaign "Complex scenario"
-deepr run campaign "Scenario" --phases 4      # Custom phases
-deepr run campaign "Scenario" --lead gpt-5    # Change planner
+# Documentation research (technical docs, API guides)
+deepr run docs "Google Gemini API - pricing, capabilities, integration"
+deepr run docs "AWS Lambda - features, pricing, architecture patterns"
+deepr run docs "Next.js 14 developer guide" --upload current_docs.md
 
-# Dream team research
+# Multi-phase projects (context-chained research)
+deepr run project "Complex scenario"
+deepr run project "Scenario" --phases 4      # Custom phases
+deepr run project "Scenario" --lead gpt-5    # Change planner
+
+# Dream team research (multi-perspective analysis)
 deepr run team "Strategic question"
 deepr run team "Question" --perspectives 8    # More views
 
 # Quick aliases
-deepr r "Quick research query"                # Alias for 'run single'
+deepr r "Quick research query"                # Alias for 'run focus'
 ```
+
+**Note:** Old commands (`deepr run single`, `deepr run campaign`) still work but show deprecation warnings pointing to the new names.
 
 ### Job Management
 
 ```bash
 # View jobs
-deepr list                                    # All recent jobs
-deepr list -s processing                      # Filter by status
-deepr list -n 20                              # Show more results
+deepr jobs list                                    # All recent jobs
+deepr jobs list -s processing                      # Filter by status
+deepr jobs list -n 20                              # Show more results
 deepr l                                       # Quick alias
 
 # Job status
-deepr status <job-id>                         # Detailed status
-deepr get <job-id>                            # Get results
-deepr cancel <job-id>                         # Cancel job
+deepr jobs status <job-id>                         # Detailed status
+deepr jobs get <job-id>                            # Get results
+deepr jobs cancel <job-id>                         # Cancel job
 deepr s <job-id>                              # Quick alias for status
 ```
 
@@ -508,6 +513,7 @@ deepr cost summary --period week
 deepr vector create --name "docs" --files *.pdf
 deepr vector list
 deepr vector delete <id>
+deepr vector cleanup --pattern "research-*" --yes  # Bulk cleanup
 
 # Analytics
 deepr analytics report
@@ -699,10 +705,10 @@ Whether it's OpenAI today, Gemini tomorrow, or a breakthrough open-source model 
 
 ```bash
 # All supported providers
-deepr run single "Query" --provider openai     # Default
-deepr run single "Query" --provider gemini -m gemini-2.5-flash
-deepr run single "Query" --provider azure      # Enterprise
-deepr run single "Query" --provider grok       # Coming soon
+deepr run focus "Query" --provider openai     # Default
+deepr run focus "Query" --provider gemini -m gemini-2.5-flash
+deepr run focus "Query" --provider azure      # Enterprise
+deepr run focus "Query" --provider grok       # Coming soon
 
 # As new providers launch, just add --provider <name>
 # The framework extends, your workflow doesn't change
@@ -751,8 +757,8 @@ Deepr is designed to be used however you work:
 
 **CLI (Primary Interface)**
 ```bash
-deepr run single "Your query"
-deepr run campaign "Complex multi-phase research"
+deepr run focus "Your query"
+deepr run project "Complex multi-phase research"
 ```
 Command-line interface for developers, scripts, and automation workflows.
 

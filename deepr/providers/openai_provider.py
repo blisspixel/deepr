@@ -78,8 +78,9 @@ class OpenAIProvider(DeepResearchProvider):
                     tool_dict = {"type": tool.type}
                     if tool.type == "file_search" and tool.vector_store_ids:
                         tool_dict["vector_store_ids"] = tool.vector_store_ids
-                    elif tool.type == "code_interpreter" and tool.container:
-                        tool_dict["container"] = tool.container
+                    elif tool.type == "code_interpreter":
+                        # Code interpreter requires container parameter
+                        tool_dict["container"] = tool.container if tool.container else {"type": "auto"}
                     tools.append(tool_dict)
 
                 # Build request payload

@@ -18,6 +18,8 @@ setup(
         "azure-identity>=1.12.0",
         "azure-servicebus>=7.11.0",
         "azure-storage-blob>=12.19.0",
+        "colorama>=0.4.6",
+        "rich>=13.0.0",
     ],
     entry_points={
         "console_scripts": [
