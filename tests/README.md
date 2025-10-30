@@ -1,270 +1,397 @@
-## Deepr Test Suite
+# Deepr Test Suite
 
-Comprehensive test suite for Deepr covering unit tests, integration tests, and end-to-end workflows.
+Comprehensive testing strategy with unit tests, integration tests, and E2E tests.
 
-### Test Organization
+## Test Philosophy
+
+After experiencing 4 failed API submissions due to untested code (Oct 30, 2025), we implemented a three-layer testing strategy:
+
+1. **Unit Tests** - Fast, free, validate parameters with mocks
+2. **Integration Tests** - Real API calls, validate contracts, use Deepr to improve Deepr
+3. **E2E Tests** - Full workflows, validate user experience
+
+**Key Insight:** Unit tests tell you if code runs. Integration tests tell you if it works.
+
+## Test Organization
 
 ```
 tests/
-├── unit/                          # Unit tests (no API calls, fast, free)
-│   ├── test_costs.py             # Cost calculation logic
-│   ├── test_queue/               # SQLite queue operations
-│   └── test_storage/             # Local storage operations
-├── integration/                   # Integration tests (real API calls, costs money)
-│   ├── test_cli_commands.py      # New CLI command structure tests
-│   ├── test_cli_e2e.py           # End-to-end CLI workflows
-│   ├── test_all_providers.py     # Comprehensive provider validation
-│   ├── test_provider_validation.py # Gemini and Grok validation
-│   └── test_real_api.py          # OpenAI API integration tests
-├── conftest.py                    # Pytest fixtures and configuration
-└── pytest.ini                     # Pytest settings and markers
+├── unit/                          # Unit tests (fast, free, always run)
+│   ├── test_providers/
+│   │   ├── test_openai_tool_validation.py    # Parameter validation
+│   │   ├── test_gemini_provider.py           # Gemini comprehensive
+│   │   └── test_openai_provider.py           # OpenAI basic
+│   ├── test_queue/                           # Queue operations (95% coverage)
+│   ├── test_storage/                         # Storage operations (85% coverage)
+│   └── test_costs.py                         # Cost calculations (93% coverage)
+│
+├── integration/                   # Integration tests (real APIs, costs money)
+│   ├── test_research_modes_comprehensive.py  # All 4 modes + dogfooding
+│   ├── test_file_upload_api.py              # File upload workflows
+│   ├── test_all_providers.py                # Provider comparison
+│   └── test_cli_commands.py                 # CLI integration
+│
+├── test_e2e_cheap.py             # E2E tests (expensive, run rarely)
+└── data/
+    └── research_outputs/          # Saved research for review
 ```
 
-### Test Markers
+## Running Tests
 
-Tests are organized using pytest markers:
+### Fast Tests (Unit Only - Free)
 
-- `@pytest.mark.unit` - Unit tests (no external dependencies, always free)
-- `@pytest.mark.integration` - Integration tests (may require API keys)
-- `@pytest.mark.e2e` - End-to-end tests (full workflow validation)
-- `@pytest.mark.requires_api` - Tests that require API keys and will cost money
-- `@pytest.mark.slow` - Tests that take more than 1 second
-
-### Running Tests
-
-**Run all unit tests (fast, free):**
 ```bash
+# Run all unit tests
 pytest -m unit
+
+# Run with coverage
+pytest -m unit --cov=deepr --cov-report=html
+
+# Quick smoke test
+pytest -m unit --maxfail=1
 ```
 
-**Run integration tests (requires API keys, costs money):**
+### Integration Tests (Costs Money)
+
 ```bash
+# Run cheap integration tests (~$1-2)
+pytest -m "integration and not expensive"
+
+# Run specific research mode tests (~$5-10)
+pytest -m research_modes
+
+# Run file upload tests (~$1-2)
+pytest -m file_upload
+
+# Run all integration tests (~$10-20)
 pytest -m integration
 ```
 
-**Run end-to-end tests (full workflows, costs money):**
+### E2E Tests (Expensive)
+
 ```bash
+# Run all E2E tests (~$20-50)
 pytest -m e2e
-```
 
-**Run CLI command tests only:**
-```bash
-pytest tests/integration/test_cli_commands.py -v
-```
-
-**Run all provider validation tests:**
-```bash
-pytest tests/integration/test_all_providers.py -v
-```
-
-**Run specific test:**
-```bash
-pytest tests/integration/test_cli_commands.py::test_focus_command_has_correct_options -v
-```
-
-**Skip expensive tests:**
-```bash
-pytest -m "not requires_api"
-```
-
-**Run everything (including expensive API tests):**
-```bash
+# Run everything (unit + integration + e2e)
 pytest
 ```
 
-### API Keys Required
-
-For integration and e2e tests, you need at least one provider API key configured in `.env`:
+### Provider-Specific Tests
 
 ```bash
-# Required for OpenAI tests
-OPENAI_API_KEY=sk-...
+# Test only OpenAI
+pytest -k "openai"
 
-# Required for Gemini tests
-GEMINI_API_KEY=...
+# Test only Gemini
+pytest -k "gemini"
 
-# Required for Grok tests
-XAI_API_KEY=...
-
-# Required for Azure tests
-AZURE_OPENAI_KEY=...
-AZURE_OPENAI_ENDPOINT=https://....openai.azure.com/
-AZURE_DEPLOYMENT_O3=...
-AZURE_DEPLOYMENT_O4_MINI=...
+# Test all providers
+pytest -k "provider"
 ```
 
-Tests automatically skip if the required API key is not set.
+## Test Markers
 
-### Cost Estimates
+| Marker | Purpose | Cost | When to Run |
+|--------|---------|------|-------------|
+| `unit` | Unit tests, no API calls | $0 | Every commit |
+| `integration` | Real API calls, cheap queries | $0.10-1 | Before PR |
+| `e2e` | Full workflows | $1-10 | Before release |
+| `requires_api` | Needs API key | Varies | Manual/CI |
+| `file_upload` | Tests file upload | ~$1 | After file changes |
+| `research_modes` | Tests all 4 modes | ~$5-10 | Weekly |
+| `expensive` | Costs >$1 | >$1 | Sparingly |
+| `slow` | Takes >1 second | Varies | As needed |
 
-Integration and e2e tests use simple queries to minimize costs:
+## Research Modes Testing
 
-- **Unit tests**: $0 (no API calls)
-- **Integration tests (all providers)**: ~$0.10-0.50
-  - OpenAI: ~$0.02-0.10 per test
-  - Gemini: ~$0.001-0.01 per test (very cheap)
-  - Grok: ~$0.01-0.05 per test
-- **End-to-end tests**: ~$0.05-0.20 per test
+We test all 4 research modes with OpenAI (full capability), and limited modes for Gemini/Grok:
 
-**Estimated total cost to run full suite**: $1-3
+### OpenAI (Full Coverage)
 
-### What Tests Cover
+1. **Focus Mode** (`test_openai_focus_mode_self_improvement`)
+   - Quick research queries
+   - Example: Research Python CLI best practices
+   - Cost: ~$0.50-1.00
+   - Duration: 5-10 min
 
-**CLI Command Structure (test_cli_commands.py)**
-- New command structure (focus, project, docs, jobs)
-- Deprecated command warnings
-- Command help output
-- Parameter validation
-- Quick aliases
+2. **Documentation Mode** (`test_openai_docs_mode_api_research`)
+   - Technical API documentation
+   - Example: Research OpenAI's own API to validate our usage
+   - Cost: ~$0.50-1.00
+   - Duration: 5-10 min
 
-**Provider Validation (test_all_providers.py)**
-- All providers (OpenAI, Gemini, Grok, Azure)
-- Basic query execution
-- Cost tracking accuracy
-- Response format consistency
-- Error handling
+3. **Project Mode** (`test_openai_project_mode_multi_phase`)
+   - Multi-phase adaptive research
+   - Example: Analyze Deepr's testing strategy (dogfooding)
+   - Cost: ~$2-5
+   - Duration: 10-20 min
 
-**End-to-End Workflows (test_cli_e2e.py)**
-- Complete job lifecycle: submit -> status -> get results
-- Provider switching
-- Budget limits
-- Job cancellation
-- Deprecated command compatibility
+4. **Team Mode** (`test_openai_team_mode_diverse_perspectives`)
+   - Multiple perspectives synthesized
+   - Example: Strategic decisions with diverse viewpoints
+   - Cost: ~$3-8
+   - Duration: 15-30 min
 
-**Unit Tests**
-- Cost calculation logic
-- Queue operations (CRUD)
-- Storage operations
-- Context chaining logic
+### Gemini (Focus + Docs)
 
-### Test Results Location
+- Focus mode: Basic capability check
+- Docs mode: API documentation research
+- No multi-phase or team modes (not supported)
 
-Test results and artifacts are saved to:
-```
-tests/test_results/
-├── <timestamp>/
-│   ├── test_name_report.md
-│   ├── test_name_report.json
-│   └── test_name_report.txt
-```
+### Grok (Focus Only)
 
-### Continuous Integration
+- Focus mode: Basic capability check
+- Limited deep research capabilities
 
-For CI/CD pipelines:
+## Dogfooding: Using Deepr to Improve Deepr
 
-```bash
-# Fast tests only (no API calls)
-pytest -m "unit and not slow"
+Our integration tests double as a learning feedback loop:
 
-# Integration tests with timeout
-pytest -m integration --timeout=300
+**Examples:**
+- `test_openai_focus_mode_self_improvement` - Research Python CLI best practices
+- `test_openai_docs_mode_api_research` - Research OpenAI API to validate our implementation
+- `test_openai_project_mode_multi_phase` - Research testing strategy improvements
+- `test_provider_comparison_same_query` - Compare providers on same question
 
-# Generate coverage report
-pytest --cov=deepr --cov-report=html
-```
+**Benefits:**
+1. Validates research quality (if Deepr can't improve Deepr, how can it help you?)
+2. Generates actionable insights saved to `tests/data/research_outputs/`
+3. Tests real-world use cases, not toy examples
+4. Creates feedback loop for continuous improvement
 
-### Writing New Tests
+**Output Location:** All research outputs are saved to `tests/data/research_outputs/` for review.
 
-**Unit Test Template:**
+## Cost Management
+
+### Monthly Testing Budget
+
+- Unit tests: $0 (no API calls)
+- Integration tests (CI): ~$10/month
+- Integration tests (manual): ~$10/month
+- E2E tests (releases): ~$20/month
+- **Total: ~$40/month**
+
+### Cost Tracking
+
+Each test documents its expected cost in the docstring:
+
 ```python
-@pytest.mark.unit
-def test_my_feature():
-    """Test description."""
-    # Test implementation (no external calls)
-    assert result == expected
+@pytest.mark.integration
+async def test_something():
+    """Test description.
+
+    Cost: ~$0.50
+    Duration: 5 minutes
+    """
 ```
 
-**Integration Test Template:**
+### Reducing Costs
+
+1. Run unit tests locally (free)
+2. Run integration tests only when needed
+3. Use `pytest -m "not expensive"` to skip high-cost tests
+4. Run expensive tests only before releases
+
+## CI/CD Integration
+
+### Pre-Commit (Local)
+
+```bash
+# .git/hooks/pre-commit
+pytest -m unit --tb=short --maxfail=3
+```
+
+### Pull Request (GitHub Actions)
+
+```yaml
+# .github/workflows/pr-tests.yml
+- name: Run unit tests
+  run: pytest -m unit --cov=deepr --cov-fail-under=70
+
+# Only on main branch
+- name: Run cheap integration tests
+  if: github.ref == 'refs/heads/main'
+  run: pytest -m "integration and not expensive"
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Release (Before Deploy)
+
+```yaml
+# .github/workflows/release.yml
+- name: Run all tests
+  run: pytest --maxfail=5
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+```
+
+## Writing New Tests
+
+### Unit Test Template
+
+```python
+@pytest.mark.asyncio
+async def test_something():
+    """Test description."""
+    provider = OpenAIProvider(api_key="test")
+
+    with patch.object(provider.client.responses, "create") as mock:
+        mock.return_value = MagicMock()
+
+        await provider.submit_research(request)
+
+        # KEY: Validate actual parameters
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["tools"][0] == expected_format
+```
+
+### Integration Test Template
+
 ```python
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.requires_api
-async def test_provider_feature():
-    """Test description."""
-    if not os.getenv("PROVIDER_API_KEY"):
+async def test_something():
+    """Test description.
+
+    Cost: ~$0.50
+    Duration: 5 minutes
+    """
+    if not os.getenv("OPENAI_API_KEY"):
         pytest.skip("API key not set")
 
-    # Test implementation with real API calls
-```
+    provider = OpenAIProvider()  # Real provider
 
-**CLI Test Template:**
-```python
-@pytest.mark.integration
-@pytest.mark.e2e
-def test_cli_command():
-    """Test description."""
-    result = subprocess.run(
-        ["deepr", "command", "args"],
-        capture_output=True,
-        text=True,
-        timeout=30
+    request = ResearchRequest(
+        prompt="Test query",
+        model="o4-mini-deep-research",
+        tools=[ToolConfig(type="web_search_preview")],
+        background=True
     )
 
-    assert result.returncode == 0
-    assert "expected" in result.stdout
+    job_id = await provider.submit_research(request)
+    # Poll for completion and validate
 ```
 
-### Debugging Tests
+## Test Coverage Goals
 
-**Run with verbose output:**
+| Module | Current | Target | Status |
+|--------|---------|--------|--------|
+| Providers | 51% | 70% | In Progress |
+| Queue | 95% | 90% | Good |
+| Storage | 61% | 80% | Needs Work |
+| CLI | 0% | 50% | Not Started |
+| Core | 27% | 60% | Needs Work |
+| Overall | 14% | 70% | In Progress |
+
+## Best Practices
+
+### 1. Validate Parameters, Not Just Calls
+
+**Bad:**
+```python
+mock_api.assert_called_once()  # Just checks it was called
+```
+
+**Good:**
+```python
+call_kwargs = mock_api.call_args.kwargs
+assert "container" not in call_kwargs["tools"][0]  # Validates actual parameters
+```
+
+### 2. Use Real Queries in Integration Tests
+
+**Bad:** "Test query 123"
+
+**Good:** "What are the latest Python CLI best practices in 2025?"
+
+**Why:** Real queries validate actual use cases and provide learning feedback.
+
+### 3. Save Research Outputs
+
+```python
+output_file = Path("tests/data/research_outputs/focus_result.md")
+output_file.write_text(response_text)
+```
+
+This creates a corpus of research we can review and learn from.
+
+### 4. Document Cost and Duration
+
+Always include cost and duration estimates in test docstrings.
+
+### 5. Create Regression Tests
+
+When you fix a bug, add a test that would have caught it:
+
+```python
+class TestToolParameterRegressions:
+    def test_regression_oct_30_2025_container_bug():
+        """Regression: web_search_preview should NOT have container.
+
+        Bug discovered: Oct 30, 2025 (4 failed submissions)
+        """
+        # Test implementation
+```
+
+## Troubleshooting
+
+### Tests Fail with "API key not set"
+
+Set environment variables:
 ```bash
-pytest -vv
+export OPENAI_API_KEY="sk-..."
+export GEMINI_API_KEY="..."
+export GROK_API_KEY="..."
 ```
 
-**Show print statements:**
+Or create `.env` file:
 ```bash
-pytest -s
+cp .env.example .env
+# Edit .env with your keys
 ```
 
-**Stop on first failure:**
+### Tests Time Out
+
+Increase timeout in test:
+```python
+max_wait = 600  # 10 minutes
+```
+
+Or skip slow tests:
 ```bash
-pytest -x
+pytest -m "not slow"
 ```
 
-**Run last failed tests:**
+### Tests Cost Too Much
+
+Run only cheap tests:
 ```bash
-pytest --lf
+pytest -m "integration and not expensive"
 ```
 
-**Debug with pdb:**
+Or run unit tests only:
 ```bash
-pytest --pdb
+pytest -m unit
 ```
 
-### Test Coverage Goals
+### Coverage Too Low
 
-- **Unit tests**: 80%+ coverage of core logic
-- **Integration tests**: All providers validated
-- **E2E tests**: All user workflows covered
-- **CLI tests**: All commands and options tested
+Run with coverage report:
+```bash
+pytest --cov=deepr --cov-report=html
+open htmlcov/index.html  # View detailed report
+```
 
-### Common Issues
+## Related Documentation
 
-**Issue: Tests hanging**
-- Solution: Check timeouts, ensure API keys are valid
+- [docs/TESTING_STRATEGY.md](../docs/TESTING_STRATEGY.md) - Comprehensive testing philosophy
+- [docs/TEST_COVERAGE_IMPROVEMENT_PLAN.md](../docs/TEST_COVERAGE_IMPROVEMENT_PLAN.md) - Roadmap to 70% coverage
+- [docs/BUGFIX_CONTAINER_PARAMETER.md](../docs/BUGFIX_CONTAINER_PARAMETER.md) - The bug that motivated this
 
-**Issue: API key errors**
-- Solution: Verify `.env` file has correct keys
+## Questions?
 
-**Issue: Tests skipped**
-- Solution: Normal if API keys not configured, tests skip gracefully
-
-**Issue: Costs higher than expected**
-- Solution: Run unit tests only (`pytest -m unit`)
-
-### Reporting Issues
-
-When reporting test failures, include:
-1. Test name and marker
-2. Full pytest output (`-vv`)
-3. API provider (if applicable)
-4. Error message and traceback
-5. Test results from `tests/test_results/`
-
-### Test Maintenance
-
-- Update tests when CLI commands change
-- Add tests for new features
-- Keep integration tests cheap (simple queries)
-- Document any breaking changes
-- Review test coverage regularly
+See the main [README.md](../README.md) or open an issue.
