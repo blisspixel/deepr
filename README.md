@@ -674,16 +674,18 @@ Deepr is designed to be provider-agnostic. We support multiple AI providers and 
 
 ### Currently Supported
 
-**OpenAI** - Deep Research API (production)
+**OpenAI** - Native Deep Research API (production)
 - o3-deep-research - Comprehensive research
 - o4-mini-deep-research - Fast, affordable
 - Native background job queue, web search, tool orchestration
+- OpenAI provides purpose-built deep research models
 
 **Google Gemini** - Thinking models (production)
 - gemini-2.5-pro - Maximum reasoning, 1M context
 - gemini-2.5-flash - Balanced performance
 - gemini-2.5-flash-lite - Cost optimized
 - Google Search grounding, multimodal, synchronous execution
+- Deepr orchestrates these reasoning models for deep research workflows
 
 **Azure OpenAI** - Enterprise deployment (production)
 - o3/o4-mini via Azure AI Foundry
@@ -692,7 +694,7 @@ Deepr is designed to be provider-agnostic. We support multiple AI providers and 
 **xAI Grok** - Agentic search (in development)
 - grok-4-fast, grok-4, grok-3-mini
 - Web/X search, server-side tools
-- Requires chat completions adapter (not Deep Research API)
+- Deepr orchestrates Grok's agentic capabilities via chat completions
 
 ### Future Providers
 
