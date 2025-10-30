@@ -177,6 +177,7 @@ docker-compose.override.yml
 # ==============================================================================
 # Archive old documentation, personal notes excluded, but keep main docs/ directory
 docs/archive/
+docs/sessions/
 docs/**/personal/
 docs/**/*notes*.txt
 docs/**/*exploration*.md
