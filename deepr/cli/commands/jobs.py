@@ -31,12 +31,50 @@ def status(job_id: str):
 
 async def _show_status(job_id: str):
     """Display job status."""
+    from datetime import datetime, timezone
+
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
 
     if not job:
         click.echo(f"Job not found: {job_id}")
         return
+
+    # Auto-check provider for long-running jobs
+    if job.status == JobStatus.PROCESSING and job.provider_job_id:
+        # Calculate elapsed time
+        if job.submitted_at:
+            if isinstance(job.submitted_at, str):
+                submitted = datetime.fromisoformat(job.submitted_at.replace('Z', '+00:00'))
+            else:
+                submitted = job.submitted_at
+
+            elapsed = datetime.now(timezone.utc) - submitted.replace(tzinfo=timezone.utc)
+            elapsed_minutes = elapsed.total_seconds() / 60
+
+            # Auto-check provider after 30 minutes
+            if elapsed_minutes > 30:
+                click.echo(f"\n[!] Job running {elapsed_minutes:.0f} minutes - checking provider API...")
+
+                try:
+                    from deepr.providers import create_provider
+                    from deepr.config import load_config
+
+                    config = load_config()
+                    provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+                    response = await provider.get_status(job.provider_job_id)
+
+                    if response.status == "completed":
+                        click.echo("[OK] Provider reports: COMPLETED (local DB was stale)")
+                        click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
+                    elif response.status in ["failed", "expired", "cancelled"]:
+                        click.echo(f"[X] Provider reports: {response.status.upper()} (local DB was stale)")
+                        await queue.update_status(job_id, JobStatus.FAILED if response.status != "cancelled" else JobStatus.CANCELLED)
+                        job = await queue.get_job(job_id)
+                    else:
+                        click.echo(f"[OK] Provider confirms: still {response.status}\n")
+                except Exception as e:
+                    click.echo(f"Warning: Could not verify with provider: {e}\n")
 
     click.echo("\n" + "="*70)
     click.echo("  Job Status")
@@ -311,7 +349,7 @@ async def _cancel_job(job_id: str):
             click.echo(f"Warning: Could not cancel with provider: {e}")
 
     # Update local queue
-    await queue.update_job(job_id, status=JobStatus.CANCELLED)
+    await queue.update_status(job_id, JobStatus.CANCELLED)
     click.echo(f"[OK] Job {job_id[:12]} cancelled")
 
 
