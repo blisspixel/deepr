@@ -32,21 +32,30 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import research, queue, prep, cost, interactive, docs, team, vector, config, analytics, templates, migrate, budget
+from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate
 
-cli.add_command(research.research)
-cli.add_command(queue.queue)
-cli.add_command(prep.prep)
+# Core commands - verb-first pattern
+cli.add_command(run.run)
+cli.add_command(status.status)
+cli.add_command(status.get)
+cli.add_command(status.list_jobs, name="list")
+cli.add_command(status.cancel)
+
+# Quick aliases
+cli.add_command(run.run_alias)
+cli.add_command(status.status_alias)
+cli.add_command(status.list_alias)
+
+# Supporting commands
+cli.add_command(budget.budget)
 cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
-cli.add_command(team.team)
 cli.add_command(vector.vector)
 cli.add_command(config.config)
 cli.add_command(analytics.analytics)
 cli.add_command(templates.templates)
 cli.add_command(migrate.migrate)
-cli.add_command(budget.budget)
 
 
 def main():
