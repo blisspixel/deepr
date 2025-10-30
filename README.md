@@ -336,9 +336,14 @@ deepr run focus "Analyze call transcript and provide recommendations" \
   --upload call-transcript.txt \
   --upload product-brief.pdf \
   --upload fintech-overview.md
+
+# Files with spaces in names (use quotes)
+deepr run focus "Research query" \
+  --upload "my document.pdf" \
+  --upload "project files/data.csv"
 ```
 
-Files are automatically indexed and semantically searched during research. Supports PDF, DOCX, TXT, MD, and code files.
+Files are automatically indexed and semantically searched during research. Supports PDF, DOCX, TXT, MD, and code files. Use quotes around paths with spaces.
 
 **Structured prompt format:**
 ```bash
