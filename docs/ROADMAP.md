@@ -65,15 +65,22 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 - Gemini synchronous execution with immediate results
 - Cost tracking per provider with token usage
 - Provider selection via --provider flag
+- NEW: Complete CLI restructure implemented (focus, project, docs, jobs)
+- NEW: Unified jobs command group for job management
+- NEW: Documentation-oriented research mode
+- Backward compatibility maintained with deprecation warnings
 
 **Core Research Capabilities**
-- Single research jobs (`deepr run single`) - All providers
-- Multi-phase campaigns (`deepr run campaign`) - OpenAI validated
+- Focused research jobs (`deepr run focus`) - All providers
+- Multi-phase projects (`deepr run project`) - OpenAI validated
   - GPT-5 as research lead, reviewing and planning
   - Context chaining with automatic summarization
   - Adaptive workflow: plan, execute, review, replan
   - Validated: 2-phase campaign, $0.33 cost, excellent quality
-- File upload with vector store support (PDF, DOCX, TXT, MD, code)
+- File upload with vector store support (PDF, DOCX, TXT, MD, code) - IMPLEMENTED
+  - OpenAI: Vector store creation with auto-ingestion monitoring
+  - Gemini: Direct file upload with MIME type detection
+  - Automatic cleanup with pattern matching
 - Prompt refinement with date context and structured deliverables
 - Budget management and cost tracking
 - SQLite queue with filesystem storage
@@ -111,10 +118,12 @@ Deepr's development follows a progression toward autonomy:
 
 **Status:** Core modules tested with mocked APIs. Real API validation in progress.
 
-**Test Coverage:**
-- 47/47 unit tests passing (mocked)
-- 5/5 integration tests passing (real API calls)
-- See [TESTING_STATUS.md](TESTING_STATUS.md)
+**Test Coverage (October 30, 2025):**
+- 28/28 unit tests passing (cost estimation, queue, storage)
+- 14/14 CLI command tests passing (new command structure validation)
+- Comprehensive provider test suite created (OpenAI, Gemini, Grok, Azure)
+- End-to-end workflow tests implemented (submit -> status -> get)
+- See [tests/README.md](../tests/README.md) and [docs/TESTING.md](TESTING.md)
 
 **Real API Tests Validated (October 29-30, 2025):**
 - Minimal research (o4-mini-deep-research): Works, cost $0.01-0.02, time 30-35s

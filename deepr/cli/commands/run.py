@@ -2,6 +2,7 @@
 
 import click
 import asyncio
+import os
 from pathlib import Path
 from typing import Optional, List
 from deepr.queue.local_queue import SQLiteQueue
@@ -88,7 +89,7 @@ def single(
         deepr run single "Query" --provider gemini -m gemini-2.5-flash
         deepr run single "Latest from xAI" --provider grok -m grok-4-fast
     """
-    click.echo("⚠️  DEPRECATION WARNING: 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
+    click.echo("[DEPRECATION] 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
     asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes))
 
 
@@ -128,13 +129,97 @@ async def _run_single(
 
     # Handle file uploads
     document_ids = []
+    vector_store_id = None
     if upload:
         click.echo("Uploading files...")
-        # TODO: Implement file upload
-        click.echo("  (File upload not yet implemented)")
+        try:
+            from deepr.providers import create_provider
+            from deepr.config import load_config
+
+            config = load_config()
+
+            # Get provider-specific API key
+            if provider == "gemini":
+                api_key = config.get("gemini_api_key")
+            elif provider == "grok":
+                api_key = config.get("xai_api_key")
+            elif provider == "azure":
+                api_key = config.get("azure_api_key")
+            else:  # openai
+                api_key = config.get("api_key")
+
+            provider_instance = create_provider(provider, api_key=api_key)
+
+            # Upload each file
+            uploaded_files = []
+            for file_path in upload:
+                if not os.path.exists(file_path):
+                    click.echo(f"  [X] File not found: {file_path}")
+                    continue
+
+                click.echo(f"  Uploading: {os.path.basename(file_path)}...")
+                try:
+                    file_id = await provider_instance.upload_document(file_path)
+                    uploaded_files.append(file_id)
+                    click.echo(f"  [OK] Uploaded: {os.path.basename(file_path)}")
+                except Exception as e:
+                    click.echo(f"  [X] Failed to upload {os.path.basename(file_path)}: {e}")
+
+            if not uploaded_files:
+                click.echo("  [!] No files uploaded successfully")
+            else:
+                # For OpenAI, create vector store
+                if provider in ["openai", "azure"]:
+                    click.echo("  Creating vector store...")
+                    try:
+                        from deepr.providers.base import VectorStore
+                        vs = await provider_instance.create_vector_store(
+                            name=f"research-{uuid.uuid4().hex[:8]}",
+                            file_ids=uploaded_files
+                        )
+                        vector_store_id = vs.id
+                        click.echo(f"  [OK] Vector store created: {vs.id[:20]}...")
+
+                        # Wait for ingestion
+                        click.echo("  Waiting for file processing...")
+                        ready = await provider_instance.wait_for_vector_store(
+                            vs.id,
+                            timeout=300,
+                            poll_interval=2.0
+                        )
+                        if ready:
+                            click.echo("  [OK] Files ready for research")
+                        else:
+                            click.echo("  [!] Files still processing (continuing anyway)")
+                    except Exception as e:
+                        click.echo(f"  [X] Vector store creation failed: {e}")
+                        vector_store_id = None
+
+                # For Gemini, files are referenced directly
+                elif provider == "gemini":
+                    document_ids = uploaded_files
+                    click.echo(f"  [OK] {len(uploaded_files)} files ready for research")
+
+                # For Grok, document collections not yet implemented
+                elif provider == "grok":
+                    click.echo("  [!] Grok file upload not yet fully supported")
+                    click.echo("  Files uploaded but may not be used in research")
+                    document_ids = uploaded_files
+
+        except Exception as e:
+            click.echo(f"  [X] File upload failed: {e}")
+            click.echo("  Continuing without files...")
 
     # Submit job to queue
     click.echo("Submitting research job...")
+
+    # Prepare job metadata for cleanup tracking
+    job_metadata = {}
+    if vector_store_id:
+        job_metadata["vector_store_id"] = vector_store_id
+        job_metadata["cleanup_vector_store"] = True  # Auto-cleanup after job completes
+    if upload:
+        job_metadata["uploaded_files"] = list(upload)
 
     job = ResearchJob(
         id=f"research-{uuid.uuid4().hex[:12]}",
@@ -147,6 +232,7 @@ async def _run_single(
         enable_code_interpreter=not no_code,
         documents=document_ids,
         cost_limit=limit,
+        metadata=job_metadata,
     )
 
     queue = SQLiteQueue()
@@ -180,6 +266,13 @@ async def _run_single(
             tools.append(ToolConfig(type=tool_name))
         if not no_code:
             tools.append(ToolConfig(type="code_interpreter"))
+
+        # Add file_search tool for OpenAI/Azure when vector store is available
+        if vector_store_id and provider in ["openai", "azure"]:
+            tools.append(ToolConfig(
+                type="file_search",
+                vector_store_ids=[vector_store_id]
+            ))
 
         # Create research request
         # Note: Grok/xAI doesn't support background parameter
@@ -323,7 +416,7 @@ def campaign(
         deepr run campaign "Market entry analysis" --phases 4
         deepr run campaign "Competitive landscape" -m o3-deep-research
     """
-    click.echo("⚠️  DEPRECATION WARNING: 'deepr run campaign' is deprecated. Use 'deepr run project' instead.\n")
+    click.echo("[DEPRECATION] 'deepr run campaign' is deprecated. Use 'deepr run project' instead.\n")
     asyncio.run(_run_campaign(scenario, model, lead, phases, yes))
 
 
@@ -491,14 +584,15 @@ well-structured documentation that is clear, accurate, and useful. Include:
 @click.command(name="r")
 @click.argument("query")
 @click.option("--model", "-m", default="o4-mini-deep-research")
+@click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]))
 @click.option("--no-web", is_flag=True)
 @click.option("--no-code", is_flag=True)
 @click.option("--upload", "-u", multiple=True)
 @click.option("--limit", "-l", type=float)
 @click.option("--yes", "-y", is_flag=True)
-def run_alias(query, model, no_web, no_code, upload, limit, yes):
-    """Quick alias for 'deepr run' - run a single research job."""
-    asyncio.run(_run_single(query, model, no_web, no_code, upload, limit, yes))
+def run_alias(query, model, provider, no_web, no_code, upload, limit, yes):
+    """Quick alias for 'deepr run focus' - run a focused research job."""
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes))
 
 
 if __name__ == "__main__":
