@@ -4,47 +4,32 @@
 
 Deepr is the open-source, multi-provider platform for deep research automation. This roadmap outlines our path from adaptive planning (Level 3) toward more autonomous, self-improving research systems (Level 4-5).
 
-## What's Going On - CLI Command Structure (November 2025)
+## CLI Command Structure - Completed (October 30, 2025)
 
-**Problem:** Two competing entry points and mixed command grammar
+**Status: IMPLEMENTED**
 
-**Current State:**
-- `run` is the real, local, queue-backed executor with subcommands `single | campaign | team`
-- `research.py` exists with `submit/status/get`, but it is NOT wired into main.py. It's effectively dead code from an older, provider-specific flow
-- Mixed command grammar: Verbs-as-commands (`run`, `status`, `get`, `list`, `cancel`) + Noun groups (`budget`, `cost`, `analytics`, `vector`, `templates`)
-- Jargon: `single`, `campaign`, `team` are not self-explanatory
-- Roadmap tension: Phase-2 envisions `research --mode focus|project|team|documentation`, but there's already an unused `research.py`. Naming collision + migration ambiguity
+The CLI restructure has been completed. The new command structure is now production-ready.
 
-**Recommendation (minimal breakage, maximal clarity):**
+**What Changed:**
+- Old `deepr research submit` → New `deepr run focus` (quick, focused research)
+- Old `deepr prep plan/execute` → New `deepr run project` (multi-phase research)
+- Old `deepr team analyze` → New `deepr run team` (multi-perspective research)
+- New `deepr run docs` (documentation-oriented research)
+- Unified job management under `deepr jobs` command group
+  - `deepr jobs list` - List all jobs
+  - `deepr jobs status <job-id>` - Check job status
+  - `deepr jobs get <job-id>` - Retrieve results
+  - `deepr jobs cancel <job-id>` - Cancel running job
 
-1. **Keep `run` as execution verb, rename modes to match intent**
-   - `deepr run focus` (was `single`) - Quick, focused research
-   - `deepr run project` (was `campaign`) - Multi-phase, context-chained
-   - `deepr run team` (unchanged semantics, multi-perspective research)
-   - `deepr run docs` (new: documentation-oriented research)
-   - Provide aliases for backward compatibility: `single -> focus`, `campaign -> project`
+**Backward Compatibility:**
+- Old commands work as aliases with deprecation warnings
+- Migration path provided for existing users
+- `research.py` marked for removal in future release
 
-2. **Make job management a single noun group: `jobs`**
-   - `deepr jobs list`
-   - `deepr jobs status <job-id>`
-   - `deepr jobs get <job-id>`
-   - `deepr jobs cancel <job-id>`
-   - Add compatibility shims for current commands with deprecation warnings
-
-3. **Resolve research.py**
-   - **Option A (preferred):** Delete `research.py`. Fold anything useful into `run` and `jobs`. Avoids two top-level concepts doing the same thing
-   - **Option B:** Make `research` canonical and turn `run` into alias. More churn
-   - **Decision:** Option A is simpler and avoids breaking current usage
-
-4. **Keep stable noun groups**
-   - `deepr budget`, `cost`, `analytics`, `config`, `templates`, `vector`, `docs`, `migrate`, `interactive`
-   - Consider folding `prep` into `deepr run project --plan-only` or renaming to `deepr plan`
-
-**Migration Plan (low risk):**
-- **Release N:** Add new subcommands and `jobs` group. Keep old commands as aliases with deprecation notices
-- **Release N:** Update --help, README, examples to show new structure
-- **Release N+1:** Delete `research.py` or integrate its bits
-- **Release N+2:** Remove deprecated aliases once telemetry shows low usage
+**Next Phase (Planned for November 2025):**
+- Transition `deepr vector` to `deepr index` for better semantics
+- Add `deepr plan` as shortcut for `deepr run project --plan-only`
+- Remove deprecated aliases after usage telemetry validation
 
 ## Current Status
 
