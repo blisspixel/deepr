@@ -70,6 +70,18 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 - NEW: Documentation-oriented research mode
 - Backward compatibility maintained with deprecation warnings
 
+**Bug Fixes (October 30, 2025)**
+- Fixed 5 bugs in job status retrieval from providers (deepr jobs get)
+  - create_storage() missing storage_type parameter
+  - save_report() incorrect signature
+  - ResearchResponse.output parsing (list of dicts, not string)
+  - queue.update_job() method doesn't exist (use update_status/update_results)
+  - ReportMetadata.path doesn't exist (use .url)
+- Fixed 2 bugs in OpenAI tool configuration
+  - web_search_preview tool missing required container parameter
+  - Added validation for deep research models requiring at least one tool
+  - Prevents confusing API errors when using --no-web --no-code flags
+
 **Core Research Capabilities**
 - Focused research jobs (`deepr run focus`) - All providers
 - Multi-phase projects (`deepr run project`) - OpenAI validated
