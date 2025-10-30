@@ -24,6 +24,7 @@ class ResearchJob:
     id: str
     prompt: str
     model: str = "o3-deep-research"
+    provider: str = "openai"  # openai, azure, gemini
     status: JobStatus = JobStatus.QUEUED
     priority: int = 5  # 1-10, higher = more priority
 
