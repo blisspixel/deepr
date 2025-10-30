@@ -280,9 +280,9 @@ def test_invalid_job_id_handling():
 @pytest.mark.e2e
 def test_budget_commands():
     """Test budget management commands."""
-    # Get current budget
+    # Get current budget status
     result = subprocess.run(
-        ["deepr", "budget", "get"],
+        ["deepr", "budget", "status"],
         capture_output=True,
         text=True,
         timeout=30

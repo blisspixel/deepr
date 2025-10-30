@@ -71,7 +71,7 @@ async def test_openai_provider_basic():
         prompt="What is 2+2? Provide a one-sentence answer.",
         model="o4-mini-deep-research",
         system_message="You are a helpful assistant.",
-        tools=[],
+        tools=[ToolConfig(type="web_search_preview")],  # Deep research models require at least one tool
         background=False
     )
 
@@ -184,7 +184,7 @@ async def test_azure_provider_basic():
         prompt="What is 5+5? Provide a one-sentence answer.",
         model="o4-mini-deep-research",
         system_message="You are a helpful assistant.",
-        tools=[],
+        tools=[ToolConfig(type="web_search_preview")],  # Deep research models require at least one tool
         background=False
     )
 
@@ -230,11 +230,14 @@ async def test_all_providers_cost_tracking():
         pytest.skip("No API keys configured for testing")
 
     for provider_name, provider, model, max_wait in providers_to_test:
+        # OpenAI deep research models require at least one tool
+        tools = [ToolConfig(type="web_search_preview")] if "deep-research" in model else []
+
         request = ResearchRequest(
             prompt="What is 1+1? One sentence only.",
             model=model,
             system_message="You are a helpful assistant.",
-            tools=[],
+            tools=tools,
             background=False
         )
 
@@ -329,6 +332,13 @@ async def test_provider_error_handling():
         background=False
     )
 
-    with pytest.raises(Exception):
-        # Should raise an error for invalid model
-        await provider.submit_research(request)
+    # Gemini executes immediately, so job_id is returned even for invalid models
+    # The error will be in the job status
+    job_id = await provider.submit_research(request)
+    assert job_id is not None
+
+    # Check that job failed
+    await asyncio.sleep(2)  # Give it time to fail
+    status = await provider.get_status(job_id)
+    assert status.status == "failed", "Invalid model should result in failed job"
+    assert status.error is not None, "Failed job should have error message"
