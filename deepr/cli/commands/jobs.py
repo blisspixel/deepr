@@ -114,18 +114,36 @@ async def _get_results(job_id: str):
             if response.status == "completed":
                 click.echo("[OK] Retrieved results from provider")
 
+                # Extract content from response
+                content = ""
+                if response.output:
+                    for block in response.output:
+                        if block.get('type') == 'message':
+                            for item in block.get('content', []):
+                                if item.get('type') in ['output_text', 'text']:
+                                    text = item.get('text', '')
+                                    if text:
+                                        content += text + "\n"
+
                 # Save to storage
-                storage = create_storage()
-                report_paths = await storage.save_report(job_id, job.prompt, response.output)
+                storage = create_storage("local")
+                report_metadata = await storage.save_report(
+                    job_id=job_id,
+                    filename="report.md",
+                    content=content.encode('utf-8'),
+                    content_type="text/markdown"
+                )
+                report_paths = {"markdown": report_metadata.url}
 
                 # Update job in queue
-                await queue.update_job(
-                    job_id,
-                    status=JobStatus.COMPLETED,
-                    cost=response.usage.cost if response.usage else 0,
-                    tokens_used=response.usage.total_tokens if response.usage else 0,
-                    report_paths=report_paths
-                )
+                await queue.update_status(job_id, JobStatus.COMPLETED)
+                if response.usage and response.usage.cost:
+                    await queue.update_results(
+                        job_id,
+                        report_paths=report_paths,
+                        cost=response.usage.cost,
+                        tokens_used=response.usage.total_tokens if response.usage.total_tokens else 0
+                    )
 
                 job = await queue.get_job(job_id)
             elif response.status == "failed":
