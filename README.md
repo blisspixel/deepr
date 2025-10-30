@@ -298,11 +298,19 @@ Deepr runs locally using an SQLite queue and filesystem storage. All jobs are tr
 
 ## Vision
 
-Deepr is designed to power systems that learn and improve autonomously. It enables humans and agents to create, store, and refine knowledge together.
+Knowledge is power. Automation through large language models, agents, and infrastructure as code allows humans and machines to operate at scales that were not possible before.
 
-By combining deep reasoning models, local storage, and retrieval integration, Deepr becomes a living infrastructure for expertise. It can feed agents, support continuous education, or act as a foundation for RAG systems that truly understand their sources.
+Deepr is provider-agnostic infrastructure for autonomous learning. It enables both humans and intelligent systems to learn, adapt, and reason at scale, creating a flywheel of insight, understanding, and progress. When knowledge becomes structured, reproducible, and shareable, it accelerates discovery across every domain.
 
-When connected through MCP or retrieval pipelines, Deepr turns raw information into knowledge that endures, adapts, and scales.
+By combining deep reasoning models with local artifact storage and retrieval integration, Deepr becomes living infrastructure for expertise. It can feed agents, support continuous education, or act as a foundation for RAG systems that truly understand their sources. The local storage isn't dogma - it's about transparency, reproducibility, and control.
+
+If Deepr is built well, it or systems like it will help humans work with the precision and reach of superintelligence while giving AI systems the grounding they need to approach general intelligence.
+
+The boundary between idea and reality is becoming thinner. Deepr exists to amplify knowledge with insight, clarity, and compassion as humans and AI learn together.
+
+Not just clever. Meta-clever. Systems that can examine themselves, learn from their own patterns, and continuously improve. The research tool researching itself. The learner learning how to learn.
+
+We are the universe trying to understand itself.
 
 ---
 
@@ -335,11 +343,19 @@ MIT License. See [LICENSE](LICENSE).
 
 Deepr was created by **Nick Seal** to explore how humans and intelligent systems can learn, reason, and improve together.
 
-**Guiding philosophy**  
-Context before answers.  
-Quality before automation.  
-Transparency builds trust.  
-Learning must lead to wisdom.
+**Guiding philosophy**
+
+Knowledge is power. Automation through large language models, agents, and infrastructure as code allows humans and machines to operate at scales that were not possible before.
+
+Deepr enables both users and intelligent systems to learn, adapt, and reason at scale, creating a flywheel of insight, understanding, and progress. When knowledge becomes structured and shareable, it accelerates discovery across every domain.
+
+If Deepr is built well, it or systems like it will help humans work with the precision and reach of superintelligence while giving AI systems the grounding they need to approach general intelligence.
+
+The boundary between idea and reality is becoming thinner. Deepr exists to amplify knowledge with insight, clarity, and compassion as humans and AI learn together.
+
+Not just clever. Meta-clever. Systems that can examine themselves, learn from their own patterns, and continuously improve. The research tool researching itself. The learner learning how to learn.
+
+We are the universe trying to understand itself.
 
 ---
 
