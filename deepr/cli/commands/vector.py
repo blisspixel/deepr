@@ -187,6 +187,107 @@ def delete(vector_store_id: str, yes: bool):
 
 
 @vector.command()
+@click.option("--pattern", "-p", help="Delete stores matching name pattern (e.g., 'research-*')")
+@click.option("--all", "-a", is_flag=True, help="Delete all vector stores")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+@click.option("--dry-run", is_flag=True, help="Show what would be deleted without deleting")
+def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
+    """
+    Clean up vector stores in bulk.
+
+    Examples:
+        deepr vector cleanup --pattern "research-*" --yes
+        deepr vector cleanup --all --dry-run
+        deepr vector cleanup --pattern "test*"
+    """
+    print_section_header("Vector Store Cleanup")
+
+    try:
+        import asyncio
+        import fnmatch
+        from deepr.config import load_config
+        from deepr.providers.openai_provider import OpenAIProvider
+
+        config = load_config()
+        provider = OpenAIProvider(api_key=config["api_key"])
+
+        async def cleanup_stores():
+            stores = await provider.list_vector_stores(limit=100)
+
+            if not stores:
+                click.echo("\nNo vector stores found.")
+                return 0
+
+            # Filter stores based on criteria
+            to_delete = []
+
+            if all:
+                click.echo("\n[!] --all flag specified: Will delete ALL vector stores")
+                to_delete = stores
+            elif pattern:
+                click.echo(f"\nFinding stores matching pattern: {pattern}")
+                for store in stores:
+                    if store.name and fnmatch.fnmatch(store.name, pattern):
+                        to_delete.append(store)
+            else:
+                click.echo("\n[!] No filter specified. Use --pattern or --all")
+                click.echo("Example: deepr vector cleanup --pattern 'research-*'")
+                return 0
+
+            if not to_delete:
+                click.echo("\nNo stores match criteria.")
+                return 0
+
+            # Show what will be deleted
+            click.echo(f"\nVector stores to delete: {len(to_delete)}")
+            for store in to_delete:
+                click.echo(f"  - {store.name or 'Unnamed'} ({store.id[:25]}...) - {len(store.file_ids)} files")
+
+            if dry_run:
+                click.echo(f"\n[DRY RUN] Would delete {len(to_delete)} store(s)")
+                return 0
+
+            # Confirm deletion
+            if not yes:
+                click.echo(f"\n[!] This will permanently delete {len(to_delete)} vector store(s)")
+                if not click.confirm("Continue?"):
+                    click.echo("\nCancelled")
+                    return 0
+
+            # Delete stores
+            deleted = 0
+            failed = 0
+
+            click.echo(f"\nDeleting...")
+            for store in to_delete:
+                try:
+                    success = await provider.delete_vector_store(store.id)
+                    if success:
+                        click.echo(f"  {CHECK} {store.name or 'Unnamed'}")
+                        deleted += 1
+                    else:
+                        click.echo(f"  {CROSS} Failed: {store.name or 'Unnamed'}")
+                        failed += 1
+                except Exception as e:
+                    click.echo(f"  {CROSS} Error: {store.name or 'Unnamed'} - {e}")
+                    failed += 1
+
+            click.echo(f"\nDeleted: {deleted}")
+            if failed:
+                click.echo(f"Failed: {failed}")
+
+            return deleted
+
+        deleted = asyncio.run(cleanup_stores())
+
+    except Exception as e:
+        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@vector.command()
 @click.argument("vector_store_id")
 def info(vector_store_id: str):
     """

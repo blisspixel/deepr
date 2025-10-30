@@ -5,17 +5,19 @@ import asyncio
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.queue.base import JobStatus
 from pathlib import Path
+from deepr.cli.colors import print_deprecation
 
 
 @click.command()
 @click.argument("job_id")
 def status(job_id: str):
-    """Show detailed status for a specific job.
+    """[DEPRECATED: Use 'deepr jobs status'] Show detailed status for a specific job.
 
     Examples:
         deepr status abc123
         deepr status research-1234567890
     """
+    print_deprecation("deepr status <job-id>", "deepr jobs status <job-id>")
     asyncio.run(_show_status(job_id))
 
 
@@ -67,12 +69,13 @@ async def _show_status(job_id: str):
 @click.command()
 @click.argument("job_id")
 def get(job_id: str):
-    """Get research results for a completed job.
+    """[DEPRECATED: Use 'deepr jobs get'] Get research results for a completed job.
 
     Examples:
         deepr get abc123
         deepr get research-1234567890
     """
+    print_deprecation("deepr get <job-id>", "deepr jobs get <job-id>")
     asyncio.run(_get_results(job_id))
 
 
@@ -221,13 +224,14 @@ async def _get_results(job_id: str):
 @click.option("--status-filter", "-s", help="Filter by status (queued/processing/completed/failed)")
 @click.option("--limit", "-n", type=int, default=10, help="Number of jobs to show")
 def list_jobs(status_filter: str, limit: int):
-    """List research jobs.
+    """[DEPRECATED: Use 'deepr jobs list'] List research jobs.
 
     Examples:
         deepr list
         deepr list -s processing
         deepr list -s completed -n 20
     """
+    print_deprecation("deepr list", "deepr jobs list")
     asyncio.run(_list_jobs(status_filter, limit))
 
 
@@ -290,12 +294,13 @@ async def _list_jobs(status_filter: str, limit: int):
 @click.command()
 @click.argument("job_id")
 def cancel(job_id: str):
-    """Cancel a queued or processing job.
+    """[DEPRECATED: Use 'deepr jobs cancel'] Cancel a queued or processing job.
 
     Examples:
         deepr cancel abc123
         deepr cancel research-1234567890
     """
+    print_deprecation("deepr cancel <job-id>", "deepr jobs cancel <job-id>")
     asyncio.run(_cancel_job(job_id))
 
 
