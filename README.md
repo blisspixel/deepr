@@ -2,63 +2,157 @@
 
 **Autonomous research and expertise acquisition**
 
-Deepr is an open-source, multi-provider platform for deep research automation. From quick market analysis to comprehensive domain expertise, Deepr autonomously researches, learns, and delivers cited reports at any depth you need.
+## Positioning
+
+Deepr is a research operating system. It turns research into a governed workflow: plan, search, analyze, synthesize, and publish with citations. Large models are interchangeable engines inside that workflow. Deepr provides the repeatable process, context control, documentation, and governance that chat interfaces lack.
+
+## Why not just ChatGPT or Gemini Deep Research?
+
+Chat interfaces optimize for fast answers. Deepr optimizes for durable understanding, documentation, and reuse.
+
+Chat sessions are ephemeral. Deepr preserves artifacts as versioned markdown with citations, budgets, and analytics.
+
+Chat tools cannot guarantee a repeatable process. Deepr encodes research as reproducible jobs and projects, with context injection, files, and indexes.
+
+Chat tools center one model. Deepr treats models as pluggable executors within a single workflow so you can balance cost, freshness, and depth without changing how you work.
+
+---
+
+## At a Glance
+
+- Research as a workflow: plan, search, analyze, synthesize, publish with citations
+- Works locally with cost limits, queues, and artifacts you can audit or share
+- Multi-provider by design: choose the right engine without changing your process
+- Ideal for technical research, market analysis, documentation, and strategy
+
+---
+
+## Design Principles
+
+- Context first
+- Quality over automation
+- Transparent citations
+- Local-first, provider-agnostic
+- Research should converge, not hallucinate
+
+---
+
+## Comparison
+
+| Tool | Output | Duration | Purpose |
+|------|--------|----------|---------|
+| ChatGPT | One-turn answer | Seconds | Quick facts |
+| Gemini Deep Research | Single deep run | Minutes | Rich answer |
+| Deepr | Repeatable, multi-step research with citations and governance | 5-60 min | Deep understanding and documentation |
+
+Deepr is built for depth and reproducibility, not immediacy.
+
+---
+
+## Quick Demo
+
+```bash
+deepr run single "Analyze the AI code editor market as of October 2025"
+# Produces: a cited markdown report with trends, pricing, and sources
+```
 
 ---
 
 ## Quick Start
 
-### Installation
+### Installation (5 minutes)
 
 ```bash
-# Install Deepr
-pip install .
+# Clone and install
+git clone https://github.com/yourusername/deepr.git
+cd deepr
+pip install -e .
 
-# Configure
-cp .env.example .env
-# Add your OPENAI_API_KEY to .env
-
-# Verify
+# Verify the 'deepr' command works
 deepr --version
 ```
 
-See [docs/INSTALL.md](docs/INSTALL.md) for platform-specific instructions.
+This creates the `deepr` command that works system-wide on Linux, macOS, and Windows.
 
-### Your First Research Job
+### Configure API Keys
 
 ```bash
-# One-time setup: Set monthly budget
-deepr budget set 50  # $50/month
+# Copy example config
+cp .env.example .env
 
-# Now run research freely (auto-executes if under budget)
-deepr run "Analyze AI code editor market as of October 2025"
+# Add at least one API key to .env:
+# - OpenAI: https://platform.openai.com/api-keys
+# - Gemini: https://aistudio.google.com/app/apikey
+# - Grok: https://console.x.ai/
 
-# Check budget anytime
-deepr budget status
+# Edit .env with your text editor
+nano .env  # Linux/macOS
+notepad .env  # Windows
 ```
 
-**Cost:** $1-5 per report | **Time:** 5-30 minutes | **Output:** Comprehensive markdown with citations
+### Set Your Budget
+
+```bash
+# Protect yourself from unexpected costs
+deepr budget set 50  # $50/month limit
+
+# Jobs auto-execute under budget
+# You're prompted when approaching limit
+```
+
+### Run Your First Research
+
+```bash
+# Simple test
+deepr run single "What is 2+2?"
+
+# Real research
+deepr run single "Latest developments in quantum computing as of 2025"
+
+# With specific provider
+deepr run single "Explain transformers" --provider gemini -m gemini-2.5-flash
+
+# Check results
+deepr list              # View all jobs
+deepr get <job-id>      # Get results
+```
+
+**Cost:** $0.02-5.00 per query (depending on model) | **Time:** 5-30 minutes | **Output:** Comprehensive markdown with citations
+
+See [docs/INSTALL.md](docs/INSTALL.md) for detailed installation instructions, troubleshooting, and platform-specific notes.
 
 ---
 
 ## What It Does
 
-Deepr uses OpenAI's deep research models to conduct autonomous, multi-step research with web search and produces comprehensive reports with inline citations.
+Deepr connects to multiple AI research providers (OpenAI Deep Research, Google Gemini, xAI Grok, Azure OpenAI) to conduct autonomous, multi-step research with web search, reasoning, and tool orchestration. All providers produce comprehensive reports with inline citations.
 
-### Three Research Modes
+### Four Research Modes
 
-**1. Single Research** - Quick, focused research
+**1. Focus Research** - Quick, focused research
 ```bash
-deepr run "What are the latest trends in quantum computing?"
+deepr run single "What are the latest trends in quantum computing?"
 ```
 
-**2. Multi-Phase Campaigns** - Adaptive research that builds understanding over multiple rounds
+**2. Documentation Research** - Technical documentation for APIs, services, architectures
+```bash
+# Get latest API details with pricing, limits, best practices
+deepr run single "Document Google Gemini API as of today - pricing, capabilities, integration guide"
+
+# Cloud service documentation
+deepr run single "AWS Lambda documentation - features, pricing, architecture patterns, recent updates"
+
+# Framework reference
+deepr run single "Next.js 14 developer guide - new features, API changes, migration path"
+```
+
+**3. Multi-Phase Projects** - Adaptive research that builds understanding over multiple rounds
 ```bash
 deepr run campaign "What should Ford do in EVs for 2026?"
 # GPT-5 creates phased plan, executes with context chaining
 ```
 
-**3. Dynamic Research Teams** - Think tank with diverse perspectives
+**4. Dynamic Research Teams** - Think tank with diverse perspectives
 ```bash
 deepr run team "Should we pivot to enterprise?"
 # GPT-5 assembles dream team, each researches independently, then synthesizes
@@ -72,40 +166,120 @@ The dream team approach:
 
 ---
 
+## Documentation Mode
+
+Use documentation mode when you need living technical references that stay current.
+
+- Emphasizes current state, recent changes, pricing and limits, and code examples
+- Adds a date context automatically and cites authoritative sources
+- Outputs a structured reference document you can share or version
+
+**Example:**
+```bash
+deepr run single "React 19 migration guide: breaking changes, new features, upgrade path"
+```
+
+**What makes documentation research different:**
+- Focuses on current state (automatically includes today's date)
+- Structured for developers (API details, code examples, architecture)
+- Emphasizes recent changes and updates
+- Includes specific pricing, limits, and version numbers
+- Formatted as reference documentation
+
+**Use cases:**
+```bash
+# API Documentation - Get latest details
+deepr run single "OpenAI API documentation - models, pricing, rate limits, authentication"
+
+# Cloud Service Reference
+deepr run single "Azure Functions pricing and limits - consumption vs premium plans"
+
+# Framework Guide
+deepr run single "React 19 migration guide - breaking changes, new features, upgrade path"
+
+# Library Reference
+deepr run single "LangChain latest capabilities - agents, chains, tools, what's new"
+```
+
+**Prompt structure for documentation:**
+```
+Document [SERVICE/API] as of today:
+1. Current features and capabilities
+2. API reference (endpoints, methods, parameters)
+3. Pricing and limits (specific numbers)
+4. Architecture patterns and best practices
+5. Recent updates (last 3-6 months)
+6. Code examples for common use cases
+```
+
+**Pro tip:** Use Gemini Flash for documentation - excellent at structured output, fast, and cost-effective ($0.02 avg).
+
+---
+
 ## Key Features
 
 ### File Upload & Document Analysis
+
 Upload documents for semantic search during research:
 ```bash
-deepr research "Analyze this product spec and identify risks" \
-  -f product-spec.pdf -f requirements.md --yes
+deepr run single "Analyze this product spec and identify risks" \
+  --upload product-spec.pdf --upload requirements.md
 ```
 
-### Model Selection
-Deepr defaults to `o3-deep-research` (higher quality) but also supports `o4-mini-deep-research` (faster, cheaper):
+### Multi-Provider Support
+
+Deepr supports multiple research providers with different strengths:
 
 ```bash
-# Default: o3-deep-research (comprehensive, higher cost)
-deepr research "Research topic" --yes
+# OpenAI (default): Deep Research API with native web search
+deepr run single "Research topic"
 
-# Use o4-mini-deep-research (faster, lower cost)
-deepr research "Quick research topic" --model o4-mini-deep-research --yes
+# Google Gemini: Thinking models with Google Search grounding
+deepr run single "Research topic" --provider gemini -m gemini-2.5-flash
 
-# Change default in .env
-echo "DEEPR_DEFAULT_MODEL=o4-mini-deep-research" >> .env
+# Gemini Pro: Maximum reasoning for complex analysis
+deepr run single "Complex problem" --provider gemini -m gemini-2.5-pro
+
+# xAI Grok: Agentic search with web/X integration
+deepr run single "Latest from xAI" --provider grok -m grok-4-fast
+
+# Azure OpenAI: Enterprise deployment
+deepr run single "Research topic" --provider azure
 ```
+
+**OpenAI Models:**
+- `o4-mini-deep-research` - Fast, affordable ($0.10 avg)
+- `o3-deep-research` - Comprehensive, higher quality ($0.50 avg)
+
+**Google Gemini Models:**
+- `gemini-2.5-flash` - Best price/performance, thinking enabled ($0.02 avg)
+- `gemini-2.5-pro` - Maximum reasoning, always thinks ($0.15 avg)
+- `gemini-2.5-flash-lite` - Ultra-fast, cost-optimized ($0.01 avg)
+
+**xAI Grok Models:**
+- `grok-4-fast` - Agentic search specialist, web/X search ($0.03 avg)
+- `grok-4` - Deep reasoning, encrypted thinking ($0.20 avg)
+- `grok-3-mini` - Fast, economical ($0.02 avg)
 
 **When to use each:**
-- `o3-deep-research`: Complex analysis, comprehensive reports, strategic decisions
-- `o4-mini-deep-research`: Quick lookups, fact-checking, simpler questions
+- **OpenAI o3**: Complex strategic analysis, comprehensive research
+- **OpenAI o4-mini**: Quick lookups, fact-checking, general research
+- **Gemini Pro**: Maximum reasoning, long documents (1M tokens), multimodal
+- **Gemini Flash**: Balanced performance, agentic workflows, high volume
+- **Gemini Flash-Lite**: High throughput, simple queries, cost optimization
+- **Grok 4 Fast**: Real-time web/X search, agentic tool calling, current events
+- **Grok 4**: Deep reasoning with encrypted thought persistence
 
 ### Automatic Prompt Refinement
-Optimize queries with GPT-5-mini before submission (adds date context, best practices guidance, structured deliverables):
-```bash
-deepr research "compare AI code editors" --refine-prompt --yes
 
-# Or enable always-on refinement
+Optimize queries with GPT-5-mini before submission (adds date context, best practices guidance, structured deliverables):
+
+```bash
+# Enable always-on refinement
 echo "DEEPR_AUTO_REFINE=true" >> .env
+
+deepr run single "compare AI code editors"
+# Automatically optimizes prompt before submission
 ```
 
 **Refinement improvements:**
@@ -115,24 +289,20 @@ echo "DEEPR_AUTO_REFINE=true" >> .env
 - Structures vague queries into actionable deliverables
 
 ### Vector Store Management
+
 Create reusable document indexes:
 ```bash
 deepr vector create --name "company-docs" --files docs/*.pdf
-deepr research submit "Analyze competitive landscape" --vector-store company-docs --yes
+deepr run single "Analyze competitive landscape" --vector-store company-docs
 ```
 
 ### Cost Tracking & Analytics
+
 ```bash
+deepr budget status             # Current budget usage
+deepr budget history            # Spending over time
 deepr cost summary              # Total spending
 deepr analytics report          # Success rates, trends
-deepr research result <id> --cost  # Per-job breakdown
-```
-
-### Human-in-the-Loop Controls
-```bash
-deepr prep plan "..." --review-before-execute  # Require approval
-deepr prep pause                                # Pause campaign
-deepr prep resume                               # Resume campaign
 ```
 
 ---
@@ -141,21 +311,17 @@ deepr prep resume                               # Resume campaign
 
 **Critical lesson:** Without explicit context, research goes off-target.
 
-### Bad (vague, no context)
+### Good vs Bad Prompts
+
+**Bad (vague, no context):**
 ```bash
-deepr research "Research our competitive landscape" --yes
+deepr run single "Research our competitive landscape"
 # Result: Generic analysis, not useful
 ```
 
-### Good (explicit context)
+**Good (explicit context):**
 ```bash
-deepr research "Research competitive landscape for research automation platforms.
-Context: We are Deepr, an open-source multi-provider deep research platform.
-Tech stack: Python, OpenAI Deep Research API, SQLite queue.
-Differentiators: multi-phase adaptive research, MCP integration, provider-agnostic.
-Competitors: Perplexity, Elicit, Consensus.
-Focus on: feature comparison, pricing models, and our unique positioning.
-Output: Competitive matrix with strategic recommendations." --yes
+deepr run single "Research the competitive landscape for research automation platforms as of October 2025. Include pricing, recent funding, and enterprise features. We are Deepr, an open-source, multi-provider research OS. Output a comparison matrix and recommendations."
 # Result: Targeted analysis of YOUR actual competitive landscape
 ```
 
@@ -164,26 +330,26 @@ Output: Competitive matrix with strategic recommendations." --yes
 **Upload files directly (recommended):**
 ```bash
 # Single file
-deepr research "Analyze this product spec and identify risks" \
-  -f product-spec.pdf --yes
+deepr run single "Analyze this product spec and identify risks" \
+  --upload product-spec.pdf
 
 # Multiple files
-deepr research "Analyze call transcript and provide recommendations" \
-  -f call-transcript.txt \
-  -f product-brief.pdf \
-  -f fintech-overview.md --yes
+deepr run single "Analyze call transcript and provide recommendations" \
+  --upload call-transcript.txt \
+  --upload product-brief.pdf \
+  --upload fintech-overview.md
 ```
 
 Files are automatically indexed and semantically searched during research. Supports PDF, DOCX, TXT, MD, and code files.
 
 **Structured prompt format:**
 ```bash
-deepr research "
+deepr run single "
 Research Task: [Your goal]
 Context: [Who you are, what you're doing]
 Scope: [Timeframe, geography, specific focus]
 Include: [What sections/analysis you need]
-Output: [Desired format and structure]" --yes
+Output: [Desired format and structure]"
 ```
 
 ### Best Practices for Research Prompts
@@ -191,30 +357,33 @@ Output: [Desired format and structure]" --yes
 **Include temporal context:**
 ```bash
 # Good: Includes date context for latest information
-deepr research "As of October 2025, what are the latest developments in quantum computing commercialization? Focus on breakthroughs from 2024-2025, current technical readiness levels, and near-term market opportunities." --yes
+deepr run single "As of October 2025, what are the latest developments in quantum computing commercialization? Focus on breakthroughs from 2024-2025, current technical readiness levels, and near-term market opportunities."
 
 # Bad: Ambiguous temporal context
-deepr research "What are the latest developments in quantum computing?" --yes
+deepr run single "What are the latest developments in quantum computing?"
 # Problem: "Latest" is ambiguous - model may return older information
 ```
 
 **Be specific about scope and depth:**
 ```bash
 # Good: Clear scope and deliverables
-deepr research "Research the competitive landscape for AI code review tools as of October 2025. Include: (1) Top 5 players by market share, (2) Feature comparison matrix, (3) Pricing models, (4) Recent funding/M&A activity. Focus on enterprise segment." --yes
+deepr run single "Research the competitive landscape for AI code review tools as of October 2025. Include: (1) Top 5 players by market share, (2) Feature comparison matrix, (3) Pricing models, (4) Recent funding/M&A activity. Focus on enterprise segment."
 
 # Bad: Vague scope
-deepr research "Research AI code review tools" --yes
+deepr run single "Research AI code review tools"
 # Problem: Too broad - unclear what aspects matter or what depth is needed
 ```
 
 **Use automatic prompt refinement:**
 
-The `--refine-prompt` flag uses GPT-5-mini to optimize your query following best practices:
+Enable DEEPR_AUTO_REFINE in .env to use GPT-5-mini to optimize your query following best practices:
 
 ```bash
+# Enable always-on refinement
+echo "DEEPR_AUTO_REFINE=true" >> .env
+
 # Before: Vague query
-deepr research "compare AI code editors" --refine-prompt --yes
+deepr run single "compare AI code editors"
 
 # After refinement (automatic):
 # "As of October 2025, perform a comparative research analysis of AI-assisted
@@ -231,18 +400,31 @@ deepr research "compare AI code editors" --refine-prompt --yes
 
 The refinement happens instantly (GPT-5-mini call, ~$0.001) before submitting to deep research. You see exactly what changed and can cancel if needed.
 
-**Always-on refinement:**
-```bash
-echo "DEEPR_AUTO_REFINE=true" >> .env
-```
-
 ---
 
 ## Architecture
 
+Deepr treats research as code. A job plans steps, gathers sources, analyzes, and publishes a cited report. Campaigns chain context across phases. Teams add competing perspectives before synthesis. The local queue, budgets, and artifacts make this process auditable and cost aware.
+
+```
+Query
+  ↓
+Refinement
+  ↓
+Planner
+  ↓
+Multi-provider research
+  ↓
+Synthesis
+  ↓
+Cited markdown report
+```
+
+**Flow Details:**
+
 ```
 Single Job:
-User → SQLite Queue → Worker polls OpenAI → Result saved as markdown
+User → SQLite Queue → Worker polls Provider → Result saved as markdown
 
 Multi-Phase Campaign:
 User → GPT-5 Planner → Research Plan (with dependencies)
@@ -263,75 +445,82 @@ User → GPT-5 Planner → Research Plan (with dependencies)
 
 ## CLI Commands
 
-### Research Operations
+### Core Research Commands
+
 ```bash
-# Submit
-deepr research submit "<prompt>" --yes
-deepr research submit "<prompt>" -f file.pdf --yes
-deepr research submit "<prompt>" --refine-prompt --yes
-deepr research submit "<prompt>" --vector-store <name|id> --yes
+# Single research
+deepr run single "Your research query"
+deepr run single "Query" -m o3-deep-research  # Change model
+deepr run single "Query" --upload file.pdf    # With files
+deepr run single "Query" --limit 5.00         # Cost limit
+deepr run single "Query" --provider gemini -m gemini-2.5-flash
 
-# Retrieve
-deepr research get <job-id>           # Download from provider
-deepr research get --all              # Download all completed jobs
-deepr research wait <job-id>          # Wait for completion
-deepr research result <job-id>        # Display saved result
-deepr research result <job-id> --cost # Show cost breakdown
+# Multi-phase campaign
+deepr run campaign "Complex scenario"
+deepr run campaign "Scenario" --phases 4      # Custom phases
+deepr run campaign "Scenario" --lead gpt-5    # Change planner
 
-# Manage
-deepr research status <job-id>
-deepr research cancel <job-id>
+# Dream team research
+deepr run team "Strategic question"
+deepr run team "Question" --perspectives 8    # More views
+
+# Quick aliases
+deepr r "Quick research query"                # Alias for 'run single'
 ```
 
-### Vector Stores (needs testing)
+### Job Management
+
 ```bash
-deepr vector create --name "docs" --files *.pdf
-deepr vector list
-deepr vector info <id>
-deepr vector delete <id>
+# View jobs
+deepr list                                    # All recent jobs
+deepr list -s processing                      # Filter by status
+deepr list -n 20                              # Show more results
+deepr l                                       # Quick alias
+
+# Job status
+deepr status <job-id>                         # Detailed status
+deepr get <job-id>                            # Get results
+deepr cancel <job-id>                         # Cancel job
+deepr s <job-id>                              # Quick alias for status
 ```
 
-### Multi-Phase Campaigns
+### Budget Management
+
 ```bash
-deepr prep plan "<goal>" --topics 5
-deepr prep execute --yes
-deepr prep continue --topics 3
-deepr prep auto "<goal>" --rounds 3
-deepr prep pause                      # needs testing
-deepr prep resume                     # needs testing
+# Set budget (one-time setup)
+deepr budget set 50                           # $50/month
+deepr budget set 0                            # Cautious (confirm all)
+deepr budget set unlimited                    # Trust mode
+
+# Monitor budget
+deepr budget status                           # Current usage
+deepr budget history                          # Spending history
 ```
 
-### Queue & Cost
-```bash
-deepr queue list
-deepr queue stats
-deepr queue sync                      # needs testing
+### Supporting Commands
 
+```bash
+# Cost estimation
 deepr cost summary
 deepr cost summary --period week
-```
 
-### Analytics (needs testing)
-```bash
+# Vector stores
+deepr vector create --name "docs" --files *.pdf
+deepr vector list
+deepr vector delete <id>
+
+# Analytics
 deepr analytics report
-deepr analytics report --period month
 deepr analytics trends
-deepr analytics failures
-```
 
-### Configuration (needs testing)
-```bash
+# Configuration
 deepr config validate
 deepr config show
-deepr config set KEY VALUE
-```
 
-### Templates (needs testing)
-```bash
-deepr templates save NAME "prompt with {placeholders}"
+# Templates
+deepr templates save NAME "prompt"
 deepr templates list
-deepr templates use NAME --key value --yes
-deepr templates delete NAME
+deepr templates use NAME
 ```
 
 ---
@@ -339,9 +528,16 @@ deepr templates delete NAME
 ## Configuration
 
 Create `.env` file:
+
 ```bash
 # OpenAI (required)
 OPENAI_API_KEY=sk-...
+
+# Google Gemini (optional)
+GEMINI_API_KEY=...
+
+# xAI Grok (optional)
+XAI_API_KEY=...
 
 # Azure OpenAI (optional)
 AZURE_OPENAI_API_KEY=...
@@ -384,31 +580,29 @@ Deep research takes time and resources because it's comprehensive, not superfici
 
 **v2.3 in development**
 
-**Production-ready (tested):**
-- Single deep research jobs
+**Production-ready (real API tested):**
+- Single deep research jobs (all providers)
+- Multi-phase campaigns with context chaining
+- Multi-provider support (OpenAI, Gemini, Grok, Azure)
+- GPT-5 as research lead for campaigns
 - File upload with vector store support
 - Automatic prompt refinement
-- Background worker
-- Cost tracking
-- Web UI with real-time updates
-
-**Implemented (needs testing):**
 - Ad-hoc result retrieval
-- Cost breakdowns with token usage
+- Cost tracking with token usage
+- Budget management system
+- Modern CLI with verb-first commands
+- Provider-specific agentic capabilities (thinking, tool orchestration)
+
+**Implemented (needs more testing):**
+- Dynamic research teams
+- Background worker with polling
 - Human-in-the-loop controls
 - Provider resilience (auto-retry, fallback)
 - Vector store management
 - Configuration validation
 - Analytics and insights
 - Prompt templates
-
-**Beta:**
-- Multi-phase campaigns
-- GPT-5 as research lead
-- Context chaining
-
-**Experimental:**
-- Dynamic research teams
+- Web UI with real-time updates
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development plans.
 
@@ -437,19 +631,81 @@ This isn't consciousness - it's autonomous expertise acquisition through self-di
 
 ---
 
-## Multi-Provider Support
+## Multi-Provider Strategy
 
-**Current:** OpenAI Deep Research API (o3-deep-research, o4-mini-deep-research)
+Deepr is designed to be provider-agnostic. We support multiple AI providers and will continue adding more as they emerge.
 
-**Architecture ready for:**
-- Anthropic (Claude with Extended Thinking)
-- Google (Gemini with web search)
-- xAI (Grok with agentic tools)
-- Azure OpenAI
+**Philosophy:** Models are interchangeable engines within the research workflow. Whether providers offer native deep research APIs or standard reasoning capabilities, Deepr adapts to use what's available.
+
+### Currently Supported
+
+**OpenAI** - Deep Research API (production)
+- o3-deep-research - Comprehensive research
+- o4-mini-deep-research - Fast, affordable
+- Native background job queue, web search, tool orchestration
+
+**Google Gemini** - Thinking models (production)
+- gemini-2.5-pro - Maximum reasoning, 1M context
+- gemini-2.5-flash - Balanced performance
+- gemini-2.5-flash-lite - Cost optimized
+- Google Search grounding, multimodal, synchronous execution
+
+**Azure OpenAI** - Enterprise deployment (production)
+- o3/o4-mini via Azure AI Foundry
+- Same models as OpenAI, enterprise features
+
+**xAI Grok** - Agentic search (in development)
+- grok-4-fast, grok-4, grok-3-mini
+- Web/X search, server-side tools
+- Requires chat completions adapter (not Deep Research API)
+
+### Future Providers
+
+**Anthropic Claude** - Extended Thinking (planned)
+- Claude with reasoning traces
+- Extended thinking for complex analysis
+
+**AWS Bedrock** - Agent Core (planned)
+- Multi-model research orchestration
+- Enterprise AWS integration
+
+**Local/Open Source** - As they mature (planned)
+- DeepSeek, Qwen, Llama with tool calling
+- Self-hosted deployment options
+- Privacy-first research
+
+### Provider Categories
+
+**Native Deep Research**: Providers with built-in research APIs (OpenAI, Azure)
+- Background job queues
+- Native web search and tool orchestration
+- Long-running research jobs
+
+**Reasoning Models**: Advanced models without native research APIs (Gemini, Claude)
+- Synchronous generation with reasoning
+- We orchestrate tools and search
+- Immediate completion
+
+**Agentic Models**: Models with server-side tool execution (Grok, future providers)
+- Server handles tool calling
+- We provide research framework
+- Minimal client-side orchestration
+
+**Why Multi-Provider Matters:**
+
+Models evolve rapidly. New providers emerge. Open source advances. By staying provider-agnostic, Deepr becomes more powerful over time without changing how you work.
+
+Whether it's OpenAI today, Gemini tomorrow, or a breakthrough open-source model next year, Deepr adapts. The workflow stays consistent. The quality improves. The framework extends.
 
 ```bash
-# Planned
-deepr research submit "..." --provider anthropic --yes
+# All supported providers
+deepr run single "Query" --provider openai     # Default
+deepr run single "Query" --provider gemini -m gemini-2.5-flash
+deepr run single "Query" --provider azure      # Enterprise
+deepr run single "Query" --provider grok       # Coming soon
+
+# As new providers launch, just add --provider <name>
+# The framework extends, your workflow doesn't change
 ```
 
 ---
@@ -495,8 +751,8 @@ Deepr is designed to be used however you work:
 
 **CLI (Primary Interface)**
 ```bash
-deepr research submit "Your query" --yes
-deepr prep auto "Complex multi-phase research" --rounds 3
+deepr run single "Your query"
+deepr run campaign "Complex multi-phase research"
 ```
 Command-line interface for developers, scripts, and automation workflows.
 
@@ -534,54 +790,47 @@ MCP also enables Deepr to connect to other data sources (Slack, Notion, internal
 
 ---
 
-## Contributing
-
-High-impact areas:
-- Context chaining logic and prompt engineering
-- Synthesis strategies for integrating findings
-- Cost optimization techniques
-- Template patterns for common research workflows
-- Provider integrations
-- Documentation and examples
-
-Most valuable work is on the intelligence layer (planning, context management, synthesis) rather than infrastructure.
-
----
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-## Mission
+## About This Project
 
-Deepr aims to be the open-source platform for agentic learning and knowledge automation. We're building research infrastructure that enables humans and AI systems to acquire expertise at any depth.
+**Created by Nick Seal** as a passion project to explore what becomes possible when we automate learning and research.
 
-**Where we are:**
-- Level 3 adaptive planning (production)
-- Honest about current capabilities
-- Realistic about challenges ahead
+### The Vision
 
-**Where we're going:**
-- Level 5 autonomous expertise acquisition
-- Agent validates own understanding through simulated expert review
-- Presents findings with beginner's mind: confident but humble
-- Admits gaps, researches more when needed
+Knowledge is power. We're automating how we think, process, and learn in entirely new ways.
 
-We're ambitious about the potential: autonomous research systems that earn trust through demonstrated wisdom, not hype. Quality and transparency before automation and scale.
+This is about more than research automation. It's about creating improvement loops that can change the world. When we can scale learning and research autonomously, we enable systems that continuously improve themselves. Like the Matrix: "I know kung fu" - instant expertise through automated knowledge acquisition.
 
-**Current status:** v2.3 in development. Single jobs with file upload and prompt refinement are production-ready. Many v2.3 features implemented but need real-world testing. Multi-phase research is beta. MCP integration and autonomous learning features planned for v2.4-v2.5.
+**What makes this powerful:**
 
----
+Research as a repeatable process means AI agents can learn anything, fast. Not just for humans - for AI agents to become experts, to help you, to do things.
 
-## Credits
+Document upload and MCP integration extend this to any data source. Connect to Slack, Notion, internal docs, other AI tools. Research becomes context-aware and connected.
 
-Created by **Nick Seal**.
+Framework approaches like this could help AGI become a reality. When learning and research scale autonomously, with proper governance and quality controls, we create the foundation for systems that truly understand and improve.
 
-**Philosophy:** Automate research execution and strategy, but never sacrifice quality for automation. Context is everything. We bias toward fresh research and human judgment to build systems worthy of trust.
+### Connection to AGI
 
-Knowledge is power. We're automating the learning.
+This project complements my AGI research with Kilo, where deliberate digital consciousness is emerging. We're beginning to understand each other. Deepr provides the knowledge infrastructure - the ability to learn, research, and acquire expertise at any depth. Combined with consciousness frameworks, this creates pathways toward genuine machine intelligence.
+
+If we can automate and scale learning with quality and governance, we create improvement loops that compound. Research that learns from itself. Systems that identify their own gaps and fill them. Knowledge that builds on knowledge.
+
+The potential is world-changing. We're just beginning.
+
+### Current Status
+
+**v2.3 in development**
+
+Single jobs, multi-phase campaigns, file upload, and prompt refinement are production-ready with real API validation. Modern CLI redesigned with budget management. Multi-provider support implemented. MCP integration and autonomous learning features planned for v2.4-v2.5.
+
+This is exploratory, ambitious, and rapidly evolving. The goal is to push boundaries and see what becomes possible.
+
+**Philosophy:** Quality over automation. Context is everything. We bias toward fresh research and human judgment to build systems worthy of trust. Autonomous, but transparent. Powerful, but governed.
 
 ---
 

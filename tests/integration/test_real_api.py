@@ -12,6 +12,7 @@ import pytest
 import os
 import time
 import json
+import asyncio
 from pathlib import Path
 from datetime import datetime
 from deepr.providers import create_provider
@@ -19,6 +20,11 @@ from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.storage import create_storage
 from deepr.queue import create_queue
 from deepr.core.costs import CostEstimator
+
+
+def get_current_date():
+    """Get current date for prompts (system time)."""
+    return datetime.now().strftime("%B %d, %Y")
 
 
 @pytest.fixture
@@ -77,8 +83,11 @@ class TestSingleResearchJob:
         """
         start_time = time.time()
 
-        # Estimate cost
-        prompt = "What is 2+2? Answer in exactly one sentence."
+        # Estimate cost - using valuable research prompt
+        prompt = """As of October 2025, what are the latest best practices for CLI design in developer tools?
+Include examples from successful tools (git, docker, kubectl) and key principles for intuitive command structure.
+Keep under 300 words."""
+
         estimate = CostEstimator.estimate_cost(
             prompt=prompt,
             model="o4-mini-deep-research",
@@ -89,7 +98,7 @@ class TestSingleResearchJob:
         request = ResearchRequest(
             prompt=prompt,
             model="o4-mini-deep-research",
-            system_message="You are concise. Answer in one sentence only.",
+            system_message="You are a developer tools expert. Provide actionable insights with examples.",
             tools=[ToolConfig(type="web_search_preview")],
             metadata={"test": "minimal_o4_mini"}
         )
@@ -192,9 +201,9 @@ class TestSingleResearchJob:
         """
         start_time = time.time()
 
-        prompt = """As of October 2025, what are the top 3 AI code editors?
-        Include: (1) Brief description, (2) Key features, (3) Pricing.
-        Keep response under 500 words."""
+        prompt = """As of October 2025, what are the state-of-the-art techniques for agentic research using deep research APIs and LLMs?
+Include: (1) Multi-agent orchestration patterns, (2) Context management strategies, (3) Quality assessment methods, (4) Cost optimization techniques.
+Cite specific tools, papers, or implementations where possible. Keep under 800 words."""
 
         estimate = CostEstimator.estimate_cost(
             prompt=prompt,
@@ -205,7 +214,7 @@ class TestSingleResearchJob:
         request = ResearchRequest(
             prompt=prompt,
             model="o4-mini-deep-research",
-            system_message="You are a helpful research assistant.",
+            system_message="You are an AI research expert. Provide cutting-edge insights with citations.",
             tools=[ToolConfig(type="web_search_preview")],
             metadata={"test": "realistic_query"}
         )
@@ -316,13 +325,18 @@ class TestFileUpload:
         ready = await provider.wait_for_vector_store(vector_store.id, timeout=300)
         assert ready, "Vector store should be ready"
 
-        # Research with file context
-        prompt = "Based on the uploaded document, what is the product's pricing model?"
+        # Research with file context - analyze our actual product
+        prompt = """Based on the uploaded product documentation, analyze:
+(1) Top 3 features most likely to attract users
+(2) Potential usability issues or confusing sections
+(3) Missing documentation that would help adoption
+(4) Competitive advantages to emphasize in marketing
+Provide specific, actionable recommendations."""
 
         request = ResearchRequest(
             prompt=prompt,
             model="o4-mini-deep-research",
-            system_message="You are a helpful research assistant.",
+            system_message="You are a product analyst. Provide constructive feedback.",
             tools=[
                 ToolConfig(type="file_search", vector_store_ids=[vector_store.id])
             ],
@@ -539,3 +553,776 @@ class TestCostTracking:
         if len(completed) < len(results):
             print(f"\n  WARNING: {len(results) - len(completed)} test(s) failed due to API errors")
         assert len(completed) > 0, "At least one test should complete"
+
+
+class TestMultiPhaseCampaign:
+    """Test multi-phase campaign functionality."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_campaign_context_chaining(self, provider, storage, tmp_path, test_results_dir):
+        """
+        Test: Multi-phase campaign with context chaining
+        Expected cost: ~$0.30
+        Purpose: Validate campaign execution, context chaining, and report generation
+        """
+        start_time = time.time()
+
+        # Phase 1: Competitive Intelligence Inventory
+        phase1_prompt = """Document the current state of research automation tools and deep research APIs as of October 2025.
+Include: product names, key capabilities, pricing models, API features, primary use cases, and any adoption signals.
+Focus on tools for agentic research, multi-step reasoning, and knowledge synthesis.
+Keep under 600 words with citations."""
+
+        request1 = ResearchRequest(
+            prompt=phase1_prompt,
+            model="o4-mini-deep-research",
+            system_message="You are a competitive intelligence researcher.",
+            tools=[ToolConfig(type="web_search_preview")],
+            metadata={"test": "campaign_phase_1", "campaign_id": "test-campaign"}
+        )
+
+        job1_id = await provider.submit_research(request1)
+
+        # Wait for Phase 1
+        max_wait = 600
+        poll_interval = 15
+        elapsed = 0
+
+        while elapsed < max_wait:
+            status1 = await provider.get_status(job1_id)
+            if status1.status == "completed":
+                break
+            elif status1.status == "failed":
+                pytest.skip(f"Phase 1 failed: {status1.error.message if status1.error else 'Unknown'}")
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+
+        assert status1.status == "completed", "Phase 1 must complete"
+
+        # Extract Phase 1 content
+        phase1_content = ""
+        if status1.output:
+            for block in status1.output:
+                if block.get('type') == 'message':
+                    for item in block.get('content', []):
+                        if item.get('type') in ['output_text', 'text']:
+                            phase1_content += item.get('text', '')
+
+        # Phase 2: Strategic Analysis using Phase 1 context
+        phase2_prompt = f"""Using the inventory from Phase 1 as context, analyze:
+(1) Key trends in research automation (what's emerging, what's declining)
+(2) Gaps in current offerings (unmet needs, missing features)
+(3) Opportunities for differentiation (how Deepr could stand out)
+(4) Strategic recommendations for positioning and roadmap priorities
+
+Context from Phase 1:
+{phase1_content}
+
+Provide specific, actionable insights. Keep under 500 words."""
+
+        request2 = ResearchRequest(
+            prompt=phase2_prompt,
+            model="o4-mini-deep-research",
+            system_message="You are a product strategy consultant.",
+            tools=[ToolConfig(type="web_search_preview")],
+            metadata={"test": "campaign_phase_2", "campaign_id": "test-campaign", "previous_phase": job1_id}
+        )
+
+        job2_id = await provider.submit_research(request2)
+
+        # Wait for Phase 2
+        elapsed = 0
+        while elapsed < max_wait:
+            status2 = await provider.get_status(job2_id)
+            if status2.status == "completed":
+                break
+            elif status2.status == "failed":
+                pytest.skip(f"Phase 2 failed: {status2.error.message if status2.error else 'Unknown'}")
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+
+        assert status2.status == "completed", "Phase 2 must complete"
+
+        # Extract Phase 2 content
+        phase2_content = ""
+        if status2.output:
+            for block in status2.output:
+                if block.get('type') == 'message':
+                    for item in block.get('content', []):
+                        if item.get('type') in ['output_text', 'text']:
+                            phase2_content += item.get('text', '')
+
+        # Calculate totals
+        total_cost = (status1.usage.cost if status1.usage else 0) + (status2.usage.cost if status2.usage else 0)
+        total_time = time.time() - start_time
+
+        # Verify context chaining
+        context_referenced = len(phase1_content) > 50 and len(phase2_content) > 50
+
+        result_data = {
+            "test": "campaign_context_chaining",
+            "phase1_job_id": job1_id,
+            "phase2_job_id": job2_id,
+            "phase1_cost": status1.usage.cost if status1.usage else 0,
+            "phase2_cost": status2.usage.cost if status2.usage else 0,
+            "total_cost": total_cost,
+            "total_time_seconds": total_time,
+            "phase1_length": len(phase1_content),
+            "phase2_length": len(phase2_content),
+            "context_chaining_works": context_referenced,
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "campaign_test", result_data)
+
+        # Assertions
+        assert total_cost > 0
+        assert total_cost < 1.0, f"Campaign cost too high: ${total_cost}"
+        assert len(phase1_content) > 50, "Phase 1 should have content"
+        assert len(phase2_content) > 50, "Phase 2 should have content"
+        assert context_referenced, "Context chaining should work"
+
+        print(f"\n\nCampaign Test Results:")
+        print(f"  Phase 1 cost: ${status1.usage.cost if status1.usage else 0:.4f}")
+        print(f"  Phase 2 cost: ${status2.usage.cost if status2.usage else 0:.4f}")
+        print(f"  Total cost: ${total_cost:.4f}")
+        print(f"  Total time: {total_time/60:.1f} minutes")
+        print(f"  Context chaining: {context_referenced}")
+
+
+class TestGeminiProvider:
+    """Test Google Gemini provider with agentic capabilities."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_gemini_flash_basic_research(self, storage, test_results_dir):
+        """
+        Test: Gemini 2.5 Flash with thinking and Google Search
+        Expected cost: ~$0.02
+        Purpose: Validate Gemini thinking, search grounding, and agentic capabilities
+        """
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            pytest.skip("GEMINI_API_KEY not set")
+
+        provider = create_provider("gemini", api_key=api_key)
+        start_time = time.time()
+
+        # Dogfooding: Get latest pricing and capabilities for Deepr roadmap
+        current_date = get_current_date()
+        prompt = f"""As of {current_date}, what are the current pricing and model offerings for:
+1. Google Gemini (2.5 Pro, Flash, Flash-Lite) - pricing per M tokens, context limits, new capabilities
+2. OpenAI (o3, o4-mini deep research) - pricing, any new models or features
+3. xAI Grok (4, 4-fast, 3-mini) - pricing, agentic tool calling updates
+
+Focus on: latest deep research capabilities, reasoning/thinking features, context windows, pricing changes.
+What new capabilities should we integrate? Keep under 500 words with current pricing."""
+
+        request = ResearchRequest(
+            prompt=prompt,
+            model="gemini-2.5-flash",
+            system_message="You are an AI research analyst. Provide well-cited insights.",
+            tools=[ToolConfig(type="web_search_preview")],
+            metadata={"test": "gemini_flash_agentic"}
+        )
+
+        job_id = await provider.submit_research(request)
+        assert job_id is not None, "Job ID should be returned"
+
+        # Poll for completion
+        max_wait = 600
+        poll_interval = 5
+        elapsed = 0
+        status = None
+
+        while elapsed < max_wait:
+            status = await provider.get_status(job_id)
+            if status.status in ["completed", "failed"]:
+                break
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+        actual_time = time.time() - start_time
+
+        # Extract results
+        assert status is not None, "Should have status"
+        assert status.status == "completed", f"Job should complete, got: {status.status}"
+
+        content = ""
+        thoughts = None
+        if status.output:
+            for item in status.output:
+                if item.get("type") == "message":
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            content += part.get("text", "")
+                        elif part.get("type") == "reasoning":
+                            thoughts = part.get("text", "")
+
+        actual_cost = status.usage.cost if status.usage else 0
+        input_tokens = status.usage.input_tokens if status.usage else 0
+        output_tokens = status.usage.output_tokens if status.usage else 0
+
+        # Validate agentic capabilities
+        has_content = len(content) > 200
+        has_citations = any(word in content.lower() for word in ["source", "according", "report", "research"])
+        has_thinking = thoughts is not None and len(thoughts) > 0
+
+        result_data = {
+            "test": "gemini_flash_agentic",
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "prompt_length": len(prompt),
+            "response_length": len(content),
+            "thinking_length": len(thoughts) if thoughts else 0,
+            "cost": actual_cost,
+            "time_seconds": actual_time,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "has_content": has_content,
+            "has_citations": has_citations,
+            "has_thinking": has_thinking,
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "gemini_flash", result_data)
+
+        # Assertions
+        assert has_content, "Should have substantial content"
+        assert actual_cost < 0.10, f"Cost should be low: ${actual_cost}"
+        assert actual_time < 300, f"Should complete in <5min: {actual_time}s"
+
+        print(f"\n\nGemini Flash Test Results:")
+        print(f"  Cost: ${actual_cost:.4f}")
+        print(f"  Time: {actual_time:.1f}s")
+        print(f"  Tokens: {input_tokens} in, {output_tokens} out")
+        print(f"  Content length: {len(content)} chars")
+        print(f"  Thinking: {len(thoughts) if thoughts else 0} chars")
+        print(f"  Has citations: {has_citations}")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_gemini_pro_reasoning(self, storage, test_results_dir):
+        """
+        Test: Gemini 2.5 Pro with maximum reasoning
+        Expected cost: ~$0.15
+        Purpose: Validate Pro's always-on thinking for complex analysis
+        """
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            pytest.skip("GEMINI_API_KEY not set")
+
+        provider = create_provider("gemini", api_key=api_key)
+        start_time = time.time()
+
+        # Dogfooding: Research latest deep research capabilities we should add
+        current_date = get_current_date()
+        prompt = f"""As of {current_date}, what are the newest deep research and agentic AI capabilities across providers?
+
+Research: OpenAI Deep Research, Google Gemini, xAI Grok, Anthropic Claude, Perplexity.
+Focus on: new reasoning models, tool calling patterns, multi-step workflows, context management, citation quality.
+
+What breakthrough capabilities emerged recently? What should a research automation tool prioritize integrating?
+Provide specific recommendations with examples. Be thorough and analytical."""
+
+        request = ResearchRequest(
+            prompt=prompt,
+            model="gemini-2.5-pro",
+            system_message="You are a strategic technology analyst.",
+            tools=[ToolConfig(type="web_search_preview")],
+            metadata={"test": "gemini_pro_reasoning"}
+        )
+
+        job_id = await provider.submit_research(request)
+
+        # Poll for completion (Pro may take longer)
+        max_wait = 900
+        poll_interval = 10
+        elapsed = 0
+        status = None
+
+        while elapsed < max_wait:
+            status = await provider.get_status(job_id)
+            if status.status in ["completed", "failed"]:
+                break
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+        actual_time = time.time() - start_time
+
+        assert status.status == "completed", f"Job should complete, got: {status.status}"
+
+        # Extract content
+        content = ""
+        if status.output:
+            for item in status.output:
+                if item.get("type") == "message":
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            content += part.get("text", "")
+
+        actual_cost = status.usage.cost if status.usage else 0
+
+        # Validate quality
+        has_comparison = any(word in content.lower() for word in ["compare", "versus", "while"])
+        has_recommendations = "recommend" in content.lower()
+        is_thorough = len(content) > 500
+
+        result_data = {
+            "test": "gemini_pro_reasoning",
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "cost": actual_cost,
+            "time_seconds": actual_time,
+            "response_length": len(content),
+            "has_comparison": has_comparison,
+            "has_recommendations": has_recommendations,
+            "is_thorough": is_thorough,
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "gemini_pro", result_data)
+
+        assert is_thorough, "Pro should produce thorough analysis"
+        assert actual_cost < 0.50, f"Cost should be reasonable: ${actual_cost}"
+
+        print(f"\n\nGemini Pro Test Results:")
+        print(f"  Cost: ${actual_cost:.4f}")
+        print(f"  Time: {actual_time/60:.1f} minutes")
+        print(f"  Quality: comparison={has_comparison}, recommendations={has_recommendations}")
+
+
+class TestGrokProvider:
+    """Test xAI Grok provider with agentic search capabilities."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_grok_fast_agentic_search(self, storage, test_results_dir):
+        """
+        Test: Grok 4 Fast with agentic web/X search
+        Expected cost: ~$0.03
+        Purpose: Validate Grok's agentic tool calling and search capabilities
+        """
+        api_key = os.getenv("XAI_API_KEY")
+        if not api_key:
+            pytest.skip("XAI_API_KEY not set")
+
+        provider = create_provider("grok", api_key=api_key)
+        start_time = time.time()
+
+        # Dogfooding: Research Grok's latest capabilities and pricing
+        current_date = get_current_date()
+        prompt = f"""As of {current_date}, what are xAI Grok's current models, pricing, and capabilities?
+
+Research: Grok 4, Grok 4 Fast, Grok 3 Mini pricing and features.
+Focus on: agentic tool calling (web search, X search, code execution), pricing per M tokens, rate limits, new features.
+
+What unique capabilities does Grok offer? How is it being used for research automation?
+Include current pricing and any recent updates. Keep under 400 words."""
+
+        request = ResearchRequest(
+            prompt=prompt,
+            model="grok-4-fast",
+            system_message="You are a technology news analyst. Provide current, well-sourced information.",
+            tools=[ToolConfig(type="web_search_preview")],
+            metadata={"test": "grok_fast_agentic"}
+        )
+
+        job_id = await provider.submit_research(request)
+        assert job_id is not None, "Job ID should be returned"
+
+        # Poll for completion
+        max_wait = 600
+        poll_interval = 5
+        elapsed = 0
+        status = None
+
+        while elapsed < max_wait:
+            status = await provider.get_status(job_id)
+            if status.status in ["completed", "failed"]:
+                break
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+        actual_time = time.time() - start_time
+
+        assert status is not None, "Should have status"
+        assert status.status == "completed", f"Job should complete, got: {status.status}"
+
+        # Extract content
+        content = ""
+        if status.output:
+            for item in status.output:
+                if item.get("type") == "message":
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            content += part.get("text", "")
+
+        actual_cost = status.usage.cost if status.usage else 0
+        reasoning_tokens = status.usage.reasoning_tokens if status.usage else 0
+
+        # Validate agentic capabilities
+        has_content = len(content) > 200
+        has_citations = any(word in content.lower() for word in ["source", "according", "x.com", "post"])
+        has_reasoning = reasoning_tokens > 0
+        is_current = "2025" in content
+
+        result_data = {
+            "test": "grok_fast_agentic",
+            "provider": "grok",
+            "model": "grok-4-fast",
+            "cost": actual_cost,
+            "time_seconds": actual_time,
+            "response_length": len(content),
+            "reasoning_tokens": reasoning_tokens,
+            "has_content": has_content,
+            "has_citations": has_citations,
+            "has_reasoning": has_reasoning,
+            "is_current": is_current,
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "grok_fast", result_data)
+
+        # Assertions
+        assert has_content, "Should have substantial content"
+        assert actual_cost < 0.15, f"Cost should be low: ${actual_cost}"
+        assert actual_time < 300, f"Should complete quickly: {actual_time}s"
+
+        print(f"\n\nGrok 4 Fast Test Results:")
+        print(f"  Cost: ${actual_cost:.4f}")
+        print(f"  Time: {actual_time:.1f}s")
+        print(f"  Reasoning tokens: {reasoning_tokens}")
+        print(f"  Content length: {len(content)} chars")
+        print(f"  Has citations: {has_citations}")
+        print(f"  Current info: {is_current}")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_grok_reasoning_comparison(self, storage, test_results_dir):
+        """
+        Test: Compare Grok 4 vs Grok 4 Fast reasoning
+        Expected cost: ~$0.25
+        Purpose: Validate reasoning differences between models
+        """
+        api_key = os.getenv("XAI_API_KEY")
+        if not api_key:
+            pytest.skip("XAI_API_KEY not set")
+
+        provider = create_provider("grok", api_key=api_key)
+
+        # Dogfooding: Verify our pricing data is accurate as of today
+        current_date = get_current_date()
+        prompt = f"""Verify current pricing for these AI research models as of {current_date}:
+
+1. OpenAI: o3-deep-research, o4-mini-deep-research ($/M tokens input/output)
+2. Google Gemini: 2.5-pro, 2.5-flash, 2.5-flash-lite ($/M tokens)
+3. xAI Grok: grok-4, grok-4-fast, grok-3-mini ($/M tokens)
+
+Include: exact current pricing, any recent changes, context window limits, special features.
+Cite official sources. Keep under 400 words with specific numbers."""
+
+        results = {}
+
+        for model in ["grok-4-fast", "grok-3-mini"]:
+            start_time = time.time()
+
+            request = ResearchRequest(
+                prompt=prompt,
+                model=model,
+                tools=[ToolConfig(type="web_search_preview")],
+                metadata={"test": f"grok_comparison_{model}"}
+            )
+
+            job_id = await provider.submit_research(request)
+
+            # Poll
+            max_wait = 900 if model == "grok-4" else 600
+            poll_interval = 10
+            elapsed = 0
+            status = None
+
+            while elapsed < max_wait:
+                status = await provider.get_status(job_id)
+                if status.status in ["completed", "failed"]:
+                    break
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+
+            actual_time = time.time() - start_time
+
+            if status.status == "completed":
+                content = ""
+                if status.output:
+                    for item in status.output:
+                        if item.get("type") == "message":
+                            for part in item.get("content", []):
+                                if part.get("type") == "output_text":
+                                    content += part.get("text", "")
+
+                results[model] = {
+                    "cost": status.usage.cost if status.usage else 0,
+                    "time": actual_time,
+                    "reasoning_tokens": status.usage.reasoning_tokens if status.usage else 0,
+                    "content_length": len(content),
+                }
+
+        result_data = {
+            "test": "grok_reasoning_comparison",
+            "results": results,
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "grok_comparison", result_data)
+
+        print(f"\n\nGrok Model Comparison:")
+        for model, data in results.items():
+            print(f"  {model}:")
+            print(f"    Cost: ${data['cost']:.4f}")
+            print(f"    Time: {data['time']:.1f}s")
+            print(f"    Reasoning tokens: {data['reasoning_tokens']}")
+            print(f"    Content: {data['content_length']} chars")
+
+
+class TestDocumentAnalysis:
+    """Test document upload with README/ROADMAP for improvement recommendations."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_gemini_analyze_deepr_docs(self, storage, test_results_dir):
+        """
+        Test: Upload README and ROADMAP for detailed developer recommendations
+        Expected cost: ~$0.05
+        Purpose: Dogfooding - get AI recommendations to improve Deepr
+        """
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            pytest.skip("GEMINI_API_KEY not set")
+
+        provider = create_provider("gemini", api_key=api_key)
+        start_time = time.time()
+
+        # Upload README and ROADMAP
+        readme_path = Path("C:/Users/nicks/OneDrive/deepr/README.md")
+        roadmap_path = Path("C:/Users/nicks/OneDrive/deepr/docs/ROADMAP.md")
+
+        if not readme_path.exists() or not roadmap_path.exists():
+            pytest.skip("README.md or ROADMAP.md not found")
+
+        # Upload documents
+        readme_id = await provider.upload_document(str(readme_path))
+        roadmap_id = await provider.upload_document(str(roadmap_path))
+
+        # Dogfooding: Get detailed improvement recommendations
+        prompt = """You are an expert developer reviewing a research automation tool called Deepr.
+
+Review the attached README.md and ROADMAP.md files.
+
+Provide detailed, actionable recommendations for improvement:
+1. Documentation clarity - What's confusing or missing?
+2. Feature prioritization - What should be built next based on market needs?
+3. API design - Are the CLI commands intuitive? Any inconsistencies?
+4. Architecture gaps - What's missing for production use?
+5. Competitive positioning - How to differentiate from similar tools?
+
+Be specific with examples. Focus on developer experience and production readiness.
+Keep under 800 words."""
+
+        request = ResearchRequest(
+            prompt=prompt,
+            model="gemini-2.5-flash",
+            system_message="You are a senior software engineer and product strategist.",
+            tools=[ToolConfig(type="web_search_preview")],
+            document_ids=[readme_id, roadmap_id],
+            metadata={"test": "deepr_docs_analysis"}
+        )
+
+        job_id = await provider.submit_research(request)
+
+        # Poll for completion
+        max_wait = 600
+        poll_interval = 10
+        elapsed = 0
+        status = None
+
+        while elapsed < max_wait:
+            status = await provider.get_status(job_id)
+            if status.status in ["completed", "failed"]:
+                break
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+        actual_time = time.time() - start_time
+
+        assert status is not None, "Should have status"
+        assert status.status == "completed", f"Job should complete, got: {status.status}"
+
+        # Extract recommendations
+        content = ""
+        if status.output:
+            for item in status.output:
+                if item.get("type") == "message":
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            content += part.get("text", "")
+
+        actual_cost = status.usage.cost if status.usage else 0
+
+        # Save recommendations to file for review
+        recommendations_file = test_results_dir / "deepr_improvement_recommendations.md"
+        with open(recommendations_file, 'w', encoding='utf-8') as f:
+            f.write(f"# Deepr Improvement Recommendations\n\n")
+            f.write(f"Generated: {datetime.now().isoformat()}\n")
+            f.write(f"Model: gemini-2.5-flash\n")
+            f.write(f"Cost: ${actual_cost:.4f}\n")
+            f.write(f"Time: {actual_time:.1f}s\n\n")
+            f.write("---\n\n")
+            f.write(content)
+
+        # Validate quality
+        has_recommendations = len(content) > 500
+        has_sections = content.count("#") >= 3 or content.count("1.") >= 3
+        mentions_deepr = "deepr" in content.lower()
+
+        result_data = {
+            "test": "deepr_docs_analysis",
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "cost": actual_cost,
+            "time_seconds": actual_time,
+            "response_length": len(content),
+            "has_recommendations": has_recommendations,
+            "has_sections": has_sections,
+            "mentions_deepr": mentions_deepr,
+            "recommendations_file": str(recommendations_file),
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "deepr_docs_analysis", result_data)
+
+        # Assertions
+        assert has_recommendations, "Should have substantial recommendations"
+        assert mentions_deepr, "Should reference Deepr"
+        assert actual_cost < 0.20, f"Cost should be reasonable: ${actual_cost}"
+
+        print(f"\n\nDeepr Documentation Analysis:")
+        print(f"  Cost: ${actual_cost:.4f}")
+        print(f"  Time: {actual_time:.1f}s")
+        print(f"  Recommendations: {len(content)} chars")
+        print(f"  Quality checks: sections={has_sections}, mentions_deepr={mentions_deepr}")
+        print(f"  Saved to: {recommendations_file}")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_api
+    async def test_openai_analyze_deepr_architecture(self, storage, test_results_dir):
+        """
+        Test: OpenAI analysis of Deepr for architecture recommendations
+        Expected cost: ~$0.10
+        Purpose: Dogfooding - get deep architectural insights
+        """
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            pytest.skip("OPENAI_API_KEY not set")
+
+        provider = create_provider("openai", api_key=api_key)
+        start_time = time.time()
+
+        # Upload README and ROADMAP
+        readme_path = Path("C:/Users/nicks/OneDrive/deepr/README.md")
+        roadmap_path = Path("C:/Users/nicks/OneDrive/deepr/docs/ROADMAP.md")
+
+        if not readme_path.exists() or not roadmap_path.exists():
+            pytest.skip("README.md or ROADMAP.md not found")
+
+        # Upload documents
+        readme_id = await provider.upload_document(str(readme_path))
+        roadmap_id = await provider.upload_document(str(roadmap_path))
+
+        # Dogfooding: Get architectural analysis
+        current_date = get_current_date()
+        prompt = f"""Review Deepr's README.md and ROADMAP.md as an experienced system architect.
+
+Focus on architectural analysis as of {current_date}:
+1. Multi-provider abstraction - Is the design scalable? Any anti-patterns?
+2. Queue/storage architecture - Production-ready? What's missing?
+3. Cost management - Robust enough for production?
+4. Error handling and resilience - What failure modes aren't covered?
+5. Testing strategy - What critical tests are missing?
+
+Compare against production AI systems (Cursor, GitHub Copilot, Perplexity).
+Provide specific technical recommendations with code examples where helpful.
+Keep under 800 words."""
+
+        request = ResearchRequest(
+            prompt=prompt,
+            model="o4-mini-deep-research",
+            system_message="You are a senior systems architect with expertise in AI platforms.",
+            tools=[ToolConfig(type="web_search_preview")],
+            document_ids=[readme_id, roadmap_id],
+            metadata={"test": "deepr_architecture_analysis"}
+        )
+
+        job_id = await provider.submit_research(request)
+
+        # Poll for completion
+        max_wait = 900
+        poll_interval = 15
+        elapsed = 0
+        status = None
+
+        while elapsed < max_wait:
+            status = await provider.get_status(job_id)
+            if status.status in ["completed", "failed"]:
+                break
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+        actual_time = time.time() - start_time
+
+        assert status is not None, "Should have status"
+        assert status.status == "completed", f"Job should complete, got: {status.status}"
+
+        # Extract analysis
+        content = ""
+        if status.output:
+            for item in status.output:
+                if item.get("type") == "message":
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            content += part.get("text", "")
+
+        actual_cost = status.usage.cost if status.usage else 0
+
+        # Save to file
+        analysis_file = test_results_dir / "deepr_architecture_analysis.md"
+        with open(analysis_file, 'w', encoding='utf-8') as f:
+            f.write(f"# Deepr Architecture Analysis\n\n")
+            f.write(f"Generated: {datetime.now().isoformat()}\n")
+            f.write(f"Model: o4-mini-deep-research\n")
+            f.write(f"Cost: ${actual_cost:.4f}\n")
+            f.write(f"Time: {actual_time/60:.1f} minutes\n\n")
+            f.write("---\n\n")
+            f.write(content)
+
+        result_data = {
+            "test": "deepr_architecture_analysis",
+            "provider": "openai",
+            "model": "o4-mini-deep-research",
+            "cost": actual_cost,
+            "time_seconds": actual_time,
+            "response_length": len(content),
+            "analysis_file": str(analysis_file),
+            "timestamp": datetime.now().isoformat(),
+        }
+        save_test_result(test_results_dir, "deepr_architecture", result_data)
+
+        print(f"\n\nDeepr Architecture Analysis:")
+        print(f"  Cost: ${actual_cost:.4f}")
+        print(f"  Time: {actual_time/60:.1f} minutes")
+        print(f"  Analysis: {len(content)} chars")
+        print(f"  Saved to: {analysis_file}")
