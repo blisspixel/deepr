@@ -33,6 +33,7 @@ class SQLiteQueue(QueueBackend):
                 id TEXT PRIMARY KEY,
                 prompt TEXT NOT NULL,
                 model TEXT NOT NULL,
+                provider TEXT DEFAULT 'openai',
                 status TEXT NOT NULL,
                 priority INTEGER DEFAULT 5,
 
@@ -74,6 +75,14 @@ class SQLiteQueue(QueueBackend):
             ON research_queue(tenant_id, status)
         """)
 
+        # Migration: Add provider column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("SELECT provider FROM research_queue LIMIT 1")
+        except sqlite3.OperationalError:
+            # Column doesn't exist, add it
+            cursor.execute("ALTER TABLE research_queue ADD COLUMN provider TEXT DEFAULT 'openai'")
+            conn.commit()
+
         conn.commit()
         conn.close()
 
@@ -83,6 +92,7 @@ class SQLiteQueue(QueueBackend):
             "id": job.id,
             "prompt": job.prompt,
             "model": job.model,
+            "provider": job.provider,
             "status": job.status.value,
             "priority": job.priority,
             "submitted_at": job.submitted_at.isoformat(),
@@ -113,6 +123,7 @@ class SQLiteQueue(QueueBackend):
             id=row["id"],
             prompt=row["prompt"],
             model=row["model"],
+            provider=row.get("provider", "openai"),  # Default to openai for backwards compatibility
             status=JobStatus(row["status"]),
             priority=row["priority"],
             submitted_at=datetime.fromisoformat(row["submitted_at"]),

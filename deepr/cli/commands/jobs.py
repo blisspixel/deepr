@@ -61,7 +61,20 @@ async def _show_status(job_id: str):
                     from deepr.config import load_config
 
                     config = load_config()
-                    provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+                    # Use the job's provider, not the config default
+                    provider_name = job.provider if hasattr(job, 'provider') and job.provider else config.get("provider", "openai")
+
+                    # Get provider-specific API key
+                    if provider_name == "gemini":
+                        api_key = config.get("gemini_api_key")
+                    elif provider_name == "grok":
+                        api_key = config.get("xai_api_key")
+                    elif provider_name == "azure":
+                        api_key = config.get("azure_api_key")
+                    else:  # openai
+                        api_key = config.get("api_key")
+
+                    provider = create_provider(provider_name, api_key=api_key)
                     response = await provider.get_status(job.provider_job_id)
 
                     if response.status == "completed":
@@ -163,7 +176,20 @@ async def _get_results(job_id: str):
             from deepr.storage import create_storage
 
             config = load_config()
-            provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+            # Use the job's provider, not the config default
+            provider_name = job.provider if hasattr(job, 'provider') and job.provider else config.get("provider", "openai")
+
+            # Get provider-specific API key
+            if provider_name == "gemini":
+                api_key = config.get("gemini_api_key")
+            elif provider_name == "grok":
+                api_key = config.get("xai_api_key")
+            elif provider_name == "azure":
+                api_key = config.get("azure_api_key")
+            else:  # openai
+                api_key = config.get("api_key")
+
+            provider = create_provider(provider_name, api_key=api_key)
 
             # Fetch from provider
             response = await provider.get_status(job.provider_job_id)
