@@ -21,14 +21,16 @@ Deepr is the open-source, multi-provider platform for deep research automation. 
 
 **Beta (functional, use with supervision):**
 - Multi-phase campaigns (`deepr prep plan/execute/continue/auto`)
-- GPT-5 (or latest OpenAI flagship) as research lead, reviewing and planning next phases
-- Context chaining with automatic summarization
-- Adaptive workflow: plan → execute → review → replan
+  - GPT-5 as research lead, reviewing and planning next phases
+  - Context chaining with automatic summarization
+  - Adaptive workflow: plan → execute → review → replan
 
-**Experimental (functional, may change):**
 - Dynamic research teams (`deepr team analyze`)
-- Team assembly optimized per question
-- Multiple perspectives with conflict highlighting
+  - GPT-5 assembles optimal dream team for each question
+  - Each team member researches independently from their perspective
+  - Prevents groupthink through diverse cognitive roles
+  - Final synthesis shows agreements, conflicts, and balanced recommendations
+  - Based on validated frameworks (Six Thinking Hats, Red Teaming)
 
 **Key Innovation:** File upload enables semantic search over uploaded documents, eliminating the need for text injection workarounds.
 
@@ -351,7 +353,97 @@ deepr extract https://company.com/about --format markdown
 - Rate limiting and politeness delays
 - Configurable extraction depth and scope
 
-**Priority 3: Deepr Expert - Chat with Research (Research in progress)**
+**Priority 3: CLI UX Improvements**
+
+Simplify the CLI to follow modern best practices with clear, consistent verb-first patterns.
+
+**Current Issues:**
+- Inconsistent patterns: `deepr research submit` (noun-verb) vs `deepr team analyze` (noun-verb)
+- Too much nesting: `deepr research submit "query"` is verbose for the primary action
+- Unclear action hierarchy: "research" vs "prep" vs "team" overlap conceptually
+- Not intuitive: Users want to "run research" not "submit to research subsystem"
+
+**Proposed Redesign (v2.4):**
+
+```bash
+# Primary actions (auto-execute if under budget)
+deepr run "query"                           # Single research
+deepr run campaign "scenario"               # Multi-phase
+deepr run team "question"                   # Dream team
+
+# Budget management (set once, run freely)
+deepr budget set 100                        # Set $100/month budget
+deepr budget status                         # Show: $23/$100 used this month
+deepr budget history                        # Spending over time
+
+# Job management
+deepr status <job-id>                       # Check status
+deepr get <job-id>                          # Get results
+deepr cancel <job-id>                       # Cancel job
+deepr list [--running|--failed|--today]     # List jobs
+
+# Files and context
+deepr upload <files>                        # Create vector store
+deepr upload list                           # List vector stores
+deepr extract <url>                         # Web content extraction
+
+# Utilities
+deepr refine "prompt"                       # Standalone prompt refinement
+deepr estimate "query"                      # Cost estimation
+deepr config [set|get|validate]             # Configuration
+
+# Advanced
+deepr analytics report
+deepr migrate organize
+```
+
+**Budget-Based Approval:**
+
+Instead of confirming every job, set a monthly budget and run freely:
+
+```bash
+# One-time setup
+deepr budget set 50                         # $50/month budget
+
+# Now run without confirmations
+deepr run "market analysis"                 # Auto-executes (est: $2.50)
+deepr run campaign "strategy"               # Auto-executes (est: $8.00)
+
+# Budget protection
+deepr run "large research"                  # Warns if approaching limit
+# Shows: Budget $47/$50 (94%) - Continue? (y/n)
+
+deepr budget status                         # Check spending anytime
+# Shows: $47/$50 used this month (94%)
+# Resets: November 1, 2025
+```
+
+**Budget modes:**
+- `deepr budget set <amount>`: Auto-execute under budget, confirm when approaching
+- `deepr budget set 0`: Confirm every job (cautious mode)
+- `deepr budget set unlimited`: Never confirm (trust mode)
+
+**Implementation Approach:**
+- Breaking change - clean slate (we're pre-1.0, rapid development phase)
+- Remove old command structure entirely
+- Add convenient aliases: `deepr r` → `deepr run`, `deepr s` → `deepr status`
+- Update all documentation and examples simultaneously
+- One clean, intuitive interface from the start
+
+**User Benefits:**
+- **Intuitive**: `deepr run "query"` - you run research, not "submit to research subsystem"
+- **Consistent**: All commands follow verb-first pattern (like git, docker, kubectl)
+- **Shorter**: Primary actions have minimal nesting
+- **Clear hierarchy**: `run` is the top-level action with variants (campaign, team)
+- **Discoverable**: `deepr --help` shows actions you can take, not system subsections
+
+**Design Principles:**
+1. **Action-oriented**: Commands describe what you want to do (run, get, cancel)
+2. **Consistent verbs**: Same verb structure across all commands
+3. **Minimal nesting**: Most common actions have fewest keystrokes
+4. **Clear scoping**: Qualifiers come after the verb (run team, list running)
+
+**Priority 4: Deepr Expert - Chat with Research (Research in progress)**
 
 Enable conversational access to accumulated research findings:
 
@@ -374,7 +466,7 @@ deepr expert export --format zip           # Export knowledge package
 
 **Status:** Research phase - investigating TKG approaches, validation methods, and export formats
 
-**Priority 4: Model Context Protocol Server (Key Goal)**
+**Priority 5: Model Context Protocol Server (Key Goal)**
 
 Enable AI agents and tools to use Deepr as a research capability. This is the primary extension point after CLI is solid:
 
@@ -398,7 +490,7 @@ deepr mcp serve --transport http   # Network-accessible MCP server
 - Long-running jobs supported via MCP notifications
 - Progress updates streamed to clients
 
-**Priority 5: MCP Client (Connect to Data Sources)**
+**Priority 6: MCP Client (Connect to Data Sources)**
 
 Deepr can use other MCP servers as data sources:
 
@@ -407,7 +499,7 @@ Deepr can use other MCP servers as data sources:
 - Context injection from external sources
 - Standardized data access across tools
 
-**Priority 6: Dynamic Research Teams - Observability**
+**Priority 7: Dynamic Research Teams - Observability**
 
 Make team perspectives visible:
 - Show which team member contributed what findings
@@ -415,7 +507,7 @@ Make team perspectives visible:
 - Cost breakdown per team member
 - Export debate structure along with synthesis
 
-**Priority 7: Web UI (Low Priority)**
+**Priority 8: Web UI (Low Priority)**
 
 Browser-based interface for convenience. Built after CLI is solid and MCP server is working:
 - Optional UX layer on top of CLI functionality
