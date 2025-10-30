@@ -274,6 +274,12 @@ async def _run_single(
                 vector_store_ids=[vector_store_id]
             ))
 
+        # Validate tools for deep research models
+        if provider in ["openai", "azure"] and "deep-research" in model and not tools:
+            click.echo(f"\n[X] Error: {model} requires at least one tool (web search, code interpreter, or file upload)")
+            click.echo("    Remove --no-web and/or --no-code flags, or add --upload for file search")
+            return
+
         # Create research request
         # Note: Grok/xAI doesn't support background parameter
         request = ResearchRequest(
