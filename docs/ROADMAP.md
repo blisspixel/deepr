@@ -100,6 +100,14 @@ The CLI restructure has been completed. The new command structure is now product
 **Bug Fixes (October 30, 2025)**
 
 *Fixed in code:*
+- **CRITICAL: Fixed provider mismatch bug in SQLite queue (October 30 evening)**
+  - Database schema was missing 'provider' column
+  - Jobs saved with provider="gemini" were loaded with provider="openai"
+  - Status checks queried wrong provider API, causing 400 errors
+  - 6 jobs stuck in "processing" state with no way to retrieve results
+  - Solution: Added provider column, migration, and fixed status/get commands
+  - All queue unit tests passing (10/10)
+  - Documented in [BUGFIX_PROVIDER_COLUMN.md](../BUGFIX_PROVIDER_COLUMN.md)
 - Fixed 5 bugs in job status retrieval from providers (deepr jobs get)
   - create_storage() missing storage_type parameter
   - save_report() incorrect signature
