@@ -476,14 +476,11 @@ class TestCostTracking:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.requires_api
-    @pytest.mark.expensive
-    @pytest.mark.flaky(reruns=2)  # API jobs may timeout - transient issue
     async def test_cost_estimation_accuracy(self, provider, test_results_dir):
         """
         Test: Compare estimated costs to actual costs
         Expected cost: ~$0.05
         Purpose: Validate CostEstimator accuracy for future improvements
-        Note: This test may fail transiently if API job doesn't complete in 5 minutes
         """
         test_cases = [
             ("Short query", "What is Python?", "o4-mini-deep-research"),
@@ -1007,8 +1004,6 @@ Include current pricing and any recent updates. Keep under 400 words."""
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.requires_api
-    @pytest.mark.expensive
-    @pytest.mark.flaky(reruns=2)  # API jobs may timeout - transient issue
     async def test_grok_reasoning_comparison(self, storage, test_results_dir):
         """
         Test: Compare Grok 4 vs Grok 4 Fast reasoning
