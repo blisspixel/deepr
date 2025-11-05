@@ -300,7 +300,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
             config = load_config()
 
-            click.echo(f"Generating learning curriculum with GPT-4...")
+            click.echo(f"Generating learning curriculum with GPT-5...")
             click.echo(f"Target topics: {topics}")
             click.echo(f"Budget limit: ${budget:.2f}\n")
 

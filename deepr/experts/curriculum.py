@@ -118,20 +118,34 @@ class CurriculumGenerator:
             expert_name, domain, initial_documents, target_topics, budget_limit
         )
 
-        # Use GPT-4 for curriculum planning (cost-effective, good at structured output)
+        # Use GPT-5 for curriculum planning (best for structured reasoning and planning)
         client = AsyncOpenAI(api_key=self.config.openai_api_key)
 
-        completion = await client.chat.completions.create(
-            model="gpt-4o",  # Fast, structured reasoning
-            messages=[
-                {"role": "system", "content": "You are an expert curriculum designer."},
-                {"role": "user", "content": prompt}
+        # GPT-5 uses Responses API for improved agentic performance
+        response_obj = await client.responses.create(
+            model="gpt-5",  # GPT-5: best for agentic planning and structured output
+            input=[
+                {
+                    "role": "developer",
+                    "content": [{"type": "input_text", "text": "You are an expert curriculum designer."}]
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": prompt}]
+                }
             ],
-            temperature=0.7,  # Allow some creativity
-            max_tokens=4000
+            reasoning={"summary": "auto"},
+            verbosity="medium",  # Medium verbosity for structured output
+            reasoning_effort="medium"  # Medium effort for curriculum generation
         )
 
-        response = completion.choices[0].message.content
+        # Extract the response content from Responses API format
+        response = ""
+        for output_item in response_obj.output:
+            if output_item.type == "message":
+                for content_item in output_item.content:
+                    if content_item.type == "output_text":
+                        response += content_item.text
 
         # Parse the structured response
         curriculum = self._parse_curriculum_response(
