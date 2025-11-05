@@ -100,10 +100,12 @@ These outputs form the **knowledge substrate** for intelligent systems.
 
 ## Quick Start
 
+**Prerequisites**: Python 3.9+ required
+
 ### 1. Install
 
 ```bash
-git clone https://github.com/yourusername/deepr.git
+git clone https://github.com/blisspixel/deepr.git
 cd deepr
 pip install -e .
 deepr --version
@@ -134,8 +136,8 @@ deepr budget set 25
 
 ```bash
 deepr run focus "Advances in small language models for local inference"
-deepr jobs list
-deepr jobs get <job-id>
+deepr list
+deepr get <job-id>
 ```
 
 ---
@@ -180,10 +182,10 @@ deepr run focus "AI policy and governance" --provider azure
 
 | Provider | Example Models | Typical Use |
 |-----------|----------------|--------------|
-| OpenAI | o3, o4-mini | Deep reasoning and synthesis |
+| OpenAI | o1, o1-mini | Deep reasoning and synthesis |
 | Gemini | 2.5-flash, 2.5-pro | Structured, large-context research |
-| Grok | grok-4, grok-4-fast | Real-time search and analysis |
-| Azure | o3, o4-mini | Enterprise and regulated environments |
+| Grok | grok-beta | Real-time search and analysis |
+| Azure | o1, o1-mini | Enterprise and regulated environments |
 
 ---
 
@@ -287,6 +289,8 @@ Deepr runs locally using an SQLite queue and filesystem storage. All jobs are tr
 
 ## Cost and Quality Profiles
 
+Estimated costs based on typical research runs with reasoning models (o1, Gemini 2.5, etc.):
+
 | Depth | Cost | Time | Output |
 |-------|------|------|--------|
 | Quick insight | $1–2 | 5–10 minutes | Focused summary with citations |
@@ -294,21 +298,17 @@ Deepr runs locally using an SQLite queue and filesystem storage. All jobs are tr
 | Multi-phase | $5–15 | 45–90 minutes | Context-linked analysis |
 | Expert level | $10–20 | 1–2 hours | Complete knowledge artifact |
 
+Actual costs vary based on provider, model, prompt complexity, and context size.
+
 ---
 
 ## Vision
 
-Knowledge is power. Automation through large language models, agents, and infrastructure as code allows humans and machines to operate at scales that were not possible before.
-
 Deepr is provider-agnostic infrastructure for autonomous learning. It enables both humans and intelligent systems to learn, adapt, and reason at scale, creating a flywheel of insight, understanding, and progress. When knowledge becomes structured, reproducible, and shareable, it accelerates discovery across every domain.
 
-By combining deep reasoning models with local artifact storage and retrieval integration, Deepr becomes living infrastructure for expertise. It can feed agents, support continuous education, or act as a foundation for RAG systems that truly understand their sources. The local storage isn't dogma - it's about transparency, reproducibility, and control.
+By combining deep reasoning models with local artifact storage and retrieval integration, Deepr becomes living infrastructure for expertise. It can feed agents, support continuous education, or act as a foundation for RAG systems that truly understand their sources.
 
-If Deepr is built well, it or systems like it will help humans work with the precision and reach of superintelligence while giving AI systems the grounding they need to approach general intelligence.
-
-The boundary between idea and reality is becoming thinner. Deepr exists to amplify knowledge with insight, clarity, and compassion as humans and AI learn together.
-
-Not just clever. Meta-clever. Systems that can examine themselves, learn from their own patterns, and continuously improve. The research tool researching itself. The learner learning how to learn.
+If Deepr is built well, it will help humans work with the precision and reach of superintelligence while giving AI systems the grounding they need to approach general intelligence. Not just clever—meta-clever. Systems that examine themselves, learn from their own patterns, and continuously improve. The research tool researching itself. The learner learning how to learn.
 
 We are the universe trying to understand itself.
 
@@ -326,9 +326,9 @@ All use the same governed workflow and artifact system.
 
 ## Documentation
 
-- [INSTALL.md](docs/INSTALL.md)  
-- [FEATURES.md](docs/FEATURES.md)  
-- [ROADMAP.md](docs/ROADMAP.md)  
+- [INSTALL.md](docs/INSTALL.md)
+- [FEATURES.md](docs/FEATURES.md)
+- [ROADMAP.md](ROADMAP.md)
 - [CHANGELOG.md](docs/CHANGELOG.md)  
 
 ---
@@ -343,20 +343,8 @@ MIT License. See [LICENSE](LICENSE).
 
 Deepr was created by **Nick Seal** to explore how humans and intelligent systems can learn, reason, and improve together.
 
-**Guiding philosophy**
-
-Knowledge is power. Automation through large language models, agents, and infrastructure as code allows humans and machines to operate at scales that were not possible before.
-
-Deepr enables both users and intelligent systems to learn, adapt, and reason at scale, creating a flywheel of insight, understanding, and progress. When knowledge becomes structured and shareable, it accelerates discovery across every domain.
-
-If Deepr is built well, it or systems like it will help humans work with the precision and reach of superintelligence while giving AI systems the grounding they need to approach general intelligence.
-
 The boundary between idea and reality is becoming thinner. Deepr exists to amplify knowledge with insight, clarity, and compassion as humans and AI learn together.
-
-Not just clever. Meta-clever. Systems that can examine themselves, learn from their own patterns, and continuously improve. The research tool researching itself. The learner learning how to learn.
-
-We are the universe trying to understand itself.
 
 ---
 
-**[MIT License](LICENSE)** | **[GitHub](https://github.com/yourusername/deepr)**
+**[MIT License](LICENSE)** | **[GitHub](https://github.com/blisspixel/deepr)**
