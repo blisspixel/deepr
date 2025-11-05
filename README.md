@@ -316,11 +316,30 @@ We are the universe trying to understand itself.
 
 ## Interfaces
 
-- CLI for direct research and automation  
-- Local Web UI with `python -m deepr.api.app`  
-- MCP Server for agentic systems to use Deepr as a learning capability  
+- **CLI** - Direct research and automation from terminal
+- **Web UI** - Local interface with `python -m deepr.api.app`
+- **MCP Server** - Model Context Protocol integration for AI agents (async research infrastructure)
 
-All use the same governed workflow and artifact system.
+### MCP Integration for AI Agents
+
+Deepr exposes an MCP server that allows AI agents to submit long-running research jobs asynchronously:
+
+```python
+# Agent submits research and continues working
+job = deepr_submit_research("Analyze competitor X's strategy")
+# ... agent does other work ...
+result = deepr_get_result(job.id)  # Retrieve comprehensive report when ready
+```
+
+**Key Benefits:**
+- Async by design - agents don't block waiting for research
+- Comprehensive reports with citations
+- Unique capability - most MCP tools are synchronous
+- Positions Deepr as research infrastructure for agentic workflows
+
+See [ROADMAP.md](ROADMAP.md) for MCP implementation details.
+
+All interfaces use the same governed workflow and artifact system.
 
 ---
 
