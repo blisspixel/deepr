@@ -235,8 +235,76 @@ def list_jobs(status_filter: str, limit: int):
     asyncio.run(_list_jobs(status_filter, limit))
 
 
+async def _refresh_job_statuses(queue, jobs):
+    """Refresh job statuses from provider API."""
+    try:
+        from deepr.providers import create_provider
+        from deepr.config import load_config
+        from deepr.storage import create_storage
+
+        config = load_config()
+        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+        storage = create_storage(
+            config.get("storage", "local"),
+            base_path=config.get("results_dir", "data/reports")
+        )
+
+        for job in jobs:
+            try:
+                response = await provider.get_status(job.provider_job_id)
+
+                if response.status == "completed":
+                    # Download results
+                    content = ""
+                    if response.output:
+                        for block in response.output:
+                            if block.get('type') == 'message':
+                                for item in block.get('content', []):
+                                    if item.get('type') in ['output_text', 'text']:
+                                        text = item.get('text', '')
+                                        if text:
+                                            content += text + "\n"
+
+                    # Save report
+                    report_metadata = await storage.save_report(
+                        job_id=job.id,
+                        filename="report.md",
+                        content=content.encode('utf-8'),
+                        content_type="text/markdown",
+                        metadata={
+                            "prompt": job.prompt,
+                            "model": job.model,
+                            "status": "completed",
+                            "provider_job_id": job.provider_job_id,
+                        }
+                    )
+
+                    # Update queue
+                    await queue.update_status(job.id, JobStatus.COMPLETED)
+                    if response.usage and response.usage.cost:
+                        await queue.update_results(
+                            job.id,
+                            report_paths={"markdown": report_metadata.url},
+                            cost=response.usage.cost
+                        )
+
+                elif response.status == "failed":
+                    error_msg = response.error.message if response.error else "Unknown error"
+                    await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
+
+                # If still queued/processing, leave it (no update needed)
+
+            except Exception as e:
+                # Silently skip jobs that fail to refresh
+                pass
+
+    except Exception as e:
+        # If provider init fails, silently skip refresh
+        pass
+
+
 async def _list_jobs(status_filter: str, limit: int):
-    """List jobs."""
+    """List jobs with automatic status refresh for stale jobs."""
     queue = SQLiteQueue()
 
     # Parse status filter
@@ -250,6 +318,23 @@ async def _list_jobs(status_filter: str, limit: int):
             return
 
     jobs = await queue.list_jobs(status=status_enum, limit=limit)
+
+    # Refresh stale jobs (>30 minutes old and not completed/failed)
+    from datetime import datetime, timedelta, timezone
+    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+    stale_jobs = [
+        job for job in jobs
+        if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]
+        and job.submitted_at < stale_threshold
+        and job.provider_job_id  # Only if we have a provider job ID
+    ]
+
+    if stale_jobs:
+        click.echo(f"Refreshing status for {len(stale_jobs)} stale job(s)...", nl=False)
+        await _refresh_job_statuses(queue, stale_jobs)
+        click.echo(" done")
+        # Re-fetch jobs after refresh
+        jobs = await queue.list_jobs(status=status_enum, limit=limit)
 
     if not jobs:
         click.echo("No jobs found.")
