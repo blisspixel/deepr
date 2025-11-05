@@ -29,7 +29,7 @@ setup(
     author="Nick Seal",
     author_email="nick@pueo.io",
     description="Research automation platform that replicates human research team workflows using AI.",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     license="MIT",
     python_requires=">=3.9",
