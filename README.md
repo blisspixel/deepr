@@ -240,9 +240,7 @@ deepr research "GDPR implications of our new EU data processing workflow" --prov
 
 ```bash
 # Analyze internal documents with external research
-deepr research "Review our Q4 product roadmap against competitor capabilities and market trends" \
-  --upload q4-roadmap.pdf \
-  --upload competitor-analysis.xlsx
+deepr research "Review our Q4 product roadmap against competitor capabilities and market trends" --upload "C:\Documents\q4-roadmap.pdf" --upload "C:\Documents\competitor-analysis.xlsx"
 ```
 
 Deepr combines your proprietary documents with web research for comprehensive analysis.
@@ -264,9 +262,8 @@ Vague prompts are automatically expanded into detailed research plans. "llm pric
 
 ```bash
 # Build a searchable knowledge base from your research
-deepr vector create --name "customer-feedback-2024" --files interviews/*.pdf reports/*.md
-deepr research "What are the top 3 feature requests across all customer interviews?" \
-  --vector-store customer-feedback-2024
+deepr vector create --name "customer-feedback-2024" --files "C:\Projects\interviews\*.pdf" "C:\Projects\reports\*.md"
+deepr research "What are the top 3 feature requests across all customer interviews?" --vector-store customer-feedback-2024
 ```
 
 Create persistent knowledge bases from documents and past research. Query them semantically without re-uploading files.
@@ -296,11 +293,7 @@ deepr research "cloud costs"
 Specific prompt with clear outcome:
 
 ```bash
-deepr research "
-Compare AWS, Azure, and GCP compute costs for GPU-accelerated ML training.
-Focus on H100 and A100 availability, spot pricing, and committed use discounts.
-Include egress costs and storage implications for 5TB model checkpoints.
-Provide TCO breakdown for 100 hours/month sustained training workload."
+deepr research "Compare AWS, Azure, and GCP compute costs for GPU-accelerated ML training. Focus on H100 and A100 availability, spot pricing, and committed use discounts. Include egress costs and storage implications for 5TB model checkpoints. Provide TCO breakdown for 100 hours/month sustained training workload."
 ```
 
 **Best practices**
@@ -411,7 +404,7 @@ Deepr v2.3 is **STABLE and production ready**. v2.2 focuses on self-improving ex
    - Autonomously researches 10-20 topics to build comprehensive knowledge
    - Builds temporal knowledge graph (tracks what it knows and when)
    - Budget-protected autonomous learning with multi-layer safeguards
-   - Example: `deepr expert make "AWS Solutions Architect" -f internal-wiki/*.md --learn --budget 10`
+   - Example: `deepr expert make "AWS Solutions Architect" -f "C:\Wiki\*.md" --learn --budget 10`
    - Expert researches latest AWS services, pricing updates, and architecture patterns to supplement internal docs
 
 3. **Agentic Expert Chat** [PLANNED] - Conversational experts that research gaps:
