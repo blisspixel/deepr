@@ -1099,23 +1099,28 @@ deepr research "topic"  # Auto-routes, auto-retries, auto-optimizes
 2. [DONE] **Fix campaign grouping** - Jobs now grouped cleanly by campaign type
 3. [DONE] **Priority 2 (Phase 1)**: Core semantic commands (`research`, `learn`, `team`) - DONE
 4. [DONE] **Intuitive Terminology**: Added `deepr brain` and `deepr knowledge` aliases - DONE
-5. [DONE] **Priority 2.5 (Phase 1)**: Expert system foundation (`expert make/list/info/delete`) - DONE
-6. [TODO] **Priority 1**: UX Polish - Implicit vectorization, progress, paths, diagnostics
-7. [TODO] **Priority 2.5 (Phase 2)**: Interactive expert chat (`chat expert`)
-8. [TODO] **Priority 2.5 (Phase 3)**: Agentic research integration (`chat expert --agentic`)
-9. [TODO] **Priority 2 (Phase 2)**: Additional semantic commands (`check`, `make docs`, `make strategy`)
-10. [TODO] **Priority 3**: MCP Server - Expose via Model Context Protocol
-11. [TODO] **Priority 4**: Observability - Transparency and tracing
-12. [TODO] **Priority 5**: Provider Routing - Auto-optimization
-13. [TODO] **Priority 6**: Context Discovery - Advanced (optional)
+5. [DONE] **Priority 2.5 (Phase 1a)**: Expert system foundation (`expert make/list/info/delete`) - DONE
+6. [DONE] **Priority 2.5 (Phase 1b)**: Self-directed learning curriculum (`--learn --budget --topics`) - DONE
+7. [TODO] **Priority 1**: UX Polish - Implicit vectorization, progress, paths, diagnostics
+8. [TODO] **Priority 2.5 (Phase 2)**: Interactive expert chat (`chat expert`)
+9. [TODO] **Priority 2.5 (Phase 3)**: Agentic research integration (`chat expert --agentic`)
+10. [TODO] **Priority 2 (Phase 2)**: Additional semantic commands (`check`, `make docs`, `make strategy`)
+11. [TODO] **Priority 3**: MCP Server - Expose via Model Context Protocol
+12. [TODO] **Priority 4**: Observability - Transparency and tracing
+13. [TODO] **Priority 5**: Provider Routing - Auto-optimization
+14. [TODO] **Priority 6**: Context Discovery - Advanced (optional)
 
 **Key Principle:** Build solid foundation before adding advanced features. Can't have good MCP integration on broken UX.
 
-**Progress Update (2025-01-05):**
+**Progress Update (2025-11-05):**
 - [DONE] Semantic interface launched with 3 core commands
 - [DONE] Expert system architecture complete (profile storage, management commands)
 - [DONE] Beginner's mind philosophy embedded in system
 - [DONE] Intuitive terminology (`brain`, `knowledge`, `expert`)
+- [DONE] Autonomous learning curriculum generation and execution
+- [DONE] Multi-layer budget protection for autonomous learning
+- [DONE] Temporal knowledge tracking with domain velocity awareness
+- [DONE] Comprehensive test coverage (71 tests, 0 API calls)
 - [TODO] Next: Interactive chat mode for experts
 - [TODO] Then: Agentic research capabilities
 **v2.3: Dream Team - Cognitive Diversity Made Visible**

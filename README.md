@@ -406,7 +406,7 @@ Deepr v2.3 is **STABLE and production ready**. v2.2 focuses on self-improving ex
    - `deepr expert make` - Create domain experts with knowledge bases
    - Intuitive aliases: `deepr brain`, `deepr knowledge`
 
-2. **Self-Directed Learning Experts** [IN PROGRESS] - Experts that autonomously learn:
+2. **Self-Directed Learning Experts** [LAUNCHED] - Experts that autonomously learn:
    - Expert analyzes initial documents and generates learning curriculum
    - Autonomously researches 10-20 topics to build comprehensive knowledge
    - Builds temporal knowledge graph (tracks what it knows and when)
