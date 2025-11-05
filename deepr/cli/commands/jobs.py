@@ -283,8 +283,88 @@ def list_jobs(status: str, limit: int):
     asyncio.run(_list_jobs(status, limit))
 
 
+async def _refresh_job_statuses(queue, jobs):
+    """Refresh job statuses from provider API."""
+    try:
+        from deepr.providers import create_provider
+        from deepr.config import load_config
+        from deepr.storage import create_storage
+
+        config = load_config()
+        storage = create_storage("local")
+
+        for job in jobs:
+            try:
+                # Use the job's provider, not the config default
+                provider_name = job.provider if hasattr(job, 'provider') and job.provider else config.get("provider", "openai")
+
+                # Get provider-specific API key
+                if provider_name == "gemini":
+                    api_key = config.get("gemini_api_key")
+                elif provider_name == "grok":
+                    api_key = config.get("xai_api_key")
+                elif provider_name == "azure":
+                    api_key = config.get("azure_api_key")
+                else:  # openai
+                    api_key = config.get("api_key")
+
+                provider = create_provider(provider_name, api_key=api_key)
+                response = await provider.get_status(job.provider_job_id)
+
+                if response.status == "completed":
+                    # Download results
+                    content = ""
+                    if response.output:
+                        for block in response.output:
+                            if block.get('type') == 'message':
+                                for item in block.get('content', []):
+                                    if item.get('type') in ['output_text', 'text']:
+                                        text = item.get('text', '')
+                                        if text:
+                                            content += text + "\n"
+
+                    # Save report
+                    report_metadata = await storage.save_report(
+                        job_id=job.id,
+                        filename="report.md",
+                        content=content.encode('utf-8'),
+                        content_type="text/markdown",
+                        metadata={
+                            "prompt": job.prompt,
+                            "model": job.model,
+                            "status": "completed",
+                            "provider_job_id": job.provider_job_id,
+                        }
+                    )
+
+                    # Update queue
+                    await queue.update_status(job.id, JobStatus.COMPLETED)
+                    if response.usage and response.usage.cost:
+                        await queue.update_results(
+                            job.id,
+                            report_paths={"markdown": report_metadata.url},
+                            cost=response.usage.cost
+                        )
+
+                elif response.status == "failed":
+                    error_msg = response.error.message if response.error else "Unknown error"
+                    await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
+
+                # If still queued/processing, leave it (no update needed)
+
+            except Exception as e:
+                # Silently skip jobs that fail to refresh
+                pass
+
+    except Exception as e:
+        # If provider init fails, silently skip refresh
+        pass
+
+
 async def _list_jobs(status_filter: str, limit: int):
-    """List jobs from queue."""
+    """List jobs from queue with automatic status refresh for stale jobs."""
+    from datetime import datetime, timedelta, timezone
+
     queue = SQLiteQueue()
     jobs = await queue.list_jobs(limit=limit)
 
@@ -293,9 +373,50 @@ async def _list_jobs(status_filter: str, limit: int):
         target_status = JobStatus(status_filter)
         jobs = [j for j in jobs if j.status == target_status]
 
+    # Refresh stale jobs (>30 minutes old and not completed/failed)
+    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+    stale_jobs = [
+        job for job in jobs
+        if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]
+        and job.submitted_at < stale_threshold
+        and job.provider_job_id  # Only if we have a provider job ID
+    ]
+
+    if stale_jobs:
+        click.echo(click.style(f"\nRefreshing status for {len(stale_jobs)} stale job(s)...", fg="yellow"), nl=False)
+        await _refresh_job_statuses(queue, stale_jobs)
+        click.echo(click.style(" done", fg="green"))
+        # Re-fetch jobs after refresh
+        jobs = await queue.list_jobs(limit=limit)
+        if status_filter:
+            target_status = JobStatus(status_filter)
+            jobs = [j for j in jobs if j.status == target_status]
+
     if not jobs:
         click.echo(click.style("\nNo jobs found\n", fg="yellow"))
         return
+
+    # Group jobs by campaign/prefix
+    from collections import defaultdict
+    campaigns = defaultdict(list)
+    standalone_jobs = []
+
+    for job in jobs:
+        # Extract campaign prefix (e.g., "team-abc123" -> "team")
+        if '-' in job.id:
+            parts = job.id.split('-', 1)
+            prefix = parts[0]
+            # Group if multiple jobs share the same prefix and submitted around same time
+            campaign_key = f"{prefix}-{job.submitted_at.strftime('%Y%m%d%H%M')}" if job.submitted_at else prefix
+            campaigns[campaign_key].append(job)
+        else:
+            standalone_jobs.append(job)
+
+    # Determine which are actually campaigns (multiple jobs with same key)
+    actual_campaigns = {k: v for k, v in campaigns.items() if len(v) > 1}
+    for k, v in campaigns.items():
+        if len(v) == 1:
+            standalone_jobs.extend(v)
 
     # Print header with color
     click.echo()
@@ -303,8 +424,60 @@ async def _list_jobs(status_filter: str, limit: int):
     click.echo(click.style("-" * 13, dim=True))
     click.echo()
 
-    # Print jobs with color
-    for job in jobs:
+    # Print campaigns first (grouped)
+    for campaign_key, campaign_jobs in sorted(actual_campaigns.items(), key=lambda x: x[1][0].submitted_at, reverse=True):
+        campaign_type = campaign_key.split('-')[0]
+
+        # Campaign header
+        all_completed = all(j.status == JobStatus.COMPLETED for j in campaign_jobs)
+        any_failed = any(j.status == JobStatus.FAILED for j in campaign_jobs)
+        any_processing = any(j.status == JobStatus.PROCESSING for j in campaign_jobs)
+
+        if all_completed:
+            campaign_status = click.style("[OK]", fg="green", bold=True)
+        elif any_failed:
+            campaign_status = click.style("[X]", fg="red", bold=True)
+        elif any_processing:
+            campaign_status = click.style("[>>]", fg="cyan", bold=True)
+        else:
+            campaign_status = click.style("[ ]", dim=True)
+
+        total_cost = sum(j.cost for j in campaign_jobs if j.cost)
+        click.echo(click.style(f"▼ {campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)")
+
+        # Show first job's details as campaign representative
+        first_job = campaign_jobs[0]
+        prompt = first_job.prompt[:60] + "..." if len(first_job.prompt) > 60 else first_job.prompt
+        click.echo(f"  {campaign_status} {prompt}")
+
+        if first_job.submitted_at:
+            time_display = click.style(first_job.submitted_at.strftime('%Y-%m-%d %H:%M:%S'), dim=True)
+            click.echo(f"  Submitted: {time_display}")
+
+        if total_cost > 0:
+            cost_display = click.style(f"${total_cost:.4f}", fg="yellow")
+            click.echo(f"  Total Cost: {cost_display}")
+
+        # Show individual jobs in campaign (indented)
+        click.echo(click.style(f"  Jobs:", dim=True))
+        for job in campaign_jobs:
+            if job.status == JobStatus.COMPLETED:
+                status_icon = click.style("[OK]", fg="green")
+            elif job.status == JobStatus.PROCESSING:
+                status_icon = click.style("[>>]", fg="cyan")
+            elif job.status == JobStatus.FAILED:
+                status_icon = click.style("[X]", fg="red")
+            else:
+                status_icon = click.style("[ ]", dim=True)
+
+            job_id = click.style(job.id[:15], fg="cyan")
+            cost_str = f" (${job.cost:.4f})" if job.cost else ""
+            click.echo(f"    {status_icon} {job_id}{cost_str}")
+
+        click.echo()
+
+    # Print standalone jobs
+    for job in sorted(standalone_jobs, key=lambda x: x.submitted_at, reverse=True):
         # Status with color
         if job.status == JobStatus.COMPLETED:
             status_display = click.style("[OK]", fg="green", bold=True)

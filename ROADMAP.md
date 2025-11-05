@@ -349,124 +349,15 @@ Testing:
 
 **v2.2: Intelligence Layer - Transparent Automation**
 
-Focus: Fix UX issues, clean up interface, then expose via MCP and add observability.
+Focus: Fix broken UX → Clean interface → Expose via MCP → Add observability → Optimize
 
 **Build Order Philosophy:** Foundation → Interface → Infrastructure → Observability → Optimization
 
-**Priority 1: UX & Developer Experience Polish (FOUNDATION)**
+---
 
-**Critical insight:** Deepr's async research is perfect for AI agent workflows. Most MCP tools are synchronous - Deepr fills a unique gap.
+## Priority 1: UX & Developer Experience Polish (FOUNDATION)
 
-**Why Now:**
-- Enables AI agents to leverage Deepr for deep research during their workflows
-- Async by design: agents submit research, continue work, retrieve results later
-- Already have queue system and async execution - just need MCP interface
-- Positions Deepr as infrastructure for agentic systems (strategic)
-
-**MCP Server Interface:**
-
-```python
-# Tools exposed to AI agents via Model Context Protocol
-
-deepr_submit_research(
-    prompt: str,
-    mode: str = "focus",  # focus|docs|project|team
-    budget: float = None,
-    context: str = None,
-    provider: str = None
-) -> {job_id, estimated_time, cost_estimate}
-
-deepr_check_status(job_id: str) -> {
-    status,  # queued|running|completed|failed
-    progress,  # phase information
-    elapsed_time,
-    cost_so_far
-}
-
-deepr_get_result(job_id: str) -> {
-    status,
-    markdown_report,  # full cited research
-    cost_final,
-    metadata  # citations count, sources, etc.
-}
-
-deepr_list_jobs(
-    status: str = None,
-    limit: int = 10
-) -> [job_summaries]
-
-deepr_cancel_job(job_id: str) -> {success, refund_amount}
-```
-
-**Use Case Examples:**
-
-```
-# Agent working on competitive analysis
-Agent: "I need deep research on competitor X's strategy"
-→ Calls deepr_submit_research()
-→ Gets job_id, continues other work
-→ Periodically checks status
-→ When complete, retrieves comprehensive report
-→ Uses report to inform recommendations
-
-# Agent with urgent question
-Agent: "Quick - what's the latest on regulation Y?"
-→ Calls deepr_submit_research(mode="focus")
-→ Polls status every 2 minutes
-→ Gets result in ~5-10 minutes
-→ Responds to user with cited findings
-```
-
-**Implementation:**
-
-1. **MCP Protocol Handler** (`deepr/mcp/server.py`):
-   - Implements MCP protocol specification
-   - Maps MCP tool calls to CLI functions
-   - Handles async status polling
-   - Returns structured responses
-
-2. **Discovery & Registration**:
-   - MCP manifest file describing capabilities
-   - Auto-registration with MCP-compatible agents
-   - Clear documentation for agent developers
-
-3. **Security & Rate Limiting**:
-   - API key authentication
-   - Per-agent budget controls
-   - Rate limiting to prevent abuse
-   - Job ownership and access control
-
-4. **Observability for Agents**:
-   - Structured progress updates
-   - Cost tracking per agent/session
-   - Quality metrics (citation count, sources)
-
-**Strategic Value:**
-
-This positions Deepr as **research infrastructure for AI agents**, not just a human tool. When agents need comprehensive research (not just web search), they call Deepr.
-
-**Competitive Advantage:**
-- Perplexity: Real-time search (sync)
-- Tavily: Web search API (sync)
-- **Deepr: Comprehensive research infrastructure (async)** ← Unique position
-
-**Connection to Semantic Commands (Priority 1.5):**
-
-The semantic command interface makes MCP integration even more powerful. Instead of exposing implementation modes, expose intent-based tools:
-
-```python
-# MCP tools expose semantic interface
-deepr_research(prompt, sources, budget)       # Not "run focus" vs "run docs"
-deepr_agentic_research(goal, sources, files)  # Autonomous multi-step
-deepr_check(claim)                            # Fact verification
-deepr_chat_expert(expert_name, question)      # Q&A with domain expert
-```
-
-Agents interact with Deepr using natural intents, making integration intuitive and the API stable (implementation can change without breaking MCP contracts).
-
-**Priority 1: UX & Developer Experience Polish**
-
-**Critical insight from real-world testing:** Enterprise Azure Landing Zone scenario revealed friction points that block adoption.
+**Problem:** Real-world testing (Azure Landing Zone scenario) revealed friction that blocks adoption.
 
 **Issues Validated:**
 1. Manual vector store creation breaks single-command workflow
@@ -475,10 +366,9 @@ Agents interact with Deepr using natural intents, making integration intuitive a
 4. Inconsistent command patterns (`deepr get` vs `deepr jobs get`)
 5. Provider/model flags not accepted in all modes
 6. Cross-platform path handling issues (spaces, Windows paths)
+7. **Stale job statuses** - `deepr list` shows old data when worker isn't running ✅ FIXED
 
 **Solution: Implicit Vectorization & One-Line Commands**
-
-When user provides files, automatically handle vectorization:
 
 ```bash
 # This should just work - no manual vector store setup
@@ -515,10 +405,11 @@ deepr run docs "Research topic" --upload "./report.docx"
    - After 15 seconds: "Still working... Ctrl+C to cancel (uploads are safe)"
 
 4. **Command Consistency**:
-   - Standardize on `deepr get <job-id>` everywhere (remove `deepr jobs get`)
-   - Standardize on `deepr list` (remove `deepr jobs list`)
+   - Standardize on `deepr get <job-id>` everywhere
+   - Standardize on `deepr list`
    - Accept `--provider` and `--model` in ALL modes
    - Single-line examples only in docs and help
+   - ✅ `deepr list` auto-refreshes stale job statuses from provider
 
 5. **Cross-Platform Paths**:
    - Accept quoted absolute or relative paths
@@ -537,25 +428,25 @@ deepr run docs "Research topic" --upload "./report.docx"
    ```
 
 **Acceptance Criteria:**
-- ✓ `deepr run focus "..." --upload "path/with spaces/file.docx"` works without prior setup
-- ✓ All commands print clear progress phases
-- ✓ `--provider` and `--model` work in all modes
-- ✓ `deepr get <job-id>` is the only retrieval command
-- ✓ All README examples are single-line and cross-platform tested
-- ✓ Paths with spaces work on Windows CMD, PowerShell, macOS zsh, Linux bash
+- ✅ `deepr list` refreshes stale statuses automatically
+- ⬜ `deepr run focus "..." --upload "path/with spaces/file.docx"` works without prior setup
+- ⬜ All commands print clear progress phases
+- ⬜ `--provider` and `--model` work in all modes
+- ⬜ All README examples are single-line and cross-platform tested
+- ⬜ Paths with spaces work on Windows CMD, PowerShell, macOS zsh, Linux bash
 
-**Priority 1.5: Semantic Command Interface (Intent Over Mode)**
+---
 
-**Critical insight:** Users think in intents ("I want to research X"), not implementation modes ("Should I use focus or docs?").
+## Priority 2: Semantic Command Interface (CLEAN INTERFACE)
 
-**The Problem:**
-- Current: `deepr run focus` vs `deepr run docs` vs `deepr run project` vs `deepr run team`
+**Problem:** Users think in intents ("I want to research X"), not implementation modes ("Should I use focus or docs?").
+
+**Current friction:**
+- `deepr run focus` vs `deepr run docs` vs `deepr run project` vs `deepr run team`
 - Users ask: "Which mode do I need?"
 - Mental model mismatch: implementation-focused, not intent-focused
 
-**The Solution: Intent-Based Commands**
-
-Natural language verbs that express what the user wants:
+**Solution: Intent-Based Commands**
 
 ```bash
 # Research something
@@ -565,7 +456,7 @@ deepr research "Azure Landing Zone requirements for Fabric"
 deepr research team "Roles: Architect, Security" topic "Fabric governance"
 
 # Structured learning
-deepr learn "Azure governance foundations, networking, Fabric" --level advanced
+deepr learn "Azure governance, networking, Fabric" --level advanced
 
 # Create persistent domain expert
 deepr make expert "Azure Fabric Expert" --files "./docs/*.md"
@@ -605,8 +496,6 @@ deepr agentic research "Fabric ALZ governance" --goal "produce reference docs + 
 | `deepr agentic research` | New: orchestrator | Chains multiple runs |
 
 **Unified Flags (Work Everywhere):**
-
-All commands accept consistent flags:
 - `--upload <file>` - Attach files (auto-vectorized)
 - `--vector-store-name <name>` - Create/reuse expert
 - `--sources <domains>` - Restrict web sources
@@ -614,76 +503,134 @@ All commands accept consistent flags:
 - `--provider <name>` - Select provider
 - `--model <name>` - Select model
 - `--budget <dollars>` - Cost limit
-- `--goal <description>` - Agentic target (for `agentic` commands)
+- `--goal <description>` - Agentic target
 - `--out <path>` - Save result
 
-**New Capabilities:**
-
-1. **Persistent Experts**:
-   ```bash
-   # Create expert with domain knowledge
-   deepr make expert "Fabric ALZ Expert" --files "./docs/*.md"
-
-   # Expand expert's knowledge
-   deepr learn expert "Fabric ALZ Expert" "Add OneLake and Purview patterns"
-
-   # Interactive Q&A
-   deepr chat expert "Fabric ALZ Expert"
-   ```
-
-2. **Agentic Workflows**:
-   ```bash
-   # Single command for complex workflow
-   deepr agentic research "Fabric Landing Zone readiness" \
-     --goal "Build cited checklist and documentation pack" \
-     --sources "learn.microsoft.com" \
-     --upload "./docs/report.docx" \
-     --out "./fabric-alz-complete.md"
-
-   # Chains: source → research → docs → review → publish
-   ```
-
-3. **Fact Verification**:
-   ```bash
-   deepr check "Does Fabric support private endpoints?"
-   # Returns: verdict + citations + confidence level
-   ```
-
 **Migration Strategy:**
-
 1. **Phase 1 (v2.2)**: Implement semantic commands as aliases to existing modes
 2. **Phase 2 (v2.3)**: Add new capabilities (experts, agentic, check)
 3. **Phase 3 (v2.4)**: Deprecate `deepr run` in docs (keep for backwards compatibility)
-4. **Future**: `deepr run` becomes legacy (still works, but not documented)
-
-**Help System:**
-
-```bash
-deepr help verbs        # Show all intent-based commands
-deepr help research     # Deep dive on research command
-deepr help experts      # Guide to creating and using experts
-```
+4. **Future**: `deepr run` becomes legacy (still works, not documented)
 
 **Acceptance Criteria:**
-- ✓ All semantic commands work and map correctly
-- ✓ Flags behave identically across all verbs
-- ✓ `deepr help verbs` provides clear intent-based guide
-- ✓ Backwards compatibility: `deepr run focus` still works
-- ✓ README examples use semantic commands (not `deepr run`)
-- ✓ Experts can be created, updated, and queried
-- ✓ Agentic mode chains multiple steps autonomously
+- ⬜ All semantic commands work and map correctly
+- ⬜ Flags behave identically across all verbs
+- ⬜ `deepr help verbs` provides clear intent-based guide
+- ⬜ Backwards compatibility: `deepr run focus` still works
+- ⬜ README examples use semantic commands
 
-**Why This Matters:**
+---
 
-- **Lower cognitive load**: Users express intent naturally
-- **Better onboarding**: "Want to research? Use `deepr research`"
-- **Enables experts**: Persistent domain knowledge beyond single jobs
-- **Agentic foundation**: `deepr agentic research` is perfect MCP tool
-- **Future-proof**: Easy to add new verbs (`compare`, `summarize`, `audit`)
+## Priority 3: MCP Server Integration (INFRASTRUCTURE)
 
-**Priority 2: Observability by Design**
+**Strategic insight:** Deepr's async research fills a unique gap - most MCP tools are synchronous.
 
-Machine-readable transparency with human-friendly views:
+**Why Priority 3 (not 0):** Build on solid foundation (P1) with clean interface (P2) first.
+
+**MCP Server Interface:**
+
+```python
+# Tools exposed to AI agents via Model Context Protocol
+
+deepr_research(
+    prompt: str,
+    sources: list = None,
+    budget: float = None,
+    files: list = None
+) -> {job_id, estimated_time, cost_estimate}
+
+deepr_check_status(job_id: str) -> {
+    status,  # queued|running|completed|failed
+    progress,  # phase information
+    elapsed_time,
+    cost_so_far
+}
+
+deepr_get_result(job_id: str) -> {
+    status,
+    markdown_report,  # full cited research
+    cost_final,
+    metadata
+}
+
+deepr_chat_expert(expert_name: str, question: str) -> {
+    answer,
+    sources,
+    confidence
+}
+
+deepr_agentic_research(goal: str, sources: list, files: list) -> {
+    job_id,
+    workflow_plan
+}
+```
+
+**Use Case Examples:**
+
+```
+# Agent working on competitive analysis
+Agent: "I need deep research on competitor X's strategy"
+→ Calls deepr_research()
+→ Gets job_id, continues other work
+→ Periodically checks status
+→ When complete, retrieves comprehensive report
+→ Uses report to inform recommendations
+
+# Agent with urgent question
+Agent: "Quick - what's the latest on regulation Y?"
+→ Calls deepr_research(prompt="...", sources=["official sources"])
+→ Polls status every 2 minutes
+→ Gets result in ~5-10 minutes
+→ Responds to user with cited findings
+```
+
+**Implementation:**
+
+1. **MCP Protocol Handler** (`deepr/mcp/server.py`):
+   - Implements MCP protocol specification
+   - Maps MCP tool calls to semantic commands (not `run focus`)
+   - Handles async status polling
+   - Returns structured responses
+
+2. **Discovery & Registration**:
+   - MCP manifest file describing capabilities
+   - Auto-registration with MCP-compatible agents
+   - Clear documentation for agent developers
+
+3. **Security & Rate Limiting**:
+   - API key authentication
+   - Per-agent budget controls
+   - Rate limiting to prevent abuse
+   - Job ownership and access control
+
+4. **Observability for Agents**:
+   - Structured progress updates
+   - Cost tracking per agent/session
+   - Quality metrics (citation count, sources)
+
+**Strategic Value:**
+
+This positions Deepr as **research infrastructure for AI agents**, not just a human tool. When agents need comprehensive research (not just web search), they call Deepr.
+
+**Competitive Advantage:**
+- Perplexity: Real-time search (sync)
+- Tavily: Web search API (sync)
+- **Deepr: Comprehensive research infrastructure (async)** ← Unique position
+
+**Acceptance Criteria:**
+- ⬜ MCP server runs and registers with agents
+- ⬜ All MCP tools use semantic interface (not implementation modes)
+- ⬜ Async status polling works reliably
+- ⬜ Cost tracking per agent/session
+- ⬜ Documentation for agent developers
+
+---
+
+## Priority 4: Observability by Design (TRANSPARENCY)
+
+Machine-readable transparency with human-friendly views.
+
+**Implementation:**
 
 1. **Automatic Metadata Generation**:
    - Every task emits structured JSON: prompt, context used, model, tokens, cost
@@ -709,68 +656,76 @@ Machine-readable transparency with human-friendly views:
    - "Reviewer identified: missing market data, requested Phase 2"
    - Natural language explanations generated automatically
 
-**Priority 3: Human-in-the-Loop Controls**
+**Acceptance Criteria:**
+- ⬜ All tasks emit structured metadata automatically
+- ⬜ `--explain`, `--timeline`, `--full-trace` flags work
+- ⬜ Cost dashboard tracks per-phase costs
+- ⬜ Decision logs are human-readable
 
-Balance automation with human oversight:
+---
 
-1. **Plan Review Checkpoints**:
-   ```bash
-   deepr prep plan "..." --review-before-execute
-   # GPT-5 generates plan, user approves/edits before execution
-   ```
+## Priority 5: Autonomous Provider Routing (OPTIMIZATION)
 
-2. **Mid-Campaign Intervention**:
-   ```bash
-   deepr prep pause <campaign-id>
-   deepr prep edit-plan <campaign-id>  # Adjust next phase
-   deepr prep resume <campaign-id>
-   ```
+Move from rule-based to continuously optimized selection.
 
-3. **Annotation Mode** - Add human corrections/validations:
-   - Flag findings as "verified", "disputed", or "outdated"
-   - Add commentary visible in synthesis
-   - Export annotated reports
+**Implementation:**
 
-**Priority 4: Context Discovery (Default: Never Reuse)**
+1. **Real-Time Benchmarking**:
+   - Track per provider: cost, latency, citation quality, success rate
+   - Rolling 30-day performance stats
+   - Auto-select best provider per task type
+
+2. **Resilience & Fallback**:
+   - Auto-retry with alternate provider on failure/timeout
+   - Graceful degradation (cheaper model fallback if primary unavailable)
+   - Auto-resume campaigns after provider recovery
+
+3. **Provider Health Monitoring**:
+   - Detect degraded performance, adjust routing
+   - User notifications only on failures
+
+**Configuration:**
+```bash
+# User provides keys once
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+
+# System handles everything
+deepr research "topic"  # Auto-routes, auto-retries, auto-optimizes
+```
+
+**Acceptance Criteria:**
+- ⬜ Provider selection based on performance metrics
+- ⬜ Auto-fallback on provider failures
+- ⬜ Performance tracking dashboard
+
+---
+
+## Priority 6: Context Discovery (ADVANCED FEATURE)
 
 **Critical principle: Context is everything. Bad context = bad research. Default to fresh research.**
 
-**The Context Quality Problem:**
+**Default Behavior:**
+- Never auto-reuse context
+- Only discover and notify (user decides)
+- High friction by design (quality over convenience)
 
-You can't judge research quality from metadata alone:
-- Title says "EV market analysis" - but was it comprehensive or surface-level?
-- Date says "2 weeks old" - but did the market shift since then?
-- Cost was "$2.40" - but was it o3-deep or o4-mini? Depth matters.
-- Had 47 citations - but were they relevant or generic?
-- Wrong perspective - research from investor POV when you need technical analysis
-
-**Auto-reuse is toxic:** Injecting mediocre, outdated, or wrong-perspective research poisons new campaigns. The cost "savings" destroy quality.
-
-**Deepr's Approach: Discovery, Not Reuse**
+**Implementation:**
 
 1. **Detection (Optional, Disabled by Default)**:
    ```bash
-   deepr prep plan "Research Ford's EV strategy"
-   # By default: NO notification, just do fresh research
-
-   # With discovery enabled:
-   deepr prep plan "Research Ford's EV strategy" --check-related
+   deepr research "Research Ford's EV strategy" --check-related
 
    INFO: Found potentially related research:
-   - "EV market trends 2025" (Sep 15, $2.40, o3-deep, 47 cites) [You rated: 4/5]
-   - "Tesla competitive analysis" (Aug 20, $1.80, o4-mini, 23 cites) [Not rated]
+   - "EV market trends 2025" (Sep 15, $2.40, o1, 47 cites) [You rated: 4/5]
+   - "Tesla competitive analysis" (Aug 20, $1.80, o1-mini, 23 cites) [Not rated]
 
    Continue with fresh research? [Y/n]
    ```
 
-2. **Explicit Reuse Only (High Friction by Design)**:
+2. **Explicit Reuse Only**:
    ```bash
-   # User must:
-   # 1. Read the prior research themselves
-   # 2. Judge: "Is this comprehensive enough?"
-   # 3. Explicitly specify job IDs to inject
-
-   deepr prep plan "..." --reuse-context job-123,job-456
+   deepr research "..." --reuse-context job-123,job-456
 
    WARNING: Reusing prior research
    - job-123: "EV market trends" (Sep 15, $2.40, 12K tokens)
@@ -780,49 +735,10 @@ You can't judge research quality from metadata alone:
    Proceed? [y/N]  # Default is NO
    ```
 
-3. **No Automatic Reuse - Ever**:
-   - No `--auto-reuse-if-recent` flag
-   - No "smart" threshold detection
-   - No ML-based quality scoring (not in v2.x)
-   - User reads, user judges, user decides
-   - System never assumes prior research is good enough
-
-4. **Quality Gates (Help User Decide)**:
-   When user reviews prior research, show:
-   ```
-   Research Summary: job-123 "EV market trends"
-   - Date: 2025-09-15 (24 days old) WARNING: Market may have shifted
-   - Model: o4-mini (faster, less thorough than o3)
-   - Cost: $2.40 (medium investment)
-   - Citations: 47 sources
-   - Your rating: 4/5 "Good overview, lacks technical depth"
-   - Perspective: Industry analyst (not technical/engineering)
-
-   RISK: This research may not match your current needs
-   RECOMMENDED: Do fresh research
-   ```
-
-**Default Behavior:**
-
-```bash
-# Standard workflow - NO reuse checking
-deepr prep plan "Research Ford's EV strategy"
-# → Just does fresh research, no questions asked
-
-# Explicit reuse (high friction)
-deepr prep plan "..." --reuse-context job-123
-# → Shows warnings, requires confirmation
-
-# Discovery mode (informational only)
-deepr prep plan "..." --check-related
-# → Shows related research, defaults to fresh anyway
-```
-
 **Why Extreme Bias Against Reuse:**
 - Context quality determines research quality
 - Shallow research on wrong topic/perspective/timeframe is worse than no context
 - Cost savings from reuse (~30-70% tokens) not worth quality degradation
-- If research was good enough, you wouldn't need new research
 - Better to over-research than to confidently deliver garbage
 
 **v3.0+ Only:** After 1000+ campaigns, IF we can prove quality preservation:
@@ -830,39 +746,19 @@ deepr prep plan "..." --check-related
 - "What's new since job-123?" delta research mode
 - Smart reuse suggestions (still requires user approval)
 
-**Priority 5: Autonomous Provider Routing**
+---
 
-Move from rule-based to continuously optimized selection:
+## v2.2 Summary: Build Order
 
-1. **Real-Time Benchmarking**:
-   - Track per provider: cost, latency, citation quality, success rate
-   - Rolling 30-day performance stats
-   - Auto-select best provider per task type
+1. ✅ **Fix stale status refresh** - Done
+2. ⬜ **Priority 1**: UX Polish - Implicit vectorization, progress, paths, diagnostics
+3. ⬜ **Priority 2**: Semantic Commands - Intent-based interface
+4. ⬜ **Priority 3**: MCP Server - Expose via Model Context Protocol
+5. ⬜ **Priority 4**: Observability - Transparency and tracing
+6. ⬜ **Priority 5**: Provider Routing - Auto-optimization
+7. ⬜ **Priority 6**: Context Discovery - Advanced (optional)
 
-2. **Resilience & Fallback**:
-   - Auto-retry with alternate provider on failure/timeout
-   - Graceful degradation (o4-mini fallback if o3 unavailable)
-   - Auto-resume campaigns after provider recovery
-
-3. **Provider Health Monitoring**:
-   - Detect degraded performance, adjust routing
-   - User notifications only on failures (not every decision)
-
-4. **Anthropic Integration**:
-   - Claude Extended Thinking for planning transparency
-   - Auto-route analysis tasks needing visible reasoning
-   - Provider choice invisible to user
-
-Configuration:
-```bash
-# User provides keys once
-OPENAI_API_KEY=...
-ANTHROPIC_API_KEY=...
-
-# System handles everything
-deepr prep execute  # Auto-routes, auto-retries, auto-optimizes
-```
-
+**Key Principle:** Build solid foundation before adding advanced features. Can't have good MCP integration on broken UX.
 **v2.3: Dream Team - Cognitive Diversity Made Visible**
 
 **Status: CORE IMPLEMENTED** - Dynamic team assembly working, observability in progress

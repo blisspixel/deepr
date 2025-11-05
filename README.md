@@ -318,28 +318,42 @@ We are the universe trying to understand itself.
 
 - **CLI** - Direct research and automation from terminal
 - **Web UI** - Local interface with `python -m deepr.api.app`
-- **MCP Server** - Model Context Protocol integration for AI agents (async research infrastructure)
+- **MCP Server** - Model Context Protocol integration for AI agents (coming in v2.2)
 
-### MCP Integration for AI Agents
+### MCP Integration for AI Agents (Coming Soon)
 
-Deepr exposes an MCP server that allows AI agents to submit long-running research jobs asynchronously:
+Deepr will expose an MCP server that allows AI agents to submit long-running research jobs asynchronously:
 
 ```python
 # Agent submits research and continues working
-job = deepr_submit_research("Analyze competitor X's strategy")
+job = deepr_research("Analyze competitor X's strategy")
 # ... agent does other work ...
 result = deepr_get_result(job.id)  # Retrieve comprehensive report when ready
 ```
 
-**Key Benefits:**
+**Why MCP for Deepr?**
 - Async by design - agents don't block waiting for research
 - Comprehensive reports with citations
 - Unique capability - most MCP tools are synchronous
 - Positions Deepr as research infrastructure for agentic workflows
 
-See [ROADMAP.md](ROADMAP.md) for MCP implementation details.
+See [ROADMAP.md](ROADMAP.md) for v2.2 development priorities and implementation details.
 
 All interfaces use the same governed workflow and artifact system.
+
+---
+
+## What's Next: v2.2 Development Priorities
+
+Deepr v2.3 is **STABLE and production ready**. v2.2 focuses on polish, interface improvements, and infrastructure:
+
+1. **UX & DX Polish** - Fix friction from real-world testing (implicit file handling, cross-platform paths, progress feedback)
+2. **Semantic Commands** - Intent-based interface (`deepr research`, `deepr make expert`, `deepr chat expert`)
+3. **MCP Server** - Expose Deepr to AI agents via Model Context Protocol
+4. **Observability** - Transparent reasoning timelines and cost tracking
+5. **Provider Routing** - Automatic optimization and fallback
+
+See [ROADMAP.md](ROADMAP.md) for detailed implementation plans and acceptance criteria.
 
 ---
 
@@ -348,7 +362,7 @@ All interfaces use the same governed workflow and artifact system.
 - [INSTALL.md](docs/INSTALL.md)
 - [FEATURES.md](docs/FEATURES.md)
 - [ROADMAP.md](ROADMAP.md)
-- [CHANGELOG.md](docs/CHANGELOG.md)  
+- [CHANGELOG.md](docs/CHANGELOG.md)
 
 ---
 
