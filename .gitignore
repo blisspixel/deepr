@@ -74,8 +74,9 @@ dmypy.json
 *.db-journal
 *.db-shm
 *.db-wal
+*.sqlite3
 
-# Generated/Runtime directories (both data/ and root-level)
+# Generated/Runtime directories
 data/logs/
 data/reports/
 data/queue/
@@ -86,12 +87,12 @@ data/templates/
 data/vector_stores/
 
 # Root-level runtime directories (legacy, should be in data/)
-/logs/
-/queue/
-/reports/
-/backups/
-/archive/
-/DEPRECATED/
+logs/
+queue/
+reports/
+backups/
+archive/
+DEPRECATED/
 
 # Logs
 *.log
@@ -164,7 +165,7 @@ ngrok.exe
 ngrok
 bin/ngrok.exe
 
-# Claude/AI session data
+# Claude / AI session data
 .claude/
 .deepr/
 
@@ -182,5 +183,14 @@ docs/**/personal/
 docs/**/*notes*.txt
 docs/**/*exploration*.md
 docs/**/.private/
-/tests/data/reports
-/tests/data
+
+# Test Data
+tests/data/reports/
+tests/data/
+
+# ==============================================================================
+# Temporary or Local Files
+# ==============================================================================
+IDEA 10-24-25.txt
+idea 11-4-2025.txt
+TEMP NOTE.txt
