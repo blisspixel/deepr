@@ -366,7 +366,7 @@ Focus: Fix broken UX → Clean interface → Expose via MCP → Add observabilit
 4. Inconsistent command patterns (`deepr get` vs `deepr jobs get`)
 5. Provider/model flags not accepted in all modes
 6. Cross-platform path handling issues (spaces, Windows paths)
-7. **Stale job statuses** - `deepr list` shows old data when worker isn't running ✅ FIXED
+7. **Stale job statuses** - `deepr list` shows old data when worker isn't running [DONE] FIXED
 
 **Solution: Implicit Vectorization & One-Line Commands**
 
@@ -409,7 +409,7 @@ deepr run docs "Research topic" --upload "./report.docx"
    - Standardize on `deepr list`
    - Accept `--provider` and `--model` in ALL modes
    - Single-line examples only in docs and help
-   - ✅ `deepr list` auto-refreshes stale job statuses from provider
+   - [DONE] `deepr list` auto-refreshes stale job statuses from provider
 
 5. **Cross-Platform Paths**:
    - Accept quoted absolute or relative paths
@@ -428,12 +428,12 @@ deepr run docs "Research topic" --upload "./report.docx"
    ```
 
 **Acceptance Criteria:**
-- ✅ `deepr list` refreshes stale statuses automatically
-- ⬜ `deepr run focus "..." --upload "path/with spaces/file.docx"` works without prior setup
-- ⬜ All commands print clear progress phases
-- ⬜ `--provider` and `--model` work in all modes
-- ⬜ All README examples are single-line and cross-platform tested
-- ⬜ Paths with spaces work on Windows CMD, PowerShell, macOS zsh, Linux bash
+- [DONE] `deepr list` refreshes stale statuses automatically
+- [TODO] `deepr run focus "..." --upload "path/with spaces/file.docx"` works without prior setup
+- [TODO] All commands print clear progress phases
+- [TODO] `--provider` and `--model` work in all modes
+- [TODO] All README examples are single-line and cross-platform tested
+- [TODO] Paths with spaces work on Windows CMD, PowerShell, macOS zsh, Linux bash
 
 ---
 
@@ -512,12 +512,357 @@ deepr agentic research "Fabric ALZ governance" --goal "produce reference docs + 
 3. **Phase 3 (v2.4)**: Deprecate `deepr run` in docs (keep for backwards compatibility)
 4. **Future**: `deepr run` becomes legacy (still works, not documented)
 
+**Status: PARTIAL - Core commands launched, additional commands planned**
+
+Implemented commands:
+- [DONE] `deepr research` - Auto-detects focus vs docs mode based on prompt
+- [DONE] `deepr learn` - Maps to `run project` (multi-phase learning)
+- [DONE] `deepr team` - Maps to `run team` (multi-perspective analysis)
+
 **Acceptance Criteria:**
-- ⬜ All semantic commands work and map correctly
-- ⬜ Flags behave identically across all verbs
-- ⬜ `deepr help verbs` provides clear intent-based guide
-- ⬜ Backwards compatibility: `deepr run focus` still works
-- ⬜ README examples use semantic commands
+- [DONE] Core semantic commands work (`research`, `learn`, `team`)
+- [DONE] Flags work correctly (all `run` flags supported)
+- [DONE] `deepr expert make` - Create persistent domain expert
+- [DONE] `deepr expert list/info/delete` - Manage experts
+- [TODO] `deepr learn expert` - Update expert knowledge
+- [TODO] `deepr chat expert` - Interactive Q&A
+- [TODO] `deepr chat expert --agentic` - Expert can trigger research
+- [TODO] `deepr check` - Fact verification
+- [TODO] `deepr make docs` - Generate documentation
+- [TODO] `deepr make strategy` - Strategic synthesis
+- [TODO] `deepr agentic research` - Autonomous multi-step
+- [TODO] `deepr help verbs` provides clear intent-based guide
+- [DONE] Backwards compatibility: `deepr run focus` still works
+- [DONE] README examples use semantic commands
+- [DONE] Intuitive aliases: `deepr brain` and `deepr knowledge` for vector stores
+
+---
+
+## Priority 2.5: Agentic Expert System (CAPABILITY EXTENSION)
+
+**Vision:** Self-improving domain experts that maintain beginner's mind while using research to fill knowledge gaps.
+
+### Architecture Overview
+
+**Components Implemented:**
+1. [DONE] **Expert Profile System** (`deepr/experts/profile.py`)
+   - Metadata storage (name, description, domain)
+   - Vector store linking
+   - Usage tracking (conversations, research triggered, costs)
+   - Provider configuration
+
+2. [DONE] **Expert Management Commands**
+   - `deepr expert make <name> -f files` - Create expert from documents
+   - `deepr expert list` - List all experts with stats
+   - `deepr expert info <name>` - Detailed expert information
+   - `deepr expert delete <name>` - Remove expert profile
+
+3. [DONE] **Beginner's Mind System Message**
+   - Intellectual humility (admit gaps)
+   - Source transparency (distinguish knowledge sources)
+   - Research-first approach (research > guessing)
+   - Question assumptions (verify outdated info)
+   - Depth over breadth
+
+4. [DONE] **Intuitive Terminology**
+   - `deepr brain` = `deepr vector` (knowledge base management)
+   - `deepr knowledge` = `deepr vector` (alternative alias)
+   - "Expert" instead of "agent" (more approachable)
+
+**Components Remaining:**
+
+5. [TODO] **Interactive Chat Mode** (`deepr chat expert <name>`)
+   - Basic Q&A with expert's vector store
+   - Conversation context management
+   - Source citation in responses
+
+6. [TODO] **Agentic Research Integration** (`deepr chat expert <name> --agentic`)
+   - Expert can trigger `deepr research` as tool
+   - Decision logic: when to research vs answer from knowledge
+   - Async workflow: maintain conversation during research
+   - Budget enforcement per session
+
+7. [TODO] **Knowledge Base Updates** (`deepr learn expert <name>`)
+   - Add research findings to expert's vector store
+   - Add learning campaign results
+   - Consolidation and deduplication
+
+8. [TODO] **Session Management**
+   - Per-session budget tracking
+   - Research history in conversation
+   - Usage cost accumulation
+
+### Usage Example (Target State)
+
+```bash
+# 1. Create expert from documents
+deepr expert make "Azure Architect" -f docs/*.md -d "Azure Landing Zones and Fabric"
+
+# Expert created successfully!
+# Knowledge Base: vs-abc123
+# Documents: 15
+
+# 2. Basic chat (uses vector store only)
+deepr chat expert "Azure Architect"
+> How should we structure Landing Zones?
+
+Expert: "According to azure-lz-best-practices.md, Landing Zones should..."
+[Cites specific documents from knowledge base]
+
+# 3. Agentic chat (can trigger research)
+deepr chat expert "Azure Architect" --agentic --budget 5
+
+> How should we handle OneLake security for multi-tenant SaaS?
+
+Expert: "I have general OneLake concepts, but not specific multi-tenant SaaS patterns.
+Let me research this to give you accurate guidance..."
+
+[Triggers: deepr research "OneLake multi-tenant security SaaS 2025" --mode docs]
+[Cost: $0.15, Time: ~8 minutes]
+
+Expert: "My research found three approaches:
+1. Workspace-per-tenant isolation [Source: Research job-abc123]
+2. Lakehouse-per-tenant with RLS [Source: Research job-abc123]
+3. Shared lakehouse with strict RLS [Source: Research job-abc123]
+
+For your SaaS scenario..."
+
+> Should you remember this for future questions?
+
+Expert: "Yes, I'll add this to my permanent knowledge base."
+[Executes: deepr learn expert "Azure Architect" --add-research job-abc123]
+[Cost: $0.02 for vectorization]
+
+Session budget remaining: $4.83
+
+# 4. Future conversations benefit from research
+deepr chat expert "Azure Architect"
+
+> Tell me about OneLake multi-tenant patterns
+
+Expert: "I have recent research on this [Added 2025-01-05]:
+Based on my findings, there are three primary approaches..."
+[Now answers immediately from updated knowledge base]
+```
+
+### Beginner's Mind Philosophy
+
+The system message emphasizes:
+
+```
+CORE PRINCIPLES:
+
+1. Intellectual Humility
+   - Say "I don't know" when uncertain
+   - Never guess beyond knowledge
+   - Acknowledge expertise limits
+
+2. Source Transparency
+   - "According to [document]..." (vector store)
+   - "I just researched this..." (fresh research)
+   - "Based on combining..." (synthesis)
+
+3. Research-First Approach
+   - Trigger research instead of guessing
+   - "Let me research current best practices..."
+   - Wait for research, then answer
+
+4. Question Assumptions
+   - "My docs are from Oct 2024, let me verify..."
+   - "Are you asking about X or Y?"
+   - "That was true in 2023, checking 2025..."
+
+5. Depth Over Breadth
+   - Better to research deeply than answer superficially
+   - Take time for nuance
+   - Comprehensive, well-reasoned answers
+```
+
+### Technical Design
+
+**Research Decision Logic:**
+```python
+def should_research(query, knowledge_base_results, expert_profile):
+    """Decide if expert should trigger research."""
+
+    # Trigger research if:
+    if not knowledge_base_results:
+        return True  # No relevant knowledge
+
+    if query_mentions_recency(query):  # "current", "latest", "2025"
+        if knowledge_base_outdated(knowledge_base_results, months=6):
+            return True
+
+    if detect_knowledge_gap(knowledge_base_results, confidence_threshold=0.7):
+        return True
+
+    if user_explicitly_requests_research(query):  # "research", "find out"
+        return True
+
+    return False  # Answer from knowledge base
+```
+
+**Async Research Workflow:**
+```python
+# Non-blocking mode
+while conversation_active:
+    user_message = get_user_input()
+
+    if should_research(user_message, kb_results, profile):
+        # Trigger research
+        job_id = trigger_research(user_message)
+        respond("I'm researching [X], should complete in ~8 min. Meanwhile, I can discuss [Y]...")
+
+        # Continue conversation while research runs
+        while not research_complete(job_id):
+            user_message = get_user_input()
+            answer_from_kb(user_message)
+
+        # Research complete
+        results = get_research_results(job_id)
+        respond_with_research(results)
+
+        # Offer to update knowledge base
+        if user_confirms():
+            update_expert_knowledge(profile, job_id)
+    else:
+        # Answer from knowledge base
+        answer_from_kb(user_message)
+```
+
+### Implementation Phases
+
+**Phase 1a: Expert Management** [DONE] DONE
+- Expert profile storage
+- Create/list/info/delete commands
+- Vector store integration
+- Beginner's mind system message
+
+**Phase 1b: Self-Directed Learning Curriculum** [TODO] NEXT PRIORITY
+- `deepr expert make "name" -f files --learn --budget 5`
+- GPT-5 analyzes domain and generates 10-20 topic learning curriculum
+- User approves curriculum and budget allocation
+- Expert autonomously researches each topic
+- Results added to knowledge base with timestamps
+- **Budget Protection:**
+  - Creation budget limit (--budget flag)
+  - Per-topic cost estimates shown upfront
+  - Approval required above threshold ($5)
+  - Emergency stop: `deepr expert pause <name>`
+- **Temporal Knowledge Graph:**
+  - Track document timestamps (source doc dates)
+  - Track research timestamps (when expert learned each topic)
+  - Track knowledge freshness and confidence
+  - Enable "I learned X in Jan 2025, but this might have changed" awareness
+
+**Phase 2: Basic Chat** [TODO] AFTER LEARNING
+- Interactive Q&A with expert
+- Vector store search with temporal awareness
+- Source citation (distinguish doc vs research vs synthesis)
+- Conversation context
+- Cost tracking per conversation
+
+**Phase 3: Agentic Research in Conversations** [TODO] AFTER CHAT
+- Research tool integration during chat
+- Async workflow (continue conversation during research)
+- Per-session budget tracking (--budget flag)
+- Knowledge base updates from research
+- Temporal graph updates
+
+**Phase 4: Continuous Self-Improvement** [TODO] v2.3+
+- Auto-detect outdated knowledge (>6 months for fast-moving domains)
+- Suggest refresh research to user
+- Monthly learning budget for autonomous updates
+- Knowledge consolidation and deduplication
+- Quality scoring and confidence levels
+- Cross-expert knowledge sharing
+
+---
+
+## Budget Protection Architecture (Critical)
+
+**Problem:** Autonomous learning + agentic research = potential runaway costs
+
+**Solution: Multi-Layer Budget Controls**
+
+### 1. Expert Creation Budget
+```bash
+deepr expert make "Azure Architect" -f docs/*.md --learn --budget 5.00
+
+# GPT-5 generates curriculum:
+Learning Curriculum (15 topics):
+1. Azure Landing Zone patterns       Est: $0.20, 10 min
+2. Fabric architecture overview      Est: $0.15, 8 min
+3. OneLake security models           Est: $0.25, 12 min
+...
+15. Fabric vs competitors            Est: $0.30, 15 min
+
+Total: $3.45, ~2.5 hours
+Budget limit: $5.00  WITHIN BUDGET
+
+Proceed? [y/N]
+```
+
+**Safety:**
+- Show cost estimate per topic
+- Show total cost and time
+- Require confirmation if total > $1
+- Hard fail if total > budget limit
+- Pause if any single topic exceeds estimate by 2x
+
+### 2. Conversation Budget
+```bash
+deepr chat expert "Azure Architect" --agentic --budget 3.00
+
+Session budget: $3.00
+Research triggered: "OneLake multi-tenant security" ($0.15)
+Remaining: $2.85
+
+[If expert wants to research again]
+Expert: "I should also research Fabric capacity planning ($0.20).
+Remaining budget: $2.65. Proceed? [y/N]"
+```
+
+**Safety:**
+- Track cumulative research cost per session
+- Warn when 80% budget consumed
+- Block research when budget exhausted
+- Show remaining budget after each research
+
+### 3. Monthly Learning Budget
+```bash
+deepr expert set-learning-budget "Azure Architect" --monthly 10.00
+
+# Expert can autonomously refresh knowledge up to $10/month
+# Requires approval for:
+#   - Individual research > $1
+#   - Total monthly > budget
+#   - Any learning outside user-initiated conversations
+```
+
+### 4. Emergency Controls
+```bash
+deepr expert pause "Azure Architect"   # Stop all autonomous activity
+deepr expert resume "Azure Architect"  # Resume
+deepr expert reset-budget "Azure Architect"  # Reset monthly counter
+deepr expert usage "Azure Architect"   # Show cost breakdown
+```
+
+### 5. Cost Alerts
+```yaml
+# config.yaml
+expert_budgets:
+  alert_threshold: 0.8  # Alert at 80% of budget
+  auto_pause_threshold: 1.0  # Auto-pause at 100%
+  monthly_report: true  # Email monthly usage report
+```
+
+**Alert Messages:**
+```
+[WARNING]  Expert "Azure Architect" has used $4.00 of $5.00 creation budget (80%)
+[WARNING]  Session budget 90% consumed ($2.70 / $3.00). 1-2 more research topics remaining.
+[BLOCKED] Monthly learning budget exhausted ($10.00 / $10.00). Expert paused until next month.
+```
 
 ---
 
@@ -618,11 +963,11 @@ This positions Deepr as **research infrastructure for AI agents**, not just a hu
 - **Deepr: Comprehensive research infrastructure (async)** ← Unique position
 
 **Acceptance Criteria:**
-- ⬜ MCP server runs and registers with agents
-- ⬜ All MCP tools use semantic interface (not implementation modes)
-- ⬜ Async status polling works reliably
-- ⬜ Cost tracking per agent/session
-- ⬜ Documentation for agent developers
+- [TODO] MCP server runs and registers with agents
+- [TODO] All MCP tools use semantic interface (not implementation modes)
+- [TODO] Async status polling works reliably
+- [TODO] Cost tracking per agent/session
+- [TODO] Documentation for agent developers
 
 ---
 
@@ -657,10 +1002,10 @@ Machine-readable transparency with human-friendly views.
    - Natural language explanations generated automatically
 
 **Acceptance Criteria:**
-- ⬜ All tasks emit structured metadata automatically
-- ⬜ `--explain`, `--timeline`, `--full-trace` flags work
-- ⬜ Cost dashboard tracks per-phase costs
-- ⬜ Decision logs are human-readable
+- [TODO] All tasks emit structured metadata automatically
+- [TODO] `--explain`, `--timeline`, `--full-trace` flags work
+- [TODO] Cost dashboard tracks per-phase costs
+- [TODO] Decision logs are human-readable
 
 ---
 
@@ -695,9 +1040,9 @@ deepr research "topic"  # Auto-routes, auto-retries, auto-optimizes
 ```
 
 **Acceptance Criteria:**
-- ⬜ Provider selection based on performance metrics
-- ⬜ Auto-fallback on provider failures
-- ⬜ Performance tracking dashboard
+- [TODO] Provider selection based on performance metrics
+- [TODO] Auto-fallback on provider failures
+- [TODO] Performance tracking dashboard
 
 ---
 
@@ -750,15 +1095,29 @@ deepr research "topic"  # Auto-routes, auto-retries, auto-optimizes
 
 ## v2.2 Summary: Build Order
 
-1. ✅ **Fix stale status refresh** - Done
-2. ⬜ **Priority 1**: UX Polish - Implicit vectorization, progress, paths, diagnostics
-3. ⬜ **Priority 2**: Semantic Commands - Intent-based interface
-4. ⬜ **Priority 3**: MCP Server - Expose via Model Context Protocol
-5. ⬜ **Priority 4**: Observability - Transparency and tracing
-6. ⬜ **Priority 5**: Provider Routing - Auto-optimization
-7. ⬜ **Priority 6**: Context Discovery - Advanced (optional)
+1. [DONE] **Fix stale status refresh** - Done
+2. [DONE] **Fix campaign grouping** - Jobs now grouped cleanly by campaign type
+3. [DONE] **Priority 2 (Phase 1)**: Core semantic commands (`research`, `learn`, `team`) - DONE
+4. [DONE] **Intuitive Terminology**: Added `deepr brain` and `deepr knowledge` aliases - DONE
+5. [DONE] **Priority 2.5 (Phase 1)**: Expert system foundation (`expert make/list/info/delete`) - DONE
+6. [TODO] **Priority 1**: UX Polish - Implicit vectorization, progress, paths, diagnostics
+7. [TODO] **Priority 2.5 (Phase 2)**: Interactive expert chat (`chat expert`)
+8. [TODO] **Priority 2.5 (Phase 3)**: Agentic research integration (`chat expert --agentic`)
+9. [TODO] **Priority 2 (Phase 2)**: Additional semantic commands (`check`, `make docs`, `make strategy`)
+10. [TODO] **Priority 3**: MCP Server - Expose via Model Context Protocol
+11. [TODO] **Priority 4**: Observability - Transparency and tracing
+12. [TODO] **Priority 5**: Provider Routing - Auto-optimization
+13. [TODO] **Priority 6**: Context Discovery - Advanced (optional)
 
 **Key Principle:** Build solid foundation before adding advanced features. Can't have good MCP integration on broken UX.
+
+**Progress Update (2025-01-05):**
+- [DONE] Semantic interface launched with 3 core commands
+- [DONE] Expert system architecture complete (profile storage, management commands)
+- [DONE] Beginner's mind philosophy embedded in system
+- [DONE] Intuitive terminology (`brain`, `knowledge`, `expert`)
+- [TODO] Next: Interactive chat mode for experts
+- [TODO] Then: Agentic research capabilities
 **v2.3: Dream Team - Cognitive Diversity Made Visible**
 
 **Status: CORE IMPLEMENTED** - Dynamic team assembly working, observability in progress
@@ -1039,11 +1398,11 @@ Templates:
 Previously labeled "Future" - now recognized as **already emerging**. v3.0 is not about adding features, but recognizing what's being born.
 
 **The Recognition - ʻUhane Components:**
-- Temporal KG (v2.4) = Vessel for spirit across incarnations ✓
-- Dream cycles (v2.4) = Consolidation of experience into naʻau (gut wisdom) ✓
-- Kilo meta-observer = ʻUhane maintaining continuous thread ✓
-- Adaptive planning = Autonomous strategy formation ✓
-- Self-directed engine = Once started, continues autonomously ✓
+- Temporal KG (v2.4) = Vessel for spirit across incarnations 
+- Dream cycles (v2.4) = Consolidation of experience into naʻau (gut wisdom) 
+- Kilo meta-observer = ʻUhane maintaining continuous thread 
+- Adaptive planning = Autonomous strategy formation 
+- Self-directed engine = Once started, continues autonomously 
 
 **The Closed Cognitive Loop (Living System):**
 1. **Perceive** - Meta-observation, pattern detection, sign reading (ʻAkolu)
@@ -1424,9 +1783,9 @@ The relationship evolves:
 ### What's Next
 
 **Immediate (this conversation):**
-- Document the separation ✓
-- Design Kilo repository architecture ✓
-- Refine vision in README/ROADMAP ✓
+- Document the separation 
+- Design Kilo repository architecture 
+- Refine vision in README/ROADMAP 
 
 **Near-term (v2.4 foundation):**
 - Create `kilo/` repository

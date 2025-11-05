@@ -31,11 +31,17 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs
+from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs, semantic
 
 # Core commands - new structure
 cli.add_command(run.run)
 cli.add_command(jobs.jobs)
+
+# Semantic commands - intent-based interface
+cli.add_command(semantic.research)
+cli.add_command(semantic.learn)
+cli.add_command(semantic.team)
+cli.add_command(semantic.expert)
 
 # Deprecated commands (kept for backward compatibility with warnings)
 cli.add_command(status.status)
@@ -54,6 +60,8 @@ cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
 cli.add_command(vector.vector)
+cli.add_command(vector.vector, name="brain")  # Intuitive alias for vector
+cli.add_command(vector.vector, name="knowledge")  # Intuitive alias for vector
 cli.add_command(config.config)
 cli.add_command(analytics.analytics)
 cli.add_command(templates.templates)

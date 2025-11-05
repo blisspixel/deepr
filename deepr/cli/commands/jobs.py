@@ -374,7 +374,7 @@ async def _list_jobs(status_filter: str, limit: int):
         jobs = [j for j in jobs if j.status == target_status]
 
     # Refresh stale jobs (>30 minutes old and not completed/failed)
-    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+    stale_threshold = datetime.utcnow() - timedelta(minutes=30)
     stale_jobs = [
         job for job in jobs
         if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]
@@ -443,7 +443,7 @@ async def _list_jobs(status_filter: str, limit: int):
             campaign_status = click.style("[ ]", dim=True)
 
         total_cost = sum(j.cost for j in campaign_jobs if j.cost)
-        click.echo(click.style(f"▼ {campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)")
+        click.echo(click.style(f">> {campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)")
 
         # Show first job's details as campaign representative
         first_job = campaign_jobs[0]

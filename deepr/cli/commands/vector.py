@@ -7,7 +7,13 @@ from deepr.branding import print_section_header, CHECK, CROSS
 
 @click.group()
 def vector():
-    """Manage persistent vector stores for file uploads."""
+    """Manage knowledge bases (vector stores) for experts and research.
+
+    Aliases: 'deepr brain', 'deepr knowledge'
+
+    Knowledge bases enable semantic search over uploaded documents and can be
+    used for creating domain experts or providing context to research.
+    """
     pass
 
 
