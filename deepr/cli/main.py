@@ -17,7 +17,6 @@ Interactive Mode:
 import click
 import asyncio
 from typing import Optional
-from deepr.branding import print_banner, print_section_header, CHECK, CROSS
 
 
 @click.group()
@@ -63,7 +62,6 @@ cli.add_command(migrate.migrate)
 
 def main():
     """Entry point for CLI."""
-    print_banner("main")
     cli()
 
 
