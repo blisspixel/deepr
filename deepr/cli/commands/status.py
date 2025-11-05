@@ -320,8 +320,8 @@ async def _list_jobs(status_filter: str, limit: int):
     jobs = await queue.list_jobs(status=status_enum, limit=limit)
 
     # Refresh stale jobs (>30 minutes old and not completed/failed)
-    from datetime import datetime, timedelta, timezone
-    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+    from datetime import datetime, timedelta
+    stale_threshold = datetime.utcnow() - timedelta(minutes=30)
     stale_jobs = [
         job for job in jobs
         if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]
