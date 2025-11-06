@@ -406,7 +406,12 @@ deepr/
 │       ├── check_expert_status.py    # Check expert research jobs
 │       └── retrieve_expert_reports.py # Download completed reports
 ├── data/                     # Local data
-│   └── experts/              # Expert profiles (*.json)
+│   └── experts/              # Expert system data
+│       └── [expert_name]/    # Each expert has a dedicated folder
+│           ├── profile.json  # Expert metadata and configuration
+│           ├── documents/    # Downloaded research reports
+│           ├── knowledge/    # Temporal knowledge graph (learned facts)
+│           └── conversations/# Chat history
 ├── reports/                  # Research reports
 │   ├── 2025-01-06_1234_topic-name_abc123/  # Human-readable dirs
 │   │   ├── report.md

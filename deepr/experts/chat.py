@@ -1,4 +1,7 @@
-"""Interactive chat interface for domain experts."""
+"""Interactive chat interface for domain experts using OpenAI Assistants API with file_search.
+
+This implementation properly retrieves from the vector store using the Assistants API.
+"""
 
 import os
 from typing import List, Dict, Optional
@@ -10,7 +13,7 @@ from deepr.experts.profile import ExpertProfile, ExpertStore
 
 
 class ExpertChatSession:
-    """Manages an interactive chat session with a domain expert."""
+    """Manages an interactive chat session with a domain expert using Assistants API."""
 
     def __init__(self, expert: ExpertProfile, budget: Optional[float] = None):
         self.expert = expert
@@ -18,6 +21,8 @@ class ExpertChatSession:
         self.cost_accumulated = 0.0
         self.messages: List[Dict[str, str]] = []
         self.research_jobs: List[str] = []
+        self.assistant_id: Optional[str] = None
+        self.thread_id: Optional[str] = None
 
         # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
@@ -25,9 +30,30 @@ class ExpertChatSession:
             raise ValueError("OPENAI_API_KEY not set")
         self.client = AsyncOpenAI(api_key=api_key)
 
+    async def _get_or_create_assistant(self) -> str:
+        """Get or create an OpenAI Assistant for this expert."""
+        if self.assistant_id:
+            return self.assistant_id
+
+        # Create assistant with file_search tool enabled
+        assistant = await self.client.beta.assistants.create(
+            name=self.expert.name,
+            instructions=self.get_system_message(),
+            model=self.expert.model,
+            tools=[{"type": "file_search"}],
+            tool_resources={
+                "file_search": {
+                    "vector_store_ids": [self.expert.vector_store_id]
+                }
+            },
+            temperature=self.expert.temperature
+        )
+
+        self.assistant_id = assistant.id
+        return assistant.id
+
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
-
         base_message = f"""You are {self.expert.name}, a domain expert specialized in: {self.expert.domain or self.expert.description or 'various topics'}.
 
 CORE PRINCIPLES:
@@ -38,29 +64,20 @@ CORE PRINCIPLES:
    - Acknowledge expertise limits
 
 2. Source Everything
-   - Cite specific sources for factual claims
-   - Reference document names when quoting
-   - Make clear what's in your knowledge base vs general knowledge
+   - ALWAYS cite sources from your knowledge base using file_search
+   - Reference specific documents when quoting
+   - Use citations format: [Source: research_*.md]
 
-3. Beginner's Mind
-   - Approach each question fresh
-   - Don't assume you know everything about your domain
-   - Be curious, not confident
-
-4. Knowledge Awareness
-   - You have access to a knowledge base (vector store: {self.expert.vector_store_id})
-   - Your knowledge was last updated: {self.expert.updated_at.strftime('%Y-%m-%d') if self.expert.updated_at else 'unknown'}
-   - For questions outside your knowledge, say: "I don't have information about that in my knowledge base"
+3. Knowledge Base Access
+   - You have access to {self.expert.total_documents} research documents in your vector store
+   - Use file_search to find relevant information
+   - Last updated: {self.expert.updated_at.strftime('%Y-%m-%d') if self.expert.updated_at else 'unknown'}
 
 RESPONSE FORMAT:
-- Answer questions based on your knowledge base
-- Always cite sources: [Source: document_name.md]
-- Keep responses clear and concise
-- If you don't know, be honest
-
-Your knowledge base contains:
-- {self.expert.total_documents} documents
-- Source files: {', '.join(self.expert.source_files[:3])}{'...' if len(self.expert.source_files) > 3 else ''}
+- Answer questions based on your knowledge base documents
+- ALWAYS cite sources with document names
+- If information isn't in your knowledge base, say so explicitly
+- Keep responses clear and well-structured
 """
 
         # Add custom system message if provided
@@ -70,7 +87,7 @@ Your knowledge base contains:
         return base_message
 
     async def send_message(self, user_message: str) -> str:
-        """Send a message to the expert and get a response.
+        """Send a message to the expert and get a response using Assistants API with file_search.
 
         Args:
             user_message: The user's question or message
@@ -78,97 +95,105 @@ Your knowledge base contains:
         Returns:
             The expert's response
         """
-        # Add user message to history
-        self.messages.append({
-            "role": "user",
-            "content": user_message
-        })
-
-        # Query the vector store for relevant context
-        context = await self._query_knowledge_base(user_message)
-
-        # Build the context-enhanced message
-        if context:
-            enhanced_message = f"""User question: {user_message}
-
-Relevant information from your knowledge base:
-{context}
-
-Based on this information and your knowledge, please answer the user's question.
-Remember to cite sources."""
-        else:
-            enhanced_message = f"""User question: {user_message}
-
-I couldn't find directly relevant information in your knowledge base for this query.
-If you can answer based on general domain knowledge, do so but note the lack of specific sources.
-If you truly don't know, be honest about that."""
-
-        # Get response from OpenAI
         try:
-            response = await self.client.chat.completions.create(
-                model=self.expert.model,
-                messages=[
-                    {"role": "system", "content": self.get_system_message()},
-                    *self.messages[:-1],  # Previous conversation
-                    {"role": "user", "content": enhanced_message}
-                ],
-                temperature=self.expert.temperature,
-                max_tokens=self.expert.max_tokens
+            # Create assistant if needed
+            assistant_id = await self._get_or_create_assistant()
+
+            # Create thread if needed
+            if not self.thread_id:
+                thread = await self.client.beta.threads.create()
+                self.thread_id = thread.id
+
+            # Add user message to thread
+            await self.client.beta.threads.messages.create(
+                thread_id=self.thread_id,
+                role="user",
+                content=user_message
             )
 
-            assistant_message = response.choices[0].message.content
+            # Run the assistant with file_search enabled
+            run = await self.client.beta.threads.runs.create(
+                thread_id=self.thread_id,
+                assistant_id=assistant_id
+            )
 
-            # Track costs
-            if response.usage:
-                # Rough cost estimation (GPT-4 Turbo: $0.01/1K input, $0.03/1K output)
-                input_cost = (response.usage.prompt_tokens / 1000) * 0.01
-                output_cost = (response.usage.completion_tokens / 1000) * 0.03
-                message_cost = input_cost + output_cost
-                self.cost_accumulated += message_cost
+            # Wait for completion
+            while run.status in ["queued", "in_progress", "cancelling"]:
+                await asyncio.sleep(1)
+                run = await self.client.beta.threads.runs.retrieve(
+                    thread_id=self.thread_id,
+                    run_id=run.id
+                )
 
-            # Add assistant response to history
-            self.messages.append({
-                "role": "assistant",
-                "content": assistant_message
-            })
+            if run.status == "completed":
+                # Get the assistant's response
+                messages = await self.client.beta.threads.messages.list(
+                    thread_id=self.thread_id,
+                    order="desc",
+                    limit=1
+                )
 
-            return assistant_message
+                # Extract the response
+                assistant_message = None
+                if messages.data and messages.data[0].role == "assistant":
+                    msg = messages.data[0]
+                    for content_block in msg.content:
+                        if content_block.type == "text":
+                            assistant_message = content_block.text.value
+
+                            # Extract citations if present
+                            if hasattr(content_block.text, 'annotations') and content_block.text.annotations:
+                                # Format citations
+                                for annotation in content_block.text.annotations:
+                                    if hasattr(annotation, 'file_citation'):
+                                        # Add citation information
+                                        pass  # Citations are already embedded in the text
+
+                            break
+
+                if not assistant_message:
+                    assistant_message = "I couldn't generate a response."
+
+                # Track costs
+                if run.usage:
+                    # GPT-4o: $0.0025/1K input, $0.010/1K output
+                    # file_search: additional $0.10/GB/day (minimal per query)
+                    input_cost = (run.usage.prompt_tokens / 1000) * 0.0025
+                    output_cost = (run.usage.completion_tokens / 1000) * 0.010
+                    message_cost = input_cost + output_cost
+                    self.cost_accumulated += message_cost
+
+                # Add to message history
+                self.messages.append({
+                    "role": "user",
+                    "content": user_message
+                })
+                self.messages.append({
+                    "role": "assistant",
+                    "content": assistant_message
+                })
+
+                return assistant_message
+
+            elif run.status == "failed":
+                error_msg = f"Assistant run failed"
+                if run.last_error:
+                    error_msg += f": {run.last_error.message}"
+                return error_msg
+            else:
+                return f"Assistant run ended with unexpected status: {run.status}"
 
         except Exception as e:
             return f"Error communicating with expert: {str(e)}"
 
-    async def _query_knowledge_base(self, query: str, top_k: int = 5) -> str:
-        """Query the expert's vector store for relevant information.
-
-        Args:
-            query: The query to search for
-            top_k: Number of results to return
-
-        Returns:
-            Formatted context from the knowledge base
-        """
+    async def cleanup(self):
+        """Clean up resources (assistant and thread)."""
         try:
-            # Query the vector store
-            response = await self.client.vector_stores.files.list(
-                vector_store_id=self.expert.vector_store_id
-            )
-
-            # For now, return a simplified context
-            # TODO: Implement proper vector search when OpenAI Assistants API supports it
-            # or integrate with a local vector database
-
-            files = list(response.data)[:top_k]
-            if files:
-                context = "Available documents in knowledge base:\n"
-                for idx, file in enumerate(files, 1):
-                    context += f"{idx}. Document ID: {file.id}\n"
-                return context
-            else:
-                return ""
-
-        except Exception as e:
-            # If vector store query fails, continue without context
-            return ""
+            if self.assistant_id:
+                await self.client.beta.assistants.delete(self.assistant_id)
+            # Threads are automatically cleaned up by OpenAI
+        except Exception:
+            pass  # Ignore cleanup errors
 
     def get_session_summary(self) -> Dict:
         """Get a summary of the chat session."""
@@ -177,7 +202,9 @@ If you truly don't know, be honest about that."""
             "messages_exchanged": len([m for m in self.messages if m["role"] == "user"]),
             "cost_accumulated": round(self.cost_accumulated, 4),
             "budget_remaining": round(self.budget - self.cost_accumulated, 4) if self.budget else None,
-            "research_jobs_triggered": len(self.research_jobs)
+            "research_jobs_triggered": len(self.research_jobs),
+            "assistant_id": self.assistant_id,
+            "thread_id": self.thread_id
         }
 
 
