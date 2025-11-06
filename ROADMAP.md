@@ -68,14 +68,14 @@ This replicates how human research teams actually work:
 The planner distinguishes between:
 
 Documentation tasks (gather facts):
-- "Document latest OpenAI Deep Research API pricing and features (2025)"
-- "Compile comprehensive list of Python async/await patterns"
+- "Document current FDA 510(k) clearance requirements and submission process"
+- "Compile comprehensive list of state-specific LLC formation requirements across all 50 states"
 - Purpose: Create factual reference materials
 - Cheaper, faster (factual gathering)
 
 Analysis tasks (generate insights):
-- "Analyze trade-offs between SQLite and PostgreSQL for queue backend"
-- "Evaluate cost-effectiveness of different LLM providers for batch processing"
+- "Analyze trade-offs between leasing and buying commercial real estate for restaurant expansion"
+- "Evaluate cost-effectiveness of domestic vs offshore manufacturing for our product line"
 - Purpose: Synthesize information, make recommendations
 - More expensive, benefits from having docs as context
 
@@ -1046,6 +1046,65 @@ deepr research "topic"  # Auto-routes, auto-retries, auto-optimizes
 
 ---
 
+## Priority 7: NVIDIA Provider Support (CONSUME, NOT BUILD)
+
+**Status**: Research completed (November 2025). Implementation: Later priority.
+
+**Deepr's Scope**: If you have NVIDIA infrastructure deployed, Deepr can consume it. We will NOT build, deploy, or manage NVIDIA infrastructure.
+
+**Key Finding**: NVIDIA doesn't offer a single managed API like OpenAI. Instead, enterprises deploy their own NVIDIA stack (NIM microservices, NeMo, Nemotron models). Once deployed, these expose OpenAI-compatible APIs.
+
+**What Deepr Would Support**:
+
+```bash
+# User already has NVIDIA NIM deployed at: http://datacenter.company.com/nim/v1
+# Deepr just needs to point to it
+
+deepr research "Topic" --provider nvidia --model nemotron-70b
+```
+
+**Implementation** (when prioritized):
+
+```python
+# Create NvidiaProvider that consumes existing infrastructure
+class NvidiaProvider(DeepResearchProvider):
+    def __init__(self, base_url: str, api_key: str):
+        # User provides their self-hosted NIM endpoint
+        self.base_url = base_url  # e.g., "http://datacenter.company.com/nim/v1"
+        # Use OpenAI-compatible client (NVIDIA NIMs expose /v1/chat/completions)
+        self.client = OpenAI(base_url=base_url, api_key=api_key)
+```
+
+**What User Must Have** (out of Deepr's scope):
+1. NVIDIA NIM containers deployed in their datacenter/cloud
+2. NeMo Agent Toolkit for custom workflows (if needed)
+3. Nemotron models running and accessible via API
+4. NeMo Guardrails configured for their requirements
+5. Infrastructure team managing the NVIDIA stack
+
+**Deepr's Requirements from NVIDIA Setup**:
+- OpenAI-compatible API endpoint (`/v1/chat/completions`)
+- Model name/identifier for requests
+- API key or auth mechanism
+- That's it. We consume the API, nothing more.
+
+**Why This Is Lower Priority**:
+- **Niche Use Case**: Only for enterprises with self-hosted NVIDIA infrastructure
+- **Small User Base**: Most users will use managed APIs (OpenAI, Gemini, Grok)
+- **Same API Surface**: NVIDIA NIMs expose OpenAI-compatible endpoints, so integration is straightforward when needed
+- **Current Focus**: Solidify managed cloud provider experience first
+
+**When to Prioritize**:
+- When users explicitly request: "I have NVIDIA NIM deployed, can Deepr use it?"
+- After core features (MCP, observability, semantic commands) are stable
+- When enterprises adopt Deepr and need on-prem integration
+
+**Clear Boundary**: Deepr is a research automation tool, not an infrastructure provisioning tool. We assume NVIDIA infrastructure exists and is managed by the user's ops team.
+
+See: `docs/research nvidia deep research.txt` for complete technical analysis of NVIDIA's ecosystem.
+
+---
+
 ## Priority 6: Context Discovery (ADVANCED FEATURE)
 
 **Critical principle: Context is everything. Bad context = bad research. Default to fresh research.**
@@ -1101,28 +1160,29 @@ deepr research "topic"  # Auto-routes, auto-retries, auto-optimizes
 4. [DONE] **Intuitive Terminology**: Added `deepr brain` and `deepr knowledge` aliases - DONE
 5. [DONE] **Priority 2.5 (Phase 1a)**: Expert system foundation (`expert make/list/info/delete`) - DONE
 6. [DONE] **Priority 2.5 (Phase 1b)**: Self-directed learning curriculum (`--learn --budget --topics`) - DONE
-7. [TODO] **Priority 1**: UX Polish - Implicit vectorization, progress, paths, diagnostics
-8. [TODO] **Priority 2.5 (Phase 2)**: Interactive expert chat (`chat expert`)
-9. [TODO] **Priority 2.5 (Phase 3)**: Agentic research integration (`chat expert --agentic`)
+7. [DONE] **Priority 1**: UX Polish - CLI-first experience improvements - DONE
+8. [DONE] **Priority 2.5 (Phase 2)**: Interactive expert chat (`expert chat`) - DONE
+9. [TODO] **Priority 2.5 (Phase 3)**: Agentic research integration (`expert chat --agentic`)
 10. [TODO] **Priority 2 (Phase 2)**: Additional semantic commands (`check`, `make docs`, `make strategy`)
 11. [TODO] **Priority 3**: MCP Server - Expose via Model Context Protocol
 12. [TODO] **Priority 4**: Observability - Transparency and tracing
 13. [TODO] **Priority 5**: Provider Routing - Auto-optimization
 14. [TODO] **Priority 6**: Context Discovery - Advanced (optional)
+15. [TODO] **Priority 7**: NVIDIA Self-Hosted Provider - Enterprise sovereign stack (later)
 
-**Key Principle:** Build solid foundation before adding advanced features. Can't have good MCP integration on broken UX.
+**Key Principle:** Build solid foundation before adding advanced features. CLI-first experience is foundational.
 
 **Progress Update (2025-11-05):**
 - [DONE] Semantic interface launched with 3 core commands
 - [DONE] Expert system architecture complete (profile storage, management commands)
-- [DONE] Beginner's mind philosophy embedded in system
-- [DONE] Intuitive terminology (`brain`, `knowledge`, `expert`)
-- [DONE] Autonomous learning curriculum generation and execution
+- [DONE] Autonomous learning curriculum generation (GPT-5 + Responses API)
 - [DONE] Multi-layer budget protection for autonomous learning
 - [DONE] Temporal knowledge tracking with domain velocity awareness
+- [DONE] CLI UX polish: cross-platform paths, diagnostics, progress feedback
+- [DONE] Interactive expert chat mode with conversation management
 - [DONE] Comprehensive test coverage (71 tests, 0 API calls)
-- [TODO] Next: Interactive chat mode for experts
-- [TODO] Then: Agentic research capabilities
+- [TODO] Next: Agentic research capabilities for experts
+- [TODO] Then: Additional semantic commands
 **v2.3: Dream Team - Cognitive Diversity Made Visible**
 
 **Status: CORE IMPLEMENTED** - Dynamic team assembly working, observability in progress

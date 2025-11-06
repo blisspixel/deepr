@@ -135,6 +135,7 @@ async def _run_single(
         try:
             from deepr.providers import create_provider
             from deepr.config import load_config
+            from deepr.utils.paths import resolve_file_path, resolve_glob_pattern, normalize_path_for_display
 
             config = load_config()
 
@@ -150,20 +151,43 @@ async def _run_single(
 
             provider_instance = create_provider(provider, api_key=api_key)
 
-            # Upload each file
-            uploaded_files = []
-            for file_path in upload:
-                if not os.path.exists(file_path):
-                    click.echo(f"  [X] File not found: {file_path}")
+            # Resolve all file paths (handles globs, Windows paths, spaces, etc.)
+            resolved_files = []
+            for file_pattern in upload:
+                try:
+                    # Check if it's a glob pattern
+                    if '*' in file_pattern or '?' in file_pattern:
+                        matched = resolve_glob_pattern(file_pattern, must_match=True)
+                        resolved_files.extend(matched)
+                        click.echo(f"  Pattern '{file_pattern}' matched {len(matched)} file(s)")
+                    else:
+                        # Single file
+                        resolved = resolve_file_path(file_pattern, must_exist=True)
+                        resolved_files.append(resolved)
+                except FileNotFoundError as e:
+                    click.echo(f"  [X] {e}")
                     continue
 
-                click.echo(f"  Uploading: {os.path.basename(file_path)}...")
+            if not resolved_files:
+                click.echo("  [!] No files to upload")
+            else:
+                click.echo(f"  Found {len(resolved_files)} file(s) to upload\n")
+
+            # Upload each file
+            uploaded_files = []
+            for file_path in resolved_files:
+                display_name = file_path.name
+                display_path = normalize_path_for_display(file_path)
+
+                click.echo(f"  Uploading: {display_name}")
+                click.echo(f"    Path: {display_path}")
                 try:
-                    file_id = await provider_instance.upload_document(file_path)
+                    file_id = await provider_instance.upload_document(str(file_path))
                     uploaded_files.append(file_id)
-                    click.echo(f"  [OK] Uploaded: {os.path.basename(file_path)}")
+                    click.echo(f"    [OK] Uploaded")
                 except Exception as e:
-                    click.echo(f"  [X] Failed to upload {os.path.basename(file_path)}: {e}")
+                    click.echo(f"    [X] Failed: {e}")
+                click.echo()
 
             if not uploaded_files:
                 click.echo("  [!] No files uploaded successfully")
@@ -180,8 +204,9 @@ async def _run_single(
                         vector_store_id = vs.id
                         click.echo(f"  [OK] Vector store created: {vs.id[:20]}...")
 
-                        # Wait for ingestion
+                        # Wait for ingestion with progress feedback
                         click.echo("  Waiting for file processing...")
+                        click.echo("  (This may take 15-60 seconds depending on file size)")
                         ready = await provider_instance.wait_for_vector_store(
                             vs.id,
                             timeout=300,
@@ -191,6 +216,7 @@ async def _run_single(
                             click.echo("  [OK] Files ready for research")
                         else:
                             click.echo("  [!] Files still processing (continuing anyway)")
+                            click.echo("  Note: Research may proceed with partial file indexing")
                     except Exception as e:
                         click.echo(f"  [X] Vector store creation failed: {e}")
                         vector_store_id = None
