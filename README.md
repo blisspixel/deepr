@@ -421,13 +421,19 @@ Deepr is in active development. Current focus: self-improving experts and agenti
    - `deepr expert make` - Create domain experts with knowledge bases
    - Intuitive aliases: `deepr brain`, `deepr knowledge`
 
-2. **Self-Directed Learning Experts** [LAUNCHED] - Experts that autonomously learn:
-   - Expert analyzes initial documents and generates learning curriculum
-   - Autonomously researches 5-20 topics to build comprehensive knowledge (default: 5)
-   - Builds temporal knowledge graph (tracks what it knows and when)
-   - Budget-protected autonomous learning with multi-layer safeguards
+2. **Self-Directed Learning Experts** [IN PROGRESS] - Experts that autonomously learn:
+   - Expert analyzes initial documents and generates learning curriculum with GPT-5
+   - Submits 5-20 deep research jobs to build comprehensive knowledge (default: 5)
+   - Shows estimated costs before submission, respects budget limits
    - Example: `deepr expert make "Supply Chain Management" -f "C:\Docs\*.pdf" --learn --budget 10`
-   - Expert researches latest logistics trends, vendor management practices, and risk mitigation strategies to supplement internal docs
+   - **Current Status:**
+     - ✓ Curriculum generation working (GPT-5)
+     - ✓ Research job submission (OpenAI Deep Research)
+     - ✓ Budget estimation and protection
+     - ⚠ Jobs run in background (5-20 min each) - completion polling needed
+     - ⚠ Cost reconciliation (estimated vs actual) not yet implemented
+     - ⚠ Research results not automatically retrieved to expert knowledge base
+   - **Next:** Poll for job completion, retrieve reports, compare costs, add to vector store
 
 3. **Interactive Expert Chat** [LAUNCHED] - Conversational Q&A with domain experts:
    - Basic chat: `deepr expert chat "Supply Chain Management"`

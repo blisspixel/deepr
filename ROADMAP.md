@@ -738,18 +738,46 @@ while conversation_active:
 - Vector store integration
 - Beginner's mind system message
 
-**Phase 1b: Self-Directed Learning Curriculum** [TODO] NEXT PRIORITY
+**Phase 1b: Self-Directed Learning Curriculum** [IN PROGRESS]
 - `deepr expert make "name" -f files --learn --budget 5`
-- GPT-5 analyzes domain and generates 10-20 topic learning curriculum
-- User approves curriculum and budget allocation
-- Expert autonomously researches each topic
-- Results added to knowledge base with timestamps
-- **Budget Protection:**
-  - Creation budget limit (--budget flag)
-  - Per-topic cost estimates shown upfront
-  - Approval required above threshold ($5)
-  - Emergency stop: `deepr expert pause <name>`
-- **Temporal Knowledge Graph:**
+
+**COMPLETED:**
+- ✓ GPT-5 curriculum generation (Responses API with GPT-5)
+- ✓ Deep research job submission (o4-mini-deep-research)
+- ✓ Budget estimation shown upfront (per-topic + total)
+- ✓ Multi-layer budget protection (curriculum + per-job validation)
+- ✓ Research prompt length validation (<300 chars for API compatibility)
+- ✓ Phased execution respecting topic dependencies
+- ✓ Expert tracking of research job IDs
+
+**IN PROGRESS:**
+- ⚠ Research jobs run in background (OpenAI servers, 5-20 min each)
+- ⚠ No polling/waiting for job completion yet - jobs submitted then expert creation exits
+- ⚠ Cost reconciliation (estimated vs actual) not implemented
+- ⚠ Research results not automatically retrieved
+- ⚠ Reports not added to expert's vector store
+
+**NEXT STEPS:**
+1. **Job Completion Workflow:**
+   - Add polling mechanism to wait for deep research completion
+   - Retrieve research output from OpenAI Responses API
+   - Extract actual costs from usage data
+   - Compare estimated ($2/job) vs actual costs
+   - Save cost variance for improving future estimates
+
+2. **Knowledge Base Integration:**
+   - Download completed research reports (markdown + text)
+   - Upload reports to expert's vector store as files
+   - Update expert metadata with document count
+   - Track research timestamps (when expert learned each topic)
+
+3. **Cost Learning Loop:**
+   - Track actual costs per research type (academic, documentation, trends)
+   - Calculate estimation accuracy (estimated / actual ratio)
+   - Use historical data to improve future cost estimates
+   - Warn if variance > 50%
+
+- **Temporal Knowledge Graph** [FUTURE]:
   - Track document timestamps (source doc dates)
   - Track research timestamps (when expert learned each topic)
   - Track knowledge freshness and confidence
