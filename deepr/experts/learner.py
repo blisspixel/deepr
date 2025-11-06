@@ -340,6 +340,9 @@ class AutonomousLearner:
         callback: Optional[Callable] = None
     ):
         """Download reports and upload to expert's vector store."""
+        import tempfile
+        from pathlib import Path
+
         self._log_progress(
             "="*70,
             "  Integrating Knowledge",
@@ -349,6 +352,7 @@ class AutonomousLearner:
 
         uploaded = 0
         for i, job_id in enumerate(job_ids, 1):
+            temp_file = None
             try:
                 self._log_progress(
                     f"{i}/{len(job_ids)}: {job_id[:20]}...",
@@ -368,17 +372,24 @@ class AutonomousLearner:
                     )
                     continue
 
-                # Upload to vector store
+                # Save to temporary file
                 filename = f"research_{job_id[:12]}.md"
-                await self.research.document_manager.upload_file_to_vector_store(
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as f:
+                    f.write(raw_text)
+                    temp_file = f.name
+
+                # Upload file to OpenAI
+                file_id = await self.research.provider.upload_document(temp_file, purpose="assistants")
+
+                # Attach file to vector store
+                await self.research.provider.client.vector_stores.files.create(
                     vector_store_id=expert.vector_store_id,
-                    content=raw_text.encode('utf-8'),
-                    filename=filename
+                    file_id=file_id
                 )
 
                 uploaded += 1
                 self._log_progress(
-                    f"  [OK] Uploaded as {filename}",
+                    f"  [OK] Uploaded as {filename} (file_id: {file_id[:20]}...)",
                     callback=callback
                 )
 
@@ -387,6 +398,10 @@ class AutonomousLearner:
                     f"  [ERROR] {str(e)}",
                     callback=callback
                 )
+            finally:
+                # Clean up temp file
+                if temp_file and Path(temp_file).exists():
+                    Path(temp_file).unlink()
 
         # Update expert metadata
         expert.total_documents += uploaded
