@@ -107,7 +107,9 @@ class AutonomousLearner:
             callback=progress_callback
         )
 
-        # Execute phase by phase
+        # Execute phase by phase and collect job IDs
+        all_job_ids = []
+
         for phase_num, phase_topics in enumerate(phases, 1):
             self._log_progress(
                 f"\n=== Phase {phase_num}/{len(phases)} ===",
@@ -130,10 +132,12 @@ class AutonomousLearner:
                     phase_topics, progress, budget_limit, progress_callback
                 )
             else:
-                # Real execution
-                await self._execute_phase(
+                # Real execution - returns job IDs
+                job_ids = await self._execute_phase(
                     expert, phase_topics, progress, budget_limit, progress_callback
                 )
+                if job_ids:
+                    all_job_ids.extend(job_ids)
 
         progress.completed_at = datetime.utcnow()
 
@@ -145,6 +149,10 @@ class AutonomousLearner:
             f"Success rate: {progress.success_rate()*100:.1f}%",
             callback=progress_callback
         )
+
+        # Poll for completion and integrate reports
+        if not dry_run and all_job_ids:
+            await self._poll_and_integrate_reports(expert, all_job_ids, progress_callback)
 
         return progress
 
@@ -221,6 +229,183 @@ class AutonomousLearner:
 
         # Update expert profile with new research
         self._update_expert_profile(expert, progress, job_mapping)
+
+        # Return job IDs for polling
+        return [j["job_id"] for j in job_mapping.values() if j["success"]]
+
+    async def _poll_and_integrate_reports(
+        self,
+        expert: ExpertProfile,
+        job_ids: List[str],
+        callback: Optional[Callable] = None
+    ):
+        """Poll for job completion and integrate reports into expert's knowledge."""
+        from datetime import datetime
+
+        if not job_ids:
+            return
+
+        self._log_progress(
+            "\n" + "="*70,
+            "  Waiting for Research Completion",
+            "="*70,
+            f"Jobs: {len(job_ids)}",
+            "This may take 5-20 minutes per job...",
+            "",
+            callback=callback
+        )
+
+        pending = set(job_ids)
+        completed = set()
+        failed = set()
+        total_cost = 0.0
+        start_time = datetime.now()
+
+        while pending:
+            self._log_progress(
+                f"[{datetime.now().strftime('%H:%M:%S')}] Checking status...",
+                f"Pending: {len(pending)}, Completed: {len(completed)}, Failed: {len(failed)}",
+                callback=callback
+            )
+
+            for job_id in list(pending):
+                try:
+                    response = await self.research.provider.get_status(job_id)
+
+                    if response.status == "completed":
+                        self._log_progress(
+                            f"  [OK] {job_id[:20]}... COMPLETED",
+                            callback=callback
+                        )
+                        pending.remove(job_id)
+                        completed.add(job_id)
+
+                        if response.usage:
+                            cost = response.usage.cost
+                            total_cost += cost
+                            self._log_progress(
+                                f"       Cost: ${cost:.4f}",
+                                callback=callback
+                            )
+
+                    elif response.status in ["failed", "cancelled"]:
+                        self._log_progress(
+                            f"  [X] {job_id[:20]}... {response.status.upper()}",
+                            callback=callback
+                        )
+                        pending.remove(job_id)
+                        failed.add(job_id)
+
+                    elif response.status in ["in_progress", "queued"]:
+                        # Still running, check next time
+                        pass
+
+                except Exception as e:
+                    self._log_progress(
+                        f"  [!] {job_id[:20]}... Error: {e}",
+                        callback=callback
+                    )
+
+            if pending:
+                elapsed = (datetime.now() - start_time).total_seconds() / 60
+                self._log_progress(
+                    f"Elapsed: {elapsed:.1f} min, waiting 30s...",
+                    "",
+                    callback=callback
+                )
+                await asyncio.sleep(30)
+
+        # All jobs complete
+        elapsed_total = (datetime.now() - start_time).total_seconds() / 60
+        self._log_progress(
+            "\n" + "="*70,
+            "  Research Complete",
+            "="*70,
+            f"Completed: {len(completed)}/{len(job_ids)}",
+            f"Failed: {len(failed)}/{len(job_ids)}",
+            f"Total cost: ${total_cost:.2f}",
+            f"Total time: {elapsed_total:.1f} minutes",
+            "",
+            callback=callback
+        )
+
+        # Download and upload reports to vector store
+        if completed:
+            await self._integrate_reports(expert, list(completed), callback)
+
+    async def _integrate_reports(
+        self,
+        expert: ExpertProfile,
+        job_ids: List[str],
+        callback: Optional[Callable] = None
+    ):
+        """Download reports and upload to expert's vector store."""
+        self._log_progress(
+            "="*70,
+            "  Integrating Knowledge",
+            "="*70,
+            callback=callback
+        )
+
+        uploaded = 0
+        for i, job_id in enumerate(job_ids, 1):
+            try:
+                self._log_progress(
+                    f"{i}/{len(job_ids)}: {job_id[:20]}...",
+                    callback=callback
+                )
+
+                # Get report from OpenAI
+                response = await self.research.provider.get_status(job_id)
+
+                # Extract text
+                raw_text = self.research.report_generator.extract_text_from_response(response)
+
+                if not raw_text:
+                    self._log_progress(
+                        "  [SKIP] No content found",
+                        callback=callback
+                    )
+                    continue
+
+                # Upload to vector store
+                filename = f"research_{job_id[:12]}.md"
+                await self.research.document_manager.upload_file_to_vector_store(
+                    vector_store_id=expert.vector_store_id,
+                    content=raw_text.encode('utf-8'),
+                    filename=filename
+                )
+
+                uploaded += 1
+                self._log_progress(
+                    f"  [OK] Uploaded as {filename}",
+                    callback=callback
+                )
+
+            except Exception as e:
+                self._log_progress(
+                    f"  [ERROR] {str(e)}",
+                    callback=callback
+                )
+
+        # Update expert metadata
+        expert.total_documents += uploaded
+        expert.last_knowledge_refresh = datetime.utcnow()
+
+        store = ExpertStore()
+        store.save(expert)
+
+        self._log_progress(
+            "",
+            "="*70,
+            f"Knowledge Integration Complete: {uploaded} documents added",
+            "="*70,
+            "",
+            f"Expert ready! Documents: {expert.total_documents}",
+            f"Use: deepr expert chat \"{expert.name}\"",
+            "",
+            callback=callback
+        )
 
     async def _simulate_phase_execution(
         self,
