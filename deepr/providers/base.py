@@ -30,6 +30,10 @@ class ResearchRequest:
     tool_choice: str = "auto"
     store: bool = True
     background: bool = True
+    # GPT-5 specific parameters (Responses API)
+    reasoning_effort: Optional[Literal["minimal", "low", "medium", "high"]] = None
+    text_verbosity: Optional[Literal["low", "medium", "high"]] = None
+    previous_response_id: Optional[str] = None  # For reasoning persistence
 
 
 @dataclass

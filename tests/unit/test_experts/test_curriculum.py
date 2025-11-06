@@ -15,10 +15,12 @@ class TestLearningTopic:
     """Test LearningTopic dataclass."""
 
     def test_learning_topic_initialization(self):
-        """Test basic topic creation."""
+        """Test basic topic creation with research_mode and research_type."""
         topic = LearningTopic(
             title="Azure Architecture Basics",
             description="Learn Azure Landing Zone patterns",
+            research_mode="focus",
+            research_type="documentation",
             estimated_cost=0.20,
             estimated_minutes=10,
             priority=1,
@@ -26,15 +28,36 @@ class TestLearningTopic:
         )
 
         assert topic.title == "Azure Architecture Basics"
+        assert topic.research_mode == "focus"
+        assert topic.research_type == "documentation"
         assert topic.estimated_cost == 0.20
         assert topic.priority == 1
         assert topic.dependencies == []
+
+    def test_learning_topic_campaign_mode(self):
+        """Test campaign mode with academic research type."""
+        topic = LearningTopic(
+            title="Deep Learning Foundations",
+            description="Comprehensive academic study",
+            research_mode="campaign",
+            research_type="academic",
+            estimated_cost=2.00,
+            estimated_minutes=50,
+            priority=1,
+            research_prompt="Survey deep learning research papers"
+        )
+
+        assert topic.research_mode == "campaign"
+        assert topic.research_type == "academic"
+        assert topic.estimated_cost == 2.00
 
     def test_learning_topic_with_dependencies(self):
         """Test topic with dependencies."""
         topic = LearningTopic(
             title="Advanced Patterns",
             description="Advanced patterns",
+            research_mode="focus",
+            research_type="best-practices",
             estimated_cost=0.25,
             estimated_minutes=12,
             priority=2,
@@ -55,6 +78,8 @@ class TestLearningCurriculum:
             LearningTopic(
                 title="Topic 1",
                 description="First topic",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.15,
                 estimated_minutes=8,
                 priority=1,
@@ -63,6 +88,8 @@ class TestLearningCurriculum:
             LearningTopic(
                 title="Topic 2",
                 description="Second topic",
+                research_mode="focus",
+                research_type="best-practices",
                 estimated_cost=0.20,
                 estimated_minutes=10,
                 priority=2,
@@ -89,6 +116,8 @@ class TestLearningCurriculum:
             LearningTopic(
                 title="Topic 1",
                 description="First",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.15,
                 estimated_minutes=8,
                 priority=1,
@@ -150,13 +179,15 @@ class TestCurriculumGenerator:
         assert "2025" in prompt  # Should include current year
 
     def test_parse_curriculum_response(self, generator):
-        """Test parsing GPT response into curriculum."""
+        """Test parsing GPT response into curriculum with research_mode and research_type."""
         response = """```json
 {
   "topics": [
     {
       "title": "Azure Basics",
       "description": "Learn fundamentals",
+      "research_mode": "focus",
+      "research_type": "documentation",
       "estimated_cost": 0.15,
       "estimated_minutes": 8,
       "priority": 1,
@@ -166,6 +197,8 @@ class TestCurriculumGenerator:
     {
       "title": "Advanced Patterns",
       "description": "Learn advanced patterns",
+      "research_mode": "campaign",
+      "research_type": "technical-deep-dive",
       "estimated_cost": 0.25,
       "estimated_minutes": 12,
       "priority": 2,
@@ -184,9 +217,41 @@ class TestCurriculumGenerator:
 
         assert curriculum.expert_name == "Test Expert"
         assert len(curriculum.topics) == 2
+        assert curriculum.topics[0].research_mode == "focus"
+        assert curriculum.topics[0].research_type == "documentation"
+        assert curriculum.topics[1].research_mode == "campaign"
+        assert curriculum.topics[1].research_type == "technical-deep-dive"
         assert curriculum.total_estimated_cost == 0.40
         assert curriculum.total_estimated_minutes == 20
         assert curriculum.topics[1].dependencies == ["Azure Basics"]
+
+    def test_parse_curriculum_backwards_compatibility(self, generator):
+        """Test parsing curriculum without research_mode/type (backwards compatibility)."""
+        response = """```json
+{
+  "topics": [
+    {
+      "title": "Legacy Topic",
+      "description": "Created before research_mode was added",
+      "estimated_cost": 0.20,
+      "estimated_minutes": 10,
+      "priority": 1,
+      "research_prompt": "Old format topic",
+      "dependencies": []
+    }
+  ]
+}
+```"""
+
+        curriculum = generator._parse_curriculum_response(
+            response,
+            expert_name="Legacy Expert",
+            domain="Legacy"
+        )
+
+        # Should get default values
+        assert curriculum.topics[0].research_mode == "focus"
+        assert curriculum.topics[0].research_type == "best-practices"
 
     def test_truncate_to_budget(self, generator):
         """Test curriculum truncation to fit budget."""
@@ -194,6 +259,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Critical 1",
                 description="Important",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=1.0,
                 estimated_minutes=10,
                 priority=1,
@@ -202,6 +269,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Critical 2",
                 description="Important",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=1.0,
                 estimated_minutes=10,
                 priority=1,
@@ -210,6 +279,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Optional",
                 description="Nice to have",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=2.0,
                 estimated_minutes=20,
                 priority=5,
@@ -240,6 +311,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Topic 1",
                 description="First",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.15,
                 estimated_minutes=8,
                 priority=1,
@@ -249,6 +322,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Topic 2",
                 description="Second",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.20,
                 estimated_minutes=10,
                 priority=1,
@@ -278,6 +353,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Foundation",
                 description="Foundation",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.15,
                 estimated_minutes=8,
                 priority=1,
@@ -287,6 +364,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Intermediate",
                 description="Intermediate",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.20,
                 estimated_minutes=10,
                 priority=2,
@@ -296,6 +375,8 @@ class TestCurriculumGenerator:
             LearningTopic(
                 title="Advanced",
                 description="Advanced",
+                research_mode="focus",
+                research_type="documentation",
                 estimated_cost=0.25,
                 estimated_minutes=12,
                 priority=3,
