@@ -750,26 +750,53 @@ while conversation_active:
 - ✓ Phased execution respecting topic dependencies
 - ✓ Expert tracking of research job IDs
 
-**IN PROGRESS:**
-- ⚠ Research jobs run in background (OpenAI servers, 5-20 min each)
-- ⚠ No polling/waiting for job completion yet - jobs submitted then expert creation exits
-- ⚠ Cost reconciliation (estimated vs actual) not implemented
-- ⚠ Research results not automatically retrieved
-- ⚠ Reports not added to expert's vector store
+**CURRENT STATUS (2025-11-06):**
 
-**NEXT STEPS:**
-1. **Job Completion Workflow:**
-   - Add polling mechanism to wait for deep research completion
-   - Retrieve research output from OpenAI Responses API
+**ISSUE:** Autonomous learning creates "hollow" experts - jobs submitted but knowledge never integrated
+- Research jobs ARE submitted successfully to OpenAI
+- Jobs DO complete (4-20 min each, $0.10-0.30 per job)
+- BUT: Expert exits immediately after submission
+- Expert profile shows: `research_jobs: [5 IDs]` but `total_documents: 0`
+- Result: Expert exists but has zero knowledge to answer questions
+
+**BLOCKER:** Missing integration workflow in [deepr/experts/learner.py](deepr/experts/learner.py)
+- Line 182-207: Submits jobs, marks as "done", then exits
+- No polling for completion
+- No report download from OpenAI
+- No upload to vector store
+- Expert is created but unusable
+
+**WORKAROUND (manual):**
+```bash
+# 1. Check job status
+python deepr/utils/check_expert_status.py "Expert Name"
+
+# 2. Wait for all jobs to complete (or add polling loop)
+
+# 3. Download reports (FAILS - missing 're' import in storage.local)
+python deepr/utils/retrieve_expert_reports.py "Expert Name"
+
+# 4. Upload to vector store (NOT IMPLEMENTED)
+```
+
+**NEXT STEPS TO FIX:**
+1. **Job Completion Workflow in learner.py:**
+   - After submitting jobs, DON'T exit immediately
+   - Poll OpenAI API every 30s until all jobs complete
+   - Show progress: "4/5 complete, estimated 5 min remaining..."
    - Extract actual costs from usage data
-   - Compare estimated ($2/job) vs actual costs
-   - Save cost variance for improving future estimates
+   - Compare estimated vs actual costs (currently -95% variance!)
 
-2. **Knowledge Base Integration:**
-   - Download completed research reports (markdown + text)
-   - Upload reports to expert's vector store as files
-   - Update expert metadata with document count
-   - Track research timestamps (when expert learned each topic)
+2. **Knowledge Base Integration in learner.py:**
+   - Download completed research reports (markdown)
+   - Upload reports as files to expert's vector store via OpenAI API
+   - Update expert.total_documents count
+   - Save research timestamps (when expert learned each topic)
+   - Update expert.last_knowledge_refresh
+
+3. **Fix Dependencies:**
+   - Fix missing 're' import causing report retrieval to fail
+   - Test end-to-end: expert creation -> job completion -> report download -> vector upload -> chat
 
 3. **Cost Learning Loop:**
    - Track actual costs per research type (academic, documentation, trends)
@@ -789,6 +816,53 @@ while conversation_active:
 - Source citation (distinguish doc vs research vs synthesis)
 - Conversation context
 - Cost tracking per conversation
+
+**Phase 2b: MCP Server for AI-to-Expert Communication** [TODO]
+Enable other AI agents (Claude Desktop, Cursor, etc.) to chat with your experts:
+
+1. **MCP Server Implementation:**
+   - MCP server wrapper around expert chat functionality
+   - Exposes tools: `query_expert`, `list_experts`, `get_expert_info`
+   - Server reads expert profiles from `data/experts/`
+   - Uses OpenAI Assistants API for chat with vector store context
+
+2. **Configuration for Claude Desktop:**
+   ```json
+   // C:\Users\<USER>\AppData\Roaming\Claude\claude_desktop_config.json
+   {
+     "mcpServers": {
+       "deepr-experts": {
+         "command": "python",
+         "args": ["-m", "deepr.mcp.server"],
+         "env": {
+           "OPENAI_API_KEY": "sk-..."
+         }
+       }
+     }
+   }
+   ```
+
+3. **Configuration for Cursor:**
+   ```json
+   // Cursor MCP settings (similar pattern)
+   {
+     "mcpServers": {
+       "deepr-experts": {
+         "command": "python",
+         "args": ["-m", "deepr.mcp.server"],
+         "env": {
+           "OPENAI_API_KEY": "sk-..."
+         }
+       }
+     }
+   }
+   ```
+
+4. **Usage from AI Agents:**
+   - AI can list available experts: `list_experts()`
+   - AI can query expert: `query_expert("Agentic Digital Consciousness", "How do temporal knowledge graphs work?")`
+   - Responses include source citations and confidence
+   - Costs tracked per query
 
 **Phase 3: Agentic Research in Conversations** [TODO] AFTER CHAT
 - Research tool integration during chat

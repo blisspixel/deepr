@@ -371,6 +371,65 @@ Deepr runs locally using an SQLite queue and filesystem storage. All jobs are tr
 
 ---
 
+## Project Structure
+
+```
+deepr/
+├── deepr/                    # Core package
+│   ├── cli/                  # Command-line interface
+│   │   ├── commands/         # Individual commands (jobs, budget, expert, etc.)
+│   │   │   ├── jobs.py       # deepr jobs list/status/get
+│   │   │   ├── experts.py    # deepr expert make/list/chat
+│   │   │   ├── run.py        # deepr run (semantic commands)
+│   │   │   └── doctor.py     # deepr doctor (diagnostics)
+│   │   └── main.py           # CLI entry point
+│   ├── core/                 # Core research logic
+│   │   ├── research.py       # ResearchOrchestrator
+│   │   ├── documents.py      # Document management
+│   │   └── reports.py        # Report generation
+│   ├── experts/              # Expert system
+│   │   ├── profile.py        # ExpertStore, Expert profiles
+│   │   ├── learner.py        # Autonomous learning
+│   │   ├── curriculum.py     # GPT-5 curriculum generation
+│   │   └── chat.py           # Expert chat interface
+│   ├── providers/            # AI provider integrations
+│   │   ├── openai_provider.py
+│   │   ├── gemini_provider.py
+│   │   ├── anthropic_provider.py
+│   │   └── azure_provider.py
+│   ├── storage/              # Storage backends
+│   │   ├── local.py          # LocalStorage (reports/)
+│   │   └── blob.py           # Cloud storage
+│   ├── queue/                # Job queue
+│   │   └── local_queue.py    # SQLite queue
+│   └── utils/                # Utilities
+│       ├── check_expert_status.py    # Check expert research jobs
+│       └── retrieve_expert_reports.py # Download completed reports
+├── data/                     # Local data
+│   └── experts/              # Expert profiles (*.json)
+├── reports/                  # Research reports
+│   ├── 2025-01-06_1234_topic-name_abc123/  # Human-readable dirs
+│   │   ├── report.md
+│   │   ├── report.txt
+│   │   └── metadata.json
+│   └── campaigns/            # Multi-phase research campaigns
+├── tests/                    # Test suite
+├── docs/                     # Documentation
+└── ROADMAP.md               # Development roadmap
+```
+
+**Key Locations:**
+
+- **Commands**: [deepr/cli/commands/](deepr/cli/commands/) - All CLI commands
+- **Expert System**: [deepr/experts/](deepr/experts/) - Expert creation, learning, chat
+- **Providers**: [deepr/providers/](deepr/providers/) - AI provider integrations
+- **Storage**: [deepr/storage/](deepr/storage/) - Report storage backends
+- **Reports**: [reports/](reports/) - Generated research outputs
+- **Expert Data**: [data/experts/](data/experts/) - Expert profiles and metadata
+- **Utilities**: [deepr/utils/](deepr/utils/) - Helper scripts and tools
+
+---
+
 ## Cost and Quality Profiles
 
 Estimated costs based on typical research runs with reasoning models (o1, Gemini 2.5, etc.):
