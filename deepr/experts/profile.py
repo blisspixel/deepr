@@ -40,7 +40,7 @@ class ExpertProfile:
     # Behavior configuration
     system_message: Optional[str] = None
     temperature: float = 0.7
-    max_tokens: int = 4000
+    max_tokens: Optional[int] = None  # No limit for GPT-5
 
     # Usage tracking
     conversations: int = 0
@@ -49,7 +49,7 @@ class ExpertProfile:
 
     # Provider preferences
     provider: str = "openai"
-    model: str = "chatgpt-5-latest"  # GPT-5 via Chat Completions (use Responses API for agentic)
+    model: str = "gpt-4o"  # Using Assistants API with file_search (Responses API doesn't support RAG)
 
     def is_knowledge_stale(self) -> bool:
         """Check if knowledge needs refreshing based on domain velocity."""
@@ -149,18 +149,45 @@ class ExpertStore:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def _get_profile_path(self, name: str) -> Path:
-        """Get file path for expert profile."""
-        # Sanitize name for filename
+    def _get_expert_dir(self, name: str) -> Path:
+        """Get directory path for expert."""
+        # Sanitize name for directory
         safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).strip()
         safe_name = safe_name.replace(' ', '_').lower()
-        return self.base_path / f"{safe_name}.json"
+        return self.base_path / safe_name
+
+    def _get_profile_path(self, name: str) -> Path:
+        """Get file path for expert profile.
+
+        New structure: data/experts/[expert_name]/profile.json
+        """
+        return self._get_expert_dir(name) / "profile.json"
+
+    def get_documents_dir(self, name: str) -> Path:
+        """Get documents directory for expert."""
+        return self._get_expert_dir(name) / "documents"
+
+    def get_knowledge_dir(self, name: str) -> Path:
+        """Get knowledge directory for expert (temporal knowledge graph)."""
+        return self._get_expert_dir(name) / "knowledge"
+
+    def get_conversations_dir(self, name: str) -> Path:
+        """Get conversations directory for expert."""
+        return self._get_expert_dir(name) / "conversations"
 
     def save(self, profile: ExpertProfile) -> None:
-        """Save expert profile to disk."""
+        """Save expert profile to disk with new folder structure."""
         profile.updated_at = datetime.utcnow()
-        path = self._get_profile_path(profile.name)
 
+        # Create expert directory structure if it doesn't exist
+        expert_dir = self._get_expert_dir(profile.name)
+        expert_dir.mkdir(parents=True, exist_ok=True)
+        (expert_dir / "documents").mkdir(exist_ok=True)
+        (expert_dir / "knowledge").mkdir(exist_ok=True)
+        (expert_dir / "conversations").mkdir(exist_ok=True)
+
+        # Save profile
+        path = self._get_profile_path(profile.name)
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(profile.to_dict(), f, indent=2)
 
@@ -176,18 +203,22 @@ class ExpertStore:
             return ExpertProfile.from_dict(data)
 
     def list_all(self) -> List[ExpertProfile]:
-        """List all expert profiles."""
+        """List all expert profiles from new folder structure."""
         profiles = []
 
-        for path in self.base_path.glob("*.json"):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    profiles.append(ExpertProfile.from_dict(data))
-            except Exception as e:
-                # Skip corrupted profiles
-                print(f"Warning: Could not load {path}: {e}")
-                continue
+        # Look for profile.json files in subdirectories
+        for expert_dir in self.base_path.iterdir():
+            if expert_dir.is_dir():
+                profile_path = expert_dir / "profile.json"
+                if profile_path.exists():
+                    try:
+                        with open(profile_path, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            profiles.append(ExpertProfile.from_dict(data))
+                    except Exception as e:
+                        # Skip corrupted profiles
+                        print(f"Warning: Could not load {profile_path}: {e}")
+                        continue
 
         return sorted(profiles, key=lambda p: p.updated_at, reverse=True)
 
