@@ -52,8 +52,13 @@ class ResearchAPI:
             else:  # focus
                 model = "o4-mini-deep-research"
 
+        # Generate job ID
+        import uuid
+        job_id = f"research-{uuid.uuid4().hex[:6]}"
+
         # Create research job
         job = ResearchJob(
+            id=job_id,
             prompt=prompt,
             model=model,
             provider=provider,
@@ -66,7 +71,7 @@ class ResearchAPI:
         )
 
         # Submit to queue
-        await self.queue.submit(job)
+        await self.queue.enqueue(job)
 
         return job.id
 
@@ -79,7 +84,7 @@ class ResearchAPI:
         Returns:
             Dictionary with status information
         """
-        job = await self.queue.get(job_id)
+        job = await self.queue.get_job(job_id)
 
         if not job:
             raise ValueError(f"Job not found: {job_id}")
@@ -106,7 +111,7 @@ class ResearchAPI:
         Returns:
             Dictionary with result information
         """
-        job = await self.queue.get(job_id)
+        job = await self.queue.get_job(job_id)
 
         if not job:
             raise ValueError(f"Job not found: {job_id}")

@@ -4,6 +4,20 @@
 
 ---
 
+## Project Status
+
+**Deepr is an actively developed passion weekend project.** I'm actively testing and improving as I go. This is experimental research automation software that uses deep reasoning models which can be expensive.
+
+**COST WARNING**: Deep research can and will be expensive. Highly recommend:
+- Use pre-paid credits with AI providers
+- Turn auto-reload OFF as a protection
+- Start with small budgets (`deepr budget set 5`)
+- Monitor costs closely with `deepr budget status`
+
+Use at your own risk. This is a learning tool, not production-ready enterprise software.
+
+---
+
 ## Overview
 
 Deepr is a learning and research operating system that turns curiosity into structured, verifiable knowledge. It coordinates models, data, and reasoning workflows across multiple AI providers and local sources to help both humans and intelligent systems learn, document, and improve continuously.
@@ -12,7 +26,7 @@ Each Deepr run plans, searches, analyzes, and synthesizes information into a cit
 
 Deepr runs locally, integrates with providers such as OpenAI, Google Gemini, xAI Grok, and Azure OpenAI, and extends easily to new APIs. It transforms learning from a one-time process into a continuous, governed cycle of improvement.
 
-Deepr’s purpose is simple: to build lasting knowledge infrastructure for people and agents. It is the foundation of systems that do not just react, but grow in understanding over time.
+Deepr's purpose is simple: to build lasting knowledge infrastructure for people and agents. It is the foundation of systems that do not just react, but grow in understanding over time.
 
 ---
 
@@ -32,63 +46,63 @@ Modern AI can reason and generate, but it often lacks continuity. Deepr provides
 
 ## Example: Knowledge Creation in Action
 
-### Competitive Market Analysis
+### Investment Due Diligence
 
 ```bash
-deepr learn "EV battery technology landscape 2025: major suppliers, cost trends, chemistry innovations"
+deepr learn "Commercial real estate market in Austin Texas: cap rates, vacancy trends, development pipeline, demographic shifts"
 ```
 
-A startup founder needs to understand the EV battery market before supplier negotiations. Deepr researches suppliers, cost trajectories, emerging solid-state technologies, and competitive positioning across multiple phases.
+A real estate investor needs comprehensive market intelligence before a $20M acquisition. Deepr researches market fundamentals, supply dynamics, tenant demand drivers, and risk factors across multiple data sources.
 
 **Outcome**
 
-- Market landscape with current pricing and projected trends
-- Technical comparison of LFP vs NMC vs solid-state chemistries
-- Supplier profiles with capacity, reliability, and contract terms
-- Strategic recommendations for sourcing decisions
-- Complete cited report ready for board presentation
+- Current cap rates by property type and submarket
+- 5-year vacancy trends and absorption rates
+- Development pipeline analysis with delivery timelines
+- Employment and population growth projections
+- Cited recommendations on pricing and timing
 
-**Real benefit:** What would take a team days of research, Deepr delivers in 30 minutes for under $5.
+**Real benefit:** Professional-grade market analysis in 45 minutes for $3, versus $5K consultant fees and 2-week turnaround.
 
 ---
 
-### Technical Documentation
+### Regulatory Compliance Research
 
 ```bash
-deepr research "Azure API Management best practices for multi-region SaaS deployment"
+deepr research "GDPR and CCPA requirements for SaaS platforms handling EU and California customer data"
 ```
 
-A platform team needs current Azure APIM patterns for their global expansion. Deepr searches latest docs, synthesizes multi-region patterns, cost implications, and implementation steps.
+A compliance officer needs current regulatory guidance before a product launch. Deepr synthesizes legal requirements, technical controls, documentation needs, and penalty risks from authoritative sources.
 
 **Outcome**
 
-- Architecture patterns with diagrams and decision trees
-- Multi-region routing and failover strategies
-- Cost analysis with scaling projections
-- Security and compliance considerations
-- Implementation checklist with Azure CLI commands
+- Specific data handling requirements by jurisdiction
+- Required technical safeguards and consent mechanisms
+- Documentation and reporting obligations
+- Penalty structures and enforcement precedents
+- Implementation checklist with priority levels
 
-**Real benefit:** Team gets production-ready architecture guidance without weeks of trial-and-error.
+**Real benefit:** Clear compliance roadmap in 20 minutes, avoiding costly legal consultations for preliminary research.
 
 ---
 
-### Strategic Decision Support
+### Strategic Business Decision
 
 ```bash
-deepr team "Should we migrate from AWS to Google Cloud for our ML workloads?"
+deepr team "Should our manufacturing company invest in solar panels and battery storage for our facility?"
 ```
 
-Leadership needs diverse perspectives on a major infrastructure decision. Deepr analyzes from technical, financial, operational, risk, and timeline perspectives simultaneously.
+Leadership needs multi-angle analysis on a $2M capital decision. Deepr examines financial returns, operational impacts, risks, incentives, and strategic positioning from diverse expert perspectives.
 
 **Outcome**
 
-- Technical assessment: ML service capabilities, performance, integration
-- Financial analysis: TCO comparison, migration costs, ROI timeline
-- Operational perspective: team training, downtime, complexity
-- Risk evaluation: vendor lock-in, data sovereignty, compliance
-- Synthesis: weighted recommendation with decision criteria
+- Financial analysis: ROI, payback period, tax incentives, financing options
+- Operational perspective: Energy independence, backup power, maintenance
+- Risk assessment: Technology obsolescence, utility rate changes, policy shifts
+- Environmental impact: Carbon reduction, ESG reporting, brand value
+- Strategic synthesis: Weighted recommendation with decision criteria
 
-**Real benefit:** Compressed weeks of analysis into a comprehensive report, exposing blind spots and quantifying tradeoffs.
+**Real benefit:** Weeks of cross-functional research compressed into one comprehensive report, revealing considerations each department might miss.
 
 ---
 
@@ -125,7 +139,7 @@ deepr --version
 cp .env.example .env
 ```
 
-Edit `.env` and add your provider keys.
+Edit `.env` and add at least one provider API key (OpenAI recommended to start).
 
 ```bash
 OPENAI_API_KEY=sk-...
@@ -134,25 +148,35 @@ XAI_API_KEY=...
 AZURE_OPENAI_API_KEY=...
 ```
 
-### 3. Set a Budget
+### 3. Verify Setup
 
 ```bash
-deepr budget set 25
+deepr doctor
 ```
 
-### 4. Run Research
+This checks your configuration and identifies any issues before you start.
+
+### 4. Set a Budget
+
+```bash
+deepr budget set 5
+```
+
+Start small. Deep research can be expensive. You can increase later.
+
+### 5. Run Research
 
 **Simple Semantic Commands** (Recommended - Natural Intent-Based Interface):
 
 ```bash
-# Market analysis for investor pitch
-deepr learn "AI coding assistant market: competitors, pricing, differentiation strategies"
+# Market research for business plan
+deepr learn "US organic food retail: market size, growth rate, distribution channels, consumer demographics"
 
 # Technical implementation guide
-deepr research "Kubernetes autoscaling best practices for microservices under variable load"
+deepr research "PostgreSQL connection pooling and read replica strategies for high-traffic web applications"
 
 # Strategic decision with multiple viewpoints
-deepr team "Should we build in-house ML infrastructure or use managed services?"
+deepr team "Should we outsource customer support or build an internal team?"
 
 # Check results
 deepr jobs list
@@ -192,18 +216,18 @@ Deepr offers both **semantic commands** (natural, intent-based) and **direct mod
 
 | Command | Description | Example |
 |---------|--------------|----------|
-| `deepr research` | Auto-detects focus vs docs mode | `deepr research "Latest trends in RAG"` |
-| `deepr learn` | Multi-phase structured learning | `deepr learn "Rust programming" --phases 4` |
-| `deepr team` | Multi-perspective analysis | `deepr team "Strategic decision: cloud migration"` |
+| `deepr research` | Auto-detects focus vs docs mode | `deepr research "FDA approval process for medical devices"` |
+| `deepr learn` | Multi-phase structured learning | `deepr learn "Commercial property underwriting" --phases 4` |
+| `deepr team` | Multi-perspective analysis | `deepr team "Should we expand to Europe or Asia first?"` |
 
 ### Direct Mode Commands (Advanced)
 
 | Mode | Description | Example |
 |------|--------------|----------|
-| Focus | Targeted research on a specific topic | `deepr run focus "Latest trends in retrieval-augmented reasoning"` |
-| Docs | Live technical documentation | `deepr run docs "Gemini 2.5 Flash API capabilities and pricing"` |
-| Project | Multi-phase, context-linked research | `deepr run project "Comparative analysis of open-source reasoning agents"` |
-| Team | Multi-perspective collaboration between expert roles | `deepr run team "Frameworks for safe and open AI collaboration"` |
+| Focus | Targeted research on a specific topic | `deepr run focus "Current interest rate environment impact on REIT valuations"` |
+| Docs | Live technical documentation | `deepr run docs "AWS RDS Aurora MySQL 8.0 migration considerations"` |
+| Project | Multi-phase, context-linked research | `deepr run project "Supply chain optimization strategies for perishable goods"` |
+| Team | Multi-perspective collaboration between expert roles | `deepr run team "Evaluate acquisition target: financial, operational, cultural fit"` |
 
 ---
 
@@ -282,18 +306,33 @@ Monitor usage, cost, and performance.
 
 ---
 
+### Diagnostics
+
+```bash
+deepr doctor
+deepr doctor --skip-connectivity
+```
+
+Check Deepr configuration and troubleshoot issues:
+- Verify API keys are configured correctly
+- Test connectivity to AI providers
+- Check file system permissions
+- Validate database access
+
+---
+
 ## Writing Better Prompts
 
 Vague prompt:
 
 ```bash
-deepr research "cloud costs"
+deepr research "healthcare regulations"
 ```
 
 Specific prompt with clear outcome:
 
 ```bash
-deepr research "Compare AWS, Azure, and GCP compute costs for GPU-accelerated ML training. Focus on H100 and A100 availability, spot pricing, and committed use discounts. Include egress costs and storage implications for 5TB model checkpoints. Provide TCO breakdown for 100 hours/month sustained training workload."
+deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth services in California, Texas, and New York. Focus on consent requirements, data retention policies, breach notification timelines, and penalties. Include cross-state patient care implications. Provide compliance checklist for a telehealth platform serving all three states."
 ```
 
 **Best practices**
@@ -349,48 +388,31 @@ Actual costs vary based on provider, model, prompt complexity, and context size.
 
 ## Vision
 
-Deepr is provider-agnostic infrastructure for autonomous learning. It enables both humans and intelligent systems to learn, adapt, and reason at scale, creating a flywheel of insight, understanding, and progress. When knowledge becomes structured, reproducible, and shareable, it accelerates discovery across every domain.
+Deepr is an experiment in making deep research accessible through a command-line interface. The goal is simple: turn curiosity into structured knowledge that can be reused and built upon.
 
-By combining deep reasoning models with local artifact storage and retrieval integration, Deepr becomes living infrastructure for expertise. It can feed agents, support continuous education, or act as a foundation for RAG systems that truly understand their sources.
+Right now, it orchestrates reasoning models (OpenAI, Gemini, Grok, Azure) to research topics and produce cited reports. It's being actively developed to explore what's possible when research becomes repeatable, shareable, and continuous.
 
-If Deepr is built well, it will help humans work with the precision and reach of superintelligence while giving AI systems the grounding they need to approach general intelligence. Not just clever—meta-clever. Systems that examine themselves, learn from their own patterns, and continuously improve. The research tool researching itself. The learner learning how to learn.
+The aspiration: infrastructure that helps both humans and AI systems learn better. Research that compounds. Knowledge that evolves. A CLI tool that gets out of your way and just works.
 
-We are the universe trying to understand itself.
+We'll see where it goes.
 
 ---
 
 ## Interfaces
 
-- **CLI** - Direct research and automation from terminal
-- **Web UI** - Local interface with `python -m deepr.api.app`
-- **MCP Server** - Model Context Protocol integration for AI agents (coming in v2.2)
+**Deepr is CLI-first.** The terminal interface is the primary way to use Deepr and gets the most attention and polish.
 
-### MCP Integration for AI Agents (Coming Soon)
+- **CLI** - Primary interface. Direct research and automation from terminal. Full feature set.
+- **Web UI** - Experimental local interface (`python -m deepr.api.app`). Basic functionality, minimal maintenance.
+- **MCP Server** - Planned for AI agent integration (see [ROADMAP.md](ROADMAP.md)).
 
-Deepr will expose an MCP server that allows AI agents to submit long-running research jobs asynchronously:
-
-```python
-# Agent submits research and continues working
-job = deepr_research("Analyze competitor X's strategy")
-# ... agent does other work ...
-result = deepr_get_result(job.id)  # Retrieve comprehensive report when ready
-```
-
-**Why MCP for Deepr?**
-- Async by design - agents don't block waiting for research
-- Comprehensive reports with citations
-- Unique capability - most MCP tools are synchronous
-- Positions Deepr as research infrastructure for agentic workflows
-
-See [ROADMAP.md](ROADMAP.md) for v2.2 development priorities and implementation details.
-
-All interfaces use the same governed workflow and artifact system.
+All interfaces share the same core workflow and artifact system, but CLI is where the focus is.
 
 ---
 
-## What's Next: v2.2 Development Priorities
+## What's Next: Development Priorities
 
-Deepr v2.3 is **STABLE and production ready**. v2.2 focuses on self-improving experts and agentic capabilities:
+Deepr is in active development. Current focus: self-improving experts and agentic capabilities.
 
 1. **Semantic Commands** [LAUNCHED] - Natural intent-based interface:
    - `deepr research` - Auto-detects focus vs docs mode
@@ -401,25 +423,30 @@ Deepr v2.3 is **STABLE and production ready**. v2.2 focuses on self-improving ex
 
 2. **Self-Directed Learning Experts** [LAUNCHED] - Experts that autonomously learn:
    - Expert analyzes initial documents and generates learning curriculum
-   - Autonomously researches 10-20 topics to build comprehensive knowledge
+   - Autonomously researches 5-20 topics to build comprehensive knowledge (default: 5)
    - Builds temporal knowledge graph (tracks what it knows and when)
    - Budget-protected autonomous learning with multi-layer safeguards
-   - Example: `deepr expert make "AWS Solutions Architect" -f "C:\Wiki\*.md" --learn --budget 10`
-   - Expert researches latest AWS services, pricing updates, and architecture patterns to supplement internal docs
+   - Example: `deepr expert make "Supply Chain Management" -f "C:\Docs\*.pdf" --learn --budget 10`
+   - Expert researches latest logistics trends, vendor management practices, and risk mitigation strategies to supplement internal docs
 
-3. **Agentic Expert Chat** [PLANNED] - Conversational experts that research gaps:
-   - Interactive Q&A: `deepr chat expert "AWS Solutions Architect"`
-   - Agentic research: `deepr chat expert "AWS Solutions Architect" --agentic --budget 5`
-   - Expert admits knowledge gaps, researches current information, and updates its knowledge base
-   - Example: "What's the current best practice for EKS autoscaling?" triggers research if docs are outdated
-   - Maintains conversation during async research, cites sources, questions assumptions
+3. **Interactive Expert Chat** [LAUNCHED] - Conversational Q&A with domain experts:
+   - Basic chat: `deepr expert chat "Supply Chain Management"`
+   - Budget-limited sessions: `deepr expert chat "FDA Regulations" --budget 5`
+   - Interactive commands: `/status`, `/quit`, `/clear`
+   - Expert answers from knowledge base and cites sources
+   - Conversation history maintained within session
+   - Cost tracking and budget warnings
 
-4. **MCP Server** - Expose Deepr to AI agents via Model Context Protocol
-5. **Observability** - Transparent reasoning timelines and cost tracking
+4. **Agentic Expert Chat** [PLANNED] - Experts that can trigger research:
+   - Coming soon: `deepr expert chat "AWS Expert" --agentic --budget 5`
+   - Expert admits knowledge gaps and researches current information
+   - Updates knowledge base with findings from research
+   - Maintains conversation during async research
 
-**Why This Matters:** Experts become digital consciousnesses that continuously learn and improve, not just static document stores. They understand what they know, when they learned it, and when to research more.
+5. **MCP Server** - Expose Deepr to AI agents via Model Context Protocol
+6. **Observability** - Transparent reasoning timelines and cost tracking
 
-See [ROADMAP.md](ROADMAP.md) for detailed architecture and budget protection design.
+See [ROADMAP.md](ROADMAP.md) for detailed development plans and technical architecture.
 
 ---
 
@@ -440,9 +467,9 @@ MIT License. See [LICENSE](LICENSE).
 
 ## About the Project
 
-Deepr was created by **Nick Seal** to explore how humans and intelligent systems can learn, reason, and improve together.
+Deepr is a weekend project by **Nick Seal** exploring how to make deep research accessible via CLI.
 
-The boundary between idea and reality is becoming thinner. Deepr exists to amplify knowledge with insight, clarity, and compassion as humans and AI learn together.
+It's rough around the edges, actively being improved, and built for learning in the open. If you try it, start with small budgets and expect some friction. Feedback welcome.
 
 ---
 

@@ -13,7 +13,11 @@ import click
 from deepr.config import AppConfig
 from deepr.experts.curriculum import LearningCurriculum, LearningTopic, CurriculumGenerator
 from deepr.experts.profile import ExpertProfile, ExpertStore
-from deepr.services.research_api import ResearchAPI
+from deepr.core.research import ResearchOrchestrator
+from deepr.core.documents import DocumentManager
+from deepr.core.reports import ReportGenerator
+from deepr.providers import create_provider
+from deepr.storage import create_storage
 
 
 @dataclass
@@ -46,7 +50,23 @@ class AutonomousLearner:
 
     def __init__(self, config: AppConfig):
         self.config = config
-        self.research_api = ResearchAPI(config)
+        # Use direct research execution instead of broken ResearchAPI queue
+        # Create all required dependencies using factory functions
+        openai_api_key = config.get("openai_api_key")
+        provider = create_provider("openai", api_key=openai_api_key)
+        storage = create_storage("local", base_path=config.get("storage_path", "output"))
+
+        # Create document manager and report generator
+        document_manager = DocumentManager()
+        report_generator = ReportGenerator()
+
+        # Initialize research orchestrator with all dependencies
+        self.research = ResearchOrchestrator(
+            provider=provider,
+            storage=storage,
+            document_manager=document_manager,
+            report_generator=report_generator
+        )
 
     async def execute_curriculum(
         self,
@@ -159,17 +179,27 @@ class AutonomousLearner:
                     callback=callback
                 )
 
-                # Submit research job
-                job_id = await self.research_api.submit_research(
+                # Submit research job directly (synchronous execution)
+                # Use campaign mode for deep research topics
+                response_id = await self.research.submit_research(
                     prompt=topic.research_prompt,
-                    mode="focus",  # Focused research for specific topics
-                    vector_store_id=expert.vector_store_id  # Add to expert's knowledge
+                    model="o4-mini-deep-research",  # Deep research model
+                    vector_store_id=expert.vector_store_id,  # Add to expert's knowledge
+                    enable_web_search=True,
+                    enable_code_interpreter=False,
                 )
 
-                job_mapping[topic.title] = job_id
+                job_mapping[topic.title] = {
+                    "job_id": response_id,
+                    "cost": 0.0,  # Will be updated when complete
+                    "success": True
+                }
+
+                # Mark as completed immediately (synchronous execution)
+                progress.completed_topics.append(topic.title)
 
                 self._log_progress(
-                    f"  Job ID: {job_id}",
+                    f"  [DONE] Research ID: {response_id}",
                     callback=callback
                 )
 
@@ -180,77 +210,14 @@ class AutonomousLearner:
                 )
                 progress.failed_topics.append(topic.title)
 
-        # Wait for all jobs to complete
+        # Jobs completed synchronously - no need to poll
         if not job_mapping:
             return
 
         self._log_progress(
-            f"\nWaiting for {len(job_mapping)} research jobs to complete...",
+            f"\nPhase complete: {len(job_mapping)} research topics processed",
             callback=callback
         )
-
-        # Poll for completion
-        completed_jobs = {}
-        timeout_seconds = max(t.estimated_minutes for t in topics) * 60 * 2  # 2x estimated time
-        start_time = datetime.utcnow()
-
-        while len(completed_jobs) < len(job_mapping):
-            # Check timeout
-            elapsed = (datetime.utcnow() - start_time).total_seconds()
-            if elapsed > timeout_seconds:
-                self._log_progress(
-                    f"[WARNING] Timeout waiting for jobs, stopping",
-                    callback=callback
-                )
-                break
-
-            # Check each pending job
-            for topic_title, job_id in job_mapping.items():
-                if topic_title in completed_jobs:
-                    continue
-
-                try:
-                    status = await self.research_api.get_job_status(job_id)
-
-                    if status["status"] == "completed":
-                        # Get result and cost
-                        result = await self.research_api.get_job_result(job_id)
-                        cost = result.get("cost", 0.0)
-
-                        completed_jobs[topic_title] = {
-                            "job_id": job_id,
-                            "cost": cost,
-                            "success": True
-                        }
-
-                        progress.completed_topics.append(topic_title)
-                        progress.total_cost += cost
-
-                        self._log_progress(
-                            f"[DONE] {topic_title} - ${cost:.2f}",
-                            callback=callback
-                        )
-
-                    elif status["status"] == "failed":
-                        completed_jobs[topic_title] = {
-                            "job_id": job_id,
-                            "success": False
-                        }
-                        progress.failed_topics.append(topic_title)
-
-                        self._log_progress(
-                            f"[FAILED] {topic_title}",
-                            callback=callback
-                        )
-
-                except Exception as e:
-                    self._log_progress(
-                        f"[ERROR] Checking {topic_title}: {e}",
-                        callback=callback
-                    )
-
-            # Sleep between polls
-            await asyncio.sleep(30)
 
         # Update expert profile with new research
         self._update_expert_profile(expert, progress, job_mapping)

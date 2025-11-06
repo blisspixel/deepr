@@ -49,7 +49,7 @@ class ExpertProfile:
 
     # Provider preferences
     provider: str = "openai"
-    model: str = "gpt-4-turbo"
+    model: str = "chatgpt-5-latest"  # GPT-5 via Chat Completions (use Responses API for agentic)
 
     def is_knowledge_stale(self) -> bool:
         """Check if knowledge needs refreshing based on domain velocity."""

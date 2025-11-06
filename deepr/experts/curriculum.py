@@ -19,6 +19,8 @@ class LearningTopic:
 
     title: str
     description: str
+    research_mode: str  # "campaign" for deep research, "focus" for quick lookup
+    research_type: str  # "academic", "documentation", "best-practices", "trends", "technical-deep-dive"
     estimated_cost: float
     estimated_minutes: int
     priority: int  # 1 (highest) to 5 (lowest)
@@ -50,6 +52,8 @@ class LearningCurriculum:
                 {
                     "title": t.title,
                     "description": t.description,
+                    "research_mode": t.research_mode,
+                    "research_type": t.research_type,
                     "estimated_cost": t.estimated_cost,
                     "estimated_minutes": t.estimated_minutes,
                     "priority": t.priority,
@@ -73,6 +77,8 @@ class LearningCurriculum:
                 LearningTopic(
                     title=t["title"],
                     description=t["description"],
+                    research_mode=t.get("research_mode", "focus"),  # Default to focus if not specified
+                    research_type=t.get("research_type", "best-practices"),  # Default type
                     estimated_cost=t["estimated_cost"],
                     estimated_minutes=t["estimated_minutes"],
                     priority=t["priority"],
@@ -119,7 +125,8 @@ class CurriculumGenerator:
         )
 
         # Use GPT-5 for curriculum planning (best for structured reasoning and planning)
-        client = AsyncOpenAI(api_key=self.config.openai_api_key)
+        api_key = self.config.get("api_key") or self.config.get("openai_api_key")
+        client = AsyncOpenAI(api_key=api_key)
 
         # GPT-5 uses Responses API for improved agentic performance
         response_obj = await client.responses.create(
@@ -133,10 +140,7 @@ class CurriculumGenerator:
                     "role": "user",
                     "content": [{"type": "input_text", "text": prompt}]
                 }
-            ],
-            reasoning={"summary": "auto"},
-            verbosity="medium",  # Medium verbosity for structured output
-            reasoning_effort="medium"  # Medium effort for curriculum generation
+            ]
         )
 
         # Extract the response content from Responses API format
@@ -175,11 +179,43 @@ class CurriculumGenerator:
 
         budget_guidance = ""
         if budget_limit:
+            # Calculate how many deep research topics we can afford
+            deep_topics = min(5, target_topics)  # Always aim for 5 deep topics
+            quick_topics = target_topics - deep_topics
+
             budget_guidance = f"""
 BUDGET CONSTRAINT: ${budget_limit:.2f}
-- Estimated cost per research topic: $0.15-0.30 (focus mode)
-- Stay within budget while maximizing learning value
-- Prioritize foundational topics if budget is tight
+
+RESEARCH STRATEGY - MIX ACADEMIC + PRACTICAL:
+
+**{deep_topics} DEEP RESEARCH topics** (campaign mode, $1.50-2.50 each):
+  SELECT FROM:
+  - "academic": Research papers, theoretical foundations, seminal work
+  - "technical-deep-dive": Architectural patterns, algorithms, design principles
+  - "trends": Market analysis, future directions, industry evolution
+
+  PURPOSE: Foundational knowledge that won't expire - the timeless insights
+
+**{quick_topics} QUICK LOOKUP topics** (focus mode, $0.15-0.30 each):
+  SELECT FROM:
+  - "documentation": Latest APIs, SDKs, services, tools (2025 specific!)
+  - "best-practices": Real-world implementation patterns, case studies
+  - "trends": Quick scans of recent developments
+
+  PURPOSE: Current, actionable knowledge - what's happening RIGHT NOW
+
+CURRICULUM BALANCE (aim for this mix):
+- 2-3 academic/research papers (deep) - Timeless foundations
+- 2-3 technical deep dives (deep) - Core architectural knowledge
+- 0-1 trend analysis (deep) - Future-looking synthesis
+- 3-5 documentation (quick) - Latest tools, services, APIs
+- 2-4 best practices (quick) - Real-world patterns
+
+This creates an expert with BOTH:
+- Deep theoretical understanding (won't age)
+- Current practical knowledge (can be refreshed)
+
+Total budget: ~${deep_topics * 2.0:.2f} (deep) + ~${quick_topics * 0.25:.2f} (quick) = ~${(deep_topics * 2.0) + (quick_topics * 0.25):.2f}
 """
 
         return f"""You are designing a self-directed learning curriculum for a domain expert.
@@ -198,10 +234,21 @@ TODAY'S DATE: {today}
 CURRICULUM REQUIREMENTS:
 
 1. **Foundation First**: Start with core concepts and current landscape
-2. **Current and Practical**: Focus on {today.split('-')[0]} best practices and real-world applications
-3. **Progressive Depth**: Build from fundamentals to advanced topics
-4. **Identify Gaps**: What's missing from the initial documents?
-5. **Future-Oriented**: Include emerging trends and future directions
+2. **Multi-Dimensional Coverage**: Think in layers, not just linear topics:
+   - Technical layers (data, app, network, security, infrastructure)
+   - Implementation patterns (reference architectures, design patterns)
+   - Technologies & tools (languages, frameworks, platforms)
+   - Cross-cutting concerns (security, cost, compliance, observability)
+3. **Current and Practical**: Focus on {today.split('-')[0]} best practices and real-world applications
+4. **Progressive Depth**: Build from fundamentals to advanced topics
+5. **Identify Gaps**: What's missing from the initial documents?
+6. **Future-Oriented**: Include emerging trends and future directions
+
+THINK HOLISTICALLY:
+- An expert needs to understand systems from multiple angles
+- Different contexts require different knowledge (e.g., Python vs Node.js patterns)
+- Security, cost, and compliance cut across all layers
+- Real-world solutions combine multiple services/patterns
 
 {budget_guidance}
 
@@ -209,8 +256,15 @@ TOPIC STRUCTURE:
 For each topic, provide:
 - title: Clear, specific topic name
 - description: 1-2 sentences explaining what will be learned
-- estimated_cost: $0.15 for quick topics, $0.30 for comprehensive
-- estimated_minutes: 8-15 minutes per topic
+- research_mode: "campaign" for deep research topics (5 max), "focus" for quick lookups (rest)
+- research_type: One of:
+  * "academic" - Research papers, theoretical foundations
+  * "technical-deep-dive" - Architectural patterns, algorithms
+  * "trends" - Market analysis, future directions
+  * "documentation" - Latest APIs, SDKs, tools, services
+  * "best-practices" - Real-world implementation patterns
+- estimated_cost: $1.50-2.50 for campaign, $0.15-0.30 for focus
+- estimated_minutes: 30-60 for campaign, 8-15 for focus
 - priority: 1 (critical foundation) to 5 (nice-to-have)
 - research_prompt: The exact prompt to use for research (include year {today.split('-')[0]} for currency)
 - dependencies: List of topic titles that should be researched first
@@ -221,8 +275,10 @@ OUTPUT FORMAT (JSON):
     {{
       "title": "Topic name",
       "description": "What will be learned",
-      "estimated_cost": 0.20,
-      "estimated_minutes": 10,
+      "research_mode": "campaign",
+      "research_type": "academic",
+      "estimated_cost": 2.00,
+      "estimated_minutes": 45,
       "priority": 1,
       "research_prompt": "Research prompt with year {today.split('-')[0]}",
       "dependencies": []
@@ -231,12 +287,35 @@ OUTPUT FORMAT (JSON):
 }}
 
 IMPORTANT GUIDELINES:
+- **EXACTLY 5 topics must use "campaign" mode** with mix of research types:
+  * 2-3 should be "academic" or "technical-deep-dive" (timeless foundations)
+  * 0-1 should be "trends" (future analysis)
+- Remaining topics use "focus" mode with mix of:
+  * 3-5 should be "documentation" (latest tools, APIs, services)
+  * 2-4 should be "best-practices" (real-world patterns)
 - Each research prompt should be specific and actionable
-- Include year {today.split('-')[0]} in prompts for current information
-- Estimated costs: $0.15 (quick), $0.20 (standard), $0.30 (comprehensive)
+- For "documentation" type: Include specific service/tool names and year {today.split('-')[0]}
+- For "academic" type: Request research papers, citations, and theoretical foundations
+- For "best-practices" type: Request case studies, patterns, and proven approaches
+- Estimated costs:
+  - Campaign: $1.50-2.50 (multi-phase deep research)
+  - Focus: $0.15-0.30 (single-phase targeted lookup)
 - Total topics: exactly {target_topics}
-- Priority 1-2 topics are essential, 3-5 are supplementary
+- Priority 1-2 for campaign topics (foundations)
+- Priority 3-5 for focus topics (supplementary)
 - Dependencies create logical learning flow
+
+CRITICAL: Balance academic depth + current practical knowledge. This expert needs BOTH timeless principles AND 2025-specific tools!
+
+EXAMPLE STRUCTURE (AWS Solutions Architect):
+Instead of just "AWS Security", break it down:
+- DEEP: Security frameworks & Zero Trust architecture (technical-deep-dive)
+- QUICK: AWS WAF 2025 best practices (documentation)
+- QUICK: Security at data layer (S3, RDS encryption patterns) (best-practices)
+- QUICK: Security at app layer (API Gateway, Lambda IAM) (best-practices)
+- QUICK: Python security patterns for AWS (best-practices)
+
+This gives holistic, multi-dimensional coverage!
 
 Generate the curriculum now:"""
 
@@ -266,6 +345,8 @@ Generate the curriculum now:"""
             topics.append(LearningTopic(
                 title=topic_data["title"],
                 description=topic_data["description"],
+                research_mode=topic_data.get("research_mode", "focus"),
+                research_type=topic_data.get("research_type", "best-practices"),
                 estimated_cost=topic_data["estimated_cost"],
                 estimated_minutes=topic_data["estimated_minutes"],
                 priority=topic_data["priority"],
