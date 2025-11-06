@@ -94,12 +94,26 @@ class OpenAIProvider(DeepResearchProvider):
                         },
                         {"role": "user", "content": [{"type": "input_text", "text": request.prompt}]},
                     ],
-                    "reasoning": {"summary": "auto"},
                     "tools": tools if tools else None,
                     "tool_choice": request.tool_choice,
                 }
 
-                # Only include optional parameters if set (some providers don't support them)
+                # Add reasoning parameters (GPT-5 and o-series models)
+                if request.reasoning_effort or model.startswith(("gpt-5", "o3", "o4")):
+                    reasoning = {"summary": "auto"}
+                    if request.reasoning_effort:
+                        reasoning["effort"] = request.reasoning_effort
+                    payload["reasoning"] = reasoning
+
+                # Add text verbosity (GPT-5 models only)
+                if request.text_verbosity:
+                    payload["text"] = {"verbosity": request.text_verbosity}
+
+                # Add previous_response_id for reasoning persistence (Responses API)
+                if request.previous_response_id:
+                    payload["previous_response_id"] = request.previous_response_id
+
+                # Only include optional parameters if set
                 if request.background:
                     payload["background"] = True
                 if request.store:
@@ -111,8 +125,8 @@ class OpenAIProvider(DeepResearchProvider):
                 if request.webhook_url:
                     payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
 
-                # Add temperature if specified
-                if request.temperature is not None:
+                # Add temperature if specified (but NOT for GPT-5 models - they don't support it)
+                if request.temperature is not None and not model.startswith("gpt-5"):
                     payload["temperature"] = request.temperature
 
                 # Submit request

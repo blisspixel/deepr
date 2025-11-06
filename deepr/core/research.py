@@ -84,6 +84,7 @@ class ResearchOrchestrator:
         prompt: str,
         model: str = "o3-deep-research",
         documents: Optional[List[str]] = None,
+        vector_store_id: Optional[str] = None,
         webhook_url: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         cost_sensitive: bool = False,
@@ -98,6 +99,7 @@ class ResearchOrchestrator:
             prompt: Research prompt/question
             model: Model to use (default: o3-deep-research)
             documents: List of document file paths to include
+            vector_store_id: Existing vector store ID to use (for experts)
             webhook_url: Webhook URL for completion notification
             metadata: Additional metadata for the job
             cost_sensitive: Use lighter model and fewer resources
@@ -119,8 +121,7 @@ class ResearchOrchestrator:
         job_metadata["job_id"] = job_id
         job_metadata["original_prompt"] = prompt
 
-        # Handle documents if provided
-        vector_store_id = None
+        # Use provided vector_store_id or create one from documents
         if documents:
             file_ids = await self.document_manager.upload_documents(documents, self.provider)
 
@@ -130,6 +131,8 @@ class ResearchOrchestrator:
                 )
                 vector_store_id = vector_store.id
                 self.active_vector_stores[job_id] = vector_store_id
+        # If vector_store_id provided but no documents, use the existing vector store
+        # Don't track it for cleanup since we didn't create it
 
         # Build tools configuration
         tools = self._build_tools(

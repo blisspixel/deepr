@@ -97,12 +97,16 @@ def research(
 @click.command()
 @click.argument("topic")
 @click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--provider", default="openai",
+              type=click.Choice(["openai", "azure", "gemini", "grok"]),
+              help="Research provider")
 @click.option("--lead", default="gpt-5", help="Lead planner model")
 @click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def learn(
     topic: str,
     model: str,
+    provider: str,
     lead: str,
     phases: int,
     yes: bool,
@@ -125,11 +129,15 @@ def learn(
 @click.command()
 @click.argument("question")
 @click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--provider", default="openai",
+              type=click.Choice(["openai", "azure", "gemini", "grok"]),
+              help="Research provider")
 @click.option("--perspectives", "-p", type=int, default=6, help="Number of perspectives")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def team(
     question: str,
     model: str,
+    provider: str,
     perspectives: int,
     yes: bool,
 ):
@@ -170,10 +178,11 @@ def expert():
               help="Generate and execute autonomous learning curriculum")
 @click.option("--budget", type=float, default=None,
               help="Budget limit for autonomous learning (requires --learn)")
-@click.option("--topics", type=int, default=15,
-              help="Number of topics in learning curriculum (10-20)")
+@click.option("--topics", type=int, default=5,
+              help="Number of topics in learning curriculum (3-20, default: 5)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation for autonomous learning")
 def make_expert(name: str, files: tuple, description: Optional[str], provider: str,
-                learn: bool, budget: Optional[float], topics: int):
+                learn: bool, budget: Optional[float], topics: int, yes: bool):
     """Create a new domain expert with a knowledge base.
 
     Creates an expert that can answer questions based on provided documents
@@ -194,9 +203,10 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
     click.echo(f"  Creating Expert: {name}")
     click.echo(f"{'='*70}\n")
 
-    if not files:
-        click.echo("Error: No files specified. Use --files to add documents.")
+    if not files and not learn:
+        click.echo("Error: No files specified. Use --files to add documents or --learn for autonomous learning.")
         click.echo("Example: deepr expert make 'My Expert' -f docs/*.md")
+        click.echo("Or: deepr expert make 'My Expert' --learn --budget 10")
         return
 
     async def create_expert():
@@ -214,30 +224,32 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
         provider_instance = create_provider(provider, api_key=api_key)
 
         # Upload files and create vector store
-        click.echo(f"Uploading {len(files)} file(s)...")
         file_ids = []
 
-        for file_path in files:
-            basename = os.path.basename(file_path)
-            click.echo(f"  Uploading {basename}...")
-            file_id = await provider_instance.upload_document(file_path)
-            file_ids.append(file_id)
-            click.echo(f"  [OK] {basename}")
+        if files:
+            click.echo(f"Uploading {len(files)} file(s)...")
+            for file_path in files:
+                basename = os.path.basename(file_path)
+                click.echo(f"  Uploading {basename}...")
+                file_id = await provider_instance.upload_document(file_path)
+                file_ids.append(file_id)
+                click.echo(f"  [OK] {basename}")
 
-        # Create vector store
+        # Create vector store (empty if using --learn)
         click.echo(f"\nCreating knowledge base...")
         vector_store = await provider_instance.create_vector_store(
             name=f"expert-{name.lower().replace(' ', '-')}",
             file_ids=file_ids
         )
 
-        # Wait for indexing
-        click.echo(f"  Indexing files (this may take a minute)...")
-        success = await provider_instance.wait_for_vector_store(vector_store.id, timeout=900)
+        # Wait for indexing only if there are files
+        if files:
+            click.echo(f"  Indexing files (this may take a minute)...")
+            success = await provider_instance.wait_for_vector_store(vector_store.id, timeout=900)
 
-        if not success:
-            click.echo("Error: Indexing timed out")
-            return None
+            if not success:
+                click.echo("Error: Indexing timed out")
+                return None
 
         # Create expert profile with programmatic system message
         # Set initial knowledge cutoff to now (will be updated when learning is added)
@@ -322,9 +334,21 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
                 for i, topic in enumerate(curriculum.topics, 1):
                     priority_marker = "*" * topic.priority
-                    click.echo(f"{i}. {topic.title} [{priority_marker}]")
+                    mode_indicator = "DEEP" if topic.research_mode == "campaign" else "quick"
+
+                    # Map research type to emoji/indicator
+                    type_indicators = {
+                        "academic": "papers",
+                        "technical-deep-dive": "arch",
+                        "trends": "future",
+                        "documentation": "docs",
+                        "best-practices": "patterns"
+                    }
+                    type_indicator = type_indicators.get(topic.research_type, topic.research_type)
+
+                    click.echo(f"{i}. {topic.title} [{mode_indicator}:{type_indicator}] [{priority_marker}]")
                     click.echo(f"   {topic.description}")
-                    click.echo(f"   Est: ${topic.estimated_cost:.2f}, {topic.estimated_minutes}min")
+                    click.echo(f"   Mode: {topic.research_mode}, Type: {topic.research_type}, Est: ${topic.estimated_cost:.2f}, {topic.estimated_minutes}min")
                     if topic.dependencies:
                         click.echo(f"   Depends on: {', '.join(topic.dependencies)}")
                     click.echo()
@@ -337,11 +361,16 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                     click.echo(f"\n[WARNING] Estimated cost exceeds budget!")
                     click.echo(f"  Curriculum has been truncated to fit budget")
 
-                # Ask for confirmation
+                # Ask for confirmation only if --yes not provided AND budget not explicitly set
+                # Rationale: If user set a budget and curriculum is within it, that's the safety mechanism
                 click.echo(f"\n{'='*70}")
-                if not click.confirm("Proceed with autonomous learning?", default=False):
+                needs_confirmation = not yes and budget is None
+                if needs_confirmation and not click.confirm("Proceed with autonomous learning?", default=False):
                     click.echo("Learning cancelled.")
                     return None
+                elif yes or budget is not None:
+                    click.echo("Proceeding with autonomous learning...")
+                    click.echo("(Budget protection active: execution will stop if limits exceeded)")
 
                 # Execute curriculum
                 click.echo(f"\n{'='*70}")
@@ -496,6 +525,129 @@ def delete_expert(name: str, yes: bool):
         click.echo(f"  deepr brain delete {profile.vector_store_id}")
     else:
         click.echo(f"\nError: Failed to delete expert")
+
+
+@expert.command(name="chat")
+@click.argument("name")
+@click.option("--budget", "-b", type=float, default=None,
+              help="Session budget limit (for future agentic mode)")
+@click.option("--agentic", is_flag=True, default=False,
+              help="Enable agentic research (coming soon)")
+def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
+    """Start an interactive chat session with an expert.
+
+    Chat with a domain expert using their knowledge base. The expert will
+    answer questions based on their accumulated knowledge and cite sources.
+
+    Examples:
+        deepr expert chat "AWS Solutions Architect"
+        deepr expert chat "Python Expert" --budget 5
+
+    Commands during chat:
+        /quit or /exit - End the session
+        /status - Show session statistics
+        /clear - Clear conversation history
+    """
+    import asyncio
+    from deepr.experts.chat import start_chat_session
+
+    if agentic:
+        click.echo("[!] Agentic mode (--agentic) is not yet implemented.")
+        click.echo("    For now, chat uses the expert's knowledge base only.")
+        click.echo()
+
+    # Start the chat session
+    try:
+        session = asyncio.run(start_chat_session(name, budget))
+    except ValueError as e:
+        click.echo(f"Error: {e}")
+        click.echo("\nList available experts with: deepr expert list")
+        return
+    except Exception as e:
+        click.echo(f"Error starting chat session: {e}")
+        return
+
+    # Display welcome message
+    click.echo(f"\n{'='*70}")
+    click.echo(f"  Chat with {session.expert.name}")
+    click.echo(f"{'='*70}")
+    click.echo(f"\nDomain: {session.expert.domain or session.expert.description or 'General'}")
+    click.echo(f"Knowledge Base: {session.expert.total_documents} documents")
+    if session.expert.knowledge_cutoff_date:
+        click.echo(f"Last Updated: {session.expert.knowledge_cutoff_date.strftime('%Y-%m-%d')}")
+    if budget:
+        click.echo(f"Session Budget: ${budget:.2f}")
+    click.echo(f"\nCommands: /quit, /status, /clear")
+    click.echo(f"{'='*70}\n")
+
+    # Interactive chat loop
+    while True:
+        try:
+            # Get user input
+            user_input = input("You: ").strip()
+
+            if not user_input:
+                continue
+
+            # Handle commands
+            if user_input in ["/quit", "/exit"]:
+                click.echo("\nEnding chat session...")
+                break
+
+            elif user_input == "/status":
+                summary = session.get_session_summary()
+                click.echo(f"\nSession Summary:")
+                click.echo(f"  Messages: {summary['messages_exchanged']}")
+                click.echo(f"  Cost: ${summary['cost_accumulated']:.4f}")
+                if summary['budget_remaining'] is not None:
+                    click.echo(f"  Budget Remaining: ${summary['budget_remaining']:.2f}")
+                if summary['research_jobs_triggered'] > 0:
+                    click.echo(f"  Research Jobs: {summary['research_jobs_triggered']}")
+                click.echo()
+                continue
+
+            elif user_input == "/clear":
+                session.messages = []
+                click.echo("\n[OK] Conversation history cleared\n")
+                continue
+
+            # Check budget before processing
+            if budget and session.cost_accumulated >= budget:
+                click.echo(f"\n[!] Session budget exhausted (${budget:.2f})")
+                click.echo("    End session or increase budget")
+                break
+
+            # Send message to expert
+            click.echo(f"\n{session.expert.name}: ", nl=False)
+            response = asyncio.run(session.send_message(user_input))
+            click.echo(response)
+            click.echo()
+
+            # Budget warning
+            if budget:
+                remaining = budget - session.cost_accumulated
+                if remaining < budget * 0.2:  # Less than 20% remaining
+                    click.echo(f"[!] Budget warning: ${remaining:.2f} remaining\n")
+
+        except KeyboardInterrupt:
+            click.echo("\n\nInterrupted. Ending chat session...")
+            break
+        except EOFError:
+            click.echo("\n\nEnding chat session...")
+            break
+        except Exception as e:
+            click.echo(f"\n[X] Error: {e}\n")
+            continue
+
+    # Final summary
+    summary = session.get_session_summary()
+    click.echo(f"\n{'='*70}")
+    click.echo(f"Session Summary:")
+    click.echo(f"  Messages: {summary['messages_exchanged']}")
+    click.echo(f"  Total Cost: ${summary['cost_accumulated']:.4f}")
+    if summary['research_jobs_triggered'] > 0:
+        click.echo(f"  Research Jobs: {summary['research_jobs_triggered']}")
+    click.echo(f"{'='*70}\n")
 
 
 if __name__ == "__main__":
