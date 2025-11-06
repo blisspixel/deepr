@@ -266,7 +266,11 @@ For each topic, provide:
 - estimated_cost: $1.50-2.50 for campaign, $0.15-0.30 for focus
 - estimated_minutes: 30-60 for campaign, 8-15 for focus
 - priority: 1 (critical foundation) to 5 (nice-to-have)
-- research_prompt: The exact prompt to use for research (include year {today.split('-')[0]} for currency)
+- research_prompt: The exact prompt to use for research
+  * CRITICAL: Must be under 300 characters (hard limit for API)
+  * Be concise but specific
+  * Include year {today.split('-')[0]} for currency
+  * Example: "Survey 2025 temporal knowledge graph models (DyRep, TNTComplEx) for agent memory and hybrid vector+graph storage architectures"
 - dependencies: List of topic titles that should be researched first
 
 OUTPUT FORMAT (JSON):

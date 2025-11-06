@@ -119,6 +119,13 @@ class ResearchOrchestrator:
         # Prepare metadata
         job_metadata = metadata or {}
         job_metadata["job_id"] = job_id
+        # OpenAI metadata fields have 512 char limit - validate prompt length
+        if len(prompt) > 300:
+            raise ValueError(
+                f"Research prompt too long ({len(prompt)} chars). "
+                f"Must be under 300 characters for API compatibility. "
+                f"Please use a more concise prompt."
+            )
         job_metadata["original_prompt"] = prompt
 
         # Use provided vector_store_id or create one from documents
