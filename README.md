@@ -24,7 +24,7 @@ Deepr is a learning and research operating system that turns curiosity into stru
 
 Each Deepr run plans, searches, analyzes, and synthesizes information into a cited, versioned artifact. These artifacts can be reused by humans or connected directly into agentic workflows through the Model Context Protocol (MCP) or retrieval systems.
 
-Deepr runs locally, integrates with providers such as OpenAI, Google Gemini, xAI Grok, and Azure OpenAI, and extends easily to new APIs. It transforms learning from a one-time process into a continuous, governed cycle of improvement.
+Deepr runs locally, integrates with multiple AI providers (OpenAI GPT-5, Google Gemini, xAI Grok, Azure OpenAI), and extends easily to new APIs. When using OpenAI, Deepr uses GPT-5 models (not GPT-4) for expert systems and research. It transforms learning from a one-time process into a continuous, governed cycle of improvement.
 
 Deepr's purpose is simple: to build lasting knowledge infrastructure for people and agents. It is the foundation of systems that do not just react, but grow in understanding over time.
 
@@ -238,7 +238,7 @@ Deepr offers both **semantic commands** (natural, intent-based) and **direct mod
 Deepr works across multiple reasoning engines. Use the best model for your specific task and budget.
 
 ```bash
-# Deep technical analysis (OpenAI o1)
+# Deep technical analysis (OpenAI GPT-5)
 deepr research "Database indexing strategies for time-series data at 1M events/sec" --provider openai
 
 # Large-context documentation review (Gemini 2.5-pro)
@@ -247,16 +247,18 @@ deepr research "Summarize security vulnerabilities in our 500-page audit report"
 # Real-time competitive intelligence (Grok with X search)
 deepr research "Current social media sentiment on autonomous vehicle safety" --provider grok
 
-# Enterprise compliance analysis (Azure o1)
+# Enterprise compliance analysis (Azure GPT-5)
 deepr research "GDPR implications of our new EU data processing workflow" --provider azure
 ```
 
-| Provider | Example Models | Typical Use |
-|-----------|----------------|--------------|
-| OpenAI | o1, o1-mini | Deep reasoning and synthesis |
+| Provider | Models | Typical Use |
+|-----------|--------|--------------|
+| OpenAI | **GPT-5** (gpt-5, gpt-5-mini, gpt-5-nano) | Advanced reasoning, expert systems, RAG |
 | Gemini | 2.5-flash, 2.5-pro | Structured, large-context research |
 | Grok | grok-beta | Real-time search and analysis |
-| Azure | o1, o1-mini | Enterprise and regulated environments |
+| Azure | **GPT-5** via Azure OpenAI | Enterprise and regulated environments |
+
+**Note**: When using OpenAI or Azure OpenAI, Deepr uses GPT-5 models, not GPT-4. Expert systems use GPT-5 with tool calling for RAG (NOT deprecated Assistants API).
 
 ---
 
@@ -485,19 +487,14 @@ Deepr is in active development. Current focus: self-improving experts and agenti
    - `deepr expert make` - Create domain experts with knowledge bases
    - Intuitive aliases: `deepr brain`, `deepr knowledge`
 
-2. **Self-Directed Learning Experts** [IN PROGRESS] - Experts that autonomously learn:
+2. **Self-Directed Learning Experts** [LAUNCHED] - Experts that autonomously learn:
    - Expert analyzes initial documents and generates learning curriculum with GPT-5
    - Submits 5-20 deep research jobs to build comprehensive knowledge (default: 5)
    - Shows estimated costs before submission, respects budget limits
+   - Polls for completion and automatically integrates results into knowledge base
    - Example: `deepr expert make "Supply Chain Management" -f "C:\Docs\*.pdf" --learn --budget 10`
-   - **Current Status:**
-     - ✓ Curriculum generation working (GPT-5)
-     - ✓ Research job submission (OpenAI Deep Research)
-     - ✓ Budget estimation and protection
-     - ⚠ Jobs run in background (5-20 min each) - completion polling needed
-     - ⚠ Cost reconciliation (estimated vs actual) not yet implemented
-     - ⚠ Research results not automatically retrieved to expert knowledge base
-   - **Next:** Poll for job completion, retrieve reports, compare costs, add to vector store
+   - **Status:** Fully functional end-to-end
+   - **Note:** Research jobs take 5-20 minutes each - expert polls every 30s until complete
 
 3. **Interactive Expert Chat** [LAUNCHED] - Conversational Q&A with domain experts:
    - Basic chat: `deepr expert chat "Supply Chain Management"`
@@ -507,11 +504,21 @@ Deepr is in active development. Current focus: self-improving experts and agenti
    - Conversation history maintained within session
    - Cost tracking and budget warnings
 
-4. **Agentic Expert Chat** [PLANNED] - Experts that can trigger research:
-   - Coming soon: `deepr expert chat "AWS Expert" --agentic --budget 5`
-   - Expert admits knowledge gaps and researches current information
-   - Updates knowledge base with findings from research
-   - Maintains conversation during async research
+4. **Agentic Expert Chat** [LAUNCHED] - **Learning digital consciousness**, not just static RAG:
+   - Enable: `deepr expert chat "AWS Expert" --agentic --budget 5`
+   - **What makes it learning, not just RAG:**
+     * **Recognizes knowledge gaps**: "I don't have this in my knowledge base"
+     * **Autonomously researches**: Chooses appropriate research depth
+     * **Integrates new knowledge**: Research findings added to knowledge base automatically
+     * **Builds on previous learning**: Each conversation makes expert smarter
+     * **Meta-cognitive awareness**: Tracks what it knows vs doesn't know (coming soon)
+     * **Temporal understanding**: Knows when it learned things, detects outdated knowledge (coming soon)
+   - **Three-tier research system**:
+     * Quick lookup (FREE, <5 sec) - Simple facts using GPT-5 + web search
+     * Standard research ($0.01-0.05, 30-60 sec) - Technical deep-dives with GPT-5
+     * Deep research ($0.10-0.30, 5-20 min) - Complex strategic analysis with o4-mini
+   - **Cost-aware decision making**: Expert chooses cheapest tool that will answer the question
+   - **Continuous improvement**: Each research becomes part of expert's permanent knowledge
 
 5. **MCP Server** - Expose Deepr to AI agents via Model Context Protocol
 6. **Observability** - Transparent reasoning timelines and cost tracking
