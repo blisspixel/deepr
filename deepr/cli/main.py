@@ -31,7 +31,7 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs, semantic, doctor
+from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs, semantic, doctor, diagnostics, mcp
 
 # Core commands - new structure
 cli.add_command(run.run)
@@ -67,6 +67,8 @@ cli.add_command(analytics.analytics)
 cli.add_command(templates.templates)
 cli.add_command(migrate.migrate)
 cli.add_command(doctor.doctor)
+cli.add_command(diagnostics.diagnostics_cli)
+cli.add_command(mcp.mcp)
 
 
 def main():
