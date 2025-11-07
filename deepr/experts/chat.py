@@ -170,6 +170,46 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             print(f"Error searching knowledge base: {e}")
             return []
 
+    def _is_fast_moving_domain(self) -> bool:
+        """Detect if expert's domain changes rapidly.
+
+        Fast-moving domains need more frequent knowledge refresh (30 days vs 90 days).
+
+        Returns:
+            True if domain is fast-moving
+        """
+        fast_moving_keywords = [
+            "AI", "machine learning", "ML", "crypto", "blockchain",
+            "latest", "current", "2025", "2024", "technology",
+            "startup", "software", "web", "framework", "library",
+            "cloud", "devops", "security", "api"
+        ]
+
+        domain_lower = self.expert.domain.lower()
+        desc_lower = self.expert.description.lower() if self.expert.description else ""
+
+        return any(
+            kw.lower() in domain_lower or kw.lower() in desc_lower
+            for kw in fast_moving_keywords
+        )
+
+    def _detect_recency_keywords(self, query: str) -> bool:
+        """Detect if query asks for current/latest information.
+
+        Args:
+            query: User query
+
+        Returns:
+            True if query contains recency keywords
+        """
+        recency_keywords = [
+            "latest", "current", "recent", "new", "updated",
+            "2025", "2024", "now", "today", "this year"
+        ]
+
+        query_lower = query.lower()
+        return any(kw in query_lower for kw in recency_keywords)
+
     async def _quick_lookup(self, query: str) -> Dict:
         """Quick web lookup using GPT-5 with web search (free, <5 sec).
 
@@ -505,6 +545,29 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         if self.metacognition and len(search_results) == 0:
                             topic = query[:100]  # Use query as topic
                             self.metacognition.record_knowledge_gap(topic, confidence=0.0)
+
+                        # Check for stale knowledge if temporal tracking is enabled
+                        staleness_warning = None
+                        if self.temporal and search_results and self._detect_recency_keywords(query):
+                            # User is asking for current info - check if knowledge is stale
+                            max_age_days = 30 if self._is_fast_moving_domain() else 90
+                            stale_topics = self.temporal.get_stale_knowledge(max_age_days=max_age_days)
+
+                            if stale_topics:
+                                # Check if any of the stale topics match the query
+                                topic = query[:100]
+                                if any(topic in stale_topic for stale_topic in stale_topics):
+                                    age_info = self.temporal.get_statistics()
+                                    staleness_warning = f"WARNING: My knowledge on this topic may be outdated (>{ max_age_days} days old). Consider triggering fresh research for current information."
+
+                        # Add staleness warning to results if detected
+                        if staleness_warning and search_results:
+                            search_results.insert(0, {
+                                "id": "staleness_warning",
+                                "filename": "SYSTEM_WARNING",
+                                "content": staleness_warning,
+                                "score": 1.0
+                            })
 
                         # Add tool result
                         tool_messages.append({
