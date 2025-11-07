@@ -49,7 +49,7 @@ class ExpertProfile:
 
     # Provider preferences
     provider: str = "openai"
-    model: str = "gpt-4o"  # Using Assistants API with file_search (Responses API doesn't support RAG)
+    model: str = "gpt-5"  # GPT-5 with tool calling for RAG (NOT deprecated Assistants API)
 
     def is_knowledge_stale(self) -> bool:
         """Check if knowledge needs refreshing based on domain velocity."""

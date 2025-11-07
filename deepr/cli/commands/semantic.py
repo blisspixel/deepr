@@ -530,9 +530,9 @@ def delete_expert(name: str, yes: bool):
 @expert.command(name="chat")
 @click.argument("name")
 @click.option("--budget", "-b", type=float, default=None,
-              help="Session budget limit (for future agentic mode)")
+              help="Session budget limit (required for agentic mode)")
 @click.option("--agentic", is_flag=True, default=False,
-              help="Enable agentic research (coming soon)")
+              help="Enable agentic research (expert can trigger quick_lookup, standard_research, deep_research)")
 def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
     """Start an interactive chat session with an expert.
 
@@ -541,7 +541,7 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
 
     Examples:
         deepr expert chat "AWS Solutions Architect"
-        deepr expert chat "Python Expert" --budget 5
+        deepr expert chat "Python Expert" --agentic --budget 5
 
     Commands during chat:
         /quit or /exit - End the session
@@ -551,14 +551,9 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
     import asyncio
     from deepr.experts.chat import start_chat_session
 
-    if agentic:
-        click.echo("[!] Agentic mode (--agentic) is not yet implemented.")
-        click.echo("    For now, chat uses the expert's knowledge base only.")
-        click.echo()
-
     # Start the chat session
     try:
-        session = asyncio.run(start_chat_session(name, budget))
+        session = asyncio.run(start_chat_session(name, budget, agentic=agentic))
     except ValueError as e:
         click.echo(f"Error: {e}")
         click.echo("\nList available experts with: deepr expert list")
@@ -575,6 +570,11 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
     click.echo(f"Knowledge Base: {session.expert.total_documents} documents")
     if session.expert.knowledge_cutoff_date:
         click.echo(f"Last Updated: {session.expert.knowledge_cutoff_date.strftime('%Y-%m-%d')}")
+    if agentic:
+        click.echo(f"Mode: AGENTIC (research enabled)")
+        click.echo(f"  - quick_lookup (FREE, <5 sec)")
+        click.echo(f"  - standard_research ($0.01-0.05, 30-60 sec)")
+        click.echo(f"  - deep_research ($0.10-0.30, 5-20 min)")
     if budget:
         click.echo(f"Session Budget: ${budget:.2f}")
     click.echo(f"\nCommands: /quit, /status, /clear")
@@ -641,6 +641,11 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
 
     # Final summary
     summary = session.get_session_summary()
+
+    # Save conversation before ending
+    if summary['messages_exchanged'] > 0:
+        session_id = session.save_conversation()
+        click.echo(f"\n[OK] Conversation saved: {session_id}")
     click.echo(f"\n{'='*70}")
     click.echo(f"Session Summary:")
     click.echo(f"  Messages: {summary['messages_exchanged']}")
