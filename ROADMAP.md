@@ -1175,13 +1175,60 @@ expert_budgets:
 
 ---
 
-## Priority 3: MCP Server Integration (INFRASTRUCTURE) - ✅ COMPLETE
+## Priority 3: MCP Server Integration (INFRASTRUCTURE) - COMPLETE
 
-**Status**: Implementation complete (2025-11-11). See `MCP_SETUP.md` for usage.
+**Status**: Implementation complete (2025-11-11). All 7 tools implemented and tested.
 
-**Strategic insight:** Deepr's async research fills a unique gap - most MCP tools are synchronous.
+**Documentation**: See `mcp/README.md` for setup, usage examples, and API reference.
 
-**Why Priority 3 (not 0):** Build on solid foundation (P1) with clean interface (P2) first.
+**What Was Delivered:**
+
+The MCP server exposes Deepr's research and expert capabilities to AI agents through a stdio-based JSON-RPC interface. This enables Claude Desktop, Cursor, and other MCP-compatible agents to leverage Deepr for comprehensive, multi-step research tasks.
+
+**Tools Implemented (7 total):**
+
+Research tools (4):
+1. `deepr_research` - Submit single research jobs with configurable model, provider, budget, and file uploads
+2. `deepr_check_status` - Real-time job status polling with progress updates and cost tracking
+3. `deepr_get_result` - Retrieve completed markdown reports with citations, metadata, and sources
+4. `deepr_agentic_research` - Autonomous multi-step workflows where experts decompose goals and conduct research
+
+Expert tools (3):
+5. `deepr_list_experts` - List all domain experts with stats (documents, conversations, costs)
+6. `deepr_query_expert` - Query experts with optional agentic mode for autonomous research triggers
+7. `deepr_get_expert_info` - Get detailed expert metadata including vector store IDs and capabilities
+
+**Architecture Decisions:**
+
+Transport: stdio-based communication (lightweight, no dependencies, compatible with Claude Desktop/Cursor)
+Job Tracking: In-memory per session with provider-side persistence for reliability
+Multi-Provider: Supports OpenAI, Azure, Gemini, Grok through unified interface
+Security: API keys in environment variables, budget controls, read-only operations
+Error Handling: Structured error responses for all failure modes
+
+**Strategic Insight:**
+
+Deepr's async research fills a unique gap in the MCP ecosystem. Most MCP tools (Perplexity, Tavily) provide synchronous web search. Deepr provides asynchronous research infrastructure:
+- Single research jobs: 5-20 minute comprehensive analysis
+- Multi-step workflows: Expert-guided autonomous decomposition
+- Expert consultation: Domain-specific knowledge with agentic capabilities
+
+This positions Deepr as research infrastructure for AI agents, not just a human tool.
+
+**Competitive Positioning:**
+
+| Feature | Perplexity | Tavily | Deepr |
+|---------|-----------|--------|-------|
+| Research Model | Sync | Sync | Async |
+| Multi-Step | No | No | Yes |
+| Expert System | No | No | Yes |
+| Agentic Mode | No | No | Yes |
+| Budget Controls | Limited | Limited | Granular |
+| Multi-Provider | No | No | Yes |
+
+**Why Priority 3:**
+
+Built on solid foundation from Priority 1 (semantic commands) and Priority 2 (expert system). The MCP integration leverages existing orchestration, making implementation straightforward and robust.
 
 **MCP Server Interface:**
 
@@ -1273,15 +1320,45 @@ This positions Deepr as **research infrastructure for AI agents**, not just a hu
 - Tavily: Web search API (sync)
 - **Deepr: Comprehensive research infrastructure (async)** ← Unique position
 
-**Acceptance Criteria:**
-- [✅] MCP server runs and registers with agents
-- [✅] All MCP tools use semantic interface (not implementation modes)
-- [✅] Async status polling works reliably
-- [✅] Cost tracking per agent/session
-- [✅] Documentation for agent developers
-- [✅] Multi-provider support (OpenAI, Azure, Gemini, Grok)
-- [✅] Expert chat integration
-- [✅] Security guidelines implemented
+**Implementation Details:**
+
+Location: `deepr/mcp/server.py` (489 lines)
+Configuration: `mcp/mcp-config-claude-desktop.json`, `mcp/mcp-config-cursor.json`
+Documentation: `mcp/README.md` (comprehensive setup and usage guide)
+
+The server implements stdio-based JSON-RPC communication with async Python. Each tool returns structured responses with clear error handling. Job tracking is in-memory per session but jobs persist on the provider side, allowing status checks even after server restarts.
+
+**Acceptance Criteria - All Met:**
+
+Core Functionality:
+- MCP server runs as stdio service and registers with Claude Desktop/Cursor
+- All 7 tools implemented with semantic interfaces (not raw CLI commands)
+- Async status polling works reliably with provider API as source of truth
+- Cost tracking per job/workflow with real-time updates
+
+Multi-Provider Support:
+- OpenAI (o3-deep-research, o4-mini-deep-research)
+- Azure OpenAI (same models)
+- Google Gemini (gemini-2.5-flash)
+- xAI Grok (grok-4-fast)
+
+Expert Integration:
+- Expert listing and info retrieval
+- Expert query with agentic mode
+- Autonomous research workflows with budget controls
+
+Documentation and Security:
+- Complete setup guide with troubleshooting
+- API reference with all parameters and returns
+- Usage examples for single and multi-step research
+- Security best practices per OpenAI MCP guidelines
+- Budget controls on all research operations
+
+**Known Limitations:**
+
+Job tracking is in-memory and lost on server restart. Jobs continue running on provider side and can be checked via provider API. Future enhancement: SQLite persistence for job metadata.
+
+Server uses stdio transport only. Future enhancement: SSE or HTTP transport for web applications.
 
 ---
 
