@@ -325,17 +325,58 @@ Check Deepr configuration and troubleshoot issues:
 
 ### MCP Integration (AI Agent Access)
 
-Deepr can be integrated with AI agents like Claude Desktop and Cursor via the Model Context Protocol (MCP). This allows AI assistants to directly submit research jobs, check status, and retrieve results.
+Deepr exposes its research and expert capabilities through the Model Context Protocol (MCP), enabling AI agents like Claude Desktop and Cursor to directly submit research jobs, monitor progress, and retrieve results. This integration allows AI assistants to leverage Deepr's async research infrastructure for comprehensive, multi-step analysis tasks.
 
-Deepr exposes 7 MCP tools for AI agents:
-- **Research**: `deepr_research`, `deepr_check_status`, `deepr_get_result`, `deepr_agentic_research`
-- **Experts**: `deepr_list_experts`, `deepr_query_expert`, `deepr_get_expert_info`
+**Available MCP Tools:**
+
+Research tools:
+- `deepr_research` - Submit single deep research jobs with configurable model, provider, and budget
+- `deepr_check_status` - Poll job status and track research progress in real-time
+- `deepr_get_result` - Retrieve completed research reports with citations and metadata
+- `deepr_agentic_research` - Start autonomous multi-step research workflows with expert-guided decomposition
+
+Expert tools:
+- `deepr_list_experts` - List all available domain experts with stats and capabilities
+- `deepr_query_expert` - Query domain experts with optional agentic mode for autonomous research
+- `deepr_get_expert_info` - Get detailed expert metadata including vector stores and document counts
+
+**Architecture:**
+
+The MCP server runs as a stdio-based service that communicates via JSON-RPC. It supports:
+- Multi-provider orchestration (OpenAI, Azure, Gemini, Grok)
+- Async job tracking with provider-side persistence
+- Cost tracking and budget controls
+- Security best practices per OpenAI MCP guidelines
 
 **Quick Setup:**
 
-Copy [`mcp/mcp-config-claude-desktop.json`](mcp/mcp-config-claude-desktop.json) to `%APPDATA%\Claude\claude_desktop_config.json` and add your API key.
+1. Copy the configuration template from `mcp/mcp-config-claude-desktop.json` to your Claude Desktop config location:
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-**See [`mcp/README.md`](mcp/README.md) for complete setup, usage examples, and API reference.**
+2. Add your OpenAI API key (or other provider keys) to the `env` section
+
+3. Restart Claude Desktop
+
+4. Verify by asking: "What MCP tools do you have access to?"
+
+**Complete Documentation:**
+
+See `mcp/README.md` for:
+- Detailed setup instructions for Claude Desktop and Cursor
+- Complete API reference with parameters and return values
+- Usage examples for single and multi-step research
+- Troubleshooting guide
+- Security considerations
+
+**Use Cases:**
+
+The MCP integration enables AI agents to:
+- Conduct comprehensive research that requires 10+ minute analysis
+- Autonomously break down complex research goals into sub-questions
+- Synthesize findings across multiple research phases
+- Access domain experts for specialized knowledge
+- Operate within defined budget constraints
 
 ---
 
