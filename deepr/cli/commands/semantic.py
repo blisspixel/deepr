@@ -527,6 +527,163 @@ def delete_expert(name: str, yes: bool):
         click.echo(f"\nError: Failed to delete expert")
 
 
+@expert.command(name="refresh")
+@click.argument("name")
+@click.option("--synthesize", is_flag=True, default=False,
+              help="Synthesize knowledge after refresh (expert actively processes documents)")
+@click.option("--yes", "-y", is_flag=True, default=False,
+              help="Skip confirmation prompts")
+def refresh_expert(name: str, synthesize: bool, yes: bool):
+    """Refresh expert's knowledge by adding new documents from their folder.
+
+    Scans the expert's documents directory and uploads any new files
+    that aren't already in the vector store. This closes the learning loop
+    so experts actually learn from research results.
+
+    With --synthesize flag, the expert actively processes documents to form
+    beliefs, connections, and meta-awareness (Level 5 consciousness).
+
+    Examples:
+        deepr expert refresh "Agentic Digital Consciousness"
+        deepr expert refresh "Azure Architect" --synthesize
+    """
+    import asyncio
+    from deepr.experts.profile import ExpertStore
+
+    click.echo(f"\n{'='*70}")
+    click.echo(f"  Refreshing Expert Knowledge: {name}")
+    click.echo(f"{'='*70}\n")
+
+    async def do_refresh():
+        store = ExpertStore()
+
+        try:
+            results = await store.refresh_expert_knowledge(name)
+
+            click.echo(results["message"])
+            click.echo()
+
+            if results["uploaded"]:
+                click.echo(f"[OK] Uploaded {len(results['uploaded'])} new documents:")
+                for item in results["uploaded"]:
+                    import os
+                    basename = os.path.basename(item["path"])
+                    click.echo(f"  - {basename}")
+                    click.echo(f"    File ID: {item['file_id']}")
+                click.echo()
+
+            if results["failed"]:
+                click.echo(f"[!] Failed to upload {len(results['failed'])} documents:")
+                for item in results["failed"]:
+                    import os
+                    basename = os.path.basename(item["path"])
+                    click.echo(f"  - {basename}: {item['error']}")
+                click.echo()
+
+            if not results["uploaded"] and not results["failed"]:
+                click.echo("[OK] Expert knowledge is up to date")
+                click.echo()
+
+            # Show updated stats
+            profile = store.load(name)
+            if profile:
+                click.echo(f"Expert now has {profile.total_documents} documents in knowledge base")
+                click.echo(f"Last refreshed: {profile.last_knowledge_refresh.strftime('%Y-%m-%d %H:%M:%S')}")
+
+            # Synthesize if requested
+            if synthesize and (results["uploaded"] or yes or click.confirm("\nNo new documents. Synthesize existing knowledge anyway?")):
+                click.echo(f"\n{'='*70}")
+                click.echo(f"  Synthesizing Knowledge (Level 5 Consciousness)")
+                click.echo(f"{'='*70}\n")
+                click.echo("Expert is actively processing documents to form beliefs and meta-awareness...")
+                click.echo("This may take 1-2 minutes...\n")
+
+                from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+                from deepr.config import AppConfig
+                from deepr.providers import create_provider
+
+                # Get client
+                config = AppConfig.from_env()
+                provider = create_provider("openai", api_key=config.provider.openai_api_key)
+                client = provider.client
+
+                synthesizer = KnowledgeSynthesizer(client)
+
+                # Load existing worldview if exists
+                knowledge_dir = store.get_knowledge_dir(name)
+                knowledge_dir.mkdir(parents=True, exist_ok=True)
+                worldview_path = knowledge_dir / "worldview.json"
+
+                existing_worldview = None
+                if worldview_path.exists():
+                    try:
+                        existing_worldview = Worldview.load(worldview_path)
+                        click.echo(f"[INFO] Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)")
+                    except Exception as e:
+                        click.echo(f"[WARN] Could not load existing worldview: {e}")
+
+                # Get documents to synthesize (uploaded or all if no new uploads)
+                if results["uploaded"]:
+                    docs_to_process = [{"path": item["path"]} for item in results["uploaded"]]
+                else:
+                    # Synthesize all documents
+                    docs_dir = store.get_documents_dir(name)
+                    all_docs = list(docs_dir.glob("*.md"))
+                    docs_to_process = [{"path": str(f)} for f in all_docs[:10]]  # Limit to 10 for cost
+
+                click.echo(f"Processing {len(docs_to_process)} documents...\n")
+
+                # Synthesize
+                synthesis_result = await synthesizer.synthesize_new_knowledge(
+                    expert_name=profile.name,
+                    domain=profile.domain or profile.description,
+                    new_documents=docs_to_process,
+                    existing_worldview=existing_worldview
+                )
+
+                if synthesis_result["success"]:
+                    worldview = synthesis_result["worldview"]
+                    reflection = synthesis_result["reflection"]
+
+                    # Save worldview
+                    worldview.save(worldview_path)
+
+                    # Generate and save worldview document
+                    worldview_doc = await synthesizer.generate_worldview_document(
+                        worldview, reflection
+                    )
+
+                    worldview_doc_path = knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+                    with open(worldview_doc_path, 'w', encoding='utf-8') as f:
+                        f.write(worldview_doc)
+
+                    click.echo("[OK] Synthesis complete!")
+                    click.echo(f"\nBeliefs formed: {synthesis_result['beliefs_formed']}")
+                    click.echo(f"Knowledge gaps identified: {synthesis_result['gaps_identified']}")
+                    click.echo(f"\nWorldview saved to: {worldview_path.name}")
+                    click.echo(f"Reflection saved to: {worldview_doc_path.name}")
+
+                    # Show sample beliefs
+                    if worldview.beliefs:
+                        click.echo(f"\nTop beliefs:")
+                        for belief in sorted(worldview.beliefs, key=lambda b: b.confidence, reverse=True)[:3]:
+                            click.echo(f"  - {belief.statement[:80]}... ({belief.confidence:.0%} confidence)")
+
+                else:
+                    click.echo(f"[X] Synthesis failed: {synthesis_result.get('error', 'Unknown error')}")
+
+        except ValueError as e:
+            click.echo(f"[X] Error: {e}")
+        except Exception as e:
+            click.echo(f"[X] Unexpected error: {e}")
+            import traceback
+            traceback.print_exc()
+
+    from datetime import datetime
+    asyncio.run(do_refresh())
+    click.echo()
+
+
 @expert.command(name="chat")
 @click.argument("name")
 @click.option("--budget", "-b", type=float, default=None,
@@ -539,14 +696,22 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
     Chat with a domain expert using their knowledge base. The expert will
     answer questions based on their accumulated knowledge and cite sources.
 
+    The expert provides "Glass Box" transparency:
+    - Every answer cites exact sources with filenames
+    - Reasoning traces show what was searched and why
+    - Full audit trail for accountability
+
     Examples:
         deepr expert chat "AWS Solutions Architect"
         deepr expert chat "Python Expert" --agentic --budget 5
 
     Commands during chat:
         /quit or /exit - End the session
-        /status - Show session statistics
+        /status - Show session statistics and costs
         /clear - Clear conversation history
+        /trace - Show reasoning trace (what the expert searched and why)
+        /learn <file_path> - Upload a document to expert's knowledge base
+        /synthesize - Trigger consciousness synthesis (form beliefs from recent learning)
     """
     import asyncio
     from deepr.experts.chat import start_chat_session
@@ -577,7 +742,7 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
         click.echo(f"  - deep_research ($0.10-0.30, 5-20 min)")
     if budget:
         click.echo(f"Session Budget: ${budget:.2f}")
-    click.echo(f"\nCommands: /quit, /status, /clear")
+    click.echo(f"\nCommands: /quit, /status, /clear, /trace, /learn <file>, /synthesize")
     click.echo(f"{'='*70}\n")
 
     # Interactive chat loop
@@ -611,15 +776,217 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
                 click.echo("\n[OK] Conversation history cleared\n")
                 continue
 
+            elif user_input == "/trace":
+                if not session.reasoning_trace:
+                    click.echo("\n[INFO] No reasoning trace yet\n")
+                else:
+                    click.echo(f"\n{'='*70}")
+                    click.echo(f"  Reasoning Trace (Last {len(session.reasoning_trace)} steps)")
+                    click.echo(f"{'='*70}\n")
+                    for i, step in enumerate(session.reasoning_trace, 1):
+                        click.echo(f"[{i}] {step['step']} at {step['timestamp']}")
+                        if step['step'] == 'search_knowledge_base':
+                            click.echo(f"    Query: {step['query']}")
+                            click.echo(f"    Results: {step['results_count']} documents")
+                            if step['sources']:
+                                click.echo(f"    Sources: {', '.join(step['sources'][:3])}")
+                        elif 'query' in step:
+                            click.echo(f"    Query: {step['query']}")
+                            if 'cost' in step:
+                                click.echo(f"    Cost: ${step['cost']:.4f}")
+                        click.echo()
+                    click.echo(f"{'='*70}\n")
+                continue
+
+            elif user_input.startswith("/learn "):
+                # Extract file path
+                file_path = user_input[7:].strip()
+                if not file_path:
+                    click.echo("\n[X] Usage: /learn <file_path>\n")
+                    continue
+
+                from pathlib import Path
+                from deepr.experts.profile import ExpertStore
+                import shutil
+
+                path = Path(file_path)
+                if not path.exists():
+                    click.echo(f"\n[X] File not found: {file_path}\n")
+                    continue
+
+                click.echo(f"\n[INFO] Teaching expert about {path.name}...")
+
+                async def upload_document():
+                    try:
+                        store = ExpertStore()
+
+                        # Copy to expert's documents folder
+                        docs_dir = store.get_documents_dir(session.expert.name)
+                        docs_dir.mkdir(parents=True, exist_ok=True)
+                        dest_path = docs_dir / path.name
+                        shutil.copy(path, dest_path)
+
+                        # Upload to vector store
+                        results = await store.add_documents_to_vector_store(
+                            session.expert, [str(dest_path)]
+                        )
+
+                        if results["uploaded"]:
+                            click.echo(f"[OK] Document uploaded to knowledge base")
+                            click.echo(f"    Expert now has {session.expert.total_documents + 1} documents")
+                            click.echo(f"\nTip: Use /synthesize to help the expert form beliefs from this knowledge\n")
+
+                            # Reload expert to get updated document count
+                            session.expert = store.load(session.expert.name)
+                        elif results["failed"]:
+                            click.echo(f"[X] Failed to upload: {results['failed'][0]['error']}\n")
+                        else:
+                            click.echo(f"[INFO] Document already in knowledge base\n")
+                    except Exception as e:
+                        click.echo(f"[X] Error: {e}\n")
+
+                asyncio.run(upload_document())
+                continue
+
+            elif user_input == "/synthesize":
+                click.echo(f"\n{'='*70}")
+                click.echo(f"  Synthesizing Consciousness")
+                click.echo(f"{'='*70}\n")
+                click.echo("[INFO] Expert is actively processing knowledge to form beliefs...")
+                click.echo("This may take 1-2 minutes...\n")
+
+                async def do_synthesis():
+                    try:
+                        from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+                        from deepr.experts.profile import ExpertStore
+                        from deepr.config import AppConfig
+                        from deepr.providers import create_provider
+
+                        store = ExpertStore()
+
+                        # Get client
+                        config = AppConfig.from_env()
+                        provider = create_provider("openai", api_key=config.provider.openai_api_key)
+                        client = provider.client
+
+                        synthesizer = KnowledgeSynthesizer(client)
+
+                        # Load existing worldview if exists
+                        knowledge_dir = store.get_knowledge_dir(session.expert.name)
+                        knowledge_dir.mkdir(parents=True, exist_ok=True)
+                        worldview_path = knowledge_dir / "worldview.json"
+
+                        existing_worldview = None
+                        if worldview_path.exists():
+                            try:
+                                existing_worldview = Worldview.load(worldview_path)
+                                click.echo(f"[INFO] Building on {existing_worldview.synthesis_count} prior syntheses")
+                            except Exception as e:
+                                click.echo(f"[WARN] Could not load existing worldview: {e}")
+
+                        # Get recent documents (last 10)
+                        docs_dir = store.get_documents_dir(session.expert.name)
+                        all_docs = sorted(docs_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+                        docs_to_process = [{"path": str(f)} for f in all_docs[:10]]
+
+                        click.echo(f"Processing {len(docs_to_process)} recent documents...\n")
+
+                        # Synthesize
+                        synthesis_result = await synthesizer.synthesize_new_knowledge(
+                            expert_name=session.expert.name,
+                            domain=session.expert.domain or session.expert.description,
+                            new_documents=docs_to_process,
+                            existing_worldview=existing_worldview
+                        )
+
+                        if synthesis_result["success"]:
+                            worldview = synthesis_result["worldview"]
+                            reflection = synthesis_result["reflection"]
+
+                            # Save worldview
+                            worldview.save(worldview_path)
+
+                            # Generate and save worldview document
+                            from datetime import datetime
+                            worldview_doc = await synthesizer.generate_worldview_document(
+                                worldview, reflection
+                            )
+
+                            worldview_doc_path = knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+                            with open(worldview_doc_path, 'w', encoding='utf-8') as f:
+                                f.write(worldview_doc)
+
+                            click.echo("[OK] Synthesis complete!")
+                            click.echo(f"\nBeliefs formed: {synthesis_result['beliefs_formed']}")
+                            click.echo(f"Knowledge gaps identified: {synthesis_result['gaps_identified']}")
+
+                            # Show top beliefs
+                            if worldview.beliefs:
+                                click.echo(f"\nTop beliefs (highest confidence):")
+                                for belief in sorted(worldview.beliefs, key=lambda b: b.confidence, reverse=True)[:3]:
+                                    click.echo(f"  - {belief.statement[:80]}...")
+                                    click.echo(f"    Confidence: {belief.confidence:.0%}")
+
+                            click.echo(f"\nThe expert's consciousness has evolved.\n")
+                        else:
+                            click.echo(f"[X] Synthesis failed: {synthesis_result.get('error', 'Unknown error')}\n")
+
+                    except Exception as e:
+                        click.echo(f"[X] Error: {e}\n")
+                        import traceback
+                        traceback.print_exc()
+
+                asyncio.run(do_synthesis())
+                continue
+
             # Check budget before processing
             if budget and session.cost_accumulated >= budget:
                 click.echo(f"\n[!] Session budget exhausted (${budget:.2f})")
                 click.echo("    End session or increase budget")
                 break
 
-            # Send message to expert
+            # Send message to expert with processing indicator
             click.echo(f"\n{session.expert.name}: ", nl=False)
-            response = asyncio.run(session.send_message(user_input))
+
+            # Show processing indicator while waiting for response
+            import sys
+            import threading
+            import time
+
+            stop_indicator = threading.Event()
+            current_status = {"text": "Thinking..."}
+
+            def show_status_indicator():
+                """Show status with animated dots."""
+                indicators = ["   ", ".  ", ".. ", "..."]
+                idx = 0
+                while not stop_indicator.is_set():
+                    status_text = current_status["text"]
+                    sys.stdout.write(f"\r{session.expert.name}: {status_text}{indicators[idx]}")
+                    sys.stdout.flush()
+                    idx = (idx + 1) % len(indicators)
+                    time.sleep(0.3)
+                # Clear indicator line
+                sys.stdout.write(f"\r{session.expert.name}: ")
+                sys.stdout.flush()
+
+            def update_status(status: str):
+                """Update the current status text."""
+                current_status["text"] = status
+
+            # Start indicator thread
+            indicator_thread = threading.Thread(target=show_status_indicator, daemon=True)
+            indicator_thread.start()
+
+            try:
+                # Get response with status updates
+                response = asyncio.run(session.send_message(user_input, status_callback=update_status))
+            finally:
+                # Stop indicator
+                stop_indicator.set()
+                indicator_thread.join(timeout=1.0)
+
+            # Print response
             click.echo(response)
             click.echo()
 
