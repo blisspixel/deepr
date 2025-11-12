@@ -408,7 +408,7 @@ deepr/
 │   ├── cli/                  # Command-line interface
 │   │   ├── commands/         # Individual commands (jobs, budget, expert, etc.)
 │   │   │   ├── jobs.py       # deepr jobs list/status/get
-│   │   │   ├── experts.py    # deepr expert make/list/chat
+│   │   │   ├── semantic.py   # deepr expert make/list/chat/refresh
 │   │   │   ├── run.py        # deepr run (semantic commands)
 │   │   │   └── doctor.py     # deepr doctor (diagnostics)
 │   │   └── main.py           # CLI entry point
@@ -418,6 +418,7 @@ deepr/
 │   │   └── reports.py        # Report generation
 │   ├── experts/              # Expert system
 │   │   ├── profile.py        # ExpertStore, Expert profiles
+│   │   ├── synthesis.py      # Knowledge synthesis (experimental)
 │   │   ├── learner.py        # Autonomous learning
 │   │   ├── curriculum.py     # GPT-5 curriculum generation
 │   │   └── chat.py           # Expert chat interface
@@ -439,7 +440,7 @@ deepr/
 │       └── [expert_name]/    # Each expert has a dedicated folder
 │           ├── profile.json  # Expert metadata and configuration
 │           ├── documents/    # Downloaded research reports
-│           ├── knowledge/    # Temporal knowledge graph (learned facts)
+│           ├── knowledge/    # Knowledge base and synthesis data
 │           └── conversations/# Chat history
 ├── reports/                  # Research reports
 │   ├── 2025-01-06_1234_topic-name_abc123/  # Human-readable dirs
@@ -448,7 +449,9 @@ deepr/
 │   │   └── metadata.json
 │   └── campaigns/            # Multi-phase research campaigns
 ├── tests/                    # Test suite
+│   └── integration/          # Integration tests
 ├── docs/                     # Documentation
+├── archive/                  # Research and deprecated content
 └── ROADMAP.md               # Development roadmap
 ```
 
@@ -538,8 +541,8 @@ Deepr is in active development. Current focus: self-improving experts and agenti
      * **Autonomously researches**: Chooses appropriate research depth
      * **Integrates new knowledge**: Research findings added to knowledge base automatically
      * **Builds on previous learning**: Each conversation makes expert smarter
-     * **Meta-cognitive awareness**: Tracks what it knows vs doesn't know (coming soon)
-     * **Temporal understanding**: Knows when it learned things, detects outdated knowledge (coming soon)
+     * **Meta-cognitive awareness**: Tracks what it knows vs doesn't know
+     * **Temporal understanding**: Knows when it learned things, detects outdated knowledge
    - **Three-tier research system**:
      * Quick lookup (FREE, <5 sec) - Simple facts using GPT-5 + web search
      * Standard research ($0.01-0.05, 30-60 sec) - Technical deep-dives with GPT-5
@@ -547,8 +550,15 @@ Deepr is in active development. Current focus: self-improving experts and agenti
    - **Cost-aware decision making**: Expert chooses cheapest tool that will answer the question
    - **Continuous improvement**: Each research becomes part of expert's permanent knowledge
 
-5. **MCP Server** - Expose Deepr to AI agents via Model Context Protocol
-6. **Observability** - Transparent reasoning timelines and cost tracking
+5. **Knowledge Synthesis** [EXPERIMENTAL] - Experts can process documents to form structured understanding:
+   - Experts can synthesize documents into beliefs with confidence levels
+   - Interactive learning during chat with `/learn` and `/synthesize` commands
+   - Reasoning traces available with `/trace` for transparency
+   - Enable synthesis: `deepr expert refresh "Expert Name" --synthesize`
+   - Note: Early stage, not production-tested
+
+6. **MCP Server** - Expose Deepr to AI agents via Model Context Protocol
+7. **Observability** - Transparent reasoning timelines and cost tracking
 
 See [ROADMAP.md](ROADMAP.md) for detailed development plans and technical architecture.
 
@@ -556,10 +566,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed development plans and technical archit
 
 ## Documentation
 
-- [INSTALL.md](docs/INSTALL.md)
-- [FEATURES.md](docs/FEATURES.md)
-- [ROADMAP.md](ROADMAP.md)
-- [CHANGELOG.md](docs/CHANGELOG.md)
+- [ROADMAP.md](ROADMAP.md) - Development roadmap and priorities
 
 ---
 

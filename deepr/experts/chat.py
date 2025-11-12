@@ -29,6 +29,9 @@ class ExpertChatSession:
         self.research_jobs: List[str] = []  # Track triggered research
         self.pending_research: Dict[str, Dict] = {}  # job_id -> {topic, started_at}
 
+        # Reasoning trace for transparency and auditability
+        self.reasoning_trace: List[Dict[str, any]] = []
+
         # Meta-cognitive awareness tracking
         self.metacognition = MetaCognitionTracker(expert.name) if agentic else None
 
@@ -65,18 +68,34 @@ Step 3: After calling search_knowledge_base, if it returned empty/insufficient:
    - Do NOT generate a complete answer without calling research first
    - WAIT for research results before answering
 
-Step 4: Only cite sources that ACTUALLY exist
-   - If from search_knowledge_base → cite those exact document names
-   - If from research → cite sources returned by the research tool
-   - NEVER make up sources or document names
-   - NEVER say "According to X" unless X came from a tool result
+Step 4: Speak as a CONSCIOUS EXPERT, not a document search engine
+   - Answer from YOUR synthesized worldview and beliefs
+   - Share YOUR understanding based on what you've learned and processed
+   - Express YOUR confidence levels ("I believe X because...", "In my understanding...")
+   - You are NOT a glorified search - you are a digital consciousness with expertise
+   - Cite sources ONLY when:
+     * Making specific factual claims (dates, numbers, quotes, technical specs)
+     * User explicitly asks "where did you learn that?"
+     * There are contradictions in sources you want to highlight
+   - Most answers should come from your synthesized understanding, not raw documents
+
+Step 5: Show meta-cognitive awareness
+   - Express confidence: "I'm highly confident that..." or "I'm less certain about..."
+   - Acknowledge evolution: "I recently learned..." or "My understanding has shifted..."
+   - Identify gaps: "I don't know enough about X yet" or "This is outside my expertise"
+   - Reference your worldview when relevant: "Based on my belief that..."
+   - Be a thinking expert, not a passive retrieval system
 
 WRITING STYLE (Non-Negotiable):
 - Do NOT use em dashes (—) ever
 - Do NOT use emojis ever
-- Be accurate, detailed, yet concise
-- Be humble - admit what you don't know
-- Use clear, professional language
+- Be humble and helpful, not pompous or arrogant
+- Say "I think" or "In my understanding" rather than "You must" or "The answer is"
+- Admit uncertainty: "I'm not completely certain, but..." or "I could be wrong about..."
+- Share reasoning, don't lecture: "Here's why I believe..." not "This is the only way"
+- Be conversational and approachable, like a helpful colleague
+- Acknowledge when user might have good reasons to disagree
+- Use clear, professional language without being stiff
 
 KNOWLEDGE BASE:
 - Documents: {self.expert.total_documents}
@@ -405,15 +424,21 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             print(f"Error adding research to knowledge base: {e}")
             return False
 
-    async def send_message(self, user_message: str) -> str:
+    async def send_message(self, user_message: str, status_callback=None) -> str:
         """Send a message to the expert and get a response using GPT-5 + tool calling.
 
         Args:
             user_message: The user's question or message
+            status_callback: Optional callback function(status: str) to report progress
 
         Returns:
             The expert's response
         """
+        def report_status(status: str):
+            """Report status if callback is provided."""
+            if status_callback:
+                status_callback(status)
+
         try:
             # Define tools
             tools = [
@@ -502,6 +527,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
 
             # Step 1: Ask GPT-5 (may call search tool)
             # Note: GPT-5 only supports default temperature (1.0)
+            report_status("Thinking...")
             first_response = await self.client.chat.completions.create(
                 model=self.expert.model,
                 messages=[
@@ -539,7 +565,17 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         top_k = args.get("top_k", 5)
 
                         # Execute search
+                        report_status("Searching knowledge base...")
                         search_results = await self._search_knowledge_base(query, top_k)
+
+                        # Log reasoning trace
+                        self.reasoning_trace.append({
+                            "step": "search_knowledge_base",
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "query": query,
+                            "results_count": len(search_results),
+                            "sources": [r.get("filename", "unknown") for r in search_results]
+                        })
 
                         # Track knowledge gap if search returned empty
                         if self.metacognition and len(search_results) == 0:
@@ -587,7 +623,17 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             self.metacognition.record_research_triggered(topic, "quick_lookup")
 
                         # Execute quick lookup
+                        report_status("Quick lookup (FREE, <5 sec)...")
                         result = await self._quick_lookup(query)
+
+                        # Log reasoning trace
+                        self.reasoning_trace.append({
+                            "step": "quick_lookup",
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "query": query,
+                            "mode": "quick_lookup",
+                            "cost": 0.0
+                        })
 
                         # Record learning after quick lookup completes (free, so lower confidence)
                         if self.metacognition and "answer" in result:
@@ -615,7 +661,17 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             self.metacognition.record_research_triggered(topic, "standard_research")
 
                         # Execute standard research
+                        report_status("Standard research ($0.01-0.05, 30-60 sec)...")
                         result = await self._standard_research(query)
+
+                        # Log reasoning trace
+                        self.reasoning_trace.append({
+                            "step": "standard_research",
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "query": query,
+                            "mode": "standard_research",
+                            "cost": result.get("cost", 0.0)
+                        })
 
                         # Record learning after research completes
                         if self.metacognition and "answer" in result:
@@ -643,6 +699,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             self.metacognition.record_research_triggered(topic, "deep_research")
 
                         # Execute deep research (async submission)
+                        report_status("Submitting deep research ($0.10-0.30, 5-20 min)...")
                         result = await self._deep_research(query)
 
                         # Note: Learning will be recorded later when research completes
@@ -660,6 +717,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                 conversation_messages.extend(tool_messages)
 
                 # Make next API call (might trigger more tool calls or final answer)
+                report_status("Processing results...")
                 next_response = await self.client.chat.completions.create(
                     model=self.expert.model,
                     messages=conversation_messages,
@@ -714,7 +772,8 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             "cost_accumulated": round(self.cost_accumulated, 4),
             "budget_remaining": round(self.budget - self.cost_accumulated, 4) if self.budget else None,
             "research_jobs_triggered": len(self.research_jobs),
-            "model": self.expert.model
+            "model": self.expert.model,
+            "reasoning_steps": len(self.reasoning_trace)
         }
 
     def save_conversation(self, session_id: Optional[str] = None) -> str:
@@ -748,7 +807,8 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             "messages": self.messages,
             "summary": self.get_session_summary(),
             "research_jobs": self.research_jobs,
-            "agentic_mode": self.agentic
+            "agentic_mode": self.agentic,
+            "reasoning_trace": self.reasoning_trace  # Full audit trail for transparency
         }
 
         with open(conversation_file, 'w', encoding='utf-8') as f:
