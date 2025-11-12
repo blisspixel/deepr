@@ -1175,15 +1175,20 @@ expert_budgets:
 
 ---
 
-## Priority 3: MCP Server Integration (INFRASTRUCTURE) - COMPLETE
+## Priority 3: MCP Server Integration (INFRASTRUCTURE) - Implementation Complete, Testing Needed
 
-**Status**: Implementation complete (2025-11-11). All 7 tools implemented and tested.
+**Status**: Code implementation finished (2025-11-11). 7 tools implemented. Not yet tested with actual MCP clients.
 
-**Documentation**: See `mcp/README.md` for setup, usage examples, and API reference.
+**What This Means:**
+- Code is written and imports successfully
+- No automated tests exist for MCP functionality
+- Not validated with Claude Desktop or Cursor in real scenarios
+- Error handling untested with malformed requests
+- Performance characteristics unknown
 
-**What Was Delivered:**
+**What Was Built:**
 
-The MCP server exposes Deepr's research and expert capabilities to AI agents through a stdio-based JSON-RPC interface. This enables Claude Desktop, Cursor, and other MCP-compatible agents to leverage Deepr for comprehensive, multi-step research tasks.
+An MCP server (`deepr/mcp/server.py`) that provides a stdio-based JSON-RPC interface for AI agents. The implementation includes 7 tools for research submission and expert consultation.
 
 **Tools Implemented (7 total):**
 
@@ -1323,42 +1328,38 @@ This positions Deepr as **research infrastructure for AI agents**, not just a hu
 **Implementation Details:**
 
 Location: `deepr/mcp/server.py` (489 lines)
-Configuration: `mcp/mcp-config-claude-desktop.json`, `mcp/mcp-config-cursor.json`
-Documentation: `mcp/README.md` (comprehensive setup and usage guide)
+Configuration templates: `mcp/mcp-config-claude-desktop.json`, `mcp/mcp-config-cursor.json`
+Documentation: `mcp/README.md`
 
-The server implements stdio-based JSON-RPC communication with async Python. Each tool returns structured responses with clear error handling. Job tracking is in-memory per session but jobs persist on the provider side, allowing status checks even after server restarts.
+The server implements stdio-based JSON-RPC communication with async Python. Job tracking is in-memory per session, with jobs persisting on the provider side.
 
-**Acceptance Criteria - All Met:**
+**What Works (Validated):**
+- Server imports and initializes without errors
+- Code structure follows MCP stdio patterns
+- Integration with existing Deepr orchestration layer
 
-Core Functionality:
-- MCP server runs as stdio service and registers with Claude Desktop/Cursor
-- All 7 tools implemented with semantic interfaces (not raw CLI commands)
-- Async status polling works reliably with provider API as source of truth
-- Cost tracking per job/workflow with real-time updates
+**What Needs Validation:**
+- Actual communication with Claude Desktop/Cursor
+- Error handling with malformed requests
+- Job status polling reliability
+- Agentic research workflow execution
+- Multi-provider operations
+- Cost tracking accuracy
+- Performance under concurrent requests
 
-Multi-Provider Support:
-- OpenAI (o3-deep-research, o4-mini-deep-research)
-- Azure OpenAI (same models)
-- Google Gemini (gemini-2.5-flash)
-- xAI Grok (grok-4-fast)
+**Testing Gaps:**
+- No unit tests for MCP tools
+- No integration tests with MCP clients
+- No load testing
+- Error scenarios not covered
 
-Expert Integration:
-- Expert listing and info retrieval
-- Expert query with agentic mode
-- Autonomous research workflows with budget controls
-
-Documentation and Security:
-- Complete setup guide with troubleshooting
-- API reference with all parameters and returns
-- Usage examples for single and multi-step research
-- Security best practices per OpenAI MCP guidelines
-- Budget controls on all research operations
-
-**Known Limitations:**
-
-Job tracking is in-memory and lost on server restart. Jobs continue running on provider side and can be checked via provider API. Future enhancement: SQLite persistence for job metadata.
-
-Server uses stdio transport only. Future enhancement: SSE or HTTP transport for web applications.
+**Next Steps to Consider Production-Ready:**
+1. Test with Claude Desktop installation
+2. Validate all 7 tools work end-to-end
+3. Add automated tests
+4. Test error scenarios
+5. Validate concurrent request handling
+6. Document observed performance characteristics
 
 ---
 
