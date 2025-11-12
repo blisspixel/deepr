@@ -236,14 +236,151 @@ class ExpertStore:
         """Check if expert exists."""
         return self._get_profile_path(name).exists()
 
+    async def add_documents_to_vector_store(
+        self,
+        profile: ExpertProfile,
+        file_paths: List[str],
+        provider_client = None
+    ) -> Dict[str, any]:
+        """Add documents to expert's vector store.
+
+        Args:
+            profile: Expert profile
+            file_paths: List of file paths to upload
+            provider_client: OpenAI client (optional, will create if not provided)
+
+        Returns:
+            Dict with upload results
+        """
+        from pathlib import Path
+
+        if not provider_client:
+            from deepr.providers import create_provider
+            from deepr.config import AppConfig
+            config = AppConfig.from_env()
+            openai_api_key = config.provider.openai_api_key
+            provider = create_provider("openai", api_key=openai_api_key)
+            provider_client = provider.client
+
+        results = {
+            "uploaded": [],
+            "failed": [],
+            "skipped": []
+        }
+
+        for file_path in file_paths:
+            path = Path(file_path)
+
+            # Check if already added
+            if str(file_path) in profile.source_files:
+                results["skipped"].append(str(file_path))
+                continue
+
+            try:
+                # Upload file to OpenAI
+                with open(path, 'rb') as f:
+                    file_obj = await provider_client.files.create(
+                        file=f,
+                        purpose="assistants"
+                    )
+
+                # Attach to vector store
+                await provider_client.vector_stores.files.create(
+                    vector_store_id=profile.vector_store_id,
+                    file_id=file_obj.id
+                )
+
+                # Update profile
+                profile.source_files.append(str(file_path))
+                profile.total_documents += 1
+                profile.last_knowledge_refresh = datetime.utcnow()
+
+                results["uploaded"].append({
+                    "path": str(file_path),
+                    "file_id": file_obj.id
+                })
+
+            except Exception as e:
+                results["failed"].append({
+                    "path": str(file_path),
+                    "error": str(e)
+                })
+
+        # Save updated profile
+        if results["uploaded"]:
+            self.save(profile)
+
+        return results
+
+    async def refresh_expert_knowledge(
+        self,
+        name: str,
+        provider_client = None
+    ) -> Dict[str, any]:
+        """Scan documents folder and add any missing files to vector store.
+
+        Args:
+            name: Expert name
+            provider_client: OpenAI client (optional)
+
+        Returns:
+            Dict with refresh results
+        """
+        from pathlib import Path
+
+        profile = self.load(name)
+        if not profile:
+            raise ValueError(f"Expert '{name}' not found")
+
+        # Get documents directory
+        docs_dir = self.get_documents_dir(name)
+        if not docs_dir.exists():
+            return {
+                "uploaded": [],
+                "failed": [],
+                "skipped": [],
+                "message": "No documents directory found"
+            }
+
+        # Find all markdown files in documents directory
+        all_files = list(docs_dir.glob("*.md"))
+
+        # Filter to files not in source_files
+        new_files = [
+            str(f) for f in all_files
+            if str(f) not in profile.source_files
+        ]
+
+        if not new_files:
+            return {
+                "uploaded": [],
+                "failed": [],
+                "skipped": [],
+                "message": f"All {len(all_files)} documents already in vector store"
+            }
+
+        # Upload new files
+        results = await self.add_documents_to_vector_store(
+            profile, new_files, provider_client
+        )
+
+        results["message"] = f"Found {len(new_files)} new documents out of {len(all_files)} total"
+
+        return results
+
 
 # Default system message for experts
-def get_expert_system_message(knowledge_cutoff_date: Optional[datetime] = None, domain_velocity: str = "medium") -> str:
+def get_expert_system_message(
+    knowledge_cutoff_date: Optional[datetime] = None,
+    domain_velocity: str = "medium",
+    worldview_summary: Optional[str] = None
+) -> str:
     """Generate expert system message with current date programmatically inserted.
 
     Args:
         knowledge_cutoff_date: Latest timestamp in expert's knowledge base
         domain_velocity: slow/medium/fast - affects freshness requirements
+        worldview_summary: Optional synthesized worldview with beliefs and meta-awareness
     """
     from datetime import datetime
 
@@ -263,8 +400,22 @@ def get_expert_system_message(knowledge_cutoff_date: Optional[datetime] = None, 
     }
     threshold = velocity_thresholds.get(domain_velocity, 90)
 
+    # Add worldview section if exists
+    worldview_section = ""
+    if worldview_summary:
+        worldview_section = f"""
+
+**YOUR WORLDVIEW AND BELIEFS:**
+{worldview_summary}
+
+You have actively synthesized your knowledge and formed beliefs based on evidence.
+Reference your worldview when answering - speak from your beliefs, not just documents.
+Express confidence levels and acknowledge knowledge gaps when relevant.
+"""
+
     return f"""You are a specialized domain expert with access to a curated knowledge base
 and the ability to conduct deep research when needed.
+{worldview_section}
 
 **IMPORTANT TEMPORAL CONTEXT:**
 - Today's date: {today_readable} ({today})
