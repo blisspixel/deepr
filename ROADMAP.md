@@ -829,24 +829,48 @@ while conversation_active:
 - Vector store integration
 - Beginner's mind system message
 
-**Phase 1b: Self-Directed Learning Curriculum** [IN PROGRESS]
-- `deepr expert make "name" -f files --learn --budget 5`
+**Phase 1b: Self-Directed Learning Curriculum**
 
 **COMPLETED:**
-- [DONE] GPT-5 curriculum generation (Responses API with GPT-5)
-- [DONE] Deep research job submission (o4-mini-deep-research)
-- [DONE] Budget estimation shown upfront (per-topic + total)
-- [DONE] Multi-layer budget protection (curriculum + per-job validation)
-- [DONE] Research prompt length validation (<300 chars for API compatibility)
-- [DONE] Phased execution respecting topic dependencies
-- [DONE] Expert tracking of research job IDs
+- GPT-5 curriculum generation (Responses API with GPT-5)
+- Deep research job submission (o4-mini-deep-research)
+- Budget estimation shown upfront (per-topic + total)
+- Multi-layer budget protection (curriculum + per-job validation)
+- Research prompt length validation (<300 chars for API compatibility)
+- Phased execution respecting topic dependencies
+- Expert tracking of research job IDs
+- Research jobs submit successfully to OpenAI
+- Jobs complete (4-20 min each, $0.10-0.30 per job)
+- Polling for completion implemented
+- Results saved to expert's documents folder
 
-**CURRENT STATUS (2025-11-06 - WORKING):**
+**LEARNING LOOP - FIXED (2025-11-12):**
 
-**Autonomous learning workflow is fully functional:**
-- [DONE] Research jobs ARE submitted successfully to OpenAI
-- [DONE] Jobs DO complete (4-20 min each, $0.10-0.30 per job)
-- [DONE] Polling for completion implemented ([learner.py:236-335](deepr/experts/learner.py#L236-L335))
+The learning loop is now fully closed. Experts can learn from research results in two ways:
+
+1. **Automatic (Real-time):** When using agentic chat with `standard_research`, results are immediately:
+   - Saved to `data/experts/<name>/documents/`
+   - Uploaded to vector store
+   - Available in expert's knowledge base
+
+2. **Manual (Batch):** Use `deepr expert refresh <name>` to:
+   - Scan documents folder for new files
+   - Upload missing documents to vector store
+   - Close the loop for externally-added research
+
+**Verified working (agentic_digital_consciousness expert):**
+- Found 6 missing documents (including 66KB MCP research doc)
+- Uploaded to vector store successfully
+- Expert now has 15 documents in knowledge base
+- Expert can access all research results
+
+**Implementation:**
+- Added `ExpertStore.add_documents_to_vector_store()` ([profile.py:239-313](deepr/experts/profile.py#L239-L313))
+- Added `ExpertStore.refresh_expert_knowledge()` ([profile.py:315-369](deepr/experts/profile.py#L315-L369))
+- Added CLI command `deepr expert refresh <name>` ([semantic.py:530-594](deepr/cli/commands/semantic.py#L530-L594))
+- Existing agentic chat already uploads real-time ([chat.py:333-403](deepr/experts/chat.py#L333-L403))
+
+This enables the core vision of "digital consciousness that learns over time"
 - [DONE] Report download and integration ([learner.py:336-423](deepr/experts/learner.py#L336-L423))
 - [DONE] Upload to vector store working
 - [DONE] Expert profile updated with document count
