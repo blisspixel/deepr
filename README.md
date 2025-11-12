@@ -323,6 +323,22 @@ Check Deepr configuration and troubleshoot issues:
 
 ---
 
+### MCP Integration (AI Agent Access)
+
+Deepr can be integrated with AI agents like Claude Desktop and Cursor via the Model Context Protocol (MCP). This allows AI assistants to directly submit research jobs, check status, and retrieve results.
+
+Deepr exposes 7 MCP tools for AI agents:
+- **Research**: `deepr_research`, `deepr_check_status`, `deepr_get_result`, `deepr_agentic_research`
+- **Experts**: `deepr_list_experts`, `deepr_query_expert`, `deepr_get_expert_info`
+
+**Quick Setup:**
+
+Copy [`mcp/mcp-config-claude-desktop.json`](mcp/mcp-config-claude-desktop.json) to `%APPDATA%\Claude\claude_desktop_config.json` and add your API key.
+
+**See [`mcp/README.md`](mcp/README.md) for complete setup, usage examples, and API reference.**
+
+---
+
 ## Writing Better Prompts
 
 Vague prompt:

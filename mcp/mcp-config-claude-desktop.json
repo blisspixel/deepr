@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "deepr": {
+      "command": "python",
+      "args": [
+        "-m",
+        "deepr.mcp.server"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
