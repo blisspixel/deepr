@@ -93,6 +93,8 @@ reports/
 backups/
 archive/
 DEPRECATED/
+working/
+bin/
 
 # Logs
 *.log
@@ -196,3 +198,4 @@ idea 11-4-2025.txt
 TEMP NOTE.txt
 /data/experts
 nul
+_ul

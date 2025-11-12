@@ -1,40 +1,38 @@
-#!/usr/bin/env bash
-# Deepr installation script for Linux and macOS
+#!/bin/bash
+# Install deepr CLI globally so it can be used anywhere
 
-set -e
+set -e  # Exit on error
 
-echo "Installing Deepr..."
+echo "Installing deepr CLI..."
 echo
 
 # Check Python version
-if ! command -v python3 &> /dev/null; then
-    echo "ERROR: Python 3 is not installed"
-    echo "Please install Python 3.9 or higher"
+python_version=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' || python --version 2>&1 | grep -oP '\d+\.\d+')
+echo "Python version: $python_version"
+
+# Install in editable mode for development
+echo "Installing in editable mode..."
+pip install -e .
+
+# Verify installation
+echo
+echo "Verifying installation..."
+if command -v deepr &> /dev/null; then
+    echo "✓ deepr command is available"
+    deepr --version || echo "deepr CLI installed successfully"
+else
+    echo "✗ deepr command not found in PATH"
+    echo "  Try: pip install --user -e ."
+    echo "  And ensure ~/.local/bin (or equivalent) is in your PATH"
     exit 1
 fi
 
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-echo "Found Python $PYTHON_VERSION"
-
-# Check pip
-if ! command -v pip3 &> /dev/null; then
-    echo "ERROR: pip3 is not installed"
-    echo "Please install pip: python3 -m ensurepip --upgrade"
-    exit 1
-fi
-
 echo
-echo "Installing Deepr package..."
-pip3 install -e .
-
+echo "Installation complete! You can now use 'deepr' from anywhere."
 echo
-echo "Installation complete!"
-echo
-echo "Next steps:"
-echo "  1. Copy .env.example to .env: cp .env.example .env"
-echo "  2. Edit .env and add your OPENAI_API_KEY"
-echo "  3. Run: deepr --version"
-echo
-echo "If 'deepr' command not found, add to PATH:"
-echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+echo "Quick start:"
+echo "  deepr --help                   # Show all commands"
+echo "  deepr expert list              # List experts"
+echo "  deepr expert chat <name>       # Chat with an expert"
+echo "  deepr run focus <query>        # Run quick research"
 echo
