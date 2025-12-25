@@ -56,15 +56,15 @@ class GrokProvider(DeepResearchProvider):
         # Grok model mappings
         self.model_mappings = {
             "grok-4": "grok-4",
-            "grok-4-fast": "grok-4-fast-reasoning",
+            "grok-4-fast": "grok-4-fast-non-reasoning",  # Default to non-reasoning for speed
             "grok-4-fast-reasoning": "grok-4-fast-reasoning",
             "grok-4-fast-non-reasoning": "grok-4-fast-non-reasoning",
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
-            # Aliases
-            "grok": "grok-4-fast-reasoning",
-            "grok-fast": "grok-4-fast-reasoning",
+            # Aliases (prefer non-reasoning for speed, use explicit -reasoning if needed)
+            "grok": "grok-4-fast-non-reasoning",
+            "grok-fast": "grok-4-fast-non-reasoning",
             "grok-mini": "grok-3-mini",
         }
 
@@ -129,16 +129,9 @@ class GrokProvider(DeepResearchProvider):
             ]
 
             # Build tools list (if enabled)
+            # NOTE: Grok doesn't actually support tools in chat.completions API yet
+            # Web search is automatic when needed. Skip tools parameter entirely.
             tools = None
-            if request.tools:
-                tools = []
-                for tool in request.tools:
-                    if tool.type == "web_search":
-                        # Grok server-side web search
-                        tools.append({"type": "web_search"})
-                    elif tool.type == "code_interpreter":
-                        # Grok server-side code execution
-                        tools.append({"type": "code_interpreter"})
 
             # Create completion
             completion_params = {
@@ -181,12 +174,13 @@ class GrokProvider(DeepResearchProvider):
                 "error": str(e),
                 "completed_at": datetime.now(timezone.utc),
             })
-            raise ProviderError(f"Grok research failed: {e}")
+            # Don't raise - store error in job status instead
+            # This matches the behavior expected for immediate-completion providers
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """Get research job status."""
         if job_id not in self.jobs:
-            raise ProviderError(f"Job {job_id} not found")
+            raise ProviderError(f"Job {job_id} not found", provider="grok")
 
         job_data = self.jobs[job_id]
         status = job_data["status"]
@@ -310,7 +304,7 @@ class GrokProvider(DeepResearchProvider):
 #    - No reasoning_effort parameter (always full reasoning)
 #
 # 2. Server-Side Tools (autonomous execution)
-#    - web_search: Internet search + page browsing
+#    - live_search: Internet search + page browsing (formerly web_search)
 #    - x_search: X posts, users, threads
 #    - code_interpreter: Python execution
 #    - Agent autonomously decides when/how to use tools

@@ -6,19 +6,52 @@ from typing import Optional
 from deepr.branding import print_section_header
 
 
-async def run_dream_team(question: str, model: str = "o4-mini-deep-research", perspectives: int = 6):
+async def run_dream_team(question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str = None):
     """
     Execute dream team research (async wrapper for new CLI).
 
     This is called by the new 'deepr run team' command.
+
+    Args:
+        question: The question to research
+        model: Model to use for research
+        perspectives: Number of team perspectives
+        provider: Provider to use (defaults to model-based routing)
     """
     from deepr.services.team_architect import TeamArchitect
-    from deepr.services.batch_executor import BatchExecutor
-    from deepr.storage.local import LocalStorage
+    from deepr.providers import create_provider
+    from deepr.providers.base import ResearchRequest, ToolConfig
+    from deepr.storage import create_storage
     from deepr.queue import create_queue
     from deepr.queue.base import ResearchJob, JobStatus
+    from deepr.config import load_config
     from datetime import datetime
     import uuid
+    import os
+
+    # Load config
+    config = load_config()
+
+    # Determine provider based on model if not specified
+    if provider is None:
+        is_deep_research = "deep-research" in model.lower()
+        if is_deep_research:
+            provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+        else:
+            provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
+        click.echo(f"[Using {provider} provider for team research]")
+
+    # Get provider-specific API key
+    if provider == "gemini":
+        api_key = config.get("gemini_api_key")
+    elif provider in ["grok", "xai"]:
+        api_key = config.get("xai_api_key")
+        provider = "xai"  # Normalize
+    elif provider == "azure":
+        api_key = config.get("azure_api_key")
+    else:  # openai
+        api_key = config.get("api_key")
+        provider = "openai"
 
     # Phase 1: Design team
     architect = TeamArchitect(model="gpt-5")
@@ -31,11 +64,25 @@ async def run_dream_team(question: str, model: str = "o4-mini-deep-research", pe
         adversarial=False
     )
 
-    # Phase 2: Submit research jobs for each perspective
-    queue = create_queue("local")
-    job_ids = []
+    click.echo(f"\nTeam assembled with {len(team)} perspectives:")
+    for i, member in enumerate(team, 1):
+        # Handle Unicode encoding issues on Windows
+        role = member['role'].encode('ascii', 'replace').decode('ascii')
+        focus = member['focus'][:60].encode('ascii', 'replace').decode('ascii')
+        click.echo(f"  {i}. {role}: {focus}...")
 
-    for member in team:
+    # Phase 2: Execute research for each perspective
+    provider_instance = create_provider(provider, api_key=api_key)
+    queue = create_queue("local")
+    storage = create_storage(
+        config.get("storage", "local"),
+        base_path=config.get("results_dir", "data/reports")
+    )
+
+    click.echo(f"\nExecuting research from {len(team)} perspectives...")
+    results = []
+
+    for i, member in enumerate(team, 1):
         # Create research prompt for this perspective
         prompt = f"""Question: {question}
 
@@ -45,21 +92,111 @@ Rationale: {member['rationale']}
 
 Provide your analysis from this perspective."""
 
+        job_id = f"team-{uuid.uuid4().hex[:12]}"
+
+        # Store job in queue first
         job = ResearchJob(
-            id=f"team-{uuid.uuid4().hex[:12]}",
+            id=job_id,
             prompt=prompt,
             model=model,
-            status=JobStatus.QUEUED,
+            provider=provider,
+            status=JobStatus.PROCESSING,
             submitted_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
             enable_web_search=True,
             metadata={"team_role": member['role'], "question": question}
         )
+        await queue.enqueue(job)
 
-        job_id = await queue.enqueue(job)
-        job_ids.append(job_id)
+        # Handle Unicode encoding issues on Windows
+        role = member['role'].encode('ascii', 'replace').decode('ascii')
+        click.echo(f"\n[{i}/{len(team)}] {role}...")
 
-    click.echo(f"Submitted {len(job_ids)} research jobs for team perspectives")
-    return job_ids
+        # Submit to provider
+        try:
+            request = ResearchRequest(
+                prompt=prompt,
+                model=model,
+                system_message=f"You are a research expert analyzing from the perspective of: {member['role']}. Focus on: {member['focus']}",
+                tools=[ToolConfig(type="web_search")] if provider != "xai" else [],  # xAI auto-enables web search
+            )
+
+            provider_job_id = await provider_instance.submit_research(request)
+
+            # Update job with provider job ID
+            await queue.update_status(job_id, JobStatus.PROCESSING, provider_job_id=provider_job_id)
+
+            # Wait for completion (immediate for xAI/Gemini, polling for OpenAI)
+            response = await provider_instance.get_status(provider_job_id)
+
+            # For async providers, poll until complete
+            import asyncio
+            max_wait = 600  # 10 minutes max
+            waited = 0
+            while response.status in ["queued", "in_progress"] and waited < max_wait:
+                await asyncio.sleep(5)
+                waited += 5
+                response = await provider_instance.get_status(provider_job_id)
+
+            if response.status == "completed":
+                # Extract content
+                content = ""
+                if response.output:
+                    for block in response.output:
+                        if block.get('type') == 'message':
+                            for item in block.get('content', []):
+                                if item.get('type') in ['output_text', 'text']:
+                                    text = item.get('text', '')
+                                    if text:
+                                        content += text + "\n"
+
+                # Save report
+                report_metadata = await storage.save_report(
+                    job_id=job_id,
+                    filename="report.md",
+                    content=content.encode('utf-8'),
+                    content_type="text/markdown",
+                    metadata={
+                        "prompt": prompt,
+                        "model": model,
+                        "team_role": member['role'],
+                        "question": question,
+                    }
+                )
+
+                # Update queue
+                await queue.update_status(job_id, JobStatus.COMPLETED)
+                cost = response.usage.cost if response.usage else 0.0
+                await queue.update_results(
+                    job_id,
+                    report_paths={"markdown": report_metadata.url},
+                    cost=cost
+                )
+
+                results.append({
+                    "job_id": job_id,
+                    "role": member['role'],
+                    "content": content,
+                    "cost": cost
+                })
+
+                click.echo(f"  [OK] Completed (${cost:.4f})")
+
+            else:
+                error_msg = response.error if response.error else "Unknown error"
+                await queue.update_status(job_id, JobStatus.FAILED, error=error_msg)
+                click.echo(f"  [X] Failed: {error_msg}")
+
+        except Exception as e:
+            await queue.update_status(job_id, JobStatus.FAILED, error=str(e))
+            click.echo(f"  [X] Error: {e}")
+
+    total_cost = sum(r.get('cost', 0) for r in results)
+    click.echo(f"\n[OK] Team research completed!")
+    click.echo(f"  Perspectives analyzed: {len(results)}/{len(team)}")
+    click.echo(f"  Total cost: ${total_cost:.4f}")
+
+    return results
 
 
 @click.group()
