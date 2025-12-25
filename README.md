@@ -120,6 +120,98 @@ These outputs form the **knowledge substrate** for intelligent systems.
 
 ---
 
+## Structured Learning: The Four Types of Knowledge
+
+Real learning is not a single activity - it's a structured workflow mixing **currency** (news), **fundamentals** (docs), **depth** (research), and **strategy** (team discussion). Deepr standardizes this workflow with file naming conventions that mirror how experts actually work.
+
+### The Four Knowledge Artifact Types
+
+| Type | File Pattern | Purpose | Model | Cost | Command |
+|------|-------------|---------|-------|------|---------|
+| **News** | `news-{topic}.md` | Track latest developments, releases, vulnerabilities | grok-4-fast | ~$0.001 | `deepr news` |
+| **Docs** | `docs-{topic}.md` | Understand fundamentals, APIs, official documentation | grok-4-fast | ~$0.002 | `deepr research --scrape` |
+| **Research** | `research-{topic}.md` | Deep analysis, comparisons, problem-solving | o4-mini OR grok-4-fast | $0.001-$0.50 | `deepr research` |
+| **Team** | `team-{topic}.md` | Strategic discussions, multiple perspectives | grok-4-fast | ~$0.005 | `deepr team` |
+
+### Real-World Learning Example: Kubernetes
+
+```bash
+# 1. NEWS: What's happening in the ecosystem? (Daily/Weekly)
+deepr news "Kubernetes latest developments" > knowledge/news/news-kubernetes.md
+
+# 2. DOCS: What are the fundamentals? (Official documentation)
+deepr research "Summarize Kubernetes core concepts" \
+  --scrape https://kubernetes.io/docs/concepts \
+  --model grok-4-fast \
+  > knowledge/docs/docs-kubernetes-core.md
+
+# 3. RESEARCH: How does it work? What are trade-offs? (Deep dive)
+deepr research "Kubernetes networking deep dive - CNI, Services, Ingress" \
+  --model o4-mini-deep-research \
+  > knowledge/research/research-kubernetes-networking.md
+
+# 4. TEAM: Should we adopt it? What are risks? (Strategic discussion)
+deepr team "Should we self-host Kubernetes or use EKS/GKE?" \
+  --perspectives 6 \
+  --model grok-4-fast \
+  > knowledge/team/team-kubernetes-hosting-decision.md
+```
+
+**Total cost for complete learning package**: ~$0.51
+- News: $0.0008
+- Docs: $0.002
+- Research (deep): $0.50
+- Team (6 perspectives): $0.005
+
+### Recommended Directory Structure
+
+```
+knowledge/
+├── news/              # Latest developments
+│   ├── news-kubernetes.md
+│   ├── news-aws-services.md
+│   └── news-security-vulnerabilities.md
+│
+├── docs/              # Official documentation summaries
+│   ├── docs-aws-caf.md
+│   ├── docs-kubernetes-networking.md
+│   └── docs-oauth2-spec.md
+│
+├── research/          # Deep analysis and problem-solving
+│   ├── research-api-gateway-comparison.md
+│   ├── research-database-scaling-strategies.md
+│   └── research-zero-trust-architecture.md
+│
+└── team/              # Strategic discussions
+    ├── team-microservices-migration.md
+    ├── team-open-source-strategy.md
+    └── team-market-entry-decision.md
+```
+
+### Model Selection Strategy
+
+**When to use Deep Research Models** (o4-mini, o3):
+- Novel problem-solving requiring extended reasoning
+- Critical strategic decisions (M&A, architecture pivots)
+- Complex synthesis connecting disparate research
+- Multi-constraint optimization problems
+
+**When to use Fast Models** (grok-4-fast, gemini-2.5-flash):
+- **News monitoring** - Latest developments, releases, vulnerabilities
+- **Documentation** - Summarizing official docs, APIs, specs
+- **Team research** - Multiple perspectives (6+ viewpoints)
+- **Learning campaigns** - Breadth-first exploration
+- **Expert chat** - Interactive Q&A with knowledge bases
+- **Planning** - Research orchestration and task breakdown
+
+**Cost comparison**: Fast models are **96-99% cheaper** for these use cases with comparable quality.
+
+📖 **See [docs/LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md)** for comprehensive guide with examples and automation scripts.
+
+📖 **See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md)** for detailed model selection strategy.
+
+---
+
 ## Quick Start
 
 **Prerequisites**: Python 3.9+ required
@@ -293,6 +385,41 @@ deepr research "What are the top 3 feature requests across all customer intervie
 ```
 
 Create persistent knowledge bases from documents and past research. Query them semantically without re-uploading files.
+
+---
+
+### Web Scraping for Primary Source Research
+
+```bash
+# Scrape a company website for competitive intelligence
+from deepr.utils.scrape import scrape_for_company_research
+results = scrape_for_company_research(
+    company_url="https://competitor.com",
+    company_name="Competitor Inc"
+)
+
+# Scrape documentation for expert knowledge building
+from deepr.utils.scrape import scrape_for_documentation
+results = scrape_for_documentation(
+    docs_url="https://docs.technology.com",
+    project_name="Technology X"
+)
+```
+
+Intelligent web scraping with adaptive fetching strategies (HTTP → Selenium → PDF render → Archive.org), LLM-guided link filtering, and content synthesis. Built for research-first workflows:
+
+- **Adaptive Content Acquisition**: Multiple fallback strategies ensure content is captured
+- **Smart Link Filtering**: LLM determines relevance instead of blind crawling
+- **Purpose-Specific Synthesis**: Structured insights for company research, documentation, or competitive intel
+- **User Control**: Configurable guardrails (default: aggressive for research, optional: respectful mode)
+
+Use cases:
+- Company research: Understand products, positioning, market strategy
+- Documentation harvesting: Build expert knowledge bases from technical docs
+- Competitive intelligence: Analyze capabilities, pricing, messaging
+- Strategic analysis: Deep understanding of companies and industries
+
+See [deepr/utils/scrape/README.md](deepr/utils/scrape/README.md) for complete API documentation.
 
 ---
 

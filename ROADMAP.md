@@ -2,18 +2,72 @@
 
 ## Model Strategy
 
-**Multi-Provider Architecture with GPT-5 Standard**
+**Dual Provider Architecture: Deep Research + Fast Models**
 
-Deepr supports multiple AI providers for flexibility and avoiding vendor lock-in:
-- **OpenAI**: Primary provider using **GPT-5 models** (gpt-5, gpt-5-mini, gpt-5-nano)
-- **Azure OpenAI**: Enterprise version using **GPT-5** via Azure
-- **Google Gemini**: Alternative provider (2.5-flash, 2.5-pro)
-- **xAI Grok**: Real-time search capabilities
+Deepr uses a hybrid approach optimizing for both **quality** and **cost**:
 
-**Important**: When using OpenAI or Azure OpenAI, Deepr **uses GPT-5 models only**. We do not support GPT-4.
-- Expert systems: GPT-5 with tool calling for RAG (NOT deprecated Assistants API)
-- Research planning: GPT-5 for curriculum generation and adaptive workflows
-- Chat interfaces: GPT-5 with tool-based vector store retrieval
+### Deep Research (OpenAI/Azure)
+- **Models**: o4-mini-deep-research, o3-deep-research
+- **Use cases**: Novel problem-solving, critical decisions, complex synthesis
+- **Cost**: $0.50-$5.00 per query
+- **Execution**: Async (5-15 minutes)
+- **When**: ~20% of operations requiring extended reasoning
+
+### Fast/General Operations (xAI, Gemini, Anthropic)
+- **Models**: grok-4-fast (xAI), gemini-2.5-flash (Google), claude-sonnet-4-5 (Anthropic)
+- **Use cases**: News, docs, team research, learning, expert chat, planning
+- **Cost**: $0.0005-$0.003 per query (96-99% cheaper!)
+- **Execution**: Immediate (10-60 seconds)
+- **When**: ~80% of operations
+
+### Planning & Orchestration (GPT-5)
+- **Models**: gpt-5, gpt-5-mini, gpt-5-nano
+- **Use cases**: Research planning, curriculum generation, adaptive workflows
+- **Cost**: $0.01-$0.05 per plan
+- **Execution**: Immediate
+- **When**: Planning before execution
+
+**Cost Optimization**: Using fast models for 80% of operations reduces total costs by ~90% with comparable quality for those use cases.
+
+📖 **See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md)** for detailed strategy.
+
+---
+
+## Structured Learning Approach
+
+**Philosophy**: Real learning is not a single activity - it's a structured workflow.
+
+Deepr standardizes four types of knowledge artifacts, each with file naming conventions:
+
+### The Four Types
+
+| Type | Pattern | Purpose | Model | Cost |
+|------|---------|---------|-------|------|
+| **news-{topic}.md** | Latest developments, releases, vulnerabilities | grok-4-fast | ~$0.001 |
+| **docs-{topic}.md** | Fundamentals, APIs, official documentation | grok-4-fast | ~$0.002 |
+| **research-{topic}.md** | Deep analysis, problem-solving | o4-mini OR grok-4-fast | $0.001-$0.50 |
+| **team-{topic}.md** | Strategic discussions, multiple perspectives | grok-4-fast | ~$0.005 |
+
+### Learning Cycle
+
+```
+1. NEWS (Daily)          → What's changing?
+2. DOCS (As needed)      → What are the fundamentals?
+3. RESEARCH (Deep dive)  → How does it work? Trade-offs?
+4. TEAM (Strategic)      → Should we adopt it? What are risks?
+5. EXPERT (Synthesis)    → Feed all artifacts to expert for Q&A
+6. Back to NEWS          → Stay current
+```
+
+**Example learning Kubernetes**:
+1. `news-kubernetes.md` - Weekly updates ($0.001)
+2. `docs-kubernetes-core.md` - Core concepts ($0.002)
+3. `research-kubernetes-networking.md` - Deep dive ($0.50)
+4. `team-kubernetes-hosting-decision.md` - EKS vs self-host ($0.005)
+
+**Total**: ~$0.51 for complete learning package
+
+📖 **See [docs/LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md)** for comprehensive guide.
 
 ---
 
@@ -1827,6 +1881,45 @@ Previous roadmap focused on horizontal expansion:
   - Context discovery (notify, don't auto-inject - quality first)
   - Autonomous provider routing (benchmarking, auto-fallback)
   - Human oversight when needed (checkpoints, intervention)
+  - **Web Scraping Skill** (Primary source acquisition) [DONE]
+    - Adaptive fetching: HTTP → Selenium → PDF render → Archive.org
+    - LLM-guided link filtering (not blind crawling)
+    - Content synthesis with provenance tracking
+    - Use cases: company research, documentation harvesting, competitive intel
+    - Integration: Python API (`deepr.utils.scrape`) ready for research workflows
+    - Philosophy: Get the content (research-focused, user control over guardrails)
+    - Status: COMPLETE - 2,491 lines, all tests passing, real-world validated
+  - **Strategic Company Research** (Foundational use case) [TODO]
+    - One-command company analysis: `deepr research company <company_name> <website>`
+    - 15-section comprehensive report (products, financials, strategy, board concerns, recommendations)
+    - Orchestrates: Web scraping → Google search → Section research → Quality grading → Final report
+    - Proven prompts from existing Automated Company Researcher (47 prompts)
+    - Output: Professional markdown report ready for M&A, competitive intel, strategic planning
+    - Expert integration: Company research → Expert knowledge base (e.g., "Anthropic Expert")
+    - Use cases: Due diligence, competitive analysis, market research, strategic planning
+    - Status: Design complete, prompts ready, orchestration needed
+  - **Grok as Cost-Effective Default** (Reduce GPT-5 dependency) [IN PROGRESS]
+    - Strategy: Use Grok 4 Fast for non-deep-research operations
+    - Deep Research: OpenAI o3/o4-mini (only provider with async Deep Research API)
+    - Everything else: Grok 4 Fast (47x cheaper than GPT-5, SOTA cost-efficiency)
+    - Planning/synthesis/chat: Grok 4 Fast ($0.20 input / $0.50 output per 1M tokens)
+    - Expert systems: Grok 4 Fast with tool calling (web_search, x_search, code_execution)
+    - Research orchestration: Grok 4 Fast for adaptive planning and review
+    - Context building: Grok 4 Fast for summarization (vs gpt-5-mini)
+    - Link filtering (scraping): Grok 4 Fast for relevance scoring
+    - Benefits:
+      * 98% cost reduction vs GPT-5 at comparable intelligence
+      * 2M token context window (vs GPT-5's limits)
+      * Native X search integration (real-time social intelligence)
+      * Agentic tool calling (autonomous web/code/X search)
+      * Unified reasoning/non-reasoning in single model
+    - Implementation:
+      * Update default models in config
+      * Test and validate Grok 4 Fast across all workflows
+      * Keep OpenAI for Deep Research (unique capability)
+      * Measure quality vs cost trade-offs
+      * Fallback to GPT-5 if Grok unavailable
+    - Status: Provider complete, defaults need updating, testing in progress
 
 - **v2.3: Cognitive Diversity Visibility**
   - Show team member contributions and conflicts
