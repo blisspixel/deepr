@@ -186,6 +186,9 @@ docs/**/*notes*.txt
 docs/**/*exploration*.md
 docs/**/.private/
 
+# Ideas for other projects (not part of deepr)
+docs/ideas/
+
 # Test Data
 tests/data/reports/
 tests/data/

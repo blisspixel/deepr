@@ -44,40 +44,179 @@ def detect_research_mode(prompt: str) -> str:
 
 @click.command()
 @click.argument("query")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model to use")
-@click.option("--provider", "-p", default="openai",
-              type=click.Choice(["openai", "azure", "gemini", "grok"]),
-              help="Research provider (openai, azure, gemini, grok)")
+@click.argument("company_name", required=False)
+@click.argument("website", required=False)
+@click.option("--model", "-m", default=None, help="Research model to use (defaults based on provider)")
+@click.option("--provider", "-p", default=None,
+              type=click.Choice(["openai", "azure", "gemini", "xai"]),
+              help="Research provider (defaults: deep-research=openai, general=xai)")
 @click.option("--no-web", is_flag=True, help="Disable web search")
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
+@click.option("--scrape", "-s", help="Scrape website for primary source research")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 @click.option("--mode", type=click.Choice(["focus", "docs", "auto"]), default="auto",
               help="Research mode (auto=detect automatically)")
+@click.option("--scrape-only", is_flag=True, help="Company research: only scrape, don't submit research job")
 def research(
     query: str,
-    model: str,
-    provider: str,
+    company_name: Optional[str],
+    website: Optional[str],
+    model: Optional[str],
+    provider: Optional[str],
     no_web: bool,
     no_code: bool,
     upload: tuple,
+    scrape: Optional[str],
     limit: Optional[float],
     yes: bool,
     mode: str,
+    scrape_only: bool,
 ):
     """Run research with automatic mode detection.
 
     Automatically detects whether you need focused research or documentation
     research based on your query. You can override with --mode.
 
-    Examples:
+    COMPANY RESEARCH MODE:
+        deepr research company "<company_name>" "<website>"
+
+        Runs strategic company research with two phases:
+        1. Scrapes company website for fresh content
+        2. Submits deep research job with strategic analysis prompt
+
+        Output: Consultant-grade strategic overview with 10 sections
+        (Executive Summary, Products/Services, USP, Mission/Vision, History,
+        Achievements, Target Audience, Financials, KPIs, SWOT)
+
+    GENERAL RESEARCH EXAMPLES:
         deepr research "Analyze AI code editor market 2025"
         deepr research "Document the authentication flow" --mode docs
         deepr research "Latest quantum computing trends" -m o3-deep-research
         deepr research "Company analysis" --upload data.csv --limit 5.00
-        deepr research "Query" --provider gemini -m gemini-2.5-flash
+        deepr research "Strategic analysis of Acme Corp" --scrape https://acmecorp.com
+        deepr research "Query" --provider grok -m grok-4-fast
     """
+    # Check if this is company research mode
+    if query.lower() == "company":
+        if not company_name or not website:
+            click.echo("Error: Company research requires both company name and website")
+            click.echo("\nUsage:")
+            click.echo('  deepr research company "Company Name" "https://company.com"')
+            click.echo("\nExample:")
+            click.echo('  deepr research company "Driscoll Health System" "https://driscollchildrens.org/"')
+            return
+
+        # Run company research workflow
+        from deepr.core.company_research import CompanyResearchOrchestrator
+
+        click.echo(f"\n{'='*70}")
+        click.echo(f"  Strategic Company Research")
+        click.echo(f"{'='*70}\n")
+
+        orchestrator = CompanyResearchOrchestrator()
+        result = asyncio.run(orchestrator.research_company(
+            company_name=company_name,
+            website=website,
+            model=model,
+            provider=provider,
+            budget_limit=limit,
+            skip_confirmation=yes,
+            scrape_only=scrape_only,
+        ))
+
+        if not result.get('success'):
+            click.echo(f"\n[ERROR] {result.get('error', 'Unknown error')}")
+            return
+
+        click.echo(f"\n{'='*70}")
+        click.echo(f"  Company Research Complete")
+        click.echo(f"{'='*70}\n")
+
+        if result.get('job_id'):
+            click.echo(f"Job ID: {result['job_id']}")
+            click.echo(f"Scraped Content: {result['scraped_file']}")
+            click.echo(f"Pages Captured: {result['pages_scraped']}")
+        else:
+            click.echo(f"Scraped Content: {result['scraped_file']}")
+            click.echo(f"Pages Captured: {result['pages_scraped']}")
+
+        return
+
+    # Determine provider and model based on configuration
+    import os
+
+    # Determine if this is deep research or general operation
+    is_deep_research = model is None or ("deep-research" in model.lower() if model else True)
+
+    # Use defaults from environment if not specified
+    if provider is None:
+        if is_deep_research:
+            provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+            operation_type = "deep research"
+        else:
+            provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
+            operation_type = "general operations"
+        click.echo(f"[Using {provider} provider (default for {operation_type})]")
+
+    if model is None:
+        if is_deep_research:
+            model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+        else:
+            model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-fast")
+        click.echo(f"[Using {model} model (default for {provider})]")
+
+    # Handle scraping if requested
+    if scrape:
+        click.echo(f"\n[Scraping {scrape} for primary source research...]")
+
+        try:
+            from deepr.utils.scrape import scrape_website, ScrapeConfig
+            import tempfile
+            import os
+
+            # Configure scraping (default mode for research)
+            config = ScrapeConfig(
+                max_pages=20,
+                max_depth=2,
+                try_selenium=False,  # HTTP only by default, faster
+            )
+
+            # Scrape website
+            results = scrape_website(
+                url=scrape,
+                purpose="company research" if mode == "focus" or mode == "auto" else "documentation",
+                config=config,
+                synthesize=False,  # We'll let deep research handle synthesis
+            )
+
+            if results['success']:
+                click.echo(f"[Scraped {results['pages_scraped']} pages successfully]")
+
+                # Save scraped content to temporary file for upload
+                temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8')
+                temp_file.write(f"# Scraped Content from {scrape}\n\n")
+                temp_file.write(f"**Scraped {results['pages_scraped']} pages**\n\n")
+
+                for url, content in results['scraped_data'].items():
+                    temp_file.write(f"## Source: {url}\n\n")
+                    temp_file.write(content)
+                    temp_file.write("\n\n---\n\n")
+
+                temp_file.close()
+
+                # Add to upload list
+                upload = list(upload) + [temp_file.name]
+                click.echo(f"[Scraped content saved and added to research context]\n")
+            else:
+                click.echo(f"[WARNING: Scraping failed - continuing with web research only]")
+                click.echo(f"[Error: {results.get('error', 'Unknown error')}]\n")
+
+        except Exception as e:
+            click.echo(f"[WARNING: Scraping failed - {e}]")
+            click.echo(f"[Continuing with web research only]\n")
+
     # Auto-detect mode if set to auto
     if mode == "auto":
         detected_mode = detect_research_mode(query)
@@ -98,7 +237,7 @@ def research(
 @click.argument("topic")
 @click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
 @click.option("--provider", default="openai",
-              type=click.Choice(["openai", "azure", "gemini", "grok"]),
+              type=click.Choice(["openai", "azure", "gemini", "xai"]),
               help="Research provider")
 @click.option("--lead", default="gpt-5", help="Lead planner model")
 @click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
@@ -130,7 +269,7 @@ def learn(
 @click.argument("question")
 @click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
 @click.option("--provider", default="openai",
-              type=click.Choice(["openai", "azure", "gemini", "grok"]),
+              type=click.Choice(["openai", "azure", "gemini", "xai"]),
               help="Research provider")
 @click.option("--perspectives", "-p", type=int, default=6, help="Number of perspectives")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
