@@ -35,10 +35,35 @@ class ProviderConfig(BaseModel):
     )
 
     # Model/Deployment Mappings
-    default_model: str = Field(default="o3-deep-research", description="Default model to use")
+    default_model: str = Field(default="grok-4-fast", description="Default model to use")
     model_mappings: Dict[str, str] = Field(
         default_factory=dict, description="Model key to deployment name mappings (Azure)"
     )
+
+    # Dual Provider Configuration
+    default_provider: str = Field(default="xai", description="Default provider for general operations")
+    deep_research_provider: str = Field(default="openai", description="Provider for deep research operations")
+    deep_research_model: str = Field(default="o4-mini-deep-research", description="Model for deep research")
+
+    @validator("default_provider", always=True)
+    def validate_default_provider(cls, v):
+        """Load default provider from environment."""
+        return os.getenv("DEEPR_DEFAULT_PROVIDER", v)
+
+    @validator("default_model", always=True)
+    def validate_default_model(cls, v):
+        """Load default model from environment."""
+        return os.getenv("DEEPR_DEFAULT_MODEL", v)
+
+    @validator("deep_research_provider", always=True)
+    def validate_deep_research_provider(cls, v):
+        """Load deep research provider from environment."""
+        return os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", v)
+
+    @validator("deep_research_model", always=True)
+    def validate_deep_research_model(cls, v):
+        """Load deep research model from environment."""
+        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v)
 
     @validator("openai_api_key", always=True)
     def validate_openai_key(cls, v, values):
