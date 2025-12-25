@@ -971,22 +971,54 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         raise click.Abort()
 
 
-def _execute_plan_sync(plan_data: dict) -> dict:
-    """Execute plan synchronously and wait for completion. Returns results."""
+def _execute_plan_sync(plan_data: dict, provider_name: str = None) -> dict:
+    """Execute plan synchronously and wait for completion. Returns results.
+
+    Args:
+        plan_data: Plan dictionary with tasks
+        provider_name: Provider to use (defaults to model-based routing)
+    """
     import asyncio
     import time
+    import os
     from deepr.queue.local_queue import SQLiteQueue
-    from deepr.providers.openai_provider import OpenAIProvider
+    from deepr.providers import create_provider
     from deepr.storage.local import LocalStorage
     from deepr.services.batch_executor import BatchExecutor
     from deepr.services.context_builder import ContextBuilder
     from deepr.queue.base import JobStatus
+    from deepr.config import load_config
+
+    # Load config for API keys
+    config = load_config()
+
+    # Determine provider based on model if not specified
+    model = plan_data.get("model", "o4-mini-deep-research")
+    if provider_name is None:
+        # Use environment-based routing or model-based detection
+        is_deep_research = "deep-research" in model.lower()
+        if is_deep_research:
+            provider_name = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+        else:
+            provider_name = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
+
+    # Get provider-specific API key
+    if provider_name == "gemini":
+        api_key = config.get("gemini_api_key")
+    elif provider_name in ["grok", "xai"]:
+        api_key = config.get("xai_api_key")
+        provider_name = "xai"  # Normalize grok to xai
+    elif provider_name == "azure":
+        api_key = config.get("azure_api_key")
+    else:  # openai
+        api_key = config.get("api_key")
+        provider_name = "openai"
 
     # Initialize services
     queue = SQLiteQueue()
-    provider = OpenAIProvider()
+    provider = create_provider(provider_name, api_key=api_key)
     storage = LocalStorage()
-    context_builder = ContextBuilder()
+    context_builder = ContextBuilder(api_key=config.get("api_key"))  # Context builder uses OpenAI for summarization
 
     executor = BatchExecutor(
         queue=queue,

@@ -99,7 +99,18 @@ async def _get_results(job_id: str):
             from deepr.storage import create_storage
 
             config = load_config()
-            provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+
+            # Get provider-specific API key based on job's provider
+            if job.provider == "gemini":
+                api_key = config.get("gemini_api_key")
+            elif job.provider in ["grok", "xai"]:
+                api_key = config.get("xai_api_key")
+            elif job.provider == "azure":
+                api_key = config.get("azure_api_key")
+            else:  # openai
+                api_key = config.get("api_key")
+
+            provider = create_provider(job.provider, api_key=api_key)
 
             # Check status at provider
             response = await provider.get_status(job.provider_job_id)
@@ -243,7 +254,6 @@ async def _refresh_job_statuses(queue, jobs):
         from deepr.storage import create_storage
 
         config = load_config()
-        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
         storage = create_storage(
             config.get("storage", "local"),
             base_path=config.get("results_dir", "data/reports")
@@ -251,6 +261,17 @@ async def _refresh_job_statuses(queue, jobs):
 
         for job in jobs:
             try:
+                # Get provider-specific API key based on job's provider
+                if job.provider == "gemini":
+                    api_key = config.get("gemini_api_key")
+                elif job.provider in ["grok", "xai"]:
+                    api_key = config.get("xai_api_key")
+                elif job.provider == "azure":
+                    api_key = config.get("azure_api_key")
+                else:  # openai
+                    api_key = config.get("api_key")
+
+                provider = create_provider(job.provider, api_key=api_key)
                 response = await provider.get_status(job.provider_job_id)
 
                 if response.status == "completed":

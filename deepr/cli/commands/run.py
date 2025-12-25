@@ -142,7 +142,7 @@ async def _run_single(
             # Get provider-specific API key
             if provider == "gemini":
                 api_key = config.get("gemini_api_key")
-            elif provider == "grok":
+            elif provider in ["grok", "xai"]:
                 api_key = config.get("xai_api_key")
             elif provider == "azure":
                 api_key = config.get("azure_api_key")
@@ -226,9 +226,9 @@ async def _run_single(
                     document_ids = uploaded_files
                     click.echo(f"  [OK] {len(uploaded_files)} files ready for research")
 
-                # For Grok, document collections not yet implemented
-                elif provider == "grok":
-                    click.echo("  [!] Grok file upload not yet fully supported")
+                # For Grok/xAI, document collections not yet implemented
+                elif provider in ["grok", "xai"]:
+                    click.echo("  [!] xAI file upload not yet fully supported")
                     click.echo("  Files uploaded but may not be used in research")
                     document_ids = uploaded_files
 
@@ -275,7 +275,7 @@ async def _run_single(
         # Get provider-specific API key
         if provider == "gemini":
             api_key = config.get("gemini_api_key")
-        elif provider == "grok":
+        elif provider in ["grok", "xai"]:
             api_key = config.get("xai_api_key")
         elif provider == "azure":
             api_key = config.get("azure_api_key")
@@ -288,7 +288,7 @@ async def _run_single(
         tools = []
         if not no_web:
             # Grok/xAI uses "web_search", others use "web_search_preview"
-            tool_name = "web_search" if provider == "grok" else "web_search_preview"
+            tool_name = "web_search" if provider in ["grok", "xai"] else "web_search_preview"
             tools.append(ToolConfig(type=tool_name))
         if not no_code:
             tools.append(ToolConfig(type="code_interpreter"))
@@ -320,8 +320,8 @@ async def _run_single(
         # Submit to provider
         provider_job_id = await provider_instance.submit_research(request)
 
-        # For Gemini and Grok, research completes immediately - check and save results
-        if provider in ["gemini", "grok"]:
+        # For Gemini and Grok/xAI, research completes immediately - check and save results
+        if provider in ["gemini", "grok", "xai"]:
             response = await provider_instance.get_status(provider_job_id)
 
             if response.status == "completed":
@@ -482,13 +482,32 @@ async def _run_campaign(
             return
 
     click.echo("Planning campaign phases...")
+    click.echo("\nNOTE: This command is deprecated. Please use 'deepr prep plan' and 'deepr prep execute' for better control.\n")
 
-    # Import prep functionality
-    from deepr.cli.commands.prep import execute_plan
-    from deepr.planner.planner import plan_research_campaign
+    # Import prep functionality - use the working implementation
+    from deepr.services.research_planner import ResearchPlanner
+    from deepr.cli.commands.prep import _execute_plan_sync
 
-    # Generate plan using lead model
-    plan = await plan_research_campaign(scenario, lead, phases)
+    # Generate plan using lead model (planner for planning, model for execution)
+    planner_svc = ResearchPlanner(model=lead)
+    tasks = planner_svc.plan_research(
+        scenario=scenario,
+        max_tasks=phases,
+        context=None
+    )
+
+    # Add task IDs and model info
+    for i, task in enumerate(tasks, 1):
+        task['id'] = i
+        task['model'] = model
+        task['approved'] = True  # Auto-approve for deprecated command
+
+    plan = {
+        "scenario": scenario,
+        "tasks": tasks,
+        "model": model,
+        "metadata": {"planner": lead}
+    }
 
     click.echo(f"\nCampaign plan generated:")
     click.echo(f"  Tasks: {len(plan['tasks'])}")
@@ -496,10 +515,60 @@ async def _run_campaign(
 
     # Execute campaign
     click.echo("Executing campaign phases...")
-    await execute_plan(plan, model)
 
-    click.echo(f"\nCampaign launched!")
-    click.echo(f"Check progress: deepr list")
+    # Import the async executor instead of the sync wrapper
+    from deepr.services.batch_executor import BatchExecutor
+    from deepr.storage import create_storage
+    from deepr.queue import create_queue
+    from deepr.config import load_config
+    from deepr.providers import create_provider
+    from deepr.services.context_builder import ContextBuilder
+    import time
+    import os
+
+    config = load_config()
+
+    # Determine provider based on model
+    is_deep_research = "deep-research" in model.lower()
+    if is_deep_research:
+        provider_name = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+    else:
+        provider_name = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
+
+    # Get API key
+    if provider_name == "gemini":
+        api_key = config.get("gemini_api_key")
+    elif provider_name in ["grok", "xai"]:
+        api_key = config.get("xai_api_key")
+        provider_name = "xai"
+    elif provider_name == "azure":
+        api_key = config.get("azure_api_key")
+    else:
+        api_key = config.get("api_key")
+        provider_name = "openai"
+
+    # Initialize services
+    queue = create_queue("local")
+    provider_instance = create_provider(provider_name, api_key=api_key)
+    storage = create_storage(
+        config.get("storage", "local"),
+        base_path=config.get("results_dir", "data/reports")
+    )
+    context_builder = ContextBuilder(api_key=config.get("api_key"))
+
+    executor = BatchExecutor(
+        queue=queue,
+        provider=provider_instance,
+        storage=storage,
+        context_builder=context_builder
+    )
+
+    campaign_id = f"campaign-{int(time.time())}"
+    results = await executor.execute_campaign(tasks, campaign_id)
+
+    click.echo(f"\nCampaign completed!")
+    click.echo(f"Results: {len(results.get('tasks', {}))} tasks finished")
+    click.echo(f"\nFor better control, use: deepr prep plan / deepr prep execute")
 
 
 @run.command()
@@ -557,12 +626,17 @@ async def _run_team(
 
     # Import team functionality
     from deepr.cli.commands.team import run_dream_team
+    import os
+
+    # Determine provider based on model
+    is_deep_research = "deep-research" in model.lower()
+    if is_deep_research:
+        provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+    else:
+        provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
 
     # Execute team research
-    await run_dream_team(question, model, perspectives)
-
-    click.echo(f"\nTeam research launched!")
-    click.echo(f"Check progress: deepr list")
+    await run_dream_team(question, model, perspectives, provider=provider)
 
 
 @run.command()
