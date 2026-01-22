@@ -12,7 +12,8 @@ try:
     print("[OK] duckduckgo-search installed")
 except ImportError:
     print("[WARNING] Installing duckduckgo-search for free web search...")
-    os.system("pip install duckduckgo-search")
+    import subprocess
+    subprocess.run(["pip", "install", "duckduckgo-search"], shell=False)
 
 from deepr.providers.anthropic_provider import AnthropicProvider
 from deepr.providers.base import ResearchRequest

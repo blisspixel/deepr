@@ -86,15 +86,15 @@ class NgrokTunnel:
 
         if os.name == "nt":  # Windows
             subprocess.run(
-                "taskkill /F /IM ngrok.exe",
-                shell=True,
+                ["taskkill", "/F", "/IM", "ngrok.exe"],
+                shell=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         else:  # Unix
             subprocess.run(
-                "pkill ngrok",
-                shell=True,
+                ["pkill", "ngrok"],
+                shell=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
