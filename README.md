@@ -143,18 +143,7 @@ See [docs/MCP.md](docs/MCP.md) for setup instructions and limitations.
 
 ### Web Scraping
 
-Intelligent web scraping with adaptive strategies for primary source research:
-
-```python
-from deepr.utils.scrape import scrape_for_company_research
-
-results = scrape_for_company_research(
-    company_url="https://competitor.com",
-    company_name="Competitor Inc"
-)
-```
-
-Adaptive content acquisition (HTTP → Selenium → PDF render → Archive.org), LLM-guided link filtering, and purpose-specific synthesis.
+Intelligent web scraping with fallback strategies for accessing web content when needed.
 
 See [deepr/utils/scrape/README.md](deepr/utils/scrape/README.md) for API documentation.
 
