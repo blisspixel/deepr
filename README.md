@@ -40,25 +40,7 @@ Deepr is a research operating system that turns curiosity into structured, verif
 - Knowledge infrastructure (not just one-off queries)
 - Self-improving experts (learns from conversations)
 
-### Self-Improvement Loop Architecture
-
-Deepr implements a fundamental capability required for advanced AI systems: the ability to recognize knowledge gaps, autonomously learn, and continuously improve.
-
-**The core loop:**
-```
-Query → Expert detects gap → Research triggered →
-Knowledge integrated → Improved responses →
-Meta-cognitive awareness updated
-```
-
-This architecture explores several key concepts in building intelligent systems:
-- **Autonomous learning**: Experts decide when to research vs. answer from existing knowledge
-- **Knowledge synthesis**: Research findings become permanent understanding, not just cached responses
-- **Meta-cognitive awareness**: Experts track what they know, don't know, and need to learn
-- **Persistent memory**: Learning accumulates across conversations and improves over time
-- **Relational understanding**: Knowledge stored as graphs, not just flat vectors
-
-These components align with research areas in advanced AI systems: resource allocation, interpretable reasoning, planning and search, memory systems, and knowledge representation. Deepr provides a practical framework for experimenting with self-improving domain experts that get smarter through use.
+See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for technical details on the self-improvement loop, autonomous learning, and knowledge synthesis.
 
 ---
 
@@ -346,23 +328,19 @@ Actual costs vary by provider, model, prompt complexity, and context size.
 
 ## Writing Better Prompts
 
-**Vague (Poor):**
+Be specific. State the decision you need to make, the scope, and any constraints.
+
+**Vague:**
 ```bash
 deepr research "healthcare regulations"
 ```
 
-**Specific (Good):**
+**Better:**
 ```bash
-deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth services in California, Texas, and New York. Focus on consent requirements, data retention policies, breach notification timelines, and penalties. Include cross-state patient care implications. Provide compliance checklist for a telehealth platform serving all three states."
+deepr research "Compare HIPAA, HITECH, and state privacy laws for telehealth in CA, TX, NY. Focus on consent, data retention, breach notification. Include compliance checklist."
 ```
 
-**Best practices:**
-- State the decision you need to make
-- Specify scope (technologies, timeframe, constraints)
-- Mention what you'll do with the output
-- Include cost, compliance, or performance requirements
-
-See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples.
+See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples and best practices.
 
 ---
 
@@ -377,7 +355,7 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples.
 - [LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md) - Structured learning strategies
 
 **Technical:**
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture
+- [ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) - Technical architecture
 - [MODEL_SELECTION.md](docs/MODEL_SELECTION.md) - Choosing the right model
 - [MCP.md](docs/MCP.md) - Model Context Protocol integration
 
@@ -404,7 +382,7 @@ deepr/
 └── tests/              # Test suite
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed component documentation.
+See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for detailed component documentation.
 
 ---
 
@@ -470,9 +448,13 @@ MIT License. See [LICENSE](LICENSE).
 
 ## About
 
-Deepr is a weekend project by **Nick Seal** exploring how to make deep research accessible via CLI.
+Deepr is a research operating system and knowledge infrastructure platform by **Nick Seal**.
 
-Rough around the edges, actively improving, built for learning in the open. Start with small budgets and expect some friction. Feedback welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
+What started as a weekend experiment has evolved into a comprehensive system for autonomous learning, knowledge synthesis, and self-improving domain experts. The project explores how AI systems learn, remember, and improve over time.
+
+Built with transparency. Designed for both individual learning and as infrastructure for AI agents. Actively evolving.
+
+Contributions and feedback welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
 
 ---
 
