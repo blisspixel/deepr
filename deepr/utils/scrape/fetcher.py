@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .config import ScrapeConfig, USER_AGENTS
+from deepr.utils.security import validate_url, SSRFError
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,17 @@ class ContentFetcher:
             FetchResult with content and metadata
         """
         logger.info(f"Fetching: {url}")
+
+        # Security: Validate URL to prevent SSRF attacks
+        try:
+            validate_url(url, allow_private=False)
+        except SSRFError as e:
+            logger.warning(f"SSRF protection blocked URL: {url} - {e}")
+            return FetchResult(
+                url=url,
+                success=False,
+                error=f"URL blocked for security reasons: {e}",
+            )
 
         # Rate limiting
         self._rate_limit(url)

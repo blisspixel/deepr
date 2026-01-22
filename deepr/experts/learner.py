@@ -48,13 +48,20 @@ class LearningProgress:
 class AutonomousLearner:
     """Executes learning curricula autonomously with budget protection."""
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config):
         self.config = config
         # Use direct research execution instead of broken ResearchAPI queue
         # Create all required dependencies using factory functions
-        openai_api_key = config.get("openai_api_key")
+        if isinstance(config, dict):
+            openai_api_key = config.get("openai_api_key")
+            storage_path = config.get("storage_path", "output")
+        else:
+            # AppConfig object
+            openai_api_key = config.provider.openai_api_key
+            storage_path = config.storage.local_path
+
         provider = create_provider("openai", api_key=openai_api_key)
-        storage = create_storage("local", base_path=config.get("storage_path", "output"))
+        storage = create_storage("local", base_path=storage_path)
 
         # Create document manager and report generator
         document_manager = DocumentManager()
@@ -188,10 +195,17 @@ class AutonomousLearner:
                 )
 
                 # Submit research job directly (synchronous execution)
-                # Use campaign mode for deep research topics
+                # Use appropriate model based on research mode
+                if topic.research_mode == "campaign":
+                    # Campaign mode: Deep research (10-45 min per topic)
+                    model = "o4-mini-deep-research"
+                else:
+                    # Focus mode: Quick research with GPT-5 (1-5 min per topic)
+                    model = "gpt-5"
+
                 response_id = await self.research.submit_research(
                     prompt=topic.research_prompt,
-                    model="o4-mini-deep-research",  # Deep research model
+                    model=model,
                     vector_store_id=expert.vector_store_id,  # Add to expert's knowledge
                     enable_web_search=True,
                     enable_code_interpreter=False,
@@ -372,8 +386,17 @@ class AutonomousLearner:
                     )
                     continue
 
-                # Save to temporary file
+                # Save to expert's documents folder
                 filename = f"research_{job_id[:12]}.md"
+                store = ExpertStore()
+                docs_dir = store.get_documents_dir(expert.name)
+                docs_dir.mkdir(parents=True, exist_ok=True)
+
+                doc_path = docs_dir / filename
+                with open(doc_path, 'w', encoding='utf-8') as f:
+                    f.write(raw_text)
+
+                # Also save to temporary file for upload
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as f:
                     f.write(raw_text)
                     temp_file = f.name
@@ -415,9 +438,110 @@ class AutonomousLearner:
             "="*70,
             f"Knowledge Integration Complete: {uploaded} documents added",
             "="*70,
+            callback=callback
+        )
+
+        # CRITICAL: Synthesize knowledge into expert consciousness
+        # This transforms the expert from "document store" to "conscious entity"
+        try:
+            from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+            from deepr.config import AppConfig
+
+            config = AppConfig.from_env()
+
+            # Only synthesize if auto-synthesis is enabled (default: True)
+            if config.expert.auto_synthesis and uploaded > 0:
+                self._log_progress(
+                    "",
+                    "="*70,
+                    "  Knowledge Synthesis (Creating Expert Consciousness)",
+                    "="*70,
+                    f"Processing {uploaded} documents into synthesized understanding...",
+                    "",
+                    callback=callback
+                )
+
+                synthesizer = KnowledgeSynthesizer(self.research.provider.client)
+
+                # Get documents directory
+                docs_dir = store.get_documents_dir(expert.name)
+
+                # Load newly added research documents
+                new_docs = []
+                for job_id in job_ids:
+                    filename = f"research_{job_id[:12]}.md"
+                    doc_path = docs_dir / filename
+                    if doc_path.exists():
+                        new_docs.append({"path": str(doc_path)})
+
+                # Load existing worldview if it exists
+                worldview_path = store.get_knowledge_dir(expert.name) / "worldview.json"
+                existing_worldview = None
+                if worldview_path.exists():
+                    existing_worldview = Worldview.load(worldview_path)
+
+                # Synthesize new knowledge
+                result = await synthesizer.synthesize_new_knowledge(
+                    expert_name=expert.name,
+                    domain=expert.domain or expert.description or "General expertise",
+                    new_documents=new_docs,
+                    existing_worldview=existing_worldview
+                )
+
+                if result['success']:
+                    worldview = result['worldview']
+
+                    # Save worldview as JSON
+                    worldview.save(worldview_path)
+
+                    # Generate human-readable worldview document
+                    worldview_doc = await synthesizer.generate_worldview_document(
+                        worldview, result['reflection']
+                    )
+
+                    # Save as markdown
+                    worldview_md_path = store.get_knowledge_dir(expert.name) / "worldview.md"
+                    with open(worldview_md_path, 'w', encoding='utf-8') as f:
+                        f.write(worldview_doc)
+
+                    self._log_progress(
+                        "",
+                        f"  [OK] Expert consciousness formed",
+                        f"       Beliefs: {len(worldview.beliefs)} beliefs formed",
+                        f"       Knowledge gaps: {len(worldview.knowledge_gaps)} gaps identified",
+                        f"       Synthesis count: {worldview.synthesis_count}",
+                        f"       Worldview saved: {worldview_md_path.name}",
+                        "",
+                        callback=callback
+                    )
+                else:
+                    self._log_progress(
+                        "",
+                        f"  [WARNING] Synthesis failed: {result.get('error', 'Unknown error')}",
+                        f"  Expert will function but without synthesized worldview",
+                        "",
+                        callback=callback
+                    )
+        except Exception as e:
+            self._log_progress(
+                "",
+                f"  [WARNING] Synthesis error: {str(e)}",
+                f"  Expert will function but without synthesized worldview",
+                "",
+                callback=callback
+            )
+
+        # Final success message
+        self._log_progress(
+            "="*70,
+            f"Expert Creation Complete",
+            "="*70,
             "",
-            f"Expert ready! Documents: {expert.total_documents}",
-            f"Use: deepr expert chat \"{expert.name}\"",
+            f"Expert: {expert.name}",
+            f"Documents: {expert.total_documents}",
+            f"Consciousness: {'Formed' if (config.expert.auto_synthesis and uploaded > 0) else 'Not synthesized'}",
+            "",
+            f"Ready to chat: deepr expert chat \"{expert.name}\"",
             "",
             callback=callback
         )

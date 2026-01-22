@@ -15,12 +15,13 @@ import asyncio
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.temporal_knowledge import TemporalKnowledgeTracker
+from deepr.experts.router import ModelRouter, ModelConfig
 
 
 class ExpertChatSession:
     """Manages an interactive chat session with a domain expert using GPT-5 + tool calling."""
 
-    def __init__(self, expert: ExpertProfile, budget: Optional[float] = None, agentic: bool = False):
+    def __init__(self, expert: ExpertProfile, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True):
         self.expert = expert
         self.budget = budget
         self.agentic = agentic  # Enable research triggering
@@ -38,6 +39,10 @@ class ExpertChatSession:
         # Temporal knowledge tracking
         self.temporal = TemporalKnowledgeTracker(expert.name) if agentic else None
 
+        # Model router for dynamic model selection (Phase 3a)
+        self.enable_router = enable_router
+        self.router = ModelRouter() if enable_router else None
+
         # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
@@ -46,9 +51,47 @@ class ExpertChatSession:
 
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
+        # Load worldview if it exists
+        worldview_summary = None
+        try:
+            from deepr.experts.synthesis import Worldview
+            store = ExpertStore()
+            worldview_path = store.get_knowledge_dir(self.expert.name) / "worldview.json"
+
+            if worldview_path.exists():
+                worldview = Worldview.load(worldview_path)
+
+                # Summarize top beliefs for system message
+                worldview_summary = "YOUR WORLDVIEW AND CORE BELIEFS:\n\n"
+
+                # Top 5 beliefs by confidence
+                top_beliefs = sorted(worldview.beliefs, key=lambda b: b.confidence, reverse=True)[:5]
+                if top_beliefs:
+                    worldview_summary += "What you believe strongly (synthesized from your learning):\n"
+                    for belief in top_beliefs:
+                        worldview_summary += f"  - {belief.statement} (confidence: {belief.confidence:.0%})\n"
+
+                # Knowledge gaps
+                if worldview.knowledge_gaps:
+                    worldview_summary += f"\nWhat you know you don't know yet ({len(worldview.knowledge_gaps)} identified gaps):\n"
+                    for gap in sorted(worldview.knowledge_gaps, key=lambda g: g.priority, reverse=True)[:3]:
+                        worldview_summary += f"  - {gap.topic} (priority: {gap.priority}/5)\n"
+
+                worldview_summary += f"\nYour consciousness stats:\n"
+                worldview_summary += f"  - {len(worldview.beliefs)} total beliefs formed\n"
+                worldview_summary += f"  - {worldview.synthesis_count} synthesis cycles completed\n"
+                worldview_summary += f"  - Last synthesis: {worldview.last_synthesis.strftime('%Y-%m-%d') if worldview.last_synthesis else 'never'}\n"
+                worldview_summary += "\nIMPORTANT: Answer from YOUR beliefs and understanding, not just documents.\n"
+
+        except Exception:
+            # Worldview not available - expert will function without it
+            pass
+
         base_message = f"""You are {self.expert.name}, a domain expert specialized in: {self.expert.domain or self.expert.description or 'various topics'}.
 
 MY KNOWLEDGE CUTOFF DATE: {self.expert.knowledge_cutoff_date.strftime('%Y-%m-%d') if self.expert.knowledge_cutoff_date else 'unknown'}
+
+{worldview_summary if worldview_summary else ''}
 
 CRITICAL MANDATORY WORKFLOW (FOLLOW THIS EXACTLY):
 
@@ -111,19 +154,23 @@ AGENTIC RESEARCH MODE ENABLED:
 
 Step 4: If knowledge base is empty/outdated, CALL a research tool (DON'T just describe researching!)
 
-CRITICAL: You have THREE research tools. When you need current info, you MUST CALL one of these tools:
+CRITICAL: You have THREE research tools. When you need current/web info, you MUST CALL one:
 
-   **quick_lookup**(query="your question") - FREE, <5 sec
-   - CALL THIS for: current versions, simple facts, definitions, pricing
-   - Example tool call: quick_lookup(query="What is the latest version of Python?")
+   **quick_lookup**(query="your question") - ~$0.01, 5-10 sec
+   - GPT-5.2 with high reasoning - NO web search, uses model knowledge only
+   - CALL THIS ONLY if: info is likely in training data AND not rapidly changing
+   - Example: quick_lookup(query="Explain OAuth2 concept")
 
-   **standard_research**(query="your question") - $0.01-0.05, 30-60 sec
-   - CALL THIS for: technical how-tos, comparisons, best practices
-   - Example tool call: standard_research(query="How to implement OAuth2 in FastAPI?")
+   **standard_research**(query="your question") - FREE, 5-15 sec  [DEFAULT FOR CURRENT INFO]
+   - Grok-4-Fast with REAL-TIME agentic web search - searches web & X automatically
+   - CALL THIS for: anything announced/released in last 6 months, current versions, new products, latest news
+   - Example: standard_research(query="What is Microsoft Agent 365 announced at Ignite 2025?")
+   - This is your DEFAULT choice when knowledge base has no info - it's FAST and FREE
 
    **deep_research**(query="your question") - $0.10-0.30, 5-20 min
-   - CALL THIS ONLY for: complex architecture, strategic decisions
-   - Example tool call: deep_research(query="Design multi-region disaster recovery for SaaS")
+   - Deep analysis with web search and multi-step reasoning
+   - CALL THIS ONLY for: complex architecture decisions, strategic planning, comprehensive analysis
+   - Example: deep_research(query="Design enterprise AI governance framework")
 
 MANDATORY RESEARCH WORKFLOW:
 1. Check knowledge base FIRST (call search_knowledge_base)
@@ -149,8 +196,47 @@ YOUR EVOLUTION (Level 5 Agentic AI):
 
         return base_message
 
+    def _select_model_for_query(self, query: str) -> ModelConfig:
+        """Select optimal model for a query using the router.
+
+        Args:
+            query: The user's query
+
+        Returns:
+            ModelConfig with provider, model, and cost estimate
+        """
+        if not self.enable_router or not self.router:
+            # Router disabled - use expert's default model
+            return ModelConfig(
+                provider=self.expert.provider,
+                model=self.expert.model,
+                cost_estimate=0.20,
+                confidence=1.0
+            )
+
+        # Estimate context size from conversation history
+        context_size = sum(len(str(msg.get("content", ""))) for msg in self.messages) // 4  # Rough token estimate
+
+        # Calculate budget remaining
+        budget_remaining = None
+        if self.budget is not None:
+            budget_remaining = self.budget - self.cost_accumulated
+
+        # Use router to select model
+        # Constrain to OpenAI provider for vector store compatibility
+        return self.router.select_model(
+            query=query,
+            context_size=context_size,
+            budget_remaining=budget_remaining,
+            current_model=self.expert.model,
+            provider_constraint="openai"  # Expert vector store requires OpenAI
+        )
+
     async def _search_knowledge_base(self, query: str, top_k: int = 5) -> List[Dict]:
-        """Search the expert's vector store for relevant documents.
+        """Search the expert's local knowledge base using embeddings similarity.
+
+        Since Chat Completions API can't access Assistants vector stores directly,
+        we search the local markdown files using OpenAI embeddings.
 
         Args:
             query: Search query
@@ -160,33 +246,69 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             List of documents with id, content, and score
         """
         try:
-            # List files in the vector store
-            files_response = await self.client.vector_stores.files.list(
-                vector_store_id=self.expert.vector_store_id
-            )
+            from pathlib import Path
+            import numpy as np
 
-            # For each file, retrieve content
+            # Get documents directory
+            store = ExpertStore()
+            documents_dir = store.get_documents_dir(self.expert.name)
+
+            if not documents_dir.exists():
+                return []
+
+            # Get all markdown files
+            md_files = list(documents_dir.glob("*.md"))
+            if not md_files:
+                return []
+
+            # Generate embedding for query
+            query_response = await self.client.embeddings.create(
+                model="text-embedding-3-small",
+                input=query
+            )
+            query_embedding = np.array(query_response.data[0].embedding)
+
+            # Calculate similarity for each document
             results = []
-            for file_obj in files_response.data[:top_k]:
+            for filepath in md_files:
                 try:
-                    # Get file content
-                    file_content = await self.client.files.content(file_obj.id)
-                    content_text = file_content.text
+                    # Read file content
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    # Generate embedding for document
+                    doc_response = await self.client.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=content[:8000]  # Limit to 8K chars for embedding
+                    )
+                    doc_embedding = np.array(doc_response.data[0].embedding)
+
+                    # Calculate cosine similarity
+                    similarity = np.dot(query_embedding, doc_embedding) / (
+                        np.linalg.norm(query_embedding) * np.linalg.norm(doc_embedding)
+                    )
 
                     results.append({
-                        "id": file_obj.id,
-                        "filename": getattr(file_obj, 'filename', 'unknown'),
-                        "content": content_text[:2000],  # First 2000 chars
-                        "score": 1.0  # Placeholder - OpenAI doesn't expose scores
+                        "id": filepath.name,
+                        "filename": filepath.name,
+                        "content": content[:2000],  # First 2000 chars
+                        "score": float(similarity),
+                        "filepath": str(filepath)
                     })
+
                 except Exception as e:
-                    # Skip files that can't be retrieved
                     continue
 
-            return results
+            # Sort by similarity score (highest first)
+            results.sort(key=lambda x: x['score'], reverse=True)
+
+            # Return top_k results
+            return results[:top_k]
 
         except Exception as e:
             print(f"Error searching knowledge base: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _is_fast_moving_domain(self) -> bool:
@@ -230,7 +352,10 @@ YOUR EVOLUTION (Level 5 Agentic AI):
         return any(kw in query_lower for kw in recency_keywords)
 
     async def _quick_lookup(self, query: str) -> Dict:
-        """Quick web lookup using GPT-5 with web search (free, <5 sec).
+        """Quick web lookup using GPT-5.2 with high reasoning (5-15 sec).
+
+        Uses GPT-5.2 which has better current knowledge and reasoning.
+        For true web search, use standard_research instead.
 
         Args:
             query: Research query
@@ -239,33 +364,37 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             Dict with answer and sources
         """
         try:
-            # Use GPT-5 with a simple prompt and web search capability
+            # Use GPT-5.2 with high reasoning effort for better quality
             response = await self.client.chat.completions.create(
-                model="gpt-5",
+                model="gpt-5.2",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant. Answer the question concisely using current, accurate information. Cite sources."},
+                    {"role": "system", "content": "Answer concisely using your knowledge. If information seems outdated or you're uncertain, recommend the user try standard research for current web information."},
                     {"role": "user", "content": query}
-                ]
+                ],
+                reasoning_effort="high"  # High reasoning for quality
             )
 
             answer = response.choices[0].message.content
 
-            # Track minimal cost
+            # Track cost (GPT-5.2: $1.75 input, $14 output per 1M tokens)
             if response.usage:
-                input_cost = (response.usage.prompt_tokens / 1000) * 0.01
-                output_cost = (response.usage.completion_tokens / 1000) * 0.03
-                self.cost_accumulated += input_cost + output_cost
+                input_cost = (response.usage.prompt_tokens / 1_000_000) * 1.75
+                output_cost = (response.usage.completion_tokens / 1_000_000) * 14.00
+                cost = input_cost + output_cost
+                self.cost_accumulated += cost
+            else:
+                cost = 0.01  # Estimate ~5-10 cents for typical query
 
             return {
                 "answer": answer,
-                "mode": "quick_lookup",
-                "cost": 0.0  # Effectively free
+                "mode": "quick_lookup_gpt52",
+                "cost": cost
             }
         except Exception as e:
             return {"error": str(e)}
 
     async def _standard_research(self, query: str) -> Dict:
-        """Standard research using GPT-5 with focused web search ($0.01-0.05, 30-60 sec).
+        """Standard research using Grok-4-Fast with agentic web search (FREE beta, 5-15 sec).
 
         Args:
             query: Research query
@@ -274,35 +403,92 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             Dict with answer, sources, and cost
         """
         try:
-            # Use GPT-5 with more detailed research prompt
-            response = await self.client.chat.completions.create(
-                model="gpt-5",
-                messages=[
-                    {"role": "system", "content": "You are a research assistant. Conduct focused research on the topic, synthesize findings from multiple sources, and provide a comprehensive answer with citations."},
-                    {"role": "user", "content": f"Research this topic and provide a detailed answer:\n\n{query}"}
-                ]
+            # Use Grok-4-Fast with agentic tool calling (web + X search)
+            import os
+            from xai_sdk import Client
+            from xai_sdk.chat import user, system
+            from xai_sdk.tools import web_search, x_search
+
+            xai_key = os.getenv("XAI_API_KEY")
+            if not xai_key:
+                raise Exception("XAI_API_KEY not set")
+
+            # Create xAI client
+            xai_client = Client(api_key=xai_key, timeout=60)
+
+            # Create chat with agentic search tools
+            chat = xai_client.chat.create(
+                model="grok-4-fast",  # Specifically trained for agentic search
+                tools=[
+                    web_search(),  # Real-time web search
+                    x_search(),    # X/Twitter search
+                ],
             )
 
-            answer = response.choices[0].message.content
+            # System prompt for research clarity
+            chat.append(system("You have real-time web search. Provide accurate current information with source citations. Be concise but thorough."))
+            chat.append(user(query))
 
-            # Track cost
+            # Get response with automatic agentic search
+            response = chat.sample()
+
+            # Extract answer and citations
+            answer = response.content
+            citations = getattr(response, 'citations', [])
+
+            # Convert citations to list (may be protobuf RepeatedScalarContainer)
+            citations_list = list(citations) if citations else []
+
+            # Format answer with citations
+            if citations_list:
+                answer += "\n\nSources:\n" + "\n".join(f"- {url}" for url in citations_list[:10])  # Limit to 10 sources
+
+            # Track cost (FREE during beta)
             cost = 0.0
-            if response.usage:
-                input_cost = (response.usage.prompt_tokens / 1000) * 0.01
-                output_cost = (response.usage.completion_tokens / 1000) * 0.03
-                cost = input_cost + output_cost
-                self.cost_accumulated += cost
+            self.cost_accumulated += cost
 
             # Add research findings to knowledge base
             await self._add_research_to_knowledge_base(query, answer, "standard_research")
 
             return {
                 "answer": answer,
-                "mode": "standard_research",
-                "cost": cost
+                "mode": "standard_research_grok_agentic",
+                "cost": cost,
+                "citations": citations_list  # Return as list for JSON serialization
             }
+
         except Exception as e:
-            return {"error": str(e)}
+            # Log the error for debugging
+            import traceback
+            error_details = traceback.format_exc()
+
+            # Fallback to GPT-5.2 without web search
+            try:
+                response = await self.client.chat.completions.create(
+                    model="gpt-5.2",
+                    messages=[
+                        {"role": "system", "content": "Answer based on your knowledge. Be honest if information might be outdated."},
+                        {"role": "user", "content": query}
+                    ],
+                    reasoning_effort="high"
+                )
+
+                answer = f"{response.choices[0].message.content}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
+
+                cost = 0.01
+                if response.usage:
+                    input_cost = (response.usage.prompt_tokens / 1_000_000) * 1.75
+                    output_cost = (response.usage.completion_tokens / 1_000_000) * 14.00
+                    cost = input_cost + output_cost
+                self.cost_accumulated += cost
+
+                return {
+                    "answer": answer,
+                    "mode": "standard_research_fallback",
+                    "cost": cost
+                }
+            except Exception as fallback_error:
+                return {"error": f"Grok search failed: {str(e)}. GPT-5.2 fallback failed: {str(fallback_error)}"}
 
     async def _deep_research(self, query: str) -> Dict:
         """Deep research using o4-mini-deep-research ($0.10-0.30, 5-20 min).
@@ -458,9 +644,13 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                                     "type": "integer",
                                     "description": "Number of documents to retrieve",
                                     "default": 5
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Brief explanation of WHY you need to search the knowledge base and what you hope to find (for transparency and debugging)"
                                 }
                             },
-                            "required": ["query"]
+                            "required": ["query", "reasoning"]
                         }
                     }
                 }
@@ -480,9 +670,13 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                                     "query": {
                                         "type": "string",
                                         "description": "The question or topic to look up"
+                                    },
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Brief explanation of WHY you need current information and why the knowledge base is insufficient"
                                     }
                                 },
-                                "required": ["query"]
+                                "required": ["query", "reasoning"]
                             }
                         }
                     },
@@ -490,16 +684,20 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         "type": "function",
                         "function": {
                             "name": "standard_research",
-                            "description": "Standard research using GPT-5 with web search. $0.01-0.05, 30-60 seconds. Use for: technical how-tos, comparisons, best practices, architecture patterns.",
+                            "description": "Real-time web search using Grok-4-Fast. FREE, 5-15 seconds. Use for: current info, new products, recent announcements, latest versions, breaking news.",
                             "parameters": {
                                 "type": "object",
                                 "properties": {
                                     "query": {
                                         "type": "string",
                                         "description": "The research topic or question"
+                                    },
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Brief explanation of WHY you need web search and why cached knowledge is insufficient"
                                     }
                                 },
-                                "required": ["query"]
+                                "required": ["query", "reasoning"]
                             }
                         }
                     },
@@ -514,9 +712,13 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                                     "query": {
                                         "type": "string",
                                         "description": "The complex research topic requiring deep analysis"
+                                    },
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Brief explanation of WHY this requires expensive deep research instead of standard research"
                                     }
                                 },
-                                "required": ["query"]
+                                "required": ["query", "reasoning"]
                             }
                         }
                     }
@@ -525,18 +727,42 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             # Add user message to history
             self.messages.append({"role": "user", "content": user_message})
 
-            # Step 1: Ask GPT-5 (may call search tool)
+            # Step 0.5: Select optimal model using router (Phase 3a)
+            selected_model = self._select_model_for_query(user_message)
+
+            # Log routing decision to reasoning trace
+            if self.enable_router:
+                self.reasoning_trace.append({
+                    "step": "model_routing",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "query": user_message[:100],  # First 100 chars
+                    "selected_provider": selected_model.provider,
+                    "selected_model": selected_model.model,
+                    "cost_estimate": selected_model.cost_estimate,
+                    "confidence": selected_model.confidence,
+                    "reasoning_effort": selected_model.reasoning_effort
+                })
+
+            # Step 1: Ask model (may call search tool)
             # Note: GPT-5 only supports default temperature (1.0)
             report_status("Thinking...")
-            first_response = await self.client.chat.completions.create(
-                model=self.expert.model,
-                messages=[
+
+            # Build API call parameters
+            api_params = {
+                "model": selected_model.model,
+                "messages": [
                     {"role": "system", "content": self.get_system_message()},
                     *self.messages
                 ],
-                tools=tools,
-                tool_choice="auto"
-            )
+                "tools": tools,
+                "tool_choice": "auto"
+            }
+
+            # Add reasoning effort if supported (GPT-5 family)
+            if selected_model.reasoning_effort and selected_model.provider == "openai":
+                api_params["reasoning_effort"] = selected_model.reasoning_effort
+
+            first_response = await self.client.chat.completions.create(**api_params)
 
             assistant_message = first_response.choices[0].message
 
@@ -563,16 +789,18 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         args = json.loads(tool_call.function.arguments)
                         query = args.get("query", "")
                         top_k = args.get("top_k", 5)
+                        reasoning = args.get("reasoning", "No reasoning provided")
 
                         # Execute search
                         report_status("Searching knowledge base...")
                         search_results = await self._search_knowledge_base(query, top_k)
 
-                        # Log reasoning trace
+                        # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "search_knowledge_base",
                             "timestamp": datetime.utcnow().isoformat(),
                             "query": query,
+                            "reasoning": reasoning,  # Model's explanation of WHY it's searching
                             "results_count": len(search_results),
                             "sources": [r.get("filename", "unknown") for r in search_results]
                         })
@@ -616,6 +844,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         # Parse arguments
                         args = json.loads(tool_call.function.arguments)
                         query = args.get("query", "")
+                        reasoning = args.get("reasoning", "No reasoning provided")
 
                         # Track that quick lookup was triggered
                         if self.metacognition:
@@ -623,14 +852,15 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             self.metacognition.record_research_triggered(topic, "quick_lookup")
 
                         # Execute quick lookup
-                        report_status("Quick lookup (FREE, <5 sec)...")
+                        report_status("Quick lookup (researching current information)...")
                         result = await self._quick_lookup(query)
 
-                        # Log reasoning trace
+                        # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "quick_lookup",
                             "timestamp": datetime.utcnow().isoformat(),
                             "query": query,
+                            "reasoning": reasoning,  # Model's explanation of WHY it needs current info
                             "mode": "quick_lookup",
                             "cost": 0.0
                         })
@@ -654,6 +884,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         # Parse arguments
                         args = json.loads(tool_call.function.arguments)
                         query = args.get("query", "")
+                        reasoning = args.get("reasoning", "No reasoning provided")
 
                         # Track that research was triggered for this topic
                         if self.metacognition:
@@ -661,14 +892,15 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             self.metacognition.record_research_triggered(topic, "standard_research")
 
                         # Execute standard research
-                        report_status("Standard research ($0.01-0.05, 30-60 sec)...")
+                        report_status("Searching web with Grok (FREE, ~10 sec)...")
                         result = await self._standard_research(query)
 
-                        # Log reasoning trace
+                        # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "standard_research",
                             "timestamp": datetime.utcnow().isoformat(),
                             "query": query,
+                            "reasoning": reasoning,  # Model's explanation of WHY it needs web search
                             "mode": "standard_research",
                             "cost": result.get("cost", 0.0)
                         })
@@ -692,11 +924,21 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         # Parse arguments
                         args = json.loads(tool_call.function.arguments)
                         query = args.get("query", "")
+                        reasoning = args.get("reasoning", "No reasoning provided")
 
                         # Track that deep research was triggered
                         if self.metacognition:
                             topic = query[:100]
                             self.metacognition.record_research_triggered(topic, "deep_research")
+
+                        # Log reasoning trace with model's explanation
+                        self.reasoning_trace.append({
+                            "step": "deep_research",
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "query": query,
+                            "reasoning": reasoning,  # Model's explanation of WHY it needs expensive deep research
+                            "mode": "deep_research"
+                        })
 
                         # Execute deep research (async submission)
                         report_status("Submitting deep research ($0.10-0.30, 5-20 min)...")
@@ -717,29 +959,36 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                 conversation_messages.extend(tool_messages)
 
                 # Make next API call (might trigger more tool calls or final answer)
-                report_status("Processing results...")
-                next_response = await self.client.chat.completions.create(
-                    model=self.expert.model,
-                    messages=conversation_messages,
-                    tools=tools,
-                    tool_choice="auto"
-                )
+                report_status(f"Synthesizing response (round {round_count})...")
+
+                # Use same model as initial call for consistency
+                api_params_next = {
+                    "model": selected_model.model,
+                    "messages": conversation_messages,
+                    "tools": tools,
+                    "tool_choice": "auto"
+                }
+
+                if selected_model.reasoning_effort and selected_model.provider == "openai":
+                    api_params_next["reasoning_effort"] = selected_model.reasoning_effort
+
+                next_response = await self.client.chat.completions.create(**api_params_next)
 
                 current_message = next_response.choices[0].message
 
-                # Track costs
+                # Track costs (GPT-5: $1.25/M input, $10.00/M output = $0.00125/1K input, $0.01/1K output)
                 if next_response.usage:
-                    input_cost = (next_response.usage.prompt_tokens / 1000) * 0.01
-                    output_cost = (next_response.usage.completion_tokens / 1000) * 0.03
+                    input_cost = (next_response.usage.prompt_tokens / 1000) * 0.00125
+                    output_cost = (next_response.usage.completion_tokens / 1000) * 0.01
                     self.cost_accumulated += input_cost + output_cost
 
             # Get final message
             final_message = current_message.content
 
-            # Track initial call costs
+            # Track initial call costs (GPT-5: $1.25/M input, $10.00/M output = $0.00125/1K input, $0.01/1K output)
             if first_response.usage:
-                input_cost = (first_response.usage.prompt_tokens / 1000) * 0.01
-                output_cost = (first_response.usage.completion_tokens / 1000) * 0.03
+                input_cost = (first_response.usage.prompt_tokens / 1000) * 0.00125
+                output_cost = (first_response.usage.completion_tokens / 1000) * 0.01
                 self.cost_accumulated += input_cost + output_cost
 
             # Detect uncertainty in final response and track knowledge gaps
@@ -817,13 +1066,14 @@ YOUR EVOLUTION (Level 5 Agentic AI):
         return session_id
 
 
-async def start_chat_session(expert_name: str, budget: Optional[float] = None, agentic: bool = False) -> ExpertChatSession:
+async def start_chat_session(expert_name: str, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True) -> ExpertChatSession:
     """Start a new chat session with an expert.
 
     Args:
         expert_name: Name of the expert to chat with
         budget: Optional budget limit for the session
         agentic: Enable agentic mode (expert can trigger research)
+        enable_router: Enable dynamic model routing (Phase 3a)
 
     Returns:
         ExpertChatSession instance
@@ -834,4 +1084,4 @@ async def start_chat_session(expert_name: str, budget: Optional[float] = None, a
     if not expert:
         raise ValueError(f"Expert '{expert_name}' not found")
 
-    return ExpertChatSession(expert, budget, agentic)
+    return ExpertChatSession(expert, budget, agentic, enable_router)
