@@ -125,7 +125,11 @@ class CurriculumGenerator:
         )
 
         # Use GPT-5 for curriculum planning (best for structured reasoning and planning)
-        api_key = self.config.get("api_key") or self.config.get("openai_api_key")
+        if isinstance(self.config, dict):
+            api_key = self.config.get("api_key") or self.config.get("openai_api_key")
+        else:
+            # AppConfig object
+            api_key = self.config.provider.openai_api_key
         client = AsyncOpenAI(api_key=api_key)
 
         # GPT-5 uses Responses API for improved agentic performance
@@ -185,37 +189,56 @@ class CurriculumGenerator:
 
             budget_guidance = f"""
 BUDGET CONSTRAINT: ${budget_limit:.2f}
+TARGET TOPICS: {target_topics} (recommend 15-20 for true expertise, not just 10)
 
-RESEARCH STRATEGY - MIX ACADEMIC + PRACTICAL:
+AVAILABLE MODELS - Match the right tool to each task type:
 
-**{deep_topics} DEEP RESEARCH topics** (campaign mode, $1.50-2.50 each):
-  SELECT FROM:
-  - "academic": Research papers, theoretical foundations, seminal work
-  - "technical-deep-dive": Architectural patterns, algorithms, design principles
-  - "trends": Market analysis, future directions, industry evolution
+1. **CAMPAIGN** (o4-mini-deep-research): $1.50-2.50, 10-45 min
+   - Extended reasoning + web browsing
+   - Use for: WHY questions, trade-off analysis, architectural reasoning
+   - Best for: Foundational principles, decision frameworks
 
-  PURPOSE: Foundational knowledge that won't expire - the timeless insights
+2. **FOCUS** (gpt-5.2 with reasoning.effort=medium): $0.20-0.30, 1-5 min
+   - Web search + structured thinking
+   - Use for: Current state, documentation synthesis, evolution analysis
+   - Best for: What exists NOW, how we got here, trends
 
-**{quick_topics} QUICK LOOKUP topics** (focus mode, $0.15-0.30 each):
-  SELECT FROM:
-  - "documentation": Latest APIs, SDKs, services, tools (2025 specific!)
-  - "best-practices": Real-world implementation patterns, case studies
-  - "trends": Quick scans of recent developments
+SMART ALLOCATION (optimize for budget efficiency):
 
-  PURPOSE: Current, actionable knowledge - what's happening RIGHT NOW
+**CURRENT STATE** (~30% = {int(target_topics * 0.30)} topics) - FOCUS
+- What's new (last 6 months): FOCUS ($0.30)
+- Major product deep dives (2-4): FOCUS ($0.25 each)
+- Feature/version comparisons (1-2): FOCUS ($0.20 each)
+Subtotal: ~$1.50
 
-CURRICULUM BALANCE (aim for this mix):
-- 2-3 academic/research papers (deep) - Timeless foundations
-- 2-3 technical deep dives (deep) - Core architectural knowledge
-- 0-1 trend analysis (deep) - Future-looking synthesis
-- 3-5 documentation (quick) - Latest tools, services, APIs
-- 2-4 best practices (quick) - Real-world patterns
+**FOUNDATIONAL DEPTH** (~25% = {int(target_topics * 0.25)} topics) - CAMPAIGN
+- Core architectural patterns: CAMPAIGN ($2.00)
+- Security/compliance fundamentals: CAMPAIGN ($2.00)
+- Design principles that transcend tech: CAMPAIGN ($2.00)
+- 3-4 deep topics requiring extended reasoning
+Subtotal: ~${int(target_topics * 0.25) * 2.00:.2f}
 
-This creates an expert with BOTH:
-- Deep theoretical understanding (won't age)
-- Current practical knowledge (can be refreshed)
+**HISTORICAL CONTEXT** (~15% = {int(target_topics * 0.15)} topics) - FOCUS
+- Domain evolution (how we got here): FOCUS ($0.25)
+- Lessons from past failures: FOCUS ($0.25)
+Subtotal: ~${int(target_topics * 0.15) * 0.25:.2f}
 
-Total budget: ~${deep_topics * 2.0:.2f} (deep) + ~${quick_topics * 0.25:.2f} (quick) = ~${(deep_topics * 2.0) + (quick_topics * 0.25):.2f}
+**COMPARATIVE WISDOM** (~20% = {int(target_topics * 0.20)} topics) - MIXED
+- Decision framework (when to use X vs Y): CAMPAIGN ($2.00)
+- Specific tool comparisons (2-3): FOCUS ($0.20 each)
+- Common pitfalls: FOCUS ($0.25)
+Subtotal: ~$2.60
+
+**FUTURE VISION** (~10% = {int(target_topics * 0.10)} topics) - FOCUS
+- Emerging trends 2026-2027: FOCUS ($0.25)
+- Industry direction signals: FOCUS ($0.25)
+Subtotal: ~${int(target_topics * 0.10) * 0.25:.2f}
+
+TOTAL ESTIMATED: ${(int(target_topics * 0.25) * 2.00) + 2.00 + (int(target_topics * 0.75) * 0.25):.2f}
+FITS IN BUDGET: {"YES" if ((int(target_topics * 0.25) * 2.00) + 2.00 + (int(target_topics * 0.75) * 0.25)) <= budget_limit else "NO - reduce CAMPAIGN topics"}
+
+KEY INSIGHT: Use 15-20 topics, not just 10. Most are cheap FOCUS ($0.20-0.30),
+only 3-5 expensive CAMPAIGN ($2.00) for deep reasoning. More topics = better expert.
 """
 
         return f"""You are designing a self-directed learning curriculum for a domain expert.
@@ -231,18 +254,76 @@ Generate a comprehensive learning curriculum of {target_topics} research topics 
 
 TODAY'S DATE: {today}
 
+CRITICAL - BUILD A TRUE EXPERT (Not Just Documentation Reader!):
+
+A real expert has FIVE dimensions of knowledge. You MUST cover all five:
+
+**DIMENSION 1: CURRENT STATE (30% of topics)**
+Purpose: What exists RIGHT NOW in {today.split('-')[0]}
+- Topic #1 MANDATORY: "What's new in [domain] last 6 months?" (CAMPAIGN, trends, priority 1)
+  Must list ALL new products/services with launch dates and conference announcements
+  Example: "Comprehensive survey Microsoft AI Oct 2025-{today}: Agent 365 (Ignite 2025), Copilot updates, Azure AI Foundry. List each with launch date."
+- Topics #2-3: Deep dives on 2 major new products from Topic #1 (CAMPAIGN or FOCUS)
+- Current best practices, latest features, what's GA vs preview
+
+**DIMENSION 2: FOUNDATIONAL DEPTH (25% of topics)**
+Purpose: Timeless principles that don't age
+- Core architectural patterns (microservices, event-driven, etc.)
+- Theoretical foundations (CAP theorem, consistency models, security fundamentals)
+- Why things work the way they do (not just HOW, but WHY)
+- Design patterns that have stood the test of time
+- Use "academic" or "technical-deep-dive" research types
+
+**DIMENSION 3: HISTORICAL CONTEXT (15% of topics)**
+Purpose: Learn from the past to understand the present
+- Evolution of the domain (where we came from)
+- What problems led to current solutions (why GraphQL after REST, why K8s after Docker Swarm)
+- Failed approaches and why they failed (lessons learned)
+- How the industry got to where it is today
+- This prevents repeating past mistakes
+
+**DIMENSION 4: COMPARATIVE WISDOM (20% of topics)**
+Purpose: Make good decisions through trade-off analysis
+- When to use X vs Y (with real criteria)
+- Cost-performance-complexity trade-offs
+- Real-world case studies (successes AND failures)
+- Common pitfalls and anti-patterns
+- "Here's what docs say, here's what really happens"
+- Battle-tested implementation patterns
+
+**DIMENSION 5: FUTURE VISION (10% of topics)**
+Purpose: Prepare for what's coming
+- Emerging trends and patterns (2026-2027)
+- Industry direction and momentum
+- What's in early adopter phase
+- Where the ecosystem is heading
+
+WHY THIS STRUCTURE:
+An expert who only knows latest docs is shallow and unhelpful. They need:
+- Current state: So they know what exists NOW (Agent 365, latest features)
+- Foundational depth: So they understand WHY (not just copy-paste docs)
+- Historical context: So they learn from past failures
+- Comparative wisdom: So they make good trade-off decisions
+- Future vision: So they prepare for what's next
+
 CURRICULUM REQUIREMENTS:
 
-1. **Foundation First**: Start with core concepts and current landscape
-2. **Multi-Dimensional Coverage**: Think in layers, not just linear topics:
-   - Technical layers (data, app, network, security, infrastructure)
-   - Implementation patterns (reference architectures, design patterns)
-   - Technologies & tools (languages, frameworks, platforms)
-   - Cross-cutting concerns (security, cost, compliance, observability)
-3. **Current and Practical**: Focus on {today.split('-')[0]} best practices and real-world applications
-4. **Progressive Depth**: Build from fundamentals to advanced topics
-5. **Identify Gaps**: What's missing from the initial documents?
-6. **Future-Oriented**: Include emerging trends and future directions
+1. **Topics 1-3 (30%): CURRENT STATE**
+   - #1: What's new (MANDATORY FIRST TOPIC)
+   - #2-3: Deep dives on major recent products
+
+2. **Topics 4-5 (25%): FOUNDATIONAL DEPTH**
+   - Timeless principles, architecture patterns, theory
+   - Use "academic" or "technical-deep-dive" types
+
+3. **Topic 6 (15%): HISTORICAL CONTEXT**
+   - Evolution of domain, lessons learned, why we're here
+
+4. **Topics 7-8 (20%): COMPARATIVE WISDOM**
+   - Trade-offs, when to use what, case studies, pitfalls
+
+5. **Topic 9-10 (10%): FUTURE VISION**
+   - Emerging trends, 2026-2027 direction
 
 THINK HOLISTICALLY:
 - An expert needs to understand systems from multiple angles
@@ -309,17 +390,49 @@ IMPORTANT GUIDELINES:
 - Priority 3-5 for focus topics (supplementary)
 - Dependencies create logical learning flow
 
-CRITICAL: Balance academic depth + current practical knowledge. This expert needs BOTH timeless principles AND 2025-specific tools!
+EXAMPLE - Microsoft AI Expert (10 topics, TRUE EXPERT):
 
-EXAMPLE STRUCTURE (AWS Solutions Architect):
-Instead of just "AWS Security", break it down:
-- DEEP: Security frameworks & Zero Trust architecture (technical-deep-dive)
-- QUICK: AWS WAF 2025 best practices (documentation)
-- QUICK: Security at data layer (S3, RDS encryption patterns) (best-practices)
-- QUICK: Security at app layer (API Gateway, Lambda IAM) (best-practices)
-- QUICK: Python security patterns for AWS (best-practices)
+**CURRENT STATE (Topics 1-3):**
+#1: "What's new in Microsoft AI (Oct 2025 - {today})?" (CAMPAIGN, trends, priority 1)
+    "Comprehensive survey Microsoft AI Oct 2025-{today}: Agent 365 (Ignite 2025), Copilot updates, Azure AI Foundry, new models. List each with launch date and status."
 
-This gives holistic, multi-dimensional coverage!
+#2: "Agent 365 deep dive: architecture and use cases" (CAMPAIGN, documentation, priority 1)
+    "Complete guide to Agent 365 (Ignite 2025): architecture, orchestration, tool calling, integration with M365 Copilot, preview status, pricing."
+
+#3: "Azure AI Foundry vs AI Studio: 2026 comparison" (FOCUS, best-practices, priority 2)
+    "Compare Azure AI Foundry and AI Studio in 2026: features, use cases, migration path, when to use which, pricing differences."
+
+**FOUNDATIONAL DEPTH (Topics 4-5):**
+#4: "RAG architecture patterns: naive to agentic" (CAMPAIGN, technical-deep-dive, priority 1)
+    "Compare RAG approaches: naive retrieval, hybrid search, re-ranking, agentic retrieval. Trade-offs, when to use each, implementation patterns."
+
+#5: "LLM security fundamentals: injection to data leakage" (CAMPAIGN, academic, priority 2)
+    "LLM security threats: prompt injection, data leakage, model theft, jailbreaking. Mitigations, defense patterns, Purview integration."
+
+**HISTORICAL CONTEXT (Topic 6):**
+#6: "Evolution of Microsoft AI: LUIS to GPT-5" (FOCUS, trends, priority 3)
+    "Microsoft AI evolution 2018-2026: LUIS, Bot Framework, Cognitive Services, OpenAI partnership, Copilot, Agent 365. Why each shift happened."
+
+**COMPARATIVE WISDOM (Topics 7-8):**
+#7: "OpenAI vs Azure OpenAI vs M365 Copilot: decision framework" (FOCUS, best-practices, priority 2)
+    "When to use OpenAI API vs Azure OpenAI vs M365 Copilot: cost, governance, features, integration. Real-world case studies."
+
+#8: "Common AI implementation pitfalls in enterprise" (FOCUS, best-practices, priority 3)
+    "Top failures in enterprise AI: context window misuse, cost overruns, poor prompt design, security gaps. How to avoid each."
+
+**FUTURE VISION (Topics 9-10):**
+#9: "Agentic AI trends: 2026-2027 direction" (FOCUS, trends, priority 3)
+    "Emerging patterns in agentic AI: multi-agent systems, tool orchestration, autonomous planning. What's coming in next 12 months."
+
+#10: "Microsoft AI roadmap signals: Ignite 2025 analysis" (FOCUS, trends, priority 4)
+    "Read between the lines of Ignite 2025: what Microsoft is betting on, deprecation signals, strategic direction."
+
+This creates an expert who:
+- Knows Agent 365 and latest products (Current State)
+- Understands WHY RAG patterns exist (Foundational Depth)
+- Knows how we got from LUIS to today (Historical Context)
+- Can make OpenAI vs Azure decisions (Comparative Wisdom)
+- Anticipates what's coming next (Future Vision)
 
 Generate the curriculum now:"""
 
