@@ -181,6 +181,47 @@ class ResearchConfig(BaseModel):
     batch_pause_duration: int = Field(default=180, description="Batch pause duration (seconds)")
 
 
+class ExpertConfig(BaseModel):
+    """Configuration for expert system."""
+
+    # Curriculum Generation
+    default_topics: int = Field(default=15, description="Default number of learning topics")
+    deep_research_topics: int = Field(default=5, description="Number of deep research (campaign) topics")
+    quick_research_topics: int = Field(default=10, description="Number of quick research (focus) topics")
+
+    # Cost Estimates (averages)
+    deep_research_cost: float = Field(default=2.0, description="Average cost per deep research topic")
+    quick_research_cost: float = Field(default=0.25, description="Average cost per quick research topic")
+
+    # Synthesis
+    auto_synthesis: bool = Field(default=True, description="Automatically synthesize knowledge after learning")
+    synthesis_model: str = Field(default="gpt-5", description="Model for knowledge synthesis")
+
+    # Domain Velocity Defaults
+    default_domain_velocity: str = Field(default="medium", description="Default domain velocity (slow/medium/fast)")
+
+    @validator("default_topics", always=True)
+    def validate_default_topics(cls, v):
+        """Load default topics from environment."""
+        return int(os.getenv("DEEPR_EXPERT_DEFAULT_TOPICS", str(v)))
+
+    @validator("deep_research_topics", always=True)
+    def validate_deep_topics(cls, v):
+        """Load deep research topics from environment."""
+        return int(os.getenv("DEEPR_EXPERT_DEEP_TOPICS", str(v)))
+
+    @validator("quick_research_topics", always=True)
+    def validate_quick_topics(cls, v):
+        """Load quick research topics from environment."""
+        return int(os.getenv("DEEPR_EXPERT_QUICK_TOPICS", str(v)))
+
+    @validator("auto_synthesis", always=True)
+    def validate_auto_synthesis(cls, v):
+        """Load auto synthesis from environment."""
+        env_val = os.getenv("DEEPR_EXPERT_AUTO_SYNTHESIS", str(v)).lower()
+        return env_val in ("true", "1", "yes")
+
+
 class DatabaseConfig(BaseModel):
     """Configuration for job metadata database."""
 
@@ -215,6 +256,7 @@ class AppConfig(BaseModel):
     webhook: WebhookConfig = Field(default_factory=WebhookConfig)
     research: ResearchConfig = Field(default_factory=ResearchConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    expert: ExpertConfig = Field(default_factory=ExpertConfig)
 
     # Application Settings
     debug: bool = Field(default=False, description="Enable debug mode")

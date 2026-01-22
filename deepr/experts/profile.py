@@ -7,6 +7,9 @@ from pathlib import Path
 import json
 import os
 
+# Security imports
+from deepr.utils.security import sanitize_name, validate_path, PathTraversalError
+
 
 @dataclass
 class ExpertProfile:
@@ -150,11 +153,19 @@ class ExpertStore:
         self.base_path.mkdir(parents=True, exist_ok=True)
 
     def _get_expert_dir(self, name: str) -> Path:
-        """Get directory path for expert."""
-        # Sanitize name for directory
-        safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).strip()
-        safe_name = safe_name.replace(' ', '_').lower()
-        return self.base_path / safe_name
+        """Get directory path for expert with security validation."""
+        # Sanitize name using security utilities
+        safe_name = sanitize_name(name).lower()
+
+        # Validate path doesn't escape base directory
+        expert_path = validate_path(
+            safe_name,
+            base_dir=self.base_path,
+            must_exist=False,
+            allow_create=True
+        )
+
+        return expert_path
 
     def _get_profile_path(self, name: str) -> Path:
         """Get file path for expert profile.
