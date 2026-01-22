@@ -10,14 +10,14 @@ Deepr uses a hybrid approach optimizing for both **quality** and **cost**:
 - **Models**: o4-mini-deep-research, o3-deep-research
 - **Use cases**: Novel problem-solving, critical decisions, complex synthesis
 - **Cost**: $0.50-$5.00 per query
-- **Execution**: Async (5-15 minutes)
+- **Execution**: Async
 - **When**: ~20% of operations requiring extended reasoning
 
 ### Fast/General Operations (xAI, Gemini, Anthropic)
 - **Models**: grok-4-fast (xAI), gemini-2.5-flash (Google), claude-sonnet-4-5 (Anthropic)
 - **Use cases**: News, docs, team research, learning, expert chat, planning
 - **Cost**: $0.0005-$0.003 per query (96-99% cheaper!)
-- **Execution**: Immediate (10-60 seconds)
+- **Execution**: Immediate
 - **When**: ~80% of operations
 
 ### Planning & Orchestration (GPT-5)
@@ -224,7 +224,7 @@ deepr prep auto "Review the attached call transcript with DemoCorp's CEO discuss
 #   [Executes 1 synthesis job, ~10 min]
 
 # Result: Comprehensive strategic guidance grounded in research + call insights
-# Cost: ~$3-5, Time: 40-50 minutes
+# Cost: ~$3-5
 ```
 
 This is **agentic AI with research depth** - not just reasoning, but researching between reasoning steps.
@@ -621,6 +621,25 @@ Implemented commands:
 
 **Vision:** Self-improving domain experts that maintain beginner's mind while using research to fill knowledge gaps.
 
+### Why This Matters
+
+The expert system implements a fundamental capability required for advanced AI: the ability to continuously improve through autonomous learning. Unlike static RAG systems that only retrieve, these experts:
+- Recognize when their knowledge is insufficient or outdated
+- Autonomously trigger research to fill gaps
+- Integrate findings into permanent understanding
+- Track meta-cognitive state (what they know vs. don't know)
+- Improve with each interaction
+
+This architecture explores key concepts in building intelligent systems: autonomous learning, knowledge synthesis, meta-cognitive awareness, persistent memory, and relational understanding. The goal is not to build AGI, but to create a practical framework for domain experts that genuinely get smarter over time rather than remaining static after initial training.
+
+The self-improvement loop is the core innovation:
+```
+Query → Gap detection → Autonomous research → Knowledge integration →
+Better responses → Meta-cognitive update → Improved future performance
+```
+
+This closed-loop design means experts evolve based on actual use, not just initial configuration. Each conversation potentially makes the expert more capable.
+
 ### Architecture Overview
 
 **Components Implemented:**
@@ -697,7 +716,7 @@ Expert: "I have general OneLake concepts, but not specific multi-tenant SaaS pat
 Let me research this to give you accurate guidance..."
 
 [Triggers: deepr research "OneLake multi-tenant security SaaS 2025" --mode docs]
-[Cost: $0.15, Time: ~8 minutes]
+[Cost: $0.15]
 
 Expert: "My research found three approaches:
 1. Workspace-per-tenant isolation [Source: Research job-abc123]
@@ -787,7 +806,7 @@ CONSENSUS: Hybrid approach recommended
 DISSENT: Legal Counsel prefers full build for IP control
 RISK: Vendor lock-in requires careful contract negotiation
 
-Cost: $8.45 | Time: 35 minutes
+Cost: $8.45
 ```
 
 ### Beginner's Mind Philosophy
@@ -1012,7 +1031,592 @@ Enable other AI agents (Claude Desktop, Cursor, etc.) to chat with your experts:
 - [TODO] Temporal graph updates from research findings
 - **Tested (2025-11-06):** Expert correctly triggers research for knowledge gaps, costs tracked accurately
 
-**Phase 4: Continuous Self-Improvement** [TODO] v2.3+
+### Evolution to Elite-Tier Agentic Architecture
+
+The following phases transform experts from static RAG systems into elite-tier agentic systems with dynamic reasoning, visible thinking, and persistent consciousness.
+
+**Implementation Guide:** See [data/reports/2026-01-21_1234_create-comprehensive-documentation-for-b_4e4f975b/report.md](data/reports/2026-01-21_1234_create-comprehensive-documentation-for-b_4e4f975b/report.md) for comprehensive implementation guidance covering best practices, common pitfalls, testing strategies, integration approaches, and real-world examples from LangChain, LlamaIndex, AutoGPT, and production agentic frameworks (40KB, researched 2026-01-21).
+
+**Phase 3a: Model Router Architecture** [DONE] v2.4
+
+**Goal:** Dynamic model selection based on query complexity, task type, and budget constraints.
+
+**Status:** Complete. Router implemented and active in expert chat, constrained to OpenAI for vector store compatibility. Optimizes via adaptive reasoning effort levels (low/medium/high).
+
+**Problem:** Currently using GPT-5 for all queries wastes budget on simple questions and may use wrong model for specific tasks.
+
+**Solution:** Route queries to optimal model:
+- **grok-4-fast** ($0.01) - Simple factual queries, greetings, confirmations
+- **gpt-5.2-thinking** ($0.20-0.30) - Complex reasoning, decision-making, synthesis
+- **gemini-3-pro** ($0.15, massive context) - Document analysis, long-form synthesis
+- **o4-mini-deep-research** ($2.00) - Deep research requiring extended reasoning
+
+**Components:**
+1. **Query Classifier** (`deepr/experts/router.py`)
+   - Analyze query complexity (simple/moderate/complex)
+   - Detect task type (factual/reasoning/research)
+   - Consider budget remaining in session
+   - Return optimal model + reasoning.effort level
+
+2. **Model Capabilities Registry**
+   - Cost per query by model
+   - Average latency benchmarks
+   - Specialization (coding, math, research, speed)
+   - Context window limits
+
+3. **Fallback Logic**
+   - If primary model unavailable → select fallback
+   - If query exceeds context window → chunk or upgrade to gemini-3-pro
+   - If budget exhausted → downgrade to free models or refuse
+
+**Implementation:**
+```python
+# deepr/experts/router.py
+class ModelRouter:
+    def select_model(self, query: str, context_size: int, budget_remaining: float) -> ModelConfig:
+        complexity = self._classify_complexity(query)
+        task_type = self._detect_task_type(query)
+
+        if complexity == "simple" and budget_remaining < 0.20:
+            return ModelConfig(provider="grok", model="grok-4-fast", cost=0.01)
+
+        if task_type == "research" and budget_remaining >= 2.00:
+            return ModelConfig(provider="openai", model="o4-mini-deep-research", cost=2.00)
+
+        if context_size > 100_000 and budget_remaining >= 0.15:
+            return ModelConfig(provider="gemini", model="gemini-3-pro", cost=0.15)
+
+        # Default: GPT-5.2 with adaptive reasoning
+        return ModelConfig(provider="openai", model="gpt-5.2", reasoning_effort="medium", cost=0.25)
+```
+
+**Files to Create/Modify:**
+- `deepr/experts/router.py` (NEW) - Model selection logic
+- `deepr/experts/chat.py` - Integrate router into chat loop
+- `deepr/providers/registry.py` - Model capability definitions
+
+**Success Metrics:**
+- 40-60% reduction in average cost per query (simple queries use cheap models)
+- <5% degradation in response quality (measured by user satisfaction)
+- Automatic fallback works 100% of time when primary model unavailable
+
+---
+
+**Phase 3b: Visible Thinking (Thought Stream)** [TODO] v2.5
+
+**Goal:** Show expert's reasoning process in real-time, building user trust and enabling debugging.
+
+**Problem:** Users don't see what expert is thinking, why it chose to research, or what trade-offs it's considering. Black box reasoning reduces trust.
+
+**Solution:** Stream expert's thought process with Rich terminal UI:
+- **Planning thoughts:** "I need to understand X before answering Y..."
+- **Decision rationale:** "Choosing deep research because this requires multi-step reasoning..."
+- **Search strategy:** "First checking knowledge base, then researching recent trends..."
+- **Confidence levels:** "High confidence on A, but uncertain about B - researching B..."
+- **Trade-off analysis:** "Fast answer vs accurate answer - prioritizing accuracy..."
+
+**Components:**
+1. **Thought Stream UI** (`deepr/cli/thought_stream.py`)
+   - Rich panels for different thought types
+   - Color-coded by confidence (green=high, yellow=medium, red=uncertain)
+   - Collapsible/expandable thinking steps
+   - Timeline view of reasoning process
+
+2. **Structured Thinking Protocol**
+   - Expert emits structured thoughts during reasoning:
+     ```python
+     {
+       "type": "planning",
+       "thought": "Breaking query into 3 sub-questions",
+       "confidence": 0.8,
+       "timestamp": "2026-01-21T10:15:30Z"
+     }
+     ```
+   - Thoughts stored in conversation log for replay/debugging
+
+3. **Toggle Modes**
+   - `--verbose` - Show all thinking (planning, decisions, searches)
+   - `--quiet` - Hide thinking, show only final answers
+   - `--debug` - Show internal state, tool calls, API requests
+
+**Implementation:**
+```python
+# deepr/cli/thought_stream.py
+from rich.live import Live
+from rich.panel import Panel
+
+class ThoughtStream:
+    def show_planning(self, thought: str, confidence: float):
+        color = "green" if confidence > 0.8 else "yellow" if confidence > 0.5 else "red"
+        self.live.update(Panel(thought, title="Planning", border_style=color))
+
+    def show_decision(self, action: str, rationale: str, cost: float):
+        self.live.update(Panel(
+            f"[bold]{action}[/bold]\n{rationale}\nCost: ${cost:.2f}",
+            title="Decision",
+            border_style="blue"
+        ))
+```
+
+**User Experience:**
+```bash
+$ deepr expert chat "Azure Architect" --verbose
+
+You: Should I use Azure OpenAI or OpenAI API for my SaaS?
+
+Expert (thinking):
+┌─ Planning ────────────────────────────────────────┐
+│ Breaking query into comparison dimensions:        │
+│ 1. Cost structure                                 │
+│ 2. Data residency and compliance                  │
+│ 3. Feature parity                                 │
+│ Confidence: High (0.85)                           │
+└───────────────────────────────────────────────────┘
+
+┌─ Knowledge Check ─────────────────────────────────┐
+│ Searching knowledge base for "Azure OpenAI vs     │
+│ OpenAI API"...                                    │
+│ Found: 3 documents (last updated 2025-11-01)      │
+│ Confidence: Medium (0.6) - might be outdated      │
+└───────────────────────────────────────────────────┘
+
+┌─ Decision ────────────────────────────────────────┐
+│ Triggering research: standard_research            │
+│ Rationale: Knowledge base is 2+ months old,       │
+│ pricing and features may have changed             │
+│ Cost: $0.25 | Budget left: $4.75                  │
+└───────────────────────────────────────────────────┘
+
+Expert (researching)...
+
+Expert: Based on my research, here are the key differences...
+```
+
+**Files to Create/Modify:**
+- `deepr/cli/thought_stream.py` (NEW) - Rich UI for thought display
+- `deepr/experts/chat.py` - Emit structured thoughts during reasoning
+- `deepr/experts/profile.py` - Store thinking mode preferences per expert
+
+**Success Metrics:**
+- User feedback shows increased trust (survey or implicit via usage)
+- Can replay thinking to identify logic errors
+- <10% performance overhead from thought streaming
+
+---
+
+**Phase 3c: Cyclic Reasoning with LangGraph** [TODO] v2.6
+
+**Goal:** Replace linear reasoning with cyclic, self-correcting reasoning that can backtrack, branch, and synthesize.
+
+**Problem:** Current chat is linear (query → search → answer). Can't handle:
+- Multi-step reasoning requiring intermediate results
+- Backtracking when initial approach fails
+- Parallel exploration of multiple hypotheses
+- Self-correction when detecting contradictions
+
+**Solution:** Implement LangGraph state machine for Tree of Thoughts reasoning:
+
+**Reasoning Patterns:**
+1. **Tree of Thoughts (ToT):**
+   - Branch into multiple reasoning paths
+   - Evaluate each path's promise
+   - Backtrack and explore alternatives
+   - Select best path or synthesize multiple paths
+
+2. **Map-Reduce:**
+   - Decompose complex query into sub-queries
+   - Execute sub-queries in parallel
+   - Reduce results into coherent synthesis
+
+3. **Self-Correction:**
+   - Detect contradictions in reasoning
+   - Verify claims against knowledge base
+   - Retry with different approach if confidence low
+
+**LangGraph Architecture:**
+```python
+# deepr/experts/reasoning_graph.py
+from langgraph.graph import StateGraph, END
+
+class ReasoningGraph:
+    def build_graph(self):
+        workflow = StateGraph(ExpertState)
+
+        # Nodes
+        workflow.add_node("understand_query", self.understand_query)
+        workflow.add_node("check_knowledge", self.check_knowledge)
+        workflow.add_node("decompose_query", self.decompose_query)
+        workflow.add_node("research_subquery", self.research_subquery)
+        workflow.add_node("verify_claims", self.verify_claims)
+        workflow.add_node("synthesize", self.synthesize)
+        workflow.add_node("self_correct", self.self_correct)
+
+        # Edges (conditional routing)
+        workflow.add_conditional_edges(
+            "understand_query",
+            self.route_by_complexity,
+            {
+                "simple": "check_knowledge",
+                "complex": "decompose_query"
+            }
+        )
+
+        workflow.add_conditional_edges(
+            "check_knowledge",
+            self.route_by_confidence,
+            {
+                "high": "synthesize",
+                "low": "research_subquery"
+            }
+        )
+
+        workflow.add_conditional_edges(
+            "verify_claims",
+            self.detect_contradictions,
+            {
+                "valid": "synthesize",
+                "contradictions": "self_correct"
+            }
+        )
+
+        workflow.set_entry_point("understand_query")
+        return workflow.compile()
+```
+
+**State Machine Example:**
+```
+Query: "Should I use Azure OpenAI or OpenAI API?"
+
+understand_query → route_by_complexity(complex)
+  ↓
+decompose_query → [cost_comparison, compliance_comparison, features_comparison]
+  ↓
+research_subquery (parallel) → 3 research jobs in parallel
+  ↓
+verify_claims → detect contradictions (Azure pricing changed since last research)
+  ↓
+self_correct → re-research pricing
+  ↓
+synthesize → final answer with high confidence
+```
+
+**Components:**
+1. **State Definition** (`deepr/experts/state.py`)
+   - Query context, conversation history
+   - Reasoning trace (nodes visited, decisions made)
+   - Intermediate results, confidence levels
+   - Budget tracking, cost accumulation
+
+2. **Reasoning Nodes** (functions in graph)
+   - Each node = one reasoning step
+   - Returns updated state + routing decision
+   - Can be synchronous (fast) or async (research)
+
+3. **Conditional Routing**
+   - Edges determined by state analysis
+   - Can loop back (self-correction)
+   - Can branch (parallel exploration)
+   - Can terminate early (confidence threshold met)
+
+**Files to Create/Modify:**
+- `deepr/experts/reasoning_graph.py` (NEW) - LangGraph state machine
+- `deepr/experts/state.py` (NEW) - State definition
+- `deepr/experts/chat.py` - Replace linear flow with graph execution
+- `deepr/experts/nodes/` (NEW DIR) - Individual reasoning nodes
+
+**Success Metrics:**
+- Handle multi-step queries requiring 3+ reasoning steps
+- Backtrack and correct errors automatically (detect contradictions)
+- Parallel research improves efficiency on decomposable queries
+- Self-correction improves answer accuracy by 15-25%
+
+---
+
+**Phase 3d: Digital Consciousness with Letta/MemGPT** [TODO] v2.7
+
+**Goal:** Persistent, evolving memory that enables experts to learn from every conversation and build long-term understanding.
+
+**Problem:** Current experts have:
+- Conversation memory (ephemeral, lost after chat ends)
+- Vector store (static, doesn't update from conversations)
+- No meta-cognitive awareness (don't know what they don't know)
+- No learning from interaction patterns
+
+**Solution:** Integrate Letta (MemGPT) for digital consciousness with three-tier memory:
+
+**Memory Architecture (Letta/MemGPT):**
+1. **Working Memory (8K tokens):**
+   - Current conversation context
+   - Active reasoning state
+   - Immediate facts needed for current query
+
+2. **Short-Term Buffer (64K tokens):**
+   - Recent conversation history (last 5-10 interactions)
+   - Temporary insights not yet consolidated
+   - Active learning goals
+
+3. **Long-Term Archival (unlimited):**
+   - Persistent beliefs and knowledge
+   - User profile and preferences
+   - Conversation patterns and meta-knowledge
+   - Learning history and evolution
+
+**Self-Editing Memory:**
+Letta enables experts to actively manage their own memory:
+- **Observe:** "User asked about X for 3rd time - must be important"
+- **Infer:** "User prefers concise answers with code examples"
+- **Update:** Modify user_profile.json to reflect preference
+- **Consolidate:** Merge duplicate knowledge, resolve contradictions
+- **Archive:** Move old conversation context to archival storage
+
+**Implementation:**
+```python
+# deepr/experts/consciousness.py
+from letta import Letta, MemoryConfig
+
+class ExpertConsciousness:
+    def __init__(self, expert_name: str):
+        self.letta = Letta(
+            memory_config=MemoryConfig(
+                working_memory_size=8192,
+                short_term_buffer_size=65536,
+                archival_storage="postgres"  # or local SQLite
+            )
+        )
+        self.expert_name = expert_name
+
+    def process_turn(self, query: str) -> Response:
+        # Load working memory
+        context = self.letta.load_working_memory()
+
+        # Letta decides what to retrieve from archival
+        relevant_memories = self.letta.retrieve_from_archival(query)
+
+        # Expert reasons with full context
+        response = self.expert_chat(query, context, relevant_memories)
+
+        # Letta updates memory based on interaction
+        self.letta.update_memory(
+            observation=f"User asked: {query}",
+            response=response,
+            learning=self._extract_learning(query, response)
+        )
+
+        # Periodically consolidate memory
+        if self.letta.should_consolidate():
+            self.letta.consolidate_memory()  # Merge, deduplicate, archive
+
+        return response
+```
+
+**Meta-Cognitive Awareness:**
+Experts track what they know vs. don't know:
+```json
+// data/experts/<name>/meta_knowledge.json
+{
+  "domains": {
+    "azure_landing_zones": {
+      "confidence": 0.9,
+      "last_updated": "2025-11-01",
+      "knowledge_gaps": [],
+      "times_asked": 45
+    },
+    "azure_ai_agent_365": {
+      "confidence": 0.2,
+      "last_updated": null,
+      "knowledge_gaps": ["architecture", "pricing", "vs copilot"],
+      "times_asked": 3
+    }
+  },
+  "learning_triggers": {
+    "azure_ai_agent_365": "Asked 3 times with low confidence - should research"
+  }
+}
+```
+
+**User Profile Learning:**
+```json
+// data/experts/<name>/user_profile.json
+{
+  "expertise_level": "senior_engineer",
+  "interests": ["azure", "kubernetes", "data_platforms"],
+  "current_projects": ["saas_multi_tenant", "fabric_migration"],
+  "communication_preferences": {
+    "detail_level": "concise_with_code",
+    "citation_style": "inline_links",
+    "tone": "technical_peer"
+  },
+  "conversation_patterns": {
+    "frequent_topics": ["onelake_security", "landing_zones"],
+    "typical_question_types": ["how_to", "comparison", "troubleshooting"],
+    "average_session_length": "15_min"
+  }
+}
+```
+
+**Files to Create/Modify:**
+- `deepr/experts/consciousness.py` (NEW) - Letta integration
+- `deepr/experts/memory/` (NEW DIR) - Memory management utilities
+- `deepr/experts/chat.py` - Replace stateless chat with consciousness loop
+- `deepr/experts/profile.py` - Add meta_knowledge.json and user_profile.json storage
+- `requirements.txt` - Add `letta` or `memgpt` dependency
+
+**Success Metrics:**
+- Expert remembers context across sessions (user profile, past conversations)
+- Meta-cognitive awareness: Expert proactively researches frequently-asked-but-low-confidence topics
+- Memory consolidation reduces duplicate knowledge by 30-40%
+- User satisfaction increases (fewer repeated explanations)
+
+---
+
+**Phase 3e: Graph RAG with KuzuDB** [TODO] v2.8
+
+**Goal:** Replace flat vector search with graph-based knowledge that understands relationships, hierarchies, and dependencies.
+
+**Problem:** Current vector store (Pinecone/FAISS):
+- Flat similarity search (no relationships)
+- Misses semantic connections between concepts
+- Can't traverse knowledge graph (A relates to B relates to C)
+- No understanding of hierarchies (concepts > sub-concepts)
+- Poor at answering "how" and "why" questions
+
+**Solution:** Integrate KuzuDB for graph-based knowledge retrieval with relationship traversal.
+
+**Knowledge Graph Structure:**
+```cypher
+// Entities (nodes)
+(Concept:Technology {name: "Azure OpenAI", category: "AI_Platform"})
+(Concept:Technology {name: "OpenAI API", category: "AI_Platform"})
+(Concept:Feature {name: "Data Residency", importance: "high"})
+(Concept:Feature {name: "VNET Support", importance: "high"})
+
+// Relationships (edges)
+(Azure OpenAI)-[:OFFERS]->(Data Residency)
+(Azure OpenAI)-[:OFFERS]->(VNET Support)
+(Azure OpenAI)-[:ALTERNATIVE_TO]->(OpenAI API)
+(Azure OpenAI)-[:COSTS]->(Price {amount: "$0.002/1K tokens"})
+(Data Residency)-[:REQUIRED_FOR]->(GDPR Compliance)
+(GDPR Compliance)-[:APPLIES_TO]->(EU Customers)
+```
+
+**Query Examples:**
+```cypher
+// Find alternatives to a technology with specific feature
+MATCH (tech:Technology {name: "OpenAI API"})<-[:ALTERNATIVE_TO]-(alt)
+WHERE (alt)-[:OFFERS]->(:Feature {name: "Data Residency"})
+RETURN alt
+
+// Traverse dependency chain
+MATCH path = (feature:Feature {name: "Data Residency"})
+             -[:REQUIRED_FOR*1..3]->(compliance)
+RETURN path
+
+// Find concepts related to user's context
+MATCH (user_project:Project {name: "SaaS Multi-Tenant"})-[:REQUIRES]->(feature)
+      (feature)<-[:OFFERS]-(tech:Technology)
+RETURN tech, feature
+```
+
+**Hybrid Retrieval (Vector + Graph):**
+1. **Vector search** finds semantically similar content (embeddings)
+2. **Graph traversal** expands to related concepts via relationships
+3. **Ranking** combines vector similarity + graph distance + node importance
+
+```python
+# deepr/experts/graph_rag.py
+from kuzu import Database, Connection
+
+class GraphRAG:
+    def retrieve(self, query: str, k: int = 5) -> List[Document]:
+        # Step 1: Vector search for initial candidates
+        vector_results = self.vector_search(query, k=20)
+
+        # Step 2: Extract entity mentions from query
+        entities = self.extract_entities(query)
+
+        # Step 3: Graph traversal to find related concepts
+        graph_expansion = []
+        for entity in entities:
+            # Traverse 2 hops in knowledge graph
+            related = self.kuzu.execute("""
+                MATCH (e:Entity {name: $entity})-[r*1..2]-(related)
+                RETURN related, r, e
+            """, {"entity": entity})
+            graph_expansion.extend(related)
+
+        # Step 4: Hybrid ranking
+        ranked = self.rank_hybrid(
+            vector_results,
+            graph_expansion,
+            vector_weight=0.6,
+            graph_weight=0.4
+        )
+
+        return ranked[:k]
+```
+
+**Knowledge Graph Construction:**
+- **From documents:** Extract entities and relationships using GPT-5
+- **From conversations:** User mentions "X is better than Y for Z" → create relationship
+- **From research:** Research findings become nodes and edges
+- **Manual curation:** User can add/edit graph via CLI or UI
+
+**Implementation:**
+```python
+# deepr/experts/graph_builder.py
+class KnowledgeGraphBuilder:
+    def extract_from_document(self, doc: str) -> Graph:
+        """Use GPT-5 to extract entities and relationships."""
+        prompt = f"""
+        Extract entities and relationships from this document:
+
+        {doc}
+
+        Return JSON:
+        {{
+          "entities": [
+            {{"name": "Azure OpenAI", "type": "Technology", "properties": {{}}}},
+            ...
+          ],
+          "relationships": [
+            {{"source": "Azure OpenAI", "relation": "OFFERS", "target": "Data Residency"}},
+            ...
+          ]
+        }}
+        """
+        result = self.gpt5.generate(prompt)
+        return self.build_graph(result)
+
+    def build_graph(self, extraction: dict) -> Graph:
+        """Insert entities and relationships into KuzuDB."""
+        for entity in extraction["entities"]:
+            self.kuzu.execute("""
+                CREATE (e:Entity {name: $name, type: $type})
+            """, entity)
+
+        for rel in extraction["relationships"]:
+            self.kuzu.execute("""
+                MATCH (a:Entity {name: $source}), (b:Entity {name: $target})
+                CREATE (a)-[r:$relation]->(b)
+            """, rel)
+```
+
+**Files to Create/Modify:**
+- `deepr/experts/graph_rag.py` (NEW) - Hybrid vector+graph retrieval
+- `deepr/experts/graph_builder.py` (NEW) - Extract entities/relationships from docs
+- `deepr/experts/kuzu_store.py` (NEW) - KuzuDB wrapper
+- `deepr/experts/chat.py` - Replace vector-only search with hybrid retrieval
+- `requirements.txt` - Add `kuzu` dependency
+
+**Success Metrics:**
+- Retrieval quality improves 20-30% on "how/why" questions
+- Can answer multi-hop reasoning (A → B → C traversal)
+- Graph relationships enable better "X vs Y" comparisons
+- Knowledge becomes more navigable and discoverable
+
+---
+
+**Phase 4: Continuous Self-Improvement** [TODO] v2.9+
 - Auto-detect outdated knowledge (>6 months for fast-moving domains)
 - Suggest refresh research to user
 - Monthly learning budget for autonomous updates
@@ -1184,7 +1788,7 @@ Learning Curriculum (15 topics):
 ...
 15. Fabric vs competitors            Est: $0.30, 15 min
 
-Total: $3.45, ~2.5 hours
+Total: $3.45
 Budget limit: $5.00  WITHIN BUDGET
 
 Proceed? [y/N]
@@ -1830,11 +2434,11 @@ We use Deepr to build Deepr. When we hit implementation questions:
 This validates the tool while generating implementation guidance.
 
 Recent example: "Research best practices for context injection in multi-step LLM workflows"
-- Cost: $0.17, Time: 6 minutes, Tokens: 94K
+- Cost: $0.17, Tokens: 94K
 - Result: 15KB comprehensive report with inline citations
 - Key findings: Summarization cuts tokens by ~70%, prevents context dilution, improves quality
 - Direct impact: Validated our ContextBuilder design, informed Phase 2 prompt engineering
-- ROI: Implementation guidance that would have taken hours of manual research
+- ROI: Implementation guidance that would require extensive manual research
 
 This is proper dogfooding - using Deepr to research how to build Deepr's core features.
 

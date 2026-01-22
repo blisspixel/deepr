@@ -98,6 +98,31 @@ def research(
         deepr research "Strategic analysis of Acme Corp" --scrape https://acmecorp.com
         deepr research "Query" --provider grok -m grok-4-fast
     """
+    from deepr.cli.validation import validate_prompt, validate_upload_files, validate_budget
+
+    # Validate query/prompt length
+    try:
+        query = validate_prompt(query, max_length=50000, field_name="query")
+    except click.UsageError as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+
+    # Validate files if provided
+    if upload:
+        try:
+            upload = tuple(str(f) for f in validate_upload_files(upload))
+        except click.UsageError as e:
+            click.echo(f"Error: {e}", err=True)
+            return
+
+    # Validate budget/limit if provided
+    if limit is not None:
+        try:
+            limit = validate_budget(limit, min_budget=0.1, max_budget=100.0)
+        except click.UsageError as e:
+            click.echo(f"Error: {e}", err=True)
+            return
+
     # Check if this is company research mode
     if query.lower() == "company":
         if not company_name or not website:
@@ -295,14 +320,41 @@ def team(
     asyncio.run(_run_team(question, model, perspectives, yes))
 
 
-@click.group()
-def expert():
+@click.group(invoke_without_command=True)
+@click.option('--list', '-l', is_flag=True, help='List all experts')
+@click.pass_context
+def expert(ctx, list):
     """Create and interact with domain experts.
 
     Experts combine knowledge bases with agentic research capabilities.
     They can autonomously research when they encounter knowledge gaps.
+
+    COMMON COMMANDS:
+      deepr expert list              List all experts
+      deepr expert make "Name"       Create a new expert
+      deepr expert info "Name"       Show expert details
+      deepr chat expert "Name"       Chat with an expert
+
+    EXAMPLES:
+      # List all experts
+      deepr expert list
+      deepr expert --list
+
+      # Create expert from documents
+      deepr expert make "Python Expert" -f docs/*.md
+
+      # Get expert details
+      deepr expert info "Python Expert"
+
+      # Chat with expert
+      deepr chat expert "Python Expert" --message "What are decorators?"
     """
-    pass
+    # If --list flag is used, invoke list command
+    if list:
+        ctx.invoke(list_experts)
+    # If no subcommand provided, show help
+    elif ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @expert.command(name="make")
@@ -325,18 +377,52 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
     """Create a new domain expert with a knowledge base.
 
     Creates an expert that can answer questions based on provided documents
-    and conduct research when needed.
+    and conduct autonomous research when they encounter knowledge gaps.
 
-    Examples:
-        deepr expert make "Azure Architect" -f docs/*.md
-        deepr expert make "Python Expert" -f guides/*.py --description "Python best practices"
-        deepr expert make "Security Advisor" -f policies/*.pdf
+    The expert uses the Model Router (Phase 3a) to optimize costs:
+    - Simple queries: GPT-5 with low reasoning effort
+    - Moderate queries: GPT-5 with medium reasoning effort
+    - Complex queries: GPT-5.2 or deep research models
+
+    EXAMPLES:
+      # Create expert from markdown docs
+      deepr expert make "Azure Architect" -f docs/*.md
+
+      # Create with description
+      deepr expert make "Python Expert" -f guides/*.py -d "Python best practices"
+
+      # Create with autonomous learning
+      deepr expert make "AI Expert" -f docs/*.md --learn --budget 10
     """
     import asyncio
     from deepr.experts.profile import ExpertStore, ExpertProfile, get_expert_system_message
     from deepr.config import load_config
     from deepr.providers import create_provider
     from datetime import datetime
+    from deepr.cli.validation import validate_upload_files, validate_expert_name, validate_budget
+
+    # Validate expert name
+    try:
+        name = validate_expert_name(name)
+    except click.UsageError as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+
+    # Validate files if provided
+    if files:
+        try:
+            files = tuple(str(f) for f in validate_upload_files(files))
+        except click.UsageError as e:
+            click.echo(f"Error: {e}", err=True)
+            return
+
+    # Validate budget if provided
+    if budget is not None:
+        try:
+            budget = validate_budget(budget, min_budget=0.1, max_budget=100.0)
+        except click.UsageError as e:
+            click.echo(f"Error: {e}", err=True)
+            return
 
     click.echo(f"\n{'='*70}")
     click.echo(f"  Creating Expert: {name}")
@@ -447,13 +533,39 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
         async def generate_and_execute_curriculum():
             from deepr.experts.curriculum import CurriculumGenerator
             from deepr.experts.learner import AutonomousLearner
-            from deepr.config import load_config
+            from deepr.config import AppConfig
 
-            config = load_config()
+            config = AppConfig.from_env()
 
-            click.echo(f"Generating learning curriculum with GPT-5...")
+            # Show pre-generation cost estimate based on config defaults
+            expert_config = config.expert
+            deep_topics = min(5, topics)  # Max 5 deep research topics
+            quick_topics = topics - deep_topics
+
+            estimated_deep_cost = deep_topics * expert_config.deep_research_cost
+            estimated_quick_cost = quick_topics * expert_config.quick_research_cost
+            estimated_total_cost = estimated_deep_cost + estimated_quick_cost
+
+            click.echo(f"\n{'='*70}")
+            click.echo(f"  Cost Estimation (Before Curriculum Generation)")
+            click.echo(f"{'='*70}\n")
             click.echo(f"Target topics: {topics}")
-            click.echo(f"Budget limit: ${budget:.2f}\n")
+            click.echo(f"  - {deep_topics} deep research topics (campaign mode)")
+            click.echo(f"  - {quick_topics} quick research topics (focus mode)")
+            click.echo(f"\nEstimated cost breakdown:")
+            click.echo(f"  - Deep research: {deep_topics} topics × ${expert_config.deep_research_cost:.2f} = ${estimated_deep_cost:.2f}")
+            click.echo(f"  - Quick research: {quick_topics} topics × ${expert_config.quick_research_cost:.2f} = ${estimated_quick_cost:.2f}")
+            click.echo(f"  - Total estimated: ${estimated_total_cost:.2f}")
+            click.echo(f"  - Budget limit: ${budget:.2f}")
+
+            if estimated_total_cost > budget:
+                click.echo(f"\n[WARNING] Estimated cost (${estimated_total_cost:.2f}) exceeds budget (${budget:.2f})")
+                click.echo(f"Curriculum will be automatically truncated to fit budget.")
+            else:
+                budget_remaining = budget - estimated_total_cost
+                click.echo(f"\n[OK] Estimated cost fits within budget (${budget_remaining:.2f} margin)")
+
+            click.echo(f"\nGenerating detailed curriculum with GPT-5...")
 
             generator = CurriculumGenerator(config)
 
@@ -492,8 +604,11 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                         click.echo(f"   Depends on: {', '.join(topic.dependencies)}")
                     click.echo()
 
-                click.echo(f"Total estimated cost: ${curriculum.total_estimated_cost:.2f}")
-                click.echo(f"Total estimated time: {curriculum.total_estimated_minutes} minutes")
+                click.echo(f"\n{'='*70}")
+                click.echo(f"  Final Cost Summary")
+                click.echo(f"{'='*70}\n")
+                click.echo(f"Actual estimated cost: ${curriculum.total_estimated_cost:.2f}")
+                click.echo(f"Total estimated time: {curriculum.total_estimated_minutes} minutes ({curriculum.total_estimated_minutes/60:.1f} hours)")
                 click.echo(f"Budget limit: ${budget:.2f}")
 
                 if curriculum.total_estimated_cost > budget:
@@ -553,7 +668,16 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
 @expert.command(name="list")
 def list_experts():
-    """List all available experts."""
+    """List all available experts.
+
+    Shows expert names, descriptions, document counts, conversation history,
+    creation dates, and knowledge freshness status.
+
+    USAGE:
+      deepr expert list
+      deepr expert --list
+      deepr expert -l
+    """
     from deepr.experts.profile import ExpertStore
 
     click.echo(f"\n{'='*70}")
@@ -579,7 +703,23 @@ def list_experts():
         click.echo(f"    Conversations: {expert.conversations}")
         if expert.research_triggered > 0:
             click.echo(f"    Research: {expert.research_triggered} jobs (${expert.total_research_cost:.2f})")
-        click.echo(f"    Updated: {expert.updated_at.strftime('%Y-%m-%d')}")
+
+        # Show temporal information
+        created_str = expert.created_at.strftime('%Y-%m-%d')
+        updated_str = expert.updated_at.strftime('%Y-%m-%d')
+
+        if created_str == updated_str:
+            click.echo(f"    Created: {created_str}")
+        else:
+            click.echo(f"    Created: {created_str}, Updated: {updated_str}")
+
+        # Show knowledge freshness status
+        if expert.knowledge_cutoff_date:
+            freshness = expert.get_freshness_status()
+            age_days = freshness.get('age_days', 0)
+            status = freshness.get('status', 'unknown')
+            click.echo(f"    Knowledge: {age_days} days old [{status}]")
+
         click.echo()
 
     click.echo("Usage:")
@@ -825,11 +965,11 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 
 @expert.command(name="chat")
 @click.argument("name")
-@click.option("--budget", "-b", type=float, default=None,
-              help="Session budget limit (required for agentic mode)")
-@click.option("--agentic", is_flag=True, default=False,
-              help="Enable agentic research (expert can trigger quick_lookup, standard_research, deep_research)")
-def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
+@click.option("--budget", "-b", type=float, default=10.0,
+              help="Session budget limit for research (default: $10)")
+@click.option("--no-research", is_flag=True, default=False,
+              help="Disable agentic research (experts can research by default)")
+def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     """Start an interactive chat session with an expert.
 
     Chat with a domain expert using their knowledge base. The expert will
@@ -842,7 +982,8 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
 
     Examples:
         deepr expert chat "AWS Solutions Architect"
-        deepr expert chat "Python Expert" --agentic --budget 5
+        deepr expert chat "Python Expert" --budget 5
+        deepr expert chat "Python Expert" --no-research  # Disable research
 
     Commands during chat:
         /quit or /exit - End the session
@@ -854,35 +995,35 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
     """
     import asyncio
     from deepr.experts.chat import start_chat_session
+    from deepr.cli import ui
+    from datetime import datetime
 
-    # Start the chat session
+    # Start the chat session (agentic by default)
+    agentic = not no_research
     try:
         session = asyncio.run(start_chat_session(name, budget, agentic=agentic))
     except ValueError as e:
-        click.echo(f"Error: {e}")
-        click.echo("\nList available experts with: deepr expert list")
+        ui.print_error(str(e))
+        click.echo("List available experts with: deepr expert list")
         return
     except Exception as e:
-        click.echo(f"Error starting chat session: {e}")
+        ui.print_error(f"Error starting chat session: {e}")
         return
 
-    # Display welcome message
-    click.echo(f"\n{'='*70}")
-    click.echo(f"  Chat with {session.expert.name}")
-    click.echo(f"{'='*70}")
-    click.echo(f"\nDomain: {session.expert.domain or session.expert.description or 'General'}")
-    click.echo(f"Knowledge Base: {session.expert.total_documents} documents")
+    # Calculate knowledge age
+    knowledge_age_days = 0
     if session.expert.knowledge_cutoff_date:
-        click.echo(f"Last Updated: {session.expert.knowledge_cutoff_date.strftime('%Y-%m-%d')}")
-    if agentic:
-        click.echo(f"Mode: AGENTIC (research enabled)")
-        click.echo(f"  - quick_lookup (FREE, <5 sec)")
-        click.echo(f"  - standard_research ($0.01-0.05, 30-60 sec)")
-        click.echo(f"  - deep_research ($0.10-0.30, 5-20 min)")
-    if budget:
-        click.echo(f"Session Budget: ${budget:.2f}")
-    click.echo(f"\nCommands: /quit, /status, /clear, /trace, /learn <file>, /synthesize")
-    click.echo(f"{'='*70}\n")
+        age_delta = datetime.now().date() - session.expert.knowledge_cutoff_date.date()
+        knowledge_age_days = age_delta.days
+
+    # Display modern welcome message
+    ui.print_welcome(
+        expert_name=session.expert.name,
+        domain=session.expert.domain or session.expert.description or 'General',
+        documents=session.expert.total_documents,
+        updated_date=session.expert.knowledge_cutoff_date.strftime('%Y-%m-%d') if session.expert.knowledge_cutoff_date else 'unknown',
+        knowledge_age_days=knowledge_age_days
+    )
 
     # Interactive chat loop
     while True:
@@ -895,46 +1036,39 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
 
             # Handle commands
             if user_input in ["/quit", "/exit"]:
-                click.echo("\nEnding chat session...")
+                ui.console.print("\n[dim]Ending chat session...[/dim]")
+                ui.print_session_summary(
+                    messages_count=len([m for m in session.messages if m["role"] == "user"]),
+                    cost=session.cost_accumulated,
+                    research_jobs=len(session.research_jobs),
+                    model=session.expert.model
+                )
                 break
+
+            elif user_input == "/help":
+                ui.print_command_help()
+                continue
 
             elif user_input == "/status":
                 summary = session.get_session_summary()
-                click.echo(f"\nSession Summary:")
-                click.echo(f"  Messages: {summary['messages_exchanged']}")
-                click.echo(f"  Cost: ${summary['cost_accumulated']:.4f}")
-                if summary['budget_remaining'] is not None:
-                    click.echo(f"  Budget Remaining: ${summary['budget_remaining']:.2f}")
-                if summary['research_jobs_triggered'] > 0:
-                    click.echo(f"  Research Jobs: {summary['research_jobs_triggered']}")
-                click.echo()
+                ui.print_status(
+                    expert_name=session.expert.name,
+                    messages_count=summary['messages_exchanged'],
+                    cost=summary['cost_accumulated'],
+                    budget=budget,
+                    research_jobs=summary['research_jobs_triggered'],
+                    model=summary['model'],
+                    documents=session.expert.total_documents
+                )
                 continue
 
             elif user_input == "/clear":
                 session.messages = []
-                click.echo("\n[OK] Conversation history cleared\n")
+                ui.console.print("\n[green][OK][/green] Conversation history cleared\n")
                 continue
 
             elif user_input == "/trace":
-                if not session.reasoning_trace:
-                    click.echo("\n[INFO] No reasoning trace yet\n")
-                else:
-                    click.echo(f"\n{'='*70}")
-                    click.echo(f"  Reasoning Trace (Last {len(session.reasoning_trace)} steps)")
-                    click.echo(f"{'='*70}\n")
-                    for i, step in enumerate(session.reasoning_trace, 1):
-                        click.echo(f"[{i}] {step['step']} at {step['timestamp']}")
-                        if step['step'] == 'search_knowledge_base':
-                            click.echo(f"    Query: {step['query']}")
-                            click.echo(f"    Results: {step['results_count']} documents")
-                            if step['sources']:
-                                click.echo(f"    Sources: {', '.join(step['sources'][:3])}")
-                        elif 'query' in step:
-                            click.echo(f"    Query: {step['query']}")
-                            if 'cost' in step:
-                                click.echo(f"    Cost: ${step['cost']:.4f}")
-                        click.echo()
-                    click.echo(f"{'='*70}\n")
+                ui.print_trace(session.reasoning_trace)
                 continue
 
             elif user_input.startswith("/learn "):
@@ -1080,54 +1214,75 @@ def chat_with_expert(name: str, budget: Optional[float], agentic: bool):
 
             # Check budget before processing
             if budget and session.cost_accumulated >= budget:
-                click.echo(f"\n[!] Session budget exhausted (${budget:.2f})")
-                click.echo("    End session or increase budget")
+                ui.print_error(f"Session budget exhausted (${budget:.2f}). End session or increase budget.")
                 break
 
-            # Send message to expert with processing indicator
-            click.echo(f"\n{session.expert.name}: ", nl=False)
+            # Classify query complexity for adaptive intelligence
+            complexity = ui.classify_query_complexity(user_input)
 
-            # Show processing indicator while waiting for response
-            import sys
-            import threading
-            import time
+            # Handle simple queries with quick response
+            if complexity == ui.QueryComplexity.SIMPLE:
+                # For greetings and simple responses, skip heavy processing
+                simple_responses = {
+                    "hi": f"Hello! I'm {session.expert.name}. What would you like to know?",
+                    "hello": f"Hello! I'm {session.expert.name}. How can I help you today?",
+                    "hey": f"Hey! What questions do you have for me?",
+                    "thanks": "You're welcome! Let me know if you need anything else.",
+                    "thank you": "You're welcome! Feel free to ask more questions.",
+                    "ok": "Got it. Anything else you'd like to know?",
+                    "okay": "Understood. What else can I help with?",
+                    "bye": "Goodbye! Feel free to come back anytime.",
+                    "goodbye": "Take care! Come back if you have more questions."
+                }
 
-            stop_indicator = threading.Event()
-            current_status = {"text": "Thinking..."}
+                response = simple_responses.get(user_input.lower().strip(),
+                                               f"I'm here to help with {session.expert.domain or 'your questions'}. What would you like to know?")
+                ui.stream_response(session.expert.name, response)
+                continue
 
-            def show_status_indicator():
-                """Show status with animated dots."""
-                indicators = ["   ", ".  ", ".. ", "..."]
-                idx = 0
-                while not stop_indicator.is_set():
-                    status_text = current_status["text"]
-                    sys.stdout.write(f"\r{session.expert.name}: {status_text}{indicators[idx]}")
-                    sys.stdout.flush()
-                    idx = (idx + 1) % len(indicators)
-                    time.sleep(0.3)
-                # Clear indicator line
-                sys.stdout.write(f"\r{session.expert.name}: ")
-                sys.stdout.flush()
+            # For moderate and complex queries, use full expert system
+            # Note: user_input already displayed from input() prompt, don't duplicate
+
+            # Track live status updates
+            status_live = None
+            current_status = ""
 
             def update_status(status: str):
                 """Update the current status text."""
-                current_status["text"] = status
+                nonlocal status_live, current_status
 
-            # Start indicator thread
-            indicator_thread = threading.Thread(target=show_status_indicator, daemon=True)
-            indicator_thread.start()
+                # Skip duplicate status updates to reduce flashing
+                if status == current_status:
+                    return
+
+                current_status = status
+
+                # Update live display if active
+                if status_live and status_live.is_started:
+                    # Import at function level to avoid circular imports
+                    from rich.spinner import Spinner
+                    import os
+                    import sys
+
+                    # Use modern styling with diamond icon
+                    spinner_type = "dots" if os.environ.get("WT_SESSION") or sys.platform != "win32" else "line"
+                    status_live.update(Spinner(spinner_type, text=f"[cyan]◆[/cyan] [dim]{status}[/dim]"))
 
             try:
+                # Start live status display
+                status_live = ui.print_thinking("Thinking...", with_spinner=True)
+                status_live.__enter__()
+
                 # Get response with status updates
                 response = asyncio.run(session.send_message(user_input, status_callback=update_status))
-            finally:
-                # Stop indicator
-                stop_indicator.set()
-                indicator_thread.join(timeout=1.0)
 
-            # Print response
-            click.echo(response)
-            click.echo()
+            finally:
+                # Stop live display
+                if status_live and status_live.is_started:
+                    status_live.__exit__(None, None, None)
+
+            # Stream response with modern formatting
+            ui.stream_response(session.expert.name, response)
 
             # Budget warning
             if budget:
