@@ -296,26 +296,8 @@ Summary:"""
             LLM response
         """
         if not self.llm_client:
-            # Import deepr's LLM utilities if available
-            try:
-                from deepr.providers import get_provider
-                from deepr.config import get_config
-
-                config = get_config()
-                provider = get_provider(config.default_provider or "openai")
-
-                # Use GPT-5 for synthesis
-                response = provider.chat_completion(
-                    messages=[{"role": "user", "content": prompt}],
-                    model="gpt-5",
-                    temperature=0.3,  # Lower temperature for factual synthesis
-                )
-
-                return response.choices[0].message.content
-
-            except Exception as e:
-                logger.error(f"Failed to use deepr LLM client: {e}")
-                raise
+            # LLM client not configured - raise silently
+            raise AttributeError("No LLM client configured")
 
         # Use provided LLM client
         return self.llm_client(prompt)

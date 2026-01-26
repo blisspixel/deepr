@@ -232,7 +232,7 @@ Learning Curriculum (15 topics):
 15. Topic O - Est: $0.30, 15 min
 
 Total: $3.45, ~2.5 hours
-Budget limit: $5.00  ✓ WITHIN BUDGET
+Budget limit: $5.00  [WITHIN BUDGET]
 
 Proceed? [y/N]
 ```

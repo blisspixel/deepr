@@ -24,40 +24,23 @@ class ModelCapability:
 # Model capabilities registry
 MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
     # OpenAI Models
-    "openai/gpt-5": ModelCapability(
-        provider="openai",
-        model="gpt-5",
-        cost_per_query=0.20,
-        latency_ms=3000,
-        context_window=128_000,
-        specializations=["reasoning", "coding", "general"],
-        strengths=[
-            "Adaptive reasoning with effort control",
-            "Tool calling for RAG",
-            "Strong reasoning across domains",
-            "Good balance of speed and quality"
-        ],
-        weaknesses=[
-            "Higher cost than fast models",
-            "Not specialized for specific domains"
-        ]
-    ),
-
     "openai/gpt-5.2": ModelCapability(
         provider="openai",
         model="gpt-5.2",
         cost_per_query=0.25,
-        latency_ms=3500,
+        latency_ms=2000,  # Fast for planning tasks
         context_window=128_000,
-        specializations=["reasoning", "analysis", "synthesis"],
+        specializations=["reasoning", "planning", "curriculum", "synthesis"],
         strengths=[
             "Enhanced reasoning capabilities",
+            "Excellent at structured output (JSON)",
+            "Fast curriculum/planning generation",
             "Better at complex multi-step problems",
             "Adaptive reasoning effort"
         ],
         weaknesses=[
-            "Higher cost",
-            "Slightly slower than gpt-5"
+            "Higher cost than gpt-4o",
+            "Overkill for simple queries"
         ]
     ),
 

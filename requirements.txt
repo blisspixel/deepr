@@ -23,6 +23,9 @@ docx2pdf>=0.1.8
 requests>=2.31.0
 pytz>=2023.3
 
+# Web scraping (Playwright for JS-heavy sites)
+playwright>=1.40.0
+
 # Web search tools (optional - at least one needed for Anthropic provider)
 # duckduckgo-search>=4.0.0  # Free, no API key
 # Brave API key: BRAVE_API_KEY env var

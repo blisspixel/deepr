@@ -1,7 +1,7 @@
 """Templates commands - save and reuse research prompts."""
 
 import click
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
 
 
 @click.group()
@@ -49,18 +49,18 @@ def save(name: str, prompt: str, model: str, description: str):
         with open(template_file, 'w') as f:
             json.dump(template, f, indent=2)
 
-        click.echo(f"\n{CHECK} Template saved: {name}")
-        click.echo(f"File: {template_file}")
+        print_success(f"Template saved: {name}")
+        console.print(f"File: {template_file}")
 
         if "{" in prompt:
             placeholders = [p.split("}")[0] for p in prompt.split("{")[1:]]
-            click.echo(f"\nPlaceholders: {', '.join(placeholders)}")
-            click.echo(f"\nUsage:")
+            console.print(f"\nPlaceholders: {', '.join(placeholders)}")
+            console.print(f"\nUsage:")
             example_values = " ".join([f"--{p} VALUE" for p in placeholders])
-            click.echo(f"  deepr templates use {name} {example_values}")
+            console.print(f"  deepr templates use {name} {example_values}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -112,7 +112,7 @@ def list():
             click.echo()
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -134,37 +134,37 @@ def show(name: str):
         template_file = Path(f".deepr/templates/{name}.json")
 
         if not template_file.exists():
-            click.echo(f"\n{CROSS} Template not found: {name}", err=True)
-            click.echo(f"\nAvailable templates:")
+            print_error(f"Template not found: {name}")
+            console.print(f"\nAvailable templates:")
             templates_dir = Path(".deepr/templates")
             if templates_dir.exists():
                 for tf in sorted(templates_dir.glob("*.json")):
-                    click.echo(f"  - {tf.stem}")
+                    console.print(f"  - {tf.stem}")
             raise click.Abort()
 
         with open(template_file) as f:
             template = json.load(f)
 
-        click.echo(f"\nName: {template['name']}")
+        console.print(f"\nName: {template['name']}")
         if template.get('description'):
-            click.echo(f"Description: {template['description']}")
+            console.print(f"Description: {template['description']}")
         if template.get('model'):
-            click.echo(f"Default Model: {template['model']}")
-        click.echo(f"Created: {template.get('created_at', 'Unknown')}")
-        click.echo(f"Usage Count: {template.get('usage_count', 0)}")
+            console.print(f"Default Model: {template['model']}")
+        console.print(f"Created: {template.get('created_at', 'Unknown')}")
+        console.print(f"Usage Count: {template.get('usage_count', 0)}")
 
-        click.echo(f"\nPrompt:")
-        click.echo(f"  {template['prompt']}")
+        console.print(f"\nPrompt:")
+        console.print(f"  {template['prompt']}")
 
         if "{" in template['prompt']:
             placeholders = [p.split("}")[0] for p in template['prompt'].split("{")[1:]]
-            click.echo(f"\nPlaceholders:")
+            console.print(f"\nPlaceholders:")
             for p in placeholders:
-                click.echo(f"  - {p}")
+                console.print(f"  - {p}")
 
     except Exception as e:
         if not isinstance(e, click.Abort):
-            click.echo(f"\n{CROSS} Error: {e}", err=True)
+            print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -186,20 +186,20 @@ def delete(name: str, yes: bool):
         template_file = Path(f".deepr/templates/{name}.json")
 
         if not template_file.exists():
-            click.echo(f"\n{CROSS} Template not found: {name}", err=True)
+            print_error(f"Template not found: {name}")
             raise click.Abort()
 
         if not yes:
             if not click.confirm(f"\nDelete template '{name}'?"):
-                click.echo(f"\n{CROSS} Cancelled")
+                print_warning("Cancelled")
                 return
 
         template_file.unlink()
-        click.echo(f"\n{CHECK} Template deleted: {name}")
+        print_success(f"Template deleted: {name}")
 
     except Exception as e:
         if not isinstance(e, click.Abort):
-            click.echo(f"\n{CROSS} Error: {e}", err=True)
+            print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -227,7 +227,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
         template_file = Path(f".deepr/templates/{name}.json")
 
         if not template_file.exists():
-            click.echo(f"\n{CROSS} Template not found: {name}", err=True)
+            print_error(f"Template not found: {name}")
             raise click.Abort()
 
         with open(template_file) as f:
@@ -243,7 +243,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
                     placeholders[key] = values[i + 1]
                     i += 2
                 else:
-                    click.echo(f"\n{CROSS} Missing value for --{key}", err=True)
+                    print_error(f"Missing value for --{key}")
                     raise click.Abort()
             else:
                 i += 1
@@ -256,10 +256,10 @@ def use(name: str, values: tuple, yes: bool, model: str):
                 missing.append(match)
 
         if missing:
-            click.echo(f"\n{CROSS} Missing placeholder values: {', '.join(missing)}", err=True)
-            click.echo(f"\nUsage:")
+            print_error(f"Missing placeholder values: {', '.join(missing)}")
+            console.print(f"\nUsage:")
             example = " ".join([f"--{p} VALUE" for p in missing])
-            click.echo(f"  deepr templates use {name} {example}")
+            console.print(f"  deepr templates use {name} {example}")
             raise click.Abort()
 
         # Replace placeholders
@@ -267,15 +267,15 @@ def use(name: str, values: tuple, yes: bool, model: str):
         for key, value in placeholders.items():
             filled_prompt = filled_prompt.replace(f"{{{key}}}", value)
 
-        click.echo(f"\nFilled prompt:")
-        click.echo(f"  {filled_prompt[:200]}{'...' if len(filled_prompt) > 200 else ''}")
+        console.print(f"\nFilled prompt:")
+        console.print(f"  {filled_prompt[:200]}{'...' if len(filled_prompt) > 200 else ''}")
 
         # Use template model if not overridden
         use_model = model or template.get('model', 'o4-mini-deep-research')
 
         if not yes:
             if not click.confirm(f"\nSubmit research with this prompt?"):
-                click.echo(f"\n{CROSS} Cancelled")
+                print_warning("Cancelled")
                 return
 
         # Update usage count
@@ -284,7 +284,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
             json.dump(template, f, indent=2)
 
         # Submit research
-        click.echo(f"\n{CHECK} Submitting research...")
+        print_success("Submitting research...")
 
         from subprocess import run
         result = run([
@@ -295,10 +295,10 @@ def use(name: str, values: tuple, yes: bool, model: str):
         ])
 
         if result.returncode != 0:
-            click.echo(f"\n{CROSS} Research submission failed", err=True)
+            print_error("Research submission failed")
             raise click.Abort()
 
     except Exception as e:
         if not isinstance(e, click.Abort):
-            click.echo(f"\n{CROSS} Error: {e}", err=True)
+            print_error(f"Error: {e}")
         raise click.Abort()

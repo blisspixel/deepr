@@ -202,9 +202,9 @@ class CostController:
 
     def __init__(
         self,
-        max_cost_per_job: float = 10.0,
-        max_daily_cost: float = 100.0,
-        max_monthly_cost: float = 1000.0,
+        max_cost_per_job: float = 5.0,
+        max_daily_cost: float = 25.0,
+        max_monthly_cost: float = 200.0,
     ):
         """
         Initialize cost controller with limits.

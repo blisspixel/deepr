@@ -65,7 +65,8 @@ class LinkFilter:
             return filtered
 
         except Exception as e:
-            logger.error(f"LLM filtering failed: {e}, using heuristic fallback")
+            # Silently fall back to heuristics if LLM not available
+            logger.debug(f"LLM filtering not available, using heuristics: {e}")
             return self._heuristic_filter(links, purpose, max_links)
 
     def _create_filter_prompt(
@@ -160,27 +161,10 @@ JSON array of scores:"""
             List of scores (0-10)
         """
         if not self.llm_client:
-            # Import deepr's LLM utilities
-            try:
-                from deepr.providers import get_provider
-                from deepr.config import get_config
+            # LLM client not configured - use heuristic fallback silently
+            raise AttributeError("No LLM client configured")
 
-                config = get_config()
-                provider = get_provider(config.default_provider or "openai")
-
-                response = provider.chat_completion(
-                    messages=[{"role": "user", "content": prompt}],
-                    model="gpt-5",
-                    temperature=0.3,
-                )
-
-                response_text = response.choices[0].message.content.strip()
-
-            except Exception as e:
-                logger.error(f"Failed to use deepr LLM client: {e}")
-                raise
-        else:
-            response_text = self.llm_client(prompt)
+        response_text = self.llm_client(prompt)
 
         # Parse JSON response
         try:
