@@ -1,7 +1,7 @@
 """Cost commands - estimate and track costs."""
 
 import click
-from deepr.branding import print_section_header, CHECK
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
 
 
 @click.group()
@@ -36,19 +36,18 @@ def estimate(prompt: str, model: str, web_search: bool):
             enable_web_search=web_search
         )
 
-        click.echo(f"\nCost Estimate:")
-        click.echo(f"   Expected: ${estimate.expected_cost:.2f}")
-        click.echo(f"   Min: ${estimate.min_cost:.2f}")
-        click.echo(f"   Max: ${estimate.max_cost:.2f}")
+        console.print(f"\nCost Estimate:")
+        console.print(f"   Expected: ${estimate.expected_cost:.2f}")
+        console.print(f"   Min: ${estimate.min_cost:.2f}")
+        console.print(f"   Max: ${estimate.max_cost:.2f}")
 
-        click.echo(f"\nConfiguration:")
-        click.echo(f"   Model: {model}")
-        click.echo(f"   Web Search: {'enabled' if web_search else 'disabled'}")
-        click.echo(f"   Prompt length: {len(prompt)} chars")
+        console.print(f"\nConfiguration:")
+        console.print(f"   Model: {model}")
+        console.print(f"   Web Search: {'enabled' if web_search else 'disabled'}")
+        console.print(f"   Prompt length: {len(prompt)} chars")
 
     except Exception as e:
-        from deepr.branding import CROSS
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -163,10 +162,9 @@ def summary(period: str):
             click.echo(f"   Used: ${total_cost:.2f} / ${max_per_month:.2f} ({pct:.1f}%)")
         elif period == "today":
             pct = (total_cost / max_per_day) * 100
-            click.echo(f"\nDaily Budget:")
-            click.echo(f"   Used: ${total_cost:.2f} / ${max_per_day:.2f} ({pct:.1f}%)")
+            console.print(f"\nDaily Budget:")
+            console.print(f"   Used: ${total_cost:.2f} / ${max_per_day:.2f} ({pct:.1f}%)")
 
     except Exception as e:
-        from deepr.branding import CROSS
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
