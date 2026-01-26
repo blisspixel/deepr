@@ -167,10 +167,10 @@ def test_page_deduplicator():
 
 def test_http_fetcher():
     """Test HTTP fetching (requires internet)."""
-    print("\n[TEST] ContentFetcher HTTP...")
+    print("\n[TEST] ContentFetcher fetch...")
 
     config = ScrapeConfig(
-        try_selenium=False,  # Only test HTTP
+        try_selenium=False,
         try_pdf=False,
         try_archive=False,
         timeout=10,
@@ -181,16 +181,17 @@ def test_http_fetcher():
     result = fetcher.fetch("https://example.com")
 
     if result.success:
-        assert result.strategy == "HTTP"
+        # Playwright is now preferred, but HTTP is also valid
+        assert result.strategy in ("Playwright", "HTTP")
         assert result.html is not None
         assert len(result.html) > 100
-        print("  [OK] HTTP fetch successful")
+        print(f"  [OK] Fetch successful via {result.strategy}")
         print(f"  [OK] Got {len(result.html)} chars of HTML")
     else:
-        print(f"  [SKIP] HTTP fetch failed: {result.error}")
+        print(f"  [SKIP] Fetch failed: {result.error}")
         print("  (This is okay if network is unavailable)")
 
-    print("[PASS] ContentFetcher HTTP\n")
+    print("[PASS] ContentFetcher fetch\n")
 
 
 def run_all_tests():

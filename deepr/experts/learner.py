@@ -46,7 +46,14 @@ class LearningProgress:
 
 
 class AutonomousLearner:
-    """Executes learning curricula autonomously with budget protection."""
+    """Executes learning curricula autonomously with budget protection.
+    
+    Safety features:
+    - Hard budget caps that cannot be bypassed
+    - Session-level cost tracking with alerts
+    - Circuit breaker for repeated failures
+    - Audit logging of all costs
+    """
 
     def __init__(self, config):
         self.config = config
@@ -74,6 +81,10 @@ class AutonomousLearner:
             document_manager=document_manager,
             report_generator=report_generator
         )
+        
+        # Cost safety manager for defensive budget controls
+        from deepr.experts.cost_safety import get_cost_safety_manager
+        self.cost_safety = get_cost_safety_manager()
 
     async def execute_curriculum(
         self,
@@ -81,9 +92,15 @@ class AutonomousLearner:
         curriculum: LearningCurriculum,
         budget_limit: float,
         dry_run: bool = False,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        resume: bool = False
     ) -> LearningProgress:
-        """Execute a learning curriculum autonomously.
+        """Execute a learning curriculum autonomously using parallel approach.
+        
+        Optimized workflow:
+        1. Submit deep research jobs FIRST (async, 5-20 min each)
+        2. While waiting, scrape/acquire sources (parallel)
+        3. Poll for research completion and integrate
 
         Args:
             expert: Expert profile to update
@@ -91,77 +108,737 @@ class AutonomousLearner:
             budget_limit: Maximum spending allowed
             dry_run: If True, don't actually execute (for testing)
             progress_callback: Optional callback for progress updates
+            resume: If True, check for and resume from saved progress
 
         Returns:
             LearningProgress tracking execution
         """
-        progress = LearningProgress(
-            curriculum=curriculum,
-            completed_topics=[],
-            failed_topics=[],
-            total_cost=0.0,
-            started_at=datetime.utcnow()
+        import uuid
+        from deepr.experts.cost_safety import estimate_curriculum_cost, format_cost_warning
+        
+        # Check for saved progress if resuming
+        saved_progress = None
+        if resume:
+            saved_progress = self.load_learning_progress(expert.name)
+            if saved_progress:
+                self._log_progress(
+                    "",
+                    "="*70,
+                    "  Resuming from Saved Progress",
+                    "="*70,
+                    f"Paused at: {saved_progress.get('paused_at', 'unknown')}",
+                    f"Completed: {len(saved_progress.get('completed_topics', []))} topics",
+                    f"Remaining: {len(saved_progress.get('remaining_topics', []))} topics",
+                    f"Cost so far: ${saved_progress.get('total_cost_so_far', 0):.2f}",
+                    "",
+                    callback=progress_callback
+                )
+            else:
+                self._log_progress(
+                    "No saved progress found - starting fresh",
+                    callback=progress_callback
+                )
+        
+        # Create cost tracking session
+        session_id = f"learn_{expert.name}_{uuid.uuid4().hex[:8]}"
+        session = self.cost_safety.create_session(
+            session_id=session_id,
+            session_type="learning",
+            budget_limit=budget_limit
         )
+        
+        # Initialize progress - restore from saved if resuming
+        if saved_progress:
+            progress = LearningProgress(
+                curriculum=curriculum,
+                completed_topics=saved_progress.get('completed_topics', []),
+                failed_topics=saved_progress.get('failed_topics', []),
+                total_cost=saved_progress.get('total_cost_so_far', 0.0),
+                started_at=datetime.fromisoformat(saved_progress.get('started_at', datetime.utcnow().isoformat()))
+            )
+            # Update session with prior cost
+            session.total_cost = progress.total_cost
+            
+            # Rebuild curriculum with only remaining topics
+            remaining_topic_titles = {t['title'] for t in saved_progress.get('remaining_topics', [])}
+            curriculum.topics = [t for t in curriculum.topics if t.title in remaining_topic_titles]
+        else:
+            progress = LearningProgress(
+                curriculum=curriculum,
+                completed_topics=[],
+                failed_topics=[],
+                total_cost=0.0,
+                started_at=datetime.utcnow()
+            )
 
         # Get execution order (respects dependencies)
         generator = CurriculumGenerator(self.config)
         phases = generator.get_execution_order(curriculum)
+        
+        # Pre-flight cost estimate
+        deep_count = sum(1 for t in curriculum.topics if t.research_mode == "campaign")
+        quick_count = sum(1 for t in curriculum.topics if t.research_mode == "focus")
+        docs_count = sum(1 for t in curriculum.topics if t.research_type == "documentation")
+        
+        cost_estimate = estimate_curriculum_cost(
+            topic_count=len(curriculum.topics),
+            deep_research_count=deep_count,
+            quick_research_count=quick_count,
+            docs_count=docs_count
+        )
 
         self._log_progress(
             f"Starting autonomous learning for {expert.name}",
             f"Curriculum: {len(curriculum.topics)} topics in {len(phases)} phases",
-            f"Budget limit: ${budget_limit:.2f}",
+            f"Budget limit: ${budget_limit:.2f}" if budget_limit is not None else "Budget limit: unlimited",
+            format_cost_warning(cost_estimate["expected_cost"], budget_limit),
             callback=progress_callback
         )
-
-        # Execute phase by phase and collect job IDs
-        all_job_ids = []
-
-        for phase_num, phase_topics in enumerate(phases, 1):
+        
+        # Check if estimated cost exceeds budget
+        if cost_estimate["expected_cost"] > budget_limit:
             self._log_progress(
-                f"\n=== Phase {phase_num}/{len(phases)} ===",
-                f"Topics: {', '.join(t.title for t in phase_topics)}",
+                f"Estimated cost ${cost_estimate['expected_cost']:.2f} exceeds budget ${budget_limit:.2f}",
+                "Consider reducing topic count or using --dry-run to preview",
                 callback=progress_callback
             )
 
-            # Check budget before starting phase
-            if progress.total_cost >= budget_limit:
-                self._log_progress(
-                    "[WARNING] Budget limit reached, stopping",
-                    callback=progress_callback
-                )
-                break
-
-            # Execute topics in parallel (they have no dependencies on each other)
-            if dry_run:
-                # Simulate execution
+        if dry_run:
+            # Simulate execution
+            for phase_num, phase_topics in enumerate(phases, 1):
                 await self._simulate_phase_execution(
                     phase_topics, progress, budget_limit, progress_callback
                 )
-            else:
-                # Real execution - returns job IDs
-                job_ids = await self._execute_phase(
-                    expert, phase_topics, progress, budget_limit, progress_callback
+            progress.completed_at = datetime.utcnow()
+            self.cost_safety.close_session(session_id)
+            return progress
+
+        try:
+            # STEP 1: Submit all deep research jobs FIRST (they're async, take 5-20 min)
+            self._log_progress(
+                "",
+                "Step 1: Submitting Deep Research Jobs",
+                "",
+                callback=progress_callback
+            )
+            
+            all_job_ids = []
+            for phase_num, phase_topics in enumerate(phases, 1):
+                # Check budget before starting phase using cost safety manager
+                can_proceed, reason = session.can_proceed()
+                if not can_proceed:
+                    self._log_progress(
+                        f"Budget check failed: {reason}",
+                        callback=progress_callback
+                    )
+                    break
+
+                self._log_progress(
+                    f"Phase {phase_num}/{len(phases)}: {', '.join(t.title for t in phase_topics)}",
+                    callback=progress_callback
+                )
+                
+                # Submit jobs (non-blocking)
+                job_ids = await self._submit_research_jobs(
+                    expert, phase_topics, progress, session, progress_callback
                 )
                 if job_ids:
                     all_job_ids.extend(job_ids)
 
-        progress.completed_at = datetime.utcnow()
+            self._log_progress(
+                f"Submitted {len(all_job_ids)} research jobs (running in background)",
+                callback=progress_callback
+            )
 
-        self._log_progress(
-            f"\n=== Learning Complete ===",
-            f"Completed: {len(progress.completed_topics)} topics",
-            f"Failed: {len(progress.failed_topics)} topics",
-            f"Total cost: ${progress.total_cost:.2f}",
-            f"Success rate: {progress.success_rate()*100:.1f}%",
-            callback=progress_callback
-        )
+            # STEP 2: While research runs, acquire sources (scraping)
+            self._log_progress(
+                "",
+                "Step 2: Acquiring Sources",
+                "",
+                callback=progress_callback
+            )
+            await self._acquire_sources(expert, curriculum, progress_callback)
 
-        # Poll for completion and integrate reports
-        if not dry_run and all_job_ids:
-            await self._poll_and_integrate_reports(expert, all_job_ids, progress_callback)
+            # STEP 3: Poll for research completion and integrate
+            self._log_progress(
+                "",
+                "Step 3: Waiting for Research Completion",
+                "",
+                callback=progress_callback
+            )
+            
+            if all_job_ids:
+                await self._poll_and_integrate_reports(expert, all_job_ids, session, progress_callback)
+
+            progress.completed_at = datetime.utcnow()
+            
+            # Get final cost from session
+            progress.total_cost = session.total_cost
+
+            self._log_progress(
+                "",
+                "Learning Complete",
+                f"Completed: {len(progress.completed_topics)} topics",
+                f"Failed: {len(progress.failed_topics)} topics",
+                f"Total cost: ${progress.total_cost:.2f}",
+                f"Success rate: {progress.success_rate()*100:.1f}%",
+                callback=progress_callback
+            )
+            
+            # Clear saved progress on successful completion
+            if progress.is_complete():
+                self.clear_learning_progress(expert.name)
+            
+        finally:
+            # Always close the session
+            summary = self.cost_safety.close_session(session_id)
+            if summary and summary.get("alerts"):
+                for alert in summary["alerts"]:
+                    self._log_progress(
+                        f"Cost alert: {alert['message']}",
+                        callback=progress_callback
+                    )
 
         return progress
+
+    async def _submit_research_jobs(
+        self,
+        expert: ExpertProfile,
+        topics: List[LearningTopic],
+        progress: LearningProgress,
+        session,  # SessionCostTracker
+        callback: Optional[Callable] = None
+    ) -> List[str]:
+        """Submit research jobs without waiting for completion.
+        
+        Returns list of job IDs for later polling.
+        
+        If a daily/monthly limit is hit, saves progress and returns what was
+        submitted so far. The user can resume later.
+        """
+        from deepr.experts.cost_safety import is_pausable_limit, get_resume_message
+        
+        job_ids = []
+        
+        for topic in topics:
+            # Budget check using session tracker
+            can_proceed, reason = session.can_proceed(topic.estimated_cost)
+            if not can_proceed:
+                self._log_progress(
+                    f"  Skipping {topic.title} - {reason}",
+                    callback=callback
+                )
+                progress.failed_topics.append(topic.title)
+                continue
+            
+            # Check global cost safety limits
+            allowed, block_reason, needs_confirm = self.cost_safety.check_operation(
+                session_id=session.session_id,
+                operation_type="research",
+                estimated_cost=topic.estimated_cost,
+                require_confirmation=False  # No interactive confirmation in autonomous mode
+            )
+            
+            if not allowed:
+                # Check if this is a pausable limit (daily/monthly)
+                if is_pausable_limit(block_reason):
+                    self._log_progress(
+                        "",
+                        "="*70,
+                        "  PAUSED - Daily/Monthly Limit Reached",
+                        "="*70,
+                        "",
+                        get_resume_message(block_reason),
+                        "",
+                        f"Progress so far: {len(progress.completed_topics)} topics completed",
+                        f"Remaining: {len(topics) - len(progress.completed_topics) - len(progress.failed_topics)} topics",
+                        "",
+                        "Your progress has been saved. To resume:",
+                        f"  deepr expert learn \"{expert.name}\" --resume",
+                        "",
+                        callback=callback
+                    )
+                    # Save progress for resume
+                    self._save_learning_progress(expert, progress, topics)
+                    # Return what we have so far - don't mark remaining as failed
+                    return job_ids
+                else:
+                    self._log_progress(
+                        f"  Blocked {topic.title} - {block_reason}",
+                        callback=callback
+                    )
+                    progress.failed_topics.append(topic.title)
+                    continue
+            
+            try:
+                self._log_progress(
+                    f"  Submitting: {topic.title} (~${topic.estimated_cost:.2f})",
+                    callback=callback
+                )
+                
+                # Submit job (returns immediately with job ID)
+                job_id = await self._submit_single_job(expert, topic, callback)
+                
+                if job_id:
+                    job_ids.append(job_id)
+                    # Record estimated cost (actual cost reconciled later)
+                    session.record_operation(
+                        operation_type="research_submit",
+                        cost=topic.estimated_cost,
+                        details=f"{topic.title} ({topic.research_mode})"
+                    )
+                    progress.total_cost = session.total_cost
+                    self._log_progress(
+                        f"    Job submitted: {job_id}",
+                        callback=callback
+                    )
+                else:
+                    session.record_failure("research_submit", f"No job ID returned for {topic.title}")
+                    progress.failed_topics.append(topic.title)
+                    
+            except Exception as e:
+                self._log_progress(
+                    f"    Failed to submit: {e}",
+                    callback=callback
+                )
+                session.record_failure("research_submit", str(e))
+                progress.failed_topics.append(topic.title)
+        
+        return job_ids
+    
+    def _save_learning_progress(
+        self,
+        expert: ExpertProfile,
+        progress: LearningProgress,
+        remaining_topics: List[LearningTopic]
+    ):
+        """Save learning progress for later resume.
+        
+        Saves to expert's data directory so it can be resumed later.
+        """
+        import json
+        from pathlib import Path
+        
+        store = ExpertStore()
+        progress_file = store.get_knowledge_dir(expert.name) / "learning_progress.json"
+        progress_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Calculate remaining topics (not completed, not failed)
+        completed_set = set(progress.completed_topics)
+        failed_set = set(progress.failed_topics)
+        remaining = [t for t in remaining_topics if t.title not in completed_set and t.title not in failed_set]
+        
+        progress_data = {
+            "expert_name": expert.name,
+            "paused_at": datetime.utcnow().isoformat(),
+            "completed_topics": progress.completed_topics,
+            "failed_topics": progress.failed_topics,
+            "remaining_topics": [
+                {
+                    "title": t.title,
+                    "research_prompt": t.research_prompt,
+                    "research_mode": t.research_mode,
+                    "research_type": t.research_type,
+                    "estimated_cost": t.estimated_cost,
+                    "estimated_minutes": t.estimated_minutes
+                }
+                for t in remaining
+            ],
+            "total_cost_so_far": progress.total_cost,
+            "started_at": progress.started_at.isoformat(),
+            "reason": "daily_or_monthly_limit"
+        }
+        
+        with open(progress_file, 'w', encoding='utf-8') as f:
+            json.dump(progress_data, f, indent=2)
+    
+    def load_learning_progress(self, expert_name: str) -> Optional[dict]:
+        """Load saved learning progress for resume.
+        
+        Args:
+            expert_name: Name of the expert
+            
+        Returns:
+            Progress data dict or None if no saved progress
+        """
+        import json
+        
+        store = ExpertStore()
+        progress_file = store.get_knowledge_dir(expert_name) / "learning_progress.json"
+        
+        if not progress_file.exists():
+            return None
+        
+        with open(progress_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    
+    def clear_learning_progress(self, expert_name: str):
+        """Clear saved learning progress after successful completion.
+        
+        Args:
+            expert_name: Name of the expert
+        """
+        store = ExpertStore()
+        progress_file = store.get_knowledge_dir(expert_name) / "learning_progress.json"
+        
+        if progress_file.exists():
+            progress_file.unlink()
+
+    async def _acquire_sources(
+        self,
+        expert: ExpertProfile,
+        curriculum: LearningCurriculum,
+        callback: Optional[Callable] = None
+    ):
+        """Phase 2a: Acquire sources - Fetch and scrape discovered sources.
+        
+        This phase:
+        1. Collects all unique sources from curriculum topics
+        2. Scrapes documentation URLs using existing scraper
+        3. Fetches research papers (PDFs/HTML)
+        4. Uploads all to expert's vector store
+        
+        Cost: $0 (just scraping/fetching, no LLM calls)
+        
+        Args:
+            expert: Expert profile to update
+            curriculum: Learning curriculum with source references
+            callback: Optional progress callback
+        """
+        from deepr.utils.scrape import scrape_website, ScrapeConfig
+        from deepr.experts.profile import ExpertStore
+        import tempfile
+        from pathlib import Path
+        
+        # Collect all unique sources from topics
+        all_sources = []
+        seen_urls = set()
+        
+        for topic in curriculum.topics:
+            if topic.sources:
+                for source in topic.sources:
+                    if source.url and source.url not in seen_urls:
+                        all_sources.append(source)
+                        seen_urls.add(source.url)
+        
+        if not all_sources:
+            self._log_progress(
+                "\n[SKIP] No sources to acquire (curriculum has no source references)",
+                callback=callback
+            )
+            return
+        
+        # Limit sources per type to avoid excessive scraping
+        MAX_SOURCES_PER_TYPE = 5
+        
+        # Group by type
+        by_type = {}
+        for source in all_sources:
+            if source.source_type not in by_type:
+                by_type[source.source_type] = []
+            by_type[source.source_type].append(source)
+        
+        # Take up to MAX_SOURCES_PER_TYPE of each type
+        limited_sources = []
+        for source_type, sources in by_type.items():
+            limited_sources.extend(sources[:MAX_SOURCES_PER_TYPE])
+        
+        self._log_progress(
+            "\n" + "="*70,
+            "  Phase 2a: Acquiring Sources",
+            "="*70,
+            f"Found {len(all_sources)} unique sources ({len(limited_sources)} after limiting to {MAX_SOURCES_PER_TYPE} per type)",
+            "",
+            callback=callback
+        )
+        
+        # Show counts by type
+        limited_by_type = {}
+        for source in limited_sources:
+            if source.source_type not in limited_by_type:
+                limited_by_type[source.source_type] = []
+            limited_by_type[source.source_type].append(source)
+        
+        for source_type, sources in limited_by_type.items():
+            original_count = len(by_type[source_type])
+            if original_count > MAX_SOURCES_PER_TYPE:
+                self._log_progress(
+                    f"  {source_type}: {len(sources)} sources (limited from {original_count})",
+                    callback=callback
+                )
+            else:
+                self._log_progress(
+                    f"  {source_type}: {len(sources)} sources",
+                    callback=callback
+                )
+        
+        # Acquire each source
+        acquired = 0
+        failed = 0
+        
+        store = ExpertStore()
+        docs_dir = store.get_documents_dir(expert.name)
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        
+        for i, source in enumerate(limited_sources, 1):
+            try:
+                self._log_progress(
+                    f"\n{i}/{len(all_sources)}: {source.title}",
+                    f"  URL: {source.url}",
+                    f"  Type: {source.source_type}",
+                    callback=callback
+                )
+                
+                # Determine acquisition strategy based on source type
+                if source.source_type in ["documentation", "guide", "blog"]:
+                    # Scrape website
+                    content = await self._scrape_source(source, callback)
+                elif source.source_type == "paper":
+                    # Fetch paper (PDF or HTML)
+                    content = await self._fetch_paper(source, callback)
+                elif source.source_type == "video":
+                    # Skip videos for now (would need transcript extraction)
+                    self._log_progress(
+                        "  [SKIP] Video sources not yet supported",
+                        callback=callback
+                    )
+                    continue
+                else:
+                    # Unknown type - try scraping
+                    content = await self._scrape_source(source, callback)
+                
+                if not content:
+                    self._log_progress(
+                        "  [SKIP] No content extracted",
+                        callback=callback
+                    )
+                    failed += 1
+                    continue
+                
+                # Save to expert's documents folder
+                safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in source.title)
+                filename = f"source_{safe_title[:50]}.md"
+                doc_path = docs_dir / filename
+                
+                with open(doc_path, 'w', encoding='utf-8') as f:
+                    f.write(f"# {source.title}\n\n")
+                    f.write(f"**Source:** {source.url}\n")
+                    f.write(f"**Type:** {source.source_type}\n")
+                    if source.description:
+                        f.write(f"**Description:** {source.description}\n")
+                    f.write(f"\n---\n\n")
+                    f.write(content)
+                
+                # Upload to vector store
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as f:
+                    f.write(f"# {source.title}\n\n")
+                    f.write(f"**Source:** {source.url}\n")
+                    f.write(f"**Type:** {source.source_type}\n")
+                    if source.description:
+                        f.write(f"**Description:** {source.description}\n")
+                    f.write(f"\n---\n\n")
+                    f.write(content)
+                    temp_file = f.name
+                
+                try:
+                    # Upload file to OpenAI
+                    file_id = await self.research.provider.upload_document(temp_file, purpose="assistants")
+                    
+                    # Attach file to vector store
+                    await self.research.provider.client.vector_stores.files.create(
+                        vector_store_id=expert.vector_store_id,
+                        file_id=file_id
+                    )
+                    
+                    acquired += 1
+                    self._log_progress(
+                        f"  [OK] Acquired and uploaded as {filename}",
+                        callback=callback
+                    )
+                finally:
+                    # Clean up temp file
+                    if Path(temp_file).exists():
+                        Path(temp_file).unlink()
+                
+            except Exception as e:
+                self._log_progress(
+                    f"  [ERROR] {str(e)}",
+                    callback=callback
+                )
+                failed += 1
+        
+        # Update expert metadata
+        expert.total_documents += acquired
+        expert.last_knowledge_refresh = datetime.utcnow()
+        store.save(expert)
+        
+        self._log_progress(
+            "",
+            "="*70,
+            f"Source Acquisition Complete: {acquired} acquired, {failed} failed",
+            "="*70,
+            "",
+            callback=callback
+        )
+    
+    async def _scrape_source(
+        self,
+        source,
+        callback: Optional[Callable] = None
+    ) -> Optional[str]:
+        """Scrape a documentation/guide/blog source.
+        
+        Args:
+            source: SourceReference to scrape
+            callback: Optional progress callback
+            
+        Returns:
+            Scraped content as markdown, or None if failed
+        """
+        from deepr.utils.scrape import scrape_website, ScrapeConfig
+        
+        try:
+            # Configure scraping for documentation
+            config = ScrapeConfig(
+                max_pages=10,  # Limit to 10 pages per source
+                max_depth=2,
+                try_selenium=False,  # HTTP only for speed
+            )
+            
+            # Scrape website
+            results = scrape_website(
+                url=source.url,
+                purpose="documentation",
+                config=config,
+                synthesize=False,  # Don't synthesize, just extract
+            )
+            
+            if results['success']:
+                self._log_progress(
+                    f"  [OK] Scraped {results['pages_scraped']} pages",
+                    callback=callback
+                )
+                
+                # Combine all scraped pages
+                content = ""
+                for url, page_content in results['scraped_data'].items():
+                    content += f"\n## Page: {url}\n\n"
+                    content += page_content
+                    content += "\n\n---\n\n"
+                
+                return content
+            else:
+                self._log_progress(
+                    f"  [WARN] Scraping failed: {results.get('error', 'Unknown error')}",
+                    callback=callback
+                )
+                return None
+                
+        except Exception as e:
+            self._log_progress(
+                f"  [ERROR] Scraping error: {str(e)}",
+                callback=callback
+            )
+            return None
+    
+    async def _fetch_paper(
+        self,
+        source,
+        callback: Optional[Callable] = None
+    ) -> Optional[str]:
+        """Fetch a research paper (PDF or HTML).
+        
+        Args:
+            source: SourceReference to fetch
+            callback: Optional progress callback
+            
+        Returns:
+            Paper content as text, or None if failed
+        """
+        import httpx
+        
+        try:
+            # For now, just fetch HTML content
+            # TODO: Add PDF extraction support
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(source.url)
+                response.raise_for_status()
+                
+                # Check content type
+                content_type = response.headers.get('content-type', '')
+                
+                if 'pdf' in content_type.lower():
+                    self._log_progress(
+                        f"  [SKIP] PDF extraction not yet implemented",
+                        callback=callback
+                    )
+                    return None
+                else:
+                    # HTML content - extract text
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Remove script and style elements
+                    for script in soup(["script", "style"]):
+                        script.decompose()
+                    
+                    # Get text
+                    text = soup.get_text()
+                    
+                    # Clean up whitespace
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    text = '\n'.join(chunk for chunk in chunks if chunk)
+                    
+                    self._log_progress(
+                        f"  [OK] Fetched {len(text)} characters",
+                        callback=callback
+                    )
+                    
+                    return text
+                    
+        except Exception as e:
+            self._log_progress(
+                f"  [ERROR] Fetch error: {str(e)}",
+                callback=callback
+            )
+            return None
+
+    async def _submit_single_job(
+        self,
+        expert: ExpertProfile,
+        topic: LearningTopic,
+        callback: Optional[Callable] = None
+    ) -> Optional[str]:
+        """Submit a single research job without waiting for completion.
+        
+        Returns job ID for later polling, or None if submission failed.
+        """
+        try:
+            # Use appropriate model based on research mode
+            if topic.research_mode == "campaign":
+                # Campaign mode: Deep research (10-45 min per topic)
+                model = "o4-mini-deep-research"
+            else:
+                # Focus mode: Quick research with GPT-5 (1-5 min per topic)
+                model = "gpt-5"
+
+            response_id = await self.research.submit_research(
+                prompt=topic.research_prompt,
+                model=model,
+                vector_store_id=expert.vector_store_id,
+                enable_web_search=True,
+                enable_code_interpreter=False,
+            )
+            
+            return response_id
+            
+        except Exception as e:
+            self._log_progress(
+                f"    [ERROR] Submit failed: {e}",
+                callback=callback
+            )
+            return None
 
     async def _execute_phase(
         self,
@@ -251,6 +928,7 @@ class AutonomousLearner:
         self,
         expert: ExpertProfile,
         job_ids: List[str],
+        session,  # SessionCostTracker
         callback: Optional[Callable] = None
     ):
         """Poll for job completion and integrate reports into expert's knowledge."""
@@ -260,9 +938,8 @@ class AutonomousLearner:
             return
 
         self._log_progress(
-            "\n" + "="*70,
-            "  Waiting for Research Completion",
-            "="*70,
+            "",
+            "Waiting for Research Completion",
             f"Jobs: {len(job_ids)}",
             "This may take 5-20 minutes per job...",
             "",
@@ -276,6 +953,14 @@ class AutonomousLearner:
         start_time = datetime.now()
 
         while pending:
+            # Check if circuit breaker is open
+            if session.is_circuit_open:
+                self._log_progress(
+                    "Circuit breaker open - stopping polling due to repeated failures",
+                    callback=callback
+                )
+                break
+            
             self._log_progress(
                 f"[{datetime.now().strftime('%H:%M:%S')}] Checking status...",
                 f"Pending: {len(pending)}, Completed: {len(completed)}, Failed: {len(failed)}",
@@ -288,7 +973,7 @@ class AutonomousLearner:
 
                     if response.status == "completed":
                         self._log_progress(
-                            f"  [OK] {job_id[:20]}... COMPLETED",
+                            f"  {job_id[:20]}... COMPLETED",
                             callback=callback
                         )
                         pending.remove(job_id)
@@ -297,6 +982,13 @@ class AutonomousLearner:
                         if response.usage:
                             cost = response.usage.cost
                             total_cost += cost
+                            # Record actual cost (may differ from estimate)
+                            self.cost_safety.record_cost(
+                                session_id=session.session_id,
+                                operation_type="research_complete",
+                                actual_cost=cost,
+                                details=f"Job {job_id[:12]}"
+                            )
                             self._log_progress(
                                 f"       Cost: ${cost:.4f}",
                                 callback=callback
@@ -304,11 +996,12 @@ class AutonomousLearner:
 
                     elif response.status in ["failed", "cancelled"]:
                         self._log_progress(
-                            f"  [X] {job_id[:20]}... {response.status.upper()}",
+                            f"  {job_id[:20]}... {response.status.upper()}",
                             callback=callback
                         )
                         pending.remove(job_id)
                         failed.add(job_id)
+                        session.record_failure("research_poll", f"Job {job_id} {response.status}")
 
                     elif response.status in ["in_progress", "queued"]:
                         # Still running, check next time
@@ -316,7 +1009,7 @@ class AutonomousLearner:
 
                 except Exception as e:
                     self._log_progress(
-                        f"  [!] {job_id[:20]}... Error: {e}",
+                        f"  {job_id[:20]}... Error: {e}",
                         callback=callback
                     )
 
@@ -332,9 +1025,8 @@ class AutonomousLearner:
         # All jobs complete
         elapsed_total = (datetime.now() - start_time).total_seconds() / 60
         self._log_progress(
-            "\n" + "="*70,
-            "  Research Complete",
-            "="*70,
+            "",
+            "Research Complete",
             f"Completed: {len(completed)}/{len(job_ids)}",
             f"Failed: {len(failed)}/{len(job_ids)}",
             f"Total cost: ${total_cost:.2f}",
@@ -606,8 +1298,20 @@ class AutonomousLearner:
         store.save(expert)
 
     def _log_progress(self, *messages, callback: Optional[Callable] = None):
-        """Log progress messages."""
+        """Log progress messages with modern formatting.
+        
+        Uses Rich console for clean, colorful output without legacy markers.
+        """
+        from deepr.cli.colors import console
+        
         for msg in messages:
-            click.echo(msg)
+            # Skip empty messages
+            if not msg or not msg.strip():
+                continue
+            
+            # Print with Rich formatting
+            console.print(msg)
+            
             if callback:
                 callback(msg)
+

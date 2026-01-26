@@ -1,7 +1,7 @@
 """Analytics commands - track usage patterns and success metrics."""
 
 import click
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import console, print_section_header, print_success, print_error
 
 
 @click.group()
@@ -95,66 +95,65 @@ def report(period: str):
         avg_completion_time = sum(completion_times) / len(completion_times) if completion_times else 0
 
         # Display report
-        click.echo(f"\n{'='*60}")
-        click.echo(f"  USAGE OVERVIEW")
-        click.echo(f"{'='*60}\n")
+        console.print()
+        console.print("[bold cyan]Usage Overview[/bold cyan]")
+        console.print()
 
-        click.echo(f"Total Jobs: {total_jobs}")
-        click.echo(f"   Completed: {completed} ({success_rate:.1f}%)")
-        click.echo(f"   Failed: {failed} ({failure_rate:.1f}%)")
-        click.echo(f"   In Progress: {processing}")
+        console.print(f"[bold]Total Jobs:[/bold] {total_jobs}")
+        console.print(f"   [success]Completed:[/success] {completed} ({success_rate:.1f}%)")
+        console.print(f"   [error]Failed:[/error] {failed} ({failure_rate:.1f}%)")
+        console.print(f"   [dim]In Progress:[/dim] {processing}")
 
-        click.echo(f"\n{'='*60}")
-        click.echo(f"  COST ANALYSIS")
-        click.echo(f"{'='*60}\n")
+        console.print()
+        console.print("[bold cyan]Cost Analysis[/bold cyan]")
+        console.print()
 
-        click.echo(f"Total Spending: ${total_cost:.2f}")
-        click.echo(f"   Completed Jobs: ${completed_cost:.2f}")
+        console.print(f"[bold]Total Spending:[/bold] ${total_cost:.2f}")
+        console.print(f"   Completed Jobs: ${completed_cost:.2f}")
         if completed > 0:
-            click.echo(f"   Average per Job: ${completed_cost / completed:.2f}")
+            console.print(f"   Average per Job: ${completed_cost / completed:.2f}")
 
-        click.echo(f"\n{'='*60}")
-        click.echo(f"  MODEL PERFORMANCE")
-        click.echo(f"{'='*60}\n")
+        console.print()
+        console.print("[bold cyan]Model Performance[/bold cyan]")
+        console.print()
 
         for model, stats in sorted(by_model.items(), key=lambda x: x[1]["count"], reverse=True):
             model_success = (stats["completed"] / stats["count"] * 100) if stats["count"] > 0 else 0
-            click.echo(f"{model}:")
-            click.echo(f"   Jobs: {stats['count']} | Success: {model_success:.1f}%")
-            click.echo(f"   Cost: ${stats['cost']:.2f}")
-            click.echo()
+            console.print(f"[bold]{model}[/bold]")
+            console.print(f"   Jobs: {stats['count']} | Success: {model_success:.1f}%")
+            console.print(f"   Cost: ${stats['cost']:.2f}")
+            console.print()
 
         if completion_times:
-            click.echo(f"{'='*60}")
-            click.echo(f"  TIMING METRICS")
-            click.echo(f"{'='*60}\n")
+            console.print("[bold cyan]Timing Metrics[/bold cyan]")
+            console.print()
 
-            click.echo(f"Average Completion Time: {avg_completion_time:.1f} minutes")
-            click.echo(f"Fastest: {min(completion_times):.1f} minutes")
-            click.echo(f"Slowest: {max(completion_times):.1f} minutes")
+            console.print(f"Average Completion Time: {avg_completion_time:.1f} minutes")
+            console.print(f"Fastest: {min(completion_times):.1f} minutes")
+            console.print(f"Slowest: {max(completion_times):.1f} minutes")
 
         # Recommendations
-        click.echo(f"\n{'='*60}")
-        click.echo(f"  INSIGHTS")
-        click.echo(f"{'='*60}\n")
+        console.print()
+        console.print("[bold cyan]Insights[/bold cyan]")
+        console.print()
 
         if failure_rate > 20:
-            click.echo(f"High failure rate detected ({failure_rate:.1f}%)")
-            click.echo(f"   Consider reviewing failed jobs for patterns")
+            console.print(f"[warning]High failure rate detected ({failure_rate:.1f}%)[/warning]")
+            console.print(f"   [dim]Consider reviewing failed jobs for patterns[/dim]")
 
         if total_cost > config.get("max_cost_per_month", 1000.0) * 0.8:
-            click.echo(f"Approaching monthly budget limit")
-            click.echo(f"   Current: ${total_cost:.2f}")
-            click.echo(f"   Limit: ${config.get('max_cost_per_month', 1000.0):.2f}")
+            console.print(f"[warning]Approaching monthly budget limit[/warning]")
+            console.print(f"   Current: ${total_cost:.2f}")
+            console.print(f"   Limit: ${config.get('max_cost_per_month', 1000.0):.2f}")
 
         cheapest_model = min(by_model.items(), key=lambda x: x[1]["cost"] / x[1]["count"] if x[1]["count"] > 0 else float('inf'))
         if cheapest_model:
-            click.echo(f"\nMost cost-effective model: {cheapest_model[0]}")
+            console.print(f"\n[success]Most cost-effective model:[/success] {cheapest_model[0]}")
             avg_cost = cheapest_model[1]["cost"] / cheapest_model[1]["count"]
-            click.echo(f"   Average cost: ${avg_cost:.2f} per job")
+            console.print(f"   Average cost: ${avg_cost:.2f} per job")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -219,7 +218,7 @@ def trends():
         click.echo(f"{'Total':<12} {total_jobs:<8} {'':<12} ${total_cost:<9.2f}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -252,7 +251,7 @@ def failures():
         failed_jobs = [j for j in all_jobs if j.status.value == "failed"]
 
         if not failed_jobs:
-            click.echo(f"\n{CHECK} No failed jobs found")
+            print_success("No failed jobs found")
             return
 
         click.echo(f"\nFound {len(failed_jobs)} failed job(s)\n")
@@ -286,5 +285,5 @@ def failures():
             click.echo()
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()

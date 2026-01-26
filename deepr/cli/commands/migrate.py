@@ -5,6 +5,7 @@ import json
 import shutil
 from pathlib import Path
 from datetime import datetime
+from deepr.cli.colors import console, print_success, print_error
 
 
 @click.group()
@@ -26,7 +27,7 @@ def organize(dry_run: bool, reports_dir: str):
     reports_path = Path(reports_dir)
 
     if not reports_path.exists():
-        click.echo(f"[X] Reports directory not found: {reports_dir}")
+        print_error(f"Reports directory not found: {reports_dir}")
         return
 
     click.echo(f"[*] Scanning {reports_dir} for legacy reports...")
@@ -51,7 +52,7 @@ def organize(dry_run: bool, reports_dir: str):
     total = len(legacy_files) + len(legacy_dirs)
 
     if total == 0:
-        click.echo("[OK] No legacy reports found. All reports are organized!")
+        print_success("No legacy reports found. All reports are organized!")
         return
 
     click.echo(f"\nFound {len(legacy_files)} flat files and {len(legacy_dirs)} legacy directories")
@@ -84,9 +85,9 @@ def organize(dry_run: bool, reports_dir: str):
             shutil.move(str(dir_path), str(target))
 
     if dry_run:
-        click.echo(f"\n[OK] Dry run complete. Run without --dry-run to apply changes.")
+        print_success("Dry run complete. Run without --dry-run to apply changes.")
     else:
-        click.echo(f"\n[OK] Migrated {total} legacy items to _legacy_archive/")
+        print_success(f"Migrated {total} legacy items to _legacy_archive/")
         click.echo("\nNote: New reports will use human-readable names with timestamps.")
         click.echo("Format: YYYY-MM-DD_HHMM_topic-name_shortid/")
 
@@ -98,7 +99,7 @@ def stats(reports_dir: str):
     reports_path = Path(reports_dir)
 
     if not reports_path.exists():
-        click.echo(f"[X] Reports directory not found: {reports_dir}")
+        print_error(f"Reports directory not found: {reports_dir}")
         return
 
     # Count different types

@@ -2,7 +2,7 @@
 
 import click
 from typing import Optional
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
 
 
 @click.group()
@@ -69,10 +69,10 @@ def list(status: str, limit: int):
             click.echo()
 
         # Summary
-        click.echo(f"View status: deepr research status <job-id>")
+        console.print(f"View status: deepr research status <job-id>")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -99,15 +99,15 @@ def stats():
 
         stats = asyncio.run(get_stats())
 
-        click.echo(f"\nJob Statistics:")
-        click.echo(f"   Total Jobs: {stats['total']}")
-        click.echo(f"   Queued: {stats['queued']}")
-        click.echo(f"   Processing: {stats['processing']}")
-        click.echo(f"   Completed: {stats['completed']}")
-        click.echo(f"   Failed: {stats['failed']}")
+        console.print(f"\nJob Statistics:")
+        console.print(f"   Total Jobs: {stats['total']}")
+        console.print(f"   Queued: {stats['queued']}")
+        console.print(f"   Processing: {stats['processing']}")
+        console.print(f"   Completed: {stats['completed']}")
+        console.print(f"   Failed: {stats['failed']}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -126,7 +126,7 @@ def clear(status: str, yes: bool):
     """
     if not yes:
         if not click.confirm(f"Clear all {status} jobs?"):
-            click.echo(f"\n{CROSS} Cancelled")
+            print_warning("Cancelled")
             return
 
     try:
@@ -138,17 +138,17 @@ def clear(status: str, yes: bool):
         jobs = queue_svc.list_jobs(status=status, limit=1000)
 
         if not jobs:
-            click.echo(f"\nNo {status} jobs to clear")
+            console.print(f"\nNo {status} jobs to clear")
             return
 
         # Clear jobs
         for job in jobs:
             queue_svc.delete_job(job.id)
 
-        click.echo(f"\n{CHECK} Cleared {len(jobs)} {status} job(s)")
+        print_success(f"Cleared {len(jobs)} {status} job(s)")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -204,7 +204,7 @@ def watch(interval: int):
             time.sleep(interval)
 
     except KeyboardInterrupt:
-        click.echo(f"\n\n{CHECK} Stopped watching")
+        print_success("Stopped watching")
 
 
 @queue.command()
@@ -257,7 +257,7 @@ def sync():
 
                     # Update if status changed
                     if response.status == "completed" and job.status != JobStatus.COMPLETED:
-                        click.echo(f"   {CHECK} Status changed to COMPLETED")
+                        console.print(f"   [success]Status changed to COMPLETED[/success]")
 
                         # Update with usage info but don't download results
                         cost = response.usage.cost if response.usage else 0
@@ -274,7 +274,7 @@ def sync():
                         synced.append(job)
 
                     elif response.status == "failed" and job.status != JobStatus.FAILED:
-                        click.echo(f"   {CROSS} Status changed to FAILED")
+                        console.print(f"   [error]Status changed to FAILED[/error]")
                         await queue_svc.update_status(
                             job_id=job.id,
                             status=JobStatus.FAILED,
@@ -283,30 +283,30 @@ def sync():
                         synced.append(job)
 
                     elif response.status == "in_progress" and job.status != JobStatus.PROCESSING:
-                        click.echo(f"   Status changed to PROCESSING")
+                        console.print(f"   Status changed to PROCESSING")
                         await queue_svc.update_status(job.id, JobStatus.PROCESSING)
                         synced.append(job)
 
                     else:
-                        click.echo(f"   No change")
+                        console.print(f"   No change")
 
                 except Exception as e:
-                    click.echo(f"   {CROSS} Error: {e}")
+                    console.print(f"   [error]Error: {e}[/error]")
 
-                click.echo()
+                console.print()
 
             return synced
 
         synced = asyncio.run(sync_all())
 
         if synced:
-            click.echo(f"\n{CHECK} Synced {len(synced)} job(s)")
-            click.echo(f"\nTo download results: deepr research get --all")
+            print_success(f"Synced {len(synced)} job(s)")
+            console.print(f"\nTo download results: deepr research get --all")
         else:
-            click.echo(f"\nAll jobs already in sync")
+            console.print(f"\nAll jobs already in sync")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()

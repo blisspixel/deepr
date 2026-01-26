@@ -271,9 +271,13 @@ def print_status(
     budget: Optional[float],
     research_jobs: int,
     model: str,
-    documents: int
+    documents: int,
+    daily_spent: float = 0.0,
+    daily_limit: float = 0.0,
+    monthly_spent: float = 0.0,
+    monthly_limit: float = 0.0
 ):
-    """Print current session status.
+    """Print current session status with cost safety info.
 
     Args:
         expert_name: Name of the expert
@@ -283,15 +287,31 @@ def print_status(
         research_jobs: Number of research jobs triggered
         model: Model being used
         documents: Number of documents in knowledge base
+        daily_spent: Total spent today
+        daily_limit: Daily spending limit
+        monthly_spent: Total spent this month
+        monthly_limit: Monthly spending limit
     """
     console.print()
     console.print(f"[bold]Chat Session Status[/bold]")
     console.print(f"Expert: {expert_name}")
     console.print(f"Messages: {messages_count}")
-    console.print(f"Cost: ${cost:.4f}" + (f" / ${budget:.2f}" if budget else " (no limit)"))
+    console.print(f"Session cost: ${cost:.4f}" + (f" / ${budget:.2f}" if budget else " (no limit)"))
     console.print(f"Research jobs: {research_jobs}")
     console.print(f"Model: {model}")
     console.print(f"Knowledge base: {documents} documents")
+    
+    # Show daily/monthly spending if available
+    if daily_limit > 0:
+        daily_pct = (daily_spent / daily_limit * 100) if daily_limit > 0 else 0
+        daily_color = "green" if daily_pct < 50 else "yellow" if daily_pct < 80 else "red"
+        console.print(f"Daily spending: [{daily_color}]${daily_spent:.2f}[/{daily_color}] / ${daily_limit:.2f} ({daily_pct:.0f}%)")
+    
+    if monthly_limit > 0:
+        monthly_pct = (monthly_spent / monthly_limit * 100) if monthly_limit > 0 else 0
+        monthly_color = "green" if monthly_pct < 50 else "yellow" if monthly_pct < 80 else "red"
+        console.print(f"Monthly spending: [{monthly_color}]${monthly_spent:.2f}[/{monthly_color}] / ${monthly_limit:.2f} ({monthly_pct:.0f}%)")
+    
     console.print()
 
 

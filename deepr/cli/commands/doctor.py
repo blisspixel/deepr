@@ -267,6 +267,7 @@ async def check_database(config) -> List[DiagnosticCheck]:
 
 def print_checks(checks: List[DiagnosticCheck]):
     """Print diagnostic checks in a formatted way."""
+    from deepr.cli.colors import print_header, get_symbol, console
 
     # Group by category
     categories: Dict[str, List[DiagnosticCheck]] = {}
@@ -277,32 +278,33 @@ def print_checks(checks: List[DiagnosticCheck]):
 
     # Print each category
     for category, category_checks in categories.items():
-        click.echo(f"\n{category}:")
-        click.echo("=" * 60)
+        console.print()
+        console.print(f"[bold cyan]{category}[/bold cyan]")
 
         for check in category_checks:
-            # Use ASCII characters for cross-platform compatibility
-            status = "[OK]" if check.passed else "[X]"
+            symbol = get_symbol("success") if check.passed else get_symbol("error")
             color = "green" if check.passed else "red"
 
-            click.echo(f"  {click.style(status, fg=color)} {check.name}: {check.message}")
+            console.print(f"  [{color}]{symbol}[/{color}] {check.name}: {check.message}")
 
             if check.details:
                 for detail in check.details:
-                    click.echo(f"      {detail}")
+                    console.print(f"      [dim]{detail}[/dim]")
 
     # Summary
     total = len(checks)
     passed = sum(1 for c in checks if c.passed)
     failed = total - passed
 
-    click.echo(f"\n{'=' * 60}")
-    click.echo(f"Summary: {passed}/{total} checks passed")
+    console.print()
+    console.print(f"[bold]Summary:[/bold] {passed}/{total} checks passed")
 
     if failed > 0:
-        click.echo(f"\n{click.style('[!]', fg='yellow')} {failed} issue(s) found. See details above.")
+        symbol = get_symbol("warning")
+        console.print(f"\n[yellow]{symbol}[/yellow] {failed} issue(s) found. See details above.")
     else:
-        click.echo(f"\n{click.style('[OK]', fg='green')} All checks passed!")
+        symbol = get_symbol("success")
+        console.print(f"\n[green]{symbol}[/green] All checks passed!")
 
 
 @click.command()

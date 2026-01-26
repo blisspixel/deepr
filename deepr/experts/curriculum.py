@@ -5,12 +5,116 @@ based on their domain and initial knowledge base.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Callable
 from datetime import datetime
 import json
+import os
 from openai import AsyncOpenAI
+import httpx
+import click
 
 from deepr.config import AppConfig
+
+
+class CurriculumGenerationProgress:
+    """Track and display curriculum generation progress.
+    
+    This class provides real-time feedback during curriculum generation,
+    showing users what's happening at each step and how long operations take.
+    
+    Attributes:
+        callback: Optional callback function for custom progress handling
+        start_time: Timestamp when current step started
+        current_step: Name of the current step being executed
+    """
+    
+    def __init__(self, callback: Optional[Callable[[str], None]] = None):
+        """Initialize progress tracker.
+        
+        Args:
+            callback: Optional function to call with progress messages.
+                     If None, messages are printed to console via click.echo.
+        """
+        self.callback = callback
+        self.start_time = None
+        self.current_step = None
+    
+    def start(self, step: str):
+        """Start a new step in the curriculum generation process.
+        
+        Args:
+            step: Name/description of the step being started
+        """
+        self.current_step = step
+        self.start_time = datetime.now()
+        self._notify(f"{step}")
+    
+    def update(self, message: str):
+        """Update progress within the current step.
+        
+        Args:
+            message: Progress update message
+        """
+        self._notify(f"  {message}")
+    
+    def complete(self, message: str = "Complete"):
+        """Mark the current step as complete.
+        
+        Args:
+            message: Completion message (default: "Complete")
+        """
+        from deepr.cli.colors import get_symbol
+        symbol = get_symbol("success")
+        
+        if self.start_time:
+            elapsed = (datetime.now() - self.start_time).total_seconds()
+            self._notify(f"  {symbol} {message} ({elapsed:.1f}s)")
+        else:
+            self._notify(f"  {symbol} {message}")
+    
+    def error(self, message: str):
+        """Report an error in the current step.
+        
+        Args:
+            message: Error message
+        """
+        from deepr.cli.colors import get_symbol
+        symbol = get_symbol("error")
+        self._notify(f"  {symbol} {message}")
+    
+    def _notify(self, message: str):
+        """Send notification to callback or print to console.
+        
+        Args:
+            message: Message to display
+        """
+        if self.callback:
+            self.callback(message)
+        else:
+            click.echo(message)
+    
+    def _timestamp(self) -> str:
+        """Get current timestamp in HH:MM:SS format.
+        
+        Returns:
+            Formatted timestamp string
+        """
+        return datetime.now().strftime("%H:%M:%S")
+
+
+@dataclass
+class SourceReference:
+    """A specific source to learn from."""
+    
+    url: Optional[str] = None  # URL to fetch/scrape
+    title: Optional[str] = None  # Title of the source
+    source_type: str = "unknown"  # "documentation", "paper", "guide", "blog", "video"
+    description: Optional[str] = None  # What this source contains
+    
+    def __post_init__(self):
+        if self.url and not self.title:
+            # Extract title from URL if not provided
+            self.title = self.url.split('/')[-1] or self.url
 
 
 @dataclass
@@ -26,10 +130,13 @@ class LearningTopic:
     priority: int  # 1 (highest) to 5 (lowest)
     research_prompt: str
     dependencies: List[str] = None  # Topic titles this depends on
+    sources: List[SourceReference] = None  # Specific sources to learn from (populated in discovery phase)
 
     def __post_init__(self):
         if self.dependencies is None:
             self.dependencies = []
+        if self.sources is None:
+            self.sources = []
 
 
 @dataclass
@@ -58,7 +165,16 @@ class LearningCurriculum:
                     "estimated_minutes": t.estimated_minutes,
                     "priority": t.priority,
                     "research_prompt": t.research_prompt,
-                    "dependencies": t.dependencies
+                    "dependencies": t.dependencies,
+                    "sources": [
+                        {
+                            "url": s.url,
+                            "title": s.title,
+                            "source_type": s.source_type,
+                            "description": s.description
+                        }
+                        for s in t.sources
+                    ] if t.sources else []
                 }
                 for t in self.topics
             ],
@@ -83,7 +199,16 @@ class LearningCurriculum:
                     estimated_minutes=t["estimated_minutes"],
                     priority=t["priority"],
                     research_prompt=t["research_prompt"],
-                    dependencies=t.get("dependencies", [])
+                    dependencies=t.get("dependencies", []),
+                    sources=[
+                        SourceReference(
+                            url=s.get("url"),
+                            title=s.get("title"),
+                            source_type=s.get("source_type", "unknown"),
+                            description=s.get("description")
+                        )
+                        for s in t.get("sources", [])
+                    ]
                 )
                 for t in data["topics"]
             ],
@@ -105,9 +230,17 @@ class CurriculumGenerator:
         domain: str,
         initial_documents: List[str],
         target_topics: int = 15,
-        budget_limit: Optional[float] = None
+        budget_limit: Optional[float] = None,
+        timeout: int = 120,
+        enable_discovery: bool = True,
+        docs_count: Optional[int] = None,
+        quick_count: Optional[int] = None,
+        deep_count: Optional[int] = None
     ) -> LearningCurriculum:
-        """Generate a learning curriculum for an expert.
+        """Generate a learning curriculum for an expert using two-phase approach.
+        
+        Phase 1 (Discovery): Ask LLM what sources exist (docs, papers, guides)
+        Phase 2 (Synthesis): Create curriculum that fetches and learns from those sources
 
         Args:
             expert_name: Name of the expert
@@ -115,50 +248,116 @@ class CurriculumGenerator:
             initial_documents: List of initial document filenames/paths
             target_topics: Target number of topics (10-20)
             budget_limit: Optional budget constraint
+            timeout: Timeout in seconds for API calls (default: 120)
+                    Can be configured via DEEPR_CURRICULUM_TIMEOUT env var
+            enable_discovery: If True, run discovery phase to identify sources first
+            docs_count: Optional exact number of documentation topics (FOCUS mode)
+            quick_count: Optional exact number of quick research topics (FOCUS mode)
+            deep_count: Optional exact number of deep research topics (CAMPAIGN mode)
 
         Returns:
             LearningCurriculum with topics ordered by priority and dependencies
         """
-        # Build the curriculum generation prompt
-        prompt = self._build_curriculum_prompt(
-            expert_name, domain, initial_documents, target_topics, budget_limit
-        )
-
-        # Use GPT-5 for curriculum planning (best for structured reasoning and planning)
-        if isinstance(self.config, dict):
-            api_key = self.config.get("api_key") or self.config.get("openai_api_key")
+        # Check for environment variable override
+        timeout = int(os.getenv("DEEPR_CURRICULUM_TIMEOUT", str(timeout)))
+        
+        # Create progress tracker
+        progress = CurriculumGenerationProgress()
+        
+        # Show what we're generating
+        if docs_count or quick_count or deep_count:
+            total = (docs_count or 0) + (quick_count or 0) + (deep_count or 0)
+            parts = []
+            if docs_count:
+                parts.append(f"{docs_count} documentation")
+            if quick_count:
+                parts.append(f"{quick_count} quick research")
+            if deep_count:
+                parts.append(f"{deep_count} deep research")
+            topic_desc = " + ".join(parts)
+            progress._notify(f"Generating curriculum ({total} topics: {topic_desc})...")
         else:
-            # AppConfig object
-            api_key = self.config.provider.openai_api_key
-        client = AsyncOpenAI(api_key=api_key)
-
-        # GPT-5 uses Responses API for improved agentic performance
-        response_obj = await client.responses.create(
-            model="gpt-5",  # GPT-5: best for agentic planning and structured output
-            input=[
-                {
-                    "role": "developer",
-                    "content": [{"type": "input_text", "text": "You are an expert curriculum designer."}]
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": prompt}]
-                }
-            ]
+            progress._notify(f"Generating curriculum ({target_topics} topics)...")
+        
+        # PHASE 1: Discovery - What sources exist?
+        discovered_sources = []
+        if enable_discovery:
+            progress.start("Discovering sources...")
+            discovered_sources = await self._discover_sources(
+                domain=domain,
+                timeout=timeout,
+                progress=progress
+            )
+            if discovered_sources:
+                progress.complete(f"Found {len(discovered_sources)}")
+            else:
+                progress.complete("None found")
+        
+        # PHASE 2: Synthesis - Build curriculum that learns from sources
+        progress.start("Building curriculum...")
+        
+        # Build the curriculum generation prompt (now includes discovered sources and topic counts)
+        prompt = self._build_curriculum_prompt(
+            expert_name, domain, initial_documents, target_topics, budget_limit,
+            discovered_sources=discovered_sources,
+            docs_count=docs_count,
+            quick_count=quick_count,
+            deep_count=deep_count
         )
 
-        # Extract the response content from Responses API format
-        response = ""
-        for output_item in response_obj.output:
-            if output_item.type == "message":
-                for content_item in output_item.content:
-                    if content_item.type == "output_text":
-                        response += content_item.text
+        # Call GPT-5 with retry logic and timeout enforcement
+        response = await self._call_gpt5_with_retry(
+            prompt=prompt,
+            max_retries=3,
+            timeout=timeout,
+            progress=progress
+        )
 
         # Parse the structured response
         curriculum = self._parse_curriculum_response(
             response, expert_name, domain
         )
+        
+        # Validate exact topic counts if specified
+        if docs_count is not None or quick_count is not None or deep_count is not None:
+            # Count actual topics by type
+            actual_docs = sum(1 for t in curriculum.topics if t.research_type == "documentation")
+            actual_quick = sum(1 for t in curriculum.topics if t.research_type in ["best-practices", "trends"])
+            actual_deep = sum(1 for t in curriculum.topics if t.research_type in ["academic", "technical-deep-dive"])
+            
+            expected_docs = docs_count or 0
+            expected_quick = quick_count or 0
+            expected_deep = deep_count or 0
+            
+            # If counts don't match, take the first N of each type
+            if (actual_docs != expected_docs or actual_quick != expected_quick or actual_deep != expected_deep):
+                filtered_topics = []
+                
+                # Take exactly the requested number of each type
+                docs_taken = 0
+                quick_taken = 0
+                deep_taken = 0
+                
+                for topic in curriculum.topics:
+                    if topic.research_type == "documentation" and docs_taken < expected_docs:
+                        filtered_topics.append(topic)
+                        docs_taken += 1
+                    elif topic.research_type in ["best-practices", "trends"] and quick_taken < expected_quick:
+                        filtered_topics.append(topic)
+                        quick_taken += 1
+                    elif topic.research_type in ["academic", "technical-deep-dive"] and deep_taken < expected_deep:
+                        filtered_topics.append(topic)
+                        deep_taken += 1
+                
+                # If we didn't get enough topics, that's an error
+                if len(filtered_topics) < (expected_docs + expected_quick + expected_deep):
+                    print(f"WARNING: Only got {len(filtered_topics)} topics, expected {expected_docs + expected_quick + expected_deep}")
+                    print(f"  Got: docs={docs_taken}, quick={quick_taken}, deep={deep_taken}")
+                
+                # Update curriculum with filtered topics
+                curriculum.topics = filtered_topics
+                curriculum.total_estimated_cost = sum(t.estimated_cost for t in filtered_topics)
+                curriculum.total_estimated_minutes = sum(t.estimated_minutes for t in filtered_topics)
 
         # Validate budget constraints
         if budget_limit and curriculum.total_estimated_cost > budget_limit:
@@ -167,78 +366,559 @@ class CurriculumGenerator:
 
         return curriculum
 
+    async def _call_gpt5_with_retry(
+        self,
+        prompt: str,
+        max_retries: int = 3,
+        timeout: int = 120,
+        progress: Optional[CurriculumGenerationProgress] = None
+    ) -> str:
+        """Call GPT-5 Chat Completions API with retry logic and timeout enforcement.
+        
+        Uses the synchronous Chat Completions API (not Responses API) because
+        curriculum generation should complete in seconds, not minutes.
+        
+        Args:
+            prompt: The curriculum generation prompt
+            max_retries: Maximum number of retry attempts (default: 3)
+            timeout: Timeout in seconds for HTTP request (default: 120)
+                    This is the HTTP timeout, not job execution time.
+                    Chat completions typically return in 10-60 seconds.
+            progress: Optional progress tracker for user feedback
+            
+        Returns:
+            The GPT-5 response text
+            
+        Raises:
+            APITimeoutError: If the HTTP request times out
+            APIRateLimitError: If rate limit is exceeded after all retries
+            APIServerError: If server error persists after all retries
+            CurriculumGenerationError: For other API errors
+        """
+        import asyncio
+        from deepr.experts.errors import (
+            APITimeoutError,
+            APIRateLimitError,
+            APIServerError,
+            CurriculumGenerationError,
+            NetworkError,
+        )
+        import openai
+        
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                if progress:
+                    if attempt > 0:
+                        progress.update(f"Retrying... (attempt {attempt + 1}/{max_retries})")
+                
+                # Get API key
+                if isinstance(self.config, dict):
+                    api_key = self.config.get("api_key") or self.config.get("openai_api_key")
+                else:
+                    api_key = self.config.provider.openai_api_key
+                
+                # Create client with timeout
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    timeout=httpx.Timeout(timeout, connect=10.0)
+                )
+                
+                try:
+                    # Make API call using Chat Completions (synchronous, not Responses API)
+                    # This returns immediately instead of submitting an async job
+                    # Use the model registry to get the best model for curriculum generation
+                    from deepr.providers.registry import get_models_by_specialization
+                    
+                    # Get best curriculum planning model (fast, good at structured output)
+                    curriculum_models = get_models_by_specialization("curriculum")
+                    if not curriculum_models:
+                        # Fallback to reasoning models if no curriculum-specific model
+                        curriculum_models = get_models_by_specialization("reasoning")
+                    
+                    # Use the cheapest curriculum model (sorted by cost)
+                    model_name = curriculum_models[0].model if curriculum_models else "gpt-5.2"
+                    
+                    response_obj = await client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are an expert curriculum designer. Generate structured learning plans quickly and accurately."
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        temperature=0.7,  # Some creativity for topic generation
+                        response_format={"type": "json_object"}  # Ensure JSON output
+                    )
+                    
+                    # Extract response from chat completion
+                    response = response_obj.choices[0].message.content
+                    
+                    if progress:
+                        progress.complete("Done")
+                    
+                    return response
+                finally:
+                    # Always close the client to prevent event loop errors
+                    await client.close()
+                
+            except httpx.TimeoutException as e:
+                last_error = APITimeoutError(timeout)
+                if progress:
+                    progress.error(f"Request timed out after {timeout}s")
+                # Don't retry timeouts - they're unlikely to succeed
+                break
+                
+            except openai.RateLimitError as e:
+                retry_after = getattr(e, 'retry_after', None)
+                last_error = APIRateLimitError(retry_after)
+                if progress:
+                    progress.error("Rate limit exceeded")
+                
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 2s, 4s, 8s
+                    delay = 2 ** (attempt + 1)
+                    if progress:
+                        progress.update(f"Waiting {delay}s before retry...")
+                    await asyncio.sleep(delay)
+                    continue
+                break
+                
+            except openai.APIStatusError as e:
+                if 500 <= e.status_code < 600:
+                    # Server error - retry
+                    last_error = APIServerError(e.status_code, str(e))
+                    if progress:
+                        progress.error(f"OpenAI server error (code {e.status_code})")
+                    
+                    if attempt < max_retries - 1:
+                        delay = 2 ** (attempt + 1)
+                        if progress:
+                            progress.update(f"Waiting {delay}s before retry...")
+                        await asyncio.sleep(delay)
+                        continue
+                else:
+                    # Client error - don't retry
+                    last_error = CurriculumGenerationError(f"API error {e.status_code}: {e}")
+                    break
+                    
+            except (httpx.ConnectError, httpx.NetworkError) as e:
+                last_error = NetworkError()
+                if progress:
+                    progress.error("Network connection failed")
+                # Don't retry network errors
+                break
+                
+            except Exception as e:
+                last_error = CurriculumGenerationError(f"Unexpected error: {e}")
+                if progress:
+                    progress.error(str(e))
+                break
+        
+        # All retries exhausted or non-retryable error
+        if progress and last_error:
+            progress.error(f"Failed after {attempt + 1} attempt(s)")
+        raise last_error
+
+    async def _discover_sources(
+        self,
+        domain: str,
+        timeout: int = 120,  # 2 minutes is plenty for a chat completion
+        progress: Optional[CurriculumGenerationProgress] = None
+    ) -> List[SourceReference]:
+        """Phase 1: Discover what sources exist for this domain.
+        
+        This asks the LLM: "What documentation, research papers, and knowledge sources
+        exist for [domain] that would make a great expert?"
+        
+        Uses Chat Completions API (synchronous) which returns in 10-60 seconds typically.
+        
+        Args:
+            domain: The domain to discover sources for
+            timeout: HTTP timeout for API call (default: 120s)
+                    Can be overridden with DEEPR_DISCOVERY_TIMEOUT env var
+            progress: Optional progress tracker
+            
+        Returns:
+            List of SourceReference objects with URLs, titles, and types
+        """
+        # Check for environment variable override
+        timeout = int(os.getenv("DEEPR_DISCOVERY_TIMEOUT", str(timeout)))
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        
+        discovery_prompt = f"""You are a research librarian helping to identify the best sources for building domain expertise.
+
+DOMAIN: {domain}
+TODAY'S DATE: {today}
+
+OBJECTIVE:
+Identify specific, high-quality sources that exist RIGHT NOW that would help build comprehensive expertise in this domain.
+
+THINK LIKE A LIBRARIAN:
+- What are the OFFICIAL documentation sites? (vendor docs, API references)
+- What are the KEY research papers? (academic papers with citations)
+- What are the AUTHORITATIVE guides? (tutorials, best practices)
+- What are the INDUSTRY reports? (whitepapers, case studies)
+- What are the COMPARISON resources? (vs alternatives, trade-offs)
+
+CRITICAL REQUIREMENTS:
+1. **Provide REAL URLs** - These must be actual, fetchable URLs (not examples)
+2. **Prioritize official sources** - Vendor docs, academic papers, industry standards
+3. **Include variety** - Mix of documentation, research, guides, comparisons
+4. **Current sources** - Prefer sources from {today.split('-')[0]} or recent years
+5. **Specific, not generic** - "NVIDIA Omniverse USD Guide" not "USD documentation"
+
+SOURCE CATEGORIES (aim for mix):
+- **documentation** (30-40%): Official vendor docs, API references, SDKs
+- **paper** (20-30%): Academic papers, research publications
+- **guide** (20-30%): Tutorials, getting started guides, best practices
+- **blog** (10-20%): Technical blogs, case studies, real-world examples
+- **video** (optional): Conference talks, tutorial series
+
+OUTPUT FORMAT (JSON):
+{{
+  "sources": [
+    {{
+      "url": "https://docs.nvidia.com/omniverse/latest/index.html",
+      "title": "NVIDIA Omniverse Official Documentation",
+      "source_type": "documentation",
+      "description": "Complete official documentation for Omniverse platform including USD, Kit SDK, Connectors"
+    }},
+    {{
+      "url": "https://arxiv.org/abs/2301.12345",
+      "title": "Digital Twin Architecture Patterns for Industrial IoT",
+      "source_type": "paper",
+      "description": "Academic paper on digital twin architectural patterns and real-time synchronization"
+    }}
+  ]
+}}
+
+IMPORTANT GUIDELINES:
+- Aim for 10-20 sources total
+- Each URL must be real and fetchable (check that it exists)
+- Prioritize sources that are:
+  * Official (vendor documentation)
+  * Authoritative (academic papers, industry standards)
+  * Current (from {today.split('-')[0]} or recent years)
+  * Comprehensive (covers multiple aspects)
+- Include a mix of source types (not all documentation, not all papers)
+- For papers, prefer arxiv.org, ACM, IEEE, or conference proceedings
+- For documentation, prefer official vendor sites
+- For guides, prefer official tutorials or well-known technical blogs
+
+EXAMPLE - Microsoft Azure AI Expert:
+- documentation: https://learn.microsoft.com/azure/ai-services/
+- documentation: https://learn.microsoft.com/azure/ai-studio/
+- paper: https://arxiv.org/abs/2401.xxxxx (RAG architecture patterns)
+- guide: https://github.com/Azure-Samples/azure-ai-studio-samples
+- blog: https://techcommunity.microsoft.com/azure-ai/
+
+Generate the source list now for: {domain}"""
+
+        if progress:
+            progress.update("Identifying sources...")
+        
+        try:
+            # Call GPT-5 to discover sources
+            response = await self._call_gpt5_with_retry(
+                prompt=discovery_prompt,
+                max_retries=3,
+                timeout=timeout,
+                progress=progress
+            )
+        except Exception as e:
+            # If discovery fails, log warning and return empty list
+            # Curriculum generation will proceed without discovered sources
+            if progress:
+                progress.error(f"Discovery failed: {str(e)}")
+            return []
+        
+        # Parse response
+        json_str = response
+        if "```json" in response:
+            json_str = response.split("```json")[1].split("```")[0].strip()
+        elif "```" in response:
+            json_str = response.split("```")[1].split("```")[0].strip()
+        
+        try:
+            data = json.loads(json_str)
+            sources = []
+            
+            for source_data in data.get("sources", []):
+                sources.append(SourceReference(
+                    url=source_data.get("url"),
+                    title=source_data.get("title"),
+                    source_type=source_data.get("source_type", "unknown"),
+                    description=source_data.get("description")
+                ))
+            
+            if progress:
+                # Show breakdown by type
+                type_counts = {}
+                for s in sources:
+                    type_counts[s.source_type] = type_counts.get(s.source_type, 0) + 1
+                breakdown = ", ".join(f"{count} {type_}" for type_, count in sorted(type_counts.items()))
+                progress.update(f"{breakdown}")
+            
+            return sources
+            
+        except json.JSONDecodeError as e:
+            if progress:
+                progress.error(f"Parse failed: {e}")
+            # Return empty list - curriculum generation will proceed without discovered sources
+            return []
+
     def _build_curriculum_prompt(
         self,
         expert_name: str,
         domain: str,
         initial_documents: List[str],
         target_topics: int,
-        budget_limit: Optional[float]
+        budget_limit: Optional[float],
+        discovered_sources: Optional[List[SourceReference]] = None,
+        docs_count: Optional[int] = None,
+        quick_count: Optional[int] = None,
+        deep_count: Optional[int] = None
     ) -> str:
-        """Build the curriculum generation prompt."""
+        """Build the curriculum generation prompt.
+        
+        Args:
+            discovered_sources: Optional list of sources from discovery phase
+            docs_count: Optional exact number of documentation topics to generate
+            quick_count: Optional exact number of quick research topics to generate
+            deep_count: Optional exact number of deep research topics to generate
+        """
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
 
         doc_list = "\n".join(f"- {doc}" for doc in initial_documents)
+        
+        # Get actual cost values from config
+        if isinstance(self.config, dict):
+            quick_cost = self.config.get("expert", {}).get("quick_research_cost", 0.002)
+            deep_cost = self.config.get("expert", {}).get("deep_research_cost", 1.0)
+        else:
+            quick_cost = self.config.expert.quick_research_cost
+            deep_cost = self.config.expert.deep_research_cost
+        
+        # Format discovered sources if available
+        sources_section = ""
+        if discovered_sources:
+            sources_section = f"""
+DISCOVERED SOURCES (Phase 1 Discovery):
+We've identified {len(discovered_sources)} high-quality sources for this domain:
+
+"""
+            # Group by type
+            by_type = {}
+            for source in discovered_sources:
+                if source.source_type not in by_type:
+                    by_type[source.source_type] = []
+                by_type[source.source_type].append(source)
+            
+            for source_type, sources in sorted(by_type.items()):
+                sources_section += f"\n**{source_type.upper()} ({len(sources)} sources):**\n"
+                for source in sources:
+                    sources_section += f"- {source.title}\n"
+                    sources_section += f"  URL: {source.url}\n"
+                    if source.description:
+                        sources_section += f"  Description: {source.description}\n"
+            
+            sources_section += f"""
+IMPORTANT: When creating topics, you should:
+1. **Reference these sources** - Include URLs in research prompts where relevant
+2. **Synthesize understanding** - Topics should help expert form viewpoint from these sources
+3. **Fetch and learn** - Research should fetch these sources and extract key insights
+4. **Build expertise** - Expert should develop beliefs/understanding, not just store documents
+
+Example topic using discovered sources:
+{{
+  "title": "NVIDIA Omniverse USD Format Deep Dive",
+  "description": "Master USD format by studying official docs and academic papers on scene description",
+  "research_mode": "campaign",
+  "research_type": "documentation",
+  "research_prompt": "Study NVIDIA Omniverse USD documentation at docs.nvidia.com/omniverse and USD format papers. Extract: composition arcs, layer system, performance patterns, vs glTF/FBX trade-offs.",
+  "sources": [
+    {{"url": "https://docs.nvidia.com/omniverse/usd/latest/", "title": "USD Official Docs", "source_type": "documentation"}},
+    {{"url": "https://arxiv.org/abs/xxxx", "title": "USD Format Analysis", "source_type": "paper"}}
+  ]
+}}
+"""
 
         budget_guidance = ""
-        if budget_limit:
-            # Calculate how many deep research topics we can afford
-            deep_topics = min(5, target_topics)  # Always aim for 5 deep topics
-            quick_topics = target_topics - deep_topics
+        
+        # Check if user specified exact topic counts
+        has_explicit_counts = any([docs_count is not None, quick_count is not None, deep_count is not None])
+        
+        if has_explicit_counts:
+            # User specified exact counts - provide guidance for those specific counts
+            docs_count = docs_count or 0
+            quick_count = quick_count or 0
+            deep_count = deep_count or 0
+            
+            total_topics = docs_count + quick_count + deep_count
+            estimated_cost = (docs_count * quick_cost) + (quick_count * quick_cost) + (deep_count * deep_cost)
+            
+            budget_guidance = f"""
+EXPLICIT TOPIC COUNTS (User-Specified):
+The user has requested EXACTLY:
+- {docs_count} documentation topics (FOCUS mode, ~${quick_cost:.3f} each)
+- {quick_count} quick research topics (FOCUS mode, ~${quick_cost:.3f} each)
+- {deep_count} deep research topics (CAMPAIGN mode, ~${deep_cost:.2f} each)
+- Total: {total_topics} topics
+- Estimated cost: ${estimated_cost:.2f}
+
+CRITICAL REQUIREMENTS:
+1. You MUST generate EXACTLY {docs_count} documentation topics
+2. You MUST generate EXACTLY {quick_count} quick research topics (best-practices, trends, comparisons)
+3. You MUST generate EXACTLY {deep_count} deep research topics (academic, technical-deep-dive)
+4. Total topics MUST be exactly {total_topics}
+
+TOPIC TYPE DEFINITIONS:
+- **DOCUMENTATION** (research_type: "documentation", research_mode: "focus")
+  * Official vendor docs, API references, SDKs
+  * Latest features, product guides
+  * "What exists NOW" questions
+  
+- **QUICK RESEARCH** (research_type: "best-practices" or "trends", research_mode: "focus")
+  * Comparisons, trade-offs, when to use what
+  * Industry trends, emerging patterns
+  * Real-world case studies
+  
+- **DEEP RESEARCH** (research_type: "academic" or "technical-deep-dive", research_mode: "campaign")
+  * Theoretical foundations, research papers
+  * Architectural patterns, WHY questions
+  * Complex analysis requiring extended reasoning
+
+EXAMPLE OUTPUT for --docs 1 --quick 1 --deep 1:
+{{
+  "topics": [
+    {{
+      "title": "FastAPI Official Documentation 2026",
+      "description": "Survey FastAPI docs: routing, dependencies, async, testing",
+      "research_mode": "focus",
+      "research_type": "documentation",
+      "estimated_cost": {quick_cost},
+      "estimated_minutes": 10,
+      "priority": 2,
+      "research_prompt": "Document FastAPI 2026: routing, dependencies, async patterns, testing. List key APIs."
+    }},
+    {{
+      "title": "FastAPI vs Flask vs Django: decision framework",
+      "description": "Compare frameworks for API development trade-offs",
+      "research_mode": "focus",
+      "research_type": "best-practices",
+      "estimated_cost": {quick_cost},
+      "estimated_minutes": 10,
+      "priority": 3,
+      "research_prompt": "Compare FastAPI, Flask, Django for APIs: performance, features, use cases, when to use each."
+    }},
+    {{
+      "title": "ASGI architecture and async patterns",
+      "description": "Deep dive into ASGI design and async request handling",
+      "research_mode": "campaign",
+      "research_type": "technical-deep-dive",
+      "estimated_cost": {deep_cost},
+      "estimated_minutes": 45,
+      "priority": 1,
+      "research_prompt": "Analyze ASGI architecture: event loop, async/await, concurrency models. Compare to WSGI."
+    }}
+  ]
+}}
+
+Generate EXACTLY {total_topics} topics with the specified breakdown.
+"""
+        elif budget_limit:
+            # Smart allocation based on budget
+            # For a proper expert, we need: 40% docs, 30% research, 30% quick
+            # Campaign (deep): uses deep_cost
+            # Focus (quick): uses quick_cost
+            
+            # Calculate optimal mix within budget
+            # Start with minimum viable: 2 campaign topics for depth
+            min_campaign = 2
+            campaign_cost = min_campaign * deep_cost
+            
+            # Use remaining budget for focus topics
+            remaining_budget = budget_limit - campaign_cost
+            max_focus = int(remaining_budget / quick_cost)
+            
+            # Adjust if we can't afford minimum
+            if remaining_budget < 0:
+                min_campaign = int(budget_limit / deep_cost)
+                max_focus = 0
+                campaign_cost = min_campaign * deep_cost
+                remaining_budget = budget_limit - campaign_cost
+            
+            # Calculate actual allocation
+            campaign_topics = min(min_campaign, target_topics, int(budget_limit / deep_cost))
+            focus_topics = min(max_focus, target_topics - campaign_topics)
+            
+            # Ensure we don't exceed target
+            total_topics = campaign_topics + focus_topics
+            if total_topics > target_topics:
+                focus_topics = target_topics - campaign_topics
+            
+            estimated_cost = (campaign_topics * deep_cost) + (focus_topics * quick_cost)
 
             budget_guidance = f"""
 BUDGET CONSTRAINT: ${budget_limit:.2f}
-TARGET TOPICS: {target_topics} (recommend 15-20 for true expertise, not just 10)
+TARGET TOPICS: {target_topics}
 
-AVAILABLE MODELS - Match the right tool to each task type:
+SMART ALLOCATION (optimized for budget and quality):
+- {campaign_topics} CAMPAIGN topics (deep research): ${campaign_topics * deep_cost:.2f}
+- {focus_topics} FOCUS topics (documentation + quick research): ${focus_topics * quick_cost:.2f}
+- Total estimated: ${estimated_cost:.2f}
 
-1. **CAMPAIGN** (o4-mini-deep-research): $1.50-2.50, 10-45 min
+AVAILABLE MODELS:
+
+1. **CAMPAIGN** (o4-mini-deep-research): ${deep_cost:.2f}, 30-45 min
    - Extended reasoning + web browsing
-   - Use for: WHY questions, trade-off analysis, architectural reasoning
-   - Best for: Foundational principles, decision frameworks
+   - Use for: WHY questions, architectural reasoning, foundational principles
+   - Best for: Core concepts that require deep understanding
 
-2. **FOCUS** (gpt-5.2 with reasoning.effort=medium): $0.20-0.30, 1-5 min
+2. **FOCUS** (grok-4-fast): ${quick_cost:.3f}, 5-10 min
    - Web search + structured thinking
-   - Use for: Current state, documentation synthesis, evolution analysis
-   - Best for: What exists NOW, how we got here, trends
+   - Use for: Documentation, current state, comparisons, trends
+   - Best for: What exists NOW, official docs, quick lookups
 
-SMART ALLOCATION (optimize for budget efficiency):
+CONTENT MIX REQUIREMENTS (CRITICAL):
+You MUST ensure the curriculum has:
+- At least 30% documentation topics (research_type: "documentation")
+- At least 30% research topics (research_type: "academic" or "technical-deep-dive")
+- Mix of both CAMPAIGN and FOCUS modes
 
-**CURRENT STATE** (~30% = {int(target_topics * 0.30)} topics) - FOCUS
-- What's new (last 6 months): FOCUS ($0.30)
-- Major product deep dives (2-4): FOCUS ($0.25 each)
-- Feature/version comparisons (1-2): FOCUS ($0.20 each)
-Subtotal: ~$1.50
+ALLOCATION STRATEGY:
 
-**FOUNDATIONAL DEPTH** (~25% = {int(target_topics * 0.25)} topics) - CAMPAIGN
+**DOCUMENTATION** (~40% = {int(total_topics * 0.40)} topics) - FOCUS
+- Official vendor documentation: FOCUS ($0.25)
+- API references and SDKs: FOCUS ($0.25)
+- Product guides and tutorials: FOCUS ($0.25)
+- Latest features and releases: FOCUS ($0.25)
+Purpose: Ensure expert knows official sources and current capabilities
+
+**FOUNDATIONAL RESEARCH** (~30% = {int(total_topics * 0.30)} topics) - CAMPAIGN
 - Core architectural patterns: CAMPAIGN ($2.00)
-- Security/compliance fundamentals: CAMPAIGN ($2.00)
-- Design principles that transcend tech: CAMPAIGN ($2.00)
-- 3-4 deep topics requiring extended reasoning
-Subtotal: ~${int(target_topics * 0.25) * 2.00:.2f}
+- Theoretical foundations: CAMPAIGN ($2.00)
+- Design principles and trade-offs: CAMPAIGN ($2.00)
+Purpose: Deep understanding of WHY things work
 
-**HISTORICAL CONTEXT** (~15% = {int(target_topics * 0.15)} topics) - FOCUS
-- Domain evolution (how we got here): FOCUS ($0.25)
-- Lessons from past failures: FOCUS ($0.25)
-Subtotal: ~${int(target_topics * 0.15) * 0.25:.2f}
+**QUICK RESEARCH** (~30% = {int(total_topics * 0.30)} topics) - FOCUS
+- Trends and evolution: FOCUS ($0.25)
+- Comparisons and alternatives: FOCUS ($0.25)
+- Best practices and patterns: FOCUS ($0.25)
+Purpose: Practical knowledge and context
 
-**COMPARATIVE WISDOM** (~20% = {int(target_topics * 0.20)} topics) - MIXED
-- Decision framework (when to use X vs Y): CAMPAIGN ($2.00)
-- Specific tool comparisons (2-3): FOCUS ($0.20 each)
-- Common pitfalls: FOCUS ($0.25)
-Subtotal: ~$2.60
-
-**FUTURE VISION** (~10% = {int(target_topics * 0.10)} topics) - FOCUS
-- Emerging trends 2026-2027: FOCUS ($0.25)
-- Industry direction signals: FOCUS ($0.25)
-Subtotal: ~${int(target_topics * 0.10) * 0.25:.2f}
-
-TOTAL ESTIMATED: ${(int(target_topics * 0.25) * 2.00) + 2.00 + (int(target_topics * 0.75) * 0.25):.2f}
-FITS IN BUDGET: {"YES" if ((int(target_topics * 0.25) * 2.00) + 2.00 + (int(target_topics * 0.75) * 0.25)) <= budget_limit else "NO - reduce CAMPAIGN topics"}
-
-KEY INSIGHT: Use 15-20 topics, not just 10. Most are cheap FOCUS ($0.20-0.30),
-only 3-5 expensive CAMPAIGN ($2.00) for deep reasoning. More topics = better expert.
+KEY INSIGHT: 
+- Use CAMPAIGN for deep "WHY" questions (2-3 topics max)
+- Use FOCUS for documentation and "WHAT" questions (majority of topics)
+- This gives you {total_topics} topics within ${budget_limit:.2f} budget
+- More topics = better expert, even if most are quick FOCUS lookups
 """
 
         return f"""You are designing a self-directed learning curriculum for a domain expert.
@@ -249,54 +929,64 @@ EXPERT PROFILE:
 - Initial Knowledge Base:
 {doc_list}
 
+{sources_section}
+
 OBJECTIVE:
 Generate a comprehensive learning curriculum of {target_topics} research topics that will transform this expert from having basic document knowledge to deep domain expertise.
 
 TODAY'S DATE: {today}
 
+DOMAIN CONTEXT:
+Analyze the domain "{domain}" to determine if it's:
+- CURRENT/EVOLVING: Modern technology, active products, ongoing development (e.g., "Azure AI", "React", "Kubernetes")
+- HISTORICAL/ESTABLISHED: Historical topics, vintage items, established practices (e.g., "1930s cameras", "Roman architecture", "Classical music")
+
+For CURRENT domains, focus on: latest developments, current state, emerging trends, what's new in {today.split('-')[0]}
+For HISTORICAL domains, focus on: historical context, evolution, key periods, influential examples, preservation
+
 CRITICAL - BUILD A TRUE EXPERT (Not Just Documentation Reader!):
 
-A real expert has FIVE dimensions of knowledge. You MUST cover all five:
+A real expert needs comprehensive knowledge. Adapt these dimensions to the domain:
 
-**DIMENSION 1: CURRENT STATE (30% of topics)**
-Purpose: What exists RIGHT NOW in {today.split('-')[0]}
-- Topic #1 MANDATORY: "What's new in [domain] last 6 months?" (CAMPAIGN, trends, priority 1)
-  Must list ALL new products/services with launch dates and conference announcements
-  Example: "Comprehensive survey Microsoft AI Oct 2025-{today}: Agent 365 (Ignite 2025), Copilot updates, Azure AI Foundry. List each with launch date."
-- Topics #2-3: Deep dives on 2 major new products from Topic #1 (CAMPAIGN or FOCUS)
-- Current best practices, latest features, what's GA vs preview
+**DIMENSION 1: CORE KNOWLEDGE (30% of topics)**
+Purpose: Essential understanding of the domain
+- For CURRENT domains: What exists NOW, latest features, current best practices in {today.split('-')[0]}
+- For HISTORICAL domains: Key periods, major developments, defining characteristics, notable examples
+- Foundational concepts everyone should know
+- Primary sources and authoritative references
 
 **DIMENSION 2: FOUNDATIONAL DEPTH (25% of topics)**
-Purpose: Timeless principles that don't age
-- Core architectural patterns (microservices, event-driven, etc.)
-- Theoretical foundations (CAP theorem, consistency models, security fundamentals)
+Purpose: Deep understanding of principles
 - Why things work the way they do (not just HOW, but WHY)
-- Design patterns that have stood the test of time
+- Theoretical foundations and core concepts
+- Design principles and patterns
+- Technical or artistic fundamentals
 - Use "academic" or "technical-deep-dive" research types
 
 **DIMENSION 3: HISTORICAL CONTEXT (15% of topics)**
-Purpose: Learn from the past to understand the present
-- Evolution of the domain (where we came from)
-- What problems led to current solutions (why GraphQL after REST, why K8s after Docker Swarm)
-- Failed approaches and why they failed (lessons learned)
-- How the industry got to where it is today
-- This prevents repeating past mistakes
+Purpose: Evolution and development over time
+- For CURRENT domains: How the domain evolved to its current state
+- For HISTORICAL domains: Timeline of developments, key innovations
+- Key innovations and breakthroughs
+- Influential figures or organizations
+- What problems led to current solutions
+- Lessons learned from the past
 
 **DIMENSION 4: COMPARATIVE WISDOM (20% of topics)**
-Purpose: Make good decisions through trade-off analysis
-- When to use X vs Y (with real criteria)
-- Cost-performance-complexity trade-offs
-- Real-world case studies (successes AND failures)
-- Common pitfalls and anti-patterns
-- "Here's what docs say, here's what really happens"
-- Battle-tested implementation patterns
+Purpose: Make good decisions through analysis
+- Compare different approaches, models, or examples
+- Trade-offs and decision criteria
+- When to use X vs Y
+- Real-world case studies
+- Common pitfalls and best practices
 
-**DIMENSION 5: FUTURE VISION (10% of topics)**
-Purpose: Prepare for what's coming
-- Emerging trends and patterns (2026-2027)
+**DIMENSION 5: CONTEXT & CONNECTIONS (10% of topics)**
+Purpose: Broader understanding
+- For CURRENT domains: Future trends, emerging patterns, what's coming in {today.split('-')[0]}-{int(today.split('-')[0])+1}
+- For HISTORICAL domains: Cultural context, influence on later developments, relevance today
+- Connections to related domains
+- Practical applications
 - Industry direction and momentum
-- What's in early adopter phase
-- Where the ecosystem is heading
 
 WHY THIS STRUCTURE:
 An expert who only knows latest docs is shallow and unhelpful. They need:
@@ -351,8 +1041,13 @@ For each topic, provide:
   * CRITICAL: Must be under 300 characters (hard limit for API)
   * Be concise but specific
   * Include year {today.split('-')[0]} for currency
-  * Example: "Survey 2025 temporal knowledge graph models (DyRep, TNTComplEx) for agent memory and hybrid vector+graph storage architectures"
+  * **Include URLs from discovered sources when relevant**
+  * Example: "Study NVIDIA Omniverse docs at docs.nvidia.com/omniverse. Extract: USD format, Kit SDK, Connectors, RTX rendering. Synthesize understanding of platform architecture."
 - dependencies: List of topic titles that should be researched first
+- sources: List of source references from discovered sources (if applicable)
+  * Include URL, title, and source_type for each
+  * These will be fetched and used during research
+  * Expert will synthesize understanding from these sources
 
 OUTPUT FORMAT (JSON):
 {{
@@ -365,41 +1060,61 @@ OUTPUT FORMAT (JSON):
       "estimated_cost": 2.00,
       "estimated_minutes": 45,
       "priority": 1,
-      "research_prompt": "Research prompt with year {today.split('-')[0]}",
-      "dependencies": []
+      "research_prompt": "Research prompt with year {today.split('-')[0]} and URLs",
+      "dependencies": [],
+      "sources": [
+        {{
+          "url": "https://example.com/doc",
+          "title": "Source Title",
+          "source_type": "documentation"
+        }}
+      ]
     }}
   ]
 }}
 
 IMPORTANT GUIDELINES:
-- **EXACTLY 5 topics must use "campaign" mode** with mix of research types:
-  * 2-3 should be "academic" or "technical-deep-dive" (timeless foundations)
-  * 0-1 should be "trends" (future analysis)
-- Remaining topics use "focus" mode with mix of:
-  * 3-5 should be "documentation" (latest tools, APIs, services)
-  * 2-4 should be "best-practices" (real-world patterns)
+- **CRITICAL: You MUST create a MIX of content types:**
+  * At least 30% must be "documentation" type (official docs, APIs, guides)
+  * At least 30% must be "academic" or "technical-deep-dive" type (research depth)
+  * Remaining can be "best-practices" or "trends"
+- **CRITICAL: You MUST use BOTH campaign and focus modes:**
+  * Use "campaign" for 2-3 deep research topics (WHY questions, foundations)
+  * Use "focus" for majority of topics (documentation, comparisons, trends)
 - Each research prompt should be specific and actionable
 - For "documentation" type: Include specific service/tool names and year {today.split('-')[0]}
 - For "academic" type: Request research papers, citations, and theoretical foundations
 - For "best-practices" type: Request case studies, patterns, and proven approaches
 - Estimated costs:
-  - Campaign: $1.50-2.50 (multi-phase deep research)
-  - Focus: $0.15-0.30 (single-phase targeted lookup)
+  - Campaign: ${deep_cost:.2f} (multi-phase deep research)
+  - Focus: ${quick_cost:.3f} (single-phase targeted lookup)
 - Total topics: exactly {target_topics}
 - Priority 1-2 for campaign topics (foundations)
 - Priority 3-5 for focus topics (supplementary)
 - Dependencies create logical learning flow
 
-EXAMPLE - Microsoft AI Expert (10 topics, TRUE EXPERT):
+EXAMPLE - NVIDIA Omniverse Expert (5 topics with $10 budget):
 
-**CURRENT STATE (Topics 1-3):**
-#1: "What's new in Microsoft AI (Oct 2025 - {today})?" (CAMPAIGN, trends, priority 1)
-    "Comprehensive survey Microsoft AI Oct 2025-{today}: Agent 365 (Ignite 2025), Copilot updates, Azure AI Foundry, new models. List each with launch date and status."
+**DOCUMENTATION** (Topics 1-2, 40%) - FOCUS
+#1: "NVIDIA Omniverse official documentation 2026" (FOCUS, documentation, priority 2, $0.25)
+    "Survey NVIDIA Omniverse 2026 official docs: USD, Connectors, Kit SDK, Nucleus, RTX rendering. List key APIs and capabilities."
 
-#2: "Agent 365 deep dive: architecture and use cases" (CAMPAIGN, documentation, priority 1)
-    "Complete guide to Agent 365 (Ignite 2025): architecture, orchestration, tool calling, integration with M365 Copilot, preview status, pricing."
+#2: "Omniverse Digital Twin APIs and SDKs" (FOCUS, documentation, priority 2, $0.25)
+    "Document Omniverse Digital Twin APIs: IoT integration, real-time sync, physics simulation, data streaming. Include code examples."
 
-#3: "Azure AI Foundry vs AI Studio: 2026 comparison" (FOCUS, best-practices, priority 2)
+**FOUNDATIONAL RESEARCH** (Topics 3-4, 40%) - CAMPAIGN
+#3: "Digital twin architecture patterns and trade-offs" (CAMPAIGN, technical-deep-dive, priority 1, $2.00)
+    "Analyze digital twin architectures: real-time vs batch, edge vs cloud, physics fidelity trade-offs. Compare approaches with examples."
+
+#4: "USD format and 3D data interchange theory" (CAMPAIGN, academic, priority 1, $2.00)
+    "Research Universal Scene Description: format design, composition arcs, layer system, performance. Compare to glTF, FBX alternatives."
+
+**QUICK RESEARCH** (Topic 5, 20%) - FOCUS
+#5: "Omniverse vs Unity vs Unreal for digital twins" (FOCUS, best-practices, priority 3, $0.25)
+    "Compare Omniverse, Unity, Unreal for industrial digital twins: features, performance, cost, use cases. Real-world examples."
+
+Total: 2 CAMPAIGN ($4.00) + 3 FOCUS ($0.75) = $4.75 within $10 budget
+Content mix: 40% documentation, 40% research, 20% quick = BALANCED ✓
     "Compare Azure AI Foundry and AI Studio in 2026: features, use cases, migration path, when to use which, pricing differences."
 
 **FOUNDATIONAL DEPTH (Topics 4-5):**
@@ -459,6 +1174,17 @@ Generate the curriculum now:"""
         # Create LearningTopic objects
         topics = []
         for topic_data in data["topics"]:
+            # Parse sources if present
+            sources = []
+            if "sources" in topic_data and topic_data["sources"]:
+                for source_data in topic_data["sources"]:
+                    sources.append(SourceReference(
+                        url=source_data.get("url"),
+                        title=source_data.get("title"),
+                        source_type=source_data.get("source_type", "unknown"),
+                        description=source_data.get("description")
+                    ))
+            
             topics.append(LearningTopic(
                 title=topic_data["title"],
                 description=topic_data["description"],
@@ -468,7 +1194,8 @@ Generate the curriculum now:"""
                 estimated_minutes=topic_data["estimated_minutes"],
                 priority=topic_data["priority"],
                 research_prompt=topic_data["research_prompt"],
-                dependencies=topic_data.get("dependencies", [])
+                dependencies=topic_data.get("dependencies", []),
+                sources=sources
             ))
 
         # Calculate totals

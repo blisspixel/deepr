@@ -60,7 +60,6 @@ cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
 cli.add_command(vector.vector)
-cli.add_command(vector.vector, name="brain")  # Intuitive alias for vector
 cli.add_command(vector.vector, name="knowledge")  # Intuitive alias for vector
 cli.add_command(config.config)
 cli.add_command(analytics.analytics)

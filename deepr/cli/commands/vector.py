@@ -2,14 +2,14 @@
 
 import click
 from typing import Optional
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
 
 
 @click.group()
 def vector():
     """Manage knowledge bases (vector stores) for experts and research.
 
-    Aliases: 'deepr brain', 'deepr knowledge'
+    Alias: 'deepr knowledge'
 
     Knowledge bases enable semantic search over uploaded documents and can be
     used for creating domain experts or providing context to research.
@@ -41,7 +41,7 @@ def create(name: str, files: tuple):
         from deepr.providers.openai_provider import OpenAIProvider
 
         if not files:
-            click.echo(f"\n{CROSS} No files specified. Use --files to add documents.", err=True)
+            print_error("No files specified. Use --files to add documents.")
             raise click.Abort()
 
         config = load_config()
@@ -57,32 +57,32 @@ def create(name: str, files: tuple):
                 click.echo(f"   Uploading {basename}...")
                 file_id = await provider.upload_document(file_path, purpose="assistants")
                 file_ids.append(file_id)
-                click.echo(f"   {CHECK} Uploaded (ID: {file_id[:8]}...)")
+                console.print(f"   [success]Uploaded[/success] (ID: {file_id[:8]}...)")
 
             # Create vector store
-            click.echo(f"\n{CHECK} Creating vector store '{name}'...")
+            console.print(f"\nCreating vector store '{name}'...")
             vector_store = await provider.create_vector_store(name, file_ids)
 
             # Wait for indexing
-            click.echo(f"\n   Indexing files (this may take a minute)...")
+            console.print(f"\n   Indexing files (this may take a minute)...")
             success = await provider.wait_for_vector_store(vector_store.id, timeout=900)
 
             if success:
-                click.echo(f"\n{CHECK} Vector store created successfully!")
-                click.echo(f"\nVector Store ID: {vector_store.id}")
-                click.echo(f"Name: {name}")
-                click.echo(f"Files: {len(file_ids)}")
-                click.echo(f"\nUsage:")
-                click.echo(f'  deepr research submit "prompt" --vector-store {vector_store.id} --yes')
+                print_success("Vector store created successfully!")
+                console.print(f"\nVector Store ID: {vector_store.id}")
+                console.print(f"Name: {name}")
+                console.print(f"Files: {len(file_ids)}")
+                console.print(f"\nUsage:")
+                console.print(f'  deepr research submit "prompt" --vector-store {vector_store.id} --yes')
                 return vector_store.id
             else:
-                click.echo(f"\n{CROSS} Indexing timed out", err=True)
+                print_error("Indexing timed out")
                 raise click.Abort()
 
         vector_store_id = asyncio.run(create_store())
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -130,11 +130,11 @@ def list(limit: int):
             click.echo(f"    Files: {file_count}")
             click.echo()
 
-        click.echo(f"Usage:")
-        click.echo(f'  deepr research submit "prompt" --vector-store <id> --yes')
+        console.print(f"Usage:")
+        console.print(f'  deepr research submit "prompt" --vector-store <id> --yes')
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -166,11 +166,11 @@ def delete(vector_store_id: str, yes: bool):
 
         # Confirmation
         if not yes:
-            click.echo(f"\nVector Store ID: {vector_store_id}")
-            click.echo(f"\nThis will permanently delete the vector store.")
-            click.echo(f"Original files will not be affected.")
+            console.print(f"\nVector Store ID: {vector_store_id}")
+            console.print(f"\nThis will permanently delete the vector store.")
+            console.print(f"Original files will not be affected.")
             if not click.confirm(f"\nDelete vector store?"):
-                click.echo(f"\n{CROSS} Cancelled")
+                print_warning("Cancelled")
                 return
 
         async def delete_store():
@@ -180,13 +180,13 @@ def delete(vector_store_id: str, yes: bool):
         success = asyncio.run(delete_store())
 
         if success:
-            click.echo(f"\n{CHECK} Vector store deleted: {vector_store_id}")
+            print_success(f"Vector store deleted: {vector_store_id}")
         else:
-            click.echo(f"\n{CROSS} Failed to delete vector store", err=True)
+            print_error("Failed to delete vector store")
             raise click.Abort()
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -264,30 +264,30 @@ def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
             deleted = 0
             failed = 0
 
-            click.echo(f"\nDeleting...")
+            console.print(f"\nDeleting...")
             for store in to_delete:
                 try:
                     success = await provider.delete_vector_store(store.id)
                     if success:
-                        click.echo(f"  {CHECK} {store.name or 'Unnamed'}")
+                        console.print(f"  [success]{store.name or 'Unnamed'}[/success]")
                         deleted += 1
                     else:
-                        click.echo(f"  {CROSS} Failed: {store.name or 'Unnamed'}")
+                        console.print(f"  [error]Failed: {store.name or 'Unnamed'}[/error]")
                         failed += 1
                 except Exception as e:
-                    click.echo(f"  {CROSS} Error: {store.name or 'Unnamed'} - {e}")
+                    console.print(f"  [error]Error: {store.name or 'Unnamed'} - {e}[/error]")
                     failed += 1
 
-            click.echo(f"\nDeleted: {deleted}")
+            console.print(f"\nDeleted: {deleted}")
             if failed:
-                click.echo(f"Failed: {failed}")
+                console.print(f"Failed: {failed}")
 
             return deleted
 
         deleted = asyncio.run(cleanup_stores())
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -327,23 +327,23 @@ def info(vector_store_id: str):
         store = asyncio.run(get_info())
 
         if not store:
-            click.echo(f"\n{CROSS} Vector store not found: {vector_store_id}", err=True)
+            print_error(f"Vector store not found: {vector_store_id}")
             raise click.Abort()
 
-        click.echo(f"\nName: {store.name}")
-        click.echo(f"ID: {store.id}")
-        click.echo(f"Files: {len(store.file_ids)}")
+        console.print(f"\nName: {store.name}")
+        console.print(f"ID: {store.id}")
+        console.print(f"Files: {len(store.file_ids)}")
 
         if store.file_ids:
-            click.echo(f"\nFile IDs:")
+            console.print(f"\nFile IDs:")
             for file_id in store.file_ids:
-                click.echo(f"  - {file_id}")
+                console.print(f"  - {file_id}")
 
-        click.echo(f"\nUsage:")
-        click.echo(f'  deepr research submit "prompt" --vector-store {store.id} --yes')
+        console.print(f"\nUsage:")
+        console.print(f'  deepr research submit "prompt" --vector-store {store.id} --yes')
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()

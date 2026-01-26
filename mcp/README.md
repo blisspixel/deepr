@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-**Status**: ✅ Complete - 7 tools implemented and ready for use
+**Status**: Complete - 7 tools implemented and ready for use
 
 Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents like Claude Desktop and Cursor.
 
@@ -63,27 +63,27 @@ You should see 7 Deepr tools available.
 ```
 User: "Use deepr_research to analyze quantum computing trends"
 
-→ Returns job_id
-→ Wait 5-10 minutes
-→ Check status with deepr_check_status(job_id)
-→ Get results with deepr_get_result(job_id)
+-- Returns job_id
+-- Wait 5-10 minutes
+-- Check status with deepr_check_status(job_id)
+-- Get results with deepr_get_result(job_id)
 ```
 
 ### Autonomous Multi-Step Research
 ```
 User: "List experts, then use deepr_agentic_research with the quantum expert to do comprehensive market analysis with $10 budget"
 
-→ Returns workflow_id
-→ Expert autonomously conducts multiple research jobs
-→ Synthesizes findings into comprehensive report
-→ All within $10 budget
+-- Returns workflow_id
+-- Expert autonomously conducts multiple research jobs
+-- Synthesizes findings into comprehensive report
+-- All within $10 budget
 ```
 
 ### Query an Expert
 ```
 User: "Ask the agentic_digital_consciousness expert about reflection patterns in AI agents"
 
-→ Returns answer with sources and cost
+-- Returns answer with sources and cost
 ```
 
 ---
@@ -139,7 +139,7 @@ Add the appropriate API key to config:
 - Check Python in PATH: `python --version`
 - Verify Deepr installed: `pip show deepr`
 - Try absolute Python path in config
-- Check Claude Desktop logs: Help → View Logs
+- Check Claude Desktop logs: Help - View Logs
 
 **API key issues:**
 - Verify key in config JSON (no extra quotes/spaces)
@@ -157,11 +157,11 @@ Add the appropriate API key to config:
 
 Following OpenAI MCP security guidelines:
 
-- ✅ API keys in config only (never in code)
-- ✅ Use budget limits for cost control
-- ✅ Start with o4-mini for testing
-- ✅ Monitor costs with `deepr budget status`
-- ✅ Read-only operations (safe for `require_approval: never`)
+- API keys in config only (never in code)
+- Use budget limits for cost control
+- Start with o4-mini for testing
+- Monitor costs with `deepr budget status`
+- Read-only operations (safe for `require_approval: never`)
 
 ---
 
@@ -171,10 +171,10 @@ Following OpenAI MCP security guidelines:
 
 | Feature | Perplexity | Tavily | Deepr |
 |---------|-----------|--------|-------|
-| Research Model | Sync | Sync | **Async** ✅ |
-| Multi-Step | No | No | **Yes** ✅ |
-| Expert System | No | No | **Yes** ✅ |
-| Agentic Mode | No | No | **Yes** ✅ |
+| Research Model | Sync | Sync | **Async** |
+| Multi-Step | No | No | **Yes** |
+| Expert System | No | No | **Yes** |
+| Agentic Mode | No | No | **Yes** |
 
 When agents need comprehensive research (not just quick web search), they call Deepr.
 

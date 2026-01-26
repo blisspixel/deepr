@@ -103,15 +103,34 @@ deepr expert chat "Supply Chain Expert"
 
 # Chat with agentic research enabled
 deepr expert chat "Supply Chain Expert" --agentic --budget 5
+
+# Manually add knowledge to an expert
+deepr expert learn "Supply Chain Expert" "latest shipping regulations 2026"
+
+# Fill knowledge gaps proactively
+deepr expert fill-gaps "Supply Chain Expert" --budget 5 --top 3
+
+# Resume paused learning (after hitting daily/monthly limits)
+deepr expert resume "Supply Chain Expert"
+
+# Export expert consciousness for sharing
+deepr expert export "Supply Chain Expert" --output ./exports/
+
+# Import expert from exported corpus
+deepr expert import "New Expert Name" --corpus ./exports/supply_chain_expert/
 ```
 
 Features:
-- Autonomous learning: Expert researches topics and forms beliefs with confidence levels
 - Knowledge synthesis: Expert creates a "worldview" from research, not just RAG retrieval
+- Belief formation: Expert forms beliefs with confidence levels and evidence citations
 - Gap awareness: Expert tracks what it doesn't know and can research to fill gaps
-- Persistent: Experts are saved and can be refreshed as domain knowledge evolves
+- Continuous learning: Expert re-synthesizes consciousness after research conversations
+- Manual learning: Add knowledge on demand via topics or file uploads
+- Gap filling: Proactively research high-priority knowledge gaps
+- Pause/resume: Long-running learning pauses gracefully at daily/monthly limits and can be resumed
+- Export/import: Package expert consciousness for sharing or backup
 
-Status: Initial implementation complete. Basic testing shows experts form beliefs and speak from synthesized understanding. More extensive testing needed to validate agentic research triggers and knowledge refresh workflows.
+Status: Core implementation complete. Unit tests pass (62 tests for new features). Initial testing shows experts form beliefs and speak from synthesized understanding. This is early-stage software - more extensive real-world testing needed to validate reliability at scale. The architecture aims toward "Level 5" agentic behavior (self-improving, meta-cognitive awareness) but we're not claiming to have achieved it yet.
 
 See [docs/EXPERT_SYSTEM.md](docs/EXPERT_SYSTEM.md) for detailed documentation.
 
@@ -233,6 +252,18 @@ deepr expert chat "Azure Expert" --agentic --budget 5
 
 # Get expert details
 deepr expert info "Azure Expert"
+
+# Manually add knowledge to expert
+deepr expert learn "Azure Expert" "Azure AI Agent Service 2026"
+
+# Fill knowledge gaps proactively
+deepr expert fill-gaps "Azure Expert" --budget 5 --top 3
+
+# Export expert for sharing/backup
+deepr expert export "Azure Expert" --output ./exports/
+
+# Import expert from corpus
+deepr expert import "New Azure Expert" --corpus ./exports/azure_expert/
 ```
 
 ### Job Management
@@ -272,7 +303,7 @@ deepr analytics report
 ### The Learning Workflow
 
 ```
-Plan → Search → Analyze → Synthesize → Publish
+Plan - Search - Analyze - Synthesize - Publish
 ```
 
 Each phase builds on the previous, creating a comprehensive understanding rather than isolated facts.
@@ -291,10 +322,26 @@ Stored in `reports/[job-id]/` with human-readable directory names.
 ### Budget Protection
 
 Multi-layer budget controls prevent runaway costs:
-- Job-level budgets
+- Per-operation limits: $5 default, $10 hard cap
+- Daily limits: $25 default, $50 hard cap
+- Monthly limits: $200 default, $500 hard cap
 - Session-level budgets (expert chat)
-- Monthly expert budgets
-- Global spending limits
+- CLI validation warns for budgets over $10, requires confirmation over $25
+
+**Pause/Resume for Long-Running Operations:**
+
+When autonomous learning hits daily or monthly limits, it pauses gracefully instead of killing the process:
+- Progress is automatically saved (completed topics, remaining work)
+- Resume the next day with `deepr expert resume "Expert Name"`
+- No work is lost - picks up exactly where it left off
+
+```bash
+# If learning pauses due to daily limit:
+deepr expert resume "AWS Expert"
+
+# Resume with a different budget:
+deepr expert resume "AWS Expert" --budget 10
+```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
 
