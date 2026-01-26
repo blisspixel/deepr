@@ -3,7 +3,7 @@
 import click
 import asyncio
 from typing import Optional
-from deepr.branding import print_section_header
+from deepr.cli.colors import console, print_section_header, print_success, print_error
 
 
 async def run_dream_team(question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str = None):
@@ -180,19 +180,19 @@ Provide your analysis from this perspective."""
                     "cost": cost
                 })
 
-                click.echo(f"  [OK] Completed (${cost:.4f})")
+                console.print(f"  [success]Completed[/success] [dim](${cost:.4f})[/dim]")
 
             else:
                 error_msg = response.error if response.error else "Unknown error"
                 await queue.update_status(job_id, JobStatus.FAILED, error=error_msg)
-                click.echo(f"  [X] Failed: {error_msg}")
+                console.print(f"  [error]Failed: {error_msg}[/error]")
 
         except Exception as e:
             await queue.update_status(job_id, JobStatus.FAILED, error=str(e))
-            click.echo(f"  [X] Error: {e}")
+            console.print(f"  [error]Error: {e}[/error]")
 
     total_cost = sum(r.get('cost', 0) for r in results)
-    click.echo(f"\n[OK] Team research completed!")
+    print_success("Team research completed!")
     click.echo(f"  Perspectives analyzed: {len(results)}/{len(team)}")
     click.echo(f"  Total cost: ${total_cost:.4f}")
 
@@ -337,7 +337,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         with open(plan_path, 'w') as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n[OK] Team research plan saved to {plan_path}")
+        print_success(f"Team research plan saved to {plan_path}")
 
         # Phase 3: Execute research with role context
         click.echo("\n[Phase 3] Team members conducting research...\n")
@@ -364,10 +364,10 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         with open(plan_path, 'w') as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n[OK] Research complete! {len(results)} team members finished.\n")
+        print_success(f"Research complete! {len(results)} team members finished.")
 
         # Phase 4: Synthesize with attribution
-        click.echo("[Phase 4] Lead Researcher synthesizing team perspectives...\n")
+        click.echo("\n[Phase 4] Lead Researcher synthesizing team perspectives...\n")
 
         synthesizer = TeamSynthesizer(model="gpt-5")
         report = synthesizer.synthesize_with_conflict_analysis(
@@ -381,7 +381,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
             f.write(report)
 
         click.echo(report)
-        click.echo(f"\n\n[OK] Full report saved to {report_path}")
+        print_success(f"Full report saved to {report_path}")
 
         # Show cost
         total_cost = sum(r.get("cost", 0) for r in results)

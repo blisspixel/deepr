@@ -29,24 +29,25 @@ class ModelRouter:
     COMPLEXITY_INDICATORS = {
         'simple': {
             'patterns': [
-                r'\b(what|when|where|who)\b',  # Simple WH questions
+                r'\b(what|when|where|who)\b.*\?$',  # Simple WH questions ending with ?
                 r'\b(is|are|was|were)\b\s+\w+',  # Simple is/are questions
                 r'\b(yes|no|true|false)\b',  # Binary questions
                 r'\b(hello|hi|hey|thanks|thank you)\b',  # Greetings
                 r'\b(version|latest|current)\b',  # Version queries
                 r'\b(define|definition|meaning)\b',  # Simple definitions
+                r'\b(when did|when was|what is|what are)\b',  # Simple factual questions
             ],
-            'weight': 1.0
+            'weight': 2.0  # Increased weight to prioritize simple classification
         },
         'moderate': {
             'patterns': [
-                r'\b(how|why)\b',  # How/why questions
+                r'\b(how)\b',  # How questions (not when/what/where)
                 r'\b(compare|difference|versus|vs)\b',  # Comparisons
                 r'\b(explain|describe)\b',  # Explanations
                 r'\b(best practice|recommendation)\b',  # Best practices
                 r'\b(should|would|could)\b',  # Advisory questions
             ],
-            'weight': 2.0
+            'weight': 1.5  # Reduced weight
         },
         'complex': {
             'patterns': [
@@ -157,13 +158,13 @@ class ModelRouter:
                     confidence=0.85
                 )
 
-            # Simple queries - still use GPT-5 but with low reasoning effort for speed
+            # Simple queries - use GPT-5 with low reasoning effort for speed (1-3 seconds)
             return ModelConfig(
                 provider="openai",
                 model="gpt-5",
                 cost_estimate=0.001,  # ~500 tokens @ $1.25/$10 per 1M
                 reasoning_effort="low",
-                confidence=0.8
+                confidence=0.9  # High confidence for simple queries
             )
 
         # No provider constraint - use best model across all providers

@@ -123,29 +123,44 @@ def validate_expert_name(name: str) -> str:
     return name
 
 
-def validate_budget(budget: float, min_budget: float = 0.0, max_budget: float = 1000.0) -> float:
+def validate_budget(
+    budget: float, 
+    min_budget: float = 0.0, 
+    warn_threshold: float = 10.0,
+    confirm_threshold: float = 25.0
+) -> float:
     """
-    Validate budget value.
+    Validate budget value with warnings for high amounts.
+    
+    This doesn't hard-block high budgets - users can spend what they want.
+    But it warns/confirms to prevent accidental overspending.
 
     Args:
         budget: Budget amount
         min_budget: Minimum allowed budget
-        max_budget: Maximum allowed budget
+        warn_threshold: Show warning above this amount (default $10)
+        confirm_threshold: Require confirmation above this amount (default $25)
 
     Returns:
         The validated budget
 
     Raises:
-        click.UsageError: If budget is invalid
+        click.UsageError: If budget is below minimum
+        click.Abort: If user declines confirmation for high budget
     """
     if budget < min_budget:
         raise click.UsageError(f"Budget cannot be less than ${min_budget:.2f}")
 
-    if budget > max_budget:
-        raise click.UsageError(
-            f"Budget ${budget:.2f} exceeds maximum ${max_budget:.2f}. "
-            f"If you really need this much, increase max_budget parameter."
-        )
+    # Warn for moderately high budgets
+    if budget > warn_threshold and budget <= confirm_threshold:
+        click.echo(f"[WARN] Budget ${budget:.2f} is above typical usage (${warn_threshold:.2f})")
+    
+    # Require confirmation for high budgets
+    if budget > confirm_threshold:
+        click.echo(f"\n[WARN] High budget: ${budget:.2f}")
+        click.echo(f"This is above the typical limit of ${confirm_threshold:.2f}")
+        if not click.confirm("Are you sure you want to proceed?", default=False):
+            raise click.Abort()
 
     return budget
 
@@ -172,7 +187,7 @@ def confirm_high_cost_operation(
     if skip_confirm or estimated_cost < threshold:
         return True
 
-    click.echo(f"\n⚠️  High Cost Warning")
+    click.echo(f"\n[WARN] High Cost Warning")
     click.echo(f"Estimated cost: ${estimated_cost:.2f}")
     click.echo()
 

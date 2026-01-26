@@ -78,51 +78,57 @@ async def _show_status(job_id: str):
                     response = await provider.get_status(job.provider_job_id)
 
                     if response.status == "completed":
-                        click.echo("[OK] Provider reports: COMPLETED (local DB was stale)")
+                        console.print("[success]Provider reports: COMPLETED[/success] [dim](local DB was stale)[/dim]")
                         click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
                     elif response.status in ["failed", "expired", "cancelled"]:
-                        click.echo(f"[X] Provider reports: {response.status.upper()} (local DB was stale)")
+                        console.print(f"[error]Provider reports: {response.status.upper()}[/error] [dim](local DB was stale)[/dim]")
                         await queue.update_status(job_id, JobStatus.FAILED if response.status != "cancelled" else JobStatus.CANCELLED)
                         job = await queue.get_job(job_id)
                     else:
-                        click.echo(f"[OK] Provider confirms: still {response.status}\n")
+                        console.print(f"[success]Provider confirms: still {response.status}[/success]")
                 except Exception as e:
                     click.echo(f"Warning: Could not verify with provider: {e}\n")
 
-    click.echo("\n" + "="*70)
-    click.echo("  Job Status")
-    click.echo("="*70 + "\n")
+    from deepr.cli.colors import print_section_header, print_key_value
+    
+    print_section_header("Job Status")
 
-    click.echo(f"ID: {job.id}")
-    click.echo(f"Status: {job.status.value.upper()}")
-    click.echo(f"Model: {job.model}")
-    click.echo(f"\nPrompt: {job.prompt}")
+    print_key_value("ID", job.id)
+    print_key_value("Status", job.status.value.upper())
+    print_key_value("Model", job.model)
+    
+    console.print()
+    print_key_value("Prompt", job.prompt)
 
-    click.echo(f"\nSubmitted: {job.submitted_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    console.print()
+    print_key_value("Submitted", job.submitted_at.strftime('%Y-%m-%d %H:%M:%S'))
 
     if job.started_at:
-        click.echo(f"Started: {job.started_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        print_key_value("Started", job.started_at.strftime('%Y-%m-%d %H:%M:%S'))
 
     if job.completed_at:
-        click.echo(f"Completed: {job.completed_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        print_key_value("Completed", job.completed_at.strftime('%Y-%m-%d %H:%M:%S'))
         duration = (job.completed_at - job.submitted_at).total_seconds()
-        click.echo(f"Duration: {duration/60:.1f} minutes")
+        print_key_value("Duration", f"{duration/60:.1f} minutes")
 
     if job.cost:
-        click.echo(f"\nCost: ${job.cost:.4f}")
+        console.print()
+        print_key_value("Cost", f"${job.cost:.4f}")
 
     if job.tokens_used:
-        click.echo(f"Tokens: {job.tokens_used:,}")
+        print_key_value("Tokens", f"{job.tokens_used:,}")
 
     if job.last_error:
-        click.echo(f"\nError: {job.last_error}")
+        console.print()
+        print_key_value("Error", job.last_error)
 
     if job.report_paths:
-        click.echo(f"\nReports:")
+        console.print()
+        console.print("[dim]Reports:[/dim]")
         for format_type, path in job.report_paths.items():
-            click.echo(f"  {format_type}: {path}")
+            console.print(f"  {format_type}: {path}")
 
-    click.echo()
+    console.print()
 
 
 @jobs.command()
@@ -195,7 +201,7 @@ async def _get_results(job_id: str):
             response = await provider.get_status(job.provider_job_id)
 
             if response.status == "completed":
-                click.echo("[OK] Retrieved results from provider")
+                console.print("[success]Retrieved results from provider[/success]")
 
                 # Extract content from response
                 content = ""
@@ -230,15 +236,15 @@ async def _get_results(job_id: str):
 
                 job = await queue.get_job(job_id)
             elif response.status == "failed":
-                click.echo(f"[X] Job failed at provider: {response.error}")
+                console.print(f"[error]Job failed at provider: {response.error}[/error]")
                 await queue.update_status(job_id, JobStatus.FAILED)
                 return
             elif response.status in ["expired", "cancelled"]:
-                click.echo(f"[X] Job {response.status} at provider")
+                console.print(f"[error]Job {response.status} at provider[/error]")
                 await queue.update_status(job_id, JobStatus.FAILED if response.status == "expired" else JobStatus.CANCELLED)
                 return
             else:
-                click.echo(f"[OK] Confirmed with provider: Job still {response.status}")
+                console.print(f"[success]Confirmed with provider: Job still {response.status}[/success]")
                 click.echo(f"Use 'deepr jobs status {job_id}' to check progress")
                 return
 
@@ -248,9 +254,9 @@ async def _get_results(job_id: str):
 
     # Display results
     if job.status == JobStatus.COMPLETED:
-        click.echo("\n" + "="*70)
-        click.echo("  Research Results")
-        click.echo("="*70 + "\n")
+        from deepr.cli.colors import print_section_header
+        
+        print_section_header("Research Results")
 
         if job.report_paths and "markdown" in job.report_paths:
             md_path = Path(job.report_paths["markdown"])
@@ -434,21 +440,22 @@ async def _list_jobs(status_filter: str, limit: int):
         any_processing = any(j.status == JobStatus.PROCESSING for j in campaign_jobs)
 
         if all_completed:
-            campaign_status = click.style("[OK]", fg="green", bold=True)
+            campaign_status = click.style("COMPLETED", fg="green", bold=True)
         elif any_failed:
-            campaign_status = click.style("[X]", fg="red", bold=True)
+            campaign_status = click.style("FAILED", fg="red", bold=True)
         elif any_processing:
-            campaign_status = click.style("[>>]", fg="cyan", bold=True)
+            campaign_status = click.style("PROCESSING", fg="cyan", bold=True)
         else:
-            campaign_status = click.style("[ ]", dim=True)
+            campaign_status = click.style("QUEUED", dim=True)
 
         total_cost = sum(j.cost for j in campaign_jobs if j.cost)
-        click.echo(click.style(f">> {campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)")
+        click.echo(click.style(f"{campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)")
 
         # Show first job's details as campaign representative
         first_job = campaign_jobs[0]
         prompt = first_job.prompt[:60] + "..." if len(first_job.prompt) > 60 else first_job.prompt
-        click.echo(f"  {campaign_status} {prompt}")
+        click.echo(f"  {campaign_status}")
+        click.echo(f"  {prompt}")
 
         if first_job.submitted_at:
             time_display = click.style(first_job.submitted_at.strftime('%Y-%m-%d %H:%M:%S'), dim=True)
@@ -462,17 +469,17 @@ async def _list_jobs(status_filter: str, limit: int):
         click.echo(click.style(f"  Jobs:", dim=True))
         for job in campaign_jobs:
             if job.status == JobStatus.COMPLETED:
-                status_icon = click.style("[OK]", fg="green")
+                status_text = click.style("completed", fg="green")
             elif job.status == JobStatus.PROCESSING:
-                status_icon = click.style("[>>]", fg="cyan")
+                status_text = click.style("processing", fg="cyan")
             elif job.status == JobStatus.FAILED:
-                status_icon = click.style("[X]", fg="red")
+                status_text = click.style("failed", fg="red")
             else:
-                status_icon = click.style("[ ]", dim=True)
+                status_text = click.style("queued", dim=True)
 
             job_id = click.style(job.id[:15], fg="cyan")
             cost_str = f" (${job.cost:.4f})" if job.cost else ""
-            click.echo(f"    {status_icon} {job_id}{cost_str}")
+            click.echo(f"    {job_id} {status_text}{cost_str}")
 
         click.echo()
 
@@ -480,13 +487,13 @@ async def _list_jobs(status_filter: str, limit: int):
     for job in sorted(standalone_jobs, key=lambda x: x.submitted_at, reverse=True):
         # Status with color
         if job.status == JobStatus.COMPLETED:
-            status_display = click.style("[OK]", fg="green", bold=True)
+            status_display = click.style("COMPLETED", fg="green", bold=True)
         elif job.status == JobStatus.PROCESSING:
-            status_display = click.style("[>>]", fg="cyan", bold=True)
+            status_display = click.style("PROCESSING", fg="cyan", bold=True)
         elif job.status == JobStatus.FAILED:
-            status_display = click.style("[X]", fg="red", bold=True)
+            status_display = click.style("FAILED", fg="red", bold=True)
         else:
-            status_display = click.style("[ ]", dim=True)
+            status_display = click.style("QUEUED", dim=True)
 
         # Format job info
         job_id = click.style(job.id[:12], fg="cyan")
@@ -543,13 +550,13 @@ async def _cancel_job(job_id: str):
 
             cancelled = await provider.cancel_job(job.provider_job_id)
             if cancelled:
-                click.echo("[OK] Cancelled with provider")
+                console.print("[success]Cancelled with provider[/success]")
         except Exception as e:
             click.echo(f"Warning: Could not cancel with provider: {e}")
 
     # Update local queue
     await queue.update_status(job_id, JobStatus.CANCELLED)
-    click.echo(f"[OK] Job {job_id[:12]} cancelled")
+    console.print(f"[success]Job {job_id[:12]} cancelled[/success]")
 
 
 if __name__ == "__main__":
