@@ -52,6 +52,9 @@ class GrokProvider(DeepResearchProvider):
             base_url=base_url,
             timeout=timeout,
         )
+        
+        # Store timeout for xAI SDK client
+        self.timeout = timeout
 
         # Grok model mappings
         self.model_mappings = {

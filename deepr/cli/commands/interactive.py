@@ -1,7 +1,8 @@
 """Interactive mode - guided research workflow."""
 
 import click
-from deepr.branding import print_banner, print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+from deepr.branding import print_banner
 
 
 @click.command()
@@ -35,13 +36,13 @@ def interactive():
         elif mode == 3:
             _interactive_queue()
         elif mode == 4:
-            click.echo(f"\n{CHECK} Goodbye!")
+            print_success("Goodbye!")
             return
         else:
-            click.echo(f"\n{CROSS} Invalid option")
+            print_error("Invalid option")
 
     except (KeyboardInterrupt, click.Abort):
-        click.echo(f"\n\n{CROSS} Cancelled")
+        print_warning("Cancelled")
 
 
 def _interactive_single_research():
@@ -53,7 +54,7 @@ def _interactive_single_research():
     prompt = click.prompt("   Prompt")
 
     if not prompt or len(prompt) < 10:
-        click.echo(f"\n{CROSS} Prompt too short (min 10 characters)")
+        print_error("Prompt too short (min 10 characters)")
         return
 
     # Model selection
@@ -90,11 +91,11 @@ def _interactive_single_research():
 
     # Confirm
     if not click.confirm(f"\nSubmit job for ~${estimate.expected_cost:.2f}?"):
-        click.echo(f"\n{CROSS} Cancelled")
+        print_warning("Cancelled")
         return
 
     # Submit
-    click.echo(f"\n{CHECK} Submitting job...")
+    print_success("Submitting job...")
 
     from deepr.services.queue import get_queue
     from deepr.models.job import Job, JobStatus
@@ -117,9 +118,9 @@ def _interactive_single_research():
 
     queue.enqueue(job)
 
-    click.echo(f"\n{CHECK} Job submitted!")
-    click.echo(f"\nJob ID: {job.id}")
-    click.echo(f"\nTrack status: deepr research status {job.id}")
+    print_success("Job submitted!")
+    console.print(f"\nJob ID: {job.id}")
+    console.print(f"\nTrack status: deepr research status {job.id}")
 
 
 def _interactive_prep():
@@ -131,7 +132,7 @@ def _interactive_prep():
     scenario = click.prompt("   Scenario")
 
     if not scenario or len(scenario) < 10:
-        click.echo(f"\n{CROSS} Scenario too short")
+        print_error("Scenario too short")
         return
 
     # Context
@@ -174,7 +175,8 @@ def _interactive_prep():
     )
 
     # Show tasks
-    click.echo(f"\n{CHECK} Generated {len(tasks)} tasks:\n")
+    print_success(f"Generated {len(tasks)} tasks:")
+    console.print()
 
     total_cost = 0.0
     for i, task in enumerate(tasks, 1):
@@ -186,10 +188,10 @@ def _interactive_prep():
         task["estimated_cost"] = estimate.expected_cost
         total_cost += estimate.expected_cost
 
-        click.echo(f"{i}. {task['title']}")
-        click.echo(f"   Cost: ~${estimate.expected_cost:.2f}\n")
+        console.print(f"{i}. {task['title']}")
+        console.print(f"   Cost: ~${estimate.expected_cost:.2f}\n")
 
-    click.echo(f"Total: ${total_cost:.2f}")
+    console.print(f"Total: ${total_cost:.2f}")
 
     # Select tasks
     if click.confirm("\nExecute all tasks?", default=True):
@@ -202,11 +204,11 @@ def _interactive_prep():
 
     # Confirm execution
     if not click.confirm(f"\nExecute {len(selected_tasks)} tasks for ~${total_cost:.2f}?"):
-        click.echo(f"\n{CROSS} Cancelled")
+        print_warning("Cancelled")
         return
 
     # Execute
-    click.echo(f"\n{CHECK} Creating batch jobs...")
+    print_success("Creating batch jobs...")
 
     from deepr.services.queue import get_queue
     from deepr.models.job import Job, JobStatus
@@ -238,9 +240,9 @@ def _interactive_prep():
 
         queue.enqueue(job)
 
-    click.echo(f"\n{CHECK} Batch created!")
-    click.echo(f"\nBatch ID: {batch_id}")
-    click.echo(f"Track progress: deepr prep status {batch_id}")
+    print_success("Batch created!")
+    console.print(f"\nBatch ID: {batch_id}")
+    console.print(f"Track progress: deepr prep status {batch_id}")
 
 
 def _interactive_queue():

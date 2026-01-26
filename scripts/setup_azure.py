@@ -263,9 +263,9 @@ AZURE_SERVICE_BUS_CONNECTION_STRING={config_data.get('servicebus_connection_stri
 AZURE_SERVICE_BUS_QUEUE_NAME={config_data.get('queue_name', 'research-jobs')}
 
 # Cost Limits (USD)
-DEEPR_MAX_COST_PER_JOB=10.00
-DEEPR_MAX_COST_PER_DAY=100.00
-DEEPR_MAX_COST_PER_MONTH=1000.00
+DEEPR_MAX_COST_PER_JOB=5.00
+DEEPR_MAX_COST_PER_DAY=25.00
+DEEPR_MAX_COST_PER_MONTH=200.00
 
 # Model Configuration
 DEEPR_DEFAULT_MODEL=o4-mini-deep-research

@@ -2,7 +2,7 @@
 
 import click
 from typing import Optional
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_header, print_section_header, print_success, print_error, print_warning, print_key_value, console
 
 
 @click.group()
@@ -81,7 +81,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             # Show what we found
             sufficient = doc_review.get("sufficient", [])
             if sufficient:
-                click.echo(f"\n[OK] Found {len(sufficient)} sufficient docs:")
+                print_success(f"Found {len(sufficient)} sufficient docs:")
                 for doc in sufficient:
                     click.echo(f"  - {doc.get('name')} (reuse)")
 
@@ -126,7 +126,8 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
                 phases[phase] = []
             phases[phase].append(task)
 
-        click.echo(f"\n{CHECK} Generated {len(tasks)} research tasks in {len(phases)} phases:\n")
+        print_success(f"Generated {len(tasks)} research tasks in {len(phases)} phases:")
+        console.print()
 
         # Display by phase
         avg_cost = 0.50 if "mini" in model else 5.0
@@ -134,14 +135,14 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
 
         for phase_num in sorted(phases.keys()):
             phase_tasks = phases[phase_num]
-            click.echo(f"Phase {phase_num}:")
+            console.print(f"[bold]Phase {phase_num}:[/bold]")
 
             if phase_num == 1:
-                click.echo("  (Foundation research - can run in parallel)")
+                console.print("  [dim](Foundation research - can run in parallel)[/dim]")
             elif phase_num == len(phases):
-                click.echo("  (Synthesis - depends on all previous research)")
+                console.print("  [dim](Synthesis - depends on all previous research)[/dim]")
             else:
-                click.echo("  (Analysis - uses previous phase results as context)")
+                console.print("  [dim](Analysis - uses previous phase results as context)[/dim]")
 
             click.echo()
 
@@ -188,22 +189,22 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
         with open(plan_file, "w") as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\nPlan saved: {plan_file}")
-        click.echo()
+        console.print(f"\nPlan saved: {plan_file}")
+        console.print()
 
         if review_before_execute:
-            click.echo(f"{CHECK} Human-in-the-loop enabled: All tasks require approval before execution")
-            click.echo()
-            click.echo("Next steps:")
-            click.echo(f"  deepr prep review    # Review and approve/remove tasks (REQUIRED)")
-            click.echo(f"  deepr prep execute   # Execute approved tasks only")
+            print_success("Human-in-the-loop enabled: All tasks require approval before execution")
+            console.print()
+            console.print("Next steps:")
+            console.print("  deepr prep review    # Review and approve/remove tasks (REQUIRED)")
+            console.print("  deepr prep execute   # Execute approved tasks only")
         else:
-            click.echo("Next steps:")
-            click.echo(f"  deepr prep review    # Review and approve/remove tasks (optional)")
-            click.echo(f"  deepr prep execute   # Execute all tasks")
+            console.print("Next steps:")
+            console.print("  deepr prep review    # Review and approve/remove tasks (optional)")
+            console.print("  deepr prep execute   # Execute all tasks")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -230,7 +231,7 @@ def review():
         plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
 
         if not plan_files:
-            click.echo(f"\n{CROSS} No plan found. Run 'deepr prep plan' first.", err=True)
+            print_error("No plan found. Run 'deepr prep plan' first.")
             raise click.Abort()
 
         plan_file = plan_files[0]
@@ -241,8 +242,9 @@ def review():
         scenario = plan_data["scenario"]
         tasks = plan_data["tasks"]
 
-        click.echo(f"\nScenario: {scenario}")
-        click.echo(f"Tasks: {len(tasks)}\n")
+        print_key_value("Scenario", scenario)
+        print_key_value("Tasks", str(len(tasks)))
+        console.print()
 
         # Review each task
         approved_count = 0
@@ -251,13 +253,12 @@ def review():
             phase = task.get('phase', 1)
             deps = task.get('depends_on', [])
 
-            click.echo(f"\n{'=' * 60}")
-            click.echo(f"Task {task_id}: {task['title']}")
-            click.echo(f"Phase: {phase}")
+            print_section_header(f"Task {task_id}: {task['title']}")
+            print_key_value("Phase", str(phase))
             if deps:
-                click.echo(f"Depends on: {', '.join(map(str, deps))}")
-            click.echo(f"\nPrompt: {task['prompt']}")
-            click.echo(f"{'=' * 60}\n")
+                print_key_value("Depends on", ', '.join(map(str, deps)))
+            console.print(f"\n[dim]Prompt:[/dim] {task['prompt']}")
+            console.print()
 
             # Get user decision
             choice = click.prompt(
@@ -269,10 +270,10 @@ def review():
             if choice == 'a':
                 task['approved'] = True
                 approved_count += 1
-                click.echo(f"{CHECK} Approved")
+                print_success("Approved")
             elif choice == 'r':
                 task['approved'] = False
-                click.echo(f"{CROSS} Rejected")
+                print_error("Rejected")
             elif choice == 's':
                 # Keep remaining tasks as approved
                 for remaining in tasks[tasks.index(task):]:
@@ -285,13 +286,13 @@ def review():
         with open(plan_file, "w") as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n{CHECK} Review complete!")
-        click.echo(f"\nApproved: {approved_count} / {len(tasks)}")
-        click.echo(f"\nNext step:")
-        click.echo(f"  deepr prep execute    # Execute approved tasks")
+        print_success("Review complete!")
+        console.print(f"\nApproved: {approved_count} / {len(tasks)}")
+        console.print("\nNext step:")
+        console.print("  deepr prep execute    # Execute approved tasks")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -331,7 +332,7 @@ def execute(yes: bool):
         plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
 
         if not plan_files:
-            click.echo(f"\n{CROSS} No plan found. Run 'deepr prep plan' first.", err=True)
+            print_error("No plan found. Run 'deepr prep plan' first.")
             raise click.Abort()
 
         plan_file = plan_files[0]
@@ -345,15 +346,15 @@ def execute(yes: bool):
 
         # Check if plan is paused
         if plan_data.get("status") == "paused":
-            click.echo(f"\n{CROSS} Campaign is paused: {scenario}", err=True)
-            click.echo(f"\nTo resume: deepr prep resume {plan_file.stem}")
+            print_error(f"Campaign is paused: {scenario}")
+            console.print(f"\nTo resume: deepr prep resume {plan_file.stem}")
             raise click.Abort()
 
         # Filter to approved tasks only
         tasks = [t for t in all_tasks if t.get('approved', True)]
 
         if not tasks:
-            click.echo(f"\n{CROSS} No approved tasks. Run 'deepr prep review' first.", err=True)
+            print_error("No approved tasks. Run 'deepr prep review' first.")
             raise click.Abort()
 
         # Calculate estimated cost
@@ -372,7 +373,7 @@ def execute(yes: bool):
             click.echo("\nThis will execute the full multi-phase research campaign.")
             click.echo("Phase 2+ tasks will receive context from previous phases.")
             if not click.confirm(f"\nExecute campaign for ~${estimated_cost:.2f}?"):
-                click.echo(f"\n{CROSS} Cancelled")
+                print_warning("Cancelled")
                 return
 
         # Initialize services
@@ -394,9 +395,9 @@ def execute(yes: bool):
         import uuid
         campaign_id = f"campaign-{uuid.uuid4().hex[:12]}"
 
-        click.echo(f"\n{CHECK} Starting campaign: {campaign_id}")
-        click.echo("\nThis will take a while. Each task takes 5-15 minutes.")
-        click.echo("Progress will be shown as tasks complete.\n")
+        print_success(f"Starting campaign: {campaign_id}")
+        console.print("\nThis will take a while. Each task takes 5-15 minutes.")
+        console.print("Progress will be shown as tasks complete.\n")
 
         # Execute campaign
         async def run_campaign():
@@ -415,14 +416,14 @@ def execute(yes: bool):
             json.dump(plan, f, indent=2)
 
         # Show results
-        click.echo(f"\n{CHECK} Campaign completed!")
-        click.echo(f"\nTotal Cost: ${results['total_cost']:.2f}")
-        click.echo(f"Total Tasks: {len(results['tasks'])}")
-        click.echo(f"\nResults saved: .deepr/storage/{campaign_id}/")
-        click.echo(f"\nView summary: deepr research result {campaign_id}")
+        print_success("Campaign completed!")
+        console.print(f"\nTotal Cost: ${results['total_cost']:.2f}")
+        console.print(f"Total Tasks: {len(results['tasks'])}")
+        console.print(f"\nResults saved: .deepr/storage/{campaign_id}/")
+        console.print(f"\nView summary: deepr research result {campaign_id}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -452,7 +453,7 @@ def status(batch_id: str):
         ]
 
         if not batch_jobs:
-            click.echo(f"\n{CROSS} Batch not found: {batch_id}", err=True)
+            print_error(f"Batch not found: {batch_id}")
             raise click.Abort()
 
         # Calculate stats
@@ -500,7 +501,7 @@ def status(batch_id: str):
             click.echo(f"\nView results: deepr research result <job-id>")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -531,16 +532,16 @@ def pause(plan_id: Optional[str]):
             # Look for specific plan
             plan_file = plan_dir / f"{plan_id}.json"
             if not plan_file.exists():
-                click.echo(f"\n{CROSS} Plan not found: {plan_id}", err=True)
-                click.echo(f"Available plans:")
+                print_error(f"Plan not found: {plan_id}")
+                console.print("Available plans:")
                 for f in sorted(plan_dir.glob("*.json")):
-                    click.echo(f"  - {f.stem}")
+                    console.print(f"  - {f.stem}")
                 raise click.Abort()
         else:
             # Get most recent plan
             plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
             if not plan_files:
-                click.echo(f"\n{CROSS} No plans found. Run 'deepr prep plan' first.", err=True)
+                print_error("No plans found. Run 'deepr prep plan' first.")
                 raise click.Abort()
             plan_file = plan_files[0]
 
@@ -553,8 +554,8 @@ def pause(plan_id: Optional[str]):
 
         # Check if already paused
         if current_status == "paused":
-            click.echo(f"\n{CHECK} Campaign is already paused: {scenario}")
-            click.echo(f"\nTo resume: deepr prep resume {plan_file.stem}")
+            print_success(f"Campaign is already paused: {scenario}")
+            console.print(f"\nTo resume: deepr prep resume {plan_file.stem}")
             return
 
         # Mark as paused
@@ -565,14 +566,14 @@ def pause(plan_id: Optional[str]):
         with open(plan_file, "w") as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n{CHECK} Campaign paused: {scenario}")
-        click.echo(f"Plan file: {plan_file.stem}")
-        click.echo(f"\nNext steps:")
-        click.echo(f"  deepr prep resume {plan_file.stem}    # Resume execution")
-        click.echo(f"  deepr prep edit-plan {plan_file.stem}  # Edit before resuming (planned)")
+        print_success(f"Campaign paused: {scenario}")
+        console.print(f"Plan file: {plan_file.stem}")
+        console.print(f"\nNext steps:")
+        console.print(f"  deepr prep resume {plan_file.stem}    # Resume execution")
+        console.print(f"  deepr prep edit-plan {plan_file.stem}  # Edit before resuming (planned)")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -604,16 +605,16 @@ def resume(plan_id: Optional[str]):
             # Look for specific plan
             plan_file = plan_dir / f"{plan_id}.json"
             if not plan_file.exists():
-                click.echo(f"\n{CROSS} Plan not found: {plan_id}", err=True)
-                click.echo(f"Available plans:")
+                print_error(f"Plan not found: {plan_id}")
+                console.print("Available plans:")
                 for f in sorted(plan_dir.glob("*.json")):
-                    click.echo(f"  - {f.stem}")
+                    console.print(f"  - {f.stem}")
                 raise click.Abort()
         else:
             # Get most recent paused plan
             plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
             if not plan_files:
-                click.echo(f"\n{CROSS} No plans found. Run 'deepr prep plan' first.", err=True)
+                print_error("No plans found. Run 'deepr prep plan' first.")
                 raise click.Abort()
 
             # Find first paused plan
@@ -626,8 +627,8 @@ def resume(plan_id: Optional[str]):
                     break
 
             if not plan_file:
-                click.echo(f"\n{CROSS} No paused plans found.", err=True)
-                click.echo(f"Use: deepr prep pause <plan-id>")
+                print_error("No paused plans found.")
+                console.print("Use: deepr prep pause <plan-id>")
                 raise click.Abort()
 
         # Load plan data
@@ -639,8 +640,8 @@ def resume(plan_id: Optional[str]):
 
         # Check if not paused
         if current_status != "paused":
-            click.echo(f"\n{CHECK} Campaign is already active: {scenario}")
-            click.echo(f"\nTo execute: deepr prep execute")
+            print_success(f"Campaign is already active: {scenario}")
+            console.print("\nTo execute: deepr prep execute")
             return
 
         # Mark as active
@@ -651,13 +652,13 @@ def resume(plan_id: Optional[str]):
         with open(plan_file, "w") as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n{CHECK} Campaign resumed: {scenario}")
-        click.echo(f"Plan file: {plan_file.stem}")
-        click.echo(f"\nNext steps:")
-        click.echo(f"  deepr prep execute    # Execute the plan")
+        print_success(f"Campaign resumed: {scenario}")
+        console.print(f"Plan file: {plan_file.stem}")
+        console.print("\nNext steps:")
+        console.print("  deepr prep execute    # Execute the plan")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -701,7 +702,7 @@ def continue_research(topics: int, yes: bool):
         plan_files = sorted(plan_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
 
         if not plan_files:
-            click.echo(f"\n{CROSS} No previous campaign found. Run 'deepr prep plan' first.", err=True)
+            print_error("No previous campaign found. Run 'deepr prep plan' first.")
             raise click.Abort()
 
         plan_file = plan_files[0]
@@ -743,12 +744,12 @@ def continue_research(topics: int, yes: bool):
                         except:
                             pass
             except:
-                click.echo(f"{CROSS} Could not load previous campaign results", err=True)
+                print_error("Could not load previous campaign results")
                 raise click.Abort()
 
         if not completed_results:
-            click.echo(f"\n{CROSS} No completed results found from previous phase.", err=True)
-            click.echo("Make sure you ran 'deepr prep execute' and tasks completed.", err=True)
+            print_error("No completed results found from previous phase.")
+            console.print("Make sure you ran 'deepr prep execute' and tasks completed.")
             raise click.Abort()
 
         click.echo(f"Found {len(completed_results)} completed research tasks")
@@ -763,8 +764,8 @@ def continue_research(topics: int, yes: bool):
         )
 
         # Display review
-        click.echo(f"\n{CHECK} Review complete\n")
-        click.echo(f"Analysis: {review_result.get('analysis', 'No analysis')}\n")
+        print_success("Review complete")
+        console.print(f"\nAnalysis: {review_result.get('analysis', 'No analysis')}\n")
 
         if review_result.get("status") == "ready_for_synthesis":
             click.echo("Status: Ready for final synthesis")
@@ -796,25 +797,25 @@ def continue_research(topics: int, yes: bool):
         with open(plan_file, "w") as f:
             json.dump(plan, f, indent=2)
 
-        click.echo(f"\n{CHECK} Plan updated: {plan_file.name}")
+        print_success(f"Plan updated: {plan_file.name}")
 
         # Ask if should execute
         if not yes:
             if not click.confirm(f"\nExecute Phase {review_result['phase']} now?"):
-                click.echo(f"\n{CROSS} Cancelled. Run 'deepr prep execute' when ready.")
+                print_warning("Cancelled. Run 'deepr prep execute' when ready.")
                 return
 
         # Execute
-        click.echo(f"\n{CHECK} Executing Phase {review_result['phase']}...")
+        print_success(f"Executing Phase {review_result['phase']}...")
         from click.testing import CliRunner
         runner = CliRunner()
         result = runner.invoke(execute, ['--yes'])
         if result.exit_code != 0:
-            click.echo(f"\n{CROSS} Execution failed")
+            print_error("Execution failed")
             raise click.Abort()
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -850,7 +851,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
     click.echo(f"Estimated cost: ${rounds * topics_per_round * 0.50:.2f} - ${rounds * topics_per_round * 1.00:.2f}")
 
     if not click.confirm("\nProceed with autonomous research?"):
-        click.echo(f"\n{CROSS} Cancelled")
+        print_warning("Cancelled")
         return
 
     try:
@@ -861,12 +862,10 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         from deepr.services.research_reviewer import ResearchReviewer
 
         # Round 1: Initial plan and execute
-        click.echo(f"\n{'='*70}")
-        click.echo(f"ROUND 1: Foundation Research")
-        click.echo(f"{'='*70}\n")
+        print_header("ROUND 1: Foundation Research")
 
         # Generate initial plan
-        click.echo(f"Using GPT-5 to generate {topics_per_round} research topics...")
+        console.print(f"Using GPT-5 to generate {topics_per_round} research topics...")
         planner_service = ResearchPlanner(model="gpt-5")
         tasks = planner_service.plan_research(
             scenario=scenario,
@@ -896,10 +895,10 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         with open(plan_path, "w") as f:
             json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n{CHECK} Plan created: {len(plan_data['tasks'])} tasks")
+        print_success(f"Plan created: {len(plan_data['tasks'])} tasks")
 
         # Execute Round 1
-        click.echo(f"\nSubmitting {len(plan_data['tasks'])} research tasks to queue...")
+        console.print(f"\nSubmitting {len(plan_data['tasks'])} research tasks to queue...")
         phase_results = _execute_plan_sync(plan_data)
 
         # Save results to plan
@@ -907,12 +906,10 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
         # Subsequent rounds
         for round_num in range(2, rounds + 1):
-            click.echo(f"\n{'='*70}")
-            click.echo(f"ROUND {round_num}: {'Synthesis' if round_num == rounds else 'Analysis'}")
-            click.echo(f"{'='*70}\n")
+            print_header(f"ROUND {round_num}: {'Synthesis' if round_num == rounds else 'Analysis'}")
 
             # Review and plan next phase
-            click.echo("GPT-5 reviewing completed research...")
+            console.print("GPT-5 reviewing completed research...")
             reviewer = ResearchReviewer(model="gpt-5")
 
             # Load completed results
@@ -941,10 +938,10 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             with open(plan_path, "w") as f:
                 json.dump(plan_data, f, indent=2)
 
-            click.echo(f"\n{CHECK} Phase {round_num} planned: {len(new_tasks)} tasks")
+            print_success(f"Phase {round_num} planned: {len(new_tasks)} tasks")
 
             # Execute this phase
-            click.echo(f"\nSubmitting {len(new_tasks)} research tasks to queue...")
+            console.print(f"\nSubmitting {len(new_tasks)} research tasks to queue...")
             phase_plan = {
                 "scenario": plan_data["scenario"],
                 "tasks": new_tasks,
@@ -959,13 +956,11 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             with open(plan_path, "w") as f:
                 json.dump(plan_data, f, indent=2)
 
-        click.echo(f"\n{'='*70}")
-        click.echo(f"{CHECK} AUTONOMOUS RESEARCH COMPLETE")
-        click.echo(f"{'='*70}\n")
-        click.echo("View results: deepr prep review")
+        print_header("AUTONOMOUS RESEARCH COMPLETE")
+        console.print("View results: deepr prep review")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         import traceback
         traceback.print_exc()
         raise click.Abort()
@@ -1035,7 +1030,7 @@ def _execute_plan_sync(plan_data: dict, provider_name: str = None) -> dict:
     loop = asyncio.get_event_loop()
     results = loop.run_until_complete(executor.execute_campaign(tasks, campaign_id))
 
-    click.echo(f"\n{CHECK} All tasks completed")
+    print_success("All tasks completed")
     return results
 
 
