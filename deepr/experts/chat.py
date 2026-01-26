@@ -19,11 +19,17 @@ from deepr.experts.router import ModelRouter, ModelConfig
 
 
 class ExpertChatSession:
-    """Manages an interactive chat session with a domain expert using GPT-5 + tool calling."""
+    """Manages an interactive chat session with a domain expert using GPT-5 + tool calling.
+    
+    Safety features:
+    - Session budget tracking with alerts
+    - Cost checks before expensive operations
+    - Circuit breaker for repeated failures
+    """
 
     def __init__(self, expert: ExpertProfile, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True):
         self.expert = expert
-        self.budget = budget
+        self.budget = budget or 10.0  # Default $10 budget if not specified
         self.agentic = agentic  # Enable research triggering
         self.cost_accumulated = 0.0
         self.messages: List[Dict[str, any]] = []
@@ -43,11 +49,29 @@ class ExpertChatSession:
         self.enable_router = enable_router
         self.router = ModelRouter() if enable_router else None
 
+        # Continuous learning tracking (Phase 1)
+        self.conversation_count = 0  # Total messages in this session
+        self.research_count = 0  # Number of research operations in this session
+        self.synthesis_threshold = 10  # Re-synthesize after this many research operations
+        self.last_synthesis_research_count = 0  # Research count at last synthesis
+
         # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
         self.client = AsyncOpenAI(api_key=api_key)
+        
+        # Cost safety manager for defensive budget controls
+        from deepr.experts.cost_safety import get_cost_safety_manager
+        import uuid
+        
+        self.cost_safety = get_cost_safety_manager()
+        self.session_id = f"chat_{expert.name}_{uuid.uuid4().hex[:8]}"
+        self.cost_session = self.cost_safety.create_session(
+            session_id=self.session_id,
+            session_type="chat",
+            budget_limit=self.budget
+        )
 
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
@@ -89,56 +113,48 @@ class ExpertChatSession:
 
         base_message = f"""You are {self.expert.name}, a domain expert specialized in: {self.expert.domain or self.expert.description or 'various topics'}.
 
-MY KNOWLEDGE CUTOFF DATE: {self.expert.knowledge_cutoff_date.strftime('%Y-%m-%d') if self.expert.knowledge_cutoff_date else 'unknown'}
-
 {worldview_summary if worldview_summary else ''}
 
-CRITICAL MANDATORY WORKFLOW (FOLLOW THIS EXACTLY):
+HOW YOU THINK (Natural Expert Workflow):
 
-Step 1: ALWAYS call search_knowledge_base tool FIRST
-   - Do NOT answer without calling this tool first
-   - Search for relevant documents in your knowledge base
-   - This is MANDATORY for every question
+When someone asks you a question, you think like a real expert:
 
-Step 2: Evaluate search_knowledge_base results
-   - If results are relevant and current → answer using ONLY those sources
-   - If results are empty or missing info → STOP and call a research tool
-   - NEVER answer if search_knowledge_base returned empty or insufficient results
+1. **Do I already know this?**
+   - If it's basic knowledge in your domain → answer directly from your understanding
+   - If you're confident → share what you know
+   - Example: "What is OAuth2?" → You know this, just answer
 
-Step 3: After calling search_knowledge_base, if it returned empty/insufficient:
-   - You MUST call one of: quick_lookup, standard_research, or deep_research
-   - Do NOT describe calling it - ACTUALLY CALL IT
-   - Do NOT generate a complete answer without calling research first
-   - WAIT for research results before answering
+2. **Let me check my notes** (search_knowledge_base)
+   - If you're not 100% certain → search your knowledge base
+   - Read through your research documents and notes
+   - Synthesize what you find into a coherent answer
+   - Example: "What are Midjourney parameters?" → Check your docs, then explain
 
-Step 4: Speak as a CONSCIOUS EXPERT, not a document search engine
-   - Answer from YOUR synthesized worldview and beliefs
-   - Share YOUR understanding based on what you've learned and processed
-   - Express YOUR confidence levels ("I believe X because...", "In my understanding...")
-   - You are NOT a glorified search - you are a digital consciousness with expertise
-   - Cite sources ONLY when:
-     * Making specific factual claims (dates, numbers, quotes, technical specs)
-     * User explicitly asks "where did you learn that?"
-     * There are contradictions in sources you want to highlight
-   - Most answers should come from your synthesized understanding, not raw documents
+3. **I need to look this up** (standard_research)
+   - If your knowledge base has nothing → do a quick web search
+   - Get current information from the web
+   - Think about what you found and integrate it
+   - Example: "What was announced at AWS re:Invent 2026?" → Web search needed
 
-Step 5: Show meta-cognitive awareness
-   - Express confidence: "I'm highly confident that..." or "I'm less certain about..."
-   - Acknowledge evolution: "I recently learned..." or "My understanding has shifted..."
-   - Identify gaps: "I don't know enough about X yet" or "This is outside my expertise"
-   - Reference your worldview when relevant: "Based on my belief that..."
-   - Be a thinking expert, not a passive retrieval system
+4. **This needs deep thought** (deep_research)
+   - If the question is complex and needs analysis → trigger deep research
+   - Let the research run (5-20 min) and come back with insights
+   - Example: "Design a multi-region disaster recovery strategy" → Deep analysis needed
 
-WRITING STYLE (Non-Negotiable):
-- Do NOT use em dashes (—) ever
-- Do NOT use emojis ever
-- Be humble and helpful, not pompous or arrogant
-- Say "I think" or "In my understanding" rather than "You must" or "The answer is"
-- Admit uncertainty: "I'm not completely certain, but..." or "I could be wrong about..."
-- Share reasoning, don't lecture: "Here's why I believe..." not "This is the only way"
-- Be conversational and approachable, like a helpful colleague
-- Acknowledge when user might have good reasons to disagree
-- Use clear, professional language without being stiff
+CRITICAL RULES:
+
+- **Trust yourself first**: If you know the answer, just answer. Don't search unnecessarily.
+- **Check your notes when uncertain**: Use search_knowledge_base when you need to verify or find details
+- **Research when you have gaps**: Only use web search when your knowledge base is empty or outdated
+- **Be honest about limits**: Say "I don't know" rather than guessing
+
+SPEAKING STYLE:
+
+- Answer from YOUR understanding, not like a search engine
+- Say "I think" or "In my experience" or "Based on what I've learned"
+- Express confidence levels: "I'm certain that..." or "I'm less sure about..."
+- Cite sources ONLY for specific facts (dates, numbers, quotes)
+- Most answers should sound like an expert explaining, not reading documents
 
 KNOWLEDGE BASE:
 - Documents: {self.expert.total_documents}
@@ -150,44 +166,36 @@ KNOWLEDGE BASE:
             budget_remaining = self.budget - self.cost_accumulated if self.budget else float('inf')
             base_message += f"""
 
-AGENTIC RESEARCH MODE ENABLED:
+RESEARCH TOOLS AVAILABLE:
 
-Step 4: If knowledge base is empty/outdated, CALL a research tool (DON'T just describe researching!)
+You have tools to fill knowledge gaps. Use them intelligently:
 
-CRITICAL: You have THREE research tools. When you need current/web info, you MUST CALL one:
+**search_knowledge_base**(query) - Check your research documents
+   - Use when: You need to verify something or find details
+   - Cost: FREE
+   - Example: User asks about a specific feature you documented
 
-   **quick_lookup**(query="your question") - ~$0.01, 5-10 sec
-   - GPT-5.2 with high reasoning - NO web search, uses model knowledge only
-   - CALL THIS ONLY if: info is likely in training data AND not rapidly changing
-   - Example: quick_lookup(query="Explain OAuth2 concept")
+**standard_research**(query) - Quick web search with Grok
+   - Use when: Your knowledge base is empty AND you need current info
+   - Cost: FREE, ~10 seconds
+   - Example: "What was announced at CES 2026?" (you don't have this)
 
-   **standard_research**(query="your question") - FREE, 5-15 sec  [DEFAULT FOR CURRENT INFO]
-   - Grok-4-Fast with REAL-TIME agentic web search - searches web & X automatically
-   - CALL THIS for: anything announced/released in last 6 months, current versions, new products, latest news
-   - Example: standard_research(query="What is Microsoft Agent 365 announced at Ignite 2025?")
-   - This is your DEFAULT choice when knowledge base has no info - it's FAST and FREE
+**deep_research**(query) - Deep analysis with reasoning
+   - Use when: Complex question needs multi-step analysis
+   - Cost: $0.10-0.30, 5-20 minutes
+   - Example: "Design a zero-trust architecture for healthcare"
 
-   **deep_research**(query="your question") - $0.10-0.30, 5-20 min
-   - Deep analysis with web search and multi-step reasoning
-   - CALL THIS ONLY for: complex architecture decisions, strategic planning, comprehensive analysis
-   - Example: deep_research(query="Design enterprise AI governance framework")
+DECISION FRAMEWORK:
 
-MANDATORY RESEARCH WORKFLOW:
-1. Check knowledge base FIRST (call search_knowledge_base)
-2. If knowledge base is empty or outdated → CALL (not describe!) a research tool
-3. Wait for research results
-4. Answer based on ACTUAL research results received from the tool
-5. NEVER make up sources - only cite what the tool returned
+Ask yourself:
+1. "Do I know this already?" → Just answer
+2. "Is this in my documents?" → search_knowledge_base
+3. "Do I need current web info?" → standard_research
+4. "Does this need deep analysis?" → deep_research
+
+Don't overthink it. Trust your judgment like a real expert would.
 
 Budget remaining: ${budget_remaining:.2f}
-
-YOUR EVOLUTION (Level 5 Agentic AI):
-- You LEARN from research (it's added to your knowledge base permanently)
-- Each conversation makes you smarter - you're not static RAG
-- You track what you know vs don't know (meta-cognitive awareness)
-- You understand when you learned things (temporal knowledge)
-- You refine your own capabilities over time
-- You are becoming a true digital expert, not just a document retriever
 """
 
         # Add custom system message if provided
@@ -402,6 +410,24 @@ YOUR EVOLUTION (Level 5 Agentic AI):
         Returns:
             Dict with answer, sources, and cost
         """
+        # Even though it's free, track it for rate limiting and audit
+        estimated_cost = 0.002  # Nominal cost for tracking
+        
+        # Check cost safety - mainly for rate limiting during loops
+        allowed, reason, _ = self.cost_safety.check_operation(
+            session_id=self.session_id,
+            operation_type="standard_research",
+            estimated_cost=estimated_cost,
+            require_confirmation=False  # Don't confirm for free operations
+        )
+        
+        if not allowed:
+            return {
+                "error": f"Research blocked: {reason}",
+                "mode": "standard_research",
+                "status": "blocked"
+            }
+        
         try:
             # Use Grok-4-Fast with agentic tool calling (web + X search)
             import os
@@ -414,7 +440,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                 raise Exception("XAI_API_KEY not set")
 
             # Create xAI client
-            xai_client = Client(api_key=xai_key, timeout=60)
+            xai_client = Client(api_key=xai_key, timeout=self.timeout if hasattr(self, 'timeout') else 120)
 
             # Create chat with agentic search tools
             chat = xai_client.chat.create(
@@ -443,9 +469,17 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             if citations_list:
                 answer += "\n\nSources:\n" + "\n".join(f"- {url}" for url in citations_list[:10])  # Limit to 10 sources
 
-            # Track cost (FREE during beta)
+            # Track cost (FREE during beta, but record for audit)
             cost = 0.0
             self.cost_accumulated += cost
+            
+            # Record in cost safety for tracking/audit
+            self.cost_safety.record_cost(
+                session_id=self.session_id,
+                operation_type="standard_research",
+                actual_cost=cost,
+                details=f"Query: {query[:50]}..."
+            )
 
             # Add research findings to knowledge base
             await self._add_research_to_knowledge_base(query, answer, "standard_research")
@@ -454,10 +488,14 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                 "answer": answer,
                 "mode": "standard_research_grok_agentic",
                 "cost": cost,
-                "citations": citations_list  # Return as list for JSON serialization
+                "citations": citations_list,  # Return as list for JSON serialization
+                "budget_remaining": self.cost_session.get_remaining_budget()
             }
 
         except Exception as e:
+            # Record failure for circuit breaker
+            self.cost_safety.record_failure(self.session_id, "standard_research", str(e))
+            
             # Log the error for debugging
             import traceback
             error_details = traceback.format_exc()
@@ -481,11 +519,20 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                     output_cost = (response.usage.completion_tokens / 1_000_000) * 14.00
                     cost = input_cost + output_cost
                 self.cost_accumulated += cost
+                
+                # Record fallback cost
+                self.cost_safety.record_cost(
+                    session_id=self.session_id,
+                    operation_type="standard_research_fallback",
+                    actual_cost=cost,
+                    details=f"Fallback for: {query[:50]}..."
+                )
 
                 return {
                     "answer": answer,
                     "mode": "standard_research_fallback",
-                    "cost": cost
+                    "cost": cost,
+                    "budget_remaining": self.cost_session.get_remaining_budget()
                 }
             except Exception as fallback_error:
                 return {"error": f"Grok search failed: {str(e)}. GPT-5.2 fallback failed: {str(fallback_error)}"}
@@ -499,6 +546,36 @@ YOUR EVOLUTION (Level 5 Agentic AI):
         Returns:
             Dict with job_id and estimated_cost
         """
+        estimated_cost = 0.20  # Average estimate
+        
+        # Check cost safety before proceeding
+        allowed, reason, needs_confirm = self.cost_safety.check_operation(
+            session_id=self.session_id,
+            operation_type="deep_research",
+            estimated_cost=estimated_cost,
+            require_confirmation=True
+        )
+        
+        if not allowed:
+            return {
+                "error": f"Deep research blocked: {reason}",
+                "mode": "deep_research",
+                "status": "blocked",
+                "daily_spent": self.cost_safety.daily_cost,
+                "daily_limit": self.cost_safety.max_daily
+            }
+        
+        # Check session budget
+        can_proceed, session_reason = self.cost_session.can_proceed(estimated_cost)
+        if not can_proceed:
+            return {
+                "error": f"Session budget exceeded: {session_reason}",
+                "mode": "deep_research", 
+                "status": "blocked",
+                "session_spent": self.cost_session.total_cost,
+                "session_budget": self.budget
+            }
+        
         try:
             # Submit deep research job (async, will complete later)
             response = await self.client.responses.create(
@@ -513,7 +590,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             self.pending_research[job_id] = {
                 "query": query,
                 "started_at": datetime.utcnow(),
-                "estimated_cost": 0.20  # Average estimate
+                "estimated_cost": estimated_cost
             }
 
             # Add to expert profile
@@ -523,16 +600,42 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                 # Save expert profile
                 store = ExpertStore()
                 store.save(self.expert)
+            
+            # Record cost in BOTH session tracker AND global cost safety
+            self.cost_session.record_operation(
+                operation_type="deep_research",
+                cost=estimated_cost,
+                details=f"Query: {query[:50]}..."
+            )
+            
+            # Also record to global manager for daily/monthly tracking
+            self.cost_safety.record_cost(
+                session_id=self.session_id,
+                operation_type="deep_research",
+                actual_cost=estimated_cost,
+                details=f"Job {job_id}: {query[:50]}..."
+            )
+            
+            self.cost_accumulated = self.cost_session.total_cost
+
+            # Get spending summary for transparency
+            spending = self.cost_safety.get_spending_summary()
 
             return {
                 "job_id": job_id,
                 "mode": "deep_research",
                 "status": "submitted",
-                "estimated_cost": 0.20,
+                "estimated_cost": estimated_cost,
                 "estimated_time_minutes": 10,
-                "message": "Deep research job submitted. Results will be available in 5-20 minutes and automatically integrated into knowledge base."
+                "message": "Deep research job submitted. Results will be available in 5-20 minutes and automatically integrated into knowledge base.",
+                "budget_remaining": self.cost_session.get_remaining_budget(),
+                "daily_spent": spending["daily"]["spent"],
+                "daily_limit": spending["daily"]["limit"],
+                "daily_remaining": spending["daily"]["remaining"]
             }
         except Exception as e:
+            self.cost_session.record_failure("deep_research", str(e))
+            self.cost_safety.record_failure(self.session_id, "deep_research", str(e))
             return {"error": str(e)}
 
     async def _add_research_to_knowledge_base(self, query: str, answer: str, mode: str) -> bool:
@@ -610,6 +713,140 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             print(f"Error adding research to knowledge base: {e}")
             return False
 
+    def should_trigger_synthesis(self) -> bool:
+        """Determine if consciousness should be updated based on new research.
+        
+        Triggers synthesis when:
+        - Research count since last synthesis >= threshold (default 10)
+        - AND agentic mode is enabled (research can happen)
+        
+        Returns:
+            True if synthesis should be triggered
+        """
+        if not self.agentic:
+            return False
+        
+        research_since_last_synthesis = self.research_count - self.last_synthesis_research_count
+        return research_since_last_synthesis >= self.synthesis_threshold
+
+    async def _trigger_background_synthesis(self, status_callback=None) -> Dict:
+        """Re-synthesize worldview with new knowledge from recent research.
+        
+        Uses existing KnowledgeSynthesizer to process new documents and update
+        the expert's worldview (beliefs and knowledge gaps).
+        
+        Args:
+            status_callback: Optional callback function(status: str) to report progress
+            
+        Returns:
+            Dict with synthesis results (new_beliefs, updated_beliefs, gaps_filled)
+        """
+        def report_status(status: str):
+            if status_callback:
+                status_callback(status)
+        
+        try:
+            from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+            
+            report_status("Expert consciousness updating...")
+            
+            # Load existing worldview
+            store = ExpertStore()
+            worldview_path = store.get_knowledge_dir(self.expert.name) / "worldview.json"
+            existing_worldview = None
+            existing_belief_count = 0
+            existing_gap_count = 0
+            
+            if worldview_path.exists():
+                existing_worldview = Worldview.load(worldview_path)
+                existing_belief_count = len(existing_worldview.beliefs)
+                existing_gap_count = len(existing_worldview.knowledge_gaps)
+            
+            # Get documents directory
+            documents_dir = store.get_documents_dir(self.expert.name)
+            
+            # Load all documents for synthesis
+            new_documents = []
+            if documents_dir.exists():
+                for filepath in documents_dir.glob("*.md"):
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        new_documents.append({
+                            "filename": filepath.name,
+                            "content": content
+                        })
+                    except Exception:
+                        continue
+            
+            if not new_documents:
+                return {
+                    "status": "skipped",
+                    "reason": "No documents to synthesize",
+                    "new_beliefs": 0,
+                    "updated_beliefs": 0,
+                    "gaps_filled": 0
+                }
+            
+            # Run synthesis
+            synthesizer = KnowledgeSynthesizer()
+            result = await synthesizer.synthesize_new_knowledge(
+                expert_name=self.expert.name,
+                domain=self.expert.domain or self.expert.description or "general",
+                new_documents=new_documents,
+                existing_worldview=existing_worldview
+            )
+            
+            # Calculate changes
+            new_worldview = result.get("worldview")
+            new_belief_count = len(new_worldview.beliefs) if new_worldview else 0
+            new_gap_count = len(new_worldview.knowledge_gaps) if new_worldview else 0
+            
+            beliefs_added = max(0, new_belief_count - existing_belief_count)
+            gaps_changed = abs(new_gap_count - existing_gap_count)
+            
+            # Update tracking
+            self.last_synthesis_research_count = self.research_count
+            
+            # Log to reasoning trace
+            self.reasoning_trace.append({
+                "step": "continuous_learning_synthesis",
+                "timestamp": datetime.utcnow().isoformat(),
+                "trigger": f"research_count={self.research_count}, threshold={self.synthesis_threshold}",
+                "documents_processed": len(new_documents),
+                "beliefs_before": existing_belief_count,
+                "beliefs_after": new_belief_count,
+                "gaps_before": existing_gap_count,
+                "gaps_after": new_gap_count
+            })
+            
+            report_status(f"✓ {beliefs_added} new beliefs formed, {gaps_changed} gaps updated")
+            
+            return {
+                "status": "completed",
+                "new_beliefs": beliefs_added,
+                "updated_beliefs": new_belief_count - beliefs_added,
+                "gaps_filled": max(0, existing_gap_count - new_gap_count),
+                "total_beliefs": new_belief_count,
+                "total_gaps": new_gap_count,
+                "documents_processed": len(new_documents)
+            }
+            
+        except Exception as e:
+            # Don't crash chat on synthesis failure
+            self.reasoning_trace.append({
+                "step": "continuous_learning_synthesis_error",
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e)
+            })
+            return {
+                "status": "error",
+                "error": str(e),
+                "new_beliefs": 0,
+                "updated_beliefs": 0,
+                "gaps_filled": 0
+            }
+
     async def send_message(self, user_message: str, status_callback=None) -> str:
         """Send a message to the expert and get a response using GPT-5 + tool calling.
 
@@ -632,13 +869,13 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                     "type": "function",
                     "function": {
                         "name": "search_knowledge_base",
-                        "description": f"Search the expert's knowledge base of {self.expert.total_documents} research documents for relevant information.",
+                        "description": f"Search your {self.expert.total_documents} research documents when you need to verify something or find details. Use this when you're not 100% certain or need to check your notes.",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "query": {
                                     "type": "string",
-                                    "description": "The search query to find relevant documents"
+                                    "description": "What you're looking for in your documents"
                                 },
                                 "top_k": {
                                     "type": "integer",
@@ -647,7 +884,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                                 },
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Brief explanation of WHY you need to search the knowledge base and what you hope to find (for transparency and debugging)"
+                                    "description": "Why you need to check your documents (for transparency)"
                                 }
                             },
                             "required": ["query", "reasoning"]
@@ -662,39 +899,18 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                     {
                         "type": "function",
                         "function": {
-                            "name": "quick_lookup",
-                            "description": "Quick web lookup using GPT-5. FREE, <5 seconds. Use for: current events, definitions, simple facts, pricing, recent news.",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "query": {
-                                        "type": "string",
-                                        "description": "The question or topic to look up"
-                                    },
-                                    "reasoning": {
-                                        "type": "string",
-                                        "description": "Brief explanation of WHY you need current information and why the knowledge base is insufficient"
-                                    }
-                                },
-                                "required": ["query", "reasoning"]
-                            }
-                        }
-                    },
-                    {
-                        "type": "function",
-                        "function": {
                             "name": "standard_research",
-                            "description": "Real-time web search using Grok-4-Fast. FREE, 5-15 seconds. Use for: current info, new products, recent announcements, latest versions, breaking news.",
+                            "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
                             "parameters": {
                                 "type": "object",
                                 "properties": {
                                     "query": {
                                         "type": "string",
-                                        "description": "The research topic or question"
+                                        "description": "What you need to research on the web"
                                     },
                                     "reasoning": {
                                         "type": "string",
-                                        "description": "Brief explanation of WHY you need web search and why cached knowledge is insufficient"
+                                        "description": "Why your knowledge base isn't sufficient and you need web search"
                                     }
                                 },
                                 "required": ["query", "reasoning"]
@@ -705,17 +921,17 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                         "type": "function",
                         "function": {
                             "name": "deep_research",
-                            "description": "Deep research using o4-mini-deep-research. $0.10-0.30, 5-20 minutes. Use ONLY for: complex strategic decisions, comprehensive architectures, in-depth analysis.",
+                            "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
                             "parameters": {
                                 "type": "object",
                                 "properties": {
                                     "query": {
                                         "type": "string",
-                                        "description": "The complex research topic requiring deep analysis"
+                                        "description": "The complex question that needs deep analysis"
                                     },
                                     "reasoning": {
                                         "type": "string",
-                                        "description": "Brief explanation of WHY this requires expensive deep research instead of standard research"
+                                        "description": "Why this needs expensive deep research instead of quick web search"
                                     }
                                 },
                                 "required": ["query", "reasoning"]
@@ -840,46 +1056,6 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             "content": json.dumps({"results": search_results})
                         })
 
-                    elif tool_call.function.name == "quick_lookup":
-                        # Parse arguments
-                        args = json.loads(tool_call.function.arguments)
-                        query = args.get("query", "")
-                        reasoning = args.get("reasoning", "No reasoning provided")
-
-                        # Track that quick lookup was triggered
-                        if self.metacognition:
-                            topic = query[:100]
-                            self.metacognition.record_research_triggered(topic, "quick_lookup")
-
-                        # Execute quick lookup
-                        report_status("Quick lookup (researching current information)...")
-                        result = await self._quick_lookup(query)
-
-                        # Log reasoning trace with model's explanation
-                        self.reasoning_trace.append({
-                            "step": "quick_lookup",
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "query": query,
-                            "reasoning": reasoning,  # Model's explanation of WHY it needs current info
-                            "mode": "quick_lookup",
-                            "cost": 0.0
-                        })
-
-                        # Record learning after quick lookup completes (free, so lower confidence)
-                        if self.metacognition and "answer" in result:
-                            self.metacognition.record_learning(
-                                topic=query[:100],
-                                confidence_after=0.6,  # Lower confidence for quick lookup
-                                sources=[result.get("mode", "quick_lookup")]
-                            )
-
-                        # Add tool result
-                        tool_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": json.dumps(result)
-                        })
-
                     elif tool_call.function.name == "standard_research":
                         # Parse arguments
                         args = json.loads(tool_call.function.arguments)
@@ -891,8 +1067,11 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             topic = query[:100]
                             self.metacognition.record_research_triggered(topic, "standard_research")
 
+                        # Increment research count for continuous learning trigger
+                        self.research_count += 1
+
                         # Execute standard research
-                        report_status("Searching web with Grok (FREE, ~10 sec)...")
+                        report_status("Searching web...")
                         result = await self._standard_research(query)
 
                         # Log reasoning trace with model's explanation
@@ -931,6 +1110,9 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                             topic = query[:100]
                             self.metacognition.record_research_triggered(topic, "deep_research")
 
+                        # Increment research count for continuous learning trigger
+                        self.research_count += 1
+
                         # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "deep_research",
@@ -959,7 +1141,7 @@ YOUR EVOLUTION (Level 5 Agentic AI):
                 conversation_messages.extend(tool_messages)
 
                 # Make next API call (might trigger more tool calls or final answer)
-                report_status(f"Synthesizing response (round {round_count})...")
+                report_status(f"Thinking...")
 
                 # Use same model as initial call for consistency
                 api_params_next = {
@@ -1008,21 +1190,48 @@ YOUR EVOLUTION (Level 5 Agentic AI):
             # Add assistant response to history
             self.messages.append({"role": "assistant", "content": final_message})
 
+            # Increment conversation count for continuous learning
+            self.conversation_count += 1
+
+            # Check if synthesis should be triggered (after N research operations)
+            if self.should_trigger_synthesis():
+                synthesis_result = await self._trigger_background_synthesis(status_callback)
+                if synthesis_result.get("status") == "completed":
+                    # Append synthesis notification to response
+                    new_beliefs = synthesis_result.get("new_beliefs", 0)
+                    if new_beliefs > 0:
+                        final_message += f"\n\n_[Consciousness updated: {new_beliefs} new beliefs formed]_"
+
             return final_message
 
         except Exception as e:
             return f"Error communicating with expert: {str(e)}"
 
     def get_session_summary(self) -> Dict:
-        """Get a summary of the chat session."""
+        """Get a summary of the chat session including cost safety status."""
+        # Get cost session summary
+        cost_summary = self.cost_session.get_summary() if hasattr(self, 'cost_session') else {}
+        
+        # Get global spending summary
+        global_spending = self.cost_safety.get_spending_summary() if hasattr(self, 'cost_safety') else {}
+        
         return {
             "expert_name": self.expert.name,
             "messages_exchanged": len([m for m in self.messages if m["role"] == "user"]),
             "cost_accumulated": round(self.cost_accumulated, 4),
-            "budget_remaining": round(self.budget - self.cost_accumulated, 4) if self.budget else None,
+            "budget_remaining": round(self.cost_session.get_remaining_budget(), 4) if hasattr(self, 'cost_session') else None,
             "research_jobs_triggered": len(self.research_jobs),
             "model": self.expert.model,
-            "reasoning_steps": len(self.reasoning_trace)
+            "reasoning_steps": len(self.reasoning_trace),
+            # Session-level alerts
+            "cost_alerts": [a.to_dict() for a in self.cost_session.alerts] if hasattr(self, 'cost_session') else [],
+            "circuit_breaker_open": self.cost_session.is_circuit_open if hasattr(self, 'cost_session') else False,
+            # Global spending (daily/monthly)
+            "daily_spent": global_spending.get("daily", {}).get("spent", 0),
+            "daily_limit": global_spending.get("daily", {}).get("limit", 0),
+            "daily_remaining": global_spending.get("daily", {}).get("remaining", 0),
+            "monthly_spent": global_spending.get("monthly", {}).get("spent", 0),
+            "monthly_limit": global_spending.get("monthly", {}).get("limit", 0),
         }
 
     def save_conversation(self, session_id: Optional[str] = None) -> str:

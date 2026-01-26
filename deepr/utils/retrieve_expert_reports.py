@@ -12,6 +12,7 @@ from deepr.core.research import ResearchOrchestrator
 from deepr.storage.local import LocalStorage
 from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
+from deepr.cli.colors import console, print_section_header, print_key_value, print_success, print_error
 
 
 async def retrieve_reports(expert_name: str):
@@ -21,15 +22,13 @@ async def retrieve_reports(expert_name: str):
     expert = store.load(expert_name)
 
     if not expert or not expert.research_jobs:
-        print(f"ERROR: Expert '{expert_name}' not found or has no research jobs")
+        print_error(f"Expert '{expert_name}' not found or has no research jobs")
         return
 
-    print("=" * 70)
-    print(f"  Retrieving Research Reports: {expert_name}")
-    print("=" * 70)
-    print(f"Jobs: {len(expert.research_jobs)}")
-    print(f"Vector Store: {expert.vector_store_id}")
-    print()
+    print_section_header(f"Retrieving Research Reports: {expert_name}")
+    print_key_value("Jobs", str(len(expert.research_jobs)))
+    print_key_value("Vector Store", expert.vector_store_id)
+    console.print()
 
     # Initialize
     provider = OpenAIProvider()
@@ -48,7 +47,7 @@ async def retrieve_reports(expert_name: str):
     failed = 0
 
     for i, job_id in enumerate(expert.research_jobs, 1):
-        print(f"{i}/{len(expert.research_jobs)}: {job_id[:20]}...")
+        console.print(f"{i}/{len(expert.research_jobs)}: {job_id[:20]}...")
         try:
             # Check status
             response = await provider.get_status(job_id)
@@ -64,34 +63,32 @@ async def retrieve_reports(expert_name: str):
                 if response.usage:
                     cost = response.usage.cost
                     total_cost += cost
-                    print(f"  [OK] Cost: ${cost:.4f}")
+                    print_success(f"Cost: ${cost:.4f}")
                 else:
-                    print(f"  [OK] Retrieved")
+                    print_success("Retrieved")
 
                 completed += 1
             elif response.status in ["failed", "cancelled"]:
-                print(f"  [FAILED] {response.error}")
+                print_error(f"FAILED: {response.error}")
                 failed += 1
             else:
-                print(f"  [SKIP] Status: {response.status}")
+                console.print(f"  [dim]SKIP: Status: {response.status}[/dim]")
 
         except Exception as e:
-            print(f"  [ERROR] {str(e)}")
+            print_error(f"ERROR: {str(e)}")
             failed += 1
 
-    print()
-    print("=" * 70)
-    print("Summary")
-    print("=" * 70)
-    print(f"Completed: {completed}/{len(expert.research_jobs)}")
-    print(f"Failed: {failed}/{len(expert.research_jobs)}")
-    print(f"Total cost: ${total_cost:.2f}")
-    print(f"Estimated: $10.00")
+    console.print()
+    print_section_header("Summary")
+    print_key_value("Completed", f"{completed}/{len(expert.research_jobs)}")
+    print_key_value("Failed", f"{failed}/{len(expert.research_jobs)}")
+    print_key_value("Total cost", f"${total_cost:.2f}")
+    print_key_value("Estimated", "$10.00")
     if total_cost > 0:
         variance = ((total_cost - 10.0) / 10.0) * 100
-        print(f"Variance: {variance:+.1f}%")
-    print()
-    print(f"Reports saved to: {storage.base_path}")
+        print_key_value("Variance", f"{variance:+.1f}%")
+    console.print()
+    console.print(f"Reports saved to: {storage.base_path}")
 
 
 if __name__ == "__main__":

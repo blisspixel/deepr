@@ -6,6 +6,7 @@ from datetime import datetime
 from deepr.experts.profile import ExpertStore
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.temporal_knowledge import TemporalKnowledgeTracker
+from deepr.cli.colors import print_header, print_section_header, print_key_value, console
 
 
 @click.group(name="diagnostics")
@@ -28,52 +29,44 @@ def show_metacognition(expert_name: str):
         meta = MetaCognitionTracker(expert_name)
         stats = meta.get_learning_stats()
 
-        click.echo(f"\n{'='*70}")
-        click.echo(f"  Meta-Cognitive Awareness: {expert_name}")
-        click.echo(f"{'='*70}\n")
+        print_header(f"Meta-Cognitive Awareness: {expert_name}")
 
         # Overall stats
-        click.echo(f"Knowledge Gaps Tracked: {stats['total_knowledge_gaps']}")
-        click.echo(f"  - Researched: {stats['researched_gaps']}")
-        click.echo(f"  - Learned: {stats['learned_gaps']}")
-        click.echo(f"  - Learning Rate: {stats['learning_rate']:.1%}")
-        click.echo(f"\nDomains Tracked: {stats['domains_tracked']}")
-        click.echo(f"  - High Confidence: {stats['high_confidence_domains']}")
-        click.echo(f"  - Low Confidence: {stats['low_confidence_domains']}")
-        click.echo(f"  - Average Confidence: {stats['average_confidence']:.1%}")
-        click.echo(f"\nUncertainty Events: {stats['total_uncertainty_events']}")
+        print_key_value("Knowledge Gaps Tracked", str(stats['total_knowledge_gaps']))
+        console.print(f"  [dim]-[/dim] Researched: {stats['researched_gaps']}")
+        console.print(f"  [dim]-[/dim] Learned: {stats['learned_gaps']}")
+        console.print(f"  [dim]-[/dim] Learning Rate: {stats['learning_rate']:.1%}")
+        print_key_value("Domains Tracked", str(stats['domains_tracked']))
+        console.print(f"  [dim]-[/dim] High Confidence: {stats['high_confidence_domains']}")
+        console.print(f"  [dim]-[/dim] Low Confidence: {stats['low_confidence_domains']}")
+        console.print(f"  [dim]-[/dim] Average Confidence: {stats['average_confidence']:.1%}")
+        print_key_value("Uncertainty Events", str(stats['total_uncertainty_events']))
 
         # Show knowledge gaps that need research
         suggestions = meta.suggest_proactive_research(threshold_times_asked=2)
         if suggestions:
-            click.echo(f"\n{'='*70}")
-            click.echo(f"Suggested Proactive Research (asked {2}+ times):")
-            click.echo(f"{'='*70}\n")
+            print_section_header(f"Suggested Proactive Research (asked 2+ times)")
             for topic in suggestions[:5]:
-                click.echo(f"  - {topic}")
+                console.print(f"  [dim]-[/dim] {topic}")
 
         # Show high confidence domains
         high_conf = meta.get_high_confidence_domains(min_confidence=0.7)
         if high_conf:
-            click.echo(f"\n{'='*70}")
-            click.echo(f"High Confidence Domains:")
-            click.echo(f"{'='*70}\n")
+            print_section_header("High Confidence Domains")
             for conf in sorted(high_conf, key=lambda x: x.confidence, reverse=True)[:5]:
-                click.echo(f"  - {conf.domain}: {conf.confidence:.1%} ({conf.evidence_count} sources)")
+                console.print(f"  [dim]-[/dim] {conf.domain}: {conf.confidence:.1%} ({conf.evidence_count} sources)")
 
         # Show low confidence domains
         low_conf = meta.get_low_confidence_domains(max_confidence=0.4)
         if low_conf:
-            click.echo(f"\n{'='*70}")
-            click.echo(f"Low Confidence Domains (need more research):")
-            click.echo(f"{'='*70}\n")
+            print_section_header("Low Confidence Domains (need more research)")
             for conf in sorted(low_conf, key=lambda x: x.confidence)[:5]:
-                click.echo(f"  - {conf.domain}: {conf.confidence:.1%} ({conf.evidence_count} sources)")
+                console.print(f"  [dim]-[/dim] {conf.domain}: {conf.confidence:.1%} ({conf.evidence_count} sources)")
 
-        click.echo()
+        console.print()
 
     except Exception as e:
-        click.echo(f"Error loading metacognition: {e}")
+        console.print(f"[error]Error loading metacognition: {e}[/error]")
 
 
 @diagnostics_cli.command(name="temporal")
@@ -91,53 +84,47 @@ def show_temporal(expert_name: str, topic: str = None):
         temporal = TemporalKnowledgeTracker(expert_name)
         stats = temporal.get_statistics()
 
-        click.echo(f"\n{'='*70}")
-        click.echo(f"  Temporal Knowledge: {expert_name}")
-        click.echo(f"{'='*70}\n")
+        print_header(f"Temporal Knowledge: {expert_name}")
 
         # Overall stats
-        click.echo(f"Topics Tracked: {stats['total_topics']}")
-        click.echo(f"Total Facts: {stats['total_facts']}")
-        click.echo(f"  - Current: {stats['current_facts']}")
-        click.echo(f"  - Superseded: {stats['superseded_facts']}")
-        click.echo(f"Contradictions Resolved: {stats['contradictions_resolved']}")
-        click.echo(f"\nKnowledge Age:")
-        click.echo(f"  - Average: {stats['average_fact_age_days']:.0f} days")
-        click.echo(f"  - Oldest: {stats['oldest_fact_age_days']:.0f} days")
-        click.echo(f"Stale Topics: {stats['stale_topics']}")
+        print_key_value("Topics Tracked", str(stats['total_topics']))
+        print_key_value("Total Facts", str(stats['total_facts']))
+        console.print(f"  [dim]-[/dim] Current: {stats['current_facts']}")
+        console.print(f"  [dim]-[/dim] Superseded: {stats['superseded_facts']}")
+        print_key_value("Contradictions Resolved", str(stats['contradictions_resolved']))
+        console.print("\n[dim]Knowledge Age:[/dim]")
+        console.print(f"  [dim]-[/dim] Average: {stats['average_fact_age_days']:.0f} days")
+        console.print(f"  [dim]-[/dim] Oldest: {stats['oldest_fact_age_days']:.0f} days")
+        print_key_value("Stale Topics", str(stats['stale_topics']))
 
         # Show specific topic timeline
         if topic:
-            click.echo(f"\n{'='*70}")
-            click.echo(f"Learning Timeline: {topic}")
-            click.echo(f"{'='*70}\n")
+            print_section_header(f"Learning Timeline: {topic}")
 
             timeline = temporal.get_knowledge_timeline(topic)
             if timeline:
                 for event in timeline:
                     date_str = datetime.fromisoformat(event['date']).strftime("%Y-%m-%d")
                     status = "CURRENT" if event['current'] else "SUPERSEDED"
-                    click.echo(f"{date_str} [{status}] (age: {event['age_days']}d, conf: {event['confidence']:.1%})")
-                    click.echo(f"  {event['fact'][:200]}...")
+                    console.print(f"{date_str} [{status}] (age: {event['age_days']}d, conf: {event['confidence']:.1%})")
+                    console.print(f"  {event['fact'][:200]}...")
                     if 'superseded_by' in event:
-                        click.echo(f"  > Superseded by: {event['superseded_by']}")
-                    click.echo()
+                        console.print(f"  [dim]Superseded by:[/dim] {event['superseded_by']}")
+                    console.print()
             else:
-                click.echo(f"No knowledge recorded for topic: {topic}")
+                console.print(f"No knowledge recorded for topic: {topic}")
 
         # Show stale knowledge that needs refresh
         stale = temporal.get_stale_knowledge(max_age_days=90)
         if stale:
-            click.echo(f"\n{'='*70}")
-            click.echo(f"Stale Knowledge (>90 days old, needs refresh):")
-            click.echo(f"{'='*70}\n")
+            print_section_header("Stale Knowledge (>90 days old, needs refresh)")
             for stale_topic in stale[:10]:
-                click.echo(f"  - {stale_topic}")
+                console.print(f"  [dim]-[/dim] {stale_topic}")
 
-        click.echo()
+        console.print()
 
     except Exception as e:
-        click.echo(f"Error loading temporal knowledge: {e}")
+        console.print(f"[error]Error loading temporal knowledge: {e}[/error]")
 
 
 @diagnostics_cli.command(name="all")

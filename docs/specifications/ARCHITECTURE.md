@@ -9,7 +9,7 @@ Technical architecture and design decisions for Deepr.
 Deepr is a local-first research automation system with multi-provider AI orchestration. It coordinates reasoning models, data sources, and workflows to produce comprehensive, cited research artifacts.
 
 ```
-Query → Refinement → Planning → Execution → Synthesis → Artifact
+Query - Refinement - Planning - Execution - Synthesis - Artifact
 ```
 
 All operations run locally using SQLite queue and filesystem storage. Results are transparent, reproducible, and traceable.
@@ -128,17 +128,17 @@ Self-improving domain experts with autonomous learning capabilities.
 
 **Data Flow:**
 ```
-User creates expert → Profile stored in data/experts/
-  ↓
-Expert analyzes docs → GPT-5 generates curriculum
-  ↓
-Curriculum validated → Research jobs submitted
-  ↓
-Jobs complete → Results downloaded to documents/
-  ↓
-Documents uploaded → Vector store for retrieval
-  ↓
-Expert ready → Interactive chat with knowledge base
+User creates expert - Profile stored in data/experts/
+  |
+Expert analyzes docs - GPT-5 generates curriculum
+  |
+Curriculum validated - Research jobs submitted
+  |
+Jobs complete - Results downloaded to documents/
+  |
+Documents uploaded - Vector store for retrieval
+  |
+Expert ready - Interactive chat with knowledge base
 ```
 
 ### Provider Layer
@@ -257,29 +257,29 @@ def select_provider(task_type, budget, quality_requirement):
 ### Single Research Job
 
 ```
-User submits → Refinement (optional) → Provider submission
-    ↓
-Provider queued → Background polling → Status updates
-    ↓
-Research complete → Download report → Save to reports/
-    ↓
-User retrieves → Markdown with citations
+User submits - Refinement (optional) - Provider submission
+    |
+Provider queued - Background polling - Status updates
+    |
+Research complete - Download report - Save to reports/
+    |
+User retrieves - Markdown with citations
 ```
 
 ### Multi-Phase Research
 
 ```
-User goal → GPT-5 generates Phase 1 plan
-    ↓
-Phase 1 execution → Multiple jobs in parallel
-    ↓
-Results complete → GPT-5 reviews findings
-    ↓
-GPT-5 plans Phase 2 → Based on Phase 1 gaps
-    ↓
-Phase 2 execution → Context from Phase 1 injected
-    ↓
-Repeat until comprehensive → Final synthesis
+User goal - GPT-5 generates Phase 1 plan
+    |
+Phase 1 execution - Multiple jobs in parallel
+    |
+Results complete - GPT-5 reviews findings
+    |
+GPT-5 plans Phase 2 - Based on Phase 1 gaps
+    |
+Phase 2 execution - Context from Phase 1 injected
+    |
+Repeat until comprehensive - Final synthesis
 ```
 
 **Key Components:**
@@ -291,35 +291,35 @@ Repeat until comprehensive → Final synthesis
 ### Expert Learning Workflow
 
 ```
-User creates expert → Expert analyzes seed docs
-    ↓
-GPT-5 generates curriculum → 5-20 research topics
-    ↓
-User approves budget → Research jobs submitted
-    ↓
-Jobs execute (5-20 min each) → Polling for completion
-    ↓
-Results download → Saved to expert documents/
-    ↓
-Upload to vector store → Knowledge base updated
-    ↓
-Expert ready → Interactive chat enabled
+User creates expert - Expert analyzes seed docs
+    |
+GPT-5 generates curriculum - 5-20 research topics
+    |
+User approves budget - Research jobs submitted
+    |
+Jobs execute (5-20 min each) - Polling for completion
+    |
+Results download - Saved to expert documents/
+    |
+Upload to vector store - Knowledge base updated
+    |
+Expert ready - Interactive chat enabled
 ```
 
 ### Agentic Expert Chat
 
 ```
-User asks question → Expert searches knowledge base
-    ↓
-Knowledge gap detected → Expert decides research depth
-    ↓
-    ├─> Quick lookup (FREE, <5s) → GPT-5 + web search
-    ├─> Standard research ($0.01-0.05) → GPT-5 focused
-    └─> Deep research ($0.10-0.30) → o4-mini comprehensive
-    ↓
-Research completes → Results integrated to knowledge base
-    ↓
-Expert answers → With citations and confidence level
+User asks question - Expert searches knowledge base
+    |
+Knowledge gap detected - Expert decides research depth
+    |
+    +-- Quick lookup (FREE, <5s) - GPT-5 + web search
+    +-- Standard research ($0.01-0.05) - GPT-5 focused
+    +-- Deep research ($0.10-0.30) - o4-mini comprehensive
+    |
+Research completes - Results integrated to knowledge base
+    |
+Expert answers - With citations and confidence level
 ```
 
 ---

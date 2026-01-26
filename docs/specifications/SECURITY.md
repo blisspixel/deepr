@@ -2,10 +2,10 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.1.x   | :white_check_mark: |
-| < 2.1   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| 2.1.x   | Yes       |
+| < 2.1   | No        |
 
 ---
 
@@ -214,12 +214,12 @@ Last audit: **2026-01-21**
 ## Security Roadmap
 
 ### v2.2 (Current Sprint)
-- ✅ Path traversal protection
-- ✅ SSRF protection for web scraping
-- ✅ File upload validation
-- ✅ Prompt length limits
-- ⏳ Apply security fixes throughout codebase
-- ⏳ Comprehensive security testing
+- [DONE] Path traversal protection
+- [DONE] SSRF protection for web scraping
+- [DONE] File upload validation
+- [DONE] Prompt length limits
+- [WIP] Apply security fixes throughout codebase
+- [WIP] Comprehensive security testing
 
 ### v2.3 (Next Release)
 - Rate limiting per user/session

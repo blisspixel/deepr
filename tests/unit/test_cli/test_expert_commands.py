@@ -312,7 +312,7 @@ class TestExpertDeleteCommand:
 
             output = result.output.lower()
             # Should mention how to delete vector store
-            assert 'brain' in output or 'vector' in output
+            assert 'knowledge' in output or 'vector' in output
             assert 'vs_test123' in result.output
 
 
@@ -351,19 +351,13 @@ class TestSemanticCommandsIntegration:
         assert 'expert' in output
 
 
-class TestBrainAliases:
-    """Test that brain/knowledge aliases work."""
+class TestKnowledgeAliases:
+    """Test that knowledge alias works."""
 
     @pytest.fixture
     def runner(self):
         """Create CLI test runner."""
         return CliRunner()
-
-    def test_brain_alias_exists(self, runner):
-        """Test that 'brain' is an alias for 'vector'."""
-        result = runner.invoke(cli, ['brain', '--help'])
-        assert result.exit_code == 0
-        assert 'knowledge' in result.output.lower() or 'vector' in result.output.lower()
 
     def test_knowledge_alias_exists(self, runner):
         """Test that 'knowledge' is an alias for 'vector'."""
@@ -371,15 +365,15 @@ class TestBrainAliases:
         assert result.exit_code == 0
         assert 'knowledge' in result.output.lower() or 'vector' in result.output.lower()
 
-    def test_brain_has_same_subcommands_as_vector(self, runner):
-        """Test that brain has same subcommands as vector."""
+    def test_knowledge_has_same_subcommands_as_vector(self, runner):
+        """Test that knowledge has same subcommands as vector."""
         vector_result = runner.invoke(cli, ['vector', '--help'])
-        brain_result = runner.invoke(cli, ['brain', '--help'])
+        knowledge_result = runner.invoke(cli, ['knowledge', '--help'])
 
         # Should have similar help text
-        assert 'list' in brain_result.output.lower()
-        assert 'create' in brain_result.output.lower()
-        assert 'delete' in brain_result.output.lower()
+        assert 'list' in knowledge_result.output.lower()
+        assert 'create' in knowledge_result.output.lower()
+        assert 'delete' in knowledge_result.output.lower()
 
 
 if __name__ == "__main__":

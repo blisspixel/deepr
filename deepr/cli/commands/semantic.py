@@ -16,6 +16,7 @@ import click
 import asyncio
 from typing import Optional
 from deepr.cli.commands.run import _run_single, _run_campaign, _run_team
+from deepr.cli.colors import print_header, print_section_header, print_success, print_error, print_key_value, console
 
 
 def detect_research_mode(prompt: str) -> str:
@@ -115,11 +116,14 @@ def research(
             click.echo(f"Error: {e}", err=True)
             return
 
-    # Validate budget/limit if provided
+    # Validate budget/limit if provided - warns for high amounts
     if limit is not None:
         try:
-            limit = validate_budget(limit, min_budget=0.1, max_budget=100.0)
-        except click.UsageError as e:
+            limit = validate_budget(limit, min_budget=0.1)
+        except (click.UsageError, click.Abort) as e:
+            if isinstance(e, click.Abort):
+                click.echo("Cancelled")
+                return
             click.echo(f"Error: {e}", err=True)
             return
 
@@ -136,9 +140,7 @@ def research(
         # Run company research workflow
         from deepr.core.company_research import CompanyResearchOrchestrator
 
-        click.echo(f"\n{'='*70}")
-        click.echo(f"  Strategic Company Research")
-        click.echo(f"{'='*70}\n")
+        print_header("Strategic Company Research")
 
         orchestrator = CompanyResearchOrchestrator()
         result = asyncio.run(orchestrator.research_company(
@@ -152,20 +154,18 @@ def research(
         ))
 
         if not result.get('success'):
-            click.echo(f"\n[ERROR] {result.get('error', 'Unknown error')}")
+            print_error(result.get('error', 'Unknown error'))
             return
 
-        click.echo(f"\n{'='*70}")
-        click.echo(f"  Company Research Complete")
-        click.echo(f"{'='*70}\n")
+        print_header("Company Research Complete")
 
         if result.get('job_id'):
-            click.echo(f"Job ID: {result['job_id']}")
-            click.echo(f"Scraped Content: {result['scraped_file']}")
-            click.echo(f"Pages Captured: {result['pages_scraped']}")
+            print_key_value("Job ID", result['job_id'])
+            print_key_value("Scraped Content", result['scraped_file'])
+            print_key_value("Pages Captured", str(result['pages_scraped']))
         else:
-            click.echo(f"Scraped Content: {result['scraped_file']}")
-            click.echo(f"Pages Captured: {result['pages_scraped']}")
+            print_key_value("Scraped Content", result['scraped_file'])
+            print_key_value("Pages Captured", str(result['pages_scraped']))
 
         return
 
@@ -369,11 +369,21 @@ def expert(ctx, list):
               help="Generate and execute autonomous learning curriculum")
 @click.option("--budget", type=float, default=None,
               help="Budget limit for autonomous learning (requires --learn)")
-@click.option("--topics", type=int, default=5,
-              help="Number of topics in learning curriculum (3-20, default: 5)")
+@click.option("--topics", type=int, default=None,
+              help="Total number of topics (auto-calculated if using --docs/--quick/--deep)")
+@click.option("--docs", type=int, default=None,
+              help="Number of documentation topics (FOCUS, ~$0.25 each)")
+@click.option("--quick", type=int, default=None,
+              help="Number of quick research topics (FOCUS, ~$0.25 each)")
+@click.option("--deep", type=int, default=None,
+              help="Number of deep research topics (CAMPAIGN, ~$2.00 each)")
+@click.option("--no-discovery", is_flag=True, default=False,
+              help="Skip source discovery phase (faster but less comprehensive)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation for autonomous learning")
 def make_expert(name: str, files: tuple, description: Optional[str], provider: str,
-                learn: bool, budget: Optional[float], topics: int, yes: bool):
+                learn: bool, budget: Optional[float], topics: Optional[int], 
+                docs: Optional[int], quick: Optional[int], deep: Optional[int], 
+                no_discovery: bool, yes: bool):
     """Create a new domain expert with a knowledge base.
 
     Creates an expert that can answer questions based on provided documents
@@ -416,23 +426,24 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
             click.echo(f"Error: {e}", err=True)
             return
 
-    # Validate budget if provided
-    if budget is not None:
+    # Validate budget if provided - warns for high amounts but doesn't hard block
+    if budget is not None and not yes:
         try:
-            budget = validate_budget(budget, min_budget=0.1, max_budget=100.0)
-        except click.UsageError as e:
+            budget = validate_budget(budget, min_budget=0.1)
+        except (click.UsageError, click.Abort) as e:
+            if isinstance(e, click.Abort):
+                click.echo("Cancelled")
+                return
             click.echo(f"Error: {e}", err=True)
             return
-
-    click.echo(f"\n{'='*70}")
-    click.echo(f"  Creating Expert: {name}")
-    click.echo(f"{'='*70}\n")
 
     if not files and not learn:
         click.echo("Error: No files specified. Use --files to add documents or --learn for autonomous learning.")
         click.echo("Example: deepr expert make 'My Expert' -f docs/*.md")
         click.echo("Or: deepr expert make 'My Expert' --learn --budget 10")
         return
+
+    click.echo(f"Creating expert: {name}...")
 
     async def create_expert():
         # Load config
@@ -452,16 +463,11 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
         file_ids = []
 
         if files:
-            click.echo(f"Uploading {len(files)} file(s)...")
             for file_path in files:
-                basename = os.path.basename(file_path)
-                click.echo(f"  Uploading {basename}...")
                 file_id = await provider_instance.upload_document(file_path)
                 file_ids.append(file_id)
-                click.echo(f"  [OK] {basename}")
 
         # Create vector store (empty if using --learn)
-        click.echo(f"\nCreating knowledge base...")
         vector_store = await provider_instance.create_vector_store(
             name=f"expert-{name.lower().replace(' ', '-')}",
             file_ids=file_ids
@@ -469,9 +475,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
         # Wait for indexing only if there are files
         if files:
-            click.echo(f"  Indexing files (this may take a minute)...")
             success = await provider_instance.wait_for_vector_store(vector_store.id, timeout=900)
-
             if not success:
                 click.echo("Error: Indexing timed out")
                 return None
@@ -508,26 +512,80 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
     if not profile:
         return
 
-    click.echo(f"\n[OK] Expert created successfully!")
-    click.echo(f"\nExpert: {profile.name}")
-    click.echo(f"Knowledge Base ID: {profile.vector_store_id}")
-    click.echo(f"Documents: {profile.total_documents}")
-
     # Check if we should generate autonomous learning curriculum
     if learn:
-        click.echo(f"\n{'='*70}")
-        click.echo(f"  Autonomous Learning Mode")
-        click.echo(f"{'='*70}\n")
 
-        # Validate budget
-        if not budget:
-            click.echo("Error: --budget is required when using --learn")
-            click.echo("Example: deepr expert make 'Expert' -f docs/*.md --learn --budget 10")
-            return
+        # Calculate topics and budget based on provided options
+        has_topic_counts = any([docs is not None, quick is not None, deep is not None])
+        
+        if has_topic_counts:
+            # Mode 2 or 3: User specified topic counts
+            docs_count = docs or 0
+            quick_count = quick or 0
+            deep_count = deep or 0
+            
+            if docs_count < 0 or quick_count < 0 or deep_count < 0:
+                click.echo("Error: Topic counts must be non-negative")
+                return
+            
+            total_topics = docs_count + quick_count + deep_count
+            
+            if total_topics == 0:
+                click.echo("Error: Must specify at least one topic (--docs, --quick, or --deep)")
+                click.echo("Example: deepr expert make 'Expert' -f test.md --learn --docs 1")
+                return
+            
+            # Calculate budget from topic counts using actual config values
+            from deepr.config import AppConfig
+            temp_config = AppConfig.from_env()
+            expert_config = temp_config.expert
+            
+            # docs and quick are both FOCUS mode (grok-4-fast: ~$0.002)
+            # deep is CAMPAIGN mode (o4-mini-deep-research: ~$1.00)
+            calculated_budget = (docs_count * expert_config.quick_research_cost) + (quick_count * expert_config.quick_research_cost) + (deep_count * expert_config.deep_research_cost)
+            
+            if budget is not None:
+                # Mode 3: Validate calculated budget against provided budget
+                if calculated_budget > budget:
+                    click.echo(f"Error: Calculated budget (${calculated_budget:.2f}) exceeds provided budget (${budget:.2f})")
+                    click.echo(f"\nTopic breakdown:")
+                    click.echo(f"  {docs_count} docs × ${expert_config.quick_research_cost:.3f} = ${docs_count * expert_config.quick_research_cost:.2f}")
+                    click.echo(f"  {quick_count} quick × ${expert_config.quick_research_cost:.3f} = ${quick_count * expert_config.quick_research_cost:.2f}")
+                    click.echo(f"  {deep_count} deep × ${expert_config.deep_research_cost:.2f} = ${deep_count * expert_config.deep_research_cost:.2f}")
+                    click.echo(f"  Total: ${calculated_budget:.2f}")
+                    return
+                # Use provided budget (may be higher than calculated)
+                budget_to_use = budget
+            else:
+                # Mode 2: Use calculated budget
+                budget_to_use = calculated_budget
+            
+            # Override topics parameter with calculated total
+            topics_to_use = total_topics
+            
+        else:
+            # Mode 1: Budget only, auto-calculate topic mix
+            if not budget:
+                click.echo("Error: Either --budget or topic counts (--docs/--quick/--deep) required")
+                click.echo("\nExamples:")
+                click.echo("  deepr expert make 'Expert' -f docs/*.md --learn --budget 10")
+                click.echo("  deepr expert make 'Expert' -f docs/*.md --learn --docs 2 --quick 3 --deep 1")
+                return
 
-        if budget <= 0:
-            click.echo("Error: Budget must be positive")
-            return
+            if budget <= 0:
+                click.echo("Error: Budget must be positive")
+                return
+            
+            budget_to_use = budget
+            # Use default of 15 topics if not specified
+            topics_to_use = topics if topics is not None else 15
+            
+            # Will be auto-calculated by curriculum generator
+            docs_count = None
+            quick_count = None
+            deep_count = None
+
+        click.echo(f"Generating curriculum ({topics_to_use} topics, ~${budget_to_use:.2f})...")
 
         # Generate curriculum
         async def generate_and_execute_curriculum():
@@ -537,35 +595,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
             config = AppConfig.from_env()
 
-            # Show pre-generation cost estimate based on config defaults
-            expert_config = config.expert
-            deep_topics = min(5, topics)  # Max 5 deep research topics
-            quick_topics = topics - deep_topics
-
-            estimated_deep_cost = deep_topics * expert_config.deep_research_cost
-            estimated_quick_cost = quick_topics * expert_config.quick_research_cost
-            estimated_total_cost = estimated_deep_cost + estimated_quick_cost
-
-            click.echo(f"\n{'='*70}")
-            click.echo(f"  Cost Estimation (Before Curriculum Generation)")
-            click.echo(f"{'='*70}\n")
-            click.echo(f"Target topics: {topics}")
-            click.echo(f"  - {deep_topics} deep research topics (campaign mode)")
-            click.echo(f"  - {quick_topics} quick research topics (focus mode)")
-            click.echo(f"\nEstimated cost breakdown:")
-            click.echo(f"  - Deep research: {deep_topics} topics × ${expert_config.deep_research_cost:.2f} = ${estimated_deep_cost:.2f}")
-            click.echo(f"  - Quick research: {quick_topics} topics × ${expert_config.quick_research_cost:.2f} = ${estimated_quick_cost:.2f}")
-            click.echo(f"  - Total estimated: ${estimated_total_cost:.2f}")
-            click.echo(f"  - Budget limit: ${budget:.2f}")
-
-            if estimated_total_cost > budget:
-                click.echo(f"\n[WARNING] Estimated cost (${estimated_total_cost:.2f}) exceeds budget (${budget:.2f})")
-                click.echo(f"Curriculum will be automatically truncated to fit budget.")
-            else:
-                budget_remaining = budget - estimated_total_cost
-                click.echo(f"\n[OK] Estimated cost fits within budget (${budget_remaining:.2f} margin)")
-
-            click.echo(f"\nGenerating detailed curriculum with GPT-5...")
+            click.echo(f"Generating curriculum...")
 
             generator = CurriculumGenerator(config)
 
@@ -573,97 +603,70 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                 curriculum = await generator.generate_curriculum(
                     expert_name=name,
                     domain=description or name,
-                    initial_documents=[os.path.basename(f) for f in files],
-                    target_topics=topics,
-                    budget_limit=budget
+                    initial_documents=[os.path.basename(f) for f in files] if files else [],
+                    target_topics=topics_to_use,
+                    budget_limit=budget_to_use,
+                    docs_count=docs_count,
+                    quick_count=quick_count,
+                    deep_count=deep_count,
+                    enable_discovery=not no_discovery  # Skip discovery if --no-discovery flag is set
                 )
 
-                # Display curriculum for approval
-                click.echo(f"\n{'='*70}")
-                click.echo(f"  Learning Curriculum ({len(curriculum.topics)} topics)")
-                click.echo(f"{'='*70}\n")
+                print(f"DEBUG CLI: Received curriculum: {curriculum}")
+                print(f"DEBUG CLI: Curriculum type: {type(curriculum)}")
+                if curriculum:
+                    print(f"DEBUG CLI: Curriculum.topics: {curriculum.topics}")
+                    print(f"DEBUG CLI: Number of topics: {len(curriculum.topics) if curriculum.topics else 0}")
 
+                # Display curriculum summary
+                if not curriculum or not curriculum.topics:
+                    print_error("Curriculum generation failed - no topics created")
+                    return {"error": "No topics generated"}
+                
+                print_header(f"Curriculum: {len(curriculum.topics)} topics")
+                
                 for i, topic in enumerate(curriculum.topics, 1):
-                    priority_marker = "*" * topic.priority
-                    mode_indicator = "DEEP" if topic.research_mode == "campaign" else "quick"
-
-                    # Map research type to emoji/indicator
-                    type_indicators = {
-                        "academic": "papers",
-                        "technical-deep-dive": "arch",
-                        "trends": "future",
-                        "documentation": "docs",
-                        "best-practices": "patterns"
-                    }
-                    type_indicator = type_indicators.get(topic.research_type, topic.research_type)
-
-                    click.echo(f"{i}. {topic.title} [{mode_indicator}:{type_indicator}] [{priority_marker}]")
-                    click.echo(f"   {topic.description}")
-                    click.echo(f"   Mode: {topic.research_mode}, Type: {topic.research_type}, Est: ${topic.estimated_cost:.2f}, {topic.estimated_minutes}min")
-                    if topic.dependencies:
-                        click.echo(f"   Depends on: {', '.join(topic.dependencies)}")
-                    click.echo()
-
-                click.echo(f"\n{'='*70}")
-                click.echo(f"  Final Cost Summary")
-                click.echo(f"{'='*70}\n")
-                click.echo(f"Actual estimated cost: ${curriculum.total_estimated_cost:.2f}")
-                click.echo(f"Total estimated time: {curriculum.total_estimated_minutes} minutes ({curriculum.total_estimated_minutes/60:.1f} hours)")
-                click.echo(f"Budget limit: ${budget:.2f}")
-
-                if curriculum.total_estimated_cost > budget:
-                    click.echo(f"\n[WARNING] Estimated cost exceeds budget!")
-                    click.echo(f"  Curriculum has been truncated to fit budget")
-
-                # Ask for confirmation only if --yes not provided AND budget not explicitly set
-                # Rationale: If user set a budget and curriculum is within it, that's the safety mechanism
-                click.echo(f"\n{'='*70}")
-                needs_confirmation = not yes and budget is None
-                if needs_confirmation and not click.confirm("Proceed with autonomous learning?", default=False):
-                    click.echo("Learning cancelled.")
-                    return None
-                elif yes or budget is not None:
-                    click.echo("Proceeding with autonomous learning...")
-                    click.echo("(Budget protection active: execution will stop if limits exceeded)")
+                    console.print(f"{i}. [bold]{topic.title}[/bold]")
+                    console.print(f"   [dim]Mode:[/dim] {topic.research_mode} | [dim]Type:[/dim] {topic.research_type}")
+                    console.print(f"   [dim]Cost:[/dim] ${topic.estimated_cost:.4f} | [dim]Time:[/dim] ~{topic.estimated_minutes}min")
+                    if topic.sources:
+                        console.print(f"   [dim]Sources:[/dim] {len(topic.sources)}")
+                    console.print()
+                
+                console.print(f"[dim]Total:[/dim] ${curriculum.total_estimated_cost:.2f}, ~{curriculum.total_estimated_minutes}min\n")
+                console.print("Starting execution...")
 
                 # Execute curriculum
-                click.echo(f"\n{'='*70}")
-                click.echo(f"  Executing Autonomous Learning")
-                click.echo(f"{'='*70}\n")
-
                 learner = AutonomousLearner(config)
 
                 progress = await learner.execute_curriculum(
                     expert=profile,
                     curriculum=curriculum,
-                    budget_limit=budget,
+                    budget_limit=budget_to_use,
                     dry_run=False
                 )
 
                 return progress
 
             except Exception as e:
-                click.echo(f"\n[ERROR] Failed to generate curriculum: {e}")
-                import traceback
-                traceback.print_exc()
-                return None
+                # Return the error so we can handle it with graceful degradation
+                return {"error": e}
 
-        progress = asyncio.run(generate_and_execute_curriculum())
+        result = asyncio.run(generate_and_execute_curriculum())
+        
+        # Check if curriculum generation failed
+        if result and isinstance(result, dict) and "error" in result:
+            error = result["error"]
+            click.echo(f"\nError: {str(error)}")
+            click.echo(f"Expert created but learning failed. Try again later.")
+            return
+        
+        progress = result
 
         if progress:
-            click.echo(f"\n{'='*70}")
-            click.echo(f"  Learning Summary")
-            click.echo(f"{'='*70}\n")
-            click.echo(f"Completed: {len(progress.completed_topics)} topics")
-            click.echo(f"Failed: {len(progress.failed_topics)} topics")
-            click.echo(f"Success rate: {progress.success_rate()*100:.1f}%")
-            click.echo(f"Total cost: ${progress.total_cost:.2f}")
-            click.echo(f"Time elapsed: {(progress.completed_at - progress.started_at).total_seconds()/60:.1f} minutes")
+            click.echo(f"\nComplete: {len(progress.completed_topics)}/{len(progress.completed_topics) + len(progress.failed_topics)} topics, ${progress.total_cost:.2f}, {(progress.completed_at - progress.started_at).total_seconds()/60:.0f}min")
 
-    # Show usage
-    click.echo(f"\nUsage:")
-    click.echo(f'  deepr chat expert "{profile.name}"')
-    click.echo(f'  deepr chat expert "{profile.name}" --agentic --budget 5')
+    click.echo(f"\nUsage: deepr chat expert \"{profile.name}\"")
 
 
 @expert.command(name="list")
@@ -679,51 +682,57 @@ def list_experts():
       deepr expert -l
     """
     from deepr.experts.profile import ExpertStore
+    from deepr.cli.colors import print_header, print_info, console
 
-    click.echo(f"\n{'='*70}")
-    click.echo(f"  Domain Experts")
-    click.echo(f"{'='*70}\n")
+    print_header("Domain Experts")
 
     store = ExpertStore()
     experts = store.list_all()
 
     if not experts:
-        click.echo("No experts found.")
-        click.echo("\nCreate one with:")
-        click.echo('  deepr expert make "Expert Name" -f documents/*.md')
+        console.print("No experts found.")
+        console.print("\nCreate one with:")
+        console.print('  deepr expert make "Expert Name" -f documents/*.md')
         return
 
-    click.echo(f"Found {len(experts)} expert(s):\n")
+    console.print(f"Found {len(experts)} expert(s):\n")
 
     for expert in experts:
-        click.echo(f"  {expert.name}")
+        console.print(f"  [bold]{expert.name}[/bold]")
         if expert.description:
-            click.echo(f"    {expert.description}")
-        click.echo(f"    Documents: {expert.total_documents}")
-        click.echo(f"    Conversations: {expert.conversations}")
+            console.print(f"    [dim]{expert.description}[/dim]")
+        console.print(f"    Documents: {expert.total_documents}")
+        console.print(f"    Conversations: {expert.conversations}")
         if expert.research_triggered > 0:
-            click.echo(f"    Research: {expert.research_triggered} jobs (${expert.total_research_cost:.2f})")
+            console.print(f"    Research: {expert.research_triggered} jobs [yellow](${expert.total_research_cost:.2f})[/yellow]")
 
         # Show temporal information
         created_str = expert.created_at.strftime('%Y-%m-%d')
         updated_str = expert.updated_at.strftime('%Y-%m-%d')
 
         if created_str == updated_str:
-            click.echo(f"    Created: {created_str}")
+            console.print(f"    Created: {created_str}")
         else:
-            click.echo(f"    Created: {created_str}, Updated: {updated_str}")
+            console.print(f"    Created: {created_str}, Updated: {updated_str}")
 
         # Show knowledge freshness status
         if expert.knowledge_cutoff_date:
             freshness = expert.get_freshness_status()
             age_days = freshness.get('age_days', 0)
             status = freshness.get('status', 'unknown')
-            click.echo(f"    Knowledge: {age_days} days old [{status}]")
+            # Color code the status
+            if status == 'fresh':
+                status_color = 'green'
+            elif status == 'recent':
+                status_color = 'yellow'
+            else:
+                status_color = 'red'
+            console.print(f"    Knowledge: {age_days} days old [{status_color}]{status}[/{status_color}]")
 
-        click.echo()
+        console.print()
 
-    click.echo("Usage:")
-    click.echo('  deepr chat expert "<name>"')
+    console.print("Usage:")
+    console.print('  deepr chat expert "<name>"')
 
 
 @expert.command(name="info")
@@ -742,35 +751,40 @@ def expert_info(name: str):
         click.echo("  deepr expert list")
         return
 
-    click.echo(f"\n{'='*70}")
-    click.echo(f"  Expert: {profile.name}")
-    click.echo(f"{'='*70}\n")
-
-    click.echo(f"Description: {profile.description or 'N/A'}")
-    click.echo(f"Provider: {profile.provider}")
-    click.echo(f"Model: {profile.model}")
-    click.echo(f"\nKnowledge Base:")
-    click.echo(f"  Vector Store ID: {profile.vector_store_id}")
-    click.echo(f"  Documents: {profile.total_documents}")
-    click.echo(f"  Source Files: {len(profile.source_files)}")
+    from deepr.cli.colors import print_header, print_key_value, print_list_item, console
+    
+    print_header(f"Expert: {profile.name}")
+    
+    print_key_value("Description", profile.description or "N/A")
+    print_key_value("Provider", profile.provider)
+    print_key_value("Model", profile.model)
+    
+    console.print()
+    console.print("[bold cyan]Knowledge Base[/bold cyan]")
+    print_key_value("Vector Store ID", profile.vector_store_id, indent=1)
+    print_key_value("Documents", str(profile.total_documents), indent=1)
+    print_key_value("Source Files", str(len(profile.source_files)), indent=1)
 
     if profile.source_files:
-        click.echo("\n  Files:")
+        console.print()
+        console.print("  [dim]Files:[/dim]")
         for f in profile.source_files[:10]:
-            click.echo(f"    - {os.path.basename(f)}")
+            print_list_item(os.path.basename(f), indent=2)
         if len(profile.source_files) > 10:
-            click.echo(f"    ... and {len(profile.source_files) - 10} more")
+            console.print(f"    [dim]... and {len(profile.source_files) - 10} more[/dim]")
 
-    click.echo(f"\nUsage Stats:")
-    click.echo(f"  Conversations: {profile.conversations}")
-    click.echo(f"  Research Triggered: {profile.research_triggered}")
-    click.echo(f"  Total Research Cost: ${profile.total_research_cost:.2f}")
+    console.print()
+    console.print("[bold cyan]Usage Stats[/bold cyan]")
+    print_key_value("Conversations", str(profile.conversations), indent=1)
+    print_key_value("Research Triggered", str(profile.research_triggered), indent=1)
+    print_key_value("Total Research Cost", f"${profile.total_research_cost:.2f}", indent=1)
 
     if profile.research_jobs:
-        click.echo(f"  Research Jobs: {len(profile.research_jobs)}")
+        print_key_value("Research Jobs", str(len(profile.research_jobs)), indent=1)
 
-    click.echo(f"\nCreated: {profile.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-    click.echo(f"Updated: {profile.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    console.print()
+    print_key_value("Created", profile.created_at.strftime('%Y-%m-%d %H:%M:%S'))
+    print_key_value("Updated", profile.updated_at.strftime('%Y-%m-%d %H:%M:%S'))
 
 
 @expert.command(name="delete")
@@ -799,11 +813,826 @@ def delete_expert(name: str, yes: bool):
             return
 
     if store.delete(name):
-        click.echo(f"\n[OK] Expert deleted: {name}")
+        print_success(f"Expert deleted: {name}")
         click.echo(f"\nTo delete the knowledge base:")
-        click.echo(f"  deepr brain delete {profile.vector_store_id}")
+        click.echo(f"  deepr knowledge delete {profile.vector_store_id}")
     else:
         click.echo(f"\nError: Failed to delete expert")
+
+
+@expert.command(name="learn")
+@click.argument("name")
+@click.argument("topic", required=False)
+@click.option("--files", "-f", multiple=True, type=click.Path(exists=True),
+              help="Files to add to expert's knowledge base")
+@click.option("--budget", "-b", type=float, default=1.0,
+              help="Budget limit for topic research (default: $1)")
+@click.option("--synthesize/--no-synthesize", default=True,
+              help="Re-synthesize consciousness after learning (default: yes)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, 
+                 synthesize: bool, yes: bool):
+    """Add knowledge to an expert on demand.
+
+    Allows you to teach an expert new things by either:
+    1. Researching a topic (uses web search to gather information)
+    2. Uploading files directly to the knowledge base
+    3. Both at the same time
+
+    After adding knowledge, the expert re-synthesizes its consciousness
+    to integrate the new information into its beliefs and worldview.
+
+    EXAMPLES:
+      # Research a topic and add to expert's knowledge
+      deepr expert learn "AWS Expert" "Latest Lambda features 2026"
+
+      # Add files to expert's knowledge base
+      deepr expert learn "Python Expert" --files docs/*.md
+
+      # Research topic AND add files
+      deepr expert learn "AI Expert" "Transformer architectures" -f papers/*.pdf
+
+      # Research with higher budget
+      deepr expert learn "Tech Expert" "Quantum computing advances" --budget 5
+
+      # Skip synthesis (faster, but expert won't form new beliefs)
+      deepr expert learn "Expert" "Topic" --no-synthesize
+    """
+    import asyncio
+    import os
+    from pathlib import Path
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import Worldview, KnowledgeSynthesizer
+    from deepr.config import AppConfig
+    from deepr.providers import create_provider
+    from datetime import datetime
+    from deepr.cli.validation import validate_budget
+
+    # Validate inputs
+    if not topic and not files:
+        click.echo("Error: Must provide either a topic to research or files to upload.")
+        click.echo("\nExamples:")
+        click.echo('  deepr expert learn "Expert Name" "Topic to research"')
+        click.echo('  deepr expert learn "Expert Name" --files docs/*.md')
+        click.echo('  deepr expert learn "Expert Name" "Topic" -f docs/*.md')
+        return
+
+    # Validate budget - warns for high amounts
+    if not yes:
+        try:
+            budget = validate_budget(budget, min_budget=0.1)
+        except (click.UsageError, click.Abort) as e:
+            if isinstance(e, click.Abort):
+                click.echo("Cancelled")
+                return
+            click.echo(f"Error: {e}", err=True)
+            return
+
+    print_header(f"Learn: {name}")
+
+    # Load expert
+    store = ExpertStore()
+    profile = store.load(name)
+
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        console.print("\nList available experts:")
+        console.print("  deepr expert list")
+        return
+
+    # Display what we're going to do
+    if topic:
+        print_key_value("Topic to research", topic)
+        print_key_value("Research budget", f"${budget:.2f}")
+    
+    if files:
+        print_key_value("Files to upload", str(len(files)))
+        for f in files[:5]:
+            console.print(f"  [dim]-[/dim] {os.path.basename(f)}")
+        if len(files) > 5:
+            console.print(f"  [dim]... and {len(files) - 5} more[/dim]")
+
+    print_key_value("Synthesize after learning", "Yes" if synthesize else "No")
+
+    if not yes:
+        if not click.confirm("\nProceed with learning?"):
+            click.echo("Cancelled")
+            return
+
+    async def do_learn():
+        from deepr.experts.chat import ExpertChatSession
+
+        config = AppConfig.from_env()
+        provider = create_provider("openai", api_key=config.provider.openai_api_key)
+
+        total_cost = 0.0
+        documents_added = 0
+        research_results = []
+
+        # Phase 1: Research topic if provided
+        if topic:
+            print_section_header("Phase 1: Researching Topic")
+
+            # Create a chat session for research (agentic mode)
+            session = ExpertChatSession(profile, budget=budget, agentic=True)
+
+            console.print(f"[dim]Query:[/dim] {topic[:80]}{'...' if len(topic) > 80 else ''}")
+            console.print("Researching...")
+
+            try:
+                result = await session._standard_research(topic)
+
+                if "error" in result:
+                    print_error(f"Research failed: {result['error']}")
+                else:
+                    cost = result.get("cost", 0.0)
+                    total_cost += cost
+                    documents_added += 1
+                    research_results.append(result)
+                    print_success(f"Research complete (${cost:.4f})")
+                    
+                    # Show snippet of what was learned
+                    answer = result.get("answer", "")
+                    if answer:
+                        snippet = answer[:200] + "..." if len(answer) > 200 else answer
+                        console.print(f"\n[dim]Learned:[/dim]\n{snippet}")
+
+            except Exception as e:
+                print_error(f"Research error: {e}")
+
+        # Phase 2: Upload files if provided
+        if files:
+            print_section_header("Phase 2: Uploading Files")
+
+            # Get documents directory
+            docs_dir = store.get_documents_dir(name)
+            docs_dir.mkdir(parents=True, exist_ok=True)
+
+            uploaded_files = []
+            for file_path in files:
+                try:
+                    src_path = Path(file_path)
+                    dst_path = docs_dir / src_path.name
+
+                    # Copy file to expert's documents folder
+                    import shutil
+                    shutil.copy2(src_path, dst_path)
+                    uploaded_files.append(dst_path)
+                    print_success(f"Copied: {src_path.name}")
+
+                except Exception as e:
+                    print_error(f"Failed to copy {file_path}: {e}")
+
+            # Upload to vector store
+            if uploaded_files:
+                click.echo(f"\nUploading {len(uploaded_files)} files to vector store...")
+                
+                try:
+                    for file_path in uploaded_files:
+                        file_id = await provider.upload_document(str(file_path))
+                        await provider.add_file_to_vector_store(
+                            profile.vector_store_id, 
+                            file_id
+                        )
+                        documents_added += 1
+                        console.print(f"[success]Indexed: {file_path.name}[/success]")
+
+                    # Update profile
+                    profile.total_documents += len(uploaded_files)
+                    profile.source_files.extend([str(f) for f in uploaded_files])
+                    profile.updated_at = datetime.utcnow()
+                    store.save(profile)
+
+                except Exception as e:
+                    print_error(f"Vector store upload failed: {e}")
+
+        # Phase 3: Re-synthesize consciousness
+        if synthesize and documents_added > 0:
+            print_section_header("Phase 3: Re-synthesizing Consciousness")
+            console.print("Expert is integrating new knowledge into beliefs...")
+
+            try:
+                synthesizer = KnowledgeSynthesizer(provider.client)
+
+                # Load existing worldview if it exists
+                knowledge_dir = store.get_knowledge_dir(name)
+                worldview_path = knowledge_dir / "worldview.json"
+                existing_worldview = None
+                
+                if worldview_path.exists():
+                    try:
+                        existing_worldview = Worldview.load(worldview_path)
+                    except Exception:
+                        pass  # Will create new worldview
+
+                # Get all documents for synthesis
+                docs_dir = store.get_documents_dir(name)
+                all_docs = list(docs_dir.glob("*.md"))
+                docs_to_process = [{"path": str(f)} for f in all_docs[:20]]  # Limit to 20
+
+                synthesis_result = await synthesizer.synthesize_new_knowledge(
+                    expert_name=profile.name,
+                    domain=profile.domain or profile.description,
+                    new_documents=docs_to_process,
+                    existing_worldview=existing_worldview
+                )
+
+                if synthesis_result["success"]:
+                    new_worldview = synthesis_result["worldview"]
+                    new_worldview.save(worldview_path)
+
+                    # Also save markdown version
+                    worldview_md_path = knowledge_dir / "worldview.md"
+                    new_worldview.save_markdown(worldview_md_path)
+
+                    print_success("Synthesis complete!")
+                    click.echo(f"    Beliefs: {len(new_worldview.beliefs)}")
+                    click.echo(f"    Knowledge gaps: {len(new_worldview.knowledge_gaps)}")
+                    
+                    if synthesis_result.get('beliefs_formed', 0) > 0:
+                        click.echo(f"    New beliefs formed: {synthesis_result['beliefs_formed']}")
+                else:
+                    console.print(f"[warning]Synthesis failed: {synthesis_result.get('error', 'Unknown')}[/warning]")
+
+            except Exception as e:
+                console.print(f"[warning]Synthesis error: {e}[/warning]")
+
+        return {
+            "documents_added": documents_added,
+            "total_cost": total_cost,
+            "research_results": len(research_results)
+        }
+
+    result = asyncio.run(do_learn())
+
+    # Summary
+    print_header("Learning Complete")
+    print_key_value("Documents added", str(result['documents_added']))
+    if result['research_results'] > 0:
+        print_key_value("Research queries", str(result['research_results']))
+    print_key_value("Total cost", f"${result['total_cost']:.4f}")
+    
+    if synthesize and result['documents_added'] > 0:
+        console.print("\nExpert consciousness has been updated.")
+    elif result['documents_added'] > 0:
+        console.print("\nKnowledge added. Run with --synthesize to update consciousness.")
+    
+    console.print(f'\nChat with: deepr chat expert "{name}"')
+
+
+@expert.command(name="resume")
+@click.argument("name")
+@click.option("--budget", "-b", type=float, default=None,
+              help="Budget limit for remaining topics (default: use original budget)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
+    """Resume paused learning for an expert.
+
+    When autonomous learning hits a daily or monthly spending limit, progress
+    is automatically saved. Use this command to resume where you left off.
+
+    The command will:
+    1. Load saved progress (completed topics, remaining topics)
+    2. Continue with remaining topics
+    3. Clear saved progress on successful completion
+
+    EXAMPLES:
+      # Resume learning for an expert
+      deepr expert resume "AWS Expert"
+
+      # Resume with a different budget
+      deepr expert resume "AWS Expert" --budget 10
+
+      # Skip confirmation
+      deepr expert resume "AWS Expert" -y
+    """
+    import asyncio
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.learner import AutonomousLearner
+    from deepr.experts.curriculum import LearningCurriculum, LearningTopic
+    from deepr.config import AppConfig
+    from deepr.cli.validation import validate_budget, validate_expert_name
+    from datetime import datetime
+
+    # Validate expert name
+    try:
+        name = validate_expert_name(name)
+    except click.UsageError as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+
+    print_header(f"Resume Learning: {name}")
+
+    # Load expert
+    store = ExpertStore()
+    profile = store.load(name)
+
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        console.print("\nList available experts:")
+        console.print("  deepr expert list")
+        return
+
+    # Load saved progress
+    config = AppConfig.from_env()
+    learner = AutonomousLearner(config)
+    saved_progress = learner.load_learning_progress(name)
+
+    if not saved_progress:
+        print_error("No saved progress found for this expert")
+        console.print("\nThis expert has no paused learning session to resume.")
+        console.print("To start new learning, use:")
+        console.print(f'  deepr expert learn "{name}" "topic to research"')
+        return
+
+    # Display saved progress info
+    remaining_topics = saved_progress.get('remaining_topics', [])
+    completed_topics = saved_progress.get('completed_topics', [])
+    failed_topics = saved_progress.get('failed_topics', [])
+    cost_so_far = saved_progress.get('total_cost_so_far', 0.0)
+    paused_at = saved_progress.get('paused_at', 'unknown')
+
+    print_key_value("Paused at", paused_at)
+    print_key_value("Completed topics", str(len(completed_topics)))
+    print_key_value("Failed topics", str(len(failed_topics)))
+    print_key_value("Remaining topics", str(len(remaining_topics)))
+    print_key_value("Cost so far", f"${cost_so_far:.2f}")
+
+    if not remaining_topics:
+        print_error("No remaining topics to process")
+        console.print("\nClearing saved progress...")
+        learner.clear_learning_progress(name)
+        console.print("Done. All topics were already processed.")
+        return
+
+    # Calculate estimated cost for remaining topics
+    estimated_remaining_cost = sum(t.get('estimated_cost', 0.5) for t in remaining_topics)
+    print_key_value("Estimated remaining cost", f"${estimated_remaining_cost:.2f}")
+
+    # Determine budget
+    if budget is None:
+        # Use a reasonable default based on remaining work
+        budget = max(estimated_remaining_cost * 1.5, 5.0)  # 50% buffer, min $5
+        console.print(f"\n[dim]Using default budget: ${budget:.2f}[/dim]")
+
+    # Validate budget
+    if not yes:
+        try:
+            budget = validate_budget(budget, min_budget=0.1)
+        except (click.UsageError, click.Abort) as e:
+            if isinstance(e, click.Abort):
+                click.echo("Cancelled")
+                return
+            click.echo(f"Error: {e}", err=True)
+            return
+
+    # Show remaining topics
+    console.print("\nRemaining topics:")
+    for i, topic in enumerate(remaining_topics[:5], 1):
+        console.print(f"  {i}. {topic.get('title', 'Unknown')}")
+    if len(remaining_topics) > 5:
+        console.print(f"  ... and {len(remaining_topics) - 5} more")
+
+    if not yes:
+        if not click.confirm(f"\nResume learning with ${budget:.2f} budget?"):
+            click.echo("Cancelled")
+            return
+
+    async def do_resume():
+        # Rebuild curriculum from remaining topics
+        topics = []
+        for t in remaining_topics:
+            topic = LearningTopic(
+                title=t.get('title', 'Unknown'),
+                research_prompt=t.get('research_prompt', ''),
+                research_mode=t.get('research_mode', 'focus'),
+                research_type=t.get('research_type', 'general'),
+                estimated_cost=t.get('estimated_cost', 0.5),
+                estimated_minutes=t.get('estimated_minutes', 5)
+            )
+            topics.append(topic)
+
+        curriculum = LearningCurriculum(
+            expert_name=name,
+            domain=profile.domain or profile.description or name,
+            topics=topics,
+            total_estimated_cost=estimated_remaining_cost,
+            total_estimated_minutes=sum(t.get('estimated_minutes', 5) for t in remaining_topics)
+        )
+
+        # Execute with resume=True
+        progress = await learner.execute_curriculum(
+            expert=profile,
+            curriculum=curriculum,
+            budget_limit=budget,
+            dry_run=False,
+            resume=True
+        )
+
+        return progress
+
+    progress = asyncio.run(do_resume())
+
+    if progress:
+        print_header("Resume Complete")
+        print_key_value("Completed", f"{len(progress.completed_topics)} topics")
+        print_key_value("Failed", f"{len(progress.failed_topics)} topics")
+        print_key_value("Total cost", f"${progress.total_cost:.2f}")
+        print_key_value("Success rate", f"{progress.success_rate()*100:.1f}%")
+
+        if progress.is_complete():
+            console.print("\nAll topics processed. Learning complete.")
+        else:
+            console.print("\nSome topics remain. Run again to continue:")
+            console.print(f'  deepr expert resume "{name}"')
+
+    console.print(f'\nChat with: deepr chat expert "{name}"')
+
+
+@expert.command(name="export")
+@click.argument("name")
+@click.option("--output", "-o", type=click.Path(), default=".",
+              help="Output directory for corpus (default: current directory)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def export_expert(name: str, output: str, yes: bool):
+    """Export an expert's consciousness to a portable corpus.
+
+    Creates a directory containing all the expert's knowledge, beliefs,
+    and worldview that can be shared or imported to create a new expert.
+
+    The exported corpus includes:
+    - All knowledge documents (markdown files)
+    - Worldview (beliefs and knowledge gaps)
+    - Metadata (expert profile information)
+    - README (human-readable summary)
+
+    EXAMPLES:
+      # Export to current directory
+      deepr expert export "AWS Expert"
+
+      # Export to specific directory
+      deepr expert export "Python Expert" --output ./exports
+
+      # Skip confirmation
+      deepr expert export "AI Expert" -y
+    """
+    import asyncio
+    from pathlib import Path
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.corpus import export_corpus
+
+    print_header(f"Export Expert: {name}")
+
+    # Load expert
+    store = ExpertStore()
+    profile = store.load(name)
+
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        console.print("\nList available experts:")
+        console.print("  deepr expert list")
+        return
+
+    output_path = Path(output)
+    corpus_name = name.lower().replace(" ", "-")
+    corpus_path = output_path / corpus_name
+
+    print_key_value("Expert", profile.name)
+    print_key_value("Domain", profile.domain or profile.description or 'General')
+    print_key_value("Documents", str(profile.total_documents))
+    print_key_value("Output", str(corpus_path))
+
+    if not yes:
+        if not click.confirm("\nExport this expert?"):
+            console.print("Cancelled")
+            return
+
+    async def do_export():
+        try:
+            manifest = await export_corpus(name, output_path, store)
+            return {"success": True, "manifest": manifest}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    result = asyncio.run(do_export())
+
+    if not result["success"]:
+        print_error(f"Export failed: {result['error']}")
+        return
+
+    manifest = result["manifest"]
+
+    print_header("Export Complete")
+    print_key_value("Corpus", str(corpus_path))
+    print_key_value("Documents", str(manifest.document_count))
+    print_key_value("Beliefs", str(manifest.belief_count))
+    print_key_value("Knowledge gaps", str(manifest.gap_count))
+    print_key_value("Files", str(len(manifest.files)))
+    console.print(f"\nTo import this corpus:")
+    console.print(f'  deepr expert import "New Expert Name" --corpus {corpus_path}')
+
+
+@expert.command(name="import")
+@click.argument("name")
+@click.option("--corpus", "-c", type=click.Path(exists=True), required=True,
+              help="Path to corpus directory to import")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def import_expert(name: str, corpus: str, yes: bool):
+    """Import a corpus to create a new expert.
+
+    Creates a new expert from an exported corpus, including all documents,
+    beliefs, and worldview. The new expert will have the same knowledge
+    and understanding as the original.
+
+    EXAMPLES:
+      # Import corpus to create new expert
+      deepr expert import "My AWS Expert" --corpus ./aws-expert
+
+      # Skip confirmation
+      deepr expert import "New Expert" -c ./corpus -y
+    """
+    import asyncio
+    from pathlib import Path
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.corpus import import_corpus, validate_corpus, CorpusManifest
+    from deepr.config import AppConfig
+    from deepr.providers import create_provider
+
+    print_header(f"Import Expert: {name}")
+
+    corpus_path = Path(corpus)
+
+    # Validate corpus
+    validation = validate_corpus(corpus_path)
+    
+    if not validation["valid"]:
+        print_error("Invalid corpus structure")
+        for error in validation["errors"]:
+            console.print(f"  [dim]-[/dim] {error}")
+        return
+
+    manifest = validation["manifest"]
+
+    # Check if expert already exists
+    store = ExpertStore()
+    if store.load(name):
+        print_error(f"Expert already exists: {name}")
+        console.print("\nChoose a different name or delete the existing expert:")
+        console.print(f'  deepr expert delete "{name}"')
+        return
+
+    print_key_value("Corpus", str(corpus_path))
+    print_key_value("Source", manifest.source_expert)
+    print_key_value("Domain", manifest.domain)
+    print_key_value("Documents", str(manifest.document_count))
+    print_key_value("Beliefs", str(manifest.belief_count))
+    print_key_value("Knowledge gaps", str(manifest.gap_count))
+    print_key_value("New expert name", name)
+
+    if not yes:
+        if not click.confirm("\nImport this corpus?"):
+            console.print("Cancelled")
+            return
+
+    async def do_import():
+        try:
+            config = AppConfig.from_env()
+            provider = create_provider("openai", api_key=config.provider.openai_api_key)
+            
+            profile = await import_corpus(name, corpus_path, store, provider)
+            return {"success": True, "profile": profile}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    console.print("\nImporting...")
+    result = asyncio.run(do_import())
+
+    if not result["success"]:
+        print_error(f"Import failed: {result['error']}")
+        return
+
+    profile = result["profile"]
+
+    print_header("Import Complete")
+    print_key_value("Expert created", profile.name)
+    print_key_value("Documents", str(profile.total_documents))
+    print_key_value("Vector store", profile.vector_store_id)
+    console.print(f'\nChat with: deepr chat expert "{name}"')
+
+
+@expert.command(name="fill-gaps")
+@click.argument("name")
+@click.option("--budget", "-b", type=float, default=5.0,
+              help="Budget limit for gap filling research (default: $5)")
+@click.option("--top", "-t", type=int, default=3,
+              help="Number of top-priority gaps to fill (default: 3)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def fill_gaps(name: str, budget: float, top: int, yes: bool):
+    """Proactively research and fill knowledge gaps.
+
+    Reads the expert's worldview, identifies high-priority knowledge gaps,
+    researches them using the standard research engine, and re-synthesizes
+    the expert's consciousness with the new knowledge.
+
+    This is how experts actively improve themselves - they know what they
+    don't know, and can fill those gaps on demand.
+
+    EXAMPLES:
+      # Fill top 3 gaps with $5 budget
+      deepr expert fill-gaps "AWS Expert"
+
+      # Fill top 5 gaps with $10 budget
+      deepr expert fill-gaps "Python Expert" --top 5 --budget 10
+
+      # Skip confirmation
+      deepr expert fill-gaps "AI Expert" -y
+    """
+    import asyncio
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import Worldview, KnowledgeSynthesizer
+    from deepr.config import AppConfig
+    from deepr.providers import create_provider
+    from datetime import datetime
+    from deepr.cli.colors import (
+        print_header, print_success, print_error, print_warning, 
+        print_info, print_step, print_result, get_symbol, console
+    )
+
+    print_header(f"Fill Knowledge Gaps: {name}")
+
+    # Load expert
+    store = ExpertStore()
+    profile = store.load(name)
+
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        console.print("\nList available experts:")
+        console.print("  deepr expert list")
+        return
+
+    # Load worldview
+    knowledge_dir = store.get_knowledge_dir(name)
+    worldview_path = knowledge_dir / "worldview.json"
+
+    if not worldview_path.exists():
+        print_error(f"Expert has no worldview yet.")
+        console.print(f"\nThe expert needs to synthesize knowledge first:")
+        console.print(f'  deepr expert refresh "{name}" --synthesize')
+        return
+
+    try:
+        worldview = Worldview.load(worldview_path)
+    except Exception as e:
+        print_error(f"Error loading worldview: {e}")
+        return
+
+    # Check for gaps
+    if not worldview.knowledge_gaps:
+        print_success(f"Expert has no identified knowledge gaps!")
+        console.print(f"\nThe expert's consciousness is complete (for now).")
+        console.print(f"Beliefs: {len(worldview.beliefs)}")
+        return
+
+    # Sort gaps by priority (highest first)
+    sorted_gaps = sorted(worldview.knowledge_gaps, key=lambda g: g.priority, reverse=True)
+    gaps_to_fill = sorted_gaps[:top]
+
+    # Calculate budget per gap
+    budget_per_gap = budget / len(gaps_to_fill)
+
+    # Display gaps to be filled
+    console.print(f"Found {len(worldview.knowledge_gaps)} knowledge gaps.")
+    console.print(f"Will fill top {len(gaps_to_fill)} gaps with ${budget:.2f} budget.\n")
+
+    console.print("Gaps to fill:")
+    for i, gap in enumerate(gaps_to_fill, 1):
+        console.print(f"\n  {i}. {gap.topic} [dim](Priority: {gap.priority}/5)[/dim]")
+        if gap.questions:
+            console.print(f"     Questions:")
+            for q in gap.questions[:3]:
+                console.print(f"       [dim]{get_symbol('sub_bullet')}[/dim] {q}")
+            if len(gap.questions) > 3:
+                console.print(f"       [dim]... and {len(gap.questions) - 3} more[/dim]")
+
+    console.print(f"\nEstimated cost: ~${budget:.2f} (${budget_per_gap:.2f} per gap)")
+
+    if not yes:
+        if not click.confirm("\nProceed with gap filling?"):
+            console.print("Cancelled")
+            return
+
+    async def do_fill_gaps():
+        from deepr.experts.chat import ExpertChatSession
+
+        config = AppConfig.from_env()
+        provider = create_provider("openai", api_key=config.provider.openai_api_key)
+
+        total_cost = 0.0
+        filled_gaps = []
+        failed_gaps = []
+
+        # Create a chat session for research (agentic mode)
+        session = ExpertChatSession(profile, budget=budget, agentic=True)
+
+        for i, gap in enumerate(gaps_to_fill, 1):
+            print_step(i, len(gaps_to_fill), gap.topic)
+
+            # Construct research query from gap
+            if gap.questions:
+                # Use the first question as the main query
+                query = gap.questions[0]
+                if len(gap.questions) > 1:
+                    # Add context from other questions
+                    query += f" Also address: {'; '.join(gap.questions[1:3])}"
+            else:
+                query = f"Research and explain: {gap.topic}"
+
+            console.print(f"[dim]Query: {query[:80]}...[/dim]")
+
+            try:
+                # Use standard research to fill the gap
+                console.print("[dim]Researching...[/dim]")
+                result = await session._standard_research(query)
+
+                if "error" in result:
+                    print_error(f"Research failed: {result['error']}")
+                    failed_gaps.append({"gap": gap, "error": result['error']})
+                else:
+                    cost = result.get("cost", 0.0)
+                    total_cost += cost
+                    print_result("Research complete", cost_usd=cost)
+
+                    # The research is automatically added to knowledge base
+                    # by _standard_research via _add_research_to_knowledge_base
+                    filled_gaps.append({"gap": gap, "cost": cost})
+
+            except Exception as e:
+                print_error(f"Error: {e}")
+                failed_gaps.append({"gap": gap, "error": str(e)})
+
+            # Check budget
+            if total_cost >= budget:
+                print_warning(f"Budget exhausted (${total_cost:.2f}/${budget:.2f})")
+                break
+
+        # Re-synthesize consciousness with new knowledge
+        if filled_gaps:
+            print_header("Re-synthesizing Consciousness")
+            console.print("[dim]Expert is integrating new knowledge into beliefs...[/dim]")
+
+            try:
+                synthesizer = KnowledgeSynthesizer(provider.client)
+
+                # Get all documents for synthesis
+                docs_dir = store.get_documents_dir(name)
+                all_docs = list(docs_dir.glob("*.md"))
+                docs_to_process = [{"path": str(f)} for f in all_docs[:20]]  # Limit to 20
+
+                synthesis_result = await synthesizer.synthesize_new_knowledge(
+                    expert_name=profile.name,
+                    domain=profile.domain or profile.description,
+                    new_documents=docs_to_process,
+                    existing_worldview=worldview
+                )
+
+                if synthesis_result["success"]:
+                    new_worldview = synthesis_result["worldview"]
+
+                    # Remove filled gaps from worldview
+                    filled_topics = {g["gap"].topic for g in filled_gaps}
+                    new_worldview.knowledge_gaps = [
+                        g for g in new_worldview.knowledge_gaps
+                        if g.topic not in filled_topics
+                    ]
+
+                    # Save updated worldview
+                    new_worldview.save(worldview_path)
+
+                    print_success("Synthesis complete!")
+                    console.print(f"    New beliefs: {synthesis_result['beliefs_formed']}")
+                    console.print(f"    Remaining gaps: {len(new_worldview.knowledge_gaps)}")
+                else:
+                    print_warning(f"Synthesis failed: {synthesis_result.get('error', 'Unknown')}")
+
+            except Exception as e:
+                print_warning(f"Synthesis error: {e}")
+
+        return {
+            "filled": len(filled_gaps),
+            "failed": len(failed_gaps),
+            "total_cost": total_cost
+        }
+
+    result = asyncio.run(do_fill_gaps())
+
+    # Summary
+    print_header("Gap Filling Complete")
+    console.print(f"Gaps filled: {result['filled']}/{len(gaps_to_fill)}")
+    if result['failed'] > 0:
+        console.print(f"Gaps failed: {result['failed']}")
+    console.print(f"Total cost: ${result['total_cost']:.4f}")
+    console.print(f"\nExpert consciousness has been updated.")
+    console.print(f'Chat with: deepr expert chat "{name}"')
 
 
 @expert.command(name="refresh")
@@ -829,9 +1658,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
     import asyncio
     from deepr.experts.profile import ExpertStore
 
-    click.echo(f"\n{'='*70}")
-    click.echo(f"  Refreshing Expert Knowledge: {name}")
-    click.echo(f"{'='*70}\n")
+    print_header(f"Refreshing Expert Knowledge: {name}")
 
     async def do_refresh():
         store = ExpertStore()
@@ -839,43 +1666,41 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
         try:
             results = await store.refresh_expert_knowledge(name)
 
-            click.echo(results["message"])
-            click.echo()
+            console.print(results["message"])
+            console.print()
 
             if results["uploaded"]:
-                click.echo(f"[OK] Uploaded {len(results['uploaded'])} new documents:")
+                print_success(f"Uploaded {len(results['uploaded'])} new documents:")
                 for item in results["uploaded"]:
                     import os
                     basename = os.path.basename(item["path"])
-                    click.echo(f"  - {basename}")
-                    click.echo(f"    File ID: {item['file_id']}")
-                click.echo()
+                    console.print(f"  [dim]-[/dim] {basename}")
+                    console.print(f"    [dim]File ID:[/dim] {item['file_id']}")
+                console.print()
 
             if results["failed"]:
-                click.echo(f"[!] Failed to upload {len(results['failed'])} documents:")
+                print_warning(f"Failed to upload {len(results['failed'])} documents:")
                 for item in results["failed"]:
                     import os
                     basename = os.path.basename(item["path"])
-                    click.echo(f"  - {basename}: {item['error']}")
-                click.echo()
+                    console.print(f"  [dim]-[/dim] {basename}: {item['error']}")
+                console.print()
 
             if not results["uploaded"] and not results["failed"]:
-                click.echo("[OK] Expert knowledge is up to date")
-                click.echo()
+                print_success("Expert knowledge is up to date")
+                console.print()
 
             # Show updated stats
             profile = store.load(name)
             if profile:
-                click.echo(f"Expert now has {profile.total_documents} documents in knowledge base")
-                click.echo(f"Last refreshed: {profile.last_knowledge_refresh.strftime('%Y-%m-%d %H:%M:%S')}")
+                print_key_value("Documents in knowledge base", str(profile.total_documents))
+                print_key_value("Last refreshed", profile.last_knowledge_refresh.strftime('%Y-%m-%d %H:%M:%S'))
 
             # Synthesize if requested
             if synthesize and (results["uploaded"] or yes or click.confirm("\nNo new documents. Synthesize existing knowledge anyway?")):
-                click.echo(f"\n{'='*70}")
-                click.echo(f"  Synthesizing Knowledge (Level 5 Consciousness)")
-                click.echo(f"{'='*70}\n")
-                click.echo("Expert is actively processing documents to form beliefs and meta-awareness...")
-                click.echo("This may take 1-2 minutes...\n")
+                print_section_header("Synthesizing Knowledge (Level 5 Consciousness)")
+                console.print("Expert is actively processing documents to form beliefs and meta-awareness...")
+                console.print("This may take 1-2 minutes...\n")
 
                 from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
                 from deepr.config import AppConfig
@@ -897,9 +1722,9 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 if worldview_path.exists():
                     try:
                         existing_worldview = Worldview.load(worldview_path)
-                        click.echo(f"[INFO] Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)")
+                        console.print(f"[dim]Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)[/dim]")
                     except Exception as e:
-                        click.echo(f"[WARN] Could not load existing worldview: {e}")
+                        print_warning(f"Could not load existing worldview: {e}")
 
                 # Get documents to synthesize (uploaded or all if no new uploads)
                 if results["uploaded"]:
@@ -910,7 +1735,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     all_docs = list(docs_dir.glob("*.md"))
                     docs_to_process = [{"path": str(f)} for f in all_docs[:10]]  # Limit to 10 for cost
 
-                click.echo(f"Processing {len(docs_to_process)} documents...\n")
+                console.print(f"Processing {len(docs_to_process)} documents...\n")
 
                 # Synthesize
                 synthesis_result = await synthesizer.synthesize_new_knowledge(
@@ -936,7 +1761,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     with open(worldview_doc_path, 'w', encoding='utf-8') as f:
                         f.write(worldview_doc)
 
-                    click.echo("[OK] Synthesis complete!")
+                    print_success("Synthesis complete!")
                     click.echo(f"\nBeliefs formed: {synthesis_result['beliefs_formed']}")
                     click.echo(f"Knowledge gaps identified: {synthesis_result['gaps_identified']}")
                     click.echo(f"\nWorldview saved to: {worldview_path.name}")
@@ -949,12 +1774,12 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                             click.echo(f"  - {belief.statement[:80]}... ({belief.confidence:.0%} confidence)")
 
                 else:
-                    click.echo(f"[X] Synthesis failed: {synthesis_result.get('error', 'Unknown error')}")
+                    print_error(f"Synthesis failed: {synthesis_result.get('error', 'Unknown error')}")
 
         except ValueError as e:
-            click.echo(f"[X] Error: {e}")
+            print_error(f"Error: {e}")
         except Exception as e:
-            click.echo(f"[X] Unexpected error: {e}")
+            print_error(f"Unexpected error: {e}")
             import traceback
             traceback.print_exc()
 
@@ -965,8 +1790,8 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 
 @expert.command(name="chat")
 @click.argument("name")
-@click.option("--budget", "-b", type=float, default=10.0,
-              help="Session budget limit for research (default: $10)")
+@click.option("--budget", "-b", type=float, default=5.0,
+              help="Session budget limit for research (default: $5)")
 @click.option("--no-research", is_flag=True, default=False,
               help="Disable agentic research (experts can research by default)")
 def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
@@ -996,7 +1821,18 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     import asyncio
     from deepr.experts.chat import start_chat_session
     from deepr.cli import ui
+    from deepr.cli.validation import validate_budget
     from datetime import datetime
+
+    # Validate budget - warns for high amounts, doesn't hard block
+    try:
+        budget = validate_budget(budget, min_budget=0.1)
+    except (click.UsageError, click.Abort) as e:
+        if isinstance(e, click.Abort):
+            click.echo("Cancelled")
+            return
+        click.echo(f"Error: {e}", err=True)
+        return
 
     # Start the chat session (agentic by default)
     agentic = not no_research
@@ -1058,13 +1894,17 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                     budget=budget,
                     research_jobs=summary['research_jobs_triggered'],
                     model=summary['model'],
-                    documents=session.expert.total_documents
+                    documents=session.expert.total_documents,
+                    daily_spent=summary.get('daily_spent', 0),
+                    daily_limit=summary.get('daily_limit', 0),
+                    monthly_spent=summary.get('monthly_spent', 0),
+                    monthly_limit=summary.get('monthly_limit', 0)
                 )
                 continue
 
             elif user_input == "/clear":
                 session.messages = []
-                ui.console.print("\n[green][OK][/green] Conversation history cleared\n")
+                console.print("\n[success]Conversation history cleared[/success]\n")
                 continue
 
             elif user_input == "/trace":
@@ -1075,7 +1915,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                 # Extract file path
                 file_path = user_input[7:].strip()
                 if not file_path:
-                    click.echo("\n[X] Usage: /learn <file_path>\n")
+                    print_error("Usage: /learn <file_path>")
                     continue
 
                 from pathlib import Path
@@ -1084,7 +1924,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
 
                 path = Path(file_path)
                 if not path.exists():
-                    click.echo(f"\n[X] File not found: {file_path}\n")
+                    print_error(f"File not found: {file_path}")
                     continue
 
                 click.echo(f"\n[INFO] Teaching expert about {path.name}...")
@@ -1105,28 +1945,26 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                         )
 
                         if results["uploaded"]:
-                            click.echo(f"[OK] Document uploaded to knowledge base")
+                            print_success("Document uploaded to knowledge base")
                             click.echo(f"    Expert now has {session.expert.total_documents + 1} documents")
                             click.echo(f"\nTip: Use /synthesize to help the expert form beliefs from this knowledge\n")
 
                             # Reload expert to get updated document count
                             session.expert = store.load(session.expert.name)
                         elif results["failed"]:
-                            click.echo(f"[X] Failed to upload: {results['failed'][0]['error']}\n")
+                            print_error(f"Failed to upload: {results['failed'][0]['error']}")
                         else:
                             click.echo(f"[INFO] Document already in knowledge base\n")
                     except Exception as e:
-                        click.echo(f"[X] Error: {e}\n")
+                        print_error(f"Error: {e}")
 
                 asyncio.run(upload_document())
                 continue
 
             elif user_input == "/synthesize":
-                click.echo(f"\n{'='*70}")
-                click.echo(f"  Synthesizing Consciousness")
-                click.echo(f"{'='*70}\n")
-                click.echo("[INFO] Expert is actively processing knowledge to form beliefs...")
-                click.echo("This may take 1-2 minutes...\n")
+                print_section_header("Synthesizing Consciousness")
+                console.print("[dim]Expert is actively processing knowledge to form beliefs...[/dim]")
+                console.print("This may take 1-2 minutes...\n")
 
                 async def do_synthesis():
                     try:
@@ -1153,16 +1991,16 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                         if worldview_path.exists():
                             try:
                                 existing_worldview = Worldview.load(worldview_path)
-                                click.echo(f"[INFO] Building on {existing_worldview.synthesis_count} prior syntheses")
+                                console.print(f"[dim]Building on {existing_worldview.synthesis_count} prior syntheses[/dim]")
                             except Exception as e:
-                                click.echo(f"[WARN] Could not load existing worldview: {e}")
+                                print_warning(f"Could not load existing worldview: {e}")
 
                         # Get recent documents (last 10)
                         docs_dir = store.get_documents_dir(session.expert.name)
                         all_docs = sorted(docs_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
                         docs_to_process = [{"path": str(f)} for f in all_docs[:10]]
 
-                        click.echo(f"Processing {len(docs_to_process)} recent documents...\n")
+                        console.print(f"Processing {len(docs_to_process)} recent documents...\n")
 
                         # Synthesize
                         synthesis_result = await synthesizer.synthesize_new_knowledge(
@@ -1189,7 +2027,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                             with open(worldview_doc_path, 'w', encoding='utf-8') as f:
                                 f.write(worldview_doc)
 
-                            click.echo("[OK] Synthesis complete!")
+                            print_success("Synthesis complete!")
                             click.echo(f"\nBeliefs formed: {synthesis_result['beliefs_formed']}")
                             click.echo(f"Knowledge gaps identified: {synthesis_result['gaps_identified']}")
 
@@ -1202,10 +2040,10 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
 
                             click.echo(f"\nThe expert's consciousness has evolved.\n")
                         else:
-                            click.echo(f"[X] Synthesis failed: {synthesis_result.get('error', 'Unknown error')}\n")
+                            print_error(f"Synthesis failed: {synthesis_result.get('error', 'Unknown error')}")
 
                     except Exception as e:
-                        click.echo(f"[X] Error: {e}\n")
+                        print_error(f"Error: {e}")
                         import traceback
                         traceback.print_exc()
 
@@ -1297,7 +2135,8 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
             click.echo("\n\nEnding chat session...")
             break
         except Exception as e:
-            click.echo(f"\n[X] Error: {e}\n")
+            print_error(f"Error: {e}")
+            console.print()
             continue
 
     # Final summary
@@ -1306,14 +2145,14 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     # Save conversation before ending
     if summary['messages_exchanged'] > 0:
         session_id = session.save_conversation()
-        click.echo(f"\n[OK] Conversation saved: {session_id}")
-    click.echo(f"\n{'='*70}")
-    click.echo(f"Session Summary:")
-    click.echo(f"  Messages: {summary['messages_exchanged']}")
-    click.echo(f"  Total Cost: ${summary['cost_accumulated']:.4f}")
+        print_success(f"Conversation saved: {session_id}")
+
+    print_header("Session Summary")
+    print_key_value("Messages", str(summary['messages_exchanged']))
+    print_key_value("Total Cost", f"${summary['cost_accumulated']:.4f}")
     if summary['research_jobs_triggered'] > 0:
-        click.echo(f"  Research Jobs: {summary['research_jobs_triggered']}")
-    click.echo(f"{'='*70}\n")
+        print_key_value("Research Jobs", str(summary['research_jobs_triggered']))
+    console.print()
 
 
 if __name__ == "__main__":

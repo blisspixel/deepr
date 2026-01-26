@@ -2,6 +2,24 @@
 
 Comprehensive testing strategy with unit tests, integration tests, and E2E tests.
 
+## Quick Start
+
+### Expert Creation Testing (NEW)
+Test expert creation with minimal cost (~$0.004):
+
+```bash
+# Windows
+tests\test_keyboards_cli.bat
+
+# Linux/Mac  
+./tests/test_keyboards_cli.sh
+
+# Validate learning
+python tests/validate_expert_learning.py "Keyboards Test"
+```
+
+See [TEST_EXPERT_CREATION.md](TEST_EXPERT_CREATION.md) and [TESTING_SUMMARY.md](TESTING_SUMMARY.md) for details.
+
 ## Test Philosophy
 
 After experiencing 4 failed API submissions due to untested code (Oct 30, 2025), we implemented a three-layer testing strategy:

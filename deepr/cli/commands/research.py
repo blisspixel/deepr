@@ -2,7 +2,7 @@
 """Research commands - submit and manage individual research jobs."""
 import os
 import click
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
 # from deepr.services.cost_estimation import CostEstimator  # TODO: implement or remove
 
 # -------------------------------
@@ -58,10 +58,10 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit:
     click.echo(f"   Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
 
     if not yes and not click.confirm("\nSubmit deep research job?"):
-        click.echo(f"\n{CROSS} Cancelled")
+        print_warning("Cancelled")
         return
 
-    click.echo(f"\n{CHECK} Submitting job...")
+    print_success("Submitting job...")
 
     try:
         import asyncio
@@ -110,15 +110,15 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit:
 
         provider_job_id = asyncio.run(submit_job())
 
-        click.echo(f"\n{CHECK} Job submitted successfully!")
-        click.echo(f"\nJob ID: {job_id}")
-        click.echo(f"Provider Job ID: {provider_job_id}")
-        click.echo("\nNext steps:")
-        click.echo(f"   deepr research wait {job_id[:8]}  (prefix OK)")
-        click.echo(f"   deepr research status {job_id[:8]}")
+        print_success("Job submitted successfully!")
+        console.print(f"\nJob ID: {job_id}")
+        console.print(f"Provider Job ID: {provider_job_id}")
+        console.print("\nNext steps:")
+        console.print(f"   deepr research wait {job_id[:8]}  (prefix OK)")
+        console.print(f"   deepr research status {job_id[:8]}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 @research.command()
@@ -146,36 +146,36 @@ def status(job_id: str):
 
         job = asyncio.run(get_status())
         if not job:
-            click.echo(f"\n{CROSS} Job not found: {job_id}", err=True)
+            print_error(f"Job not found: {job_id}")
             raise click.Abort()
 
-        click.echo(f"\nStatus: {job.status.name}")
-        click.echo("\nDetails:")
-        click.echo(f"   ID: {job.id}")
-        click.echo(f"   Model: {job.model}")
-        click.echo(f"   Priority: {job.priority}")
-        click.echo(f"   Submitted: {job.submitted_at}")
+        console.print(f"\nStatus: {job.status.name}")
+        console.print("\nDetails:")
+        console.print(f"   ID: {job.id}")
+        console.print(f"   Model: {job.model}")
+        console.print(f"   Priority: {job.priority}")
+        console.print(f"   Submitted: {job.submitted_at}")
         if getattr(job, 'started_at', None):
-            click.echo(f"   Started: {job.started_at}")
+            console.print(f"   Started: {job.started_at}")
         if getattr(job, 'completed_at', None):
-            click.echo(f"   Completed: {job.completed_at}")
+            console.print(f"   Completed: {job.completed_at}")
         if getattr(job, 'cost', None) is not None:
-            click.echo(f"   Cost: ${job.cost:.4f}")
+            console.print(f"   Cost: ${job.cost:.4f}")
         if getattr(job, 'tokens_used', None):
-            click.echo(f"   Tokens: {job.tokens_used:,}")
+            console.print(f"   Tokens: {job.tokens_used:,}")
 
-        click.echo("\nPrompt:")
-        click.echo(f"   {job.prompt}")
+        console.print("\nPrompt:")
+        console.print(f"   {job.prompt}")
 
         if job.status is JobStatus.COMPLETED:
-            click.echo(f"\nView result: deepr research result {job.id[:8]}")
+            console.print(f"\nView result: deepr research result {job.id[:8]}")
         elif job.status is JobStatus.PROCESSING:
-            click.echo("\nJob is still processing...")
+            console.print("\nJob is still processing...")
         elif job.status is JobStatus.FAILED and getattr(job, 'last_error', None):
-            click.echo(f"\nError: {job.last_error}")
+            console.print(f"\nError: {job.last_error}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 @research.command()
@@ -211,42 +211,43 @@ def result(job_id: str):
 
         job, response = asyncio.run(get_result())
         if not job:
-            click.echo(f"\n{CROSS} Job not found: {job_id}", err=True)
+            print_error(f"Job not found: {job_id}")
             raise click.Abort()
 
         if not response:
-            click.echo(f"\n{CROSS} Result not available yet", err=True)
-            click.echo(f"Status: {job.status.name}")
-            click.echo(f"\nCheck status: deepr research status {job_id[:8]}")
+            print_error("Result not available yet")
+            console.print(f"Status: {job.status.name}")
+            console.print(f"\nCheck status: deepr research status {job_id[:8]}")
             raise click.Abort()
 
-        click.echo(f"\n{CHECK} Research Report:\n")
+        print_success("Research Report:")
+        console.print()
         if getattr(response, "output", None):
             for block in response.output:
                 if block.get("type") == "message":
                     for content in block.get("content", []):
                         text = content.get("text", "")
                         if text:
-                            click.echo(text)
+                            console.print(text)
                     if content := block.get("content"):
                         anns = next((c.get("annotations", []) for c in content if "annotations" in c), [])
                         if anns:
-                            click.echo(f"\n\nCitations ({len(anns)}):")
+                            console.print(f"\n\nCitations ({len(anns)}):")
                             for i, ann in enumerate(anns, 1):
-                                click.echo(f"   [{i}] {ann.get('title', 'Untitled')}")
+                                console.print(f"   [{i}] {ann.get('title', 'Untitled')}")
                                 if ann.get('url'):
-                                    click.echo(f"       {ann['url']}")
+                                    console.print(f"       {ann['url']}")
 
         if getattr(response, "usage", None):
             u = response.usage
-            click.echo("\n\nUsage:")
-            if hasattr(u, "input_tokens"):  click.echo(f"   Input tokens: {u.input_tokens:,}")
-            if hasattr(u, "output_tokens"): click.echo(f"   Output tokens: {u.output_tokens:,}")
-            if hasattr(u, "total_tokens"):  click.echo(f"   Total tokens: {u.total_tokens:,}")
-            if hasattr(u, "cost"):          click.echo(f"   Cost: ${u.cost:.4f}")
+            console.print("\n\nUsage:")
+            if hasattr(u, "input_tokens"):  console.print(f"   Input tokens: {u.input_tokens:,}")
+            if hasattr(u, "output_tokens"): console.print(f"   Output tokens: {u.output_tokens:,}")
+            if hasattr(u, "total_tokens"):  console.print(f"   Total tokens: {u.total_tokens:,}")
+            if hasattr(u, "cost"):          console.print(f"   Cost: ${u.cost:.4f}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 @research.command()
@@ -284,37 +285,37 @@ def cancel(job_id: str, yes: bool):
 
         job, error = asyncio.run(cancel_job())
         if error:
-            click.echo(f"\n{CROSS} {error}", err=True)
+            print_error(error)
             raise click.Abort()
 
-        click.echo("\nJob Details:")
-        click.echo(f"   ID: {job.id}")
-        click.echo(f"   Status: {job.status.name}")
-        click.echo(f"   Prompt: {job.prompt[:80]}{'...' if len(job.prompt) > 80 else ''}")
+        console.print("\nJob Details:")
+        console.print(f"   ID: {job.id}")
+        console.print(f"   Status: {job.status.name}")
+        console.print(f"   Prompt: {job.prompt[:80]}{'...' if len(job.prompt) > 80 else ''}")
         if job.provider_job_id:
-            click.echo(f"   Provider Job ID: {job.provider_job_id}")
+            console.print(f"   Provider Job ID: {job.provider_job_id}")
 
         if not yes and not click.confirm("\nCancel this job?"):
-            click.echo(f"\n{CROSS} Cancelled")
+            print_warning("Cancelled")
             return
 
-        click.echo(f"\n{CHECK} Cancelling job...")
+        print_success("Cancelling job...")
 
         async def do_cancel():
             if job.provider_job_id:
                 try:
                     await provider.cancel_job(job.provider_job_id)
-                    click.echo(f"{CHECK} Cancelled at provider")
+                    console.print("[success]Cancelled at provider[/success]")
                 except Exception as e:
-                    click.echo(f"   Warning: Could not cancel at provider: {e}")
+                    console.print(f"   Warning: Could not cancel at provider: {e}")
             await queue.update_status(job_id=job.id, status=JobStatus.FAILED, error="Cancelled by user")
 
         import asyncio as _asyncio
         _asyncio.run(do_cancel())
-        click.echo(f"\n{CHECK} Job cancelled successfully!")
+        print_success("Job cancelled successfully!")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 @research.command()
@@ -364,29 +365,30 @@ def wait(job_id: str, timeout: int):
 
         job, response = asyncio.run(wait_for_completion())
         if not job:
-            click.echo(f"\n{CROSS} {response}", err=True)
+            print_error(response)
             raise click.Abort()
         if response == "Job failed":
-            click.echo(f"\n{CROSS} Job failed")
+            print_error("Job failed")
             if getattr(job, "last_error", None):
-                click.echo(f"Error: {job.last_error}")
+                console.print(f"Error: {job.last_error}")
             raise click.Abort()
         if not response:
-            click.echo(f"\n{CROSS} Result not available", err=True)
+            print_error("Result not available")
             raise click.Abort()
 
-        click.echo(f"\n{CHECK} Job completed!\n")
+        print_success("Job completed!")
+        console.print()
         if getattr(response, "output", None):
             for block in response.output:
                 if block.get("type") == "message":
                     for content in block.get("content", []):
                         text = content.get("text", "")
                         if text:
-                            click.echo(text)
+                            console.print(text)
         if getattr(response, "usage", None):
             u = response.usage
-            click.echo(f"\n\nCost: ${getattr(u, 'cost', 0.0):.4f} | Tokens: {getattr(u, 'total_tokens', 0):,}")
+            console.print(f"\n\nCost: ${getattr(u, 'cost', 0.0):.4f} | Tokens: {getattr(u, 'total_tokens', 0):,}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()

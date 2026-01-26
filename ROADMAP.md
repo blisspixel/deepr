@@ -29,7 +29,7 @@ Deepr uses a hybrid approach optimizing for both **quality** and **cost**:
 
 **Cost Optimization**: Using fast models for 80% of operations reduces total costs by ~90% with comparable quality for those use cases.
 
-📖 **See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md)** for detailed strategy.
+See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed strategy.
 
 ---
 
@@ -51,12 +51,12 @@ Deepr standardizes four types of knowledge artifacts, each with file naming conv
 ### Learning Cycle
 
 ```
-1. NEWS (Daily)          → What's changing?
-2. DOCS (As needed)      → What are the fundamentals?
-3. RESEARCH (Deep dive)  → How does it work? Trade-offs?
-4. TEAM (Strategic)      → Should we adopt it? What are risks?
-5. EXPERT (Synthesis)    → Feed all artifacts to expert for Q&A
-6. Back to NEWS          → Stay current
+1. NEWS (Daily)          - What's changing?
+2. DOCS (As needed)      - What are the fundamentals?
+3. RESEARCH (Deep dive)  - How does it work? Trade-offs?
+4. TEAM (Strategic)      - Should we adopt it? What are risks?
+5. EXPERT (Synthesis)    - Feed all artifacts to expert for Q&A
+6. Back to NEWS          - Stay current
 ```
 
 **Example learning Kubernetes**:
@@ -67,7 +67,7 @@ Deepr standardizes four types of knowledge artifacts, each with file naming conv
 
 **Total**: ~$0.51 for complete learning package
 
-📖 **See [docs/LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md)** for comprehensive guide.
+See [docs/LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md) for comprehensive guide.
 
 ---
 
@@ -120,7 +120,7 @@ The innovation: Research team workflow that adapts based on findings.
 
 Traditional approach: Plan everything upfront, execute all at once, hope it's comprehensive.
 
-Deepr's approach: **Plan → Execute → Review → Plan next phase**
+Deepr's approach: **Plan - Execute - Review - Plan next phase**
 
 How it works:
 - GPT-5 plans Phase 1 (foundation research)
@@ -301,7 +301,7 @@ Additional needed:
 Provider landscape for Deep Research:
 - **OpenAI**: **ONLY provider with turnkey Deep Research API**
   - Models: o3-deep-research, o4-mini-deep-research
-  - Submit query → get comprehensive report (asynchronous)
+  - Submit query - get comprehensive report (asynchronous)
   - Our primary execution engine
 
 - **Azure OpenAI**: Enterprise version with Bing Search integration
@@ -350,15 +350,15 @@ Research finding (from our own dogfooding):
 - Intelligent multi-phase planning with context chaining
 - Smart mix of documentation + analysis tasks
 - Doc reuse to minimize cost
-- Adaptive workflows (Plan → Execute → Review → Replan)
+- Adaptive workflows (Plan - Execute - Review - Replan)
 - Dream team dynamics (diverse cognitive perspectives)
 - All via simple CLI (no complex orchestration needed)
 
 **Future Vision:**
 When other providers launch Deep Research APIs, Deepr will intelligently route:
-- Quick documentation → o4-mini (fast, cheap)
-- Deep analysis → o3 or competitor equivalent
-- Planning → GPT-5 or Claude Extended Thinking
+- Quick documentation - o4-mini (fast, cheap)
+- Deep analysis - o3 or competitor equivalent
+- Planning - GPT-5 or Claude Extended Thinking
 - Auto-fallback if provider unavailable
 
 Testing:
@@ -367,9 +367,11 @@ Testing:
 - Measure cost savings from reusing docs
 - Use Deepr itself to research optimal strategies
 
-## Future: Toward Agentic Level 5
+## Toward Agentic Level 5 (Aspirational)
 
-**Vision:** Transform Deepr from an adaptive planning system (Level 3) into a fully autonomous, self-improving meta-researcher (Level 5).
+**Vision:** Transform Deepr from an adaptive planning system into a self-improving meta-researcher.
+
+**Important caveat:** This is aspirational. We're building toward these capabilities incrementally. The framework below describes where we want to go, not where we are today.
 
 **Agentic Levels Framework:**
 
@@ -377,11 +379,23 @@ Testing:
 |-------|-------------|--------------|
 | 1 | **Reactive Execution** - Single-turn, no planning | Exceeded |
 | 2 | **Procedural Automation** - Scripted sequences | Exceeded |
-| 3 | **Adaptive Planning** - Plans and adjusts based on feedback | **Current (v2.1)** |
-| 4 | **Reflective Optimization** - Learns from outcomes, self-tunes | **Target (v2.2-2.4)** |
-| 5 | **Autonomous Meta-Researcher** - Self-directing, goal-defining | **Future (v3.0+)** |
+| 3 | **Adaptive Planning** - Plans and adjusts based on feedback | **Implemented (v2.1)** |
+| 4 | **Reflective Optimization** - Learns from outcomes, self-tunes | **Partial (v2.5)** |
+| 5 | **Autonomous Meta-Researcher** - Self-directing, goal-defining | **Aspirational** |
 
-**Level 5 Requirements (the closed cognitive loop):**
+**What's Actually Implemented (v2.5 - Expert Consciousness):**
+
+The expert system now has foundational "Level 4-ish" capabilities:
+- Belief formation: Experts synthesize documents into beliefs with confidence levels
+- Gap awareness: Experts track what they don't know (knowledge gaps with priority)
+- Continuous learning: Re-synthesis triggers after research conversations
+- Manual learning: `deepr expert learn` adds knowledge on demand
+- Gap filling: `deepr expert fill-gaps` proactively researches gaps
+- Export/import: Package expert consciousness for sharing
+
+This is early-stage. Unit tests pass (62 new tests). Initial real-world testing shows experts form beliefs and speak from synthesized understanding. But this hasn't been battle-tested at scale. We're not claiming Level 5 - we're building toward it.
+
+**What Level 5 Would Actually Require (not yet implemented):**
 
 1. **Perceive** - Detect research needs and quality gaps automatically
 2. **Plan** - Generate optimal research strategies without templates
@@ -389,23 +403,29 @@ Testing:
 4. **Evaluate** - Score outcomes, detect shallow/incorrect research
 5. **Update Self** - Improve planning heuristics based on results
 
+**Honest Assessment:**
+- We have pieces of this (gap detection, autonomous research triggers)
+- We don't have the full closed loop yet
+- The "consciousness" metaphor is useful but don't take it too literally
+- This is research-grade software, not production-ready enterprise tooling
+
 **Roadmap Alignment:**
 
-- **v2.2-2.3: Foundation for Level 4**
-  - Observability by design (understand what the system does)
-  - Autonomous routing and context discovery (reduce manual work)
-  - Human oversight when needed (trust-building)
+- **v2.5 (Current):** Expert consciousness foundation
+  - Belief formation and gap tracking (done)
+  - Continuous learning triggers (done)
+  - Manual learning and gap filling commands (done)
+  - Export/import for portability (done)
 
-- **v2.4: Emerging Level 4**
-  - Lightweight memory (learn from past research)
-  - Basic verification (detect quality issues)
-  - Performance benchmarking (measure what works)
+- **v2.6-2.7:** Strengthen Level 4
+  - Visible thinking (show expert reasoning process)
+  - Better memory (conversation history, user profiles)
+  - Quality scoring (confidence calibration)
 
-- **v3.0+: Achieve Level 5**
-  - Continuous evaluation loop (self-assessment)
-  - Self-optimizing planner (autonomous strategy improvement)
-  - Advanced verification (self-correcting research)
-  - Full cognitive autonomy (human sets goals, system handles everything else)
+- **v3.0+:** Approach Level 5
+  - Self-correcting research (detect and fix errors)
+  - Cross-expert knowledge sharing
+  - Autonomous goal refinement
 
 **Critical Principle: Quality Over Automation**
 
@@ -414,23 +434,17 @@ Testing:
 - Transparent by default, autonomous where proven
 - Human judgment for quality, machine execution for scale
 
-**Strategic Shift:** Previous roadmap emphasized adding providers and features. This refined roadmap builds toward Level 5:
-1. **Observability** - Make reasoning visible and understandable (trust foundation)
-2. **Autonomy** - Context discovery, provider routing, metadata tracking (reduce manual work)
-3. **Learning** - Benchmarking, scoring, feedback loops (reflective optimization)
-4. **Meta-intelligence** - Self-improving strategies, goal-driven research (Level 5)
-
 **Priorities:**
-- v2.2: Transparent automation + observability (Level 3 → Level 4 foundation)
-- v2.3: Cognitive diversity made visible (trust through transparency)
-- v2.4: Memory + verification basics (emerging Level 4)
-- v3.0+: Continuous learning + meta-research (achieve Level 5)
+- v2.5: Expert consciousness foundation (current)
+- v2.6: Visible thinking + memory improvements
+- v2.7: Quality scoring + verification
+- v3.0+: Approach Level 5 capabilities
 
 **v2.2: Intelligence Layer - Transparent Automation**
 
-Focus: Fix broken UX → Clean interface → Expose via MCP → Add observability → Optimize
+Focus: Fix broken UX - Clean interface - Expose via MCP - Add observability - Optimize
 
-**Build Order Philosophy:** Foundation → Interface → Infrastructure → Observability → Optimization
+**Build Order Philosophy:** Foundation - Interface - Infrastructure - Observability - Optimization
 
 ---
 
@@ -634,8 +648,8 @@ This architecture explores key concepts in building intelligent systems: autonom
 
 The self-improvement loop is the core innovation:
 ```
-Query → Gap detection → Autonomous research → Knowledge integration →
-Better responses → Meta-cognitive update → Improved future performance
+Query - Gap detection - Autonomous research - Knowledge integration -
+Better responses - Meta-cognitive update - Improved future performance
 ```
 
 This closed-loop design means experts evolve based on actual use, not just initial configuration. Each conversation potentially makes the expert more capable.
@@ -896,15 +910,13 @@ while conversation_active:
 
 ### Implementation Phases
 
-**Phase 1a: Expert Management** [DONE] DONE
+**Phase 1a: Expert Management** [DONE]
 - Expert profile storage
 - Create/list/info/delete commands
 - Vector store integration
 - Beginner's mind system message
 
-**Phase 1b: Self-Directed Learning Curriculum**
-
-**COMPLETED:**
+**Phase 1b: Self-Directed Learning Curriculum** [DONE]
 - GPT-5 curriculum generation (Responses API with GPT-5)
 - Deep research job submission (o4-mini-deep-research)
 - Budget estimation shown upfront (per-topic + total)
@@ -916,6 +928,36 @@ while conversation_active:
 - Jobs complete (4-20 min each, $0.10-0.30 per job)
 - Polling for completion implemented
 - Results saved to expert's documents folder
+
+**Phase 1c: Autonomous Learning System** [DONE] (2026-01-26)
+
+Implemented the "consciousness" layer that makes experts self-improving:
+
+1. **Continuous Learning Trigger** - Expert re-synthesizes after research conversations
+   - Tracks conversation and research counts in chat session
+   - Triggers synthesis after threshold (default: 10 research conversations)
+   - Uses existing KnowledgeSynthesizer for incremental updates
+   - 12 unit tests in `tests/unit/test_experts/test_continuous_learning.py`
+
+2. **Gap Filling Command** - `deepr expert fill-gaps <name>`
+   - Loads worldview and sorts knowledge gaps by priority
+   - Researches top N gaps using existing research engine
+   - Re-synthesizes consciousness after filling
+   - 11 unit tests in `tests/unit/test_experts/test_fill_gaps.py`
+
+3. **Manual Learning Command** - `deepr expert learn <name> <topic>`
+   - Supports research mode (topic) and file upload mode (--files)
+   - Can do both simultaneously
+   - Re-synthesizes by default (--no-synthesize to skip)
+   - 17 unit tests in `tests/unit/test_experts/test_learn_command.py`
+
+4. **Export/Import Commands** - `deepr expert export/import`
+   - Created `deepr/experts/corpus.py` with CorpusManifest dataclass
+   - Export packages: documents, worldview.json, worldview.md, metadata.json, README.md
+   - Import creates new expert with same consciousness
+   - 22 unit tests in `tests/unit/test_experts/test_corpus.py`
+
+**Status:** 62 unit tests passing. Initial real-world testing shows experts form beliefs and speak from synthesized understanding. This is early-stage - more extensive testing needed.
 
 **LEARNING LOOP - FIXED (2025-11-12):**
 
@@ -1065,9 +1107,9 @@ The following phases transform experts from static RAG systems into elite-tier a
    - Context window limits
 
 3. **Fallback Logic**
-   - If primary model unavailable → select fallback
-   - If query exceeds context window → chunk or upgrade to gemini-3-pro
-   - If budget exhausted → downgrade to free models or refuse
+   - If primary model unavailable - select fallback
+   - If query exceeds context window - chunk or upgrade to gemini-3-pro
+   - If budget exhausted - downgrade to free models or refuse
 
 **Implementation:**
 ```python
@@ -1208,7 +1250,7 @@ Expert: Based on my research, here are the key differences...
 
 **Goal:** Replace linear reasoning with cyclic, self-correcting reasoning that can backtrack, branch, and synthesize.
 
-**Problem:** Current chat is linear (query → search → answer). Can't handle:
+**Problem:** Current chat is linear (query - search - answer). Can't handle:
 - Multi-step reasoning requiring intermediate results
 - Backtracking when initial approach fails
 - Parallel exploration of multiple hypotheses
@@ -1287,17 +1329,17 @@ class ReasoningGraph:
 ```
 Query: "Should I use Azure OpenAI or OpenAI API?"
 
-understand_query → route_by_complexity(complex)
-  ↓
-decompose_query → [cost_comparison, compliance_comparison, features_comparison]
-  ↓
-research_subquery (parallel) → 3 research jobs in parallel
-  ↓
-verify_claims → detect contradictions (Azure pricing changed since last research)
-  ↓
-self_correct → re-research pricing
-  ↓
-synthesize → final answer with high confidence
+understand_query -- route_by_complexity(complex)
+  |
+decompose_query -- [cost_comparison, compliance_comparison, features_comparison]
+  |
+research_subquery (parallel) -- 3 research jobs in parallel
+  |
+verify_claims -- detect contradictions (Azure pricing changed since last research)
+  |
+self_correct -- re-research pricing
+  |
+synthesize -- final answer with high confidence
 ```
 
 **Components:**
@@ -1557,7 +1599,7 @@ class GraphRAG:
 
 **Knowledge Graph Construction:**
 - **From documents:** Extract entities and relationships using GPT-5
-- **From conversations:** User mentions "X is better than Y for Z" → create relationship
+- **From conversations:** User mentions "X is better than Y for Z" - create relationship
 - **From research:** Research findings become nodes and edges
 - **Manual curation:** User can add/edit graph via CLI or UI
 
@@ -1610,7 +1652,7 @@ class KnowledgeGraphBuilder:
 
 **Success Metrics:**
 - Retrieval quality improves 20-30% on "how/why" questions
-- Can answer multi-hop reasoning (A → B → C traversal)
+- Can answer multi-hop reasoning (A - B - C traversal)
 - Graph relationships enable better "X vs Y" comparisons
 - Knowledge becomes more navigable and discoverable
 
@@ -1630,7 +1672,7 @@ class KnowledgeGraphBuilder:
 
 Traditional RAG systems:
 - Static documents in vector store
-- Query → retrieve → answer
+- Query - retrieve - answer
 - Never changes, never grows
 - No awareness of knowledge gaps
 
@@ -1645,7 +1687,7 @@ Digital consciousness (what we're building):
 
 **Current Status:**
 - Conversation memory: DONE (saved to conversations/)
-- Knowledge base auto-update: IN PROGRESS (research → permanent learning)
+- Knowledge base auto-update: IN PROGRESS (research - permanent learning)
 - Agentic research triggering: DONE (expert recognizes gaps, chooses research depth)
 - Meta-cognitive tracking: TODO (track confidence levels, knowledge gaps)
 - Temporal knowledge graph: TODO (track learning timeline, detect contradictions)
@@ -1776,6 +1818,48 @@ knowledge/
 
 **Solution: Multi-Layer Budget Controls**
 
+**Status: IMPLEMENTED (2026-01-26)**
+
+The cost safety system is now fully implemented with defensive controls that prevent runaway costs while allowing legitimate high-budget operations with confirmation.
+
+### Core Safety Manager (deepr/experts/cost_safety.py)
+
+**Hard Limits (Cannot Be Overridden):**
+- Per Operation: $10 maximum
+- Per Day: $50 maximum
+- Per Month: $500 maximum
+
+**Configurable Limits (Defaults):**
+- Per Operation: $5
+- Per Day: $25
+- Per Month: $200
+
+**Features:**
+- Session-level cost tracking with alerts at 50%, 80%, 95%
+- Circuit breaker for repeated failures (auto-pause after 3 consecutive failures)
+- Audit logging of all cost-incurring operations
+- Graceful pause/resume for daily/monthly limits
+
+### Pause/Resume for Long-Running Processes
+
+When learning or curriculum execution hits daily/monthly limits, the system:
+1. Saves progress to `data/experts/<name>/knowledge/learning_progress.json`
+2. Shows clear message about when to resume
+3. Allows easy resume with `deepr expert learn "<name>" --resume`
+
+```bash
+# If daily limit hit during learning:
+PAUSED - Daily/Monthly Limit Reached
+Daily spending limit reached. Your progress has been saved.
+Resume tomorrow when the daily limit resets.
+
+Progress so far: 8 topics completed
+Remaining: 7 topics
+
+Your progress has been saved. To resume:
+  deepr expert learn "Azure Architect" --resume
+```
+
 ### 1. Expert Creation Budget
 ```bash
 deepr expert make "Azure Architect" -f docs/*.md --learn --budget 5.00
@@ -1834,7 +1918,7 @@ deepr expert set-learning-budget "Azure Architect" --monthly 10.00
 ### 4. Emergency Controls
 ```bash
 deepr expert pause "Azure Architect"   # Stop all autonomous activity
-deepr expert resume "Azure Architect"  # Resume
+deepr expert resume "Azure Architect"  # Resume from saved progress
 deepr expert reset-budget "Azure Architect"  # Reset monthly counter
 deepr expert usage "Azure Architect"   # Show cost breakdown
 ```
@@ -1854,6 +1938,13 @@ expert_budgets:
 [WARNING]  Session budget 90% consumed ($2.70 / $3.00). 1-2 more research topics remaining.
 [BLOCKED] Monthly learning budget exhausted ($10.00 / $10.00). Expert paused until next month.
 ```
+
+### 6. CLI Budget Validation (deepr/cli/validation.py)
+
+The CLI validates budget inputs before operations:
+- Warns for budgets > $10
+- Requires confirmation for budgets > $25
+- Shows daily/monthly spending status with `/status` command in expert chat
 
 ---
 
@@ -1960,18 +2051,18 @@ deepr_agentic_research(goal: str, sources: list, files: list) -> {
 ```
 # Agent working on competitive analysis
 Agent: "I need deep research on competitor X's strategy"
-→ Calls deepr_research()
-→ Gets job_id, continues other work
-→ Periodically checks status
-→ When complete, retrieves comprehensive report
-→ Uses report to inform recommendations
+- Calls deepr_research()
+- Gets job_id, continues other work
+- Periodically checks status
+- When complete, retrieves comprehensive report
+- Uses report to inform recommendations
 
 # Agent with urgent question
 Agent: "Quick - what's the latest on regulation Y?"
-→ Calls deepr_research(prompt="...", sources=["official sources"])
-→ Polls status every 2 minutes
-→ Gets result in ~5-10 minutes
-→ Responds to user with cited findings
+- Calls deepr_research(prompt="...", sources=["official sources"])
+- Polls status every 2 minutes
+- Gets result in ~5-10 minutes
+- Responds to user with cited findings
 ```
 
 **Implementation:**
@@ -2463,17 +2554,17 @@ Previous roadmap focused on horizontal expansion:
 - More features (templates, exports, UI improvements)
 - More infrastructure (monitoring, deployment)
 
-**New roadmap trajectory: Agentic Level 3 → Level 5**
+**New roadmap trajectory: Agentic Level 3 to Level 5**
 
 | Version | Agentic Level | Focus |
 |---------|---------------|-------|
 | v2.1 (current) | **Level 3** | Adaptive planning with feedback |
-| v2.2-2.3 | **Level 3 → 4** | Transparent automation + observability |
+| v2.2-2.3 | **Level 3 to 4** | Transparent automation + observability |
 | v2.4 | **Level 4** | Reflective optimization (memory, verification) |
 | v3.0+ | **Level 5** | Autonomous meta-researcher |
 
 **Current State (v2.1 - Level 3):**
-- Adaptive research workflow (plan → execute → review → replan) [DONE]
+- Adaptive research workflow (plan - execute - review - replan) [DONE]
 - Context chaining with smart task mix [DONE]
 - Dream team dynamic assembly [DONE]
 - GPT-5 planner adjusts based on findings [DONE]
@@ -2486,7 +2577,7 @@ Previous roadmap focused on horizontal expansion:
   - Autonomous provider routing (benchmarking, auto-fallback)
   - Human oversight when needed (checkpoints, intervention)
   - **Web Scraping Skill** (Primary source acquisition) [DONE]
-    - Adaptive fetching: HTTP → Selenium → PDF render → Archive.org
+    - Adaptive fetching: HTTP - Selenium - PDF render - Archive.org
     - LLM-guided link filtering (not blind crawling)
     - Content synthesis with provenance tracking
     - Use cases: company research, documentation harvesting, competitive intel
@@ -2496,10 +2587,10 @@ Previous roadmap focused on horizontal expansion:
   - **Strategic Company Research** (Foundational use case) [TODO]
     - One-command company analysis: `deepr research company <company_name> <website>`
     - 15-section comprehensive report (products, financials, strategy, board concerns, recommendations)
-    - Orchestrates: Web scraping → Google search → Section research → Quality grading → Final report
+    - Orchestrates: Web scraping - Google search - Section research - Quality grading - Final report
     - Proven prompts from existing Automated Company Researcher (47 prompts)
     - Output: Professional markdown report ready for M&A, competitive intel, strategic planning
-    - Expert integration: Company research → Expert knowledge base (e.g., "Anthropic Expert")
+    - Expert integration: Company research - Expert knowledge base (e.g., "Anthropic Expert")
     - Use cases: Due diligence, competitive analysis, market research, strategic planning
     - Status: Design complete, prompts ready, orchestration needed
   - **Grok as Cost-Effective Default** (Reduce GPT-5 dependency) [IN PROGRESS]
@@ -2541,7 +2632,7 @@ Previous roadmap focused on horizontal expansion:
 - Continuous evaluation loop (self-assessment of quality)
 - Self-optimizing planner (learns from outcomes)
 - Advanced verification (self-correction)
-- Full cognitive autonomy (closed loop: perceive → plan → act → evaluate → update)
+- Full cognitive autonomy (closed loop: perceive - plan - act - evaluate - update)
 
 **Core Principles:**
 
@@ -2563,11 +2654,11 @@ Previous roadmap focused on horizontal expansion:
    - Users trust what they understand
    - Observability first, then automation
    - Make reasoning visible before making decisions autonomous
-   - Extreme quality bias now → enables trust for autonomy later
+   - Extreme quality bias now - enables trust for autonomy later
 
 4. **Incremental Autonomy**
-   - Level 3 → 4: Build trust through transparency (v2.2-2.4)
-   - Level 4 → 5: Enable self-improvement (v3.0+)
+   - Level 3 to 4: Build trust through transparency (v2.2-2.4)
+   - Level 4 to 5: Enable self-improvement (v3.0+)
    - Never sacrifice quality for automation
    - Prove quality preservation before enabling smart reuse (v3.0+, if ever)
 

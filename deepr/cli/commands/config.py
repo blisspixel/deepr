@@ -1,7 +1,7 @@
 """Config commands - validate and manage configuration."""
 
 import click
-from deepr.branding import print_section_header, CHECK, CROSS
+from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
 
 
 @click.group()
@@ -35,42 +35,42 @@ def validate():
         errors = []
         warnings = []
 
-        click.echo("\nChecking configuration...\n")
+        console.print("\nChecking configuration...\n")
 
         # Load config
         try:
             config = load_config()
-            click.echo(f"{CHECK} Configuration file loaded")
+            console.print("[success]Configuration file loaded[/success]")
         except Exception as e:
-            click.echo(f"{CROSS} Failed to load configuration: {e}", err=True)
+            print_error(f"Failed to load configuration: {e}")
             raise click.Abort()
 
         # Check API key
         api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
         if not api_key:
             errors.append("OPENAI_API_KEY not set")
-            click.echo(f"{CROSS} OpenAI API key not found")
+            console.print("[error]OpenAI API key not found[/error]")
         elif api_key.startswith("sk-"):
-            click.echo(f"{CHECK} OpenAI API key found")
+            console.print("[success]OpenAI API key found[/success]")
         else:
             warnings.append("API key format looks unusual")
-            click.echo(f"   Warning: API key format looks unusual")
+            console.print("   Warning: API key format looks unusual")
 
         # Check directories
         queue_db_path = config.get("queue_db_path", "queue/research_queue.db")
         queue_dir = Path(queue_db_path).parent
         if not queue_dir.exists():
             warnings.append(f"Queue directory does not exist: {queue_dir}")
-            click.echo(f"   Warning: Queue directory will be created: {queue_dir}")
+            console.print(f"   Warning: Queue directory will be created: {queue_dir}")
         else:
-            click.echo(f"{CHECK} Queue directory exists: {queue_dir}")
+            console.print(f"[success]Queue directory exists: {queue_dir}[/success]")
 
         results_dir = config.get("results_dir", "data/reports")
         if not Path(results_dir).exists():
             warnings.append(f"Results directory does not exist: {results_dir}")
-            click.echo(f"   Warning: Results directory will be created: {results_dir}")
+            console.print(f"   Warning: Results directory will be created: {results_dir}")
         else:
-            click.echo(f"{CHECK} Results directory exists: {results_dir}")
+            console.print(f"[success]Results directory exists: {results_dir}[/success]")
 
         # Check budget limits
         max_per_job = config.get("max_cost_per_job")
@@ -78,14 +78,14 @@ def validate():
         max_per_month = config.get("max_cost_per_month")
 
         if max_per_job:
-            click.echo(f"{CHECK} Budget limit per job: ${max_per_job:.2f}")
+            console.print(f"[success]Budget limit per job: ${max_per_job:.2f}[/success]")
         else:
             warnings.append("No per-job budget limit set")
-            click.echo(f"   Warning: No per-job budget limit set")
+            console.print(f"   Warning: No per-job budget limit set")
 
         # Test API connectivity
         if api_key:
-            click.echo(f"\nTesting API connectivity...")
+            console.print(f"\nTesting API connectivity...")
             try:
                 from deepr.providers import create_provider
                 provider = create_provider(
@@ -94,7 +94,7 @@ def validate():
                 )
 
                 # Simple API test - just check we can create the client
-                click.echo(f"{CHECK} Provider initialized successfully")
+                console.print("[success]Provider initialized successfully[/success]")
 
                 # Try to list vector stores to verify connectivity
                 async def test_api():
@@ -106,35 +106,35 @@ def validate():
 
                 result = asyncio.run(test_api())
                 if result is True:
-                    click.echo(f"{CHECK} API connectivity verified")
+                    console.print("[success]API connectivity verified[/success]")
                 else:
                     errors.append(f"API connection failed: {result}")
-                    click.echo(f"{CROSS} API connection failed: {result}")
+                    console.print(f"[error]API connection failed: {result}[/error]")
 
             except Exception as e:
                 errors.append(f"Provider initialization failed: {e}")
-                click.echo(f"{CROSS} Provider initialization failed: {e}")
+                console.print(f"[error]Provider initialization failed: {e}[/error]")
 
         # Summary
-        click.echo(f"\n{'='*60}")
+        console.print(f"\n{'='*60}")
         if errors:
-            click.echo(f"\n{CROSS} Validation failed with {len(errors)} error(s):\n")
+            print_error(f"Validation failed with {len(errors)} error(s):")
             for error in errors:
-                click.echo(f"   {CROSS} {error}")
+                console.print(f"   [error]{error}[/error]")
         else:
-            click.echo(f"\n{CHECK} Configuration is valid!")
+            print_success("Configuration is valid!")
 
         if warnings:
-            click.echo(f"\nWarnings ({len(warnings)}):")
+            console.print(f"\nWarnings ({len(warnings)}):")
             for warning in warnings:
-                click.echo(f"   - {warning}")
+                console.print(f"   - {warning}")
 
         if errors:
             raise click.Abort()
 
     except Exception as e:
         if not isinstance(e, click.Abort):
-            click.echo(f"\n{CROSS} Error: {e}", err=True)
+            print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -169,16 +169,16 @@ def show():
         click.echo(f"   Results: {config.get('results_dir', 'data/reports')}")
 
         click.echo("\nBudget Limits:")
-        click.echo(f"   Per Job: ${config.get('max_cost_per_job', 10.0):.2f}")
-        click.echo(f"   Per Day: ${config.get('max_cost_per_day', 100.0):.2f}")
-        click.echo(f"   Per Month: ${config.get('max_cost_per_month', 1000.0):.2f}")
+        click.echo(f"   Per Job: ${config.get('max_cost_per_job', 5.0):.2f}")
+        click.echo(f"   Per Day: ${config.get('max_daily_cost', 25.0):.2f}")
+        click.echo(f"   Per Month: ${config.get('max_monthly_cost', 200.0):.2f}")
 
-        click.echo("\nDefaults:")
-        click.echo(f"   Model: {config.get('default_model', 'o4-mini-deep-research')}")
-        click.echo(f"   Auto-refine: {os.getenv('DEEPR_AUTO_REFINE', 'false')}")
+        console.print("\nDefaults:")
+        console.print(f"   Model: {config.get('default_model', 'o4-mini-deep-research')}")
+        console.print(f"   Auto-refine: {os.getenv('DEEPR_AUTO_REFINE', 'false')}")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()
 
 
@@ -201,7 +201,7 @@ def set(key: str, value: str):
         env_file = Path(".env")
 
         if not env_file.exists():
-            click.echo(f"{CROSS} .env file not found. Copy .env.example first.", err=True)
+            print_error(".env file not found. Copy .env.example first.")
             raise click.Abort()
 
         # Read current content
@@ -223,9 +223,9 @@ def set(key: str, value: str):
         # Write back
         env_file.write_text("\n".join(new_lines) + "\n")
 
-        click.echo(f"\n{CHECK} Configuration updated: {key}={value}")
-        click.echo(f"\nRestart any running services for changes to take effect")
+        print_success(f"Configuration updated: {key}={value}")
+        console.print(f"\nRestart any running services for changes to take effect")
 
     except Exception as e:
-        click.echo(f"\n{CROSS} Error: {e}", err=True)
+        print_error(f"Error: {e}")
         raise click.Abort()

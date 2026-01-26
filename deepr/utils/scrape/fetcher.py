@@ -3,6 +3,7 @@
 import time
 import logging
 import random
+import asyncio
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 import requests
@@ -12,6 +13,14 @@ from .config import ScrapeConfig, USER_AGENTS
 from deepr.utils.security import validate_url, SSRFError
 
 logger = logging.getLogger(__name__)
+
+# Check if Playwright is available
+PLAYWRIGHT_AVAILABLE = False
+try:
+    from playwright.async_api import async_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    pass
 
 
 class FetchResult:
@@ -52,11 +61,10 @@ class ContentFetcher:
         Fetch content from URL using adaptive strategy chain.
 
         Tries strategies in order until content is retrieved:
-        1. HTTP (fast, works 70% of time)
-        2. Selenium headless (handles JS, works 25%)
-        3. Selenium visible (bypass detection, works 4%)
-        4. PDF render (nuclear option, works 1%)
-        5. Archive.org (historical fallback)
+        1. Playwright (handles JS, modern sites - preferred)
+        2. HTTP (fast fallback for simple sites)
+        3. Selenium headless (legacy fallback)
+        4. Archive.org (historical fallback)
 
         Args:
             url: URL to fetch
@@ -88,15 +96,22 @@ class ContentFetcher:
                 error="Blocked by robots.txt",
             )
 
-        # Try strategies in order
+        # Try strategies in order - Playwright first for modern JS sites
         strategies = []
+        
+        # Playwright is preferred for JS-heavy sites (most modern sites)
+        if PLAYWRIGHT_AVAILABLE:
+            strategies.append(("Playwright", self._fetch_playwright))
+        
+        # HTTP as fast fallback for simple sites
         if self.config.try_http:
             strategies.append(("HTTP", self._fetch_http))
+        
+        # Selenium as legacy fallback
         if self.config.try_selenium:
             strategies.append(("Selenium Headless", self._fetch_selenium_headless))
-            strategies.append(("Selenium Visible", self._fetch_selenium_visible))
-        if self.config.try_pdf:
-            strategies.append(("PDF Render", self._fetch_pdf_render))
+        
+        # Archive.org as last resort
         if self.config.try_archive:
             strategies.append(("Archive.org", self._fetch_archive))
 
@@ -194,6 +209,82 @@ class ContentFetcher:
             success=False,
             error="HTTP request failed after retries",
         )
+
+    def _fetch_playwright(self, url: str) -> FetchResult:
+        """
+        Fetch using Playwright (handles JS-heavy modern sites).
+
+        Args:
+            url: URL to fetch
+
+        Returns:
+            FetchResult
+        """
+        if not PLAYWRIGHT_AVAILABLE:
+            return FetchResult(
+                url=url,
+                success=False,
+                error="Playwright not installed (pip install playwright && playwright install chromium)",
+            )
+
+        # Check if we're already in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - use nest_asyncio or thread pool
+            # Thread pool is safer and doesn't require extra dependencies
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(self._fetch_playwright_sync_wrapper, url)
+                return future.result(timeout=self.config.timeout + 30)
+        except RuntimeError:
+            # No running loop - safe to use asyncio.run()
+            return asyncio.run(self._fetch_playwright_async(url))
+    
+    def _fetch_playwright_sync_wrapper(self, url: str) -> FetchResult:
+        """Wrapper to run async playwright in a new event loop (for thread pool)."""
+        return asyncio.run(self._fetch_playwright_async(url))
+
+    async def _fetch_playwright_async(self, url: str) -> FetchResult:
+        """Async Playwright fetch implementation."""
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                context = await browser.new_context(
+                    user_agent=self.config.user_agent or random.choice(USER_AGENTS),
+                    viewport={"width": 1920, "height": 1080},
+                )
+                page = await context.new_page()
+                
+                try:
+                    # Navigate - use domcontentloaded instead of networkidle
+                    # (networkidle can timeout on sites with continuous activity)
+                    await page.goto(url, wait_until="domcontentloaded", timeout=self.config.timeout * 1000)
+                    
+                    # Wait for body to be present
+                    await page.wait_for_selector("body", timeout=5000)
+                    
+                    # Small delay for JS to render
+                    await page.wait_for_timeout(2000)
+                    
+                    # Get the rendered HTML
+                    html = await page.content()
+                    
+                    return FetchResult(
+                        url=url,
+                        html=html,
+                        content=html,
+                        strategy="Playwright",
+                        success=True,
+                    )
+                finally:
+                    await browser.close()
+                    
+        except Exception as e:
+            return FetchResult(
+                url=url,
+                success=False,
+                error=f"Playwright failed: {e}",
+            )
 
     def _fetch_selenium_headless(self, url: str) -> FetchResult:
         """

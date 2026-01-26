@@ -190,3 +190,58 @@ def history(limit: int):
 
     total = sum(e["cost"] for e in history)
     click.echo(f"Total all-time spending: ${total:.2f}")
+
+
+@budget.command()
+def safety():
+    """Show cost safety status and limits.
+    
+    Displays the defensive cost controls that prevent runaway spending
+    from autonomous expert operations.
+    """
+    from deepr.cli.colors import console, print_key_value
+    from deepr.experts.cost_safety import get_cost_safety_manager, CostSafetyManager
+    
+    print_section_header("Cost Safety Status")
+    
+    manager = get_cost_safety_manager()
+    summary = manager.get_spending_summary()
+    
+    # Daily spending
+    console.print("[bold]Daily Spending[/bold]")
+    daily = summary["daily"]
+    percent_color = "green" if daily["percent_used"] < 50 else "yellow" if daily["percent_used"] < 80 else "red"
+    print_key_value("Spent", f"${daily['spent']:.2f} / ${daily['limit']:.2f}")
+    print_key_value("Remaining", f"${daily['remaining']:.2f}")
+    console.print(f"  [dim]Usage:[/dim] [{percent_color}]{daily['percent_used']:.0f}%[/{percent_color}]")
+    console.print()
+    
+    # Monthly spending
+    console.print("[bold]Monthly Spending[/bold]")
+    monthly = summary["monthly"]
+    percent_color = "green" if monthly["percent_used"] < 50 else "yellow" if monthly["percent_used"] < 80 else "red"
+    print_key_value("Spent", f"${monthly['spent']:.2f} / ${monthly['limit']:.2f}")
+    print_key_value("Remaining", f"${monthly['remaining']:.2f}")
+    console.print(f"  [dim]Usage:[/dim] [{percent_color}]{monthly['percent_used']:.0f}%[/{percent_color}]")
+    console.print()
+    
+    # Limits
+    console.print("[bold]Configured Limits[/bold]")
+    limits = summary["limits"]
+    print_key_value("Per Operation", f"${limits['per_operation']:.2f}")
+    print_key_value("Daily", f"${limits['daily']:.2f}")
+    print_key_value("Monthly", f"${limits['monthly']:.2f}")
+    console.print()
+    
+    # Hard limits (cannot be overridden)
+    console.print("[bold]Hard Safety Limits[/bold] [dim](cannot be overridden)[/dim]")
+    print_key_value("Max Per Operation", f"${CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:.2f}")
+    print_key_value("Max Daily", f"${CostSafetyManager.ABSOLUTE_MAX_DAILY:.2f}")
+    print_key_value("Max Monthly", f"${CostSafetyManager.ABSOLUTE_MAX_MONTHLY:.2f}")
+    console.print()
+    
+    # Active sessions
+    if summary["active_sessions"] > 0:
+        console.print(f"[bold]Active Sessions:[/bold] {summary['active_sessions']}")
+    
+    console.print("[dim]These limits protect against runaway costs from autonomous agents.[/dim]")

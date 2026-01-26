@@ -189,9 +189,9 @@ class ExpertConfig(BaseModel):
     deep_research_topics: int = Field(default=5, description="Number of deep research (campaign) topics")
     quick_research_topics: int = Field(default=10, description="Number of quick research (focus) topics")
 
-    # Cost Estimates (averages)
-    deep_research_cost: float = Field(default=2.0, description="Average cost per deep research topic")
-    quick_research_cost: float = Field(default=0.25, description="Average cost per quick research topic")
+    # Cost Estimates (averages based on actual model costs)
+    deep_research_cost: float = Field(default=1.0, description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research)")
+    quick_research_cost: float = Field(default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4-fast)")
 
     # Synthesis
     auto_synthesis: bool = Field(default=True, description="Automatically synthesize knowledge after learning")
@@ -431,7 +431,7 @@ def load_config() -> Dict:
         "queue_db_path": "queue/research_queue.db",
         "storage": config.storage.type,
         "results_dir": config.storage.local_path,
-        "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "10.0")),
-        "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "100.0")),
-        "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "1000.0")),
+        "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "5.0")),
+        "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0")),
+        "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0")),
     }

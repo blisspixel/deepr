@@ -8,6 +8,7 @@ from typing import Optional, List
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.queue.base import ResearchJob, JobStatus
 from deepr.cli.commands.budget import check_budget_approval
+from deepr.cli.colors import console, print_success, print_error, print_warning
 from datetime import datetime
 import json
 import uuid
@@ -165,11 +166,11 @@ async def _run_single(
                         resolved = resolve_file_path(file_pattern, must_exist=True)
                         resolved_files.append(resolved)
                 except FileNotFoundError as e:
-                    click.echo(f"  [X] {e}")
+                    print_error(f"{e}")
                     continue
 
             if not resolved_files:
-                click.echo("  [!] No files to upload")
+                print_warning("No files to upload")
             else:
                 click.echo(f"  Found {len(resolved_files)} file(s) to upload\n")
 
@@ -184,13 +185,13 @@ async def _run_single(
                 try:
                     file_id = await provider_instance.upload_document(str(file_path))
                     uploaded_files.append(file_id)
-                    click.echo(f"    [OK] Uploaded")
+                    console.print(f"    [success]Uploaded[/success]")
                 except Exception as e:
-                    click.echo(f"    [X] Failed: {e}")
+                    console.print(f"    [error]Failed: {e}[/error]")
                 click.echo()
 
             if not uploaded_files:
-                click.echo("  [!] No files uploaded successfully")
+                print_warning("No files uploaded successfully")
             else:
                 # For OpenAI, create vector store
                 if provider in ["openai", "azure"]:
@@ -202,7 +203,7 @@ async def _run_single(
                             file_ids=uploaded_files
                         )
                         vector_store_id = vs.id
-                        click.echo(f"  [OK] Vector store created: {vs.id[:20]}...")
+                        console.print(f"  [success]Vector store created: {vs.id[:20]}...[/success]")
 
                         # Wait for ingestion with progress feedback
                         click.echo("  Waiting for file processing...")
@@ -213,27 +214,27 @@ async def _run_single(
                             poll_interval=2.0
                         )
                         if ready:
-                            click.echo("  [OK] Files ready for research")
+                            console.print("  [success]Files ready for research[/success]")
                         else:
-                            click.echo("  [!] Files still processing (continuing anyway)")
+                            print_warning("Files still processing (continuing anyway)")
                             click.echo("  Note: Research may proceed with partial file indexing")
                     except Exception as e:
-                        click.echo(f"  [X] Vector store creation failed: {e}")
+                        console.print(f"  [error]Vector store creation failed: {e}[/error]")
                         vector_store_id = None
 
                 # For Gemini, files are referenced directly
                 elif provider == "gemini":
                     document_ids = uploaded_files
-                    click.echo(f"  [OK] {len(uploaded_files)} files ready for research")
+                    console.print(f"  [success]{len(uploaded_files)} files ready for research[/success]")
 
                 # For Grok/xAI, document collections not yet implemented
                 elif provider in ["grok", "xai"]:
-                    click.echo("  [!] xAI file upload not yet fully supported")
+                    print_warning("xAI file upload not yet fully supported")
                     click.echo("  Files uploaded but may not be used in research")
                     document_ids = uploaded_files
 
         except Exception as e:
-            click.echo(f"  [X] File upload failed: {e}")
+            print_error(f"File upload failed: {e}")
             click.echo("  Continuing without files...")
 
     # Submit job to queue
@@ -302,7 +303,7 @@ async def _run_single(
 
         # Validate tools for deep research models
         if provider in ["openai", "azure"] and "deep-research" in model and not tools:
-            click.echo(f"\n[X] Error: {model} requires at least one tool (web search, code interpreter, or file upload)")
+            print_error(f"{model} requires at least one tool (web search, code interpreter, or file upload)")
             click.echo("    Remove --no-web and/or --no-code flags, or add --upload for file search")
             return
 
