@@ -16,7 +16,7 @@ import json
 
 # Add parent directory to path to import deepr modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from deepr.branding import print_banner, print_section_header, CHECK, CROSS
+from deepr.cli.colors import console, print_header, print_success, print_error, print_warning
 
 
 def create_directories():
@@ -28,11 +28,11 @@ def create_directories():
         "uploads",
     ]
 
-    print("Creating local directories...")
+    console.print("[bold]Creating local directories...[/bold]")
     for dir_name in dirs:
         path = Path(dir_name)
         path.mkdir(exist_ok=True)
-        print(f"  {CHECK} {dir_name}/")
+        console.print(f"  [dim]{dir_name}/[/dim]")
 
 
 def initialize_database():
@@ -79,7 +79,7 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-    print(f"  {CHECK} Database initialized at {db_path}")
+    console.print(f"  [success]Database initialized at {db_path}[/success]")
 
 
 def create_config_template():
@@ -110,9 +110,9 @@ DEEPR_QUEUE=local
 # DEEPR_QUEUE=azure
 
 # Cost Limits (USD)
-DEEPR_MAX_COST_PER_JOB=10.00
-DEEPR_MAX_COST_PER_DAY=100.00
-DEEPR_MAX_COST_PER_MONTH=1000.00
+DEEPR_MAX_COST_PER_JOB=5.00
+DEEPR_MAX_COST_PER_DAY=25.00
+DEEPR_MAX_COST_PER_MONTH=200.00
 
 # Model Configuration
 DEEPR_DEFAULT_MODEL=o4-mini-deep-research
@@ -127,12 +127,12 @@ DEEPR_UPLOADS_DIR=uploads
     if not env_example_path.exists():
         print("Creating .env.example template...")
         env_example_path.write_text(template)
-        print(f"  {CHECK} .env.example created")
+        console.print("  [success].env.example created[/success]")
 
     if not env_path.exists():
         print("Creating .env file...")
         env_path.write_text(template)
-        print(f"  {CHECK} .env created (EDIT THIS FILE with your API keys)")
+        console.print("  [success].env created[/success] [dim](EDIT THIS FILE with your API keys)[/dim]")
     else:
         print("  .env already exists (not overwriting)")
 
@@ -154,20 +154,19 @@ def check_dependencies():
             missing.append(package)
 
     if missing:
-        print("\nMissing required packages:")
+        console.print("\n[warning]Missing required packages:[/warning]")
         for pkg in missing:
-            print(f"  {CROSS} {pkg}")
-        print("\nInstall with: pip install -r requirements.txt")
+            console.print(f"  [error]{pkg}[/error]")
+        console.print("\n[dim]Install with: pip install -r requirements.txt[/dim]")
         return False
 
-    print(f"\n{CHECK} All required packages installed")
+    print_success("All required packages installed")
     return True
 
 
 def main():
     """Run local setup."""
-    print_banner("setup")
-    print()
+    print_header("Deepr Local Setup")
 
     try:
         create_directories()
@@ -182,23 +181,21 @@ def main():
         deps_ok = check_dependencies()
 
         print()
-        print("="*60)
         if deps_ok:
-            print(f"{CHECK} Local setup complete!")
-            print()
-            print("Next steps:")
-            print("  1. Edit .env with your API keys")
-            print("  2. Run: python -m deepr.cli status")
-            print("  3. Run: python -m deepr.cli research 'your prompt'")
+            print_success("Local setup complete!")
+            console.print()
+            console.print("[bold]Next steps:[/bold]")
+            console.print("  [dim]1.[/dim] Edit .env with your API keys")
+            console.print("  [dim]2.[/dim] Run: python -m deepr.cli status")
+            console.print("  [dim]3.[/dim] Run: python -m deepr.cli research 'your prompt'")
         else:
-            print(f"{CROSS} Setup incomplete - install missing dependencies")
+            print_error("Setup incomplete - install missing dependencies")
             return 1
-        print("="*60)
 
         return 0
 
     except Exception as e:
-        print(f"\n{CROSS} Setup failed: {e}")
+        print_error(f"Setup failed: {e}")
         return 1
 
 

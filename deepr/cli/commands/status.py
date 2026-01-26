@@ -5,7 +5,7 @@ import asyncio
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.queue.base import JobStatus
 from pathlib import Path
-from deepr.cli.colors import print_deprecation
+from deepr.cli.colors import print_deprecation, console
 
 
 @click.command()
@@ -368,21 +368,21 @@ async def _list_jobs(status_filter: str, limit: int):
     click.echo(f"Found {len(jobs)} job(s)\n")
 
     for job in jobs:
-        # Status indicator (ASCII-safe for Windows)
+        # Status indicator with colors (no symbols)
         status_display = job.status.value.upper()
         if job.status == JobStatus.COMPLETED:
-            status_icon = "[OK]"
+            status_style = "success"
         elif job.status == JobStatus.FAILED:
-            status_icon = "[X]"
+            status_style = "error"
         elif job.status == JobStatus.PROCESSING:
-            status_icon = "[>>]"
+            status_style = "info"
         else:
-            status_icon = "[ ]"
+            status_style = "dim"
 
         # Truncate prompt
         prompt_preview = job.prompt[:60] + "..." if len(job.prompt) > 60 else job.prompt
 
-        click.echo(f"{status_icon} {status_display:12} | {job.id[:12]}... | {job.model}")
+        console.print(f"[{status_style}]{status_display:12}[/{status_style}] | {job.id[:12]}... | {job.model}")
         click.echo(f"  {prompt_preview}")
 
         if job.cost:

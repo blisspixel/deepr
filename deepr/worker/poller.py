@@ -58,9 +58,9 @@ class JobPoller:
         )
 
         self.cost_controller = CostController(
-            max_cost_per_job=float(config.get("max_cost_per_job", 10.0)),
-            max_daily_cost=float(config.get("max_daily_cost", 100.0)),
-            max_monthly_cost=float(config.get("max_monthly_cost", 1000.0)),
+            max_cost_per_job=float(config.get("max_cost_per_job", 5.0)),
+            max_daily_cost=float(config.get("max_daily_cost", 25.0)),
+            max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
         )
 
     async def start(self):
