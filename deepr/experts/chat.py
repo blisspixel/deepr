@@ -241,10 +241,13 @@ Budget remaining: ${budget_remaining:.2f}
         )
 
     async def _search_knowledge_base(self, query: str, top_k: int = 5) -> List[Dict]:
-        """Search the expert's local knowledge base using embeddings similarity.
+        """Search the expert's local knowledge base using cached embeddings.
 
-        Since Chat Completions API can't access Assistants vector stores directly,
-        we search the local markdown files using OpenAI embeddings.
+        Uses EmbeddingCache for efficient similarity search. Documents are
+        embedded once on first access, then searched locally without API calls.
+        
+        Performance: O(1) API call for query embedding + O(n) local similarity
+        vs. O(n) API calls in the original implementation.
 
         Args:
             query: Search query
@@ -254,8 +257,13 @@ Budget remaining: ${budget_remaining:.2f}
             List of documents with id, content, and score
         """
         try:
-            from pathlib import Path
-            import numpy as np
+            from deepr.experts.embedding_cache import EmbeddingCache
+
+            # Get or create embedding cache for this expert
+            if not hasattr(self, '_embedding_cache'):
+                self._embedding_cache = EmbeddingCache(self.expert.name)
+            
+            cache = self._embedding_cache
 
             # Get documents directory
             store = ExpertStore()
@@ -269,49 +277,37 @@ Budget remaining: ${budget_remaining:.2f}
             if not md_files:
                 return []
 
-            # Generate embedding for query
-            query_response = await self.client.embeddings.create(
-                model="text-embedding-3-small",
-                input=query
-            )
-            query_embedding = np.array(query_response.data[0].embedding)
-
-            # Calculate similarity for each document
-            results = []
+            # Load documents and check which need embedding
+            documents = []
             for filepath in md_files:
                 try:
-                    # Read file content
                     with open(filepath, 'r', encoding='utf-8') as f:
                         content = f.read()
-
-                    # Generate embedding for document
-                    doc_response = await self.client.embeddings.create(
-                        model="text-embedding-3-small",
-                        input=content[:8000]  # Limit to 8K chars for embedding
-                    )
-                    doc_embedding = np.array(doc_response.data[0].embedding)
-
-                    # Calculate cosine similarity
-                    similarity = np.dot(query_embedding, doc_embedding) / (
-                        np.linalg.norm(query_embedding) * np.linalg.norm(doc_embedding)
-                    )
-
-                    results.append({
-                        "id": filepath.name,
+                    documents.append({
                         "filename": filepath.name,
-                        "content": content[:2000],  # First 2000 chars
-                        "score": float(similarity),
+                        "content": content,
                         "filepath": str(filepath)
                     })
-
-                except Exception as e:
+                except Exception:
                     continue
 
-            # Sort by similarity score (highest first)
-            results.sort(key=lambda x: x['score'], reverse=True)
+            # Add any uncached documents to cache (only embeds new ones)
+            uncached = cache.get_uncached_documents(documents)
+            if uncached:
+                added = await cache.add_documents(uncached, self.client)
+                if added > 0:
+                    # Log cache update
+                    self.reasoning_trace.append({
+                        "step": "embedding_cache_update",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "documents_added": added,
+                        "total_cached": len(cache.index)
+                    })
 
-            # Return top_k results
-            return results[:top_k]
+            # Search using cached embeddings (single API call for query)
+            results = await cache.search(query, self.client, top_k=top_k)
+
+            return results
 
         except Exception as e:
             print(f"Error searching knowledge base: {e}")

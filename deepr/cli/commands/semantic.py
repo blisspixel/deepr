@@ -320,6 +320,186 @@ def team(
     asyncio.run(_run_team(question, model, perspectives, yes))
 
 
+@click.command()
+@click.argument("claim")
+@click.option("--sources", "-s", help="Restrict verification to specific domains/sources")
+@click.option("--provider", "-p", help="Provider (default: xai for fast verification)")
+@click.option("--model", "-m", help="Model (default: grok-4-fast)")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed reasoning")
+def check(claim: str, sources: Optional[str], provider: Optional[str], 
+          model: Optional[str], verbose: bool):
+    """Verify a factual claim quickly.
+    
+    Uses a cost-effective model to verify facts and return a structured
+    verdict with confidence level and supporting evidence.
+    
+    Examples:
+        deepr check "Does Fabric support private endpoints?"
+        deepr check "GPT-5 was released in 2025" --sources official
+        deepr check "Python 3.12 added pattern matching" -v
+    """
+    from deepr.cli.validation import validate_prompt
+    
+    # Validate claim
+    try:
+        claim = validate_prompt(claim, max_length=5000, field_name="claim")
+    except click.UsageError as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+    
+    asyncio.run(_verify_fact(claim, sources, provider, model, verbose))
+
+
+async def _verify_fact(
+    claim: str,
+    sources: Optional[str],
+    provider: Optional[str],
+    model: Optional[str],
+    verbose: bool
+):
+    """Verify a fact with schema validation and structured output."""
+    import json
+    import re
+    from pydantic import BaseModel, Field, field_validator
+    from typing import List
+    from deepr.config import AppConfig
+    from deepr.providers import create_provider
+    from deepr.core.evidence import Evidence, FactCheckResult, Verdict
+    from deepr.cli.progress import ProgressFeedback
+    
+    # Pydantic model for LLM response validation
+    class FactCheckResponse(BaseModel):
+        verdict: str = Field(..., pattern="^(TRUE|FALSE|UNCERTAIN)$")
+        confidence: float = Field(..., ge=0.0, le=1.0)
+        scope: str = Field(default="general")
+        evidence: List[dict] = Field(default_factory=list)
+        reasoning: str = ""
+        
+        @field_validator('confidence', mode='before')
+        @classmethod
+        def normalize_confidence(cls, v):
+            if isinstance(v, str):
+                v = float(v.rstrip('%')) / 100 if '%' in v else float(v)
+            return max(0.0, min(1.0, v))
+    
+    config = AppConfig.from_env()
+    progress = ProgressFeedback()
+    
+    # Get provider and model for fact checking
+    if not provider or not model:
+        task_provider, task_model = config.provider.get_model_for_task("fact_check")
+        provider = provider or task_provider
+        model = model or task_model
+    
+    console.print(f"[dim]Using {provider}/{model} for verification[/dim]")
+    
+    # Get API key based on provider
+    if provider == "xai":
+        import os
+        api_key = os.getenv("XAI_API_KEY")
+    elif provider == "openai":
+        api_key = config.provider.openai_api_key
+    elif provider == "gemini":
+        import os
+        api_key = os.getenv("GEMINI_API_KEY")
+    else:
+        api_key = config.provider.openai_api_key
+    
+    provider_instance = create_provider(provider, api_key=api_key)
+    
+    # Build verification prompt
+    scope_instruction = f"\nScope: Only check against {sources}" if sources else ""
+    
+    prompt = f'''Verify this claim and respond with valid JSON only.
+
+Claim: {claim}{scope_instruction}
+
+Required JSON format:
+{{
+    "verdict": "TRUE" | "FALSE" | "UNCERTAIN",
+    "confidence": 0.0-1.0,
+    "scope": "what sources/domain was checked",
+    "evidence": [
+        {{"source": "source name", "quote": "relevant quote", "supports_claim": true/false}}
+    ],
+    "reasoning": "brief explanation of verdict"
+}}
+
+Rules:
+- TRUE: Claim is supported by evidence
+- FALSE: Claim is contradicted by evidence  
+- UNCERTAIN: Insufficient or conflicting evidence
+- Confidence should reflect certainty (0.5 = uncertain, 0.9+ = very confident)
+'''
+    
+    # Execute with retry loop
+    max_attempts = 3
+    last_error = None
+    result = None
+    
+    with progress.operation("Verifying claim..."):
+        for attempt in range(max_attempts):
+            try:
+                response = await provider_instance.complete(prompt, model=model)
+                content = response.choices[0].message.content
+                
+                # Extract JSON from response
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if not json_match:
+                    raise ValueError("No JSON found in response")
+                
+                data = json.loads(json_match.group())
+                validated = FactCheckResponse(**data)
+                
+                # Convert to canonical result
+                evidence_list = [
+                    Evidence.create(
+                        source=e.get("source", "unknown"),
+                        quote=e.get("quote", ""),
+                        supports=[claim] if e.get("supports_claim") else [],
+                        contradicts=[claim] if not e.get("supports_claim") else []
+                    )
+                    for e in validated.evidence
+                ]
+                
+                result = FactCheckResult(
+                    claim=claim,
+                    verdict=Verdict(validated.verdict),
+                    confidence=validated.confidence,
+                    scope=validated.scope,
+                    evidence=evidence_list,
+                    reasoning=validated.reasoning,
+                    cost=getattr(response, 'cost', 0.0) if hasattr(response, 'cost') else 0.0
+                )
+                break
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                last_error = e
+                if attempt < max_attempts - 1:
+                    prompt += f"\n\nPrevious response was invalid: {e}. Please provide valid JSON."
+    
+    # Handle failure
+    if result is None:
+        result = FactCheckResult(
+            claim=claim,
+            verdict=Verdict.UNCERTAIN,
+            confidence=0.0,
+            scope="verification_failed",
+            evidence=[],
+            reasoning=f"Schema validation failed after {max_attempts} attempts: {last_error}"
+        )
+        progress.phase_error("Verification failed")
+    else:
+        progress.phase_complete("Verification complete", cost=result.cost)
+    
+    # Display result
+    console.print()
+    console.print(result.to_cli_output())
+    
+    if verbose and result.reasoning:
+        console.print(f"\n[dim]Full reasoning: {result.reasoning}[/dim]")
+
+
 @click.group(invoke_without_command=True)
 @click.option('--list', '-l', is_flag=True, help='List all experts')
 @click.pass_context
