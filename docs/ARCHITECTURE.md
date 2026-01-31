@@ -155,10 +155,120 @@ To add new capabilities:
 
 ## Security
 
-- API keys stored in environment variables
-- No sensitive data in logs
-- Rate limiting on API endpoints
-- Input validation on all user inputs
+### Threat Model
+
+Deepr handles sensitive data (API keys, research content, expert knowledge) and makes external API calls. This section documents security considerations and mitigations.
+
+#### Assets to Protect
+
+1. **API Keys** - Provider credentials (OpenAI, xAI, Google, Anthropic)
+2. **Research Content** - User queries and research results
+3. **Expert Knowledge** - Synthesized beliefs and documents
+4. **Cost/Budget** - Prevent unauthorized spending
+
+#### Threat Categories
+
+| Threat | Risk | Mitigation |
+|--------|------|------------|
+| API key exposure | High | Environment variables only, never in code/logs |
+| Path traversal | Medium | Input validation, sandboxed file operations |
+| Prompt injection | Medium | System prompts are not user-modifiable |
+| Cost runaway | Medium | Session budgets, daily limits, circuit breakers |
+| Data exfiltration | Low | Local storage by default, no external telemetry |
+
+### Security Controls
+
+#### API Key Handling
+
+- Keys loaded from environment variables only
+- Never logged, even at DEBUG level
+- Not included in error messages
+- Validated on startup (fail fast)
+
+```python
+# Good
+api_key = os.getenv("OPENAI_API_KEY")
+
+# Bad - never do this
+api_key = "sk-..."  # Hardcoded
+logger.debug(f"Using key: {api_key}")  # Logged
+```
+
+#### Path Traversal Protection
+
+All file operations validate paths:
+
+```python
+# deepr/storage/local.py
+def _validate_path(self, path: Path) -> bool:
+    """Ensure path is within allowed directory."""
+    resolved = path.resolve()
+    return resolved.is_relative_to(self.base_dir)
+```
+
+User-provided paths are:
+- Resolved to absolute paths
+- Checked against allowed directories
+- Rejected if they escape the sandbox
+
+#### Input Validation
+
+User inputs are validated before use:
+
+- **Expert names**: Alphanumeric + hyphens only
+- **File paths**: Must be within workspace
+- **Queries**: Length limits, no control characters
+- **Budget values**: Positive numbers within limits
+
+#### Cost Safety
+
+Multiple layers prevent runaway costs:
+
+1. **Session budgets** - Per-chat spending limits
+2. **Daily limits** - Global daily spending cap
+3. **Circuit breakers** - Auto-disable after repeated failures
+4. **Confirmation prompts** - For expensive operations (>$0.10)
+
+See `deepr/experts/cost_safety.py` for implementation.
+
+#### Rate Limiting
+
+- API endpoints have request rate limits
+- Provider calls respect upstream rate limits
+- Exponential backoff on rate limit errors
+
+### Audit Logging
+
+Security-relevant events are logged:
+
+- API key validation (success/failure)
+- Cost threshold alerts
+- Research job submissions
+- Expert creation/deletion
+
+Logs do NOT contain:
+- API keys or tokens
+- Full research content
+- User credentials
+
+### Recommendations for Deployment
+
+1. **Use environment variables** for all secrets
+2. **Set budget limits** appropriate for your use case
+3. **Review logs** for unusual activity
+4. **Keep dependencies updated** for security patches
+5. **Use HTTPS** for web interface in production
+
+### Known Limitations
+
+- No authentication on local web interface (designed for local use)
+- No encryption at rest for local storage
+- API keys have full provider access (no scoping)
+
+For production deployments, consider:
+- Adding authentication layer
+- Encrypting sensitive data at rest
+- Using provider-specific API key scoping where available
 
 ## Monitoring
 

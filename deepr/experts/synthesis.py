@@ -3,9 +3,15 @@
 This module enables experts to actively process and internalize new knowledge,
 forming coherent worldviews and meta-awareness rather than just storing documents.
 
-The difference:
-- Level 1 (Retrieval): Expert searches documents when asked
-- Level 5 (Consciousness): Expert thinks about knowledge, forms beliefs, knows what it knows
+The goal is genuine expert behavior:
+- Form beliefs from evidence, not just retrieve documents
+- Know what you know AND what you don't know
+- Update beliefs when new evidence arrives
+- Speak from understanding, not search results
+
+Current implementation uses GPT-5 to synthesize documents into structured beliefs
+with confidence levels and evidence chains. Future work: temporal reasoning,
+contradiction detection, belief revision, and richer knowledge graphs.
 """
 
 from dataclasses import dataclass, field
@@ -17,7 +23,12 @@ import json
 
 @dataclass
 class Belief:
-    """A belief held by the expert with confidence and evidence."""
+    """A belief held by the expert with confidence and evidence.
+    
+    A belief is more than a fact - it's a position the expert holds
+    based on synthesized evidence, with explicit confidence and the
+    ability to be revised when contradicting evidence appears.
+    """
 
     topic: str
     statement: str
@@ -68,7 +79,13 @@ class KnowledgeGap:
 
 @dataclass
 class Worldview:
-    """Expert's synthesized understanding of their domain."""
+    """Expert's synthesized understanding of their domain.
+    
+    A worldview is the expert's coherent mental model - not just facts,
+    but how they relate, what's important, what's uncertain, and what
+    questions remain open. This enables experts to reason and advise
+    rather than just retrieve.
+    """
 
     expert_name: str
     domain: str

@@ -1,331 +1,459 @@
-"""Unit tests for the corpus module (export/import).
+"""Unit tests for the Corpus module - no API calls.
 
-Tests the Phase 4 implementation:
-- CorpusManifest dataclass
-- export_corpus function
-- import_corpus function
-- validate_corpus function
-- CLI commands
+Tests the expert consciousness export/import functionality including
+corpus manifest, validation, and file operations.
 """
 
 import pytest
+from datetime import datetime
+from pathlib import Path
 import json
 import tempfile
-from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from click.testing import CliRunner
-from datetime import datetime
+import shutil
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from deepr.experts.corpus import (
+    CorpusManifest,
+    export_corpus,
+    import_corpus,
+    validate_corpus,
+    _generate_readme
+)
 
 
 class TestCorpusManifest:
     """Test CorpusManifest dataclass."""
 
-    def test_manifest_creation(self):
-        """Test creating a manifest with default values."""
-        from deepr.experts.corpus import CorpusManifest
-        
-        manifest = CorpusManifest(name="test-corpus")
-        
+    def test_create_basic_manifest(self):
+        """Test creating a basic manifest."""
+        manifest = CorpusManifest(
+            name="test-corpus"
+        )
         assert manifest.name == "test-corpus"
         assert manifest.version == "1.0"
         assert manifest.document_count == 0
-        assert manifest.belief_count == 0
-        assert manifest.gap_count == 0
         assert manifest.files == []
 
-    def test_manifest_with_values(self):
-        """Test creating a manifest with custom values."""
-        from deepr.experts.corpus import CorpusManifest
-        
+    def test_create_full_manifest(self):
+        """Test creating a manifest with all fields."""
         manifest = CorpusManifest(
-            name="aws-expert",
-            source_expert="AWS Expert",
-            domain="Cloud Computing",
-            description="AWS architecture expert",
-            document_count=10,
-            belief_count=5,
-            gap_count=3,
+            name="full-corpus",
+            version="2.0",
+            source_expert="Test Expert",
+            domain="Testing",
+            description="A test corpus",
+            document_count=5,
+            belief_count=3,
+            gap_count=2,
             files=["doc1.md", "doc2.md"]
         )
-        
-        assert manifest.name == "aws-expert"
-        assert manifest.source_expert == "AWS Expert"
-        assert manifest.domain == "Cloud Computing"
-        assert manifest.document_count == 10
-        assert manifest.belief_count == 5
+        assert manifest.name == "full-corpus"
+        assert manifest.version == "2.0"
+        assert manifest.document_count == 5
         assert len(manifest.files) == 2
 
     def test_manifest_to_dict(self):
-        """Test converting manifest to dictionary."""
-        from deepr.experts.corpus import CorpusManifest
-        
+        """Test manifest serialization to dict."""
         manifest = CorpusManifest(
-            name="test",
-            document_count=5
+            name="serialize-test",
+            source_expert="Expert",
+            document_count=3
         )
-        
         data = manifest.to_dict()
-        
-        assert isinstance(data, dict)
-        assert data["name"] == "test"
-        assert data["document_count"] == 5
+        assert data["name"] == "serialize-test"
+        assert data["source_expert"] == "Expert"
+        assert data["document_count"] == 3
+        assert "created_at" in data
 
     def test_manifest_from_dict(self):
-        """Test creating manifest from dictionary."""
-        from deepr.experts.corpus import CorpusManifest
-        
+        """Test manifest deserialization from dict."""
         data = {
-            "name": "test",
+            "name": "restored-corpus",
             "version": "1.0",
-            "created_at": "2026-01-26T00:00:00",
-            "source_expert": "Test Expert",
-            "domain": "Testing",
-            "description": "Test description",
-            "document_count": 3,
-            "belief_count": 2,
-            "gap_count": 1,
+            "created_at": "2025-01-30T12:00:00",
+            "source_expert": "Restored Expert",
+            "domain": "Restoration",
+            "description": "Restored description",
+            "document_count": 10,
+            "belief_count": 5,
+            "gap_count": 2,
             "files": ["a.md", "b.md"]
         }
-        
         manifest = CorpusManifest.from_dict(data)
-        
-        assert manifest.name == "test"
-        assert manifest.document_count == 3
+        assert manifest.name == "restored-corpus"
+        assert manifest.document_count == 10
         assert len(manifest.files) == 2
 
-    def test_manifest_save_load(self):
-        """Test saving and loading manifest."""
-        from deepr.experts.corpus import CorpusManifest
-        
+    def test_manifest_save_and_load(self):
+        """Test manifest persistence to file."""
+        manifest = CorpusManifest(
+            name="persistent-corpus",
+            source_expert="Persistent Expert",
+            document_count=7
+        )
+
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "manifest.json"
-            
-            original = CorpusManifest(
-                name="test",
-                document_count=5,
-                files=["doc.md"]
-            )
-            original.save(path)
+            manifest.save(path)
             
             loaded = CorpusManifest.load(path)
-            
-            assert loaded.name == original.name
-            assert loaded.document_count == original.document_count
-            assert loaded.files == original.files
+            assert loaded.name == manifest.name
+            assert loaded.source_expert == manifest.source_expert
+            assert loaded.document_count == manifest.document_count
+
+    def test_manifest_roundtrip(self):
+        """Test manifest serialization roundtrip."""
+        original = CorpusManifest(
+            name="roundtrip-test",
+            version="1.5",
+            source_expert="Roundtrip Expert",
+            domain="Testing",
+            description="Testing roundtrip",
+            document_count=15,
+            belief_count=8,
+            gap_count=3,
+            files=["doc1.md", "doc2.md", "doc3.md"]
+        )
+        data = original.to_dict()
+        restored = CorpusManifest.from_dict(data)
+        
+        assert restored.name == original.name
+        assert restored.version == original.version
+        assert restored.document_count == original.document_count
+        assert restored.files == original.files
 
 
 class TestValidateCorpus:
     """Test corpus validation."""
 
+    def test_validate_valid_corpus(self):
+        """Test validating a valid corpus structure."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
+            
+            # Create valid structure
+            manifest = CorpusManifest(
+                name="valid-corpus",
+                document_count=1
+            )
+            manifest.save(corpus_dir / "manifest.json")
+            
+            docs_dir = corpus_dir / "documents"
+            docs_dir.mkdir()
+            (docs_dir / "test.md").write_text("# Test Document")
+            
+            (corpus_dir / "worldview.json").write_text("{}")
+            
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is True
+            assert len(result["errors"]) == 0
+            assert result["manifest"] is not None
+
     def test_validate_missing_manifest(self):
         """Test validation fails without manifest."""
-        from deepr.experts.corpus import validate_corpus
-        
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = validate_corpus(Path(tmpdir))
+            corpus_dir = Path(tmpdir)
             
-            assert not result["valid"]
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
             assert "manifest.json not found" in result["errors"]
 
-    def test_validate_missing_documents(self):
+    def test_validate_missing_documents_dir(self):
         """Test validation fails without documents directory."""
-        from deepr.experts.corpus import validate_corpus, CorpusManifest
-        
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
+            corpus_dir = Path(tmpdir)
             
-            # Create manifest
             manifest = CorpusManifest(name="test")
-            manifest.save(tmppath / "manifest.json")
+            manifest.save(corpus_dir / "manifest.json")
             
-            result = validate_corpus(tmppath)
-            
-            assert not result["valid"]
-            assert any("documents" in e for e in result["errors"])
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert "documents/ directory not found" in result["errors"]
 
-    def test_validate_valid_corpus(self):
-        """Test validation passes for valid corpus."""
-        from deepr.experts.corpus import validate_corpus, CorpusManifest
-        
+    def test_validate_empty_documents_dir(self):
+        """Test validation fails with empty documents directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
+            corpus_dir = Path(tmpdir)
             
-            # Create manifest
             manifest = CorpusManifest(name="test")
-            manifest.save(tmppath / "manifest.json")
+            manifest.save(corpus_dir / "manifest.json")
             
-            # Create documents directory with a file
-            docs_dir = tmppath / "documents"
+            docs_dir = corpus_dir / "documents"
+            docs_dir.mkdir()
+            
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert "No .md files in documents/ directory" in result["errors"]
+
+    def test_validate_missing_worldview(self):
+        """Test validation warns about missing worldview."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
+            
+            manifest = CorpusManifest(name="test")
+            manifest.save(corpus_dir / "manifest.json")
+            
+            docs_dir = corpus_dir / "documents"
             docs_dir.mkdir()
             (docs_dir / "test.md").write_text("# Test")
             
-            # Create worldview
-            (tmppath / "worldview.json").write_text("{}")
+            result = validate_corpus(corpus_dir)
+            # Should have warning about worldview
+            assert any("worldview.json not found" in e for e in result["errors"])
+
+    def test_validate_invalid_manifest_json(self):
+        """Test validation fails with invalid manifest JSON."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
             
-            result = validate_corpus(tmppath)
+            # Write invalid JSON
+            (corpus_dir / "manifest.json").write_text("not valid json")
             
-            assert result["valid"]
-            assert result["manifest"] is not None
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert any("Invalid manifest.json" in e for e in result["errors"])
 
 
-class TestExportCommandRegistration:
-    """Test export command registration."""
+class TestGenerateReadme:
+    """Test README generation."""
 
-    def test_export_command_exists(self):
-        """Verify export command is registered."""
-        from deepr.cli.commands.semantic import expert
+    def test_generate_readme_basic(self):
+        """Test generating basic README."""
+        profile = MagicMock()
+        profile.name = "Test Expert"
+        profile.domain = "Testing"
+        profile.description = "A test expert"
         
-        command_names = [cmd.name for cmd in expert.commands.values()]
-        assert "export" in command_names
-
-    def test_export_command_help(self):
-        """Verify export command has proper help."""
-        from deepr.cli.commands.semantic import expert
+        readme = _generate_readme(profile, None, 5)
         
-        runner = CliRunner()
-        result = runner.invoke(expert, ["export", "--help"])
+        assert "# Test Expert" in readme
+        assert "Testing" in readme
+        assert "Documents**: 5" in readme
+
+    def test_generate_readme_with_worldview(self):
+        """Test generating README with worldview."""
+        from deepr.experts.synthesis import Belief, KnowledgeGap, Worldview
         
-        assert result.exit_code == 0
-        assert "Export an expert's consciousness" in result.output
-        assert "--output" in result.output
-
-    def test_export_expert_not_found(self):
-        """Test export fails for nonexistent expert."""
-        from deepr.cli.commands.semantic import expert
+        profile = MagicMock()
+        profile.name = "Expert With Worldview"
+        profile.domain = "Knowledge"
+        profile.description = "Expert with beliefs"
         
-        runner = CliRunner()
-        with patch("deepr.experts.profile.ExpertStore") as mock_store:
-            mock_store.return_value.load.return_value = None
-            result = runner.invoke(expert, ["export", "Nonexistent", "-y"])
-        
-        assert "Expert not found" in result.output
-
-
-class TestImportCommandRegistration:
-    """Test import command registration."""
-
-    def test_import_command_exists(self):
-        """Verify import command is registered."""
-        from deepr.cli.commands.semantic import expert
-        
-        command_names = [cmd.name for cmd in expert.commands.values()]
-        assert "import" in command_names
-
-    def test_import_command_help(self):
-        """Verify import command has proper help."""
-        from deepr.cli.commands.semantic import expert
-        
-        runner = CliRunner()
-        result = runner.invoke(expert, ["import", "--help"])
-        
-        assert result.exit_code == 0
-        assert "Import a corpus" in result.output
-        assert "--corpus" in result.output
-
-    def test_import_requires_corpus(self):
-        """Test import requires --corpus option."""
-        from deepr.cli.commands.semantic import expert
-        
-        runner = CliRunner()
-        result = runner.invoke(expert, ["import", "New Expert"])
-        
-        assert result.exit_code != 0
-        assert "Missing option" in result.output or "required" in result.output.lower()
-
-
-class TestExportImportOptions:
-    """Test command options."""
-
-    def test_export_output_option(self):
-        """Test export --output option."""
-        from deepr.cli.commands.semantic import export_expert
-        
-        for param in export_expert.params:
-            if param.name == "output":
-                assert param.default == "."
-
-    def test_export_yes_flag(self):
-        """Test export -y flag."""
-        from deepr.cli.commands.semantic import export_expert
-        
-        for param in export_expert.params:
-            if param.name == "yes":
-                assert param.is_flag == True
-
-    def test_import_corpus_required(self):
-        """Test import --corpus is required."""
-        from deepr.cli.commands.semantic import import_expert
-        
-        for param in import_expert.params:
-            if param.name == "corpus":
-                assert param.required == True
-
-
-class TestCorpusStructure:
-    """Test corpus directory structure."""
-
-    def test_corpus_files_list(self):
-        """Test expected files in corpus."""
-        expected_files = [
-            "manifest.json",
-            "metadata.json",
-            "worldview.json",
-            "worldview.md",
-            "README.md",
-            "documents/"
-        ]
-        
-        # These are the files that should be created during export
-        for f in ["manifest.json", "metadata.json", "README.md"]:
-            assert f in expected_files
-
-    def test_manifest_tracks_files(self):
-        """Test manifest tracks all files."""
-        from deepr.experts.corpus import CorpusManifest
-        
-        manifest = CorpusManifest(
-            name="test",
-            files=[
-                "manifest.json",
-                "metadata.json",
-                "worldview.json",
-                "README.md",
-                "documents/doc1.md"
+        now = datetime.utcnow()
+        worldview = Worldview(
+            expert_name="Expert",
+            domain="Knowledge",
+            beliefs=[
+                Belief(
+                    topic="Testing",
+                    statement="Testing is important",
+                    confidence=0.95,
+                    evidence=["test.md"],
+                    formed_at=now,
+                    last_updated=now
+                )
+            ],
+            knowledge_gaps=[
+                KnowledgeGap(
+                    topic="Unknown Area",
+                    questions=["What is this?"],
+                    priority=4,
+                    identified_at=now
+                )
             ]
         )
         
-        assert len(manifest.files) == 5
-        assert "documents/doc1.md" in manifest.files
-
-
-class TestExportExamples:
-    """Test documented examples."""
-
-    def test_example_export_current_dir(self):
-        """Test example: deepr expert export 'AWS Expert'"""
-        from deepr.cli.commands.semantic import expert
+        readme = _generate_readme(profile, worldview, 3)
         
-        runner = CliRunner()
-        result = runner.invoke(expert, ["export", "--help"])
-        assert 'deepr expert export "AWS Expert"' in result.output
+        assert "Expert With Worldview" in readme
+        assert "Beliefs**: 1" in readme
+        assert "Knowledge Gaps**: 1" in readme
+        assert "Testing is important" in readme
+        assert "95%" in readme
+        assert "Unknown Area" in readme
 
-    def test_example_export_with_output(self):
-        """Test example: deepr expert export 'Expert' --output ./exports"""
-        from deepr.cli.commands.semantic import expert
+    def test_generate_readme_import_command(self):
+        """Test README includes import command."""
+        profile = MagicMock()
+        profile.name = "Import Test"
+        profile.domain = "Testing"
+        profile.description = ""
         
-        runner = CliRunner()
-        result = runner.invoke(expert, ["export", "--help"])
-        assert "--output" in result.output
-
-
-class TestImportExamples:
-    """Test documented import examples."""
-
-    def test_example_import_corpus(self):
-        """Test example: deepr expert import 'My Expert' --corpus ./corpus"""
-        from deepr.cli.commands.semantic import expert
+        readme = _generate_readme(profile, None, 1)
         
-        runner = CliRunner()
-        result = runner.invoke(expert, ["import", "--help"])
-        assert "--corpus" in result.output
-        assert "aws-expert" in result.output.lower() or "corpus" in result.output.lower()
+        assert "deepr expert import" in readme
+        assert "import-test" in readme  # lowercase, hyphenated
+
+
+class TestExportCorpus:
+    """Test corpus export functionality."""
+
+    @pytest.fixture
+    def mock_store(self):
+        """Create a mock ExpertStore."""
+        store = MagicMock()
+        return store
+
+    @pytest.mark.asyncio
+    async def test_export_nonexistent_expert(self, mock_store):
+        """Test export fails for nonexistent expert."""
+        mock_store.load.return_value = None
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with pytest.raises(ValueError, match="Expert not found"):
+                await export_corpus(
+                    expert_name="Nonexistent",
+                    output_dir=Path(tmpdir),
+                    store=mock_store
+                )
+
+    @pytest.mark.asyncio
+    async def test_export_creates_directory_structure(self, mock_store):
+        """Test export creates proper directory structure."""
+        # Setup mock profile
+        profile = MagicMock()
+        profile.name = "Export Test"
+        profile.description = "Test description"
+        profile.domain = "Testing"
+        profile.provider = "openai"
+        profile.model = "gpt-5"
+        profile.created_at = datetime.utcnow()
+        profile.total_documents = 2
+        profile.conversations = 5
+        profile.research_triggered = 1
+        profile.total_research_cost = 0.50
+        
+        mock_store.load.return_value = profile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create mock knowledge and docs directories
+            knowledge_dir = Path(tmpdir) / "knowledge"
+            docs_dir = Path(tmpdir) / "docs"
+            knowledge_dir.mkdir()
+            docs_dir.mkdir()
+            
+            # Create test documents
+            (docs_dir / "doc1.md").write_text("# Document 1")
+            (docs_dir / "doc2.md").write_text("# Document 2")
+            
+            mock_store.get_knowledge_dir.return_value = knowledge_dir
+            mock_store.get_documents_dir.return_value = docs_dir
+            
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            
+            manifest = await export_corpus(
+                expert_name="Export Test",
+                output_dir=output_dir,
+                store=mock_store
+            )
+            
+            # Check manifest
+            assert manifest.name == "export-test"
+            assert manifest.source_expert == "Export Test"
+            assert manifest.document_count == 2
+            
+            # Check directory structure
+            corpus_dir = output_dir / "export-test"
+            assert corpus_dir.exists()
+            assert (corpus_dir / "manifest.json").exists()
+            assert (corpus_dir / "metadata.json").exists()
+            assert (corpus_dir / "README.md").exists()
+            assert (corpus_dir / "documents").exists()
+            assert (corpus_dir / "documents" / "doc1.md").exists()
+
+
+class TestImportCorpus:
+    """Test corpus import functionality."""
+
+    @pytest.fixture
+    def mock_store(self):
+        """Create a mock ExpertStore."""
+        store = MagicMock()
+        store.load.return_value = None  # Expert doesn't exist
+        return store
+
+    @pytest.fixture
+    def mock_provider(self):
+        """Create a mock provider."""
+        provider = MagicMock()
+        provider.create_vector_store = AsyncMock(return_value=MagicMock(id="vs_123"))
+        provider.upload_document = AsyncMock(return_value="file_123")
+        provider.add_file_to_vector_store = AsyncMock()
+        provider.wait_for_vector_store = AsyncMock()
+        return provider
+
+    @pytest.mark.asyncio
+    async def test_import_invalid_corpus(self, mock_store, mock_provider):
+        """Test import fails for invalid corpus."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
+            # No manifest.json
+            
+            with pytest.raises(ValueError, match="Invalid corpus"):
+                await import_corpus(
+                    new_expert_name="New Expert",
+                    corpus_dir=corpus_dir,
+                    store=mock_store,
+                    provider=mock_provider
+                )
+
+    @pytest.mark.asyncio
+    async def test_import_existing_expert(self, mock_store, mock_provider):
+        """Test import fails if expert already exists."""
+        mock_store.load.return_value = MagicMock()  # Expert exists
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
+            manifest = CorpusManifest(name="test")
+            manifest.save(corpus_dir / "manifest.json")
+            
+            with pytest.raises(ValueError, match="Expert already exists"):
+                await import_corpus(
+                    new_expert_name="Existing Expert",
+                    corpus_dir=corpus_dir,
+                    store=mock_store,
+                    provider=mock_provider
+                )
+
+
+class TestCorpusEdgeCases:
+    """Test edge cases in corpus operations."""
+
+    def test_manifest_empty_files_list(self):
+        """Test manifest with empty files list."""
+        manifest = CorpusManifest(
+            name="empty-files",
+            files=[]
+        )
+        data = manifest.to_dict()
+        assert data["files"] == []
+        
+        restored = CorpusManifest.from_dict(data)
+        assert restored.files == []
+
+    def test_manifest_special_characters_in_name(self):
+        """Test manifest with special characters in name."""
+        manifest = CorpusManifest(
+            name="test-corpus_v2.0",
+            source_expert="Test Expert (v2)"
+        )
+        data = manifest.to_dict()
+        restored = CorpusManifest.from_dict(data)
+        assert restored.name == "test-corpus_v2.0"
+
+    def test_validate_corpus_nonexistent_dir(self):
+        """Test validation of nonexistent directory."""
+        result = validate_corpus(Path("/nonexistent/path"))
+        assert result["valid"] is False
+
+    def test_manifest_created_at_auto_generated(self):
+        """Test that created_at is auto-generated."""
+        manifest = CorpusManifest(name="auto-date")
+        assert manifest.created_at is not None
+        # Should be a valid ISO format string
+        datetime.fromisoformat(manifest.created_at)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
