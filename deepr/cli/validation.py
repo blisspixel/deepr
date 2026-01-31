@@ -10,6 +10,7 @@ from deepr.utils.security import (
     validate_prompt_length,
     InvalidInputError
 )
+from deepr.utils.paths import PathHandler, resolve_file_path
 
 # Allowed file extensions for uploads
 ALLOWED_DOCUMENT_EXTENSIONS = [
@@ -32,6 +33,12 @@ def validate_upload_files(
     """
     Validate uploaded files for security and size constraints.
 
+    Uses PathHandler for cross-platform path normalization, supporting:
+    - Windows paths (C:\\Users\\..., C:/Users/...)
+    - Unix paths (~/Documents/...)
+    - Paths with spaces (properly quoted or not)
+    - Environment variables
+
     Args:
         files: Tuple of file paths from CLI
         max_size_mb: Maximum file size in megabytes
@@ -50,7 +57,13 @@ def validate_upload_files(
 
     for file_path in files:
         try:
-            path = Path(file_path)
+            # Use PathHandler for cross-platform path normalization
+            # This handles Windows/Unix paths, quotes, env vars, and ~ expansion
+            path = PathHandler.normalize(file_path)
+
+            # Validate path exists
+            if not path.exists():
+                raise FileNotFoundError(f"File not found: {path}")
 
             # Validate extension
             validate_file_extension(path, allowed_extensions)
@@ -63,7 +76,11 @@ def validate_upload_files(
         except InvalidInputError as e:
             raise click.UsageError(f"File validation failed for '{file_path}': {e}")
         except FileNotFoundError:
-            raise click.UsageError(f"File not found: '{file_path}'")
+            # Provide helpful error message with shell-escaped path for copy-paste
+            escaped_path = PathHandler.escape_for_shell(PathHandler.normalize(file_path))
+            raise click.UsageError(f"File not found: {escaped_path}")
+        except PermissionError:
+            raise click.UsageError(f"Permission denied: '{file_path}'")
 
     return validated_files
 

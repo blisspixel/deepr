@@ -1,7 +1,6 @@
 # ==============================================================================
 # Environment & Secrets
 # ==============================================================================
-# Never commit .env files (use .env.example as template)
 .env
 .env.*
 !.env.example
@@ -9,7 +8,6 @@
 # ==============================================================================
 # Python
 # ==============================================================================
-# Bytecode
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,32 +18,13 @@ venv/
 env/
 ENV/
 .venv/
-virtualenv/
 
 # Distribution / packaging
-.Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
+.eggs/
 
 # Testing
 .pytest_cache/
@@ -54,152 +33,89 @@ MANIFEST
 htmlcov/
 .tox/
 .nox/
-tests/*.db
-tests/**/*.db
 .hypothesis/
 pytest_debug.log
 
 # Type checking
 .mypy_cache/
-.dmypy.json
-dmypy.json
 .pytype/
 .pyre/
 
 # ==============================================================================
 # Deepr Runtime Data
 # ==============================================================================
-# SQLite databases (queue, results)
+# SQLite databases
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
 *.sqlite3
 
-# Generated/Runtime directories
+# Runtime data directories
 data/logs/
-data/reports/
 data/queue/
-data/results/
 data/uploads/
 data/campaigns/
 data/templates/
 data/vector_stores/
-
-# Root-level runtime directories (legacy, should be in data/)
-logs/
-queue/
-reports/
-backups/
-archive/
-DEPRECATED/
-working/
-bin/
-
-# Logs
-*.log
-
-# Deprecated/temporary files
-last_response.json
-*.deprecated
-*.tmp
-*.bak
-*.old
+data/experts/
+logs/*.log
 
 # ==============================================================================
-# Frontend (React + Vite)
+# Local/Development Directories
+# ==============================================================================
+# Archive and backups (local development artifacts)
+archive/
+backups/
+DEPRECATED/
+
+# Temporary files
+*.tmp
+*.bak
+last_response.json
+
+# ==============================================================================
+# Frontend
 # ==============================================================================
 deepr/web/frontend/node_modules/
 deepr/web/frontend/dist/
 deepr/web/frontend/.vite/
-deepr/web/frontend/.cache/
-deepr/web/frontend/build/
 
 # ==============================================================================
 # IDEs and Editors
 # ==============================================================================
-# VSCode
 .vscode/
-*.code-workspace
-
-# PyCharm / IntelliJ
 .idea/
-*.iml
-
-# Vim
 *.swp
 *.swo
 *~
 
-# Emacs
-\#*\#
-.\#*
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
 # ==============================================================================
 # Operating System
 # ==============================================================================
-# macOS
 .DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# Windows
 Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
 Desktop.ini
 
-# Linux
-.directory
-.Trash-*
+# ==============================================================================
+# Tools
+# ==============================================================================
+.claude/
+.deepr/
+.kiro/
 
-# ==============================================================================
-# Tools and Services
-# ==============================================================================
-# Ngrok
+# Ngrok binaries
 ngrok.exe
 ngrok
 bin/ngrok.exe
 
-# Claude / AI session data
-.claude/
-.deepr/
-
-# Docker
-*.dockerignore
-docker-compose.override.yml
-
 # ==============================================================================
-# Documentation (Personal)
+# Local/Personal
 # ==============================================================================
-# Archive old documentation, personal notes excluded, but keep main docs/ directory
-docs/archive/
-docs/sessions/
-docs/**/personal/
-docs/**/*notes*.txt
-docs/**/*exploration*.md
-docs/**/.private/
-
-# Ideas for other projects (not part of deepr)
-docs/ideas/
-
-# Test Data
-tests/data/reports/
-tests/data/
-
-# ==============================================================================
-# Temporary or Local Files
-# ==============================================================================
-IDEA 10-24-25.txt
-idea 11-4-2025.txt
-TEMP NOTE.txt
-/data/experts
 nul
 _ul
-/.kiro
+/data
+/docs/ideas
+/docs/reference
+/reports
+/tests/data

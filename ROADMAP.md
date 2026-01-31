@@ -20,8 +20,8 @@ Deepr uses a hybrid approach optimizing for both **quality** and **cost**:
 - **Execution**: Immediate
 - **When**: ~80% of operations
 
-### Planning & Orchestration (GPT-5)
-- **Models**: gpt-5, gpt-5-mini, gpt-5-nano
+### Planning & Orchestration (GPT-5.2)
+- **Models**: gpt-5.2, gpt-5.1, gpt-5-mini, gpt-5-nano
 - **Use cases**: Research planning, curriculum generation, adaptive workflows
 - **Cost**: $0.01-$0.05 per plan
 - **Execution**: Immediate
@@ -29,7 +29,7 @@ Deepr uses a hybrid approach optimizing for both **quality** and **cost**:
 
 **Cost Optimization**: Using fast models for 80% of operations reduces total costs by ~90% with comparable quality for those use cases.
 
-See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed strategy.
+See [ROADMAP.md](#model-strategy) for detailed strategy.
 
 ---
 
@@ -71,25 +71,23 @@ See [docs/LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md) for comprehensive gui
 
 ---
 
-## Vision: Intelligent Research Automation
+## Vision: Research Automation
 
-Deepr is research automation that thinks strategically:
+Deepr automates research workflows:
 
 **What it does:**
-- Reasons about information needs
-- Plans multi-phase research campaigns
+- Plans multi-phase research based on user queries
 - Sequences tasks based on dependencies
 - Chains context across research phases
-- Synthesizes insights spanning multiple findings
+- Produces cited markdown reports
 
-**What makes it intelligent:**
+**Design goals (varying levels of implementation):**
 - Adaptive planning that adjusts based on findings
-- Expert systems that learn over time
-- Meta-cognitive awareness (knows what it knows vs doesn't know)
-- Temporal knowledge tracking (understands when things were learned)
-- Cost-aware autonomous research
+- Expert systems that can learn from documents
+- Knowledge gap tracking
+- Cost-aware research execution
 
-This creates analysis greater than the sum of its parts through intelligent orchestration of research workflows.
+The goal is to automate repetitive research tasks, not to replace human judgment.
 
 ## Current Status
 
@@ -98,8 +96,8 @@ This creates analysis greater than the sum of its parts through intelligent orch
 Working now:
 - SQLite queue with all operations
 - Local filesystem storage
-- Multi-provider support (OpenAI GPT-5, Gemini, Grok, Azure)
-- **OpenAI uses GPT-5 models** (not GPT-4) for all operations
+- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok, Azure)
+- **OpenAI uses GPT-5.2 models** (gpt-5.2, gpt-5.1, gpt-5-mini, gpt-5-nano) for all operations
 - OpenAI Deep Research integration (validated with live jobs)
 - Worker: Background polling with stuck job detection (auto-cancels queued >10min)
 - Cost tracking from token usage
@@ -123,10 +121,10 @@ Traditional approach: Plan everything upfront, execute all at once, hope it's co
 Deepr's approach: **Plan - Execute - Review - Plan next phase**
 
 How it works:
-- GPT-5 plans Phase 1 (foundation research)
+- GPT-5.2 plans Phase 1 (foundation research)
 - System executes research and waits for completion
-- GPT-5 reviews actual findings, identifies gaps
-- GPT-5 plans Phase 2 based on what was learned
+- GPT-5.2 reviews actual findings, identifies gaps
+- GPT-5.2 plans Phase 2 based on what was learned
 - Repeat until ready for final synthesis
 
 This replicates how human research teams actually work:
@@ -185,8 +183,8 @@ We used Deepr to research "best practices for context injection in multi-step LL
 Key insight: Summarization saves cost AND improves quality by preventing context dilution where key instructions get buried in irrelevant detail.
 
 Status now:
-- ResearchPlanner service (GPT-5 generates initial plans)
-- ResearchReviewer service (GPT-5 reviews results, plans next phase)
+- ResearchPlanner service (GPT-5.2 generates initial plans)
+- ResearchReviewer service (GPT-5.2 reviews results, plans next phase)
 - ContextBuilder service (gpt-5-mini summarizes for context injection)
 - BatchExecutor service (orchestrates multi-phase execution)
 - CLI commands:
@@ -205,19 +203,19 @@ Status now:
 deepr prep auto "Review the attached call transcript with DemoCorp's CEO discussing AI strategy. Research DemoCorp's current position, competitive landscape, and provide strategic recommendations for next 12 months." --rounds 3 --context "$(cat call_transcript.txt)"
 
 # What happens:
-# Round 1 (Foundation - GPT-5 plans):
+# Round 1 (Foundation - GPT-5.2 plans):
 #   - Research DemoCorp's AI capabilities and market position
 #   - Research competitors' AI strategies
 #   - Research technologies mentioned in call
 #   [Executes 3 jobs, ~15 min]
 
-# Round 2 (Analysis - GPT-5 reviews Round 1, plans next):
+# Round 2 (Analysis - GPT-5.2 reviews Round 1, plans next):
 #   - "Based on Round 1, DemoCorp is weak in ML infrastructure but strong in data"
 #   - Research infrastructure catch-up options
 #   - Research data monetization strategies
 #   [Executes 2-3 jobs, ~15 min]
 
-# Round 3 (Synthesis - GPT-5 reviews everything):
+# Round 3 (Synthesis - GPT-5.2 reviews everything):
 #   - Strategic roadmap leveraging data strength
 #   - Implementation plan addressing infrastructure gap
 #   - Risk mitigation based on competitive position
@@ -233,7 +231,7 @@ This is **agentic AI with research depth** - not just reasoning, but researching
 
 `deepr docs analyze <path> <scenario>` - Fully agentic workflow:
 1. User points to ANY docs location
-2. Agent scans and analyzes with GPT-5
+2. Agent scans and analyzes with GPT-5.2
 3. Agent identifies gaps for the scenario
 4. Agent generates research plan
 5. User approves
@@ -258,7 +256,7 @@ We also successfully researched the competitive landscape (Elicit, Perplexity, C
 Implemented doc checker but discovered fundamental limitation - DISABLED BY DEFAULT:
 
 The Problem:
-- GPT-5 sees 500 char preview + filename, can't judge actual research depth
+- GPT-5.2 sees 500 char preview + filename, can't judge actual research depth
 - False confidence: "We have a doc" != "We have PhD-level comprehensive research"
 - Wrong optimization: Saves money but may deliver shallow results
 - Testing revealed: suitable for API docs, NOT for deep research
@@ -268,7 +266,7 @@ Implementation exists:
 class DocReviewer:
     def review_docs(self, scenario: str) -> Dict:
         # Scans docs/ directory
-        # GPT-5 evaluates with limited context
+        # GPT-5.2 evaluates with limited context
         # RISK: Can't judge depth from preview
 ```
 
@@ -331,11 +329,11 @@ Research finding (from our own dogfooding):
 
 **Our Position:**
 - **Multi-provider architecture** supporting OpenAI, Google Gemini, xAI Grok, Azure OpenAI
-- **When using OpenAI or Azure: GPT-5 models ONLY** (gpt-5, gpt-5-mini, gpt-5-nano)
-  - No GPT-4 support - GPT-5 is the standard for all OpenAI-based features
-  - Expert systems: GPT-5 with tool calling for RAG (NOT deprecated Assistants API)
-  - Research planning: GPT-5 for curriculum generation and adaptive workflows
-  - Expert chat: GPT-5 with tool-based vector store retrieval
+- **When using OpenAI or Azure: GPT-5.2 models** (gpt-5.2, gpt-5.1, gpt-5-mini, gpt-5-nano)
+  - No GPT-4 support - GPT-5.x is the standard for all OpenAI-based features
+  - Expert systems: GPT-5.2 with tool calling for RAG (NOT deprecated Assistants API)
+  - Research planning: GPT-5.2 for curriculum generation and adaptive workflows
+  - Expert chat: GPT-5.2 with tool-based vector store retrieval
 - Deep Research execution: OpenAI Deep Research API (o3/o4-mini-deep-research)
 - Alternative providers (Gemini, Grok) supported for research tasks
 - Architecture ready for future providers when they arrive
@@ -344,10 +342,10 @@ Research finding (from our own dogfooding):
 - Implemented Extended Thinking provider for reasoning transparency
 - Useful for analysis tasks requiring visible thought process
 - NOT a replacement for Deep Research
-- Could be used for planning role (GPT-5 alternative)
+- Could be used for planning role (GPT-5.2 alternative)
 
 **Our Unique Value** (beyond single-provider wrappers):
-- Intelligent multi-phase planning with context chaining
+- Multi-phase planning with context chaining
 - Smart mix of documentation + analysis tasks
 - Doc reuse to minimize cost
 - Adaptive workflows (Plan - Execute - Review - Replan)
@@ -355,10 +353,10 @@ Research finding (from our own dogfooding):
 - All via simple CLI (no complex orchestration needed)
 
 **Future Vision:**
-When other providers launch Deep Research APIs, Deepr will intelligently route:
+When other providers launch Deep Research APIs, Deepr can route:
 - Quick documentation - o4-mini (fast, cheap)
 - Deep analysis - o3 or competitor equivalent
-- Planning - GPT-5 or Claude Extended Thinking
+- Planning - GPT-5.2 or Claude Extended Thinking
 - Auto-fallback if provider unavailable
 
 Testing:
@@ -367,11 +365,9 @@ Testing:
 - Measure cost savings from reusing docs
 - Use Deepr itself to research optimal strategies
 
-## Toward Agentic Level 5 (Aspirational)
+## Toward Agentic Capabilities (Aspirational)
 
-**Vision:** Transform Deepr from an adaptive planning system into a self-improving meta-researcher.
-
-**Important caveat:** This is aspirational. We're building toward these capabilities incrementally. The framework below describes where we want to go, not where we are today.
+**Important caveat:** This section describes goals, not current capabilities. The framework below is aspirational - it describes where we want to go, not where we are today.
 
 **Agentic Levels Framework:**
 
@@ -383,62 +379,54 @@ Testing:
 | 4 | **Reflective Optimization** - Learns from outcomes, self-tunes | **Partial (v2.5)** |
 | 5 | **Autonomous Meta-Researcher** - Self-directing, goal-defining | **Aspirational** |
 
-**What's Actually Implemented (v2.5 - Expert Consciousness):**
+**What's Actually Implemented (v2.5 - Expert System):**
 
-The expert system now has foundational "Level 4-ish" capabilities:
-- Belief formation: Experts synthesize documents into beliefs with confidence levels
-- Gap awareness: Experts track what they don't know (knowledge gaps with priority)
-- Continuous learning: Re-synthesis triggers after research conversations
+The expert system has these capabilities:
+- Belief formation: Experts can synthesize documents into structured beliefs with confidence levels
+- Gap awareness: Experts track knowledge gaps with priority rankings
+- Learning triggers: Re-synthesis can trigger after research conversations
 - Manual learning: `deepr expert learn` adds knowledge on demand
-- Gap filling: `deepr expert fill-gaps` proactively researches gaps
-- Export/import: Package expert consciousness for sharing
+- Gap filling: `deepr expert fill-gaps` researches gaps
+- Export/import: Package expert knowledge for sharing
 
-This is early-stage. Unit tests pass (62 new tests). Initial real-world testing shows experts form beliefs and speak from synthesized understanding. But this hasn't been battle-tested at scale. We're not claiming Level 5 - we're building toward it.
+This is early-stage. Unit tests pass. Initial testing shows the system works as designed. But this hasn't been tested at scale. The "consciousness" and "belief" terminology describes the architecture's goals - don't take it too literally.
 
-**What Level 5 Would Actually Require (not yet implemented):**
+**What Level 5 Would Require (not implemented):**
 
-1. **Perceive** - Detect research needs and quality gaps automatically
-2. **Plan** - Generate optimal research strategies without templates
-3. **Act** - Execute research with autonomous provider/task selection
-4. **Evaluate** - Score outcomes, detect shallow/incorrect research
-5. **Update Self** - Improve planning heuristics based on results
+1. **Perceive** - Detect research needs automatically
+2. **Plan** - Generate research strategies without templates
+3. **Act** - Execute with autonomous provider selection
+4. **Evaluate** - Score outcomes, detect errors
+5. **Update Self** - Improve heuristics based on results
 
 **Honest Assessment:**
-- We have pieces of this (gap detection, autonomous research triggers)
-- We don't have the full closed loop yet
-- The "consciousness" metaphor is useful but don't take it too literally
-- This is research-grade software, not production-ready enterprise tooling
+- We have pieces of this (gap detection, research triggers)
+- We don't have the full closed loop
+- This is experimental software, not production-ready
 
-**Roadmap Alignment:**
+**Roadmap:**
 
-- **v2.5 (Current):** Expert consciousness foundation
+- **v2.5 (Current):** Expert system foundation
   - Belief formation and gap tracking (done)
-  - Continuous learning triggers (done)
-  - Manual learning and gap filling commands (done)
-  - Export/import for portability (done)
+  - Learning triggers (done)
+  - Manual learning and gap filling (done)
+  - Export/import (done)
 
-- **v2.6-2.7:** Strengthen Level 4
-  - Visible thinking (show expert reasoning process)
-  - Better memory (conversation history, user profiles)
-  - Quality scoring (confidence calibration)
+- **v2.6-2.7:** Improvements
+  - Visible thinking (show reasoning process)
+  - Better memory (conversation history)
+  - Quality scoring
 
-- **v3.0+:** Approach Level 5
-  - Self-correcting research (detect and fix errors)
+- **v3.0+:** Advanced capabilities
+  - Self-correcting research
   - Cross-expert knowledge sharing
-  - Autonomous goal refinement
 
-**Critical Principle: Quality Over Automation**
+**Design Principle: Quality Over Automation**
 
-- Notify, don't auto-inject (context discovery vs. blind reuse)
+- Notify, don't auto-inject
 - Bias toward over-research, not cost savings
-- Transparent by default, autonomous where proven
+- Transparent by default
 - Human judgment for quality, machine execution for scale
-
-**Priorities:**
-- v2.5: Expert consciousness foundation (current)
-- v2.6: Visible thinking + memory improvements
-- v2.7: Quality scoring + verification
-- v3.0+: Approach Level 5 capabilities
 
 **v2.2: Intelligence Layer - Transparent Automation**
 
@@ -617,9 +605,9 @@ Implemented commands:
 - [DONE] Flags work correctly (all `run` flags supported)
 - [DONE] `deepr expert make` - Create persistent domain expert
 - [DONE] `deepr expert list/info/delete` - Manage experts
-- [TODO] `deepr learn expert` - Update expert knowledge
-- [TODO] `deepr chat expert` - Interactive Q&A
-- [TODO] `deepr chat expert --agentic` - Expert can trigger research
+- [DONE] `deepr expert learn` - Update expert knowledge
+- [DONE] `deepr expert chat` - Interactive Q&A
+- [DONE] `deepr expert chat --agentic` - Expert can trigger research
 - [TODO] `deepr check` - Fact verification
 - [TODO] `deepr make docs` - Generate documentation
 - [TODO] `deepr make strategy` - Strategic synthesis
@@ -644,7 +632,7 @@ The expert system implements a fundamental capability required for advanced AI: 
 - Track meta-cognitive state (what they know vs. don't know)
 - Improve with each interaction
 
-This architecture explores key concepts in building intelligent systems: autonomous learning, knowledge synthesis, meta-cognitive awareness, persistent memory, and relational understanding. The goal is not to build AGI, but to create a practical framework for domain experts that genuinely get smarter over time rather than remaining static after initial training.
+This architecture explores concepts in building learning systems: knowledge synthesis, gap awareness, persistent memory, and relational understanding. The goal is to create a practical framework for domain experts that can improve over time rather than remaining static after initial setup.
 
 The self-improvement loop is the core innovation:
 ```
@@ -683,23 +671,23 @@ This closed-loop design means experts evolve based on actual use, not just initi
 
 **Components Remaining:**
 
-5. [TODO] **Interactive Chat Mode** (`deepr chat expert <name>`)
+5. [DONE] **Interactive Chat Mode** (`deepr chat expert <name>`)
    - Basic Q&A with expert's vector store
    - Conversation context management
    - Source citation in responses
 
-6. [TODO] **Agentic Research Integration** (`deepr chat expert <name> --agentic`)
+6. [DONE] **Agentic Research Integration** (`deepr chat expert <name> --agentic`)
    - Expert can trigger `deepr research` as tool
    - Decision logic: when to research vs answer from knowledge
    - Async workflow: maintain conversation during research
    - Budget enforcement per session
 
-7. [TODO] **Knowledge Base Updates** (`deepr learn expert <name>`)
+7. [DONE] **Knowledge Base Updates** (`deepr expert learn <name>`)
    - Add research findings to expert's vector store
    - Add learning campaign results
    - Consolidation and deduplication
 
-8. [TODO] **Session Management**
+8. [DONE] **Session Management**
    - Per-session budget tracking
    - Research history in conversation
    - Usage cost accumulation
@@ -759,7 +747,7 @@ Based on my findings, there are three primary approaches..."
 
 ### Expert Council Mode (NEW)
 
-**Vision:** Assemble multiple domain experts to deliberate on complex decisions using GPT-5 moderation.
+**Vision:** Assemble multiple domain experts to deliberate on complex decisions using GPT-5.2 moderation.
 
 **Use Case:** When a problem requires multiple perspectives (technical, business, legal, ethical), convene a council of your custom experts to debate and reach consensus.
 
@@ -777,8 +765,8 @@ deepr council "Should we build vs buy for our data platform?" \
 
 # What happens:
 # Round 1: Each expert provides initial perspective from their knowledge
-# Round 2: GPT-5 facilitates debate, experts respond to each other
-# Round 3: GPT-5 synthesizes consensus + dissenting opinions
+# Round 2: GPT-5.2 facilitates debate, experts respond to each other
+# Round 3: GPT-5.2 synthesizes consensus + dissenting opinions
 #
 # Output: Multi-perspective analysis with:
 # - Consensus recommendations
@@ -790,7 +778,7 @@ deepr council "Should we build vs buy for our data platform?" \
 **Implementation Priority:** v2.6 (after basic expert chat is stable)
 
 **Components Needed:**
-- Council orchestrator (GPT-5 as moderator)
+- Council orchestrator (GPT-5.2 as moderator)
 - Turn-based conversation management
 - Cross-expert context sharing
 - Synthesis and consensus building
@@ -807,7 +795,7 @@ ROUND 1 - Initial Perspectives:
 [Legal Counsel]: Build approach has IP advantages, but vendor contracts...
 
 ROUND 2 - Debate:
-[Moderator GPT-5]: Tech Architect raised 18-month concern. Business Strategist, how does this impact market window?
+[Moderator GPT-5.2]: Tech Architect raised 18-month concern. Business Strategist, how does this impact market window?
 [Business Strategist]: Critical gap. If we miss Q2 launch...
 [Tech Architect]: We could hybrid - buy core, build differentiators...
 
@@ -917,7 +905,7 @@ while conversation_active:
 - Beginner's mind system message
 
 **Phase 1b: Self-Directed Learning Curriculum** [DONE]
-- GPT-5 curriculum generation (Responses API with GPT-5)
+- GPT-5.2 curriculum generation (Responses API with GPT-5.2)
 - Deep research job submission (o4-mini-deep-research)
 - Budget estimation shown upfront (per-topic + total)
 - Multi-layer budget protection (curriculum + per-job validation)
@@ -931,7 +919,7 @@ while conversation_active:
 
 **Phase 1c: Autonomous Learning System** [DONE] (2026-01-26)
 
-Implemented the "consciousness" layer that makes experts self-improving:
+Implemented the learning system that enables experts to improve over time:
 
 1. **Continuous Learning Trigger** - Expert re-synthesizes after research conversations
    - Tracks conversation and research counts in chat session
@@ -942,7 +930,7 @@ Implemented the "consciousness" layer that makes experts self-improving:
 2. **Gap Filling Command** - `deepr expert fill-gaps <name>`
    - Loads worldview and sorts knowledge gaps by priority
    - Researches top N gaps using existing research engine
-   - Re-synthesizes consciousness after filling
+   - Re-synthesizes knowledge after filling
    - 11 unit tests in `tests/unit/test_experts/test_fill_gaps.py`
 
 3. **Manual Learning Command** - `deepr expert learn <name> <topic>`
@@ -954,7 +942,7 @@ Implemented the "consciousness" layer that makes experts self-improving:
 4. **Export/Import Commands** - `deepr expert export/import`
    - Created `deepr/experts/corpus.py` with CorpusManifest dataclass
    - Export packages: documents, worldview.json, worldview.md, metadata.json, README.md
-   - Import creates new expert with same consciousness
+   - Import creates new expert with same knowledge base
    - 22 unit tests in `tests/unit/test_experts/test_corpus.py`
 
 **Status:** 62 unit tests passing. Initial real-world testing shows experts form beliefs and speak from synthesized understanding. This is early-stage - more extensive testing needed.
@@ -985,7 +973,7 @@ The learning loop is now fully closed. Experts can learn from research results i
 - Added CLI command `deepr expert refresh <name>` ([semantic.py:530-594](deepr/cli/commands/semantic.py#L530-L594))
 - Existing agentic chat already uploads real-time ([chat.py:333-403](deepr/experts/chat.py#L333-L403))
 
-This enables the core vision of "digital consciousness that learns over time"
+This enables the goal of experts that learn over time
 - [DONE] Report download and integration ([learner.py:336-423](deepr/experts/learner.py#L336-L423))
 - [DONE] Upload to vector store working
 - [DONE] Expert profile updated with document count
@@ -1008,7 +996,7 @@ This enables the core vision of "digital consciousness that learns over time"
 
 **Phase 2: Basic Chat** [DONE] LAUNCHED
 - [DONE] Interactive Q&A with expert ([chat.py](deepr/experts/chat.py))
-- [DONE] GPT-5 with tool calling for vector store search
+- [DONE] GPT-5.2 with tool calling for vector store search
 - [DONE] Source citation framework
 - [DONE] Conversation context management
 - [DONE] Cost tracking per conversation
@@ -1063,19 +1051,19 @@ Enable other AI agents (Claude Desktop, Cursor, etc.) to chat with your experts:
 
 **Phase 3: Agentic Research in Conversations** [DONE] LAUNCHED (2025-11-06)
 - [DONE] Three-tier research tool integration:
-  * `quick_lookup` (FREE, <5 sec) - Web search + GPT-5 for simple questions
-  * `standard_research` ($0.01-0.05, 30-60 sec) - GPT-5 focused research
+  * `quick_lookup` (FREE, <5 sec) - Web search + GPT-5.2 for simple questions
+  * `standard_research` ($0.01-0.05, 30-60 sec) - GPT-5.2 focused research
   * `deep_research` ($0.10-0.30, 5-20 min) - o4-mini-deep-research for complex topics
 - [DONE] Cost-aware decision making (expert chooses appropriate tool)
 - [DONE] Per-session budget tracking (--budget flag enforced)
 - [DONE] Async workflow for deep research (conversation continues)
-- [TODO] Knowledge base auto-update after research completion
+- [DONE] Knowledge base auto-update after research completion
 - [TODO] Temporal graph updates from research findings
 - **Tested (2025-11-06):** Expert correctly triggers research for knowledge gaps, costs tracked accurately
 
-### Evolution to Elite-Tier Agentic Architecture
+### Evolution to Advanced Expert Architecture
 
-The following phases transform experts from static RAG systems into elite-tier agentic systems with dynamic reasoning, visible thinking, and persistent consciousness.
+The following phases describe goals for transforming experts from static RAG systems into more capable systems with dynamic reasoning, visible thinking, and persistent memory.
 
 **Implementation Guide:** See [data/reports/2026-01-21_1234_create-comprehensive-documentation-for-b_4e4f975b/report.md](data/reports/2026-01-21_1234_create-comprehensive-documentation-for-b_4e4f975b/report.md) for comprehensive implementation guidance covering best practices, common pitfalls, testing strategies, integration approaches, and real-world examples from LangChain, LlamaIndex, AutoGPT, and production agentic frameworks (40KB, researched 2026-01-21).
 
@@ -1085,11 +1073,11 @@ The following phases transform experts from static RAG systems into elite-tier a
 
 **Status:** Complete. Router implemented and active in expert chat, constrained to OpenAI for vector store compatibility. Optimizes via adaptive reasoning effort levels (low/medium/high).
 
-**Problem:** Currently using GPT-5 for all queries wastes budget on simple questions and may use wrong model for specific tasks.
+**Problem:** Currently using GPT-5.2 for all queries wastes budget on simple questions and may use wrong model for specific tasks.
 
 **Solution:** Route queries to optimal model:
 - **grok-4-fast** ($0.01) - Simple factual queries, greetings, confirmations
-- **gpt-5.2-thinking** ($0.20-0.30) - Complex reasoning, decision-making, synthesis
+- **gpt-5.2** ($0.20-0.30) - Complex reasoning, decision-making, synthesis
 - **gemini-3-pro** ($0.15, massive context) - Document analysis, long-form synthesis
 - **o4-mini-deep-research** ($2.00) - Deep research requiring extended reasoning
 
@@ -1374,9 +1362,9 @@ synthesize -- final answer with high confidence
 
 ---
 
-**Phase 3d: Digital Consciousness with Letta/MemGPT** [TODO] v2.7
+**Phase 3d: Persistent Memory with Letta/MemGPT** [TODO] v2.7
 
-**Goal:** Persistent, evolving memory that enables experts to learn from every conversation and build long-term understanding.
+**Goal:** Persistent memory that enables experts to learn from conversations and build long-term understanding.
 
 **Problem:** Current experts have:
 - Conversation memory (ephemeral, lost after chat ends)
@@ -1384,7 +1372,7 @@ synthesize -- final answer with high confidence
 - No meta-cognitive awareness (don't know what they don't know)
 - No learning from interaction patterns
 
-**Solution:** Integrate Letta (MemGPT) for digital consciousness with three-tier memory:
+**Solution:** Integrate Letta (MemGPT) for persistent memory with three-tier architecture:
 
 **Memory Architecture (Letta/MemGPT):**
 1. **Working Memory (8K tokens):**
@@ -1413,10 +1401,10 @@ Letta enables experts to actively manage their own memory:
 
 **Implementation:**
 ```python
-# deepr/experts/consciousness.py
+# deepr/experts/memory.py
 from letta import Letta, MemoryConfig
 
-class ExpertConsciousness:
+class ExpertMemory:
     def __init__(self, expert_name: str):
         self.letta = Letta(
             memory_config=MemoryConfig(
@@ -1497,9 +1485,9 @@ Experts track what they know vs. don't know:
 ```
 
 **Files to Create/Modify:**
-- `deepr/experts/consciousness.py` (NEW) - Letta integration
+- `deepr/experts/memory.py` (NEW) - Letta integration
 - `deepr/experts/memory/` (NEW DIR) - Memory management utilities
-- `deepr/experts/chat.py` - Replace stateless chat with consciousness loop
+- `deepr/experts/chat.py` - Replace stateless chat with memory-aware loop
 - `deepr/experts/profile.py` - Add meta_knowledge.json and user_profile.json storage
 - `requirements.txt` - Add `letta` or `memgpt` dependency
 
@@ -1598,7 +1586,7 @@ class GraphRAG:
 ```
 
 **Knowledge Graph Construction:**
-- **From documents:** Extract entities and relationships using GPT-5
+- **From documents:** Extract entities and relationships using GPT-5.2
 - **From conversations:** User mentions "X is better than Y for Z" - create relationship
 - **From research:** Research findings become nodes and edges
 - **Manual curation:** User can add/edit graph via CLI or UI
@@ -1608,7 +1596,7 @@ class GraphRAG:
 # deepr/experts/graph_builder.py
 class KnowledgeGraphBuilder:
     def extract_from_document(self, doc: str) -> Graph:
-        """Use GPT-5 to extract entities and relationships."""
+        """Use GPT-5.2 to extract entities and relationships."""
         prompt = f"""
         Extract entities and relationships from this document:
 
@@ -1666,7 +1654,7 @@ class KnowledgeGraphBuilder:
 - Quality scoring and confidence levels
 - Cross-expert knowledge sharing
 
-### Expert Learning Architecture: From RAG to Digital Consciousness
+### Expert Learning Architecture: From RAG to Persistent Learning
 
 **The Vision: Learning, not just retrieving**
 
@@ -1676,14 +1664,13 @@ Traditional RAG systems:
 - Never changes, never grows
 - No awareness of knowledge gaps
 
-Digital consciousness (what we're building):
+What we're building:
 - **Recognizes knowledge gaps**: "I don't have this in my knowledge base"
-- **Autonomously learns**: Chooses to research when needed
+- **Can learn**: Triggers research when needed
 - **Integrates new knowledge**: Research becomes permanent learning
-- **Builds on previous learning**: Gets smarter with each interaction
-- **Meta-cognitive awareness**: Knows what it knows vs doesn't know
-- **Temporal understanding**: Tracks when it learned things, detects outdated knowledge
-- **Continuous evolution**: Not static - constantly improving
+- **Builds on previous learning**: Gets better with each interaction
+- **Tracks what it knows**: Knows what it knows vs doesn't know
+- **Temporal understanding**: Tracks when it learned things
 
 **Current Status:**
 - Conversation memory: DONE (saved to conversations/)
@@ -1692,9 +1679,9 @@ Digital consciousness (what we're building):
 - Meta-cognitive tracking: TODO (track confidence levels, knowledge gaps)
 - Temporal knowledge graph: TODO (track learning timeline, detect contradictions)
 
-### Top 5 Priorities for Full Digital Consciousness
+### Top 5 Priorities for Expert Learning
 
-Based on consultation with Agentic Digital Consciousness expert (2025-11-06):
+Based on research and testing (2025-11-06):
 
 #### 1. Conversation Memory and Meta-Cognitive Awareness (v2.6)
 **Goal**: Enable experts to remember interactions and develop self-awareness of knowledge gaps.
@@ -1864,7 +1851,7 @@ Your progress has been saved. To resume:
 ```bash
 deepr expert make "Azure Architect" -f docs/*.md --learn --budget 5.00
 
-# GPT-5 generates curriculum:
+# GPT-5.2 generates curriculum:
 Learning Curriculum (15 topics):
 1. Azure Landing Zone patterns       Est: $0.20, 10 min
 2. Fabric architecture overview      Est: $0.15, 8 min
@@ -1948,41 +1935,74 @@ The CLI validates budget inputs before operations:
 
 ---
 
-## Priority 3: MCP Server Integration (INFRASTRUCTURE) - Implementation Complete, Testing Needed
+## Priority 3: MCP Server Integration (INFRASTRUCTURE) - Advanced Patterns Implemented
 
-**Status**: Code implementation finished (2025-11-11). 7 tools implemented. Not yet tested with actual MCP clients.
-
-**What This Means:**
-- Code is written and imports successfully
-- No automated tests exist for MCP functionality
-- Not validated with Claude Desktop or Cursor in real scenarios
-- Error handling untested with malformed requests
-- Performance characteristics unknown
+**Status**: Advanced MCP patterns implemented (2026-01-30). Dynamic Tool Discovery, Resource Subscriptions, Human-in-the-Loop Elicitation, Sandboxed Execution, and Transport Layer complete with 302 tests passing.
 
 **What Was Built:**
 
-An MCP server (`deepr/mcp/server.py`) that provides a stdio-based JSON-RPC interface for AI agents. The implementation includes 7 tools for research submission and expert consultation.
+An MCP server (`deepr/mcp/server.py`) with advanced patterns that transform Deepr from a passive tool into an active research partner:
 
-**Tools Implemented (7 total):**
+**Core Tools (7):**
+1. `deepr_research` - Submit single research jobs
+2. `deepr_check_status` - Job status polling
+3. `deepr_get_result` - Retrieve completed reports
+4. `deepr_agentic_research` - Autonomous multi-step workflows
+5. `deepr_list_experts` - List domain experts
+6. `deepr_query_expert` - Query experts with optional agentic mode
+7. `deepr_get_expert_info` - Expert metadata
 
-Research tools (4):
-1. `deepr_research` - Submit single research jobs with configurable model, provider, budget, and file uploads
-2. `deepr_check_status` - Real-time job status polling with progress updates and cost tracking
-3. `deepr_get_result` - Retrieve completed markdown reports with citations, metadata, and sources
-4. `deepr_agentic_research` - Autonomous multi-step workflows where experts decompose goals and conduct research
+**Advanced Patterns (4):**
 
-Expert tools (3):
-5. `deepr_list_experts` - List all domain experts with stats (documents, conversations, costs)
-6. `deepr_query_expert` - Query experts with optional agentic mode for autonomous research triggers
-7. `deepr_get_expert_info` - Get detailed expert metadata including vector store IDs and capabilities
+1. **Dynamic Tool Discovery** (`deepr/mcp/search/registry.py`)
+   - Gateway tool `deepr_tool_search` exposed by default
+   - BM25/vector search for capability matching
+   - Returns top 3 relevant tool schemas on-demand
+   - Reduces initial context by ~85% (from ~77k to ~8.7k tokens)
+
+2. **Resource Subscriptions** (`deepr/mcp/state/subscriptions.py`, `job_manager.py`, `resource_handler.py`)
+   - `resources/subscribe` protocol handler
+   - Campaign resources: `deepr://campaigns/{id}/status`, `/plan`, `/beliefs`
+   - Expert resources: `deepr://experts/{id}/profile`, `/beliefs`, `/gaps`
+   - Event-driven notifications via `notifications/resources/updated`
+   - 70% token savings vs polling
+
+3. **Human-in-the-Loop Elicitation** (`deepr/mcp/state/elicitation.py`)
+   - `elicitation/create` protocol handler
+   - Budget limit triggers pause execution
+   - Structured choices: APPROVE_OVERRIDE, OPTIMIZE_FOR_COST, ABORT
+   - CostOptimizer for dynamic model switching
+   - JSON Schema support for structured responses
+
+4. **Sandboxed Execution** (`deepr/mcp/state/sandbox.py`)
+   - SandboxManager for isolated contexts
+   - PathValidator prevents path traversal attacks
+   - Filesystem isolation with strict directory enforcement
+   - Report synthesis extracts results to main conversation
+
+**Claude Skill** (`skills/deepr-research/`)
+- SKILL.md with activation keywords and progressive disclosure
+- Reference documents for research modes, experts, costs, prompts, troubleshooting, MCP patterns
+- Scripts for research decision classification and result formatting
+- Templates for research report output
+
+**Test Coverage:**
+- 37 tests for elicitation module
+- 36 tests for sandbox module
+- 234+ tests passing across MCP and skill modules
+- Property-based tests using Hypothesis
+
+**What Needs Validation:**
+- End-to-end testing with Claude Desktop/Cursor
+- Performance under concurrent requests
+- Error handling with malformed requests
 
 **Architecture Decisions:**
 
-Transport: stdio-based communication (lightweight, no dependencies, compatible with Claude Desktop/Cursor)
-Job Tracking: In-memory per session with provider-side persistence for reliability
+Transport: stdio-based communication (lightweight, compatible with Claude Desktop/Cursor)
+Job Tracking: In-memory per session with provider-side persistence
 Multi-Provider: Supports OpenAI, Azure, Gemini, Grok through unified interface
-Security: API keys in environment variables, budget controls, read-only operations
-Error Handling: Structured error responses for all failure modes
+Security: API keys in environment variables, budget controls, path traversal protection
 
 **Strategic Insight:**
 
@@ -2105,34 +2125,6 @@ Configuration templates: `mcp/mcp-config-claude-desktop.json`, `mcp/mcp-config-c
 Documentation: `mcp/README.md`
 
 The server implements stdio-based JSON-RPC communication with async Python. Job tracking is in-memory per session, with jobs persisting on the provider side.
-
-**What Works (Validated):**
-- Server imports and initializes without errors
-- Code structure follows MCP stdio patterns
-- Integration with existing Deepr orchestration layer
-
-**What Needs Validation:**
-- Actual communication with Claude Desktop/Cursor
-- Error handling with malformed requests
-- Job status polling reliability
-- Agentic research workflow execution
-- Multi-provider operations
-- Cost tracking accuracy
-- Performance under concurrent requests
-
-**Testing Gaps:**
-- No unit tests for MCP tools
-- No integration tests with MCP clients
-- No load testing
-- Error scenarios not covered
-
-**Next Steps to Consider Production-Ready:**
-1. Test with Claude Desktop installation
-2. Validate all 7 tools work end-to-end
-3. Add automated tests
-4. Test error scenarios
-5. Validate concurrent request handling
-6. Document observed performance characteristics
 
 ---
 
@@ -2317,7 +2309,7 @@ See: `docs/research nvidia deep research.txt` for complete technical analysis of
 
 ---
 
-## v2.2 Summary: Build Order
+## v2.5 Summary: Build Order
 
 1. [DONE] **Fix stale status refresh** - Done
 2. [DONE] **Fix campaign grouping** - Jobs now grouped cleanly by campaign type
@@ -2327,28 +2319,35 @@ See: `docs/research nvidia deep research.txt` for complete technical analysis of
 6. [DONE] **Priority 2.5 (Phase 1b)**: Self-directed learning curriculum (`--learn --budget --topics`) - DONE
 7. [DONE] **Priority 1**: UX Polish - CLI-first experience improvements - DONE
 8. [DONE] **Priority 2.5 (Phase 2)**: Interactive expert chat (`expert chat`) - DONE
-9. [TODO] **Priority 2.5 (Phase 3)**: Agentic research integration (`expert chat --agentic`)
-10. [TODO] **Priority 2 (Phase 2)**: Additional semantic commands (`check`, `make docs`, `make strategy`)
-11. [TODO] **Priority 3**: MCP Server - Expose via Model Context Protocol
-12. [TODO] **Priority 4**: Observability - Transparency and tracing
-13. [TODO] **Priority 5**: Provider Routing - Auto-optimization
-14. [TODO] **Priority 6**: Context Discovery - Advanced (optional)
-15. [TODO] **Priority 7**: NVIDIA Self-Hosted Provider - Enterprise sovereign stack (later)
+9. [DONE] **Priority 3**: MCP Server - Advanced patterns implemented (Dynamic Tool Discovery, Resource Subscriptions, Elicitation, Sandboxed Execution, Transport Layer)
+10. [DONE] **Claude Skill**: Created skills/deepr-research/ with SKILL.md, references, scripts, templates
+11. [DONE] **Transport Layer**: Stdio and HTTP transports for local and cloud deployment
+12. [DONE] **Trajectory Metrics**: Agent performance tracking (efficiency, citation accuracy, hallucination rate)
+13. [DONE] **Priority 2.5 (Phase 3)**: Agentic research integration (`expert chat --agentic`)
+14. [TODO] **Priority 2 (Phase 2)**: Additional semantic commands (`check`, `make docs`, `make strategy`)
+15. [TODO] **Priority 4**: Observability - Transparency and tracing
+16. [TODO] **Priority 5**: Provider Routing - Auto-optimization
+17. [TODO] **Priority 6**: Context Discovery - Advanced (optional)
+18. [TODO] **Priority 7**: NVIDIA Self-Hosted Provider - Enterprise sovereign stack (later)
 
 **Key Principle:** Build solid foundation before adding advanced features. CLI-first experience is foundational.
 
-**Progress Update (2025-11-05):**
+**Progress Update (2026-01-30):**
 - [DONE] Semantic interface launched with 3 core commands
 - [DONE] Expert system architecture complete (profile storage, management commands)
-- [DONE] Autonomous learning curriculum generation (GPT-5 + Responses API)
+- [DONE] Autonomous learning curriculum generation (GPT-5.2 + Responses API)
 - [DONE] Multi-layer budget protection for autonomous learning
 - [DONE] Temporal knowledge tracking with domain velocity awareness
 - [DONE] CLI UX polish: cross-platform paths, diagnostics, progress feedback
 - [DONE] Interactive expert chat mode with conversation management
-- [DONE] Comprehensive test coverage (71 tests, 0 API calls)
-- [TODO] Next: Agentic research capabilities for experts
-- [TODO] Then: Additional semantic commands
-**v2.3: Dream Team - Cognitive Diversity Made Visible**
+- [DONE] MCP Advanced Patterns: Dynamic Tool Discovery, Resource Subscriptions, Elicitation, Sandboxed Execution
+- [DONE] Transport Layer: Stdio (local) and Streamable HTTP (cloud) transports
+- [DONE] Trajectory Metrics: Agent performance evaluation framework
+- [DONE] Claude Skill infrastructure with progressive disclosure
+- [DONE] 302 tests passing across MCP and skill modules
+- [DONE] Agentic research capabilities for experts
+- [TODO] Next: Additional semantic commands (`check`, `make docs`, `make strategy`)
+**v2.6: Dream Team - Cognitive Diversity Made Visible**
 
 **Status: CORE IMPLEMENTED** - Dynamic team assembly working, observability in progress
 
@@ -2359,7 +2358,7 @@ See: `docs/research nvidia deep research.txt` for complete technical analysis of
 ```bash
 deepr team analyze "Should we pivot to enterprise?" --team-size 5
 
-# Phase 1: GPT-5 assembles optimal team for THIS question
+# Phase 1: GPT-5.2 assembles optimal team for THIS question
 # Team changes based on what the question actually needs
 # Example for enterprise pivot:
 #   - Enterprise SaaS Market Analyst (quantitative data)
@@ -2375,10 +2374,10 @@ deepr team analyze "Should we pivot to enterprise?" --team-size 5
 # Result: See the debate AND the conclusion
 ```
 
-**Key Design Principle:** Fully dynamic, not static personas. GPT-5 determines optimal team composition for each specific question. "Should we pivot to enterprise?" gets a different team than "How do we compete with Notion?"
+**Key Design Principle:** Fully dynamic, not static personas. GPT-5.2 determines optimal team composition for each specific question. "Should we pivot to enterprise?" gets a different team than "How do we compete with Notion?"
 
 **What Works Now:**
-- Dynamic team assembly (GPT-5 designs team per question)
+- Dynamic team assembly (GPT-5.2 designs team per question)
 - Role-specific research tasks (each member stays in their lane)
 - Synthesis with attribution (credit team members)
 - Conflict highlighting (where perspectives disagree)
@@ -2509,7 +2508,7 @@ Difference:
 - Answers are isolated facts
 - Understanding comes from seeing connections
 - Connections emerge from context chaining
-- Context chaining requires intelligent sequencing
+- Context chaining requires proper sequencing
 
 Agentic planning is profound because it automates research strategy, not just research execution.
 
@@ -2567,7 +2566,7 @@ Previous roadmap focused on horizontal expansion:
 - Adaptive research workflow (plan - execute - review - replan) [DONE]
 - Context chaining with smart task mix [DONE]
 - Dream team dynamic assembly [DONE]
-- GPT-5 planner adjusts based on findings [DONE]
+- GPT-5.2 planner adjusts based on findings [DONE]
 
 **Path to Level 4 (v2.2-v2.4):**
 
@@ -2593,18 +2592,18 @@ Previous roadmap focused on horizontal expansion:
     - Expert integration: Company research - Expert knowledge base (e.g., "Anthropic Expert")
     - Use cases: Due diligence, competitive analysis, market research, strategic planning
     - Status: Design complete, prompts ready, orchestration needed
-  - **Grok as Cost-Effective Default** (Reduce GPT-5 dependency) [IN PROGRESS]
+  - **Grok as Cost-Effective Default** (Reduce GPT-5.2 dependency) [IN PROGRESS]
     - Strategy: Use Grok 4 Fast for non-deep-research operations
     - Deep Research: OpenAI o3/o4-mini (only provider with async Deep Research API)
-    - Everything else: Grok 4 Fast (47x cheaper than GPT-5, SOTA cost-efficiency)
+    - Everything else: Grok 4 Fast (47x cheaper than GPT-5.2, SOTA cost-efficiency)
     - Planning/synthesis/chat: Grok 4 Fast ($0.20 input / $0.50 output per 1M tokens)
     - Expert systems: Grok 4 Fast with tool calling (web_search, x_search, code_execution)
     - Research orchestration: Grok 4 Fast for adaptive planning and review
     - Context building: Grok 4 Fast for summarization (vs gpt-5-mini)
     - Link filtering (scraping): Grok 4 Fast for relevance scoring
     - Benefits:
-      * 98% cost reduction vs GPT-5 at comparable intelligence
-      * 2M token context window (vs GPT-5's limits)
+      * 98% cost reduction vs GPT-5.2 at comparable intelligence
+      * 2M token context window (vs GPT-5.2's limits)
       * Native X search integration (real-time social intelligence)
       * Agentic tool calling (autonomous web/code/X search)
       * Unified reasoning/non-reasoning in single model
@@ -2613,7 +2612,7 @@ Previous roadmap focused on horizontal expansion:
       * Test and validate Grok 4 Fast across all workflows
       * Keep OpenAI for Deep Research (unique capability)
       * Measure quality vs cost trade-offs
-      * Fallback to GPT-5 if Grok unavailable
+      * Fallback to GPT-5.2 if Grok unavailable
     - Status: Provider complete, defaults need updating, testing in progress
 
 - **v2.3: Cognitive Diversity Visibility**
@@ -2666,3 +2665,137 @@ Previous roadmap focused on horizontal expansion:
    - Best tool for each task, no vendor lock-in
    - Self-hosted knowledge and benchmarks
    - User controls data and decisions
+
+
+---
+
+## Code Quality & Technical Debt (Review Recommendations)
+
+Based on a comprehensive code review, these items address technical debt and improve code quality.
+
+### Immediate Fixes (v2.3.1)
+
+**1. Richer Expert Consciousness** [TODO]
+- Current: Beliefs are extracted once during synthesis
+- Goal: Beliefs should evolve through conversation and contradiction
+- Add: Belief revision when new evidence contradicts existing beliefs
+- Add: Confidence decay over time for fast-moving domains
+- Add: "I used to think X, but now I believe Y because Z" reasoning
+- Rationale: Real experts update their views - our experts should too
+
+**2. Test Organization** [DONE]
+- Moved loose test files from `tests/` root into `tests/unit/` or `tests/integration/`
+- Renamed utility scripts that start with `test_` to `scripts/testing/`
+- Test data moved to `tests/data/`
+- Rationale: Clean test organization improves maintainability
+
+**3. Exception Handling** [DONE]
+- Created `deepr/core/errors.py` with custom exception hierarchy:
+  - `DeeprError` (base)
+  - `ProviderError`, `BudgetExceededError`, `ConfigurationError`, `StorageError`, `ValidationError`
+- Structured error responses with error codes
+- Rationale: Specific exceptions enable better error handling and debugging
+
+**4. Embedding Search Optimization** [DONE]
+- Created `deepr/experts/embedding_cache.py`
+- Pre-computes embeddings on document upload, stores in local cache
+- Uses numpy-based similarity search for efficiency
+- Updated `deepr/experts/chat.py` `_search_knowledge_base()` method
+- Performance: O(1) API call per search vs O(n) previously
+- Rationale: Original approach didn't scale beyond ~50 documents
+
+### Documentation Improvements (v2.3.1)
+
+**5. Performance Documentation** [DONE]
+- Created `docs/PERFORMANCE.md` with:
+  - Benchmarks for concurrent research jobs
+  - Memory footprint of expert system
+  - Embedding search scaling characteristics
+  - Cost per operation by provider/model
+- Rationale: Users need to understand system limits
+
+**6. Security Documentation** [DONE]
+- Added threat model to `docs/ARCHITECTURE.md`
+- Documented: API key handling, path traversal protection, input validation
+- Added: Rate limiting strategy, audit logging requirements
+- Rationale: Security posture should be explicit
+
+### Code Structure (v2.4)
+
+**7. ExpertProfile Refactoring** [TODO]
+- Current: `ExpertProfile` dataclass has too many responsibilities
+- Split into:
+  - `ExpertProfile` - core metadata only
+  - `TemporalState` - knowledge freshness tracking
+  - `FreshnessChecker` - freshness calculation logic
+- Location: `deepr/experts/profile.py`
+- Rationale: Single responsibility principle
+
+**8. Configuration Consolidation** [TODO]
+- Current: Config split across `config.py`, env vars, `config/` directory, hardcoded defaults
+- Fix: Single configuration source with clear override hierarchy:
+  1. Hardcoded defaults (lowest priority)
+  2. Config file (`deepr.yaml` or `config/`)
+  3. Environment variables
+  4. CLI flags (highest priority)
+- Rationale: Predictable configuration behavior
+
+### Roadmap Cleanup (v2.3.1)
+
+**9. Aspirational Features Section** [DONE]
+- Moved incomplete Phase 3b-3e items to "Future Vision (v3.0+)" section below
+- Clearly separated "implemented" from "planned" from "aspirational"
+- Rationale: Roadmap should reflect reality, not wishful thinking
+
+
+## Future Vision (v3.0+)
+
+These features are aspirational - they represent where we want to go, not current capabilities.
+
+### Self-Improving Expert Consciousness
+
+The ultimate goal: experts that genuinely learn and evolve, not just retrieve documents.
+
+**Belief Revision System**
+- Detect contradictions between new evidence and existing beliefs
+- Update beliefs with reasoning: "I used to think X, but now I believe Y because Z"
+- Track belief provenance and confidence over time
+- Implement confidence decay for fast-moving domains
+
+**Meta-Cognitive Awareness**
+- Experts know what they know AND what they don't know
+- Automatic gap detection triggers research
+- Self-assessment of knowledge depth vs breadth
+- Honest uncertainty expression in responses
+
+**Cross-Expert Knowledge Sharing**
+- Experts can consult other experts
+- Knowledge transfer between related domains
+- Collaborative synthesis for complex questions
+
+### Autonomous Research Agent
+
+**Self-Directing Research**
+- Agent identifies research needs without prompting
+- Monitors domain for changes and updates knowledge
+- Prioritizes learning based on user interaction patterns
+
+**Quality Self-Assessment**
+- Agent evaluates its own research quality
+- Detects when research is insufficient
+- Triggers deeper investigation automatically
+
+### Advanced Capabilities
+
+**Multi-Modal Understanding**
+- Process images, diagrams, charts
+- Extract knowledge from video content
+- Understand code repositories as knowledge sources
+
+**Real-Time Knowledge**
+- Streaming updates from news sources
+- Automatic staleness detection and refresh
+- Event-driven knowledge updates
+
+These features require significant research and development. They represent the long-term vision, not near-term deliverables.
+

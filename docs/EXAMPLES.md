@@ -207,7 +207,7 @@ deepr expert make "Supply Chain Management" \
 ### What Happens (with --learn)
 
 1. Expert analyzes initial documents
-2. GPT-5 generates learning curriculum (5-20 research topics)
+2. GPT-5.2 generates learning curriculum (5-20 research topics)
 3. Shows estimated costs before submission
 4. Submits deep research jobs to build comprehensive knowledge
 5. Polls for completion and integrates results
