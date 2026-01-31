@@ -47,7 +47,7 @@ deepr/
 │   │   ├── profile.py        # ExpertStore, Expert profiles
 │   │   ├── synthesis.py      # Knowledge synthesis
 │   │   ├── learner.py        # Autonomous learning
-│   │   ├── curriculum.py     # GPT-5 curriculum generation
+│   │   ├── curriculum.py     # GPT-5.2 curriculum generation
 │   │   └── chat.py           # Expert chat interface
 │   │
 │   ├── providers/            # AI provider integrations
@@ -123,14 +123,14 @@ Self-improving domain experts with autonomous learning capabilities.
 - `experts/profile.py` - `ExpertStore` manages expert profiles and metadata
 - `experts/chat.py` - Interactive Q&A with vector store retrieval
 - `experts/learner.py` - Autonomous curriculum-based learning
-- `experts/curriculum.py` - GPT-5 curriculum generation
+- `experts/curriculum.py` - GPT-5.2 curriculum generation
 - `experts/synthesis.py` - Knowledge synthesis (experimental)
 
 **Data Flow:**
 ```
 User creates expert - Profile stored in data/experts/
   |
-Expert analyzes docs - GPT-5 generates curriculum
+Expert analyzes docs - GPT-5.2 generates curriculum
   |
 Curriculum validated - Research jobs submitted
   |
@@ -154,7 +154,7 @@ class DeepResearchProvider:
 ```
 
 **Provider-Specific:**
-- `OpenAIProvider` - GPT-5 models, o3/o4-mini deep research
+- `OpenAIProvider` - GPT-5.2 models, o3/o4-mini deep research
 - `GeminiProvider` - Gemini 2.5 flash/pro
 - `GrokProvider` - Grok 4 fast with X search integration
 - `AzureProvider` - Azure OpenAI with GPT-5
@@ -219,8 +219,8 @@ CREATE TABLE jobs (
 - Execution: Immediate (10-60 seconds)
 - When: ~80% of operations
 
-**Planning & Orchestration (GPT-5 or Grok):**
-- Models: gpt-5, gpt-5-mini, grok-4-fast
+**Planning & Orchestration (GPT-5.2 or Grok):**
+- Models: gpt-5.2, gpt-5-mini, grok-4-fast
 - Use cases: Research planning, curriculum generation, adaptive workflows
 - Cost: $0.01-$0.05 per plan
 - Execution: Immediate
@@ -237,7 +237,7 @@ def select_provider(task_type, budget, quality_requirement):
         # Prefer Grok for cost efficiency
         if grok_available():
             return GrokProvider("grok-4-fast")
-        return OpenAIProvider("gpt-5-mini")
+        return OpenAIProvider("gpt-5.2-mini")
 
     elif task_type == "quick_research":
         # Prefer Grok for cost + X search integration
@@ -269,13 +269,13 @@ User retrieves - Markdown with citations
 ### Multi-Phase Research
 
 ```
-User goal - GPT-5 generates Phase 1 plan
+User goal - GPT-5.2 generates Phase 1 plan
     |
 Phase 1 execution - Multiple jobs in parallel
     |
-Results complete - GPT-5 reviews findings
+Results complete - GPT-5.2 reviews findings
     |
-GPT-5 plans Phase 2 - Based on Phase 1 gaps
+GPT-5.2 plans Phase 2 - Based on Phase 1 gaps
     |
 Phase 2 execution - Context from Phase 1 injected
     |
@@ -283,8 +283,8 @@ Repeat until comprehensive - Final synthesis
 ```
 
 **Key Components:**
-- `ResearchPlanner` - GPT-5 generates initial plans
-- `ResearchReviewer` - GPT-5 reviews results, plans next phase
+- `ResearchPlanner` - GPT-5.2 generates initial plans
+- `ResearchReviewer` - GPT-5.2 reviews results, plans next phase
 - `ContextBuilder` - Summarizes for context injection
 - `BatchExecutor` - Orchestrates multi-phase execution
 
@@ -293,7 +293,7 @@ Repeat until comprehensive - Final synthesis
 ```
 User creates expert - Expert analyzes seed docs
     |
-GPT-5 generates curriculum - 5-20 research topics
+GPT-5.2 generates curriculum - 5-20 research topics
     |
 User approves budget - Research jobs submitted
     |
@@ -313,8 +313,8 @@ User asks question - Expert searches knowledge base
     |
 Knowledge gap detected - Expert decides research depth
     |
-    +-- Quick lookup (FREE, <5s) - GPT-5 + web search
-    +-- Standard research ($0.01-0.05) - GPT-5 focused
+    +-- Quick lookup (FREE, <5s) - GPT-5.2 + web search
+    +-- Standard research ($0.01-0.05) - GPT-5.2 focused
     +-- Deep research ($0.10-0.30) - o4-mini comprehensive
     |
 Research completes - Results integrated to knowledge base
@@ -385,7 +385,7 @@ Every task automatically emits structured JSON:
   "job_id": "job_abc123",
   "prompt": "...",
   "context_used": ["doc1.md", "doc2.pdf"],
-  "model": "gpt-5",
+  "model": "gpt-5.2",
   "provider": "openai",
   "tokens": {
     "input": 12000,
@@ -652,11 +652,11 @@ CREATE TABLE contradictions (
 Multi-expert deliberation:
 
 ```
-User question → GPT-5 assembles optimal expert panel
+User question → GPT-5.2 assembles optimal expert panel
     ↓
 Round 1 → Each expert provides perspective
     ↓
-Round 2 → GPT-5 facilitates debate
+Round 2 → GPT-5.2 facilitates debate
     ↓
 Round 3 → Synthesis with consensus + dissent
 ```

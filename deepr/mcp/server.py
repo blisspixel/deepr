@@ -178,6 +178,48 @@ class DeeprMCPServer:
             Job information with job_id, estimated_time, cost_estimate
         """
         try:
+            # Estimate cost based on model
+            if "o4-mini" in model:
+                cost_estimate = 0.15
+                estimated_time = "5-10 minutes"
+            elif "o3" in model:
+                cost_estimate = 0.50
+                estimated_time = "10-20 minutes"
+            else:
+                cost_estimate = 0.20
+                estimated_time = "5-15 minutes"
+            
+            # CRITICAL: Validate budget BEFORE any API calls
+            from deepr.experts.cost_safety import get_cost_safety_manager
+            import uuid
+            
+            cost_safety = get_cost_safety_manager()
+            session_id = f"mcp_research_{uuid.uuid4().hex[:8]}"
+            
+            # Check against global limits
+            allowed, reason, _ = cost_safety.check_operation(
+                session_id=session_id,
+                operation_type="mcp_research",
+                estimated_cost=cost_estimate,
+                require_confirmation=False
+            )
+            
+            if not allowed:
+                return {
+                    "error": f"Research blocked by cost safety: {reason}",
+                    "cost_estimate": cost_estimate,
+                    "daily_spent": cost_safety.daily_cost,
+                    "daily_limit": cost_safety.max_daily
+                }
+            
+            # Check against explicit budget if provided
+            if budget is not None and cost_estimate > budget:
+                return {
+                    "error": f"Estimated cost ${cost_estimate:.2f} exceeds budget ${budget:.2f}",
+                    "cost_estimate": cost_estimate,
+                    "budget": budget
+                }
+            
             # Create provider instance
             if provider == "openai":
                 api_key = self.config.get("api_key")
@@ -205,26 +247,17 @@ class DeeprMCPServer:
                 report_generator
             )
 
-            # Submit research
+            # Submit research (orchestrator now validates budget too)
             job_id = await orchestrator.submit_research(
                 prompt=prompt,
                 model=model,
                 documents=files if files else None,
                 enable_web_search=enable_web_search,
                 enable_code_interpreter=enable_code_interpreter,
-                cost_sensitive=budget is not None and budget < 0.20
+                cost_sensitive=budget is not None and budget < 0.20,
+                budget_limit=budget,
+                session_id=session_id
             )
-
-            # Estimate cost based on model
-            if "o4-mini" in model:
-                cost_estimate = 0.10
-                estimated_time = "5-10 minutes"
-            elif "o3" in model:
-                cost_estimate = 0.50
-                estimated_time = "10-20 minutes"
-            else:
-                cost_estimate = 0.15
-                estimated_time = "5-15 minutes"
 
             # Track job
             self.active_jobs[job_id] = {
@@ -234,17 +267,26 @@ class DeeprMCPServer:
                 "provider": provider,
                 "submitted_at": datetime.now().isoformat(),
                 "status": "submitted",
-                "provider_instance": provider_instance
+                "provider_instance": provider_instance,
+                "cost_estimate": cost_estimate
             }
+            
+            # Get spending summary for transparency
+            spending = cost_safety.get_spending_summary()
 
             return {
                 "job_id": job_id,
                 "status": "submitted",
                 "estimated_time": estimated_time,
                 "cost_estimate": cost_estimate,
+                "daily_spent": spending["daily"]["spent"],
+                "daily_remaining": spending["daily"]["remaining"],
                 "message": f"Research job submitted successfully. Use deepr_check_status with job_id '{job_id}' to check progress."
             }
 
+        except ValueError as ve:
+            # Budget validation errors
+            return {"error": str(ve)}
         except Exception as e:
             return {"error": str(e)}
 
@@ -356,7 +398,7 @@ class DeeprMCPServer:
         Args:
             goal: High-level research goal
             expert_name: Expert to use for agentic reasoning (optional, creates temp expert if not provided)
-            budget: Total budget for the agentic workflow
+            budget: Total budget for the agentic workflow (default $5, max $10)
             sources: Preferred sources to prioritize
             files: Files to include as context
             model: Model to use for research jobs
@@ -368,6 +410,38 @@ class DeeprMCPServer:
         try:
             import uuid
             workflow_id = str(uuid.uuid4())
+            
+            # CRITICAL: Validate and cap budget for agentic workflows
+            from deepr.experts.cost_safety import get_cost_safety_manager, CostSafetyManager
+            
+            cost_safety = get_cost_safety_manager()
+            
+            # Cap agentic budget at absolute max per operation
+            max_agentic_budget = min(budget, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION)
+            if budget > max_agentic_budget:
+                return {
+                    "error": f"Agentic budget ${budget:.2f} exceeds maximum ${max_agentic_budget:.2f}",
+                    "max_allowed": max_agentic_budget,
+                    "suggestion": f"Use budget=${max_agentic_budget:.2f} or lower"
+                }
+            
+            # Check against daily/monthly limits
+            session_id = f"agentic_{workflow_id[:8]}"
+            allowed, reason, _ = cost_safety.check_operation(
+                session_id=session_id,
+                operation_type="agentic_research",
+                estimated_cost=max_agentic_budget,  # Reserve full budget
+                require_confirmation=False
+            )
+            
+            if not allowed:
+                spending = cost_safety.get_spending_summary()
+                return {
+                    "error": f"Agentic research blocked: {reason}",
+                    "daily_spent": spending["daily"]["spent"],
+                    "daily_limit": spending["daily"]["limit"],
+                    "daily_remaining": spending["daily"]["remaining"]
+                }
 
             # If expert_name provided, use existing expert
             if expert_name:
@@ -384,17 +458,17 @@ class DeeprMCPServer:
                     "suggestion": "Use deepr_list_experts to see available experts, or create one with the CLI: deepr expert make <name> <domain>"
                 }
 
-            # Create agentic session
+            # Create agentic session with validated budget
             session = ExpertChatSession(
                 expert,
-                budget=budget,
+                budget=max_agentic_budget,
                 agentic=True  # Enable agentic mode
             )
 
             # Enhanced prompt for agentic behavior
             agentic_prompt = f"""Research Goal: {goal}
 
-I need you to conduct comprehensive research on this goal. You have autonomous research capabilities with a budget of ${budget:.2f}.
+I need you to conduct comprehensive research on this goal. You have autonomous research capabilities with a budget of ${max_agentic_budget:.2f}.
 
 Please:
 1. Analyze what research is needed to fully address this goal
@@ -417,20 +491,25 @@ Please:
                 "workflow_id": workflow_id,
                 "goal": goal,
                 "expert_name": expert.name,
-                "budget": budget,
-                "budget_remaining": budget,
+                "budget": max_agentic_budget,
+                "budget_remaining": max_agentic_budget,
                 "status": "in_progress",
                 "started_at": datetime.now().isoformat(),
                 "session": session
             }
 
             self.active_jobs[workflow_id] = workflow_info
+            
+            # Get spending summary for transparency
+            spending = cost_safety.get_spending_summary()
 
             return {
                 "workflow_id": workflow_id,
                 "status": "in_progress",
                 "expert_name": expert.name,
-                "budget_allocated": budget,
+                "budget_allocated": max_agentic_budget,
+                "daily_spent": spending["daily"]["spent"],
+                "daily_remaining": spending["daily"]["remaining"],
                 "initial_response": response[:500] + "..." if len(response) > 500 else response,
                 "message": f"Agentic workflow started. The expert will autonomously conduct research and report back. Use deepr_check_status with workflow_id '{workflow_id}' to monitor progress."
             }

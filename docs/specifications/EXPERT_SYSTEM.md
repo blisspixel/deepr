@@ -47,7 +47,7 @@ deepr expert make "Supply Chain Management" \
 **What happens:**
 
 1. Expert analyzes initial documents
-2. GPT-5 generates learning curriculum (8 research topics in this example)
+2. GPT-5.2 generates learning curriculum (8 research topics in this example)
 3. Shows estimated costs per topic and total before submission
 4. Requires confirmation if total exceeds $1 or budget limit
 5. Submits deep research jobs in parallel (each takes 5-20 minutes)
@@ -190,14 +190,14 @@ When in agentic mode, experts choose the appropriate research depth:
 ### Quick Lookup (FREE, <5 seconds)
 
 For simple factual questions:
-- Uses GPT-5 with web search
+- Uses GPT-5.2 with web search
 - No deep research API call
 - Answers: "What year was X founded?", "What's the current version of Y?"
 
 ### Standard Research ($0.01-$0.05, 30-60 seconds)
 
 For technical deep-dives:
-- Uses GPT-5 focused research
+- Uses GPT-5.2 focused research
 - Moderate depth analysis
 - Answers: "How does X work?", "Compare X and Y"
 
@@ -390,7 +390,7 @@ data/experts/
   "conversation_count": 8,
   "total_cost": 4.25,
   "provider": "openai",
-  "model": "gpt-5"
+  "model": "gpt-5.2"
 }
 ```
 
@@ -411,8 +411,8 @@ deepr council "Should we build vs buy for our data platform?" \
 
 **What happens:**
 1. Each expert provides perspective from their knowledge base
-2. GPT-5 facilitates debate, experts respond to each other
-3. GPT-5 synthesizes consensus and dissenting opinions
+2. GPT-5.2 facilitates debate, experts respond to each other
+3. GPT-5.2 synthesizes consensus and dissenting opinions
 
 **Output:**
 - Consensus recommendations

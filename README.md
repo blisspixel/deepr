@@ -1,12 +1,12 @@
 # Deepr
 
-![Tests](https://img.shields.io/badge/tests-316%20passing-green)
+![Tests](https://img.shields.io/badge/tests-1217%20collected-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
-**TL;DR:** CLI tool for comprehensive AI-powered research that produces cited reports, builds self-improving domain experts, and integrates with AI agents via MCP. Multi-provider support (OpenAI GPT-5, Gemini, Grok, Azure). Local-first.
+**TL;DR:** CLI tool for AI-powered research that produces cited reports, builds domain experts, and integrates with AI agents via MCP. Multi-provider support (OpenAI GPT-5.2, Gemini, Grok, Azure). Local-first. Early-stage software.
 
-**Autonomous Learning and Knowledge Infrastructure**
+**Research Automation and Knowledge Infrastructure**
 
 ---
 
@@ -26,19 +26,19 @@
 
 ## Overview
 
-Deepr is a research operating system that turns curiosity into structured, verifiable knowledge. It coordinates AI models, data sources, and reasoning workflows to produce comprehensive, cited research artifacts.
+Deepr is a research tool that coordinates AI models to produce structured, cited research artifacts. It automates the research workflow: planning, searching, analyzing, and synthesizing information into versioned markdown reports.
 
 **What it does:**
 - Plans, searches, analyzes, and synthesizes information
 - Produces cited, versioned markdown reports
-- Builds domain experts with autonomous learning
+- Builds domain experts from documents (experimental)
 - Integrates with AI agents via Model Context Protocol
 
 **What makes it different:**
-- Multi-provider support (OpenAI GPT-5, Gemini, Grok, Azure)
+- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok, Azure)
 - Local-first (runs on your machine)
 - Knowledge infrastructure (not just one-off queries)
-- Self-improving experts (learns from conversations)
+- Expert system with learning capabilities (experimental)
 
 See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for technical details on the self-improvement loop, autonomous learning, and knowledge synthesis.
 
@@ -79,17 +79,17 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for detailed use cases with real-world 
 
 ### Multi-Provider Orchestration
 
-Works across OpenAI GPT-5, Google Gemini, xAI Grok, Azure OpenAI. Automatically routes tasks to the best model for the job.
+Works across OpenAI GPT-5.2, Google Gemini, xAI Grok, Azure OpenAI. Automatically routes tasks to the best model for the job.
 
 ```bash
 deepr research "Topic" --provider grok --budget 2
 ```
 
-See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for provider selection guidance.
+See [ROADMAP.md](ROADMAP.md#model-strategy) for provider selection guidance.
 
-### Domain Experts with Autonomous Learning
+### Domain Experts (Experimental)
 
-Create experts that learn autonomously from research and synthesize knowledge into beliefs:
+Create experts from documents that can answer questions using vector search and optionally trigger research for knowledge gaps:
 
 ```bash
 # Create expert and have it research a domain
@@ -113,7 +113,7 @@ deepr expert fill-gaps "Supply Chain Expert" --budget 5 --top 3
 # Resume paused learning (after hitting daily/monthly limits)
 deepr expert resume "Supply Chain Expert"
 
-# Export expert consciousness for sharing
+# Export expert knowledge for sharing
 deepr expert export "Supply Chain Expert" --output ./exports/
 
 # Import expert from exported corpus
@@ -121,48 +121,44 @@ deepr expert import "New Expert Name" --corpus ./exports/supply_chain_expert/
 ```
 
 Features:
-- Knowledge synthesis: Expert creates a "worldview" from research, not just RAG retrieval
-- Belief formation: Expert forms beliefs with confidence levels and evidence citations
-- Gap awareness: Expert tracks what it doesn't know and can research to fill gaps
-- Continuous learning: Expert re-synthesizes consciousness after research conversations
-- Manual learning: Add knowledge on demand via topics or file uploads
-- Gap filling: Proactively research high-priority knowledge gaps
-- Pause/resume: Long-running learning pauses gracefully at daily/monthly limits and can be resumed
-- Export/import: Package expert consciousness for sharing or backup
+- Vector search: Expert retrieves relevant documents to answer questions
+- Knowledge synthesis: Expert can create a summarized "worldview" from documents (experimental)
+- Belief formation: Expert forms beliefs with confidence levels and evidence citations (experimental)
+- Gap awareness: Expert tracks knowledge gaps and can research to fill them
+- Manual learning: Add knowledge via topics or file uploads
+- Pause/resume: Long-running learning pauses at budget limits and can be resumed
+- Export/import: Package expert knowledge for sharing or backup
 
-Status: Core implementation complete. Unit tests pass (62 tests for new features). Initial testing shows experts form beliefs and speak from synthesized understanding. This is early-stage software - more extensive real-world testing needed to validate reliability at scale. The architecture aims toward "Level 5" agentic behavior (self-improving, meta-cognitive awareness) but we're not claiming to have achieved it yet.
+Status: Core implementation complete. Unit tests pass. Initial testing shows the system works as designed, but this is early-stage software. More real-world testing needed to validate reliability. The "consciousness" and "belief" terminology describes the architecture's goals, not claims about actual AI capabilities.
 
-See [docs/EXPERT_SYSTEM.md](docs/EXPERT_SYSTEM.md) for detailed documentation.
+See [ROADMAP.md](ROADMAP.md#priority-25-agentic-expert-system-capability-extension) for detailed documentation.
 
 ### Structured Learning Workflow
 
-Four types of knowledge artifacts that mirror how experts actually work:
+Four types of knowledge artifacts that mirror how experts actually work. See [ROADMAP.md](ROADMAP.md#structured-learning-approach) for detailed workflow and cost breakdown.
 
-| Type | Purpose | Model | Cost | Command |
-|------|---------|-------|------|---------|
-| News | Latest developments | grok-4-fast | ~$0.001 | `deepr news` |
-| Docs | Fundamentals, APIs | grok-4-fast | ~$0.002 | `deepr research --scrape` |
-| Research | Deep analysis | o4-mini or grok | $0.001-$0.50 | `deepr research` |
-| Team | Multi-perspective | grok-4-fast | ~$0.005 | `deepr team` |
-
-Example learning Kubernetes from fundamentals to strategic decision for ~$0.51 total.
-
-See [docs/LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md) for comprehensive learning strategies.
-
-### MCP Integration (Experimental)
+### MCP Integration
 
 Expose Deepr to AI agents via Model Context Protocol. Allows Claude Desktop, Cursor, and other MCP-compatible agents to:
 - Submit long-running research jobs
 - Query domain experts
 - Orchestrate multi-step research workflows
+- Subscribe to research progress via resource URIs
+- Handle budget decisions through elicitation
 
-**Status:** Code complete, not yet tested with actual MCP clients.
+**Advanced MCP Patterns:**
+- Dynamic Tool Discovery: Reduces context by ~85% through on-demand tool schema loading
+- Resource Subscriptions: Event-driven async monitoring (70% token savings vs polling)
+- Human-in-the-Loop Elicitation: Cost governance with structured user decisions
+- Sandboxed Execution: Isolated contexts for heavy research operations
 
-See [docs/MCP.md](docs/MCP.md) for setup instructions and limitations.
+**Status:** Core implementation complete. Testing with MCP clients ongoing.
+
+See [mcp/README.md](mcp/README.md) for setup instructions and [skills/deepr-research/](skills/deepr-research/) for the Claude Skill.
 
 ### Web Scraping
 
-Intelligent web scraping with fallback strategies for accessing web content when needed.
+Web scraping with fallback strategies for accessing web content when needed.
 
 See [deepr/utils/scrape/README.md](deepr/utils/scrape/README.md) for API documentation.
 
@@ -343,7 +339,7 @@ deepr expert resume "AWS Expert"
 deepr expert resume "AWS Expert" --budget 10
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
+See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for technical details.
 
 ---
 
@@ -387,13 +383,13 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples and best pract
 
 **Core Guides:**
 - [EXAMPLES.md](docs/EXAMPLES.md) - Detailed real-world use cases
-- [EXPERT_SYSTEM.md](docs/EXPERT_SYSTEM.md) - Creating and using domain experts
-- [LEARNING_WORKFLOW.md](docs/LEARNING_WORKFLOW.md) - Structured learning strategies
+- [ROADMAP.md](ROADMAP.md#priority-25-agentic-expert-system-capability-extension) - Creating and using domain experts
+- [ROADMAP.md](ROADMAP.md#structured-learning-approach) - Structured learning strategies
 
 **Technical:**
 - [ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) - Technical architecture
-- [MODEL_SELECTION.md](docs/MODEL_SELECTION.md) - Choosing the right model
-- [MCP.md](docs/MCP.md) - Model Context Protocol integration
+- [ROADMAP.md](ROADMAP.md#model-strategy) - Choosing the right model
+- [mcp/README.md](mcp/README.md) - Model Context Protocol integration
 
 **Project:**
 - [ROADMAP.md](ROADMAP.md) - Development roadmap and future vision
@@ -446,7 +442,7 @@ Deepr implements multiple security layers:
 - Start with small budgets (`deepr budget set 5`)
 - Use pre-paid credits with auto-reload OFF
 - Only upload files you trust
-- Review [SECURITY.md](SECURITY.md) for complete guidance
+- Review [docs/specifications/SECURITY.md](docs/specifications/SECURITY.md) for complete guidance
 
 **Report Security Issues:** security@deepr.dev
 
@@ -466,13 +462,16 @@ Most impactful work is on intelligence layer, not infrastructure.
 
 ## Vision
 
-Deepr is an experiment in making deep research accessible and repeatable. The goal: turn curiosity into structured knowledge that compounds over time.
+Deepr started as an experiment in making deep research accessible and repeatable. The goal is to turn research queries into structured, cited knowledge that can be built upon over time.
 
-Current focus: Self-improving domain experts that learn autonomously. Research that becomes permanent knowledge. AI systems that grow smarter with each conversation.
+Current focus areas:
+- Domain experts that can answer questions from uploaded documents
+- Research workflows that chain multiple queries together
+- Integration with AI agents via MCP
 
-The aspiration: Infrastructure that helps both humans and AI systems learn better.
+This is a learning project exploring how to build useful research automation. It's not production-ready enterprise software.
 
-See [ROADMAP.md](ROADMAP.md) for development priorities and future vision.
+See [ROADMAP.md](ROADMAP.md) for development priorities and technical details.
 
 ---
 
@@ -484,13 +483,11 @@ MIT License. See [LICENSE](LICENSE).
 
 ## About
 
-Deepr is a research operating system and knowledge infrastructure platform by **Nick Seal**.
+Deepr is a research automation tool by **Nick Seal**.
 
-What started as a weekend experiment has evolved into a comprehensive system for autonomous learning, knowledge synthesis, and self-improving domain experts. The project explores how AI systems learn, remember, and improve over time.
+What started as a weekend experiment has grown into a system for automating research workflows and building document-based experts. The project explores practical approaches to research automation and knowledge management.
 
-Built with transparency. Designed for both individual learning and as infrastructure for AI agents. Actively evolving.
-
-Contributions and feedback welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
+Built with transparency. Actively evolving. Feedback welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
 
 ---
 
