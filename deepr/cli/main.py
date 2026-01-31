@@ -31,7 +31,7 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs, semantic, doctor, diagnostics, mcp
+from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs, semantic, doctor, diagnostics, mcp, help as help_cmd
 
 # Core commands - new structure
 cli.add_command(run.run)
@@ -41,6 +41,7 @@ cli.add_command(jobs.jobs)
 cli.add_command(semantic.research)
 cli.add_command(semantic.learn)
 cli.add_command(semantic.team)
+cli.add_command(semantic.check)
 cli.add_command(semantic.expert)
 
 # Deprecated commands (kept for backward compatibility with warnings)
@@ -68,6 +69,7 @@ cli.add_command(migrate.migrate)
 cli.add_command(doctor.doctor)
 cli.add_command(diagnostics.diagnostics_cli)
 cli.add_command(mcp.mcp)
+cli.add_command(help_cmd.help)
 
 
 def main():
