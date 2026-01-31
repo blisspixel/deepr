@@ -165,7 +165,7 @@ DEEPR_MAX_COST_PER_DAY=100.0        # Daily spending limit
 DEEPR_MAX_COST_PER_MONTH=1000.0     # Monthly spending limit
 
 # Features
-DEEPR_AUTO_REFINE=false             # Auto-optimize prompts (GPT-5-mini)
+DEEPR_AUTO_REFINE=false             # Auto-optimize prompts (GPT-5.2-mini)
 
 # Storage
 DEEPR_RESULTS_DIR=data/reports      # Where reports are saved

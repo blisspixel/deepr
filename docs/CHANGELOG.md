@@ -5,7 +5,64 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v2.3
+## [Unreleased] - v2.5
+
+### Added
+
+**MCP Advanced Patterns Implementation**
+- Added Dynamic Tool Discovery with BM25/vector search in `deepr/mcp/search/registry.py`
+- Added Resource Subscriptions for event-driven async monitoring in `deepr/mcp/state/subscriptions.py`
+- Added Human-in-the-Loop Elicitation for cost governance in `deepr/mcp/state/elicitation.py`
+- Added Sandboxed Execution for isolated research contexts in `deepr/mcp/state/sandbox.py`
+- Added JobManager for background task coordination in `deepr/mcp/state/job_manager.py`
+- Added ResourceHandler for MCP resource protocol in `deepr/mcp/state/resource_handler.py`
+- Added ExpertResources for expert profile/beliefs/gaps resources in `deepr/mcp/state/expert_resources.py`
+
+**Transport Layer**
+- Added Stdio transport for local process communication in `deepr/mcp/transport/stdio.py`
+- Added Streamable HTTP transport for cloud deployment in `deepr/mcp/transport/http.py`
+- StdioTransport ensures research data never leaves local process tree
+- StreamingHttpTransport supports SSE for server-to-client notifications
+- HttpClient for connecting to remote MCP servers
+
+**Agent Trajectory Evaluation**
+- Added TrajectoryMetrics for tracking agent performance in `deepr/mcp/evaluation/metrics.py`
+- Tracks trajectory efficiency (steps vs optimal golden path)
+- Tracks citation accuracy (beliefs with cited sources)
+- Tracks hallucination rate (invented parameters not in schema)
+- Tracks context economy (tokens per task)
+- MetricsTracker for aggregating metrics across sessions
+
+**Claude Skill Infrastructure**
+- Created `skills/deepr-research/` directory following Claude Skill conventions
+- Added SKILL.md with activation keywords and progressive disclosure
+- Added reference documents for research modes, expert system, cost guidance, prompt patterns, troubleshooting, and MCP patterns
+- Added scripts for research decision classification and result formatting
+- Added templates for research report output
+
+**Elicitation System**
+- ElicitationHandler for structured user input requests via JSON-RPC
+- BudgetDecision enum with APPROVE_OVERRIDE, OPTIMIZE_FOR_COST, ABORT options
+- CostOptimizer for dynamic model switching when optimizing for cost
+- Budget limit triggers that pause jobs and request user decisions
+- JSON Schema support for structured elicitation responses
+
+**Sandbox System**
+- SandboxManager for isolated execution contexts
+- PathValidator with path traversal attack prevention
+- SandboxConfig for configurable isolation settings
+- Filesystem isolation with strict working directory enforcement
+- Report synthesis and merge for extracting results from sandboxed contexts
+
+**Test Coverage**
+- 302 tests passing across MCP and skill modules
+- 34 tests for transport layer (stdio and HTTP)
+- 34 tests for trajectory metrics
+- 37 tests for elicitation module
+- 36 tests for sandbox module
+- Property-based tests using Hypothesis for core skill logic
+
+## [2.3.0] - 2025-11-15
 
 ### Added
 
@@ -100,7 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Automatic Prompt Refinement**
 - Added `--refine-prompt` flag to optimize research queries automatically
-- Uses GPT-5-mini to enhance prompts with temporal context and structure (~$0.001 per refinement)
+- Uses GPT-5.2-mini to enhance prompts with temporal context and structure (~$0.001 per refinement)
 - Automatically adds current date context ("As of October 2025...")
 - Suggests structured deliverables and flags missing business context
 - Provides before/after comparison of prompt improvements
@@ -173,7 +230,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Multi-phase research campaigns with adaptive planning
-- GPT-5 as research lead for reviewing and planning phases
+- GPT-5.2 as research lead for reviewing and planning phases
 - Context chaining with automatic summarization
 - Dynamic research teams (experimental)
 - Web UI with real-time updates and cost analytics

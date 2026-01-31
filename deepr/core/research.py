@@ -11,6 +11,16 @@ from .documents import DocumentManager
 from .reports import ReportGenerator
 
 
+# Cost estimates per model for budget validation
+MODEL_COST_ESTIMATES = {
+    "o3-deep-research": 0.50,           # $0.30-0.70 typical
+    "o3-deep-research-2025-06-26": 0.50,
+    "o4-mini-deep-research": 0.15,      # $0.10-0.25 typical
+    "o4-mini-deep-research-2025-06-26": 0.15,
+}
+DEFAULT_COST_ESTIMATE = 0.20  # Conservative default
+
+
 class ResearchOrchestrator:
     """
     Orchestrates the complete research workflow.
@@ -91,6 +101,8 @@ class ResearchOrchestrator:
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
         custom_system_message: Optional[str] = None,
+        budget_limit: Optional[float] = None,
+        session_id: Optional[str] = None,
     ) -> str:
         """
         Submit a research job.
@@ -106,13 +118,44 @@ class ResearchOrchestrator:
             enable_web_search: Enable web search tool
             enable_code_interpreter: Enable code interpreter tool
             custom_system_message: Override system message for this job
+            budget_limit: Optional budget limit for this job (validated against cost safety)
+            session_id: Optional session ID for cost tracking
 
         Returns:
             Job ID for tracking
 
         Raises:
             Exception: If submission fails
+            ValueError: If budget would be exceeded
         """
+        # CRITICAL: Validate budget BEFORE any API calls
+        estimated_cost = MODEL_COST_ESTIMATES.get(model, DEFAULT_COST_ESTIMATE)
+        
+        # Import cost safety manager for budget validation
+        from ..experts.cost_safety import get_cost_safety_manager
+        
+        cost_safety = get_cost_safety_manager()
+        
+        # Create or use session for tracking
+        tracking_session_id = session_id or f"research_{uuid.uuid4().hex[:8]}"
+        
+        # Check against global limits (daily/monthly)
+        allowed, reason, needs_confirm = cost_safety.check_operation(
+            session_id=tracking_session_id,
+            operation_type="research_submit",
+            estimated_cost=estimated_cost,
+            require_confirmation=False  # CLI/API handles confirmation
+        )
+        
+        if not allowed:
+            raise ValueError(f"Research blocked by cost safety: {reason}")
+        
+        # Check against explicit budget limit if provided
+        if budget_limit is not None and estimated_cost > budget_limit:
+            raise ValueError(
+                f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}"
+            )
+        
         # Generate job ID
         job_id = str(uuid.uuid4())
 
@@ -166,6 +209,14 @@ class ResearchOrchestrator:
 
         # Submit to provider
         response_id = await self.provider.submit_research(request)
+
+        # Record cost in safety manager for tracking
+        cost_safety.record_cost(
+            session_id=tracking_session_id,
+            operation_type="research_submit",
+            actual_cost=estimated_cost,
+            details=f"Job {response_id}: {prompt[:50]}..."
+        )
 
         return response_id
 

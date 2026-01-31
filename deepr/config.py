@@ -1,8 +1,8 @@
 """Configuration management for Deepr."""
 
 import os
-from typing import Optional, Literal, Dict
-from pydantic import BaseModel, Field, validator
+from typing import Optional, Literal, Dict, Any
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -12,6 +12,8 @@ load_dotenv()
 
 class ProviderConfig(BaseModel):
     """Configuration for AI provider (OpenAI or Azure)."""
+
+    model_config = ConfigDict(validate_default=True)
 
     type: Literal["openai", "azure"] = Field(
         default="openai", description="Provider type: openai or azure"
@@ -45,51 +47,75 @@ class ProviderConfig(BaseModel):
     deep_research_provider: str = Field(default="openai", description="Provider for deep research operations")
     deep_research_model: str = Field(default="o4-mini-deep-research", description="Model for deep research")
 
-    @validator("default_provider", always=True)
-    def validate_default_provider(cls, v):
+    # Task-specific model mappings
+    # Maps task types to (provider, model) tuples
+    TASK_MODEL_MAP: Dict[str, tuple] = {
+        "quick_lookup": ("xai", "grok-4-fast"),           # Fast, cheap fact checks
+        "fact_check": ("xai", "grok-4-fast"),             # Fact verification
+        "deep_research": ("openai", "o4-mini-deep-research"),  # Deep research
+        "synthesis": ("openai", "gpt-5"),                 # Knowledge synthesis
+        "chat": ("openai", "gpt-5"),                      # Expert chat
+        "planning": ("openai", "gpt-5"),                  # Research planning
+        "documentation": ("openai", "gpt-5"),             # Doc generation
+        "strategy": ("openai", "gpt-5.2"),                # Strategic analysis
+    }
+
+    def get_model_for_task(self, task_type: str) -> tuple:
+        """Get optimal (provider, model) for a task type.
+        
+        Args:
+            task_type: One of quick_lookup, fact_check, deep_research, 
+                      synthesis, chat, planning, documentation, strategy
+                      
+        Returns:
+            Tuple of (provider, model) for the task
+        """
+        if task_type in self.TASK_MODEL_MAP:
+            return self.TASK_MODEL_MAP[task_type]
+        # Default fallback
+        return (self.default_provider, self.default_model)
+
+    @field_validator("default_provider", mode="before")
+    @classmethod
+    def validate_default_provider(cls, v: Any) -> str:
         """Load default provider from environment."""
-        return os.getenv("DEEPR_DEFAULT_PROVIDER", v)
+        return os.getenv("DEEPR_DEFAULT_PROVIDER", v) if v else os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
 
-    @validator("default_model", always=True)
-    def validate_default_model(cls, v):
+    @field_validator("default_model", mode="before")
+    @classmethod
+    def validate_default_model(cls, v: Any) -> str:
         """Load default model from environment."""
-        return os.getenv("DEEPR_DEFAULT_MODEL", v)
+        return os.getenv("DEEPR_DEFAULT_MODEL", v) if v else os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-fast")
 
-    @validator("deep_research_provider", always=True)
-    def validate_deep_research_provider(cls, v):
+    @field_validator("deep_research_provider", mode="before")
+    @classmethod
+    def validate_deep_research_provider(cls, v: Any) -> str:
         """Load deep research provider from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", v)
+        return os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
 
-    @validator("deep_research_model", always=True)
-    def validate_deep_research_model(cls, v):
+    @field_validator("deep_research_model", mode="before")
+    @classmethod
+    def validate_deep_research_model(cls, v: Any) -> str:
         """Load deep research model from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v)
+        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
 
-    @validator("openai_api_key", always=True)
-    def validate_openai_key(cls, v, values):
-        """Validate OpenAI API key is present when using OpenAI provider."""
-        if values.get("type") == "openai" and not v:
-            return os.getenv("OPENAI_API_KEY")
-        return v
-
-    @validator("azure_api_key", always=True)
-    def validate_azure_key(cls, v, values):
-        """Validate Azure API key when not using managed identity."""
-        if values.get("type") == "azure" and not values.get("azure_use_managed_identity"):
-            if not v:
-                return os.getenv("AZURE_OPENAI_KEY")
-        return v
-
-    @validator("azure_endpoint", always=True)
-    def validate_azure_endpoint(cls, v, values):
-        """Validate Azure endpoint is present when using Azure provider."""
-        if values.get("type") == "azure" and not v:
-            return os.getenv("AZURE_OPENAI_ENDPOINT")
-        return v
+    @model_validator(mode="after")
+    def validate_api_keys(self) -> "ProviderConfig":
+        """Validate API keys based on provider type."""
+        if self.type == "openai" and not self.openai_api_key:
+            self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        if self.type == "azure":
+            if not self.azure_use_managed_identity and not self.azure_api_key:
+                self.azure_api_key = os.getenv("AZURE_OPENAI_KEY")
+            if not self.azure_endpoint:
+                self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        return self
 
 
 class StorageConfig(BaseModel):
     """Configuration for storage backend (local or Azure Blob)."""
+
+    model_config = ConfigDict(validate_default=True)
 
     type: Literal["local", "blob"] = Field(
         default="local", description="Storage type: local or blob"
@@ -110,24 +136,15 @@ class StorageConfig(BaseModel):
         default=False, description="Use Azure Managed Identity for storage"
     )
 
-    @validator("azure_connection_string", always=True)
-    def validate_blob_connection(cls, v, values):
-        """Validate Azure Storage connection string when using blob storage."""
-        if values.get("type") == "blob" and not values.get("azure_use_managed_identity"):
-            if not v:
-                return os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-        return v
-
-    @validator("azure_account_url", always=True)
-    def validate_blob_account_url(cls, v, values):
-        """Validate Azure Storage account URL for managed identity."""
-        if (
-            values.get("type") == "blob"
-            and values.get("azure_use_managed_identity")
-            and not v
-        ):
-            return os.getenv("AZURE_STORAGE_ACCOUNT_URL")
-        return v
+    @model_validator(mode="after")
+    def validate_azure_storage(self) -> "StorageConfig":
+        """Validate Azure storage configuration."""
+        if self.type == "blob":
+            if not self.azure_use_managed_identity and not self.azure_connection_string:
+                self.azure_connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+            if self.azure_use_managed_identity and not self.azure_account_url:
+                self.azure_account_url = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
+        return self
 
 
 class WebhookConfig(BaseModel):
@@ -184,6 +201,8 @@ class ResearchConfig(BaseModel):
 class ExpertConfig(BaseModel):
     """Configuration for expert system."""
 
+    model_config = ConfigDict(validate_default=True)
+
     # Curriculum Generation
     default_topics: int = Field(default=15, description="Default number of learning topics")
     deep_research_topics: int = Field(default=5, description="Number of deep research (campaign) topics")
@@ -200,26 +219,35 @@ class ExpertConfig(BaseModel):
     # Domain Velocity Defaults
     default_domain_velocity: str = Field(default="medium", description="Default domain velocity (slow/medium/fast)")
 
-    @validator("default_topics", always=True)
-    def validate_default_topics(cls, v):
+    @field_validator("default_topics", mode="before")
+    @classmethod
+    def validate_default_topics(cls, v: Any) -> int:
         """Load default topics from environment."""
-        return int(os.getenv("DEEPR_EXPERT_DEFAULT_TOPICS", str(v)))
+        env_val = os.getenv("DEEPR_EXPERT_DEFAULT_TOPICS")
+        return int(env_val) if env_val else (int(v) if v else 15)
 
-    @validator("deep_research_topics", always=True)
-    def validate_deep_topics(cls, v):
+    @field_validator("deep_research_topics", mode="before")
+    @classmethod
+    def validate_deep_topics(cls, v: Any) -> int:
         """Load deep research topics from environment."""
-        return int(os.getenv("DEEPR_EXPERT_DEEP_TOPICS", str(v)))
+        env_val = os.getenv("DEEPR_EXPERT_DEEP_TOPICS")
+        return int(env_val) if env_val else (int(v) if v else 5)
 
-    @validator("quick_research_topics", always=True)
-    def validate_quick_topics(cls, v):
+    @field_validator("quick_research_topics", mode="before")
+    @classmethod
+    def validate_quick_topics(cls, v: Any) -> int:
         """Load quick research topics from environment."""
-        return int(os.getenv("DEEPR_EXPERT_QUICK_TOPICS", str(v)))
+        env_val = os.getenv("DEEPR_EXPERT_QUICK_TOPICS")
+        return int(env_val) if env_val else (int(v) if v else 10)
 
-    @validator("auto_synthesis", always=True)
-    def validate_auto_synthesis(cls, v):
+    @field_validator("auto_synthesis", mode="before")
+    @classmethod
+    def validate_auto_synthesis(cls, v: Any) -> bool:
         """Load auto synthesis from environment."""
-        env_val = os.getenv("DEEPR_EXPERT_AUTO_SYNTHESIS", str(v)).lower()
-        return env_val in ("true", "1", "yes")
+        env_val = os.getenv("DEEPR_EXPERT_AUTO_SYNTHESIS")
+        if env_val:
+            return env_val.lower() in ("true", "1", "yes")
+        return bool(v) if v is not None else True
 
 
 class DatabaseConfig(BaseModel):
@@ -407,11 +435,10 @@ class AppConfig(BaseModel):
 
         Path(path).write_text("\n".join(lines))
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_prefix = "DEEPR_"
-        case_sensitive = False
+    model_config = ConfigDict(
+        env_prefix="DEEPR_",
+        case_sensitive=False,
+    )
 
 
 def load_config() -> Dict:
