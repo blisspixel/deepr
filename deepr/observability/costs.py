@@ -875,6 +875,10 @@ class CostDashboard:
         
         Logs errors and starts fresh if loading fails, rather than
         silently ignoring corruption.
+        
+        Note:
+            After loading, the aggregator is reinitialized to reference
+            the newly loaded entries list.
         """
         if not self.storage_path.exists():
             return
@@ -887,6 +891,9 @@ class CostDashboard:
                 CostEntry.from_dict(e)
                 for e in data.get("entries", [])
             ]
+            
+            # Reinitialize aggregator with loaded entries
+            self.aggregator = CostAggregator(self.entries)
             
             # Load alerts into the alert manager
             loaded_alerts = []
