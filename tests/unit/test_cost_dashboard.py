@@ -15,6 +15,7 @@ import pytest
 
 from deepr.observability.costs import (
     AlertManager,
+    CostAggregator,
     CostAlert,
     CostDashboard,
     CostEntry,
@@ -346,6 +347,237 @@ class TestAlertManager:
     def test_critical_threshold_constant(self):
         """Critical threshold should be 0.95."""
         assert AlertManager.CRITICAL_THRESHOLD == 0.95
+
+
+class TestCostAggregator:
+    """Tests for CostAggregator class."""
+
+    def test_initialization(self):
+        """CostAggregator should initialize with entries reference."""
+        entries = []
+        aggregator = CostAggregator(entries)
+        
+        # Should reference the same list
+        assert aggregator._entries is entries
+
+    def test_get_daily_total_empty(self):
+        """Daily total of empty entries should be zero."""
+        aggregator = CostAggregator([])
+        
+        assert aggregator.get_daily_total() == 0.0
+
+    def test_get_daily_total_with_entries(self):
+        """Daily total should sum today's entries."""
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10),
+            CostEntry(operation="test", provider="anthropic", cost=0.20),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        total = aggregator.get_daily_total()
+        
+        assert abs(total - 0.30) < 0.0001
+
+    def test_get_daily_total_filters_by_date(self):
+        """Daily total should only include entries from specified date."""
+        yesterday = datetime.utcnow() - timedelta(days=1)
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10),  # today
+            CostEntry(operation="test", provider="anthropic", cost=0.20, timestamp=yesterday),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        today_total = aggregator.get_daily_total()
+        yesterday_total = aggregator.get_daily_total(yesterday.date())
+        
+        assert abs(today_total - 0.10) < 0.0001
+        assert abs(yesterday_total - 0.20) < 0.0001
+
+    def test_get_monthly_total_empty(self):
+        """Monthly total of empty entries should be zero."""
+        aggregator = CostAggregator([])
+        
+        assert aggregator.get_monthly_total() == 0.0
+
+    def test_get_monthly_total_with_entries(self):
+        """Monthly total should sum current month's entries."""
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.50),
+            CostEntry(operation="test", provider="anthropic", cost=0.25),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        total = aggregator.get_monthly_total()
+        
+        assert abs(total - 0.75) < 0.0001
+
+    def test_get_breakdown_by_provider(self):
+        """Breakdown by provider should group costs correctly."""
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10),
+            CostEntry(operation="test", provider="openai", cost=0.15),
+            CostEntry(operation="test", provider="anthropic", cost=0.20),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        breakdown = aggregator.get_breakdown_by_provider()
+        
+        assert abs(breakdown["openai"] - 0.25) < 0.0001
+        assert abs(breakdown["anthropic"] - 0.20) < 0.0001
+
+    def test_get_breakdown_by_operation(self):
+        """Breakdown by operation should group costs correctly."""
+        entries = [
+            CostEntry(operation="research", provider="openai", cost=0.10),
+            CostEntry(operation="research", provider="anthropic", cost=0.15),
+            CostEntry(operation="chat", provider="openai", cost=0.05),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        breakdown = aggregator.get_breakdown_by_operation()
+        
+        assert abs(breakdown["research"] - 0.25) < 0.0001
+        assert abs(breakdown["chat"] - 0.05) < 0.0001
+
+    def test_get_breakdown_by_model(self):
+        """Breakdown by model should group costs correctly."""
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10, model="gpt-4o"),
+            CostEntry(operation="test", provider="openai", cost=0.05, model="gpt-4o"),
+            CostEntry(operation="test", provider="openai", cost=0.15, model="gpt-4o-mini"),
+            CostEntry(operation="test", provider="openai", cost=0.02, model=""),  # empty model
+        ]
+        aggregator = CostAggregator(entries)
+        
+        breakdown = aggregator.get_breakdown_by_model()
+        
+        assert abs(breakdown["gpt-4o"] - 0.15) < 0.0001
+        assert abs(breakdown["gpt-4o-mini"] - 0.15) < 0.0001
+        assert abs(breakdown["unknown"] - 0.02) < 0.0001
+
+    def test_get_all_breakdowns_single_pass(self):
+        """get_all_breakdowns should return all breakdowns efficiently."""
+        entries = [
+            CostEntry(operation="research", provider="openai", cost=0.10, model="gpt-4o"),
+            CostEntry(operation="chat", provider="anthropic", cost=0.20, model="claude"),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        breakdowns = aggregator.get_all_breakdowns()
+        
+        # Check structure
+        assert "by_provider" in breakdowns
+        assert "by_operation" in breakdowns
+        assert "by_model" in breakdowns
+        
+        # Check values
+        assert abs(breakdowns["by_provider"]["openai"] - 0.10) < 0.0001
+        assert abs(breakdowns["by_provider"]["anthropic"] - 0.20) < 0.0001
+        assert abs(breakdowns["by_operation"]["research"] - 0.10) < 0.0001
+        assert abs(breakdowns["by_operation"]["chat"] - 0.20) < 0.0001
+        assert abs(breakdowns["by_model"]["gpt-4o"] - 0.10) < 0.0001
+        assert abs(breakdowns["by_model"]["claude"] - 0.20) < 0.0001
+
+    def test_get_all_breakdowns_empty(self):
+        """get_all_breakdowns should handle empty entries."""
+        aggregator = CostAggregator([])
+        
+        breakdowns = aggregator.get_all_breakdowns()
+        
+        assert breakdowns["by_provider"] == {}
+        assert breakdowns["by_operation"] == {}
+        assert breakdowns["by_model"] == {}
+
+    def test_filter_by_date_start_only(self):
+        """Filter should include entries from start date onwards."""
+        now = datetime.utcnow()
+        yesterday = now - timedelta(days=1)
+        two_days_ago = now - timedelta(days=2)
+        
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10, timestamp=two_days_ago),
+            CostEntry(operation="test", provider="openai", cost=0.20, timestamp=yesterday),
+            CostEntry(operation="test", provider="openai", cost=0.30, timestamp=now),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        # Filter from yesterday onwards
+        filtered = aggregator._filter_by_date(start_date=yesterday, end_date=None)
+        
+        assert len(filtered) == 2
+        total = sum(e.cost for e in filtered)
+        assert abs(total - 0.50) < 0.0001
+
+    def test_filter_by_date_end_only(self):
+        """Filter should include entries up to end date."""
+        now = datetime.utcnow()
+        yesterday = now - timedelta(days=1)
+        two_days_ago = now - timedelta(days=2)
+        
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10, timestamp=two_days_ago),
+            CostEntry(operation="test", provider="openai", cost=0.20, timestamp=yesterday),
+            CostEntry(operation="test", provider="openai", cost=0.30, timestamp=now),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        # Filter up to yesterday
+        filtered = aggregator._filter_by_date(start_date=None, end_date=yesterday)
+        
+        assert len(filtered) == 2
+        total = sum(e.cost for e in filtered)
+        assert abs(total - 0.30) < 0.0001
+
+    def test_filter_by_date_range(self):
+        """Filter should include entries within date range."""
+        now = datetime.utcnow()
+        yesterday = now - timedelta(days=1)
+        two_days_ago = now - timedelta(days=2)
+        three_days_ago = now - timedelta(days=3)
+        
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10, timestamp=three_days_ago),
+            CostEntry(operation="test", provider="openai", cost=0.20, timestamp=two_days_ago),
+            CostEntry(operation="test", provider="openai", cost=0.30, timestamp=yesterday),
+            CostEntry(operation="test", provider="openai", cost=0.40, timestamp=now),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        # Filter between two_days_ago and yesterday
+        filtered = aggregator._filter_by_date(start_date=two_days_ago, end_date=yesterday)
+        
+        assert len(filtered) == 2
+        total = sum(e.cost for e in filtered)
+        assert abs(total - 0.50) < 0.0001
+
+    def test_aggregate_by_field_generic(self):
+        """_aggregate_by_field should work with any key function."""
+        entries = [
+            CostEntry(operation="test", provider="openai", cost=0.10, task_id="task-1"),
+            CostEntry(operation="test", provider="openai", cost=0.20, task_id="task-1"),
+            CostEntry(operation="test", provider="openai", cost=0.30, task_id="task-2"),
+        ]
+        aggregator = CostAggregator(entries)
+        
+        # Aggregate by task_id
+        breakdown = aggregator._aggregate_by_field(entries, lambda e: e.task_id)
+        
+        assert abs(breakdown["task-1"] - 0.30) < 0.0001
+        assert abs(breakdown["task-2"] - 0.30) < 0.0001
+
+    def test_entries_reference_updates(self):
+        """Aggregator should see updates to the entries list."""
+        entries = []
+        aggregator = CostAggregator(entries)
+        
+        # Initially empty
+        assert aggregator.get_daily_total() == 0.0
+        
+        # Add entry to the list
+        entries.append(CostEntry(operation="test", provider="openai", cost=0.50))
+        
+        # Aggregator should see the new entry
+        assert abs(aggregator.get_daily_total() - 0.50) < 0.0001
 
 
 class TestCostDashboard:
