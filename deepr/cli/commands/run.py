@@ -3,12 +3,16 @@
 import click
 import asyncio
 import os
+import time
 from pathlib import Path
 from typing import Optional, List
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.queue.base import ResearchJob, JobStatus
 from deepr.cli.commands.budget import check_budget_approval
 from deepr.cli.colors import console, print_success, print_error, print_warning
+from deepr.cli.output import (
+    OutputContext, OutputMode, OutputFormatter, OperationResult, output_options
+)
 from datetime import datetime
 import json
 import uuid
@@ -40,6 +44,7 @@ def run():
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@output_options
 def focus(
     query: str,
     model: str,
@@ -49,6 +54,7 @@ def focus(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    output_context: OutputContext,
 ):
     """Run a focused research job (quick, single-turn research).
 
@@ -59,7 +65,7 @@ def focus(
         deepr run focus "Query" --provider gemini -m gemini-2.5-flash
         deepr run focus "Latest from xAI" --provider grok -m grok-4-fast
     """
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes))
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
 
 
 @run.command()
@@ -71,6 +77,7 @@ def focus(
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@output_options
 def single(
     query: str,
     model: str,
@@ -80,6 +87,7 @@ def single(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    output_context: OutputContext,
 ):
     """[DEPRECATED: Use 'deepr run focus'] Run a single research job.
 
@@ -90,8 +98,9 @@ def single(
         deepr run single "Query" --provider gemini -m gemini-2.5-flash
         deepr run single "Latest from xAI" --provider grok -m grok-4-fast
     """
-    click.echo("[DEPRECATION] 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes))
+    if output_context.mode == OutputMode.VERBOSE:
+        click.echo("[DEPRECATION] 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
 
 
 async def _run_single(
@@ -103,36 +112,62 @@ async def _run_single(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    output_context: Optional[OutputContext] = None,
 ):
-    """Execute single research job."""
-    click.echo("\n" + "="*70)
-    click.echo("  DEEPR - Single Research")
-    click.echo("="*70 + "\n")
-
+    """Execute single research job.
+    
+    Args:
+        query: Research query
+        model: Model to use
+        provider: Provider name
+        no_web: Disable web search
+        no_code: Disable code interpreter
+        upload: Files to upload
+        limit: Cost limit
+        yes: Skip confirmation
+        output_context: Output formatting context (optional for backward compatibility)
+    """
+    # Create default output context if not provided (backward compatibility)
+    if output_context is None:
+        output_context = OutputContext(mode=OutputMode.VERBOSE)
+    
+    formatter = OutputFormatter(output_context)
+    start_time = time.time()
+    
     # Estimate cost
     estimated_cost = estimate_cost(model, enable_web_search=not no_web)
-
-    click.echo(f"Query: {query}")
-    click.echo(f"Provider: {provider}")
-    click.echo(f"Model: {model}")
-    click.echo(f"Estimated cost: ${estimated_cost:.2f}")
-
-    if upload:
-        click.echo(f"Files: {', '.join(upload)}")
-
-    click.echo()
+    
+    # Show header in verbose mode only
+    if output_context.mode == OutputMode.VERBOSE:
+        click.echo("\n" + "="*70)
+        click.echo("  DEEPR - Single Research")
+        click.echo("="*70 + "\n")
+        click.echo(f"Query: {query}")
+        click.echo(f"Provider: {provider}")
+        click.echo(f"Model: {model}")
+        click.echo(f"Estimated cost: ${estimated_cost:.2f}")
+        if upload:
+            click.echo(f"Files: {', '.join(upload)}")
+        click.echo()
+    
+    # Start operation feedback
+    formatter.start_operation(f"Researching: {query[:50]}...")
 
     # Budget check
     if not yes and not check_budget_approval(estimated_cost):
-        if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
-            click.echo("Cancelled.")
-            return
+        if output_context.mode == OutputMode.VERBOSE:
+            if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
+                click.echo("Cancelled.")
+                return
+        elif output_context.mode != OutputMode.QUIET:
+            # In minimal/JSON mode, just proceed or fail silently
+            pass
 
     # Handle file uploads
     document_ids = []
     vector_store_id = None
     if upload:
-        click.echo("Uploading files...")
+        formatter.progress("Uploading files...")
         try:
             from deepr.providers import create_provider
             from deepr.config import load_config
@@ -160,19 +195,21 @@ async def _run_single(
                     if '*' in file_pattern or '?' in file_pattern:
                         matched = resolve_glob_pattern(file_pattern, must_match=True)
                         resolved_files.extend(matched)
-                        click.echo(f"  Pattern '{file_pattern}' matched {len(matched)} file(s)")
+                        formatter.progress(f"Pattern '{file_pattern}' matched {len(matched)} file(s)")
                     else:
                         # Single file
                         resolved = resolve_file_path(file_pattern, must_exist=True)
                         resolved_files.append(resolved)
                 except FileNotFoundError as e:
-                    print_error(f"{e}")
+                    if output_context.mode == OutputMode.VERBOSE:
+                        print_error(f"{e}")
                     continue
 
             if not resolved_files:
-                print_warning("No files to upload")
+                if output_context.mode == OutputMode.VERBOSE:
+                    print_warning("No files to upload")
             else:
-                click.echo(f"  Found {len(resolved_files)} file(s) to upload\n")
+                formatter.progress(f"Found {len(resolved_files)} file(s) to upload")
 
             # Upload each file
             uploaded_files = []
@@ -180,22 +217,22 @@ async def _run_single(
                 display_name = file_path.name
                 display_path = normalize_path_for_display(file_path)
 
-                click.echo(f"  Uploading: {display_name}")
-                click.echo(f"    Path: {display_path}")
+                formatter.progress(f"Uploading: {display_name}")
                 try:
                     file_id = await provider_instance.upload_document(str(file_path))
                     uploaded_files.append(file_id)
-                    console.print(f"    [success]Uploaded[/success]")
+                    formatter.progress(f"Uploaded: {display_name}")
                 except Exception as e:
-                    console.print(f"    [error]Failed: {e}[/error]")
-                click.echo()
+                    if output_context.mode == OutputMode.VERBOSE:
+                        console.print(f"    [error]Failed: {e}[/error]")
 
             if not uploaded_files:
-                print_warning("No files uploaded successfully")
+                if output_context.mode == OutputMode.VERBOSE:
+                    print_warning("No files uploaded successfully")
             else:
                 # For OpenAI, create vector store
                 if provider in ["openai", "azure"]:
-                    click.echo("  Creating vector store...")
+                    formatter.progress("Creating vector store...")
                     try:
                         from deepr.providers.base import VectorStore
                         vs = await provider_instance.create_vector_store(
@@ -203,42 +240,43 @@ async def _run_single(
                             file_ids=uploaded_files
                         )
                         vector_store_id = vs.id
-                        console.print(f"  [success]Vector store created: {vs.id[:20]}...[/success]")
+                        formatter.progress(f"Vector store created: {vs.id[:20]}...")
 
                         # Wait for ingestion with progress feedback
-                        click.echo("  Waiting for file processing...")
-                        click.echo("  (This may take 15-60 seconds depending on file size)")
+                        formatter.progress("Waiting for file processing...")
                         ready = await provider_instance.wait_for_vector_store(
                             vs.id,
                             timeout=300,
                             poll_interval=2.0
                         )
                         if ready:
-                            console.print("  [success]Files ready for research[/success]")
+                            formatter.progress("Files ready for research")
                         else:
-                            print_warning("Files still processing (continuing anyway)")
-                            click.echo("  Note: Research may proceed with partial file indexing")
+                            if output_context.mode == OutputMode.VERBOSE:
+                                print_warning("Files still processing (continuing anyway)")
                     except Exception as e:
-                        console.print(f"  [error]Vector store creation failed: {e}[/error]")
+                        if output_context.mode == OutputMode.VERBOSE:
+                            console.print(f"  [error]Vector store creation failed: {e}[/error]")
                         vector_store_id = None
 
                 # For Gemini, files are referenced directly
                 elif provider == "gemini":
                     document_ids = uploaded_files
-                    console.print(f"  [success]{len(uploaded_files)} files ready for research[/success]")
+                    formatter.progress(f"{len(uploaded_files)} files ready for research")
 
                 # For Grok/xAI, document collections not yet implemented
                 elif provider in ["grok", "xai"]:
-                    print_warning("xAI file upload not yet fully supported")
-                    click.echo("  Files uploaded but may not be used in research")
+                    if output_context.mode == OutputMode.VERBOSE:
+                        print_warning("xAI file upload not yet fully supported")
                     document_ids = uploaded_files
 
         except Exception as e:
-            print_error(f"File upload failed: {e}")
-            click.echo("  Continuing without files...")
+            if output_context.mode == OutputMode.VERBOSE:
+                print_error(f"File upload failed: {e}")
+                click.echo("  Continuing without files...")
 
     # Submit job to queue
-    click.echo("Submitting research job...")
+    formatter.progress("Submitting research job...")
 
     # Prepare job metadata for cleanup tracking
     job_metadata = {}
@@ -303,8 +341,16 @@ async def _run_single(
 
         # Validate tools for deep research models
         if provider in ["openai", "azure"] and "deep-research" in model and not tools:
-            print_error(f"{model} requires at least one tool (web search, code interpreter, or file upload)")
-            click.echo("    Remove --no-web and/or --no-code flags, or add --upload for file search")
+            duration = time.time() - start_time
+            result = OperationResult(
+                success=False,
+                duration_seconds=duration,
+                cost_usd=0.0,
+                job_id=job_id,
+                error=f"{model} requires at least one tool (web search, code interpreter, or file upload)",
+                error_code="MISSING_TOOLS"
+            )
+            formatter.complete(result)
             return
 
         # Create research request
@@ -359,6 +405,7 @@ async def _run_single(
 
                 # Update queue as completed
                 await queue.update_status(job_id, JobStatus.COMPLETED)
+                actual_cost = response.usage.cost if response.usage and response.usage.cost else 0.0
                 if response.usage and response.usage.cost:
                     await queue.update_results(
                         job_id,
@@ -367,9 +414,16 @@ async def _run_single(
                         tokens_used=response.usage.total_tokens
                     )
 
-                click.echo(f"\nJob completed: {job_id[:12]}")
-                click.echo(f"Cost: ${response.usage.cost:.4f}")
-                click.echo(f"Report: {report_metadata.url}")
+                # Output result using formatter
+                duration = time.time() - start_time
+                result = OperationResult(
+                    success=True,
+                    duration_seconds=duration,
+                    cost_usd=actual_cost,
+                    report_path=str(report_metadata.url),
+                    job_id=job_id
+                )
+                formatter.complete(result)
             else:
                 # Update as processing if not yet complete
                 await queue.update_status(
@@ -377,8 +431,17 @@ async def _run_single(
                     status=JobStatus.PROCESSING,
                     provider_job_id=provider_job_id
                 )
-                click.echo(f"\nJob submitted: {job_id[:12]}")
-                click.echo(f"Provider job ID: {provider_job_id}")
+                if output_context.mode == OutputMode.VERBOSE:
+                    click.echo(f"\nJob submitted: {job_id[:12]}")
+                    click.echo(f"Provider job ID: {provider_job_id}")
+                elif output_context.mode == OutputMode.JSON:
+                    # For JSON mode, output pending status
+                    import json as json_module
+                    print(json_module.dumps({
+                        "status": "pending",
+                        "job_id": job_id,
+                        "provider_job_id": provider_job_id
+                    }))
         else:
             # For OpenAI/Azure, update as processing
             await queue.update_status(
@@ -387,17 +450,35 @@ async def _run_single(
                 provider_job_id=provider_job_id
             )
 
-            click.echo(f"\nJob submitted: {job_id[:12]}")
-            click.echo(f"Provider job ID: {provider_job_id}")
+            if output_context.mode == OutputMode.VERBOSE:
+                click.echo(f"\nJob submitted: {job_id[:12]}")
+                click.echo(f"Provider job ID: {provider_job_id}")
+            elif output_context.mode == OutputMode.JSON:
+                import json as json_module
+                print(json_module.dumps({
+                    "status": "pending",
+                    "job_id": job_id,
+                    "provider_job_id": provider_job_id
+                }))
 
     except Exception as e:
-        click.echo(f"\nWarning: Failed to submit to provider: {e}")
-        click.echo(f"Job queued locally: {job_id[:12]}")
-        click.echo(f"You can try retrieving results later with: deepr get {job_id[:12]}")
+        duration = time.time() - start_time
+        result = OperationResult(
+            success=False,
+            duration_seconds=duration,
+            cost_usd=0.0,
+            job_id=job_id,
+            error=f"Failed to submit to provider: {e}",
+            error_code="PROVIDER_ERROR"
+        )
+        formatter.complete(result)
+        return
 
-    click.echo(f"\nCheck status: deepr status {job_id[:12]}")
-    click.echo(f"View results: deepr get {job_id[:12]}")
-    click.echo(f"List all jobs: deepr list")
+    # Show follow-up commands in verbose mode only
+    if output_context.mode == OutputMode.VERBOSE:
+        click.echo(f"\nCheck status: deepr status {job_id[:12]}")
+        click.echo(f"View results: deepr get {job_id[:12]}")
+        click.echo(f"List all jobs: deepr list")
 
 
 @run.command()
@@ -647,6 +728,7 @@ async def _run_team(
 @click.option("--upload", "-u", multiple=True, help="Upload existing documentation for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@output_options
 def docs(
     topic: str,
     model: str,
@@ -654,6 +736,7 @@ def docs(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    output_context: OutputContext,
 ):
     """Run documentation-oriented research.
 
@@ -683,7 +766,8 @@ well-structured documentation that is clear, accurate, and useful. Include:
         no_code=False,  # Enable code interpreter for examples
         upload=upload,
         limit=limit,
-        yes=yes
+        yes=yes,
+        output_context=output_context
     ))
 
 
@@ -697,9 +781,10 @@ well-structured documentation that is clear, accurate, and useful. Include:
 @click.option("--upload", "-u", multiple=True)
 @click.option("--limit", "-l", type=float)
 @click.option("--yes", "-y", is_flag=True)
-def run_alias(query, model, provider, no_web, no_code, upload, limit, yes):
+@output_options
+def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, output_context):
     """Quick alias for 'deepr run focus' - run a focused research job."""
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes))
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
 
 
 if __name__ == "__main__":
