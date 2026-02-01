@@ -149,9 +149,13 @@ class TestCurriculumGenerator:
 
     @pytest.fixture
     def mock_config(self):
-        """Create mock config."""
+        """Create mock config with required expert cost attributes."""
         config = MagicMock()
         config.get.return_value = "test-api-key"
+        # Mock the expert config with cost values
+        config.expert = MagicMock()
+        config.expert.quick_research_cost = 0.002
+        config.expert.deep_research_cost = 1.0
         return config
 
     @pytest.fixture
