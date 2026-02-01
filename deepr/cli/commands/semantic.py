@@ -17,6 +17,7 @@ import asyncio
 from typing import Optional
 from deepr.cli.commands.run import _run_single, _run_campaign, _run_team
 from deepr.cli.colors import print_header, print_section_header, print_success, print_error, print_key_value, console
+from deepr.cli.output import OutputContext, OutputMode, output_options
 
 
 def detect_research_mode(prompt: str) -> str:
@@ -60,6 +61,7 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--mode", type=click.Choice(["focus", "docs", "auto"]), default="auto",
               help="Research mode (auto=detect automatically)")
 @click.option("--scrape-only", is_flag=True, help="Company research: only scrape, don't submit research job")
+@output_options
 def research(
     query: str,
     company_name: Optional[str],
@@ -74,6 +76,7 @@ def research(
     yes: bool,
     mode: str,
     scrape_only: bool,
+    output_context: OutputContext,
 ):
     """Run research with automatic mode detection.
 
@@ -183,18 +186,21 @@ def research(
         else:
             provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
             operation_type = "general operations"
-        click.echo(f"[Using {provider} provider (default for {operation_type})]")
+        if output_context.mode == OutputMode.VERBOSE:
+            click.echo(f"[Using {provider} provider (default for {operation_type})]")
 
     if model is None:
         if is_deep_research:
             model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
         else:
             model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-fast")
-        click.echo(f"[Using {model} model (default for {provider})]")
+        if output_context.mode == OutputMode.VERBOSE:
+            click.echo(f"[Using {model} model (default for {provider})]")
 
     # Handle scraping if requested
     if scrape:
-        click.echo(f"\n[Scraping {scrape} for primary source research...]")
+        if output_context.mode == OutputMode.VERBOSE:
+            click.echo(f"\n[Scraping {scrape} for primary source research...]")
 
         try:
             from deepr.utils.scrape import scrape_website, ScrapeConfig
@@ -217,7 +223,8 @@ def research(
             )
 
             if results['success']:
-                click.echo(f"[Scraped {results['pages_scraped']} pages successfully]")
+                if output_context.mode == OutputMode.VERBOSE:
+                    click.echo(f"[Scraped {results['pages_scraped']} pages successfully]")
 
                 # Save scraped content to temporary file for upload
                 temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8')
@@ -233,19 +240,23 @@ def research(
 
                 # Add to upload list
                 upload = list(upload) + [temp_file.name]
-                click.echo(f"[Scraped content saved and added to research context]\n")
+                if output_context.mode == OutputMode.VERBOSE:
+                    click.echo(f"[Scraped content saved and added to research context]\n")
             else:
-                click.echo(f"[WARNING: Scraping failed - continuing with web research only]")
-                click.echo(f"[Error: {results.get('error', 'Unknown error')}]\n")
+                if output_context.mode == OutputMode.VERBOSE:
+                    click.echo(f"[WARNING: Scraping failed - continuing with web research only]")
+                    click.echo(f"[Error: {results.get('error', 'Unknown error')}]\n")
 
         except Exception as e:
-            click.echo(f"[WARNING: Scraping failed - {e}]")
-            click.echo(f"[Continuing with web research only]\n")
+            if output_context.mode == OutputMode.VERBOSE:
+                click.echo(f"[WARNING: Scraping failed - {e}]")
+                click.echo(f"[Continuing with web research only]\n")
 
     # Auto-detect mode if set to auto
     if mode == "auto":
         detected_mode = detect_research_mode(query)
-        click.echo(f"[Auto-detected mode: {detected_mode}]")
+        if output_context.mode == OutputMode.VERBOSE:
+            click.echo(f"[Auto-detected mode: {detected_mode}]")
     else:
         detected_mode = mode
 
@@ -255,7 +266,7 @@ def research(
             query = f"Create comprehensive documentation for: {query}"
 
     # Call the underlying _run_single implementation
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes))
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
 
 
 @click.command()
