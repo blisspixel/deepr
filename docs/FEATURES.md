@@ -4,7 +4,9 @@ Complete guide to all Deepr features as of v2.3
 
 ## Table of Contents
 
+- [Semantic Commands](#semantic-commands)
 - [Research Operations](#research-operations)
+- [Expert System](#expert-system)
 - [Vector Store Management](#vector-store-management)
 - [Campaign Management](#campaign-management)
 - [Cost Management](#cost-management)
@@ -13,30 +15,109 @@ Complete guide to all Deepr features as of v2.3
 - [Analytics](#analytics)
 - [Export and Integration](#export-and-integration)
 
+## Semantic Commands
+
+Deepr uses intent-based commands that express what you want to accomplish:
+
+### Research
+
+```bash
+# Basic research (auto-detects mode)
+deepr research "Your research question"
+
+# With file uploads for context
+deepr research "Question" --upload file1.pdf --upload file2.md
+
+# Specify provider and model
+deepr research "Question" --provider openai --model o3-deep-research
+
+# Company research mode
+deepr research company "Company Name" "https://company.com"
+
+# With web scraping for primary sources
+deepr research "Strategic analysis" --scrape https://example.com
+```
+
+### Fact Verification
+
+```bash
+# Quick fact check
+deepr check "PostgreSQL supports JSONB indexing since version 9.4"
+
+# With verbose reasoning
+deepr check "Kubernetes 1.28 deprecated PodSecurityPolicy" --verbose
+```
+
+### Documentation Generation
+
+```bash
+# Generate documentation
+deepr make docs "API reference guide"
+
+# Preview outline first
+deepr make docs "Architecture overview" --outline
+
+# Include existing files as context
+deepr make docs "Migration guide" --files existing/*.md
+
+# Specify output format
+deepr make docs "User guide" --format html --output docs/guide.html
+```
+
+### Strategic Analysis
+
+```bash
+# Generate strategic analysis
+deepr make strategy "Cloud migration roadmap"
+
+# With specific perspective
+deepr make strategy "Market expansion" --perspective technical
+
+# With time horizon
+deepr make strategy "Q1 priorities" --horizon 3mo
+```
+
+### Multi-Phase Learning
+
+```bash
+# Structured learning with multiple phases
+deepr learn "Kubernetes networking" --phases 3
+
+# With specific model
+deepr learn "Machine learning fundamentals" --model o3-deep-research
+```
+
+### Team Analysis
+
+```bash
+# Multi-perspective analysis (Six Thinking Hats)
+deepr team "Should we build vs buy our data platform?"
+
+# With more perspectives
+deepr team "Technology decision" --perspectives 8
+```
+
 ## Research Operations
 
 ### Single Research Jobs
 
-Submit individual deep research queries:
+Submit individual deep research queries using the `run` command group:
 
 ```bash
-# Basic submission
-deepr research submit "Your research question" --yes
+# Focus mode (quick research)
+deepr run focus "Your research question" --yes
 
-# With automatic prompt refinement
-deepr research submit "Your question" --refine-prompt --yes
-
-# Preview refinement without submitting
-deepr research submit "Your question" --refine-prompt --dry-run
+# Documentation mode
+deepr run docs "Document the authentication flow" --yes
 
 # With file uploads
-deepr research submit "Question" -f file1.pdf -f file2.md --yes
+deepr run focus "Question" --upload file1.pdf --upload file2.md --yes
 
 # Using existing vector store
-deepr research submit "Question" --vector-store company-docs --yes
+deepr run focus "Question" --vector-store company-docs --yes
 
 # Choose model
-deepr research submit "Question" --model o3-deep-research --yes
+deepr run focus "Question" --model o3-deep-research --yes
 ```
 
 **Available models:**
@@ -46,23 +127,20 @@ deepr research submit "Question" --model o3-deep-research --yes
 ### Checking Results
 
 ```bash
-# Get results (checks provider once)
-deepr research get <job-id>
+# Get results from jobs command
+deepr jobs get <job-id>
 
-# Download all completed jobs
-deepr research get --all
+# List all jobs
+deepr jobs list
 
-# Wait for completion
-deepr research wait <job-id>
+# Filter by status
+deepr jobs list --status completed
 
-# Check local status
-deepr research status <job-id>
+# Check job status
+deepr jobs status <job-id>
 
-# Display saved result
-deepr research result <job-id>
-
-# Show detailed cost breakdown
-deepr research result <job-id> --cost
+# Cancel a job
+deepr jobs cancel <job-id>
 ```
 
 ### Automatic Prompt Refinement
@@ -100,6 +178,69 @@ deepr prep execute
 deepr prep auto "Research goal" --rounds 3
 ```
 
+## Expert System
+
+Create and interact with domain experts that can answer questions from uploaded documents.
+
+### Create Expert
+
+```bash
+# Create expert from documents
+deepr expert make "Azure Architect" --files docs/*.md
+
+# Create with autonomous learning
+deepr expert make "FDA Regulations" --files docs/*.pdf --learn --budget 10
+
+# With description
+deepr expert make "Supply Chain Expert" --files *.md --description "Logistics and supply chain domain"
+```
+
+### Manage Experts
+
+```bash
+# List all experts
+deepr expert list
+
+# Get expert details
+deepr expert info "Azure Architect"
+
+# Delete expert
+deepr expert delete "Azure Architect" --yes
+```
+
+### Chat with Expert
+
+```bash
+# Basic Q&A
+deepr expert chat "Azure Architect"
+
+# With agentic research capability
+deepr expert chat "Azure Architect" --agentic --budget 5
+```
+
+### Update Expert Knowledge
+
+```bash
+# Add knowledge via topic research
+deepr expert learn "Azure Architect" "Azure AI Agent Service 2026"
+
+# Fill knowledge gaps proactively
+deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
+
+# Resume paused learning
+deepr expert resume "Azure Architect"
+```
+
+### Export/Import Experts
+
+```bash
+# Export expert for sharing
+deepr expert export "Azure Architect" --output ./exports/
+
+# Import expert from corpus
+deepr expert import "New Expert" --corpus ./exports/azure_architect/
+```
+
 ## Vector Store Management
 
 Persistent document indexes for reuse:
@@ -133,10 +274,13 @@ deepr vector delete <vector-store-id> --yes
 
 ```bash
 # By ID
-deepr research submit "Query" --vector-store vs_abc123 --yes
+deepr run focus "Query" --vector-store vs_abc123 --yes
 
 # By name
-deepr research submit "Query" --vector-store company-docs --yes
+deepr run focus "Query" --vector-store company-docs --yes
+
+# Or use the semantic research command
+deepr research "Query" --vector-store company-docs
 ```
 
 **Benefits:**
@@ -347,15 +491,15 @@ deepr analytics failures
 
 ```bash
 # Export to markdown (default)
-deepr research export <job-id>
+deepr jobs export <job-id>
 
 # Specific format
-deepr research export <job-id> --format json
-deepr research export <job-id> --format html
-deepr research export <job-id> --format txt
+deepr jobs export <job-id> --format json
+deepr jobs export <job-id> --format html
+deepr jobs export <job-id> --format txt
 
 # Custom output
-deepr research export <job-id> --format html --output report.html
+deepr jobs export <job-id> --format html --output report.html
 ```
 
 **Formats:**
@@ -368,8 +512,8 @@ deepr research export <job-id> --format html --output report.html
 
 ```bash
 # Cancel running job
-deepr research cancel <job-id>
-deepr research cancel <job-id> --yes
+deepr jobs cancel <job-id>
+deepr jobs cancel <job-id> --yes
 ```
 
 ## Command Reference
@@ -381,27 +525,38 @@ deepr --version    # Show version
 deepr --help       # Show help
 ```
 
-### Command Groups
+### Semantic Commands (Primary Interface)
 
 ```bash
-deepr research     # Research operations
+deepr research     # Research with auto-mode detection
+deepr learn        # Multi-phase structured learning
+deepr team         # Multi-perspective analysis
+deepr check        # Fact verification
+deepr make docs    # Generate documentation
+deepr make strategy # Strategic analysis
+deepr expert       # Domain expert management
+```
+
+### Supporting Commands
+
+```bash
+deepr run          # Low-level research modes (focus, docs, project, team)
+deepr jobs         # Job management (list, status, get, cancel)
 deepr vector       # Vector store management
-deepr queue        # Queue operations
 deepr prep         # Campaign management
-deepr team         # Team research (experimental)
 deepr cost         # Cost management
 deepr config       # Configuration
 deepr analytics    # Usage analytics
-deepr interactive  # Interactive mode
-deepr docs         # Documentation
+deepr doctor       # System diagnostics
 ```
 
 ### Help for Commands
 
 ```bash
 deepr <command> --help
-deepr research submit --help
-deepr vector --help
+deepr research --help
+deepr expert --help
+deepr make --help
 ```
 
 ## Advanced Usage
@@ -411,23 +566,21 @@ deepr vector --help
 ```bash
 # Create persistent store, use for research
 deepr vector create --name "docs" --files *.pdf
-deepr research submit "Query" --vector-store docs --refine-prompt --yes
+deepr research "Query" --vector-store docs
+
+# Create expert from documents
+deepr expert make "Domain Expert" --files docs/*.md
+deepr expert chat "Domain Expert" --agentic --budget 5
 
 # Batch operations
-deepr queue sync              # Update all statuses
-deepr research get --all      # Download all completed
-
-# Analytics-driven optimization
-deepr analytics report --period month
-deepr analytics failures
-# Adjust based on insights
+deepr jobs list --status completed
 ```
 
 ### Automation
 
 ```bash
 # Daily batch job
-deepr queue sync && deepr research get --all
+deepr jobs list --status pending
 
 # Cost monitoring
 deepr cost summary --period today
@@ -435,44 +588,42 @@ deepr cost summary --period today
 
 ### Best Practices
 
-1. **Use prompt refinement** for better results
-2. **Create vector stores** for document-based research
+1. **Use semantic commands** for intuitive workflows
+2. **Create experts** for document-based Q&A
 3. **Monitor costs** regularly with analytics
 4. **Use pause/resume** for expensive campaigns
-5. **Validate config** before production use
+5. **Validate config** with `deepr doctor`
 6. **Export important results** in multiple formats
-7. **Sync queue** regularly if not using worker
 
 ## Integration Patterns
 
 ### CI/CD Integration
 
 ```bash
-# In CI pipeline
-deepr research submit "Release notes for v2.3" --yes > job_id.txt
-job_id=$(cat job_id.txt | grep "Job ID:" | cut -d':' -f2)
-deepr research wait $job_id
-deepr research export $job_id --format markdown --output release_notes.md
+# In CI pipeline - use run command for direct control
+deepr run focus "Release notes for v2.3" --yes
+# Check job status
+deepr jobs list --status completed
 ```
 
 ### Batch Processing
 
 ```bash
 # Process multiple queries
-for query in query1 query2 query3; do
-  deepr research submit "$query" --yes
+for query in "query1" "query2" "query3"; do
+  deepr research "$query" --yes
 done
 
-# Later, download all
-deepr research get --all
+# Check results
+deepr jobs list
 ```
 
 ### Knowledge Management
 
 ```bash
-# Build knowledge base
-deepr vector create --name "kb" --files knowledge_base/*.md
-deepr research submit "Summarize our architecture" --vector-store kb --yes
+# Build expert from knowledge base
+deepr expert make "KB Expert" --files knowledge_base/*.md
+deepr expert chat "KB Expert"
 ```
 
 ## Troubleshooting
@@ -481,14 +632,14 @@ deepr research submit "Summarize our architecture" --vector-store kb --yes
 
 **API key not found:**
 ```bash
-deepr config validate    # Check configuration
-deepr config set OPENAI_API_KEY sk-...
+deepr doctor              # Check configuration
+deepr config show         # View current settings
 ```
 
 **Job not completing:**
 ```bash
-deepr queue sync         # Sync with provider
-deepr research get <job-id>  # Check manually
+deepr jobs list           # Check job status
+deepr jobs status <job-id>  # Detailed status
 ```
 
 **High costs:**
@@ -501,7 +652,7 @@ deepr cost summary --period week
 **Failed jobs:**
 ```bash
 deepr analytics failures
-deepr queue list --status failed
+deepr jobs list --status failed
 ```
 
 ## Next Steps
