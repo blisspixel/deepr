@@ -51,6 +51,26 @@ See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) f
 deepr research "PostgreSQL connection pooling strategies for high-traffic applications"
 ```
 
+### Fact Verification
+```bash
+deepr check "Kubernetes 1.28 deprecated PodSecurityPolicy"
+```
+
+### Generate Documentation
+```bash
+deepr make docs --files "./src/*.py" --format markdown
+```
+
+### Strategic Analysis
+```bash
+deepr make strategy "Launch a SaaS product in healthcare" --perspective investor
+```
+
+### Agentic Research
+```bash
+deepr agentic research "Best practices for microservices observability" --rounds 3 --budget 10
+```
+
 ### Multi-Phase Learning
 ```bash
 deepr learn "Kubernetes networking: CNI, Services, Ingress, and best practices" --phases 3
@@ -69,6 +89,11 @@ deepr expert make "AWS Architect" --files "./docs/*.md" --learn --budget 10
 ### Interactive Expert Chat
 ```bash
 deepr expert chat "AWS Architect" --agentic --budget 5
+```
+
+### Intent-Based Help
+```bash
+deepr help verbs
 ```
 
 See [docs/EXAMPLES.md](docs/EXAMPLES.md) for detailed use cases with real-world scenarios.
@@ -227,6 +252,45 @@ deepr team "Should we expand to Europe or Asia first?"
 # Latest developments (news)
 deepr news "Kubernetes security vulnerabilities 2025"
 ```
+
+### Semantic Commands
+
+Intent-based commands that express what you want to accomplish:
+
+```bash
+# Fact verification - check if a claim is true
+deepr check "PostgreSQL supports JSONB indexing since version 9.4"
+
+# Generate documentation from files
+deepr make docs --files "./src/*.py" --format markdown
+
+# Generate documentation outline only
+deepr make docs --files "./api/*.ts" --outline
+
+# Generate strategic analysis
+deepr make strategy "Enter the European market" --perspective competitor --horizon 2years
+
+# Agentic research with Plan-Execute-Review cycles
+deepr agentic research "Optimal database for our recommendation engine" --rounds 3 --budget 10
+
+# Resume interrupted agentic research
+deepr agentic research --resume
+
+# Get help organized by intent
+deepr help verbs
+```
+
+**Semantic Command Details:**
+
+- **`deepr check`**: Verifies factual claims using web search and AI analysis. Returns verdict (true/false/uncertain), confidence score, and supporting sources.
+
+- **`deepr make docs`**: Generates structured documentation from source files. Supports markdown and HTML output formats. Use `--outline` for structure-only preview.
+
+- **`deepr make strategy`**: Creates strategic analysis with sections for situation analysis, options, recommendations, and risks. Use `--perspective` (neutral/competitor/investor) and `--horizon` (1year/2years/5years).
+
+- **`deepr agentic research`**: Multi-round research with autonomous planning. Each round: plans approach, executes searches, reviews findings, and decides next steps. Saves state for resume capability.
+
+- **`deepr help verbs`**: Shows all commands organized by intent (research, learn, make, expert, team) to help you find the right command for your goal.
 
 ### Expert System
 
