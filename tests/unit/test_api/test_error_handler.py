@@ -14,10 +14,16 @@ from unittest.mock import patch, MagicMock
 
 # Import directly from the module to avoid circular import issues
 # with deepr.api.__init__.py trying to import create_app
+from pathlib import Path
 import importlib.util
+
+# Get the correct path to the errors module
+project_root = Path(__file__).parent.parent.parent.parent
+errors_path = project_root / "deepr" / "api" / "middleware" / "errors.py"
+
 spec = importlib.util.spec_from_file_location(
     "errors", 
-    "deepr/api/middleware/errors.py"
+    str(errors_path)
 )
 errors_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(errors_module)

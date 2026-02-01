@@ -257,6 +257,238 @@ class CostLimitExceeded(Exception):
         self.state = state
 
 
+@dataclass
+class CostAlert:
+    """Alert generated when cost thresholds are approached or exceeded."""
+    level: str  # "warning", "critical"
+    message: str
+    timestamp: float
+    threshold_percent: float
+    current_cost: float
+    budget_limit: float
+    
+    def to_dict(self) -> Dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "level": self.level,
+            "message": self.message,
+            "timestamp": self.timestamp,
+            "threshold_percent": self.threshold_percent,
+            "current_cost": self.current_cost,
+            "budget_limit": self.budget_limit
+        }
+
+
+class CostSession:
+    """Tracks costs for a single session with budget limits.
+    
+    Provides session-level cost tracking with alerts and circuit breaker.
+    Used by ExpertChatSession and ExpertLearner for budget management.
+    
+    Example:
+        session = CostSession(
+            session_id="chat_expert_abc123",
+            session_type="chat",
+            budget_limit=10.0
+        )
+        
+        # Check before operation
+        can_proceed, reason = session.can_proceed(0.50)
+        
+        # Record operation
+        session.record_operation("research", 0.45)
+        
+        # Check remaining budget
+        remaining = session.get_remaining_budget()
+    """
+    
+    def __init__(
+        self,
+        session_id: str,
+        session_type: str,
+        budget_limit: float = 10.0,
+        warning_threshold: float = 0.8,
+        critical_threshold: float = 0.95
+    ):
+        """Initialize cost session.
+        
+        Args:
+            session_id: Unique session identifier
+            session_type: Type of session (e.g., "chat", "learning")
+            budget_limit: Maximum budget for this session
+            warning_threshold: Percentage of budget that triggers warning (0.8 = 80%)
+            critical_threshold: Percentage of budget that triggers critical alert (0.95 = 95%)
+        """
+        self.session_id = session_id
+        self.session_type = session_type
+        self.budget_limit = budget_limit
+        self.warning_threshold = warning_threshold
+        self.critical_threshold = critical_threshold
+        
+        # State
+        self.total_cost: float = 0.0
+        self.operations: List[Dict] = []
+        self.alerts: List[CostAlert] = []
+        self.failures: List[Dict] = []
+        self.is_circuit_open: bool = False
+        self._circuit_open_reason: Optional[str] = None
+        self.created_at: float = time.time()
+        
+        # Alert tracking to avoid duplicates
+        self._warning_sent: bool = False
+        self._critical_sent: bool = False
+    
+    @property
+    def total_cost_property(self) -> float:
+        """Alias for total_cost for backward compatibility."""
+        return self.total_cost
+    
+    def get_remaining_budget(self) -> float:
+        """Get remaining budget for this session.
+        
+        Returns:
+            Remaining budget in dollars
+        """
+        return max(0.0, self.budget_limit - self.total_cost)
+    
+    def can_proceed(self, estimated_cost: float) -> Tuple[bool, str]:
+        """Check if an operation can proceed within budget.
+        
+        Args:
+            estimated_cost: Estimated cost of the operation
+            
+        Returns:
+            Tuple of (can_proceed, reason)
+        """
+        # Check circuit breaker
+        if self.is_circuit_open:
+            return False, f"Session circuit breaker open: {self._circuit_open_reason}"
+        
+        # Check budget
+        remaining = self.get_remaining_budget()
+        if estimated_cost > remaining:
+            return False, f"Insufficient budget: ${estimated_cost:.2f} > ${remaining:.2f} remaining"
+        
+        return True, "OK"
+    
+    def record_operation(
+        self,
+        operation_type: str,
+        cost: float,
+        details: Optional[str] = None,
+        **kwargs
+    ) -> None:
+        """Record a cost-incurring operation.
+        
+        Args:
+            operation_type: Type of operation
+            cost: Cost of the operation
+            details: Optional details
+            **kwargs: Additional metadata
+        """
+        self.total_cost += cost
+        
+        operation = {
+            "timestamp": time.time(),
+            "operation_type": operation_type,
+            "cost": cost,
+            "details": details,
+            "cumulative_cost": self.total_cost,
+            **kwargs
+        }
+        self.operations.append(operation)
+        
+        # Check thresholds and generate alerts
+        self._check_thresholds()
+    
+    def record_failure(self, operation_type: str, error: str) -> None:
+        """Record a failed operation.
+        
+        Args:
+            operation_type: Type of operation that failed
+            error: Error message
+        """
+        failure = {
+            "timestamp": time.time(),
+            "operation_type": operation_type,
+            "error": error
+        }
+        self.failures.append(failure)
+        
+        # Trip circuit breaker after too many failures
+        recent_failures = [
+            f for f in self.failures
+            if time.time() - f["timestamp"] < 300  # Last 5 minutes
+        ]
+        if len(recent_failures) >= 5:
+            self.is_circuit_open = True
+            self._circuit_open_reason = f"Too many failures: {len(recent_failures)} in 5 minutes"
+    
+    def _check_thresholds(self) -> None:
+        """Check budget thresholds and generate alerts."""
+        if self.budget_limit <= 0:
+            return
+        
+        usage_percent = self.total_cost / self.budget_limit
+        
+        # Critical alert (95%+)
+        if usage_percent >= self.critical_threshold and not self._critical_sent:
+            alert = CostAlert(
+                level="critical",
+                message=f"Session budget critical: {usage_percent:.0%} used (${self.total_cost:.2f}/${self.budget_limit:.2f})",
+                timestamp=time.time(),
+                threshold_percent=usage_percent,
+                current_cost=self.total_cost,
+                budget_limit=self.budget_limit
+            )
+            self.alerts.append(alert)
+            self._critical_sent = True
+        
+        # Warning alert (80%+)
+        elif usage_percent >= self.warning_threshold and not self._warning_sent:
+            alert = CostAlert(
+                level="warning",
+                message=f"Session budget warning: {usage_percent:.0%} used (${self.total_cost:.2f}/${self.budget_limit:.2f})",
+                timestamp=time.time(),
+                threshold_percent=usage_percent,
+                current_cost=self.total_cost,
+                budget_limit=self.budget_limit
+            )
+            self.alerts.append(alert)
+            self._warning_sent = True
+    
+    def get_summary(self) -> Dict:
+        """Get session summary.
+        
+        Returns:
+            Dictionary with session statistics
+        """
+        return {
+            "session_id": self.session_id,
+            "session_type": self.session_type,
+            "total_cost": self.total_cost,
+            "budget_limit": self.budget_limit,
+            "remaining_budget": self.get_remaining_budget(),
+            "usage_percent": (self.total_cost / self.budget_limit * 100) if self.budget_limit > 0 else 0,
+            "operation_count": len(self.operations),
+            "failure_count": len(self.failures),
+            "alert_count": len(self.alerts),
+            "is_circuit_open": self.is_circuit_open,
+            "duration_seconds": time.time() - self.created_at
+        }
+    
+    def reset(self) -> None:
+        """Reset session state."""
+        self.total_cost = 0.0
+        self.operations.clear()
+        self.alerts.clear()
+        self.failures.clear()
+        self.is_circuit_open = False
+        self._circuit_open_reason = None
+        self._warning_sent = False
+        self._critical_sent = False
+
+
 def create_default_circuit_breaker() -> CostCircuitBreaker:
     """Create a circuit breaker with sensible defaults.
     
@@ -280,6 +512,13 @@ class CostSafetyManager:
     
     Example:
         manager = get_cost_safety_manager()
+        
+        # Create a session for tracking
+        session = manager.create_session(
+            session_id="session-123",
+            session_type="chat",
+            budget_limit=10.0
+        )
         
         # Check before operation
         allowed, reason, needs_confirm = manager.check_operation(
@@ -309,11 +548,55 @@ class CostSafetyManager:
         """
         self._circuit_breaker = circuit_breaker or create_default_circuit_breaker()
         self._session_costs: Dict[str, float] = {}
+        self._sessions: Dict[str, CostSession] = {}
+        
+        # Global daily/monthly tracking
+        self.daily_cost: float = 0.0
+        self.monthly_cost: float = 0.0
+        self.max_daily: float = 50.0  # Default $50/day limit
+        self.max_monthly: float = 500.0  # Default $500/month limit
+        self._last_daily_reset: float = time.time()
+        self._last_monthly_reset: float = time.time()
     
     @property
     def circuit_breaker(self) -> CostCircuitBreaker:
         """Get the underlying circuit breaker."""
         return self._circuit_breaker
+    
+    def create_session(
+        self,
+        session_id: str,
+        session_type: str,
+        budget_limit: float = 10.0
+    ) -> CostSession:
+        """Create a new cost tracking session.
+        
+        Args:
+            session_id: Unique session identifier
+            session_type: Type of session (e.g., "chat", "learning")
+            budget_limit: Maximum budget for this session
+            
+        Returns:
+            CostSession instance for tracking
+        """
+        session = CostSession(
+            session_id=session_id,
+            session_type=session_type,
+            budget_limit=budget_limit
+        )
+        self._sessions[session_id] = session
+        return session
+    
+    def get_session(self, session_id: str) -> Optional[CostSession]:
+        """Get an existing session by ID.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            CostSession if found, None otherwise
+        """
+        return self._sessions.get(session_id)
     
     def check_operation(
         self,
@@ -342,6 +625,13 @@ class CostSafetyManager:
         if not allowed:
             return False, reason, False
         
+        # Check session budget if session exists
+        session = self._sessions.get(session_id)
+        if session:
+            can_proceed, session_reason = session.can_proceed(estimated_cost)
+            if not can_proceed:
+                return False, session_reason, False
+        
         # Check if confirmation needed for high-cost operations
         if require_confirmation and estimated_cost > 1.0:
             return True, f"High cost operation: ${estimated_cost:.2f}", True
@@ -366,10 +656,19 @@ class CostSafetyManager:
         Returns:
             True if circuit is still closed, False if it tripped
         """
-        # Track session cost
+        # Track session cost (legacy)
         self._session_costs[session_id] = (
             self._session_costs.get(session_id, 0.0) + actual_cost
         )
+        
+        # Track in session if exists
+        session = self._sessions.get(session_id)
+        if session:
+            session.record_operation(operation_type, actual_cost, details)
+        
+        # Track daily/monthly
+        self.daily_cost += actual_cost
+        self.monthly_cost += actual_cost
         
         # Record in circuit breaker
         return self._circuit_breaker.record_cost(
@@ -377,6 +676,23 @@ class CostSafetyManager:
             operation=operation_type,
             job_id=session_id
         )
+    
+    def record_failure(
+        self,
+        session_id: str,
+        operation_type: str,
+        error: str
+    ) -> None:
+        """Record a failed operation.
+        
+        Args:
+            session_id: Session identifier
+            operation_type: Type of operation that failed
+            error: Error message
+        """
+        session = self._sessions.get(session_id)
+        if session:
+            session.record_failure(operation_type, error)
     
     def get_session_cost(self, session_id: str) -> float:
         """Get total cost for a session.
@@ -389,10 +705,33 @@ class CostSafetyManager:
         """
         return self._session_costs.get(session_id, 0.0)
     
+    def get_spending_summary(self) -> Dict:
+        """Get global spending summary.
+        
+        Returns:
+            Dictionary with daily and monthly spending info
+        """
+        return {
+            "daily": {
+                "spent": self.daily_cost,
+                "limit": self.max_daily,
+                "remaining": max(0, self.max_daily - self.daily_cost)
+            },
+            "monthly": {
+                "spent": self.monthly_cost,
+                "limit": self.max_monthly,
+                "remaining": max(0, self.max_monthly - self.monthly_cost)
+            },
+            "active_sessions": len(self._sessions)
+        }
+    
     def reset(self) -> None:
         """Reset all tracking state."""
         self._circuit_breaker.reset()
         self._session_costs.clear()
+        self._sessions.clear()
+        self.daily_cost = 0.0
+        self.monthly_cost = 0.0
 
 
 # Global singleton instance
