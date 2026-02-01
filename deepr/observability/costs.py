@@ -324,14 +324,220 @@ class AlertManager:
         )
 
 
+class CostAggregator:
+    """Handles cost aggregation and breakdown calculations.
+    
+    Extracted from CostDashboard to follow Single Responsibility Principle.
+    Provides efficient single-pass aggregation for multiple breakdown types.
+    
+    Attributes:
+        entries: Reference to the list of cost entries to aggregate
+    """
+    
+    def __init__(self, entries: List[CostEntry]):
+        """Initialize aggregator with entries reference.
+        
+        Args:
+            entries: List of cost entries to aggregate
+        """
+        self._entries = entries
+    
+    def get_daily_total(self, target_date: Optional[date] = None) -> float:
+        """Get total cost for a day.
+        
+        Args:
+            target_date: Date to check (default: today in UTC)
+            
+        Returns:
+            Total cost for the day
+        """
+        if target_date is None:
+            target_date = datetime.utcnow().date()
+        
+        return sum(e.cost for e in self._entries if e.date == target_date)
+    
+    def get_monthly_total(
+        self,
+        year: Optional[int] = None,
+        month: Optional[int] = None
+    ) -> float:
+        """Get total cost for a month.
+        
+        Args:
+            year: Year (default: current)
+            month: Month (default: current)
+            
+        Returns:
+            Total cost for the month
+        """
+        now = datetime.utcnow()
+        if year is None:
+            year = now.year
+        if month is None:
+            month = now.month
+        
+        return sum(
+            e.cost for e in self._entries
+            if e.timestamp.year == year and e.timestamp.month == month
+        )
+    
+    def get_breakdown_by_provider(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, float]:
+        """Get cost breakdown by provider.
+        
+        Args:
+            start_date: Start of period
+            end_date: End of period
+            
+        Returns:
+            Dictionary mapping provider to total cost
+        """
+        entries = self._filter_by_date(start_date, end_date)
+        return self._aggregate_by_field(entries, lambda e: e.provider)
+    
+    def get_breakdown_by_operation(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, float]:
+        """Get cost breakdown by operation type.
+        
+        Args:
+            start_date: Start of period
+            end_date: End of period
+            
+        Returns:
+            Dictionary mapping operation to total cost
+        """
+        entries = self._filter_by_date(start_date, end_date)
+        return self._aggregate_by_field(entries, lambda e: e.operation)
+    
+    def get_breakdown_by_model(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, float]:
+        """Get cost breakdown by model.
+        
+        Args:
+            start_date: Start of period
+            end_date: End of period
+            
+        Returns:
+            Dictionary mapping model to total cost
+        """
+        entries = self._filter_by_date(start_date, end_date)
+        return self._aggregate_by_field(entries, lambda e: e.model or "unknown")
+    
+    def get_all_breakdowns(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, Dict[str, float]]:
+        """Get all breakdowns in a single pass for efficiency.
+        
+        This method iterates through entries once to compute all breakdowns,
+        which is more efficient than calling each breakdown method separately.
+        
+        Args:
+            start_date: Start of period
+            end_date: End of period
+            
+        Returns:
+            Dictionary with 'by_provider', 'by_operation', 'by_model' keys
+        """
+        entries = self._filter_by_date(start_date, end_date)
+        
+        by_provider: Dict[str, float] = {}
+        by_operation: Dict[str, float] = {}
+        by_model: Dict[str, float] = {}
+        
+        for entry in entries:
+            # Aggregate by provider
+            if entry.provider not in by_provider:
+                by_provider[entry.provider] = 0.0
+            by_provider[entry.provider] += entry.cost
+            
+            # Aggregate by operation
+            if entry.operation not in by_operation:
+                by_operation[entry.operation] = 0.0
+            by_operation[entry.operation] += entry.cost
+            
+            # Aggregate by model
+            model = entry.model or "unknown"
+            if model not in by_model:
+                by_model[model] = 0.0
+            by_model[model] += entry.cost
+        
+        return {
+            "by_provider": by_provider,
+            "by_operation": by_operation,
+            "by_model": by_model
+        }
+    
+    def _filter_by_date(
+        self,
+        start_date: Optional[datetime],
+        end_date: Optional[datetime]
+    ) -> List[CostEntry]:
+        """Filter entries by date range.
+        
+        Args:
+            start_date: Start of period (inclusive)
+            end_date: End of period (inclusive)
+            
+        Returns:
+            Filtered entries
+        """
+        entries = self._entries
+        
+        if start_date:
+            entries = [e for e in entries if e.timestamp >= start_date]
+        
+        if end_date:
+            entries = [e for e in entries if e.timestamp <= end_date]
+        
+        return entries
+    
+    def _aggregate_by_field(
+        self,
+        entries: List[CostEntry],
+        key_func
+    ) -> Dict[str, float]:
+        """Aggregate costs by a field extracted via key function.
+        
+        Args:
+            entries: Entries to aggregate
+            key_func: Function to extract grouping key from entry
+            
+        Returns:
+            Dictionary mapping key to total cost
+        """
+        breakdown: Dict[str, float] = {}
+        for entry in entries:
+            key = key_func(entry)
+            if key not in breakdown:
+                breakdown[key] = 0.0
+            breakdown[key] += entry.cost
+        return breakdown
+
+
 class CostDashboard:
     """Dashboard for cost tracking and alerts.
+    
+    Coordinates between:
+    - CostAggregator: Handles breakdown calculations and totals
+    - AlertManager: Handles threshold checking and alert deduplication
     
     Attributes:
         entries: List of cost entries
         daily_limit: Daily spending limit
         monthly_limit: Monthly spending limit
         alert_manager: Manages alert threshold checking
+        aggregator: Handles cost aggregation and breakdowns
     """
     
     def __init__(
@@ -362,8 +568,9 @@ class CostDashboard:
         
         self.entries: List[CostEntry] = []
         
-        # Initialize alert manager (will be populated from _load if data exists)
+        # Initialize collaborators
         self.alert_manager = AlertManager(thresholds=self.alert_thresholds)
+        self.aggregator = CostAggregator(self.entries)
         
         self._load()
     
@@ -433,23 +640,24 @@ class CostDashboard:
     def get_daily_total(self, target_date: Optional[date] = None) -> float:
         """Get total cost for a day.
         
+        Delegates to CostAggregator.
+        
         Args:
             target_date: Date to check (default: today in UTC)
             
         Returns:
             Total cost for the day
         """
-        if target_date is None:
-            # Use UTC date to match entry timestamps (which use datetime.utcnow())
-            target_date = datetime.utcnow().date()
-        
-        return sum(
-            e.cost for e in self.entries
-            if e.date == target_date
-        )
+        return self.aggregator.get_daily_total(target_date)
     
-    def get_monthly_total(self, year: Optional[int] = None, month: Optional[int] = None) -> float:
+    def get_monthly_total(
+        self,
+        year: Optional[int] = None,
+        month: Optional[int] = None
+    ) -> float:
         """Get total cost for a month.
+        
+        Delegates to CostAggregator.
         
         Args:
             year: Year (default: current)
@@ -458,16 +666,7 @@ class CostDashboard:
         Returns:
             Total cost for the month
         """
-        now = datetime.utcnow()
-        if year is None:
-            year = now.year
-        if month is None:
-            month = now.month
-        
-        return sum(
-            e.cost for e in self.entries
-            if e.timestamp.year == year and e.timestamp.month == month
-        )
+        return self.aggregator.get_monthly_total(year, month)
     
     def get_breakdown_by_provider(
         self,
@@ -476,6 +675,8 @@ class CostDashboard:
     ) -> Dict[str, float]:
         """Get cost breakdown by provider.
         
+        Delegates to CostAggregator.
+        
         Args:
             start_date: Start of period
             end_date: End of period
@@ -483,15 +684,7 @@ class CostDashboard:
         Returns:
             Dictionary mapping provider to total cost
         """
-        entries = self._filter_by_date(start_date, end_date)
-        
-        breakdown: Dict[str, float] = {}
-        for entry in entries:
-            if entry.provider not in breakdown:
-                breakdown[entry.provider] = 0.0
-            breakdown[entry.provider] += entry.cost
-        
-        return breakdown
+        return self.aggregator.get_breakdown_by_provider(start_date, end_date)
     
     def get_breakdown_by_operation(
         self,
@@ -500,6 +693,8 @@ class CostDashboard:
     ) -> Dict[str, float]:
         """Get cost breakdown by operation type.
         
+        Delegates to CostAggregator.
+        
         Args:
             start_date: Start of period
             end_date: End of period
@@ -507,15 +702,7 @@ class CostDashboard:
         Returns:
             Dictionary mapping operation to total cost
         """
-        entries = self._filter_by_date(start_date, end_date)
-        
-        breakdown: Dict[str, float] = {}
-        for entry in entries:
-            if entry.operation not in breakdown:
-                breakdown[entry.operation] = 0.0
-            breakdown[entry.operation] += entry.cost
-        
-        return breakdown
+        return self.aggregator.get_breakdown_by_operation(start_date, end_date)
     
     def get_breakdown_by_model(
         self,
@@ -524,6 +711,8 @@ class CostDashboard:
     ) -> Dict[str, float]:
         """Get cost breakdown by model.
         
+        Delegates to CostAggregator.
+        
         Args:
             start_date: Start of period
             end_date: End of period
@@ -531,16 +720,7 @@ class CostDashboard:
         Returns:
             Dictionary mapping model to total cost
         """
-        entries = self._filter_by_date(start_date, end_date)
-        
-        breakdown: Dict[str, float] = {}
-        for entry in entries:
-            model = entry.model or "unknown"
-            if model not in breakdown:
-                breakdown[model] = 0.0
-            breakdown[model] += entry.cost
-        
-        return breakdown
+        return self.aggregator.get_breakdown_by_model(start_date, end_date)
     
     def check_alerts(self) -> List[CostAlert]:
         """Check for cost alerts.
@@ -595,7 +775,6 @@ class CostDashboard:
             List of daily summaries
         """
         history = []
-        # Use UTC date to match entry timestamps
         today = datetime.utcnow().date()
         
         for i in range(days):
@@ -612,13 +791,16 @@ class CostDashboard:
         return list(reversed(history))
     
     def get_summary(self) -> Dict[str, Any]:
-        """Get cost summary.
+        """Get cost summary using efficient single-pass aggregation.
         
         Returns:
-            Summary dictionary
+            Summary dictionary with daily/monthly totals, breakdowns, and alerts
         """
         daily_total = self.get_daily_total()
         monthly_total = self.get_monthly_total()
+        
+        # Use single-pass aggregation for all breakdowns
+        breakdowns = self.aggregator.get_all_breakdowns()
         
         return {
             "daily": {
@@ -633,8 +815,8 @@ class CostDashboard:
                 "remaining": max(0, self.monthly_limit - monthly_total),
                 "utilization": monthly_total / self.monthly_limit if self.monthly_limit > 0 else 0
             },
-            "by_provider": self.get_breakdown_by_provider(),
-            "by_operation": self.get_breakdown_by_operation(),
+            "by_provider": breakdowns["by_provider"],
+            "by_operation": breakdowns["by_operation"],
             "active_alerts": [a.to_dict() for a in self.get_active_alerts()],
             "total_entries": len(self.entries)
         }
@@ -646,6 +828,8 @@ class CostDashboard:
     ) -> List[CostEntry]:
         """Filter entries by date range.
         
+        Delegates to CostAggregator for backward compatibility.
+        
         Args:
             start_date: Start of period
             end_date: End of period
@@ -653,15 +837,7 @@ class CostDashboard:
         Returns:
             Filtered entries
         """
-        entries = self.entries
-        
-        if start_date:
-            entries = [e for e in entries if e.timestamp >= start_date]
-        
-        if end_date:
-            entries = [e for e in entries if e.timestamp <= end_date]
-        
-        return entries
+        return self.aggregator._filter_by_date(start_date, end_date)
     
     def _save(self):
         """Save entries to disk using atomic write pattern.
