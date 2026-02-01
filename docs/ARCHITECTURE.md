@@ -238,14 +238,44 @@ User inputs are validated before use:
 
 #### Cost Safety
 
-Multiple layers prevent runaway costs:
+Multiple layers prevent runaway costs. Implementation in `deepr/experts/cost_safety.py`.
 
-1. **Session budgets** - Per-chat spending limits
-2. **Daily limits** - Global daily spending cap
-3. **Circuit breakers** - Auto-disable after repeated failures
-4. **Confirmation prompts** - For expensive operations (>$0.10)
+**Hard Limits (Cannot Be Overridden):**
+- Per Operation: $10 maximum
+- Per Day: $50 maximum
+- Per Month: $500 maximum
 
-See `deepr/experts/cost_safety.py` for implementation.
+**Configurable Limits (Defaults):**
+- Per Operation: $5
+- Per Day: $25
+- Per Month: $200
+
+**Features:**
+- Session-level cost tracking with alerts at 50%, 80%, 95%
+- Circuit breaker for repeated failures (auto-pause after 3 consecutive failures)
+- Audit logging of all cost-incurring operations
+- Graceful pause/resume for daily/monthly limits
+
+**CLI Budget Validation:**
+- Warns for budgets > $10
+- Requires confirmation for budgets > $25
+- Shows daily/monthly spending status with `/status` command in expert chat
+
+**Pause/Resume for Long-Running Processes:**
+
+When learning or curriculum execution hits limits:
+1. Progress saved to `data/experts/<name>/knowledge/learning_progress.json`
+2. Clear message about when to resume
+3. Resume with `deepr expert resume "<name>"`
+
+```bash
+# If daily limit hit during learning:
+PAUSED - Daily/Monthly Limit Reached
+Progress: 8 topics completed, 7 remaining
+
+To resume:
+  deepr expert resume "Azure Architect"
+```
 
 #### Rate Limiting
 

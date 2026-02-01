@@ -40,7 +40,7 @@ Deepr is a research tool that coordinates AI models to produce structured, cited
 - Knowledge infrastructure (not just one-off queries)
 - Expert system with learning capabilities (experimental)
 
-See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for technical details on the self-improvement loop, autonomous learning, and knowledge synthesis.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details on the self-improvement loop, autonomous learning, and knowledge synthesis.
 
 ---
 
@@ -403,7 +403,7 @@ deepr expert resume "AWS Expert"
 deepr expert resume "AWS Expert" --budget 10
 ```
 
-See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for technical details.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
 
 ---
 
@@ -442,21 +442,24 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples and best pract
 
 ## Documentation
 
+> **Note**: Model information current as of January 31, 2026. AI evolves rapidly - verify at provider websites.
+
 **Getting Started:**
 - [QUICK_START.md](docs/QUICK_START.md) - 5-minute setup guide
 
 **Core Guides:**
 - [EXAMPLES.md](docs/EXAMPLES.md) - Detailed real-world use cases
-- [ROADMAP.md](ROADMAP.md#priority-25-agentic-expert-system-capability-extension) - Creating and using domain experts
-- [ROADMAP.md](ROADMAP.md#structured-learning-approach) - Structured learning strategies
+- [EXPERTS.md](docs/EXPERTS.md) - Creating and using domain experts
+- [FEATURES.md](docs/FEATURES.md) - Complete feature reference
 
 **Technical:**
-- [ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) - Technical architecture
-- [ROADMAP.md](ROADMAP.md#model-strategy) - Choosing the right model
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture and security
+- [MODELS.md](docs/MODELS.md) - Model selection and provider guide
 - [mcp/README.md](mcp/README.md) - Model Context Protocol integration
 
 **Project:**
-- [ROADMAP.md](ROADMAP.md) - Development roadmap and future vision
+- [ROADMAP.md](ROADMAP.md) - Development priorities and status
+- [VISION.md](docs/VISION.md) - Future direction (aspirational)
 
 ---
 
@@ -478,7 +481,7 @@ deepr/
 └── tests/              # Test suite
 ```
 
-See [docs/specifications/ARCHITECTURE.md](docs/specifications/ARCHITECTURE.md) for detailed component documentation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed component documentation.
 
 ---
 
@@ -506,7 +509,7 @@ Deepr implements multiple security layers:
 - Start with small budgets (`deepr budget set 5`)
 - Use pre-paid credits with auto-reload OFF
 - Only upload files you trust
-- Review [docs/specifications/SECURITY.md](docs/specifications/SECURITY.md) for complete guidance
+- Review [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security) for security guidance
 
 **Report Security Issues:** security@deepr.dev
 

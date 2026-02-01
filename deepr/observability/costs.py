@@ -925,3 +925,213 @@ class CostDashboard:
             logger.warning(
                 f"Failed to read cost data file: {e}. Starting fresh."
             )
+
+
+# Configuration constants for buffered cost dashboard
+from deepr.core.constants import COST_BUFFER_SIZE, COST_FLUSH_INTERVAL
+
+
+class BufferedCostDashboard(CostDashboard):
+    """Cost dashboard with write batching for performance.
+    
+    Buffers cost entries in memory and flushes to disk:
+    - When buffer size exceeds threshold
+    - When time since last flush exceeds interval
+    - On explicit flush() call
+    - On application shutdown
+    
+    This class extends CostDashboard to add write batching, which prevents
+    synchronous I/O from blocking the main execution path.
+    
+    Attributes:
+        buffer_size: Maximum entries before automatic flush (default: 10)
+        flush_interval: Maximum seconds between flushes (default: 30)
+        _buffer: List of entries pending persistence
+        _last_flush: Timestamp of last successful flush
+        _lock: Threading lock for thread-safe buffer operations
+    
+    Example:
+        dashboard = BufferedCostDashboard()
+        dashboard.record("research", "openai", 0.15)  # Buffered
+        dashboard.flush()  # Explicit persistence
+    """
+    
+    def __init__(
+        self,
+        storage_path: Optional[Path] = None,
+        daily_limit: float = 10.0,
+        monthly_limit: float = 100.0,
+        alert_thresholds: Optional[List[float]] = None,
+        buffer_size: int = COST_BUFFER_SIZE,
+        flush_interval: int = COST_FLUSH_INTERVAL
+    ):
+        """Initialize buffered cost dashboard.
+        
+        Args:
+            storage_path: Path for persistence
+            daily_limit: Daily spending limit
+            monthly_limit: Monthly spending limit
+            alert_thresholds: Alert thresholds (default: 0.5, 0.8, 0.95)
+            buffer_size: Maximum entries before automatic flush (default: 10)
+            flush_interval: Maximum seconds between flushes (default: 30)
+        """
+        # Import threading here to avoid circular imports
+        import threading
+        import atexit
+        
+        super().__init__(storage_path, daily_limit, monthly_limit, alert_thresholds)
+        
+        self.buffer_size = buffer_size
+        self.flush_interval = flush_interval
+        self._buffer: List[CostEntry] = []
+        self._last_flush: datetime = datetime.utcnow()
+        self._lock = threading.Lock()
+        
+        # Register shutdown handler to flush on application exit
+        atexit.register(self._shutdown_flush)
+    
+    def record(
+        self,
+        operation: str,
+        provider: str,
+        cost: float,
+        model: str = "",
+        tokens_input: int = 0,
+        tokens_output: int = 0,
+        task_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> CostEntry:
+        """Record a cost entry with buffering.
+        
+        Entry is added to buffer and flushed when thresholds are met:
+        - Buffer size exceeds buffer_size threshold
+        - Time since last flush exceeds flush_interval
+        
+        Args:
+            operation: Type of operation
+            provider: Provider used
+            cost: Cost in dollars (negative values clamped to 0)
+            model: Model used
+            tokens_input: Input tokens
+            tokens_output: Output tokens
+            task_id: Optional task ID
+            metadata: Additional metadata
+            
+        Returns:
+            Created CostEntry
+        
+        Note:
+            Negative costs are clamped to 0 with a warning logged.
+        """
+        # Validate and sanitize cost: must be non-negative
+        if cost < 0:
+            logger.warning(
+                f"Negative cost={cost} for {operation}/{provider}, clamping to 0"
+            )
+            cost = 0.0
+        
+        entry = CostEntry(
+            operation=operation,
+            provider=provider,
+            cost=cost,
+            model=model,
+            tokens_input=tokens_input,
+            tokens_output=tokens_output,
+            task_id=task_id,
+            metadata=metadata or {}
+        )
+        
+        should_flush = False
+        
+        with self._lock:
+            # Add to buffer and entries list
+            self._buffer.append(entry)
+            self.entries.append(entry)
+            
+            # Check if flush is needed based on buffer size or time interval
+            should_flush = (
+                len(self._buffer) >= self.buffer_size or
+                self._time_since_flush() >= self.flush_interval
+            )
+        
+        # Flush outside the lock to avoid holding it during I/O
+        if should_flush:
+            self.flush()
+        
+        # Check alerts (doesn't require flush)
+        self.check_alerts()
+        
+        return entry
+    
+    def flush(self) -> bool:
+        """Flush buffered entries to disk.
+        
+        Persists all buffered entries to disk using the atomic write pattern
+        from the parent class. On failure, entries are retained in the buffer
+        for retry on the next flush.
+        
+        Returns:
+            True if flush succeeded, False otherwise
+        
+        Note:
+            This method is thread-safe and can be called from multiple threads.
+        """
+        with self._lock:
+            if not self._buffer:
+                return True
+            
+            buffer_count = len(self._buffer)
+            
+            try:
+                self._save()
+                self._buffer.clear()
+                self._last_flush = datetime.utcnow()
+                logger.debug(f"Flushed {buffer_count} cost entries to disk")
+                return True
+            except Exception as e:
+                # Keep entries in buffer for retry on next flush
+                logger.error(f"Failed to flush cost entries: {e}")
+                return False
+    
+    def _time_since_flush(self) -> float:
+        """Get seconds since last successful flush.
+        
+        Returns:
+            Number of seconds since last flush
+        """
+        return (datetime.utcnow() - self._last_flush).total_seconds()
+    
+    def _shutdown_flush(self):
+        """Flush handler called on application shutdown.
+        
+        This method is registered with atexit to ensure all buffered
+        entries are persisted when the application exits.
+        """
+        try:
+            if self._buffer:
+                logger.info(f"Flushing {len(self._buffer)} cost entries on shutdown")
+                self.flush()
+        except Exception as e:
+            logger.error(f"Failed to flush cost entries on shutdown: {e}")
+    
+    @property
+    def buffer_count(self) -> int:
+        """Get the current number of entries in the buffer.
+        
+        Returns:
+            Number of buffered entries pending persistence
+        """
+        with self._lock:
+            return len(self._buffer)
+    
+    @property
+    def time_until_flush(self) -> float:
+        """Get seconds until time-based flush is triggered.
+        
+        Returns:
+            Seconds remaining until flush_interval is reached,
+            or 0 if interval has already been exceeded
+        """
+        with self._lock:
+            remaining = self.flush_interval - self._time_since_flush()
+            return max(0.0, remaining)

@@ -5,6 +5,7 @@ Provides:
 - Intelligent provider selection based on cost, latency, success rate
 - Automatic fallback on failures
 - Graceful degradation to cheaper models
+- Circuit breaker integration for fail-fast behavior
 
 Usage:
     from deepr.observability.provider_router import AutonomousProviderRouter
@@ -27,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+from deepr.observability.circuit_breaker import CircuitBreakerRegistry, CircuitState
 
 # Module logger for debugging persistence and validation issues
 logger = logging.getLogger(__name__)
@@ -290,7 +293,8 @@ class AutonomousProviderRouter:
         self,
         storage_path: Optional[Path] = None,
         fallback_chain: Optional[List[Tuple[str, str]]] = None,
-        min_samples: int = 3
+        min_samples: int = 3,
+        circuit_breaker_registry: Optional[CircuitBreakerRegistry] = None
     ):
         """Initialize provider router.
         
@@ -298,6 +302,7 @@ class AutonomousProviderRouter:
             storage_path: Path for persistence
             fallback_chain: Custom fallback chain
             min_samples: Minimum samples before using metrics
+            circuit_breaker_registry: Optional circuit breaker registry (creates one if not provided)
         """
         if storage_path is None:
             storage_path = Path("data/observability/provider_metrics.json")
@@ -311,7 +316,22 @@ class AutonomousProviderRouter:
         self.metrics: Dict[Tuple[str, str], ProviderMetrics] = {}
         self.fallback_events: List[FallbackEvent] = []
         
+        # Circuit breaker for fail-fast behavior
+        self.circuit_breaker = circuit_breaker_registry or CircuitBreakerRegistry()
+        
         self._load()
+    
+    def is_circuit_available(self, provider: str, model: str) -> bool:
+        """Check if circuit breaker allows requests to provider/model.
+        
+        Args:
+            provider: Provider name
+            model: Model name
+            
+        Returns:
+            True if requests should be attempted, False if circuit is open
+        """
+        return self.circuit_breaker.is_available(provider, model)
     
     def record_result(
         self,
@@ -323,6 +343,8 @@ class AutonomousProviderRouter:
         error: str = ""
     ):
         """Record a request result.
+        
+        Updates both metrics and circuit breaker state.
         
         Args:
             provider: Provider name
@@ -339,8 +361,12 @@ class AutonomousProviderRouter:
         
         if success:
             self.metrics[key].record_success(latency_ms, cost)
+            # Update circuit breaker on success
+            self.circuit_breaker.record_success(provider, model)
         else:
             self.metrics[key].record_failure(error)
+            # Update circuit breaker on failure
+            self.circuit_breaker.record_failure(provider, model, error)
         
         self._save()
     
@@ -352,6 +378,8 @@ class AutonomousProviderRouter:
         exclude: Optional[List[Tuple[str, str]]] = None
     ) -> Tuple[str, str]:
         """Select best provider for a task.
+        
+        Excludes providers with open circuits (fail-fast behavior).
         
         Args:
             task_type: Type of task
@@ -368,12 +396,22 @@ class AutonomousProviderRouter:
         candidates = self._get_candidates(task_type)
         candidates = [c for c in candidates if c not in exclude]
         
+        # Filter out providers with open circuits (fail-fast)
+        candidates = [
+            (p, m) for p, m in candidates 
+            if self.circuit_breaker.is_available(p, m)
+        ]
+        
         if not candidates:
-            # Fall back to default chain
+            # Fall back to default chain, checking circuit breakers
+            for fallback in self.fallback_chain:
+                if fallback not in exclude and self.circuit_breaker.is_available(*fallback):
+                    return fallback
+            # Last resort - return first available even if circuit is open
+            # (better to try than to fail completely)
             for fallback in self.fallback_chain:
                 if fallback not in exclude:
                     return fallback
-            # Last resort
             return ("openai", "gpt-4o")
         
         # Score candidates
@@ -399,6 +437,8 @@ class AutonomousProviderRouter:
     ) -> Optional[Tuple[str, str]]:
         """Get fallback provider after failure.
         
+        Checks circuit breaker state before selecting fallback.
+        
         Args:
             failed_provider: Provider that failed
             failed_model: Model that failed
@@ -409,10 +449,14 @@ class AutonomousProviderRouter:
         """
         failed_key = (failed_provider, failed_model)
         
-        # Find next healthy provider in chain
+        # Find next healthy provider in chain with available circuit
         for provider, model in self.fallback_chain:
             key = (provider, model)
             if key == failed_key:
+                continue
+            
+            # Check circuit breaker first (fail-fast)
+            if not self.circuit_breaker.is_available(provider, model):
                 continue
             
             metrics = self.metrics.get(key)
@@ -436,6 +480,8 @@ class AutonomousProviderRouter:
     def get_status(self) -> Dict[str, Any]:
         """Get router status.
         
+        Includes both metrics and circuit breaker status.
+        
         Returns:
             Status dictionary
         """
@@ -445,15 +491,20 @@ class AutonomousProviderRouter:
             "unhealthy_count": 0,
             "total_requests": 0,
             "total_cost": 0.0,
-            "recent_fallbacks": []
+            "recent_fallbacks": [],
+            "circuit_breakers": self.circuit_breaker.get_status()
         }
         
         for key, metrics in self.metrics.items():
             provider, model = key
             is_healthy = metrics.is_healthy()
+            circuit_available = self.circuit_breaker.is_available(provider, model)
+            circuit = self.circuit_breaker.get_circuit(provider, model)
             
             status["providers"][f"{provider}/{model}"] = {
                 "healthy": is_healthy,
+                "circuit_state": circuit.state.value,
+                "circuit_available": circuit_available,
                 "success_rate": metrics.success_rate,
                 "avg_latency_ms": metrics.rolling_avg_latency,
                 "avg_cost": metrics.rolling_avg_cost,
@@ -461,7 +512,7 @@ class AutonomousProviderRouter:
                 "last_error": metrics.last_error if not is_healthy else None
             }
             
-            if is_healthy:
+            if is_healthy and circuit_available:
                 status["healthy_count"] += 1
             else:
                 status["unhealthy_count"] += 1
