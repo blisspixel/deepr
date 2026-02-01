@@ -12,8 +12,10 @@ colorama>=0.4.0
 # API dependencies
 flask>=3.0.0
 flask-cors>=4.0.0
+flask-limiter>=3.5.0
 flask-socketio>=5.3.0
 python-socketio>=5.10.0
+flasgger>=0.9.7
 
 # Document processing
 python-docx>=1.0.0
