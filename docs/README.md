@@ -1,5 +1,7 @@
 # Deepr Documentation
 
+> **Note**: Model information current as of January 31, 2026. AI evolves rapidly - verify at provider websites.
+
 ## Getting Started
 
 1. **[INSTALL.md](INSTALL.md)** - Installation and setup
@@ -8,19 +10,29 @@
 
 ## Core Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - How Deepr works
-- **[FEATURES.md](FEATURES.md)** - What Deepr can do
+- **[FEATURES.md](FEATURES.md)** - Complete feature reference
+- **[EXPERTS.md](EXPERTS.md)** - Domain expert system guide
+- **[MODELS.md](MODELS.md)** - Model selection and provider guide
+
+## Technical
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and security
+- **[PERFORMANCE.md](PERFORMANCE.md)** - Performance considerations
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
+
+## Project
+
+- **[../ROADMAP.md](../ROADMAP.md)** - Development priorities and status
+- **[VISION.md](VISION.md)** - Future direction (aspirational)
 
 ## Reference
 
-- **[reference/models/](reference/models/)** - AI model documentation (GPT-5.2, Grok 4, etc.)
-- **[specifications/](specifications/)** - Technical specs and design docs
+- **[reference/](reference/)** - Technical reference docs
 
 ## Archive
 
-- **[archive/](archive/)** - Historical docs, implementation notes, completed work
+- **[archive/](archive/)** - Historical docs, completed work, old specifications
 
 ---
 
-**Note**: When new AI models are released (GPT-5.3, Grok 5, etc.), update the model registry at `deepr/providers/registry.py`. Never hardcode model names in the codebase.
+**Keeping Current**: When new AI models are released, update the model registry at `deepr/providers/registry.py`. Never hardcode model names elsewhere.
