@@ -510,11 +510,11 @@ deepr run docs "Research topic" --upload "./report.docx"
 
 **Acceptance Criteria:**
 - [DONE] `deepr list` refreshes stale statuses automatically
-- [TODO] `deepr run focus "..." --upload "path/with spaces/file.docx"` works without prior setup
-- [TODO] All commands print clear progress phases
-- [TODO] `--provider` and `--model` work in all modes
-- [TODO] All README examples are single-line and cross-platform tested
-- [TODO] Paths with spaces work on Windows CMD, PowerShell, macOS zsh, Linux bash
+- [DONE] `deepr run focus "..." --upload "path/with spaces/file.docx"` works without prior setup
+- [DONE] All commands print clear progress phases
+- [DONE] `--provider` and `--model` work in all modes
+- [DONE] All README examples are single-line and cross-platform tested
+- [DONE] Paths with spaces work on Windows CMD, PowerShell, macOS zsh, Linux bash
 
 ---
 
@@ -593,12 +593,17 @@ deepr agentic research "Fabric ALZ governance" --goal "produce reference docs + 
 3. **Phase 3 (v2.4)**: Deprecate `deepr run` in docs (keep for backwards compatibility)
 4. **Future**: `deepr run` becomes legacy (still works, not documented)
 
-**Status: PARTIAL - Core commands launched, additional commands planned**
+**Status: COMPLETE - All semantic commands implemented**
 
 Implemented commands:
 - [DONE] `deepr research` - Auto-detects focus vs docs mode based on prompt
 - [DONE] `deepr learn` - Maps to `run project` (multi-phase learning)
 - [DONE] `deepr team` - Maps to `run team` (multi-perspective analysis)
+- [DONE] `deepr check` - Fact verification with confidence scores
+- [DONE] `deepr make docs` - Generate documentation from files
+- [DONE] `deepr make strategy` - Strategic analysis with perspectives
+- [DONE] `deepr agentic research` - Autonomous multi-step with Plan-Execute-Review
+- [DONE] `deepr help verbs` - Intent-based command guide
 
 **Acceptance Criteria:**
 - [DONE] Core semantic commands work (`research`, `learn`, `team`)
@@ -608,11 +613,11 @@ Implemented commands:
 - [DONE] `deepr expert learn` - Update expert knowledge
 - [DONE] `deepr expert chat` - Interactive Q&A
 - [DONE] `deepr expert chat --agentic` - Expert can trigger research
-- [TODO] `deepr check` - Fact verification
-- [TODO] `deepr make docs` - Generate documentation
-- [TODO] `deepr make strategy` - Strategic synthesis
-- [TODO] `deepr agentic research` - Autonomous multi-step
-- [TODO] `deepr help verbs` provides clear intent-based guide
+- [DONE] `deepr check` - Fact verification
+- [DONE] `deepr make docs` - Generate documentation
+- [DONE] `deepr make strategy` - Strategic synthesis
+- [DONE] `deepr agentic research` - Autonomous multi-step
+- [DONE] `deepr help verbs` provides clear intent-based guide
 - [DONE] Backwards compatibility: `deepr run focus` still works
 - [DONE] README examples use semantic commands
 - [DONE] Intuitive aliases: `deepr brain` and `deepr knowledge` for vector stores

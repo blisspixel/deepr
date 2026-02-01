@@ -10,12 +10,17 @@ import os
 # Security imports
 from deepr.utils.security import sanitize_name, validate_path, PathTraversalError
 
+# Composition imports
+from deepr.experts.temporal import TemporalState
+from deepr.experts.freshness import FreshnessChecker, FreshnessLevel
+
 
 @dataclass
 class ExpertProfile:
     """Profile for a domain expert.
 
     Combines vector store (for knowledge) with metadata (for behavior).
+    Uses composition with TemporalState and FreshnessChecker for cleaner separation.
     """
     name: str
     vector_store_id: str
@@ -49,78 +54,345 @@ class ExpertProfile:
     conversations: int = 0
     research_triggered: int = 0
     total_research_cost: float = 0.0
+    
+    # Monthly learning budget for autonomous updates
+    monthly_learning_budget: float = 5.0  # Default $5/month for autonomous learning
+    monthly_spending: float = 0.0  # Current month's spending
+    monthly_spending_reset_date: Optional[datetime] = None  # When to reset monthly spending
+    refresh_history: List[Dict] = field(default_factory=list)  # History of refresh operations
 
     # Provider preferences
     provider: str = "openai"
     model: str = "gpt-5"  # GPT-5 with tool calling for RAG (NOT deprecated Assistants API)
+    
+    # Composed components (not serialized directly)
+    _temporal_state: Optional[TemporalState] = field(default=None, repr=False)
+    _freshness_checker: Optional[FreshnessChecker] = field(default=None, repr=False)
+    
+    def __post_init__(self):
+        """Initialize composed components."""
+        self._init_components()
+    
+    def _init_components(self):
+        """Initialize TemporalState and FreshnessChecker."""
+        # Initialize temporal state
+        if self._temporal_state is None:
+            self._temporal_state = TemporalState(
+                created_at=self.created_at,
+                last_activity=self.updated_at,
+                last_learning=self.last_knowledge_refresh
+            )
+        
+        # Initialize freshness checker with domain velocity
+        velocity_map = {"slow": 180, "medium": 90, "fast": 30}
+        velocity_days = velocity_map.get(self.domain_velocity, 90)
+        
+        if self._freshness_checker is None:
+            self._freshness_checker = FreshnessChecker(
+                domain=self.domain or "general",
+                velocity_days=velocity_days
+            )
+    
+    @property
+    def temporal_state(self) -> TemporalState:
+        """Get temporal state component."""
+        if self._temporal_state is None:
+            self._init_components()
+        return self._temporal_state
+    
+    @property
+    def freshness_checker(self) -> FreshnessChecker:
+        """Get freshness checker component."""
+        if self._freshness_checker is None:
+            self._init_components()
+        return self._freshness_checker
+    
+    def record_activity(self, activity_type: str, details: Optional[Dict] = None):
+        """Record an activity using TemporalState.
+        
+        Args:
+            activity_type: Type of activity
+            details: Optional details
+        """
+        self.temporal_state.record_activity(activity_type, details)
+        self.updated_at = datetime.utcnow()
+        
+        if activity_type == "chat":
+            self.conversations += 1
+        elif activity_type == "research":
+            self.research_triggered += 1
 
     def is_knowledge_stale(self) -> bool:
-        """Check if knowledge needs refreshing based on domain velocity."""
-        if not self.knowledge_cutoff_date:
-            return True  # No knowledge cutoff = needs learning
-
-        from datetime import timedelta
-        now = datetime.utcnow()
-        age_days = (now - self.knowledge_cutoff_date).days
-
-        # Velocity-based thresholds
-        velocity_thresholds = {
-            "slow": 180,  # Legal, compliance, fundamentals
-            "medium": 90,  # General tech, business
-            "fast": 30,   # AI/ML, cloud, frameworks
-        }
-
-        threshold = velocity_thresholds.get(self.domain_velocity, 90)
-        return age_days > threshold
+        """Check if knowledge needs refreshing based on domain velocity.
+        
+        Uses FreshnessChecker for consistent logic.
+        """
+        return self.freshness_checker.is_stale(last_learning=self.knowledge_cutoff_date)
 
     def get_freshness_status(self) -> Dict[str, any]:
-        """Get detailed freshness status."""
-        if not self.knowledge_cutoff_date:
+        """Get detailed freshness status using FreshnessChecker."""
+        status = self.freshness_checker.check(
+            last_learning=self.knowledge_cutoff_date,
+            last_activity=self.updated_at
+        )
+        
+        # Convert to legacy format for backward compatibility
+        if status.level == FreshnessLevel.CRITICAL and self.knowledge_cutoff_date is None:
             return {
                 "status": "incomplete",
                 "message": "Expert needs initial learning curriculum",
-                "action_required": "Run: deepr expert learn <name> --budget 5"
+                "action_required": f"Run: deepr expert learn {self.name} --budget 5"
             }
-
-        from datetime import timedelta
-        now = datetime.utcnow()
-        age_days = (now - self.knowledge_cutoff_date).days
-
-        velocity_thresholds = {
-            "slow": 180,
-            "medium": 90,
-            "fast": 30,
+        
+        status_map = {
+            FreshnessLevel.FRESH: "fresh",
+            FreshnessLevel.AGING: "aging",
+            FreshnessLevel.STALE: "stale",
+            FreshnessLevel.CRITICAL: "stale"
         }
-        threshold = velocity_thresholds.get(self.domain_velocity, 90)
-
-        if age_days > threshold:
-            return {
-                "status": "stale",
-                "age_days": age_days,
-                "threshold_days": threshold,
-                "message": f"Knowledge is {age_days} days old (threshold: {threshold} days for {self.domain_velocity} domain)",
-                "action_required": "Research refresh recommended"
-            }
-        elif age_days > threshold * 0.8:
-            return {
-                "status": "aging",
-                "age_days": age_days,
-                "threshold_days": threshold,
-                "message": f"Knowledge approaching refresh threshold ({age_days}/{threshold} days)",
-                "action_required": "Consider refresh soon"
-            }
+        
+        return {
+            "status": status_map.get(status.level, "unknown"),
+            "age_days": status.days_since_update,
+            "threshold_days": status.threshold_days,
+            "message": status.recommendation,
+            "action_required": status.recommendation if status.needs_refresh() else None,
+            "freshness_score": status.score
+        }
+    
+    def get_staleness_details(self) -> Dict[str, any]:
+        """Get detailed staleness information for continuous self-improvement.
+        
+        Returns comprehensive staleness analysis including:
+        - Knowledge age and threshold
+        - Domain velocity impact
+        - Refresh cost estimate
+        - Recommended refresh topics
+        
+        Returns:
+            Dictionary with detailed staleness information
+        """
+        freshness = self.get_freshness_status()
+        
+        # Calculate refresh cost estimate based on domain
+        base_cost = 0.50  # Base cost for refresh research
+        velocity_multipliers = {
+            "slow": 0.5,   # Less frequent, simpler refresh
+            "medium": 1.0,  # Standard refresh
+            "fast": 2.0,   # More comprehensive refresh needed
+        }
+        multiplier = velocity_multipliers.get(self.domain_velocity, 1.0)
+        estimated_cost = base_cost * multiplier
+        
+        # Determine urgency level
+        if freshness["status"] == "stale":
+            urgency = "high"
+            urgency_score = 1.0
+        elif freshness["status"] == "aging":
+            urgency = "medium"
+            urgency_score = 0.6
+        elif freshness["status"] == "incomplete":
+            urgency = "critical"
+            urgency_score = 1.0
         else:
-            return {
-                "status": "fresh",
-                "age_days": age_days,
-                "threshold_days": threshold,
-                "message": f"Knowledge is current ({age_days}/{threshold} days old)",
-                "action_required": None
-            }
+            urgency = "low"
+            urgency_score = 0.2
+        
+        # Calculate days until stale
+        days_until_stale = None
+        if self.knowledge_cutoff_date and freshness.get("threshold_days"):
+            age_days = freshness.get("age_days", 0)
+            days_until_stale = max(0, freshness["threshold_days"] - age_days)
+        
+        return {
+            "is_stale": self.is_knowledge_stale(),
+            "freshness_status": freshness["status"],
+            "age_days": freshness.get("age_days"),
+            "threshold_days": freshness.get("threshold_days"),
+            "days_until_stale": days_until_stale,
+            "domain_velocity": self.domain_velocity,
+            "urgency": urgency,
+            "urgency_score": urgency_score,
+            "estimated_refresh_cost": estimated_cost,
+            "last_refresh": self.last_knowledge_refresh.isoformat() if self.last_knowledge_refresh else None,
+            "knowledge_cutoff": self.knowledge_cutoff_date.isoformat() if self.knowledge_cutoff_date else None,
+            "message": freshness.get("message"),
+            "action_required": freshness.get("action_required"),
+            "refresh_command": f"deepr expert learn {self.name} --budget {estimated_cost:.2f}"
+        }
+    
+    def suggest_refresh(self) -> Optional[Dict[str, any]]:
+        """Suggest a knowledge refresh if needed.
+        
+        Returns refresh suggestion with cost estimate, or None if not needed.
+        
+        Returns:
+            Dictionary with refresh suggestion or None
+        """
+        staleness = self.get_staleness_details()
+        
+        if not staleness["is_stale"] and staleness["urgency"] == "low":
+            return None
+        
+        # Build refresh suggestion
+        suggestion = {
+            "expert_name": self.name,
+            "domain": self.domain,
+            "reason": staleness["message"],
+            "urgency": staleness["urgency"],
+            "estimated_cost": staleness["estimated_refresh_cost"],
+            "command": staleness["refresh_command"],
+            "topics": self._suggest_refresh_topics()
+        }
+        
+        return suggestion
+    
+    def _suggest_refresh_topics(self) -> List[str]:
+        """Suggest topics for refresh based on domain.
+        
+        Returns:
+            List of suggested refresh topics
+        """
+        # Base topics from domain
+        topics = []
+        
+        if self.domain:
+            topics.append(f"Latest developments in {self.domain}")
+            topics.append(f"Recent changes to {self.domain} best practices")
+        
+        # Add velocity-specific topics
+        if self.domain_velocity == "fast":
+            topics.append("Breaking news and announcements")
+            topics.append("New tools and frameworks")
+        elif self.domain_velocity == "medium":
+            topics.append("Industry trends and updates")
+        
+        return topics[:5]  # Limit to 5 topics
+    
+    def get_monthly_budget_status(self) -> Dict[str, any]:
+        """Get monthly learning budget status.
+        
+        Returns:
+            Dictionary with budget status
+        """
+        self._check_monthly_reset()
+        
+        remaining = self.monthly_learning_budget - self.monthly_spending
+        usage_percent = (self.monthly_spending / self.monthly_learning_budget * 100) if self.monthly_learning_budget > 0 else 0
+        
+        return {
+            "monthly_budget": self.monthly_learning_budget,
+            "monthly_spent": self.monthly_spending,
+            "monthly_remaining": max(0, remaining),
+            "usage_percent": usage_percent,
+            "reset_date": self.monthly_spending_reset_date.isoformat() if self.monthly_spending_reset_date else None,
+            "can_spend": remaining > 0,
+            "refresh_count_this_month": len([r for r in self.refresh_history if self._is_this_month(r.get("timestamp"))])
+        }
+    
+    def can_spend_learning_budget(self, amount: float) -> tuple:
+        """Check if spending amount is within monthly budget.
+        
+        Args:
+            amount: Amount to spend
+            
+        Returns:
+            Tuple of (can_spend: bool, reason: str)
+        """
+        self._check_monthly_reset()
+        
+        remaining = self.monthly_learning_budget - self.monthly_spending
+        
+        if amount <= 0:
+            return True, "No cost"
+        
+        if remaining <= 0:
+            return False, f"Monthly learning budget exhausted (${self.monthly_learning_budget:.2f} limit)"
+        
+        if amount > remaining:
+            return False, f"Amount ${amount:.2f} exceeds remaining budget ${remaining:.2f}"
+        
+        return True, f"Within budget (${remaining:.2f} remaining after)"
+    
+    def record_learning_spend(self, amount: float, operation: str, details: Optional[str] = None):
+        """Record spending against monthly learning budget.
+        
+        Args:
+            amount: Amount spent
+            operation: Type of operation (refresh, research, etc.)
+            details: Optional details about the operation
+        """
+        self._check_monthly_reset()
+        
+        self.monthly_spending += amount
+        self.total_research_cost += amount
+        
+        # Record in refresh history
+        self.refresh_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "operation": operation,
+            "amount": amount,
+            "details": details,
+            "budget_remaining": self.monthly_learning_budget - self.monthly_spending
+        })
+        
+        # Keep only last 100 entries
+        if len(self.refresh_history) > 100:
+            self.refresh_history = self.refresh_history[-100:]
+    
+    def _check_monthly_reset(self):
+        """Check and reset monthly spending if new month."""
+        now = datetime.utcnow()
+        
+        if self.monthly_spending_reset_date is None:
+            # Initialize reset date to first of next month
+            if now.month == 12:
+                self.monthly_spending_reset_date = datetime(now.year + 1, 1, 1)
+            else:
+                self.monthly_spending_reset_date = datetime(now.year, now.month + 1, 1)
+            return
+        
+        if now >= self.monthly_spending_reset_date:
+            # Reset spending
+            self.monthly_spending = 0.0
+            
+            # Set next reset date
+            if now.month == 12:
+                self.monthly_spending_reset_date = datetime(now.year + 1, 1, 1)
+            else:
+                self.monthly_spending_reset_date = datetime(now.year, now.month + 1, 1)
+    
+    def _is_this_month(self, timestamp_str: Optional[str]) -> bool:
+        """Check if timestamp is in current month.
+        
+        Args:
+            timestamp_str: ISO format timestamp string
+            
+        Returns:
+            True if timestamp is in current month
+        """
+        if not timestamp_str:
+            return False
+        
+        try:
+            timestamp = datetime.fromisoformat(timestamp_str)
+            now = datetime.utcnow()
+            return timestamp.year == now.year and timestamp.month == now.month
+        except Exception:
+            return False
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary for JSON serialization."""
+        """Convert to dictionary for JSON serialization.
+        
+        Excludes composed components (_temporal_state, _freshness_checker)
+        which are runtime-only and reconstructed on load.
+        """
         data = asdict(self)
+        
+        # Remove composed components (not serialized)
+        data.pop('_temporal_state', None)
+        data.pop('_freshness_checker', None)
+        
         # Convert datetime to ISO format
         data['created_at'] = self.created_at.isoformat()
         data['updated_at'] = self.updated_at.isoformat()
@@ -128,11 +400,25 @@ class ExpertProfile:
             data['knowledge_cutoff_date'] = self.knowledge_cutoff_date.isoformat()
         if data.get('last_knowledge_refresh'):
             data['last_knowledge_refresh'] = self.last_knowledge_refresh.isoformat()
+        if data.get('monthly_spending_reset_date'):
+            data['monthly_spending_reset_date'] = self.monthly_spending_reset_date.isoformat()
+        
         return data
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'ExpertProfile':
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Handles datetime conversion and removes any composed component
+        fields that may have been accidentally serialized.
+        """
+        # Make a copy to avoid modifying the original
+        data = data.copy()
+        
+        # Remove composed components if present (they're reconstructed in __post_init__)
+        data.pop('_temporal_state', None)
+        data.pop('_freshness_checker', None)
+        
         # Convert ISO format to datetime
         if isinstance(data.get('created_at'), str):
             data['created_at'] = datetime.fromisoformat(data['created_at'])
@@ -142,6 +428,9 @@ class ExpertProfile:
             data['knowledge_cutoff_date'] = datetime.fromisoformat(data['knowledge_cutoff_date'])
         if isinstance(data.get('last_knowledge_refresh'), str):
             data['last_knowledge_refresh'] = datetime.fromisoformat(data['last_knowledge_refresh'])
+        if isinstance(data.get('monthly_spending_reset_date'), str):
+            data['monthly_spending_reset_date'] = datetime.fromisoformat(data['monthly_spending_reset_date'])
+        
         return cls(**data)
 
 

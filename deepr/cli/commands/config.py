@@ -10,6 +10,19 @@ def config():
     pass
 
 
+def _get_unified_config():
+    """Get UnifiedConfig, falling back to AppConfig if needed."""
+    try:
+        from deepr.core.unified_config import UnifiedConfig
+        return UnifiedConfig.load()
+    except Exception:
+        # Fallback to AppConfig bridge
+        from deepr.config import AppConfig
+        from deepr.core.unified_config import UnifiedConfig
+        app_config = AppConfig.from_env()
+        return UnifiedConfig.from_app_config(app_config)
+
+
 @config.command()
 def validate():
     """
@@ -30,25 +43,31 @@ def validate():
         import os
         import asyncio
         from pathlib import Path
+        
+        # Use UnifiedConfig
+        unified_config = _get_unified_config()
+        
+        # Also load legacy config for backward compatibility
         from deepr.config import load_config
+        legacy_config = load_config()
 
         errors = []
         warnings = []
 
         console.print("\nChecking configuration...\n")
+        console.print(f"[dim]Config source: {unified_config._source}[/dim]\n")
 
-        # Load config
-        try:
-            config = load_config()
-            console.print("[success]Configuration file loaded[/success]")
-        except Exception as e:
-            print_error(f"Failed to load configuration: {e}")
-            raise click.Abort()
+        # Validate using UnifiedConfig
+        validation_errors = unified_config.validate()
+        for err in validation_errors:
+            errors.append(err)
+            console.print(f"[error]{err}[/error]")
 
-        # Check API key
-        api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
+        # Check API key (from both sources)
+        api_key = unified_config.get_api_key("openai") or legacy_config.get("api_key") or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            errors.append("OPENAI_API_KEY not set")
+            if "No API key for default provider" not in str(errors):
+                errors.append("OPENAI_API_KEY not set")
             console.print("[error]OpenAI API key not found[/error]")
         elif api_key.startswith("sk-"):
             console.print("[success]OpenAI API key found[/success]")
@@ -57,7 +76,14 @@ def validate():
             console.print("   Warning: API key format looks unusual")
 
         # Check directories
-        queue_db_path = config.get("queue_db_path", "queue/research_queue.db")
+        data_dir = Path(unified_config.data_dir)
+        if not data_dir.exists():
+            warnings.append(f"Data directory does not exist: {data_dir}")
+            console.print(f"   Warning: Data directory will be created: {data_dir}")
+        else:
+            console.print(f"[success]Data directory exists: {data_dir}[/success]")
+
+        queue_db_path = legacy_config.get("queue_db_path", "queue/research_queue.db")
         queue_dir = Path(queue_db_path).parent
         if not queue_dir.exists():
             warnings.append(f"Queue directory does not exist: {queue_dir}")
@@ -65,23 +91,25 @@ def validate():
         else:
             console.print(f"[success]Queue directory exists: {queue_dir}[/success]")
 
-        results_dir = config.get("results_dir", "data/reports")
+        results_dir = legacy_config.get("results_dir", "data/reports")
         if not Path(results_dir).exists():
             warnings.append(f"Results directory does not exist: {results_dir}")
             console.print(f"   Warning: Results directory will be created: {results_dir}")
         else:
             console.print(f"[success]Results directory exists: {results_dir}[/success]")
 
-        # Check budget limits
-        max_per_job = config.get("max_cost_per_job")
-        max_per_day = config.get("max_cost_per_day")
-        max_per_month = config.get("max_cost_per_month")
-
-        if max_per_job:
-            console.print(f"[success]Budget limit per job: ${max_per_job:.2f}[/success]")
+        # Check budget limits from UnifiedConfig
+        daily_limit = unified_config.budget_limits.get("daily_limit", 0)
+        monthly_limit = unified_config.budget_limits.get("monthly_limit", 0)
+        
+        if daily_limit > 0:
+            console.print(f"[success]Daily budget limit: ${daily_limit:.2f}[/success]")
         else:
-            warnings.append("No per-job budget limit set")
-            console.print(f"   Warning: No per-job budget limit set")
+            warnings.append("No daily budget limit set")
+            console.print(f"   Warning: No daily budget limit set")
+        
+        if monthly_limit > 0:
+            console.print(f"[success]Monthly budget limit: ${monthly_limit:.2f}[/success]")
 
         # Test API connectivity
         if api_key:
@@ -89,7 +117,7 @@ def validate():
             try:
                 from deepr.providers import create_provider
                 provider = create_provider(
-                    config.get("provider", "openai"),
+                    unified_config.default_provider,
                     api_key=api_key
                 )
 
@@ -139,7 +167,8 @@ def validate():
 
 
 @config.command()
-def show():
+@click.option("--unified", is_flag=True, help="Show UnifiedConfig format")
+def show(unified: bool):
     """
     Display current configuration (sanitized).
 
@@ -147,35 +176,44 @@ def show():
 
     Example:
         deepr config show
+        deepr config show --unified
     """
     print_section_header("Current Configuration")
 
     try:
         import os
-        from deepr.config import load_config
+        
+        if unified:
+            # Show UnifiedConfig format
+            config = _get_unified_config()
+            console.print(config.show(mask_keys=True))
+        else:
+            # Legacy format for backward compatibility
+            from deepr.config import load_config
+            config = load_config()
 
-        config = load_config()
+            click.echo("\nProvider:")
+            click.echo(f"   Type: {config.get('provider', 'openai')}")
 
-        click.echo("\nProvider:")
-        click.echo(f"   Type: {config.get('provider', 'openai')}")
+            api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
+            if api_key:
+                masked = api_key[:7] + "..." + api_key[-4:] if len(api_key) > 11 else "***"
+                click.echo(f"   API Key: {masked}")
 
-        api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
-        if api_key:
-            masked = api_key[:7] + "..." + api_key[-4:] if len(api_key) > 11 else "***"
-            click.echo(f"   API Key: {masked}")
+            click.echo("\nStorage:")
+            click.echo(f"   Queue DB: {config.get('queue_db_path', 'queue/research_queue.db')}")
+            click.echo(f"   Results: {config.get('results_dir', 'data/reports')}")
 
-        click.echo("\nStorage:")
-        click.echo(f"   Queue DB: {config.get('queue_db_path', 'queue/research_queue.db')}")
-        click.echo(f"   Results: {config.get('results_dir', 'data/reports')}")
+            click.echo("\nBudget Limits:")
+            click.echo(f"   Per Job: ${config.get('max_cost_per_job', 5.0):.2f}")
+            click.echo(f"   Per Day: ${config.get('max_daily_cost', 25.0):.2f}")
+            click.echo(f"   Per Month: ${config.get('max_monthly_cost', 200.0):.2f}")
 
-        click.echo("\nBudget Limits:")
-        click.echo(f"   Per Job: ${config.get('max_cost_per_job', 5.0):.2f}")
-        click.echo(f"   Per Day: ${config.get('max_daily_cost', 25.0):.2f}")
-        click.echo(f"   Per Month: ${config.get('max_monthly_cost', 200.0):.2f}")
-
-        console.print("\nDefaults:")
-        console.print(f"   Model: {config.get('default_model', 'o4-mini-deep-research')}")
-        console.print(f"   Auto-refine: {os.getenv('DEEPR_AUTO_REFINE', 'false')}")
+            console.print("\nDefaults:")
+            console.print(f"   Model: {config.get('default_model', 'o4-mini-deep-research')}")
+            console.print(f"   Auto-refine: {os.getenv('DEEPR_AUTO_REFINE', 'false')}")
+            
+            console.print("\n[dim]Tip: Use --unified flag to see new config format[/dim]")
 
     except Exception as e:
         print_error(f"Error: {e}")
