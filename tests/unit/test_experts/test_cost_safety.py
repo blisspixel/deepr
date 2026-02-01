@@ -1,754 +1,557 @@
-"""Tests for the cost safety system.
+"""Tests for cost safety and circuit breaker utilities.
 
-This module tests the defensive cost controls that prevent runaway costs
-from autonomous expert operations (learning, chat, curriculum execution).
+Tests the CostCircuitBreaker class and related cost control functions.
+Includes property-based tests for circuit breaker behavior.
+
+Requirements: 8.2 - Cost circuit breaker
 """
 
 import pytest
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-import tempfile
-import json
+import time
+from unittest.mock import patch
+from hypothesis import given, strategies as st, settings
 
 from deepr.experts.cost_safety import (
-    CostAlertLevel,
-    CostAlert,
-    SessionCostTracker,
-    CostSafetyManager,
-    estimate_curriculum_cost,
-    format_cost_warning,
-    is_pausable_limit,
-    get_resume_message,
+    CostCircuitBreaker,
+    CostEvent,
+    CircuitBreakerState,
+    CostLimitExceeded,
+    create_default_circuit_breaker
 )
 
 
-class TestCostAlertLevel:
-    """Tests for CostAlertLevel enum."""
+class TestCostCircuitBreaker:
+    """Tests for CostCircuitBreaker class."""
     
-    def test_all_levels_exist(self):
-        """Verify all expected alert levels exist."""
-        assert CostAlertLevel.INFO.value == "info"
-        assert CostAlertLevel.WARNING.value == "warning"
-        assert CostAlertLevel.CRITICAL.value == "critical"
-        assert CostAlertLevel.BLOCKED.value == "blocked"
-        assert CostAlertLevel.PAUSED.value == "paused"
+    def test_init_defaults(self):
+        """Test default initialization."""
+        breaker = CostCircuitBreaker()
+        
+        assert breaker.cost_threshold == 10.0
+        assert breaker.window_seconds == 300.0
+        assert breaker.event_threshold == 50
+        assert breaker.cooldown_seconds == 60.0
+        assert breaker.max_single_cost == 5.0
     
-    def test_level_ordering(self):
-        """Alert levels should have logical ordering."""
-        levels = [CostAlertLevel.INFO, CostAlertLevel.WARNING, 
-                  CostAlertLevel.CRITICAL, CostAlertLevel.BLOCKED]
-        # Just verify they're distinct
-        assert len(set(levels)) == 4
-
-
-class TestCostAlert:
-    """Tests for CostAlert dataclass."""
-    
-    def test_create_alert(self):
-        """Test creating a cost alert."""
-        alert = CostAlert(
-            level=CostAlertLevel.WARNING,
-            message="Budget warning",
-            current_cost=5.0,
-            budget_limit=10.0
+    def test_init_custom_values(self):
+        """Test custom initialization."""
+        breaker = CostCircuitBreaker(
+            cost_threshold=5.0,
+            window_seconds=60.0,
+            event_threshold=10,
+            cooldown_seconds=30.0,
+            max_single_cost=2.0
         )
         
-        assert alert.level == CostAlertLevel.WARNING
-        assert alert.message == "Budget warning"
-        assert alert.current_cost == 5.0
-        assert alert.budget_limit == 10.0
-        assert alert.timestamp is not None
+        assert breaker.cost_threshold == 5.0
+        assert breaker.window_seconds == 60.0
+        assert breaker.event_threshold == 10
+        assert breaker.cooldown_seconds == 30.0
+        assert breaker.max_single_cost == 2.0
     
-    def test_alert_to_dict(self):
-        """Test converting alert to dictionary."""
-        alert = CostAlert(
-            level=CostAlertLevel.CRITICAL,
-            message="Budget critical",
-            current_cost=8.0,
-            budget_limit=10.0
-        )
+    def test_allow_request_initially(self):
+        """Test that requests are allowed initially."""
+        breaker = CostCircuitBreaker()
         
-        d = alert.to_dict()
-        
-        assert d["level"] == "critical"
-        assert d["message"] == "Budget critical"
-        assert d["current_cost"] == 8.0
-        assert d["budget_limit"] == 10.0
-        assert "timestamp" in d
-
-
-class TestSessionCostTracker:
-    """Tests for SessionCostTracker."""
-    
-    def test_create_session(self):
-        """Test creating a session tracker."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=5.0
-        )
-        
-        assert session.session_id == "test-123"
-        assert session.session_type == "chat"
-        assert session.budget_limit == 5.0
-        assert session.total_cost == 0.0
-        assert session.operation_count == 0
-    
-    def test_record_operation(self):
-        """Test recording an operation."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=5.0
-        )
-        
-        session.record_operation("research", 0.50, "Quick lookup")
-        
-        assert session.total_cost == 0.50
-        assert session.operation_count == 1
-        assert len(session.operations) == 1
-        assert session.operations[0]["type"] == "research"
-        assert session.operations[0]["cost"] == 0.50
-    
-    def test_multiple_operations_accumulate(self):
-        """Test that multiple operations accumulate correctly."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="learning",
-            budget_limit=10.0
-        )
-        
-        session.record_operation("research", 0.50)
-        session.record_operation("research", 1.00)
-        session.record_operation("synthesis", 0.25)
-        
-        assert session.total_cost == 1.75
-        assert session.operation_count == 3
-    
-    def test_alert_at_50_percent(self):
-        """Test warning alert at 50% budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
-        
-        session.record_operation("research", 5.0)  # 50%
-        
-        assert len(session.alerts) == 1
-        assert session.alerts[0].level == CostAlertLevel.WARNING
-        assert session.last_alert_level == CostAlertLevel.WARNING
-    
-    def test_alert_at_80_percent(self):
-        """Test critical alert at 80% budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
-        
-        session.record_operation("research", 8.0)  # 80%
-        
-        assert len(session.alerts) == 1
-        assert session.alerts[0].level == CostAlertLevel.CRITICAL
-    
-    def test_alert_at_95_percent(self):
-        """Test blocked alert at 95% budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
-        
-        session.record_operation("research", 9.5)  # 95%
-        
-        assert len(session.alerts) == 1
-        assert session.alerts[0].level == CostAlertLevel.BLOCKED
-    
-    def test_no_duplicate_alerts(self):
-        """Test that alerts don't spam on same level."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
-        
-        # Multiple operations at same level shouldn't create multiple alerts
-        session.record_operation("research", 5.0)  # 50% - WARNING
-        session.record_operation("research", 0.5)  # 55% - still WARNING
-        session.record_operation("research", 0.5)  # 60% - still WARNING
-        
-        # Should only have one WARNING alert
-        warning_alerts = [a for a in session.alerts if a.level == CostAlertLevel.WARNING]
-        assert len(warning_alerts) == 1
-    
-    def test_can_proceed_within_budget(self):
-        """Test can_proceed returns True within budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
-        
-        session.record_operation("research", 2.0)
-        
-        can_proceed, reason = session.can_proceed(estimated_cost=1.0)
-        
-        assert can_proceed is True
+        allowed, reason = breaker.allow_request()
+        assert allowed
         assert reason is None
     
-    def test_can_proceed_exceeds_budget(self):
-        """Test can_proceed returns False when exceeding budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=5.0
-        )
+    def test_allow_request_with_estimated_cost(self):
+        """Test allow_request with estimated cost."""
+        breaker = CostCircuitBreaker(cost_threshold=1.0)
         
-        session.record_operation("research", 4.0)
+        # Should allow small cost
+        allowed, reason = breaker.allow_request(estimated_cost=0.5)
+        assert allowed
         
-        can_proceed, reason = session.can_proceed(estimated_cost=2.0)
-        
-        assert can_proceed is False
-        assert "exceed budget" in reason.lower()
+        # Should deny if would exceed threshold
+        breaker.record_cost(0.6, "test")
+        allowed, reason = breaker.allow_request(estimated_cost=0.5)
+        assert not allowed
+        assert "exceed cost threshold" in reason.lower()
     
-    def test_can_proceed_near_budget_limit(self):
-        """Test can_proceed blocks at 95%+ budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
+    def test_record_cost_under_threshold(self):
+        """Test recording cost under threshold."""
+        breaker = CostCircuitBreaker(cost_threshold=10.0)
         
-        session.record_operation("research", 9.0)  # 90%
+        result = breaker.record_cost(1.0, "test_operation")
+        assert result is True  # Circuit still closed
         
-        # Trying to add 0.6 would put us at 96%
-        can_proceed, reason = session.can_proceed(estimated_cost=0.6)
-        
-        assert can_proceed is False
-        assert "95%" in reason or "exhausted" in reason.lower()
+        state = breaker.get_state()
+        assert state.is_closed
+        assert state.total_cost_window == 1.0
     
-    def test_circuit_breaker_opens_after_failures(self):
-        """Test circuit breaker opens after consecutive failures."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0,
-        )
-        session.max_consecutive_failures = 3
+    def test_record_cost_exceeds_threshold(self):
+        """Test that exceeding cost threshold trips breaker."""
+        breaker = CostCircuitBreaker(cost_threshold=1.0)
         
-        # Record 3 failures
-        session.record_failure("research", "API error")
-        session.record_failure("research", "API error")
-        session.record_failure("research", "API error")
+        # Record costs that exceed threshold
+        breaker.record_cost(0.5, "op1")
+        breaker.record_cost(0.5, "op2")
+        result = breaker.record_cost(0.5, "op3")  # This exceeds $1.0
         
-        assert session.is_circuit_open is True
-        assert session.consecutive_failures == 3
+        assert result is False  # Circuit tripped
+        
+        state = breaker.get_state()
+        assert state.is_open
+        assert "Cost threshold exceeded" in state.reason
     
-    def test_circuit_breaker_blocks_operations(self):
-        """Test circuit breaker blocks new operations."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0,
-        )
-        session.max_consecutive_failures = 2
+    def test_record_cost_exceeds_event_threshold(self):
+        """Test that exceeding event threshold trips breaker."""
+        breaker = CostCircuitBreaker(event_threshold=3)
         
-        session.record_failure("research", "Error 1")
-        session.record_failure("research", "Error 2")
+        breaker.record_cost(0.01, "op1")
+        breaker.record_cost(0.01, "op2")
+        breaker.record_cost(0.01, "op3")
+        result = breaker.record_cost(0.01, "op4")  # Exceeds 3 events
         
-        can_proceed, reason = session.can_proceed(estimated_cost=0.1)
+        assert result is False
         
-        assert can_proceed is False
-        assert "circuit breaker" in reason.lower()
+        state = breaker.get_state()
+        assert state.is_open
+        assert "Event threshold exceeded" in state.reason
     
-    def test_success_resets_failure_counter(self):
-        """Test successful operation resets failure counter."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0,
-        )
+    def test_single_operation_limit(self):
+        """Test that single operation limit is enforced."""
+        breaker = CostCircuitBreaker(max_single_cost=1.0)
         
-        session.record_failure("research", "Error 1")
-        session.record_failure("research", "Error 2")
-        assert session.consecutive_failures == 2
-        
-        session.record_operation("research", 0.5)
-        assert session.consecutive_failures == 0
+        # Should deny expensive single operation
+        allowed, reason = breaker.allow_request(estimated_cost=2.0)
+        assert not allowed
+        assert "Single operation cost" in reason
     
-    def test_get_remaining_budget(self):
-        """Test getting remaining budget."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=10.0
-        )
+    def test_circuit_open_denies_requests(self):
+        """Test that open circuit denies all requests."""
+        breaker = CostCircuitBreaker(cost_threshold=0.5)
         
-        session.record_operation("research", 3.0)
+        # Trip the breaker
+        breaker.record_cost(0.6, "expensive_op")
         
-        assert session.get_remaining_budget() == 7.0
+        # Should deny new requests
+        allowed, reason = breaker.allow_request()
+        assert not allowed
+        assert "Circuit breaker open" in reason
     
-    def test_get_remaining_budget_no_limit(self):
-        """Test remaining budget with no limit returns infinity."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=0.0
-        )
+    def test_manual_reset(self):
+        """Test manual reset of circuit breaker."""
+        breaker = CostCircuitBreaker(cost_threshold=0.5)
         
-        assert session.get_remaining_budget() == float('inf')
+        # Trip the breaker
+        breaker.record_cost(0.6, "expensive_op")
+        assert breaker.get_state().is_open
+        
+        # Reset
+        breaker.reset()
+        
+        state = breaker.get_state()
+        assert state.is_closed
+        assert state.reason is None
     
-    def test_get_summary(self):
-        """Test getting session summary."""
-        session = SessionCostTracker(
-            session_id="test-123",
-            session_type="learning",
-            budget_limit=10.0
+    def test_force_open(self):
+        """Test forcing circuit breaker open."""
+        breaker = CostCircuitBreaker()
+        
+        breaker.force_open("Manual override for testing")
+        
+        state = breaker.get_state()
+        assert state.is_open
+        assert "Manual override" in state.reason
+    
+    def test_auto_reset_after_cooldown(self):
+        """Test automatic reset after cooldown period."""
+        breaker = CostCircuitBreaker(
+            cost_threshold=0.5,
+            cooldown_seconds=0.1  # Very short for testing
         )
         
-        session.record_operation("research", 2.5)
+        # Trip the breaker
+        breaker.record_cost(0.6, "expensive_op")
+        assert breaker.get_state().is_open
         
-        summary = session.get_summary()
+        # Wait for cooldown
+        time.sleep(0.15)
         
-        assert summary["session_id"] == "test-123"
-        assert summary["session_type"] == "learning"
-        assert summary["total_cost"] == 2.5
-        assert summary["budget_limit"] == 10.0
-        assert summary["remaining"] == 7.5
-        assert summary["operation_count"] == 1
+        # Should auto-reset
+        state = breaker.get_state()
+        assert state.is_closed
+    
+    def test_get_recent_events(self):
+        """Test getting recent cost events."""
+        breaker = CostCircuitBreaker()
+        
+        breaker.record_cost(0.1, "op1", job_id="job-1")
+        breaker.record_cost(0.2, "op2", job_id="job-2")
+        breaker.record_cost(0.3, "op3", job_id="job-3")
+        
+        events = breaker.get_recent_events(limit=2)
+        
+        assert len(events) == 2
+        assert events[0].cost == 0.2
+        assert events[1].cost == 0.3
+    
+    def test_events_pruned_outside_window(self):
+        """Test that old events are pruned."""
+        breaker = CostCircuitBreaker(window_seconds=0.1)
+        
+        breaker.record_cost(0.5, "old_op")
+        
+        # Wait for event to age out
+        time.sleep(0.15)
+        
+        # New state should show 0 cost
+        state = breaker.get_state()
+        assert state.total_cost_window == 0.0
+        assert state.event_count_window == 0
+
+
+class TestCircuitBreakerState:
+    """Tests for CircuitBreakerState dataclass."""
+    
+    def test_is_closed_when_not_open(self):
+        """Test is_closed property."""
+        state = CircuitBreakerState(
+            is_open=False,
+            reason=None,
+            opened_at=None,
+            total_cost_window=0.0,
+            event_count_window=0,
+            cooldown_remaining=0.0
+        )
+        assert state.is_closed
+    
+    def test_is_closed_when_open(self):
+        """Test is_closed when circuit is open."""
+        state = CircuitBreakerState(
+            is_open=True,
+            reason="Test",
+            opened_at=time.time(),
+            total_cost_window=10.0,
+            event_count_window=5,
+            cooldown_remaining=30.0
+        )
+        assert not state.is_closed
+
+
+class TestCostEvent:
+    """Tests for CostEvent dataclass."""
+    
+    def test_cost_event_creation(self):
+        """Test creating a cost event."""
+        event = CostEvent(
+            timestamp=time.time(),
+            cost=0.15,
+            operation="research_job",
+            job_id="job-123"
+        )
+        
+        assert event.cost == 0.15
+        assert event.operation == "research_job"
+        assert event.job_id == "job-123"
+    
+    def test_cost_event_optional_job_id(self):
+        """Test cost event without job_id."""
+        event = CostEvent(
+            timestamp=time.time(),
+            cost=0.10,
+            operation="test"
+        )
+        
+        assert event.job_id is None
+
+
+class TestCostLimitExceeded:
+    """Tests for CostLimitExceeded exception."""
+    
+    def test_exception_message(self):
+        """Test exception message."""
+        exc = CostLimitExceeded("Cost limit exceeded")
+        assert str(exc) == "Cost limit exceeded"
+    
+    def test_exception_with_state(self):
+        """Test exception with state."""
+        state = CircuitBreakerState(
+            is_open=True,
+            reason="Test",
+            opened_at=time.time(),
+            total_cost_window=10.0,
+            event_count_window=5,
+            cooldown_remaining=30.0
+        )
+        exc = CostLimitExceeded("Cost limit exceeded", state=state)
+        
+        assert exc.state is not None
+        assert exc.state.is_open
+
+
+class TestCreateDefaultCircuitBreaker:
+    """Tests for create_default_circuit_breaker function."""
+    
+    def test_creates_breaker_with_defaults(self):
+        """Test that default breaker has sensible values."""
+        breaker = create_default_circuit_breaker()
+        
+        assert breaker.cost_threshold == 10.0
+        assert breaker.window_seconds == 300.0
+        assert breaker.event_threshold == 50
+        assert breaker.cooldown_seconds == 60.0
+        assert breaker.max_single_cost == 5.0
+
+
+class TestPropertyBasedCircuitBreaker:
+    """Property-based tests for circuit breaker."""
+    
+    @given(st.floats(min_value=0.01, max_value=100.0))
+    @settings(max_examples=50)
+    def test_cost_threshold_respected(self, threshold: float):
+        """Property: Circuit trips when cost exceeds threshold."""
+        breaker = CostCircuitBreaker(cost_threshold=threshold)
+        
+        # Record cost just over threshold
+        breaker.record_cost(threshold + 0.01, "test")
+        
+        state = breaker.get_state()
+        assert state.is_open
+    
+    @given(st.integers(min_value=1, max_value=100))
+    @settings(max_examples=50)
+    def test_event_threshold_respected(self, threshold: int):
+        """Property: Circuit trips when events exceed threshold."""
+        breaker = CostCircuitBreaker(
+            event_threshold=threshold,
+            cost_threshold=1000.0  # High to not interfere
+        )
+        
+        # Record events up to and over threshold
+        for i in range(threshold + 1):
+            breaker.record_cost(0.001, f"op{i}")
+        
+        state = breaker.get_state()
+        assert state.is_open
+    
+    @given(st.floats(min_value=0.01, max_value=10.0))
+    @settings(max_examples=50)
+    def test_single_cost_limit_enforced(self, max_single: float):
+        """Property: Single operation limit is enforced."""
+        breaker = CostCircuitBreaker(max_single_cost=max_single)
+        
+        # Should deny operation over limit
+        allowed, reason = breaker.allow_request(estimated_cost=max_single + 0.01)
+        assert not allowed
+        assert "Single operation" in reason
+    
+    @given(
+        st.lists(
+            st.floats(min_value=0.01, max_value=1.0),
+            min_size=1,
+            max_size=20
+        )
+    )
+    @settings(max_examples=50)
+    def test_total_cost_tracked_correctly(self, costs: list):
+        """Property: Total cost in window is sum of recorded costs."""
+        breaker = CostCircuitBreaker(
+            cost_threshold=1000.0,  # High to not trip
+            event_threshold=1000    # High to not trip
+        )
+        
+        for i, cost in enumerate(costs):
+            breaker.record_cost(cost, f"op{i}")
+        
+        state = breaker.get_state()
+        expected_total = sum(costs)
+        
+        # Allow small floating point tolerance
+        assert abs(state.total_cost_window - expected_total) < 0.001
+    
+    @given(st.floats(min_value=0.01, max_value=1.0))
+    @settings(max_examples=50)
+    def test_reset_clears_state(self, cost: float):
+        """Property: Reset clears circuit breaker state."""
+        breaker = CostCircuitBreaker(cost_threshold=0.001)
+        
+        # Trip the breaker
+        breaker.record_cost(cost, "test")
+        assert breaker.get_state().is_open
+        
+        # Reset
+        breaker.reset()
+        
+        state = breaker.get_state()
+        assert state.is_closed
+        assert state.reason is None
+
+
+# Import new classes for testing
+from deepr.experts.cost_safety import (
+    CostSafetyManager,
+    get_cost_safety_manager,
+    reset_cost_safety_manager
+)
 
 
 class TestCostSafetyManager:
-    """Tests for CostSafetyManager."""
+    """Tests for CostSafetyManager class."""
     
-    def test_create_manager_with_defaults(self):
-        """Test creating manager with default limits."""
+    def test_init_default_circuit_breaker(self):
+        """Test initialization with default circuit breaker."""
         manager = CostSafetyManager()
         
-        assert manager.max_per_operation == 5.0
-        assert manager.max_daily == 25.0
-        assert manager.max_monthly == 200.0
+        assert manager.circuit_breaker is not None
+        assert manager.circuit_breaker.cost_threshold == 10.0
     
-    def test_hard_limits_enforced(self):
-        """Test that hard limits cannot be exceeded."""
-        # Try to set limits above hard caps
-        manager = CostSafetyManager(
-            max_per_operation=100.0,  # Above $10 hard cap
-            max_daily=1000.0,         # Above $50 hard cap
-            max_monthly=10000.0       # Above $500 hard cap
-        )
+    def test_init_custom_circuit_breaker(self):
+        """Test initialization with custom circuit breaker."""
+        custom_breaker = CostCircuitBreaker(cost_threshold=5.0)
+        manager = CostSafetyManager(circuit_breaker=custom_breaker)
         
-        # Should be capped at hard limits
-        assert manager.max_per_operation == 10.0
-        assert manager.max_daily == 50.0
-        assert manager.max_monthly == 500.0
-    
-    def test_create_session(self):
-        """Test creating a cost tracking session."""
-        manager = CostSafetyManager()
-        
-        session = manager.create_session(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=5.0
-        )
-        
-        assert session.session_id == "test-123"
-        assert session.session_type == "chat"
-        assert "test-123" in manager.active_sessions
-    
-    def test_session_budget_capped_by_daily_remaining(self):
-        """Test session budget is capped by remaining daily budget."""
-        manager = CostSafetyManager(max_daily=10.0)
-        manager.daily_cost = 7.0  # Already spent $7 today
-        
-        session = manager.create_session(
-            session_id="test-123",
-            session_type="chat",
-            budget_limit=5.0  # Wants $5 but only $3 remaining
-        )
-        
-        assert session.budget_limit == 3.0  # Capped at remaining daily
+        assert manager.circuit_breaker.cost_threshold == 5.0
     
     def test_check_operation_allowed(self):
-        """Test checking an allowed operation."""
+        """Test check_operation when operation is allowed."""
         manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 10.0)
         
         allowed, reason, needs_confirm = manager.check_operation(
-            session_id="test-123",
-            operation_type="research",
+            session_id="test-session",
+            operation_type="research_submit",
             estimated_cost=0.50
         )
         
-        assert allowed is True
-        assert reason is None
-        assert needs_confirm is False  # Under $1 threshold
+        assert allowed
+        assert reason == "OK"
+        assert not needs_confirm
     
-    def test_check_operation_needs_confirmation(self):
-        """Test operation over $1 needs confirmation."""
-        manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 10.0)
+    def test_check_operation_blocked_by_circuit_breaker(self):
+        """Test check_operation when circuit breaker blocks."""
+        breaker = CostCircuitBreaker(cost_threshold=0.1)
+        manager = CostSafetyManager(circuit_breaker=breaker)
+        
+        # Trip the breaker
+        breaker.record_cost(0.2, "expensive_op")
         
         allowed, reason, needs_confirm = manager.check_operation(
-            session_id="test-123",
-            operation_type="research",
-            estimated_cost=1.50
+            session_id="test-session",
+            operation_type="research_submit",
+            estimated_cost=0.50
         )
         
-        assert allowed is True
-        assert needs_confirm is True
+        assert not allowed
+        assert "Circuit breaker open" in reason
+        assert not needs_confirm
     
-    def test_check_operation_exceeds_per_operation_limit(self):
-        """Test operation exceeding per-operation limit is blocked."""
-        manager = CostSafetyManager(max_per_operation=2.0)
-        session = manager.create_session("test-123", "chat", 10.0)
-        
-        allowed, reason, _ = manager.check_operation(
-            session_id="test-123",
-            operation_type="research",
-            estimated_cost=3.0
-        )
-        
-        assert allowed is False
-        assert "exceeds limit" in reason.lower()
-    
-    def test_check_operation_exceeds_daily_limit(self):
-        """Test operation exceeding daily limit is blocked with DAILY_LIMIT."""
-        manager = CostSafetyManager(max_daily=10.0)
-        manager.daily_cost = 9.0
-        session = manager.create_session("test-123", "chat", 5.0)
-        
-        allowed, reason, _ = manager.check_operation(
-            session_id="test-123",
-            operation_type="research",
-            estimated_cost=2.0
-        )
-        
-        assert allowed is False
-        assert "DAILY_LIMIT" in reason
-    
-    def test_check_operation_exceeds_monthly_limit(self):
-        """Test operation exceeding monthly limit is blocked with MONTHLY_LIMIT."""
-        manager = CostSafetyManager(max_monthly=100.0)
-        manager.monthly_cost = 99.0
-        session = manager.create_session("test-123", "chat", 5.0)
-        
-        allowed, reason, _ = manager.check_operation(
-            session_id="test-123",
-            operation_type="research",
-            estimated_cost=2.0
-        )
-        
-        assert allowed is False
-        assert "MONTHLY_LIMIT" in reason
-    
-    def test_record_cost(self):
-        """Test recording actual cost."""
+    def test_check_operation_high_cost_confirmation(self):
+        """Test that high-cost operations request confirmation."""
         manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 10.0)
+        
+        allowed, reason, needs_confirm = manager.check_operation(
+            session_id="test-session",
+            operation_type="research_submit",
+            estimated_cost=2.0,
+            require_confirmation=True
+        )
+        
+        assert allowed
+        assert "High cost" in reason
+        assert needs_confirm
+    
+    def test_record_cost_tracks_session(self):
+        """Test that record_cost tracks session costs."""
+        manager = CostSafetyManager()
         
         manager.record_cost(
-            session_id="test-123",
-            operation_type="research",
-            actual_cost=0.75,
-            details="Quick lookup"
+            session_id="session-1",
+            operation_type="research_submit",
+            actual_cost=0.50
+        )
+        manager.record_cost(
+            session_id="session-1",
+            operation_type="research_submit",
+            actual_cost=0.30
         )
         
-        assert manager.daily_cost == 0.75
-        assert manager.monthly_cost == 0.75
-        assert session.total_cost == 0.75
+        assert manager.get_session_cost("session-1") == 0.80
     
-    def test_record_failure(self):
-        """Test recording a failed operation."""
-        manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 10.0)
-        
-        manager.record_failure(
-            session_id="test-123",
-            operation_type="research",
-            error="API timeout"
-        )
-        
-        assert session.consecutive_failures == 1
-    
-    def test_get_spending_summary(self):
-        """Test getting spending summary."""
-        manager = CostSafetyManager(max_daily=25.0, max_monthly=200.0)
-        manager.daily_cost = 5.0
-        manager.monthly_cost = 50.0
-        
-        summary = manager.get_spending_summary()
-        
-        assert summary["daily"]["spent"] == 5.0
-        assert summary["daily"]["limit"] == 25.0
-        assert summary["daily"]["remaining"] == 20.0
-        assert summary["monthly"]["spent"] == 50.0
-        assert summary["monthly"]["limit"] == 200.0
-    
-    def test_close_session(self):
-        """Test closing a session."""
-        manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 10.0)
-        session.record_operation("research", 1.0)
-        
-        summary = manager.close_session("test-123")
-        
-        assert summary is not None
-        assert summary["total_cost"] == 1.0
-        assert "test-123" not in manager.active_sessions
-    
-    def test_close_nonexistent_session(self):
-        """Test closing a session that doesn't exist."""
+    def test_record_cost_separate_sessions(self):
+        """Test that sessions are tracked separately."""
         manager = CostSafetyManager()
         
-        summary = manager.close_session("nonexistent")
+        manager.record_cost("session-1", "op", 0.50)
+        manager.record_cost("session-2", "op", 0.30)
         
-        assert summary is None
+        assert manager.get_session_cost("session-1") == 0.50
+        assert manager.get_session_cost("session-2") == 0.30
     
-    def test_daily_reset(self):
-        """Test daily cost resets on new day."""
+    def test_get_session_cost_unknown_session(self):
+        """Test get_session_cost for unknown session."""
         manager = CostSafetyManager()
-        manager.daily_cost = 10.0
-        manager.last_reset_date = (datetime.now(timezone.utc) - timedelta(days=1)).date()
         
-        # Trigger reset check
-        manager._reset_if_needed()
-        
-        assert manager.daily_cost == 0.0
+        assert manager.get_session_cost("unknown") == 0.0
     
-    def test_monthly_reset(self):
-        """Test monthly cost resets on new month."""
+    def test_reset_clears_all_state(self):
+        """Test that reset clears all tracking state."""
         manager = CostSafetyManager()
-        manager.monthly_cost = 100.0
         
-        # Set to previous month
-        now = datetime.now(timezone.utc)
-        if now.month == 1:
-            manager.last_reset_month = 12
-        else:
-            manager.last_reset_month = now.month - 1
+        manager.record_cost("session-1", "op", 0.50)
+        manager.circuit_breaker.force_open("test")
         
-        # Trigger reset check
-        manager._reset_if_needed()
+        manager.reset()
         
-        assert manager.monthly_cost == 0.0
-    
-    def test_audit_log_to_file(self):
-        """Test audit logging to file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            audit_path = Path(tmpdir) / "audit.jsonl"
-            
-            manager = CostSafetyManager(audit_log_path=audit_path)
-            session = manager.create_session("test-123", "chat", 10.0)
-            manager.record_cost("test-123", "research", 0.5)
-            
-            # Check file was written
-            assert audit_path.exists()
-            
-            with open(audit_path) as f:
-                lines = f.readlines()
-            
-            assert len(lines) >= 2  # session_created + cost_recorded
-            
-            # Verify JSON format
-            for line in lines:
-                entry = json.loads(line)
-                assert "timestamp" in entry
-                assert "event" in entry
-                assert "data" in entry
+        assert manager.get_session_cost("session-1") == 0.0
+        assert manager.circuit_breaker.get_state().is_closed
 
 
-class TestEstimateCurriculumCost:
-    """Tests for curriculum cost estimation."""
+class TestGetCostSafetyManager:
+    """Tests for get_cost_safety_manager singleton function."""
     
-    def test_estimate_with_explicit_counts(self):
-        """Test estimation with explicit topic counts."""
-        estimate = estimate_curriculum_cost(
-            topic_count=10,
-            deep_research_count=3,
-            quick_research_count=5,
-            docs_count=2
-        )
-        
-        assert "expected_cost" in estimate
-        assert "min_cost" in estimate
-        assert "max_cost" in estimate
-        assert "breakdown" in estimate
-        
-        # Deep research: 3 * $1.0 = $3.0
-        assert estimate["breakdown"]["deep_research"] == 3.0
-        # Quick research: 5 * $0.002 = $0.01
-        assert estimate["breakdown"]["quick_research"] == 0.01
+    def setup_method(self):
+        """Reset singleton before each test."""
+        reset_cost_safety_manager()
     
-    def test_estimate_with_auto_distribution(self):
-        """Test estimation with automatic distribution."""
-        estimate = estimate_curriculum_cost(topic_count=10)
-        
-        # Should auto-distribute: 30% deep, 40% quick, 30% docs
-        assert estimate["expected_cost"] > 0
-        assert estimate["min_cost"] < estimate["expected_cost"]
-        assert estimate["max_cost"] > estimate["expected_cost"]
+    def teardown_method(self):
+        """Reset singleton after each test."""
+        reset_cost_safety_manager()
     
-    def test_estimate_min_max_range(self):
-        """Test min/max are reasonable multiples of expected."""
-        estimate = estimate_curriculum_cost(
-            topic_count=10,
-            deep_research_count=5,
-            quick_research_count=5
-        )
+    def test_returns_manager_instance(self):
+        """Test that function returns a CostSafetyManager."""
+        manager = get_cost_safety_manager()
         
-        # Min should be approximately 50% of expected (with rounding)
-        assert abs(estimate["min_cost"] - estimate["expected_cost"] * 0.5) < 0.1
-        # Max should be approximately 200% of expected (with rounding)
-        assert abs(estimate["max_cost"] - estimate["expected_cost"] * 2.0) < 0.1
+        assert isinstance(manager, CostSafetyManager)
+    
+    def test_returns_same_instance(self):
+        """Test that function returns singleton instance."""
+        manager1 = get_cost_safety_manager()
+        manager2 = get_cost_safety_manager()
+        
+        assert manager1 is manager2
+    
+    def test_reset_creates_new_instance(self):
+        """Test that reset allows new instance creation."""
+        manager1 = get_cost_safety_manager()
+        manager1.record_cost("test", "op", 1.0)
+        
+        reset_cost_safety_manager()
+        
+        manager2 = get_cost_safety_manager()
+        
+        # Should be different instance with fresh state
+        assert manager2.get_session_cost("test") == 0.0
 
 
-class TestFormatCostWarning:
-    """Tests for cost warning formatting."""
+class TestResetCostSafetyManager:
+    """Tests for reset_cost_safety_manager function."""
     
-    def test_format_within_budget(self):
-        """Test formatting when within budget."""
-        msg = format_cost_warning(estimated_cost=3.0, budget_limit=10.0)
+    def test_reset_clears_singleton(self):
+        """Test that reset clears the singleton."""
+        manager = get_cost_safety_manager()
+        manager.record_cost("test", "op", 1.0)
         
-        assert "$3.00" in msg
-        assert "$10.00" in msg
-        assert "30%" in msg
+        reset_cost_safety_manager()
+        
+        # New manager should have fresh state
+        new_manager = get_cost_safety_manager()
+        assert new_manager.get_session_cost("test") == 0.0
     
-    def test_format_over_80_percent(self):
-        """Test formatting when over 80% budget."""
-        msg = format_cost_warning(estimated_cost=8.5, budget_limit=10.0)
-        
-        assert "Remaining" in msg
-        assert "$1.50" in msg  # Remaining amount
-    
-    def test_format_exceeds_budget(self):
-        """Test formatting when exceeding budget."""
-        msg = format_cost_warning(estimated_cost=12.0, budget_limit=10.0)
-        
-        assert "EXCEEDS" in msg
-        assert "Over budget" in msg
-        assert "$2.00" in msg  # Over by amount
-    
-    def test_format_no_budget_limit(self):
-        """Test formatting with no budget limit."""
-        msg = format_cost_warning(estimated_cost=5.0, budget_limit=0.0)
-        
-        assert "no budget limit" in msg.lower()
-
-
-class TestPausableLimitHelpers:
-    """Tests for pausable limit helper functions."""
-    
-    def test_is_pausable_daily_limit(self):
-        """Test detecting daily limit as pausable."""
-        reason = "DAILY_LIMIT: Daily limit would be exceeded"
-        assert is_pausable_limit(reason) is True
-    
-    def test_is_pausable_monthly_limit(self):
-        """Test detecting monthly limit as pausable."""
-        reason = "MONTHLY_LIMIT: Monthly limit would be exceeded"
-        assert is_pausable_limit(reason) is True
-    
-    def test_is_not_pausable_operation_limit(self):
-        """Test operation limit is not pausable."""
-        reason = "Operation cost exceeds limit"
-        assert is_pausable_limit(reason) is False
-    
-    def test_is_not_pausable_none(self):
-        """Test None reason is not pausable."""
-        assert is_pausable_limit(None) is False
-    
-    def test_is_not_pausable_empty(self):
-        """Test empty reason is not pausable."""
-        assert is_pausable_limit("") is False
-    
-    def test_get_resume_message_daily(self):
-        """Test resume message for daily limit."""
-        reason = "DAILY_LIMIT: exceeded"
-        msg = get_resume_message(reason)
-        
-        assert "Daily" in msg
-        assert "tomorrow" in msg.lower()
-    
-    def test_get_resume_message_monthly(self):
-        """Test resume message for monthly limit."""
-        reason = "MONTHLY_LIMIT: exceeded"
-        msg = get_resume_message(reason)
-        
-        assert "Monthly" in msg
-        assert "next month" in msg.lower()
-    
-    def test_get_resume_message_other(self):
-        """Test resume message for non-pausable limit."""
-        reason = "Operation blocked"
-        msg = get_resume_message(reason)
-        
-        assert "Check the error" in msg
-
-
-class TestCostSafetyIntegration:
-    """Integration tests for cost safety system."""
-    
-    def test_full_session_lifecycle(self):
-        """Test complete session lifecycle."""
-        manager = CostSafetyManager(
-            max_per_operation=5.0,
-            max_daily=25.0,
-            max_monthly=200.0
-        )
-        
-        # Create session
-        session = manager.create_session("test-123", "learning", 10.0)
-        
-        # Check and record multiple operations
-        for i in range(5):
-            allowed, reason, _ = manager.check_operation(
-                "test-123", "research", 0.50
-            )
-            assert allowed is True
-            manager.record_cost("test-123", "research", 0.50)
-        
-        # Verify totals
-        assert session.total_cost == 2.5
-        assert manager.daily_cost == 2.5
-        
-        # Close session
-        summary = manager.close_session("test-123")
-        assert summary["total_cost"] == 2.5
-    
-    def test_budget_exhaustion_flow(self):
-        """Test flow when budget is exhausted."""
-        manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 2.0)
-        
-        # Use most of budget
-        manager.record_cost("test-123", "research", 1.8)
-        
-        # Try to do more
-        allowed, reason, _ = manager.check_operation(
-            "test-123", "research", 0.5
-        )
-        
-        assert allowed is False
-        assert "budget" in reason.lower() or "95%" in reason
-    
-    def test_circuit_breaker_recovery(self):
-        """Test circuit breaker opens and blocks operations."""
-        manager = CostSafetyManager()
-        session = manager.create_session("test-123", "chat", 10.0)
-        session.max_consecutive_failures = 2
-        
-        # Trigger circuit breaker
-        manager.record_failure("test-123", "research", "Error 1")
-        manager.record_failure("test-123", "research", "Error 2")
-        
-        # Should be blocked
-        allowed, reason, _ = manager.check_operation(
-            "test-123", "research", 0.1
-        )
-        
-        assert allowed is False
-        assert "circuit breaker" in reason.lower()
+    def test_reset_safe_when_no_manager(self):
+        """Test that reset is safe when no manager exists."""
+        reset_cost_safety_manager()  # First reset
+        reset_cost_safety_manager()  # Should not raise

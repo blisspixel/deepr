@@ -116,6 +116,13 @@ async def _run_single(
 ):
     """Execute single research job.
     
+    Orchestrates the research workflow:
+    1. Budget approval
+    2. File uploads (if any)
+    3. Job submission to queue
+    4. Provider API submission
+    5. Result handling
+    
     Args:
         query: Research query
         model: Model to use
@@ -127,6 +134,13 @@ async def _run_single(
         yes: Skip confirmation
         output_context: Output formatting context (optional for backward compatibility)
     """
+    # Import refactored modules
+    from deepr.cli.commands.provider_factory import (
+        get_api_key, create_provider_instance, get_tool_name,
+        supports_background_jobs, supports_vector_stores
+    )
+    from deepr.cli.commands.file_handler import handle_file_uploads
+    
     # Create default output context if not provided (backward compatibility)
     if output_context is None:
         output_context = OutputContext(mode=OutputMode.VERBOSE)
@@ -134,10 +148,62 @@ async def _run_single(
     formatter = OutputFormatter(output_context)
     start_time = time.time()
     
-    # Estimate cost
+    # Estimate cost and show header
     estimated_cost = estimate_cost(model, enable_web_search=not no_web)
+    _show_research_header(output_context, query, provider, model, estimated_cost, upload)
     
-    # Show header in verbose mode only
+    # Start operation feedback
+    formatter.start_operation(f"Researching: {query[:50]}...")
+
+    # Budget check
+    if not _check_budget(yes, estimated_cost, output_context):
+        return
+
+    # Handle file uploads using refactored module
+    document_ids = []
+    vector_store_id = None
+    if upload:
+        from deepr.config import load_config
+        config = load_config()
+        
+        upload_result = await handle_file_uploads(
+            provider, upload, formatter, config
+        )
+        
+        # Report errors in verbose mode
+        if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
+            for error in upload_result.errors:
+                print_warning(error)
+        
+        # Extract results
+        vector_store_id = upload_result.vector_store_id
+        if not supports_vector_stores(provider):
+            document_ids = upload_result.uploaded_ids
+
+    # Create and enqueue job
+    job_id, job = await _create_and_enqueue_job(
+        query, model, provider, no_web, no_code,
+        document_ids, vector_store_id, limit, upload
+    )
+    formatter.progress("Submitting research job...")
+
+    # Submit to provider and handle response
+    await _submit_to_provider(
+        job_id, query, model, provider, no_web, no_code,
+        document_ids, vector_store_id, output_context,
+        formatter, start_time
+    )
+
+
+def _show_research_header(
+    output_context: OutputContext,
+    query: str,
+    provider: str,
+    model: str,
+    estimated_cost: float,
+    upload: tuple
+) -> None:
+    """Display research header in verbose mode."""
     if output_context.mode == OutputMode.VERBOSE:
         click.echo("\n" + "="*70)
         click.echo("  DEEPR - Single Research")
@@ -149,140 +215,38 @@ async def _run_single(
         if upload:
             click.echo(f"Files: {', '.join(upload)}")
         click.echo()
+
+
+def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContext) -> bool:
+    """Check budget approval. Returns True if approved, False if cancelled."""
+    if yes or check_budget_approval(estimated_cost):
+        return True
     
-    # Start operation feedback
-    formatter.start_operation(f"Researching: {query[:50]}...")
+    if output_context.mode == OutputMode.VERBOSE:
+        if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
+            click.echo("Cancelled.")
+            return False
+    
+    return True
 
-    # Budget check
-    if not yes and not check_budget_approval(estimated_cost):
-        if output_context.mode == OutputMode.VERBOSE:
-            if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
-                click.echo("Cancelled.")
-                return
-        elif output_context.mode != OutputMode.QUIET:
-            # In minimal/JSON mode, just proceed or fail silently
-            pass
 
-    # Handle file uploads
-    document_ids = []
-    vector_store_id = None
-    if upload:
-        formatter.progress("Uploading files...")
-        try:
-            from deepr.providers import create_provider
-            from deepr.config import load_config
-            from deepr.utils.paths import resolve_file_path, resolve_glob_pattern, normalize_path_for_display
-
-            config = load_config()
-
-            # Get provider-specific API key
-            if provider == "gemini":
-                api_key = config.get("gemini_api_key")
-            elif provider in ["grok", "xai"]:
-                api_key = config.get("xai_api_key")
-            elif provider == "azure":
-                api_key = config.get("azure_api_key")
-            else:  # openai
-                api_key = config.get("api_key")
-
-            provider_instance = create_provider(provider, api_key=api_key)
-
-            # Resolve all file paths (handles globs, Windows paths, spaces, etc.)
-            resolved_files = []
-            for file_pattern in upload:
-                try:
-                    # Check if it's a glob pattern
-                    if '*' in file_pattern or '?' in file_pattern:
-                        matched = resolve_glob_pattern(file_pattern, must_match=True)
-                        resolved_files.extend(matched)
-                        formatter.progress(f"Pattern '{file_pattern}' matched {len(matched)} file(s)")
-                    else:
-                        # Single file
-                        resolved = resolve_file_path(file_pattern, must_exist=True)
-                        resolved_files.append(resolved)
-                except FileNotFoundError as e:
-                    if output_context.mode == OutputMode.VERBOSE:
-                        print_error(f"{e}")
-                    continue
-
-            if not resolved_files:
-                if output_context.mode == OutputMode.VERBOSE:
-                    print_warning("No files to upload")
-            else:
-                formatter.progress(f"Found {len(resolved_files)} file(s) to upload")
-
-            # Upload each file
-            uploaded_files = []
-            for file_path in resolved_files:
-                display_name = file_path.name
-                display_path = normalize_path_for_display(file_path)
-
-                formatter.progress(f"Uploading: {display_name}")
-                try:
-                    file_id = await provider_instance.upload_document(str(file_path))
-                    uploaded_files.append(file_id)
-                    formatter.progress(f"Uploaded: {display_name}")
-                except Exception as e:
-                    if output_context.mode == OutputMode.VERBOSE:
-                        console.print(f"    [error]Failed: {e}[/error]")
-
-            if not uploaded_files:
-                if output_context.mode == OutputMode.VERBOSE:
-                    print_warning("No files uploaded successfully")
-            else:
-                # For OpenAI, create vector store
-                if provider in ["openai", "azure"]:
-                    formatter.progress("Creating vector store...")
-                    try:
-                        from deepr.providers.base import VectorStore
-                        vs = await provider_instance.create_vector_store(
-                            name=f"research-{uuid.uuid4().hex[:8]}",
-                            file_ids=uploaded_files
-                        )
-                        vector_store_id = vs.id
-                        formatter.progress(f"Vector store created: {vs.id[:20]}...")
-
-                        # Wait for ingestion with progress feedback
-                        formatter.progress("Waiting for file processing...")
-                        ready = await provider_instance.wait_for_vector_store(
-                            vs.id,
-                            timeout=300,
-                            poll_interval=2.0
-                        )
-                        if ready:
-                            formatter.progress("Files ready for research")
-                        else:
-                            if output_context.mode == OutputMode.VERBOSE:
-                                print_warning("Files still processing (continuing anyway)")
-                    except Exception as e:
-                        if output_context.mode == OutputMode.VERBOSE:
-                            console.print(f"  [error]Vector store creation failed: {e}[/error]")
-                        vector_store_id = None
-
-                # For Gemini, files are referenced directly
-                elif provider == "gemini":
-                    document_ids = uploaded_files
-                    formatter.progress(f"{len(uploaded_files)} files ready for research")
-
-                # For Grok/xAI, document collections not yet implemented
-                elif provider in ["grok", "xai"]:
-                    if output_context.mode == OutputMode.VERBOSE:
-                        print_warning("xAI file upload not yet fully supported")
-                    document_ids = uploaded_files
-
-        except Exception as e:
-            if output_context.mode == OutputMode.VERBOSE:
-                print_error(f"File upload failed: {e}")
-                click.echo("  Continuing without files...")
-
-    # Submit job to queue
-    formatter.progress("Submitting research job...")
-
+async def _create_and_enqueue_job(
+    query: str,
+    model: str,
+    provider: str,
+    no_web: bool,
+    no_code: bool,
+    document_ids: List[str],
+    vector_store_id: Optional[str],
+    limit: Optional[float],
+    upload: tuple
+) -> tuple:
+    """Create research job and add to queue. Returns (job_id, job)."""
     # Prepare job metadata for cleanup tracking
     job_metadata = {}
     if vector_store_id:
         job_metadata["vector_store_id"] = vector_store_id
-        job_metadata["cleanup_vector_store"] = True  # Auto-cleanup after job completes
+        job_metadata["cleanup_vector_store"] = True
     if upload:
         job_metadata["uploaded_files"] = list(upload)
 
@@ -302,164 +266,66 @@ async def _run_single(
 
     queue = SQLiteQueue()
     job_id = await queue.enqueue(job)
+    return job_id, job
 
-    # Submit to provider API
+
+async def _submit_to_provider(
+    job_id: str,
+    query: str,
+    model: str,
+    provider: str,
+    no_web: bool,
+    no_code: bool,
+    document_ids: List[str],
+    vector_store_id: Optional[str],
+    output_context: OutputContext,
+    formatter: OutputFormatter,
+    start_time: float
+) -> None:
+    """Submit job to provider API and handle response."""
+    from deepr.cli.commands.provider_factory import (
+        create_provider_instance, get_tool_name,
+        supports_background_jobs, supports_vector_stores
+    )
+    from deepr.providers.base import ResearchRequest, ToolConfig
+    from deepr.config import load_config
+    
+    config = load_config()
+    queue = SQLiteQueue()
+    
     try:
-        from deepr.providers import create_provider
-        from deepr.providers.base import ResearchRequest, ToolConfig
-        from deepr.config import load_config
-
-        config = load_config()
-
-        # Get provider-specific API key
-        if provider == "gemini":
-            api_key = config.get("gemini_api_key")
-        elif provider in ["grok", "xai"]:
-            api_key = config.get("xai_api_key")
-        elif provider == "azure":
-            api_key = config.get("azure_api_key")
-        else:  # openai
-            api_key = config.get("api_key")
-
-        provider_instance = create_provider(provider, api_key=api_key)
-
-        # Build tools list (provider-specific tool names)
-        tools = []
-        if not no_web:
-            # Grok/xAI uses "web_search", others use "web_search_preview"
-            tool_name = "web_search" if provider in ["grok", "xai"] else "web_search_preview"
-            tools.append(ToolConfig(type=tool_name))
-        if not no_code:
-            tools.append(ToolConfig(type="code_interpreter"))
-
-        # Add file_search tool for OpenAI/Azure when vector store is available
-        if vector_store_id and provider in ["openai", "azure"]:
-            tools.append(ToolConfig(
-                type="file_search",
-                vector_store_ids=[vector_store_id]
-            ))
-
+        provider_instance = create_provider_instance(provider, config)
+        
+        # Build tools list using provider factory
+        tools = _build_tools_list(provider, no_web, no_code, vector_store_id)
+        
         # Validate tools for deep research models
-        if provider in ["openai", "azure"] and "deep-research" in model and not tools:
-            duration = time.time() - start_time
-            result = OperationResult(
-                success=False,
-                duration_seconds=duration,
-                cost_usd=0.0,
-                job_id=job_id,
-                error=f"{model} requires at least one tool (web search, code interpreter, or file upload)",
-                error_code="MISSING_TOOLS"
-            )
-            formatter.complete(result)
+        if supports_vector_stores(provider) and "deep-research" in model and not tools:
+            _handle_missing_tools_error(job_id, model, formatter, start_time)
             return
 
-        # Create research request
-        # Note: Grok/xAI doesn't support background parameter
+        # Create and submit research request
         request = ResearchRequest(
             prompt=query,
             model=model,
             system_message="You are a research assistant. Provide comprehensive, citation-backed analysis.",
             tools=tools,
-            background=True if provider in ["openai", "azure"] else False,
+            background=supports_background_jobs(provider),
             document_ids=document_ids if document_ids else None,
         )
-
-        # Submit to provider
+        
         provider_job_id = await provider_instance.submit_research(request)
-
-        # For Gemini and Grok/xAI, research completes immediately - check and save results
-        if provider in ["gemini", "grok", "xai"]:
-            response = await provider_instance.get_status(provider_job_id)
-
-            if response.status == "completed":
-                # Extract content
-                content = ""
-                if response.output:
-                    for block in response.output:
-                        if block.get('type') == 'message':
-                            for item in block.get('content', []):
-                                if item.get('type') in ['output_text', 'text']:
-                                    text = item.get('text', '')
-                                    if text:
-                                        content += text + "\n"
-
-                # Save to storage
-                from deepr.storage import create_storage
-                storage = create_storage(
-                    config.get("storage", "local"),
-                    base_path=config.get("results_dir", "data/reports")
-                )
-
-                report_metadata = await storage.save_report(
-                    job_id=job_id,
-                    filename="report.md",
-                    content=content.encode('utf-8'),
-                    content_type="text/markdown",
-                    metadata={
-                        "prompt": query,
-                        "model": model,
-                        "status": "completed",
-                        "provider_job_id": provider_job_id,
-                    }
-                )
-
-                # Update queue as completed
-                await queue.update_status(job_id, JobStatus.COMPLETED)
-                actual_cost = response.usage.cost if response.usage and response.usage.cost else 0.0
-                if response.usage and response.usage.cost:
-                    await queue.update_results(
-                        job_id,
-                        report_paths={"markdown": report_metadata.url},
-                        cost=response.usage.cost,
-                        tokens_used=response.usage.total_tokens
-                    )
-
-                # Output result using formatter
-                duration = time.time() - start_time
-                result = OperationResult(
-                    success=True,
-                    duration_seconds=duration,
-                    cost_usd=actual_cost,
-                    report_path=str(report_metadata.url),
-                    job_id=job_id
-                )
-                formatter.complete(result)
-            else:
-                # Update as processing if not yet complete
-                await queue.update_status(
-                    job_id=job_id,
-                    status=JobStatus.PROCESSING,
-                    provider_job_id=provider_job_id
-                )
-                if output_context.mode == OutputMode.VERBOSE:
-                    click.echo(f"\nJob submitted: {job_id[:12]}")
-                    click.echo(f"Provider job ID: {provider_job_id}")
-                elif output_context.mode == OutputMode.JSON:
-                    # For JSON mode, output pending status
-                    import json as json_module
-                    print(json_module.dumps({
-                        "status": "pending",
-                        "job_id": job_id,
-                        "provider_job_id": provider_job_id
-                    }))
-        else:
-            # For OpenAI/Azure, update as processing
-            await queue.update_status(
-                job_id=job_id,
-                status=JobStatus.PROCESSING,
-                provider_job_id=provider_job_id
+        
+        # Handle response based on provider type
+        if supports_background_jobs(provider):
+            await _handle_background_job(
+                job_id, provider_job_id, output_context, queue
             )
-
-            if output_context.mode == OutputMode.VERBOSE:
-                click.echo(f"\nJob submitted: {job_id[:12]}")
-                click.echo(f"Provider job ID: {provider_job_id}")
-            elif output_context.mode == OutputMode.JSON:
-                import json as json_module
-                print(json_module.dumps({
-                    "status": "pending",
-                    "job_id": job_id,
-                    "provider_job_id": provider_job_id
-                }))
+        else:
+            await _handle_immediate_job(
+                job_id, provider_job_id, query, model, provider_instance,
+                output_context, formatter, start_time, config, queue
+            )
 
     except Exception as e:
         duration = time.time() - start_time
@@ -472,13 +338,172 @@ async def _run_single(
             error_code="PROVIDER_ERROR"
         )
         formatter.complete(result)
-        return
 
-    # Show follow-up commands in verbose mode only
+
+def _build_tools_list(
+    provider: str,
+    no_web: bool,
+    no_code: bool,
+    vector_store_id: Optional[str]
+) -> List:
+    """Build provider-specific tools list."""
+    from deepr.cli.commands.provider_factory import get_tool_name, supports_vector_stores
+    from deepr.providers.base import ToolConfig
+    
+    tools = []
+    if not no_web:
+        tool_name = get_tool_name(provider, "web_search")
+        tools.append(ToolConfig(type=tool_name))
+    if not no_code:
+        tools.append(ToolConfig(type="code_interpreter"))
+    
+    # Add file_search tool when vector store is available
+    if vector_store_id and supports_vector_stores(provider):
+        tools.append(ToolConfig(
+            type="file_search",
+            vector_store_ids=[vector_store_id]
+        ))
+    
+    return tools
+
+
+def _handle_missing_tools_error(
+    job_id: str,
+    model: str,
+    formatter: OutputFormatter,
+    start_time: float
+) -> None:
+    """Handle error when deep research model has no tools."""
+    duration = time.time() - start_time
+    result = OperationResult(
+        success=False,
+        duration_seconds=duration,
+        cost_usd=0.0,
+        job_id=job_id,
+        error=f"{model} requires at least one tool (web search, code interpreter, or file upload)",
+        error_code="MISSING_TOOLS"
+    )
+    formatter.complete(result)
+
+
+async def _handle_background_job(
+    job_id: str,
+    provider_job_id: str,
+    output_context: OutputContext,
+    queue: SQLiteQueue
+) -> None:
+    """Handle OpenAI/Azure background job submission."""
+    await queue.update_status(
+        job_id=job_id,
+        status=JobStatus.PROCESSING,
+        provider_job_id=provider_job_id
+    )
+    
     if output_context.mode == OutputMode.VERBOSE:
+        click.echo(f"\nJob submitted: {job_id[:12]}")
+        click.echo(f"Provider job ID: {provider_job_id}")
         click.echo(f"\nCheck status: deepr status {job_id[:12]}")
         click.echo(f"View results: deepr get {job_id[:12]}")
         click.echo(f"List all jobs: deepr list")
+    elif output_context.mode == OutputMode.JSON:
+        import json as json_module
+        print(json_module.dumps({
+            "status": "pending",
+            "job_id": job_id,
+            "provider_job_id": provider_job_id
+        }))
+
+
+async def _handle_immediate_job(
+    job_id: str,
+    provider_job_id: str,
+    query: str,
+    model: str,
+    provider_instance,
+    output_context: OutputContext,
+    formatter: OutputFormatter,
+    start_time: float,
+    config: dict,
+    queue: SQLiteQueue
+) -> None:
+    """Handle Gemini/Grok immediate job completion."""
+    response = await provider_instance.get_status(provider_job_id)
+    
+    if response.status == "completed":
+        # Extract and save content
+        content = _extract_response_content(response)
+        
+        from deepr.storage import create_storage
+        storage = create_storage(
+            config.get("storage", "local"),
+            base_path=config.get("results_dir", "data/reports")
+        )
+        
+        report_metadata = await storage.save_report(
+            job_id=job_id,
+            filename="report.md",
+            content=content.encode('utf-8'),
+            content_type="text/markdown",
+            metadata={
+                "prompt": query,
+                "model": model,
+                "status": "completed",
+                "provider_job_id": provider_job_id,
+            }
+        )
+        
+        # Update queue
+        await queue.update_status(job_id, JobStatus.COMPLETED)
+        actual_cost = response.usage.cost if response.usage and response.usage.cost else 0.0
+        if response.usage and response.usage.cost:
+            await queue.update_results(
+                job_id,
+                report_paths={"markdown": report_metadata.url},
+                cost=response.usage.cost,
+                tokens_used=response.usage.total_tokens
+            )
+        
+        # Output result
+        duration = time.time() - start_time
+        result = OperationResult(
+            success=True,
+            duration_seconds=duration,
+            cost_usd=actual_cost,
+            report_path=str(report_metadata.url),
+            job_id=job_id
+        )
+        formatter.complete(result)
+    else:
+        # Still processing
+        await queue.update_status(
+            job_id=job_id,
+            status=JobStatus.PROCESSING,
+            provider_job_id=provider_job_id
+        )
+        if output_context.mode == OutputMode.VERBOSE:
+            click.echo(f"\nJob submitted: {job_id[:12]}")
+            click.echo(f"Provider job ID: {provider_job_id}")
+        elif output_context.mode == OutputMode.JSON:
+            import json as json_module
+            print(json_module.dumps({
+                "status": "pending",
+                "job_id": job_id,
+                "provider_job_id": provider_job_id
+            }))
+
+
+def _extract_response_content(response) -> str:
+    """Extract text content from provider response."""
+    content = ""
+    if response.output:
+        for block in response.output:
+            if block.get('type') == 'message':
+                for item in block.get('content', []):
+                    if item.get('type') in ['output_text', 'text']:
+                        text = item.get('text', '')
+                        if text:
+                            content += text + "\n"
+    return content
 
 
 @run.command()
