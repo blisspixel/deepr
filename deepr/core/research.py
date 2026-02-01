@@ -7,6 +7,7 @@ from pathlib import Path
 from ..providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
 from ..storage.base import StorageBackend
 from ..formatting.converters import ReportConverter
+from ..utils.prompt_security import PromptSanitizer, SanitizationResult
 from .documents import DocumentManager
 from .reports import ReportGenerator
 
@@ -103,6 +104,7 @@ class ResearchOrchestrator:
         custom_system_message: Optional[str] = None,
         budget_limit: Optional[float] = None,
         session_id: Optional[str] = None,
+        skip_sanitization: bool = False,
     ) -> str:
         """
         Submit a research job.
@@ -120,14 +122,31 @@ class ResearchOrchestrator:
             custom_system_message: Override system message for this job
             budget_limit: Optional budget limit for this job (validated against cost safety)
             session_id: Optional session ID for cost tracking
+            skip_sanitization: Skip prompt sanitization (for trusted internal prompts)
 
         Returns:
             Job ID for tracking
 
         Raises:
             Exception: If submission fails
-            ValueError: If budget would be exceeded
+            ValueError: If budget would be exceeded or prompt is unsafe
         """
+        # SECURITY: Sanitize prompt before any processing
+        if not skip_sanitization:
+            sanitizer = PromptSanitizer()
+            sanitization_result = sanitizer.sanitize(prompt)
+            
+            # Block high-risk prompts entirely
+            if sanitization_result.risk_level == "high":
+                raise ValueError(
+                    f"Prompt blocked due to high-risk patterns detected: "
+                    f"{', '.join(sanitization_result.patterns_detected)}. "
+                    f"Please rephrase your research query."
+                )
+            
+            # Use sanitized prompt (neutralizes medium-risk patterns)
+            prompt = sanitization_result.sanitized
+        
         # CRITICAL: Validate budget BEFORE any API calls
         estimated_cost = MODEL_COST_ESTIMATES.get(model, DEFAULT_COST_ESTIMATE)
         
