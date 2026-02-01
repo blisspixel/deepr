@@ -17,9 +17,17 @@ Deepr is an agentic research platform that uses AI models to conduct deep resear
 - **Location**: `deepr/experts/`
 - **Purpose**: Creates domain experts that learn and answer questions
 - **Components**:
+  - `profile.py`: Expert metadata, usage tracking, provider config
   - `curriculum.py`: Generates learning plans
-  - `base.py`: Expert creation and management
+  - `learner.py`: Autonomous learning execution
+  - `chat.py`: Interactive Q&A with experts
   - `router.py`: Routes queries to appropriate models
+  - `beliefs.py`: Belief formation with confidence levels
+  - `metacognition.py`: Gap awareness and self-assessment
+  - `memory.py`: Conversation and knowledge memory
+  - `synthesis.py`: Knowledge synthesis from documents
+  - `temporal_knowledge.py`: Time-aware knowledge management
+  - `cost_safety.py`: Budget controls and spending limits
 
 ### 3. Provider System
 - **Location**: `deepr/providers/`
@@ -124,17 +132,25 @@ Configuration is managed through:
 
 ```
 deepr/
-├── api/              # REST API (FastAPI)
+├── api/              # REST API (Flask)
 ├── cli/              # Command-line interface
 ├── config/           # Configuration management
 ├── core/             # Core business logic
-├── experts/          # Expert system
+├── experts/          # Expert system (beliefs, memory, learning)
+├── formatting/       # Output formatting utilities
+├── mcp/              # Model Context Protocol server
+├── observability/    # Cost tracking, provider routing, quality metrics
 ├── providers/        # AI provider integrations
 ├── queue/            # Job queue system
 ├── research_agent/   # Research execution
+├── services/         # Business logic services
 ├── storage/          # Data persistence
-├── tools/            # Utility tools
-└── web/              # Web interface
+├── templates/        # Prompt templates
+├── tools/            # Utility tools (web search, etc.)
+├── utils/            # General utilities (scraping, etc.)
+├── web/              # Web interface
+├── webhooks/         # Webhook handlers
+└── worker/           # Background job processing
 ```
 
 ## Extension Points
@@ -270,8 +286,32 @@ For production deployments, consider:
 - Encrypting sensitive data at rest
 - Using provider-specific API key scoping where available
 
-## Monitoring
+## Observability
 
+The `deepr/observability/` module provides monitoring and cost management:
+
+### Cost Dashboard (`costs.py`)
+- Per-job cost tracking with provider/model breakdown
+- Daily, weekly, monthly cost aggregation
+- Budget alerts with configurable thresholds
+- Atomic persistence to prevent data corruption
+
+### Provider Router (`provider_router.py`)
+- Autonomous provider selection based on cost, latency, and availability
+- Fallback handling when providers fail
+- Health scoring with exponential decay
+- Metrics tracking (success rate, latency, costs)
+
+### Quality Metrics (`quality_metrics.py`)
+- Response quality scoring
+- Model performance comparison
+- Research output evaluation
+
+### Traces (`traces.py`)
+- Request/response logging
+- Debugging support for multi-step workflows
+
+### Monitoring Summary
 - Cost tracking per job
 - Latency metrics per provider
 - Error rates and retry logic
