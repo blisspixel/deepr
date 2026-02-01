@@ -38,7 +38,7 @@ def verbs():
     table.add_column("Description")
     table.add_row("deepr research \"topic\"", "Auto-detect research mode")
     table.add_row("deepr check \"claim\"", "Verify a fact quickly")
-    table.add_row("deepr agentic research \"topic\"", "Autonomous multi-step workflow [dim](planned)[/dim]")
+    table.add_row("deepr agentic research \"topic\"", "Autonomous multi-step workflow")
     console.print(table)
     console.print()
     
@@ -57,8 +57,8 @@ def verbs():
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Command", style="green")
     table.add_column("Description")
-    table.add_row("deepr make docs \"topic\"", "Generate documentation [dim](planned)[/dim]")
-    table.add_row("deepr make strategy \"topic\"", "Strategic analysis [dim](planned)[/dim]")
+    table.add_row("deepr make docs \"topic\"", "Generate documentation")
+    table.add_row("deepr make strategy \"topic\"", "Strategic analysis")
     console.print(table)
     console.print()
     

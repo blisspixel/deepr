@@ -35,6 +35,12 @@ def research():
 @research.command()
 @click.argument("prompt")
 @click.option(
+    "--provider", "-P",
+    default=None,
+    type=click.Choice(["openai", "azure", "gemini", "grok"]),
+    help="Research provider (default: from config or 'openai')",
+)
+@click.option(
     "--model", "-m",
     default="o4-mini-deep-research",
     type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
@@ -47,11 +53,34 @@ def research():
 @click.option("--cost-limit", type=float, default=None,
               help="Override max cost for this job (USD)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
-def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit: float, yes: bool):
+@click.option("--auto-select", is_flag=True, help="Use autonomous provider router for selection")
+def submit(prompt: str, provider: str, model: str, priority: int, web_search: bool, cost_limit: float, yes: bool, auto_select: bool):
     """Submit a deep research job."""
     print_section_header("Submit Deep Research Job")
 
+    # Resolve provider from config if not specified
+    from deepr.config import load_config
+    config = load_config()
+    
+    # Use autonomous provider router if requested or no provider specified
+    if auto_select or (provider is None and model is None):
+        try:
+            from deepr.observability.provider_router import AutonomousProviderRouter
+            router = AutonomousProviderRouter()
+            resolved_provider, resolved_model = router.select_provider(task_type="research")
+            # Only use router selection if user didn't specify
+            if provider is None:
+                provider = resolved_provider
+            if model == "o4-mini-deep-research":  # default value
+                model = resolved_model if resolved_model in ["o4-mini-deep-research", "o3-deep-research"] else model
+            console.print(f"[dim]Provider router selected: {resolved_provider}/{resolved_model}[/dim]")
+        except Exception:
+            pass  # Fall back to config
+    
+    resolved_provider = provider or config.get("provider", "openai")
+
     click.echo("\nConfiguration:")
+    click.echo(f"   Provider: {resolved_provider}")
     click.echo(f"   Model: {model}")
     click.echo(f"   Priority: {priority} ({'high' if priority <= 2 else 'normal' if priority <= 4 else 'low'})")
     click.echo(f"   Web Search: {'enabled' if web_search else 'disabled'}")
@@ -71,20 +100,39 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit:
         from deepr.queue.base import ResearchJob, JobStatus
         from deepr.providers import create_provider
         from deepr.providers.base import ResearchRequest, ToolConfig
-        from deepr.config import load_config
+        
+        # Initialize metadata emitter for tracing
+        from deepr.observability.metadata import MetadataEmitter
+        emitter = MetadataEmitter()
+        op = emitter.start_task("research_submit", prompt=prompt, attributes={
+            "provider": resolved_provider,
+            "model": model,
+            "web_search": web_search
+        })
 
-        config = load_config()
         db_path = config.get("queue_db_path", "queue/research_queue.db")
         _ensure_parent_dir(db_path)
 
         queue = create_queue("local", db_path=db_path)
-        provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+        
+        # Get provider-specific API key
+        if resolved_provider == "gemini":
+            api_key = config.get("gemini_api_key")
+        elif resolved_provider in ["grok", "xai"]:
+            api_key = config.get("xai_api_key")
+        elif resolved_provider == "azure":
+            api_key = config.get("azure_api_key")
+        else:  # openai
+            api_key = config.get("api_key")
+        
+        provider_instance = create_provider(resolved_provider, api_key=api_key)
 
         job_id = str(uuid.uuid4())
         job = ResearchJob(
             id=job_id,
             prompt=prompt,
             model=model,
+            provider=resolved_provider,
             status=JobStatus.QUEUED,
             priority=priority,
             submitted_at=datetime.utcnow(),
@@ -94,6 +142,13 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit:
 
         async def submit_job():
             await queue.enqueue(job)
+            
+            # Use provider-specific tool names
+            tools = []
+            if web_search:
+                tool_name = "web_search" if resolved_provider in ["grok", "xai"] else "web_search_preview"
+                tools.append(ToolConfig(type=tool_name))
+            
             request = ResearchRequest(
                 prompt=prompt,
                 model=model,
@@ -101,14 +156,25 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit:
                     "You are a helpful AI research assistant. Provide comprehensive, "
                     "well-researched responses with inline citations."
                 ),
-                tools=[ToolConfig(type="web_search_preview")] if web_search else [],
-                background=True,
+                tools=tools,
+                background=True if resolved_provider in ["openai", "azure"] else False,
             )
-            provider_job_id = await provider.submit_research(request)
+            provider_job_id = await provider_instance.submit_research(request)
             await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
             return provider_job_id
 
         provider_job_id = asyncio.run(submit_job())
+
+        # Complete metadata tracking
+        op.set_model(model, resolved_provider)
+        op.set_attribute("job_id", job_id)
+        op.set_attribute("provider_job_id", provider_job_id)
+        emitter.complete_task(op)
+        
+        # Save trace for later analysis
+        from pathlib import Path
+        trace_path = Path(f"data/traces/submit_{job_id[:8]}.json")
+        emitter.save_trace(trace_path)
 
         print_success("Job submitted successfully!")
         console.print(f"\nJob ID: {job_id}")
@@ -118,6 +184,11 @@ def submit(prompt: str, model: str, priority: int, web_search: bool, cost_limit:
         console.print(f"   deepr research status {job_id[:8]}")
 
     except Exception as e:
+        # Record failure in metadata
+        try:
+            emitter.fail_task(op, str(e))
+        except Exception:
+            pass
         print_error(f"Error: {e}")
         raise click.Abort()
 
@@ -369,6 +440,18 @@ def wait(job_id: str, timeout: int):
             raise click.Abort()
         if response == "Job failed":
             print_error("Job failed")
+            # Record failure with provider router
+            try:
+                from deepr.observability.provider_router import AutonomousProviderRouter
+                router = AutonomousProviderRouter()
+                router.record_result(
+                    provider=getattr(job, 'provider', 'openai'),
+                    model=job.model,
+                    success=False,
+                    error=getattr(job, 'last_error', 'Unknown error')
+                )
+            except Exception:
+                pass
             if getattr(job, "last_error", None):
                 console.print(f"Error: {job.last_error}")
             raise click.Abort()
@@ -377,6 +460,23 @@ def wait(job_id: str, timeout: int):
             raise click.Abort()
 
         print_success("Job completed!")
+        
+        # Record result with provider router for metrics
+        try:
+            from deepr.observability.provider_router import AutonomousProviderRouter
+            router = AutonomousProviderRouter()
+            elapsed_ms = (time.time() - start_time) * 1000
+            cost = getattr(getattr(response, 'usage', None), 'cost', 0.0) if response else 0.0
+            router.record_result(
+                provider=getattr(job, 'provider', 'openai'),
+                model=job.model,
+                success=True,
+                latency_ms=elapsed_ms,
+                cost=cost
+            )
+        except Exception:
+            pass  # Don't fail on metrics recording
+        
         console.print()
         if getattr(response, "output", None):
             for block in response.output:
@@ -391,4 +491,120 @@ def wait(job_id: str, timeout: int):
 
     except Exception as e:
         print_error(f"Error: {e}")
+        raise click.Abort()
+
+
+@research.command()
+@click.argument("job_id")
+@click.option("--explain", is_flag=True, help="Show research path reasoning")
+@click.option("--timeline", is_flag=True, help="Show reasoning evolution timeline")
+@click.option("--full-trace", is_flag=True, help="Export complete audit trail")
+@click.option("--output", "-o", type=click.Path(), help="Output file for full trace export")
+def trace(job_id: str, explain: bool, timeline: bool, full_trace: bool, output: str):
+    """View trace information for a research job.
+    
+    Examples:
+        deepr research trace abc123 --explain
+        deepr research trace abc123 --timeline
+        deepr research trace abc123 --full-trace -o trace.json
+    """
+    from pathlib import Path
+    from rich.table import Table
+    from rich.panel import Panel
+    
+    print_section_header(f"Trace: {job_id[:8]}...")
+    
+    # Find trace file
+    trace_dir = Path("data/traces")
+    trace_files = list(trace_dir.glob(f"*{job_id[:8]}*.json"))
+    
+    if not trace_files:
+        print_error(f"No trace found for job {job_id}")
+        console.print(f"\n[dim]Traces are saved in {trace_dir}[/dim]")
+        return
+    
+    trace_path = trace_files[0]
+    
+    try:
+        from deepr.observability.metadata import MetadataEmitter
+        emitter = MetadataEmitter.load_trace(trace_path)
+        
+        if explain:
+            # Show research path reasoning
+            console.print(Panel(
+                f"[bold]Research Path Explanation[/bold]\n\n"
+                f"Trace ID: {emitter.trace_context.trace_id}\n"
+                f"Total Tasks: {len(emitter.tasks)}\n"
+                f"Total Cost: ${emitter.get_total_cost():.4f}",
+                title="Research Path"
+            ))
+            
+            # Show task hierarchy
+            console.print("\n[bold]Task Hierarchy:[/bold]")
+            for task in emitter.tasks:
+                indent = "  " if task.parent_task_id else ""
+                status_icon = "✓" if task.status == "completed" else "✗" if task.status == "failed" else "○"
+                console.print(f"{indent}[{'green' if task.status == 'completed' else 'red'}]{status_icon}[/] {task.task_type}")
+                if task.model:
+                    console.print(f"{indent}   Model: {task.model}")
+                if task.cost > 0:
+                    console.print(f"{indent}   Cost: ${task.cost:.4f}")
+                if task.context_sources:
+                    console.print(f"{indent}   Sources: {len(task.context_sources)}")
+        
+        if timeline:
+            # Show reasoning evolution timeline
+            timeline_data = emitter.get_timeline()
+            
+            table = Table(title="Reasoning Timeline")
+            table.add_column("Time", style="dim")
+            table.add_column("Task", style="cyan")
+            table.add_column("Status")
+            table.add_column("Duration", justify="right")
+            table.add_column("Cost", justify="right")
+            
+            for entry in timeline_data:
+                start = entry["start_time"][:19].replace("T", " ")
+                status_color = "green" if entry["status"] == "completed" else "red"
+                duration = f"{entry['duration_ms']:.0f}ms" if entry.get("duration_ms") else "-"
+                cost = f"${entry['cost']:.4f}" if entry.get("cost", 0) > 0 else "-"
+                
+                table.add_row(
+                    start,
+                    entry["task_type"],
+                    f"[{status_color}]{entry['status']}[/{status_color}]",
+                    duration,
+                    cost
+                )
+            
+            console.print(table)
+            
+            # Cost breakdown
+            breakdown = emitter.get_cost_breakdown()
+            if breakdown:
+                console.print("\n[bold]Cost Breakdown:[/bold]")
+                for task_type, cost in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
+                    console.print(f"  {task_type}: ${cost:.4f}")
+        
+        if full_trace:
+            # Export complete audit trail
+            output_path = Path(output) if output else Path(f"trace_{job_id[:8]}_export.json")
+            emitter.save_trace(output_path)
+            print_success(f"Full trace exported to {output_path}")
+            console.print(f"\n[dim]Contains {len(emitter.tasks)} tasks and {len(emitter.trace_context.spans)} spans[/dim]")
+        
+        if not (explain or timeline or full_trace):
+            # Default: show summary
+            console.print(Panel(
+                f"[bold]Trace Summary[/bold]\n\n"
+                f"Trace ID: {emitter.trace_context.trace_id}\n"
+                f"Tasks: {len(emitter.tasks)}\n"
+                f"Spans: {len(emitter.trace_context.spans)}\n"
+                f"Total Cost: ${emitter.get_total_cost():.4f}\n\n"
+                f"Use --explain, --timeline, or --full-trace for details",
+                title="Trace Info"
+            ))
+    
+    except Exception as e:
+        print_error(f"Error loading trace: {e}")
         raise click.Abort()

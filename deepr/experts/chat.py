@@ -16,6 +16,10 @@ from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.temporal_knowledge import TemporalKnowledgeTracker
 from deepr.experts.router import ModelRouter, ModelConfig
+from deepr.experts.thought_stream import ThoughtStream, ThoughtType
+from deepr.experts.reasoning_graph import ReasoningGraph, ReasoningState
+from deepr.experts.memory import HierarchicalMemory, Episode, ReasoningStep
+from deepr.experts.lazy_graph_rag import LazyGraphRAG
 
 
 class ExpertChatSession:
@@ -27,7 +31,7 @@ class ExpertChatSession:
     - Circuit breaker for repeated failures
     """
 
-    def __init__(self, expert: ExpertProfile, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True):
+    def __init__(self, expert: ExpertProfile, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True, verbose: bool = False, quiet: bool = False):
         self.expert = expert
         self.budget = budget or 10.0  # Default $10 budget if not specified
         self.agentic = agentic  # Enable research triggering
@@ -38,6 +42,15 @@ class ExpertChatSession:
 
         # Reasoning trace for transparency and auditability
         self.reasoning_trace: List[Dict[str, any]] = []
+        
+        # ThoughtStream for visible thinking (structured decision records)
+        self.thought_stream = ThoughtStream(
+            expert_name=expert.name,
+            verbose=verbose,
+            quiet=quiet
+        )
+        self.verbose = verbose
+        self.quiet = quiet
 
         # Meta-cognitive awareness tracking
         self.metacognition = MetaCognitionTracker(expert.name) if agentic else None
@@ -72,6 +85,20 @@ class ExpertChatSession:
             session_type="chat",
             budget_limit=self.budget
         )
+        
+        # ReasoningGraph for complex queries (Tree of Thoughts)
+        self.reasoning_graph = ReasoningGraph(
+            expert_profile=expert,
+            thought_stream=self.thought_stream,
+            llm_client=None  # Will use internal methods for LLM calls
+        )
+        
+        # Hierarchical Episodic Memory (H-MEM)
+        self.memory = HierarchicalMemory(expert_name=expert.name)
+        self.user_id: Optional[str] = None  # Set by caller if user tracking enabled
+        
+        # LazyGraphRAG for hybrid retrieval
+        self.lazy_graph_rag = LazyGraphRAG(expert_name=expert.name)
 
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
@@ -240,14 +267,74 @@ Budget remaining: ${budget_remaining:.2f}
             provider_constraint="openai"  # Expert vector store requires OpenAI
         )
 
-    async def _search_knowledge_base(self, query: str, top_k: int = 5) -> List[Dict]:
-        """Search the expert's local knowledge base using cached embeddings.
-
-        Uses EmbeddingCache for efficient similarity search. Documents are
-        embedded once on first access, then searched locally without API calls.
+    def should_use_tot(self, query: str) -> bool:
+        """Determine if Tree of Thoughts reasoning should be used for a query.
         
-        Performance: O(1) API call for query embedding + O(n) local similarity
-        vs. O(n) API calls in the original implementation.
+        Complex queries benefit from hypothesis generation, claim verification,
+        and self-correction. Simple queries can use direct chat.
+        
+        Args:
+            query: The user's query
+            
+        Returns:
+            True if ToT reasoning is recommended
+        """
+        # Delegate to reasoning graph's method
+        return self.reasoning_graph.should_use_tot(query)
+
+    async def _run_tot_reasoning(self, query: str, status_callback=None) -> str:
+        """Run Tree of Thoughts reasoning for complex queries.
+        
+        Args:
+            query: The user's query
+            status_callback: Optional callback for status updates
+            
+        Returns:
+            Synthesized answer from reasoning
+        """
+        def report_status(status: str):
+            if status_callback:
+                status_callback(status)
+        
+        report_status("Using advanced reasoning for complex query...")
+        
+        # Get context from knowledge base
+        context = await self._search_knowledge_base(query, top_k=5)
+        
+        # Run reasoning graph
+        state = await self.reasoning_graph.reason(query, context=context)
+        
+        # Log reasoning trace
+        self.reasoning_trace.append({
+            "step": "tot_reasoning",
+            "timestamp": datetime.utcnow().isoformat(),
+            "query": query[:100],
+            "phase": state.phase.value,
+            "hypotheses_count": len(state.hypotheses),
+            "verified_claims": len(state.verified_claims),
+            "confidence": state.confidence,
+            "is_degraded": state.is_degraded,
+            "iterations": state.iteration
+        })
+        
+        # Return synthesis or fallback
+        if state.synthesis:
+            # Add confidence indicator if low
+            if state.confidence < 0.5:
+                return f"{state.synthesis}\n\n_[Note: Confidence is low ({state.confidence:.0%}). Consider asking for clarification or additional research.]_"
+            return state.synthesis
+        else:
+            return "I was unable to generate a confident answer through reasoning. Let me try a simpler approach."
+
+    async def _search_knowledge_base(self, query: str, top_k: int = 5) -> List[Dict]:
+        """Search the expert's local knowledge base using hybrid retrieval.
+
+        Uses both:
+        - EmbeddingCache for vector similarity search (fast, semantic)
+        - LazyGraphRAG for graph-based retrieval (structured, relational)
+        
+        Routes simple queries to vector-only, complex queries to hybrid.
+        Logs retrieval sufficiency score every turn.
 
         Args:
             query: Search query
@@ -257,6 +344,44 @@ Budget remaining: ${budget_remaining:.2f}
             List of documents with id, content, and score
         """
         try:
+            # Determine if we should use graph retrieval
+            use_graph = self.lazy_graph_rag.should_use_graph(query)
+            
+            # Log retrieval mode
+            self.reasoning_trace.append({
+                "step": "retrieval_routing",
+                "timestamp": datetime.utcnow().isoformat(),
+                "query": query[:100],
+                "use_graph": use_graph
+            })
+            
+            # Try graph retrieval for complex queries
+            if use_graph:
+                graph_results = await self.lazy_graph_rag.retrieve(
+                    query=query,
+                    top_k=top_k,
+                    use_graph=True,
+                    expand_if_insufficient=True
+                )
+                
+                # Log sufficiency score
+                sufficiency = graph_results.get("sufficiency")
+                if sufficiency:
+                    self.lazy_graph_rag.log_sufficiency(query, sufficiency)
+                    self.reasoning_trace.append({
+                        "step": "retrieval_sufficiency",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "coverage": sufficiency.coverage,
+                        "redundancy": sufficiency.redundancy,
+                        "overall_score": sufficiency.overall_score,
+                        "is_sufficient": sufficiency.is_sufficient()
+                    })
+                
+                # If graph has good results, use them
+                if graph_results.get("chunks") and sufficiency and sufficiency.is_sufficient():
+                    return graph_results["chunks"]
+            
+            # Fall back to vector search
             from deepr.experts.embedding_cache import EmbeddingCache
 
             # Get or create embedding cache for this expert
@@ -303,6 +428,9 @@ Budget remaining: ${budget_remaining:.2f}
                         "documents_added": added,
                         "total_cached": len(cache.index)
                     })
+                    
+                    # Also index in LazyGraphRAG for future graph queries
+                    await self.lazy_graph_rag.index_documents(uncached)
 
             # Search using cached embeddings (single API call for query)
             results = await cache.search(query, self.client, top_k=top_k)
@@ -859,6 +987,41 @@ Budget remaining: ${budget_remaining:.2f}
                 status_callback(status)
 
         try:
+            # Check if query is complex enough for Tree of Thoughts reasoning
+            # ToT provides better answers for complex queries through hypothesis
+            # generation, claim verification, and self-correction
+            if self.should_use_tot(user_message):
+                self.thought_stream.emit(
+                    ThoughtType.PLAN_STEP,
+                    "Complex query detected, using advanced reasoning",
+                    private_payload={"query_length": len(user_message.split())}
+                )
+                
+                # Try ToT reasoning first
+                tot_result = await self._run_tot_reasoning(user_message, status_callback)
+                
+                # If ToT produced a good result, use it
+                if tot_result and "unable to generate" not in tot_result.lower():
+                    # Add to message history
+                    self.messages.append({"role": "user", "content": user_message})
+                    self.messages.append({"role": "assistant", "content": tot_result})
+                    
+                    # Emit final decision
+                    self.thought_stream.decision(
+                        decision_text="Response ready (via advanced reasoning)",
+                        confidence=0.85,
+                        reasoning="Used Tree of Thoughts for complex query"
+                    )
+                    
+                    return tot_result
+                
+                # Fall through to simple chat if ToT failed
+                self.thought_stream.emit(
+                    ThoughtType.PLAN_STEP,
+                    "Falling back to standard chat",
+                    private_payload={"reason": "ToT reasoning incomplete"}
+                )
+            
             # Define tools
             tools = [
                 {
@@ -954,6 +1117,18 @@ Budget remaining: ${budget_remaining:.2f}
                     "confidence": selected_model.confidence,
                     "reasoning_effort": selected_model.reasoning_effort
                 })
+                
+                # Emit thought about model selection
+                self.thought_stream.emit(
+                    ThoughtType.PLAN_STEP,
+                    f"Selected model: {selected_model.model}",
+                    private_payload={
+                        "provider": selected_model.provider,
+                        "cost_estimate": selected_model.cost_estimate,
+                        "reasoning_effort": selected_model.reasoning_effort
+                    },
+                    confidence=selected_model.confidence
+                )
 
             # Step 1: Ask model (may call search tool)
             # Note: GPT-5 only supports default temperature (1.0)
@@ -1003,9 +1178,20 @@ Budget remaining: ${budget_remaining:.2f}
                         top_k = args.get("top_k", 5)
                         reasoning = args.get("reasoning", "No reasoning provided")
 
-                        # Execute search
-                        report_status("Searching knowledge base...")
-                        search_results = await self._search_knowledge_base(query, top_k)
+                        # Emit thought about search
+                        with self.thought_stream.searching(query):
+                            # Execute search
+                            report_status("Searching knowledge base...")
+                            search_results = await self._search_knowledge_base(query, top_k)
+                            
+                            # Emit evidence found
+                            for result in search_results[:3]:  # Top 3 results
+                                if result.get("filename") != "SYSTEM_WARNING":
+                                    self.thought_stream.evidence(
+                                        source_id=result.get("filename", "unknown"),
+                                        summary=result.get("content", "")[:200],
+                                        relevance=result.get("score", 0.5)
+                                    )
 
                         # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
@@ -1065,6 +1251,13 @@ Budget remaining: ${budget_remaining:.2f}
 
                         # Increment research count for continuous learning trigger
                         self.research_count += 1
+                        
+                        # Emit thought about research
+                        self.thought_stream.tool_call(
+                            tool_name="standard_research",
+                            args={"query": query[:100]},
+                            result_summary="Searching web for current information"
+                        )
 
                         # Execute standard research
                         report_status("Searching web...")
@@ -1079,6 +1272,15 @@ Budget remaining: ${budget_remaining:.2f}
                             "mode": "standard_research",
                             "cost": result.get("cost", 0.0)
                         })
+                        
+                        # Emit result thought
+                        if "answer" in result:
+                            self.thought_stream.emit(
+                                ThoughtType.EVIDENCE_FOUND,
+                                f"Web search complete: found relevant information",
+                                private_payload={"answer_preview": result["answer"][:200]},
+                                confidence=0.8
+                            )
 
                         # Record learning after research completes
                         if self.metacognition and "answer" in result:
@@ -1108,6 +1310,13 @@ Budget remaining: ${budget_remaining:.2f}
 
                         # Increment research count for continuous learning trigger
                         self.research_count += 1
+                        
+                        # Emit thought about deep research
+                        self.thought_stream.tool_call(
+                            tool_name="deep_research",
+                            args={"query": query[:100]},
+                            result_summary="Submitting for deep analysis (5-20 min)"
+                        )
 
                         # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
@@ -1121,6 +1330,15 @@ Budget remaining: ${budget_remaining:.2f}
                         # Execute deep research (async submission)
                         report_status("Submitting deep research ($0.10-0.30, 5-20 min)...")
                         result = await self._deep_research(query)
+                        
+                        # Emit result thought
+                        if "job_id" in result:
+                            self.thought_stream.emit(
+                                ThoughtType.PLAN_STEP,
+                                f"Deep research submitted (job: {result['job_id'][:8]}...)",
+                                private_payload={"job_id": result["job_id"], "estimated_cost": result.get("estimated_cost")},
+                                confidence=0.9
+                            )
 
                         # Note: Learning will be recorded later when research completes
                         # Deep research runs asynchronously and takes 5-20 minutes
@@ -1185,9 +1403,44 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Add assistant response to history
             self.messages.append({"role": "assistant", "content": final_message})
+            
+            # Emit final decision thought
+            self.thought_stream.decision(
+                decision_text="Response ready",
+                confidence=0.9 if not any(
+                    phrase in final_message.lower() 
+                    for phrase in ["i don't know", "i'm not sure", "uncertain"]
+                ) else 0.5,
+                reasoning="Synthesized answer from available knowledge and research"
+            )
 
             # Increment conversation count for continuous learning
             self.conversation_count += 1
+            
+            # Record episode to hierarchical memory
+            reasoning_chain = [
+                ReasoningStep(
+                    step_type=trace.get("step", "unknown"),
+                    content=str(trace.get("query", trace.get("reasoning", "")))[:200],
+                    confidence=trace.get("confidence", 0.5),
+                    sources=trace.get("sources", [])
+                )
+                for trace in self.reasoning_trace[-5:]  # Last 5 reasoning steps
+            ]
+            
+            episode = Episode(
+                query=user_message,
+                response=final_message,
+                context_docs=[],  # Would be populated from search results
+                reasoning_chain=reasoning_chain,
+                user_id=self.user_id,
+                session_id=self.session_id
+            )
+            self.memory.add_episode(episode)
+            
+            # Update user profile if user tracking enabled
+            if self.user_id:
+                self.memory.update_user_profile(self.user_id, user_message)
 
             # Check if synthesis should be triggered (after N research operations)
             if self.should_trigger_synthesis():
@@ -1262,7 +1515,9 @@ Budget remaining: ${budget_remaining:.2f}
             "summary": self.get_session_summary(),
             "research_jobs": self.research_jobs,
             "agentic_mode": self.agentic,
-            "reasoning_trace": self.reasoning_trace  # Full audit trail for transparency
+            "reasoning_trace": self.reasoning_trace,  # Full audit trail for transparency
+            "thought_trace": self.thought_stream.get_trace(),  # Structured decision records
+            "thought_log_path": str(self.thought_stream.log_path)  # Path to JSONL log
         }
 
         with open(conversation_file, 'w', encoding='utf-8') as f:
@@ -1271,7 +1526,7 @@ Budget remaining: ${budget_remaining:.2f}
         return session_id
 
 
-async def start_chat_session(expert_name: str, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True) -> ExpertChatSession:
+async def start_chat_session(expert_name: str, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True, verbose: bool = False, quiet: bool = False) -> ExpertChatSession:
     """Start a new chat session with an expert.
 
     Args:
@@ -1279,6 +1534,8 @@ async def start_chat_session(expert_name: str, budget: Optional[float] = None, a
         budget: Optional budget limit for the session
         agentic: Enable agentic mode (expert can trigger research)
         enable_router: Enable dynamic model routing (Phase 3a)
+        verbose: Show detailed thinking in terminal
+        quiet: Hide all thinking (only final answers)
 
     Returns:
         ExpertChatSession instance
@@ -1289,4 +1546,4 @@ async def start_chat_session(expert_name: str, budget: Optional[float] = None, a
     if not expert:
         raise ValueError(f"Expert '{expert_name}' not found")
 
-    return ExpertChatSession(expert, budget, agentic, enable_router)
+    return ExpertChatSession(expert, budget, agentic, enable_router, verbose, quiet)
