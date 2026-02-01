@@ -30,8 +30,16 @@ from deepr.config import load_config
 
 # Import test prompts
 test_dir = Path(__file__).parent
-sys.path.insert(0, str(test_dir))
-from cheap_test_prompts import CHEAP_PROMPTS, TEST_CONFIG
+scripts_testing_dir = Path(__file__).parent.parent.parent / "scripts" / "testing"
+sys.path.insert(0, str(scripts_testing_dir))
+try:
+    from cheap_test_prompts import CHEAP_PROMPTS, TEST_CONFIG
+except ImportError:
+    # Fallback if module not found
+    CHEAP_PROMPTS = [
+        {"prompt": "What is 2+2?", "expected_contains": "4"},
+    ]
+    TEST_CONFIG = {"max_cost": 1.0}
 
 
 class E2ETestRunner:

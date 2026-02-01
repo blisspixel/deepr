@@ -20,11 +20,16 @@ from flask_limiter.util import get_remote_address
 
 # Import directly from the middleware module to avoid the deepr.api.__init__ import chain
 # which tries to import create_app that doesn't exist
-sys.path.insert(0, '.')
+from pathlib import Path
 import importlib.util
+
+# Get the correct path to the rate_limiter module
+project_root = Path(__file__).parent.parent.parent.parent
+rate_limiter_path = project_root / "deepr" / "api" / "middleware" / "rate_limiter.py"
+
 spec = importlib.util.spec_from_file_location(
     "rate_limiter", 
-    "deepr/api/middleware/rate_limiter.py"
+    str(rate_limiter_path)
 )
 rate_limiter_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rate_limiter_module)
