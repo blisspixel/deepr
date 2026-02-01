@@ -149,7 +149,11 @@ class OpenAIProvider(DeepResearchProvider):
                     request.model = fallback_model
                     continue
                 else:
-                    raise ProviderError(f"Failed after {max_retries} retries: {e}")
+                    raise ProviderError(
+                        message=f"Failed after {max_retries} retries: {e}",
+                        provider="openai",
+                        original_error=e,
+                    )
 
             except Exception as e:
                 # Non-retryable errors
