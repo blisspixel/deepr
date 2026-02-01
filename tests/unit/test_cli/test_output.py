@@ -1210,6 +1210,7 @@ class TestOutputFormatterErrorMethod:
 
 
 # Import for Click decorator tests
+import click
 from click.testing import CliRunner
 from deepr.cli.output import output_options
 
