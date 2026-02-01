@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from .base import StorageBackend, ReportMetadata, StorageError
+from deepr.utils.security import (
+    validate_path,
+    sanitize_name,
+    PathTraversalError,
+    InvalidInputError
+)
 
 
 class LocalStorage(StorageBackend):
@@ -26,6 +32,54 @@ class LocalStorage(StorageBackend):
         # Create campaigns subdirectory for multi-phase campaigns
         self.campaigns_path = self.base_path / "campaigns"
         self.campaigns_path.mkdir(parents=True, exist_ok=True)
+
+    def _validate_job_id(self, job_id: str) -> str:
+        """Validate job_id format and content.
+
+        Args:
+            job_id: User-provided job identifier
+
+        Returns:
+            Validated job_id
+
+        Raises:
+            StorageError: If job_id is invalid or contains traversal sequences
+        """
+        try:
+            # Check for path traversal patterns
+            if '..' in job_id or '/' in job_id or '\\' in job_id:
+                raise PathTraversalError(
+                    f"Invalid job_id contains path traversal: {job_id}"
+                )
+            # Validate format (alphanumeric, hyphens, underscores)
+            sanitized = sanitize_name(job_id, allowed_chars=r'a-zA-Z0-9_-')
+            return sanitized
+        except (PathTraversalError, InvalidInputError) as e:
+            raise StorageError(
+                message=f"Invalid job_id: {str(e)}",
+                storage_type="local",
+                original_error=e
+            )
+
+    def _validate_filename(self, filename: str) -> str:
+        """Validate filename has no directory components.
+
+        Args:
+            filename: User-provided filename
+
+        Returns:
+            Validated filename
+
+        Raises:
+            StorageError: If filename contains directory separators
+        """
+        if '/' in filename or '\\' in filename or '..' in filename:
+            raise StorageError(
+                message=f"Invalid filename contains path components: {filename}",
+                storage_type="local",
+                original_error=None
+            )
+        return filename
 
     def _create_readable_dirname(self, job_id: str, prompt: str, is_campaign: bool = False) -> str:
         """
@@ -73,46 +127,104 @@ class LocalStorage(StorageBackend):
 
     def _get_job_dir(self, job_id: str) -> Path:
         """
-        Get directory path for a specific job.
+        Get directory path for a specific job with validation.
 
         Supports both legacy job_id lookup and new human-readable names.
-        """
-        # First, check if this is already a full path (for new format)
-        if job_id.startswith(str(self.base_path)):
-            return Path(job_id)
+        Validates job_id and ensures the resolved path remains within base_path.
 
+        Args:
+            job_id: User-provided job identifier
+
+        Returns:
+            Path to the job directory
+
+        Raises:
+            StorageError: If job_id is invalid or path escapes base directory
+        """
+        # Validate job_id at method entry
+        validated_id = self._validate_job_id(job_id)
+
+        # First, check if this is already a full path (for new format)
+        if validated_id.startswith(str(self.base_path)):
+            job_dir = Path(validated_id)
         # Check campaigns folder first (for campaign-* IDs)
-        if job_id.startswith('campaign-'):
+        elif validated_id.startswith('campaign-'):
+            job_dir = None
             # Look in campaigns folder for matching directory
             if self.campaigns_path.exists():
                 for dir_path in self.campaigns_path.iterdir():
-                    if dir_path.is_dir() and job_id in dir_path.name:
-                        return dir_path
+                    if dir_path.is_dir() and validated_id in dir_path.name:
+                        job_dir = dir_path
+                        break
             # Fallback to direct path
-            return self.campaigns_path / job_id
+            if job_dir is None:
+                job_dir = self.campaigns_path / validated_id
+        else:
+            # For regular UUIDs, search ALL possible locations before falling back
+            # Check for human-readable directory containing job_id OR short_id
+            short_id = validated_id.split('-')[-1][:8] if '-' in validated_id else validated_id[:8]
+            job_dir = None
 
-        # For regular UUIDs, search ALL possible locations before falling back
-        # Check for human-readable directory containing job_id OR short_id
-        short_id = job_id.split('-')[-1][:8] if '-' in job_id else job_id[:8]
+            if self.base_path.exists():
+                for dir_path in self.base_path.iterdir():
+                    if dir_path.is_dir() and dir_path.name != 'campaigns':
+                        # Match full job_id or short_id in directory name
+                        if validated_id in dir_path.name or short_id in dir_path.name:
+                            job_dir = dir_path
+                            break
 
-        if self.base_path.exists():
-            for dir_path in self.base_path.iterdir():
-                if dir_path.is_dir() and dir_path.name != 'campaigns':
-                    # Match full job_id or short_id in directory name
-                    if job_id in dir_path.name or short_id in dir_path.name:
-                        return dir_path
+            if job_dir is None:
+                # Try direct match (legacy format) as fallback
+                direct_path = self.base_path / validated_id
+                if direct_path.exists():
+                    job_dir = direct_path
+                else:
+                    # If not found anywhere, return the job_id as-is (will be created on save)
+                    job_dir = self.base_path / validated_id
 
-        # Try direct match (legacy format) as fallback
-        direct_path = self.base_path / job_id
-        if direct_path.exists():
-            return direct_path
+        # Final validation: ensure path is within base_path
+        try:
+            resolved = job_dir.resolve()
+            resolved.relative_to(self.base_path.resolve())
+        except ValueError:
+            raise StorageError(
+                message=f"Path escapes base directory: {job_id}",
+                storage_type="local",
+                original_error=PathTraversalError(f"Path escape: {job_dir}")
+            )
 
-        # If not found anywhere, return the job_id as-is (will be created on save)
-        return self.base_path / job_id
+        return job_dir
 
     def _get_report_path(self, job_id: str, filename: str) -> Path:
-        """Get full path for a specific report file."""
-        return self._get_job_dir(job_id) / filename
+        """Get full path for a specific report file with validation.
+
+        Args:
+            job_id: User-provided job identifier
+            filename: User-provided filename
+
+        Returns:
+            Path to the report file
+
+        Raises:
+            StorageError: If filename is invalid or path escapes base directory
+        """
+        validated_filename = self._validate_filename(filename)
+        job_dir = self._get_job_dir(job_id)  # Already validated
+
+        full_path = job_dir / validated_filename
+
+        # Final validation: ensure path is within base_path
+        try:
+            resolved = full_path.resolve()
+            resolved.relative_to(self.base_path.resolve())
+        except ValueError:
+            raise StorageError(
+                message=f"Report path escapes base directory",
+                storage_type="local",
+                original_error=None
+            )
+
+        return full_path
 
     async def save_report(
         self,
