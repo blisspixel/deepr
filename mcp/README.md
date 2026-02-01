@@ -55,6 +55,35 @@ You should see 7 Deepr tools available.
 | `deepr_query_expert` | Ask an expert | `expert_name`, `question`, `agentic` |
 | `deepr_get_expert_info` | Get expert details | `expert_name` |
 
+### Expert Tool Usage
+
+**List Available Experts:**
+```
+User: "What domain experts are available in Deepr?"
+Claude: Uses deepr_list_experts() to show all experts with their domains and knowledge counts.
+```
+
+**Query an Expert:**
+```
+User: "Ask the AWS expert about Lambda cold start optimization"
+Claude: Uses deepr_query_expert(expert_name="AWS Expert", question="...", agentic=false)
+Returns: Answer with confidence score, sources, and cost.
+```
+
+**Agentic Expert Query (with research):**
+```
+User: "Ask the AWS expert about the latest Lambda features, and have it research if needed"
+Claude: Uses deepr_query_expert(expert_name="AWS Expert", question="...", agentic=true, budget=5.0)
+Returns: Answer that may include newly researched information.
+```
+
+**Get Expert Details:**
+```
+User: "Tell me about the quantum computing expert"
+Claude: Uses deepr_get_expert_info(expert_name="Quantum Expert")
+Returns: Domain, knowledge count, beliefs, last updated, and capabilities.
+```
+
 ---
 
 ## Usage Examples
