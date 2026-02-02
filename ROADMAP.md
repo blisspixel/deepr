@@ -78,25 +78,26 @@
 
 **What exists:** TraceContext, Span, MetadataEmitter, ThoughtStream infrastructure
 
-#### 4.1 CLI Flags for Trace Visibility
-- [ ] Add `--explain` flag to `deepr research`
-  - [ ] Create `ExplainFormatter` class in `cli/output.py`
-  - [ ] Collect decision points during research execution
-  - [ ] Format as bullet list: "Used GPT-5.2 because: cost < $1, task=planning"
-  - [ ] Show at end of command, before result path
-- [ ] Add `--timeline` flag
-  - [ ] Create `TimelineFormatter` class
-  - [ ] Track start/end timestamps for each phase
-  - [ ] Format: `[00:00] Planning (2.3s) → [00:02] Searching (45.1s) → ...`
-  - [ ] Include cost per phase in timeline
-- [ ] Add `--full-trace` flag
-  - [ ] Dump complete trace to `reports/{job_id}/trace.json`
-  - [ ] Include all spans, metadata, token counts
-  - [ ] Add `--trace-output <path>` for custom location
-- [ ] Wire flags through to MetadataEmitter in `cli/commands/run.py`
-  - [ ] Add flags to Click command decorator
-  - [ ] Pass flags to research orchestrator
-  - [ ] Ensure backward compatibility (no flags = current behavior)
+#### 4.1 CLI Flags for Trace Visibility (DONE)
+- [x] Add `--explain` flag to `deepr research` and `deepr run focus`
+  - [x] `_show_trace_explain()` shows task hierarchy with model/cost reasoning
+  - [x] Collect decision points via MetadataEmitter spans during research execution
+  - [x] Format as bullet list: "Used o4-mini via openai, cost $0.10"
+  - [x] Show at end of command, after result
+- [x] Add `--timeline` flag
+  - [x] `_show_trace_timeline()` renders Rich table with offset, task, status, duration, cost
+  - [x] Track start/end timestamps for each phase via MetadataEmitter
+  - [x] Format: `[0s] research_job → [1s] provider_submit → ...`
+  - [x] Include cost per phase and cost breakdown by type
+- [x] Add `--full-trace` flag
+  - [x] Dump complete trace to `data/traces/{job_id}_trace.json`
+  - [x] Include all spans, metadata, token counts
+  - [x] `deepr research trace <id>` also available for post-hoc viewing
+- [x] Wire flags through to MetadataEmitter in `cli/commands/run.py`
+  - [x] `TraceFlags` dataclass with `any_enabled` property
+  - [x] Added to `focus` and `research` Click command decorators
+  - [x] Passed through to `_run_single()` → `_submit_to_provider()` → `_handle_immediate_job()`
+  - [x] Backward compatible (no flags = current behavior, traces always saved for later viewing)
 
 #### 4.2 Auto-Generated Metadata
 - [ ] Instrument `core/research.py` to emit spans
@@ -276,11 +277,13 @@
 
 **Problem:** Current CLI feels like 2020 - wall of text output, no interactivity, no streaming.
 
-#### 7.1 Minimal Default Output
-- [ ] Default to quiet mode: `✓ Research complete (2m 15s, $0.42) → reports/abc123/`
-- [ ] Move current verbose output to `--verbose` flag
-- [ ] Add `--json` flag for machine-readable output (for scripting/piping)
-- [ ] Add `--quiet` flag for zero output except errors
+#### 7.1 Minimal Default Output ✅ DONE
+- [x] Default to quiet mode: `✓ Research complete (2m 15s, $0.42) → reports/abc123/`
+- [x] Move current verbose output to `--verbose` flag
+- [x] Add `--json` flag for machine-readable output (for scripting/piping)
+- [x] Add `--quiet` flag for zero output except errors
+
+> **Implemented:** `OutputMode` enum (MINIMAL/VERBOSE/JSON/QUIET), `OutputContext`, `OutputFormatter`, and `@output_options` decorator in `deepr/cli/output.py`. All main commands (`focus`, `docs`, `research`) use `@output_options`. Conflicting flags (e.g. `--json --quiet`) are rejected.
 
 #### 7.2 Interactive Mode
 - [ ] `deepr` with no args → interactive menu using `questionary` or `InquirerPy`
@@ -312,12 +315,14 @@
 - [ ] Add `deepr config` for settings (budget, default provider, etc.)
 - [ ] Update all documentation to reflect simplified commands
 
-#### 7.6 Output Improvements
-- [ ] Remove `======` separator walls
-- [ ] Use subtle dividers (single line, dim color)
+#### 7.6 Output Improvements (partial) ✅
+- [x] Remove `======` separator walls
+- [x] Use subtle dividers (single line, dim color)
 - [ ] Consistent key-value formatting across all commands
 - [ ] Truncate long outputs with "... (use --full to see all)"
 - [ ] Hyperlinks to reports in terminals that support them (iTerm2, Windows Terminal)
+
+> **Implemented:** `_show_research_header()` modernized with `─` dividers and Rich formatting. Trace display functions (`_show_trace_explain`, `_show_trace_timeline`) use Rich Tables and Panels.
 
 ---
 
