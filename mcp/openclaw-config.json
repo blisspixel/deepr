@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "deepr-research": {
+      "command": "python",
+      "args": ["-m", "deepr.mcp.server"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "XAI_API_KEY": "${XAI_API_KEY}",
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "AZURE_OPENAI_API_KEY": "${AZURE_OPENAI_API_KEY}",
+        "DEEPR_LOG_LEVEL": "INFO",
+        "DEEPR_LOG_FORMAT": "json"
+      },
+      "autoAllow": [
+        "deepr_tool_search",
+        "deepr_status",
+        "deepr_list_experts",
+        "deepr_get_expert_info",
+        "deepr_check_status",
+        "deepr_get_result"
+      ]
+    }
+  }
+}
