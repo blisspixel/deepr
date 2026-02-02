@@ -52,8 +52,8 @@ class TestMCPResourceHandler:
     """Test MCPResourceHandler functionality."""
     
     @pytest.fixture
-    def handler(self):
-        return MCPResourceHandler()
+    def handler(self, tmp_path):
+        return MCPResourceHandler(reports_base=tmp_path / "reports", db_path=False)
     
     @pytest.mark.asyncio
     async def test_read_campaign_status(self, handler):
@@ -281,7 +281,7 @@ class TestPropertyBased:
         """
         assume(job_id.strip())
         
-        handler = MCPResourceHandler()
+        handler = MCPResourceHandler(db_path=False)
         await handler.jobs.create_job(job_id=job_id, goal="Test")
         
         # All three resources should be readable
@@ -302,7 +302,7 @@ class TestPropertyBased:
         """
         assume(expert_id.strip())
         
-        handler = MCPResourceHandler()
+        handler = MCPResourceHandler(db_path=False)
         handler.experts.register_expert(
             expert_id=expert_id,
             name="Test",
@@ -329,9 +329,81 @@ class TestPropertyBased:
         """
         assume(job_id.strip())
         
-        handler = MCPResourceHandler()
+        handler = MCPResourceHandler(db_path=False)
         uris = handler.get_resource_uri_for_job(job_id)
-        
+
         assert job_id in uris["status"]
         assert job_id in uris["plan"]
         assert job_id in uris["beliefs"]
+
+
+class TestPersistenceIntegration:
+    """Test persistence wiring in MCPResourceHandler."""
+
+    @pytest.fixture
+    def handler_with_db(self, tmp_path):
+        return MCPResourceHandler(
+            reports_base=tmp_path / "reports",
+            db_path=tmp_path / "test_jobs.db",
+        )
+
+    def test_persistence_enabled(self, handler_with_db):
+        """Handler should have persistence when db_path provided."""
+        assert handler_with_db.persistence is not None
+
+    def test_persistence_disabled(self, tmp_path):
+        """Handler should skip persistence when db_path=False."""
+        handler = MCPResourceHandler(reports_base=tmp_path / "reports", db_path=False)
+        assert handler.persistence is None
+
+    @pytest.mark.asyncio
+    async def test_persist_job_saves_to_db(self, handler_with_db):
+        """persist_job should save state to SQLite."""
+        await handler_with_db.jobs.create_job(
+            job_id="persist_test", goal="Test persistence"
+        )
+        handler_with_db.persist_job("persist_test")
+
+        # Verify in DB
+        result = handler_with_db.persistence.load_job("persist_test")
+        assert result is not None
+        state, plan, beliefs = result
+        assert state.job_id == "persist_test"
+        assert plan.goal == "Test persistence"
+
+    @pytest.mark.asyncio
+    async def test_restore_jobs_on_init(self, tmp_path):
+        """Jobs should be restored from SQLite on handler creation."""
+        db_path = tmp_path / "restore_test.db"
+        reports_base = tmp_path / "reports"
+
+        # First handler: create and persist a job
+        h1 = MCPResourceHandler(reports_base=reports_base, db_path=db_path)
+        await h1.jobs.create_job(job_id="survive_restart", goal="Survive")
+        await h1.jobs.update_phase("survive_restart", JobPhase.COMPLETED, progress=1.0)
+        h1.persist_job("survive_restart")
+
+        # Second handler: simulates restart
+        h2 = MCPResourceHandler(reports_base=reports_base, db_path=db_path)
+        state = h2.jobs.get_state("survive_restart")
+        assert state is not None
+        assert state.phase == JobPhase.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_incomplete_jobs_marked_failed_on_restart(self, tmp_path):
+        """Incomplete jobs should be marked failed when handler restarts."""
+        db_path = tmp_path / "restart_test.db"
+        reports_base = tmp_path / "reports"
+
+        # First handler: create an executing job
+        h1 = MCPResourceHandler(reports_base=reports_base, db_path=db_path)
+        await h1.jobs.create_job(job_id="was_running", goal="Running")
+        await h1.jobs.update_phase("was_running", JobPhase.EXECUTING)
+        h1.persist_job("was_running")
+
+        # Second handler: simulates restart
+        h2 = MCPResourceHandler(reports_base=reports_base, db_path=db_path)
+        state = h2.jobs.get_state("was_running")
+        assert state is not None
+        assert state.phase == JobPhase.FAILED
+        assert "restart" in state.error.lower()

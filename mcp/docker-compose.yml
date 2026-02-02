@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  deepr-mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: deepr-mcp
+    # Stdio transport: stdin/stdout for MCP communication
+    stdin_open: true
+    tty: false
+    # Environment: API keys via .env file
+    env_file:
+      - ../.env
+    environment:
+      - DEEPR_LOG_LEVEL=INFO
+      - DEEPR_LOG_FORMAT=json
+    # Volume: only workspace data, not host filesystem
+    volumes:
+      - deepr-data:/app/data
+    # Network: bridge mode (no host network access)
+    networks:
+      - deepr-net
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+volumes:
+  deepr-data:
+    driver: local
+
+networks:
+  deepr-net:
+    driver: bridge

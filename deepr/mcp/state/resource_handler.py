@@ -1,16 +1,35 @@
 """
 MCP Resource Handler.
 
-Integrates subscriptions, job management, and expert resources
-into a unified resource handling interface for the MCP server.
+Integrates subscriptions, job management, expert resources,
+and report/log artifacts into a unified resource handling
+interface for the MCP server.
+
+Supported resource URI schemes:
+    deepr://campaigns/{id}/status
+    deepr://campaigns/{id}/plan
+    deepr://campaigns/{id}/beliefs
+    deepr://reports/{id}/final.md
+    deepr://reports/{id}/summary.json
+    deepr://logs/{id}/search_trace.json
+    deepr://logs/{id}/decisions.md
+    deepr://experts/{id}/profile
+    deepr://experts/{id}/beliefs
+    deepr://experts/{id}/gaps
 """
 
+import json
+import logging
+from pathlib import Path
 from typing import Optional, Any
 from dataclasses import dataclass
 
 from .subscriptions import SubscriptionManager, parse_resource_uri
 from .job_manager import JobManager, JobPhase
 from .expert_resources import ExpertResourceManager
+from .persistence import JobPersistence
+
+logger = logging.getLogger("deepr.mcp.resources")
 
 
 @dataclass
@@ -29,19 +48,83 @@ class ResourceResponse:
 class MCPResourceHandler:
     """
     Unified handler for MCP resources.
-    
+
     Provides a single interface for:
     - Reading campaign resources (status, plan, beliefs)
+    - Reading report artifacts (final.md, summary.json)
+    - Reading log artifacts (search_trace.json, decisions.md)
     - Reading expert resources (profile, beliefs, gaps)
     - Managing subscriptions
     - Emitting updates
     """
-    
-    def __init__(self):
+
+    # Base path for reports on disk (relative to project root)
+    REPORTS_BASE = Path("data/reports")
+
+    def __init__(self, reports_base: Optional[Path] = None, db_path: Optional[Path] = None):
         self._subscriptions = SubscriptionManager()
         self._jobs = JobManager(self._subscriptions)
         self._experts = ExpertResourceManager()
+        self._reports_base = reports_base or self.REPORTS_BASE
+
+        # SQLite persistence: survives server restarts
+        self._persistence: Optional[JobPersistence] = None
+        if db_path is not False:  # False disables persistence (for tests)
+            try:
+                self._persistence = JobPersistence(db_path=db_path)
+                self._restore_jobs_from_db()
+            except Exception as e:
+                logger.warning("Job persistence unavailable: %s", e)
+                self._persistence = None
     
+    def _restore_jobs_from_db(self) -> None:
+        """Restore job state from SQLite on startup and mark incomplete jobs as failed."""
+        if not self._persistence:
+            return
+
+        failed_count = self._persistence.mark_incomplete_as_failed()
+        if failed_count:
+            logger.info("Marked %d incomplete jobs as failed after restart", failed_count)
+
+        for state in self._persistence.list_jobs():
+            self._jobs._jobs[state.job_id] = state
+            result = self._persistence.load_job(state.job_id)
+            if result:
+                _, plan, beliefs = result
+                if plan:
+                    self._jobs._plans[state.job_id] = plan
+                if beliefs:
+                    self._jobs._beliefs[state.job_id] = beliefs
+
+        restored = len(self._jobs._jobs)
+        if restored:
+            logger.info("Restored %d jobs from persistence", restored)
+
+    def persist_job(self, job_id: str) -> None:
+        """Persist current job state to SQLite.
+
+        Call this after create_job, update_phase, add_belief, update_plan.
+        """
+        if not self._persistence:
+            return
+
+        state = self._jobs.get_state(job_id)
+        if not state:
+            return
+
+        plan = self._jobs.get_plan(job_id)
+        beliefs = self._jobs.get_beliefs(job_id)
+
+        try:
+            self._persistence.save_job(state, plan=plan, beliefs=beliefs)
+        except Exception as e:
+            logger.warning("Failed to persist job %s: %s", job_id, e)
+
+    @property
+    def persistence(self) -> Optional[JobPersistence]:
+        """Access persistence layer (may be None if disabled)."""
+        return self._persistence
+
     @property
     def subscriptions(self) -> SubscriptionManager:
         """Access subscription manager."""
@@ -80,7 +163,11 @@ class MCPResourceHandler:
             return self._read_campaign_resource(parsed.resource_id, parsed.subresource, uri)
         elif parsed.resource_type == "experts":
             return self._read_expert_resource(parsed.resource_id, parsed.subresource, uri)
-        
+        elif parsed.resource_type == "reports":
+            return self._read_report_resource(parsed.resource_id, parsed.subresource, uri)
+        elif parsed.resource_type == "logs":
+            return self._read_log_resource(parsed.resource_id, parsed.subresource, uri)
+
         return ResourceResponse(
             uri=uri,
             data=None,
@@ -118,6 +205,99 @@ class MCPResourceHandler:
             error=f"Unknown campaign subresource: {subresource}"
         )
     
+    def _read_report_resource(
+        self,
+        job_id: str,
+        subresource: str,
+        uri: str,
+    ) -> ResourceResponse:
+        """Read a report artifact from disk.
+
+        Supported subresources:
+            final.md - Full research report (markdown)
+            summary.json - Report metadata (cost, model, sources)
+        """
+        job_dir = self._reports_base / job_id
+
+        if subresource == "final.md":
+            # Try common report filenames
+            for name in ("final_report.md", "report.md", "output.md"):
+                path = job_dir / name
+                if path.exists():
+                    try:
+                        content = path.read_text(encoding="utf-8")
+                        return ResourceResponse(
+                            uri=uri,
+                            data={"content": content, "format": "markdown"},
+                        )
+                    except Exception as e:
+                        return ResourceResponse(uri=uri, data=None, error=str(e))
+            return ResourceResponse(
+                uri=uri, data=None, error=f"Report not found for job: {job_id}"
+            )
+
+        elif subresource == "summary.json":
+            for name in ("metadata.json", "summary.json"):
+                path = job_dir / name
+                if path.exists():
+                    try:
+                        data = json.loads(path.read_text(encoding="utf-8"))
+                        return ResourceResponse(uri=uri, data=data)
+                    except Exception as e:
+                        return ResourceResponse(uri=uri, data=None, error=str(e))
+            # Fallback: build summary from job state
+            state = self._jobs.get_state(job_id)
+            if state:
+                return ResourceResponse(uri=uri, data=state.to_dict())
+            return ResourceResponse(
+                uri=uri, data=None, error=f"Summary not found for job: {job_id}"
+            )
+
+        return ResourceResponse(
+            uri=uri, data=None, error=f"Unknown report subresource: {subresource}"
+        )
+
+    def _read_log_resource(
+        self,
+        job_id: str,
+        subresource: str,
+        uri: str,
+    ) -> ResourceResponse:
+        """Read a log artifact from disk.
+
+        Supported subresources:
+            search_trace.json - Search queries and results for provenance
+            decisions.md - Human-readable decision log
+        """
+        job_dir = self._reports_base / job_id
+
+        file_map = {
+            "search_trace.json": ("search_trace.json", "trace.json"),
+            "decisions.md": ("decisions.md",),
+        }
+        candidates = file_map.get(subresource)
+        if not candidates:
+            return ResourceResponse(
+                uri=uri, data=None, error=f"Unknown log subresource: {subresource}"
+            )
+
+        for name in candidates:
+            path = job_dir / name
+            if path.exists():
+                try:
+                    raw = path.read_text(encoding="utf-8")
+                    if name.endswith(".json"):
+                        return ResourceResponse(uri=uri, data=json.loads(raw))
+                    return ResourceResponse(
+                        uri=uri, data={"content": raw, "format": "markdown"}
+                    )
+                except Exception as e:
+                    return ResourceResponse(uri=uri, data=None, error=str(e))
+
+        return ResourceResponse(
+            uri=uri, data=None, error=f"Log '{subresource}' not found for job: {job_id}"
+        )
+
     def _read_expert_resource(
         self,
         expert_id: str,
@@ -139,15 +319,15 @@ class MCPResourceHandler:
     def list_resources(self, resource_type: Optional[str] = None) -> list[str]:
         """
         List available resource URIs.
-        
+
         Args:
-            resource_type: Optional filter ("campaigns" or "experts")
-        
+            resource_type: Optional filter ("campaigns", "experts", "reports", "logs")
+
         Returns:
             List of resource URIs
         """
         uris = []
-        
+
         if resource_type is None or resource_type == "campaigns":
             for job in self._jobs.list_jobs():
                 uris.extend([
@@ -155,7 +335,34 @@ class MCPResourceHandler:
                     f"deepr://campaigns/{job.job_id}/plan",
                     f"deepr://campaigns/{job.job_id}/beliefs",
                 ])
-        
+
+        if resource_type is None or resource_type == "reports":
+            # Scan reports directory for job IDs with report files
+            if self._reports_base.exists():
+                for job_dir in self._reports_base.iterdir():
+                    if job_dir.is_dir():
+                        jid = job_dir.name
+                        for name in ("final_report.md", "report.md", "output.md"):
+                            if (job_dir / name).exists():
+                                uris.append(f"deepr://reports/{jid}/final.md")
+                                break
+                        for name in ("metadata.json", "summary.json"):
+                            if (job_dir / name).exists():
+                                uris.append(f"deepr://reports/{jid}/summary.json")
+                                break
+
+        if resource_type is None or resource_type == "logs":
+            if self._reports_base.exists():
+                for job_dir in self._reports_base.iterdir():
+                    if job_dir.is_dir():
+                        jid = job_dir.name
+                        for name in ("search_trace.json", "trace.json"):
+                            if (job_dir / name).exists():
+                                uris.append(f"deepr://logs/{jid}/search_trace.json")
+                                break
+                        if (job_dir / "decisions.md").exists():
+                            uris.append(f"deepr://logs/{jid}/decisions.md")
+
         if resource_type is None or resource_type == "experts":
             for expert in self._experts.list_experts():
                 uris.extend([
@@ -163,7 +370,7 @@ class MCPResourceHandler:
                     f"deepr://experts/{expert.expert_id}/beliefs",
                     f"deepr://experts/{expert.expert_id}/gaps",
                 ])
-        
+
         return uris
     
     async def handle_subscribe(

@@ -294,106 +294,152 @@ def create_default_registry() -> ToolRegistry:
     # Research tools
     registry.register(ToolSchema(
         name="deepr_research",
-        description="Submit a deep research job. Use for comprehensive analysis requiring web search and synthesis. Returns job_id for status tracking.",
+        description=(
+            "Submit a deep research job for comprehensive analysis requiring web search "
+            "and synthesis. Returns job_id for async status tracking and resource URIs for "
+            "subscriptions. Costs $0.10-$0.50. Do NOT use for simple factual lookups -- "
+            "use web search instead. Example: deepr_research(prompt='Compare HIPAA vs GDPR "
+            "data retention requirements')"
+        ),
         input_schema={
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "Research question or topic"},
-                "model": {"type": "string", "default": "o4-mini", "description": "Model: o4-mini (fast), o3 (premium)"},
+                "prompt": {
+                    "type": "string",
+                    "description": "Research question or topic. Be specific (e.g., 'Impact of Basel III on crypto') rather than generic.",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "o4-mini-deep-research",
+                    "description": "Model: o4-mini-deep-research ($0.15, fast), o3-deep-research ($0.50, premium)",
+                },
+                "provider": {
+                    "type": "string",
+                    "default": "openai",
+                    "description": "Provider: openai, azure, gemini, grok",
+                },
                 "budget": {"type": "number", "description": "Maximum cost in dollars"},
-                "enable_web_search": {"type": "boolean", "default": True}
+                "enable_web_search": {"type": "boolean", "default": True},
             },
-            "required": ["prompt"]
+            "required": ["prompt"],
         },
         category="research",
-        cost_tier="medium"
+        cost_tier="medium",
     ))
-    
+
     registry.register(ToolSchema(
         name="deepr_check_status",
-        description="Check status of a research job. Returns progress, elapsed time, and cost so far.",
+        description=(
+            "Check progress of a research job. Returns phase, progress percentage, "
+            "elapsed time, and cost so far. Prefer subscribing to "
+            "deepr://campaigns/{id}/status for push updates instead of polling."
+        ),
         input_schema={
             "type": "object",
             "properties": {
-                "job_id": {"type": "string", "description": "Job ID from deepr_research"}
+                "job_id": {"type": "string", "description": "Job ID from deepr_research or deepr_agentic_research"},
             },
-            "required": ["job_id"]
+            "required": ["job_id"],
         },
         category="research",
-        cost_tier="free"
+        cost_tier="free",
     ))
-    
+
     registry.register(ToolSchema(
         name="deepr_get_result",
-        description="Get results of a completed research job. Returns markdown report with citations.",
+        description=(
+            "Get results of a completed research job. Returns markdown report with "
+            "citations, cost, and metadata. Only call after deepr_check_status confirms "
+            "status is 'completed'. For large reports, returns summary + resource URI."
+        ),
         input_schema={
             "type": "object",
             "properties": {
-                "job_id": {"type": "string", "description": "Job ID from deepr_research"}
+                "job_id": {"type": "string", "description": "Job ID from deepr_research"},
             },
-            "required": ["job_id"]
+            "required": ["job_id"],
         },
         category="research",
-        cost_tier="free"
+        cost_tier="free",
     ))
-    
+
     # Expert tools
     registry.register(ToolSchema(
         name="deepr_list_experts",
-        description="List all available domain experts. Returns name, domain, and document count for each.",
+        description=(
+            "List all available domain experts with name, domain, document count, "
+            "and conversation count. Use this before querying to find the right expert."
+        ),
         input_schema={
             "type": "object",
-            "properties": {}
+            "properties": {},
         },
         category="experts",
-        cost_tier="free"
+        cost_tier="free",
     ))
-    
+
     registry.register(ToolSchema(
         name="deepr_query_expert",
-        description="Query a domain expert with a question. Expert answers from their knowledge base with citations.",
+        description=(
+            "Query a domain expert with a question. Expert answers from their "
+            "knowledge base with citations and confidence levels. For questions "
+            "outside the expert's knowledge, enable agentic=true to let the expert "
+            "trigger new research. Do NOT use for current events or news."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "expert_name": {"type": "string", "description": "Name of the expert (from deepr_list_experts)"},
+                "question": {"type": "string", "description": "Question to ask the expert"},
+                "agentic": {"type": "boolean", "default": False, "description": "Enable autonomous research if expert lacks knowledge"},
+                "budget": {"type": "number", "default": 0.0, "description": "Budget for agentic research (only used if agentic=true)"},
+            },
+            "required": ["expert_name", "question"],
+        },
+        category="experts",
+        cost_tier="low",
+    ))
+
+    registry.register(ToolSchema(
+        name="deepr_get_expert_info",
+        description=(
+            "Get detailed information about an expert including document count, "
+            "conversation stats, knowledge gaps, and capabilities. Use to assess "
+            "if an expert is suitable before querying."
+        ),
         input_schema={
             "type": "object",
             "properties": {
                 "expert_name": {"type": "string", "description": "Name of the expert"},
-                "question": {"type": "string", "description": "Question to ask"},
-                "agentic": {"type": "boolean", "default": False, "description": "Enable autonomous research"}
             },
-            "required": ["expert_name", "question"]
+            "required": ["expert_name"],
         },
         category="experts",
-        cost_tier="low"
+        cost_tier="free",
     ))
-    
-    registry.register(ToolSchema(
-        name="deepr_get_expert_info",
-        description="Get detailed information about an expert including stats, knowledge gaps, and capabilities.",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "expert_name": {"type": "string", "description": "Name of the expert"}
-            },
-            "required": ["expert_name"]
-        },
-        category="experts",
-        cost_tier="free"
-    ))
-    
+
     # Agentic tools
     registry.register(ToolSchema(
         name="deepr_agentic_research",
-        description="Start autonomous multi-step research workflow. Expert autonomously conducts research to achieve goal.",
+        description=(
+            "Start autonomous multi-step research workflow with Plan-Execute-Review "
+            "cycles. An expert autonomously decomposes goals, conducts research, and "
+            "synthesizes findings. Costs $1-$10. Requires an existing expert. "
+            "Always confirm budget with user before calling. "
+            "Example: deepr_agentic_research(goal='Evaluate database options for "
+            "our recommendation engine', expert_name='Tech Architect', budget=5.0)"
+        ),
         input_schema={
             "type": "object",
             "properties": {
-                "goal": {"type": "string", "description": "High-level research goal"},
-                "expert_name": {"type": "string", "description": "Expert to use for reasoning"},
-                "budget": {"type": "number", "default": 5.0, "description": "Total budget for workflow"}
+                "goal": {"type": "string", "description": "High-level research goal. Be specific about the desired outcome."},
+                "expert_name": {"type": "string", "description": "Expert to use for reasoning (required). See deepr_list_experts."},
+                "budget": {"type": "number", "default": 5.0, "description": "Total budget for workflow ($1-$10)"},
             },
-            "required": ["goal"]
+            "required": ["goal"],
         },
         category="agentic",
-        cost_tier="high"
+        cost_tier="high",
     ))
     
     return registry
