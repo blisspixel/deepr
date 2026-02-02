@@ -10,7 +10,7 @@ Deep research from your terminal. Submit a question, get back a cited report in 
 deepr research "PostgreSQL connection pooling strategies for high-traffic applications"
 ```
 
-Uses OpenAI's deep research models (o3, o4-mini) to produce structured, cited reports — the same reasoning behind ChatGPT's deep research, accessible as a CLI tool you can script, automate, and build on.
+Uses deep research agents from OpenAI (o3, o4-mini) and Google Gemini (Deep Research Agent) to produce structured, cited reports — the same reasoning behind ChatGPT and Gemini deep research, accessible as a CLI tool you can script, automate, and build on.
 
 ## Installation
 
@@ -26,7 +26,7 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for a guided setup.
 
 ### Deep Research via CLI
 
-Submit research queries that use OpenAI's reasoning models to search the web, synthesize sources, and produce structured reports with citations. Results saved locally as markdown. Supports file uploads, vector stores, and multi-phase campaigns.
+Submit research queries that use deep research agents (OpenAI Responses API, Gemini Interactions API) to search the web, synthesize sources, and produce structured reports with citations. Results saved locally as markdown. Supports file uploads, vector stores, and multi-phase campaigns.
 
 ```bash
 deepr research "How do top fintech companies handle PCI compliance at scale?"
@@ -58,7 +58,7 @@ See [mcp/README.md](mcp/README.md) for setup and [skills/deepr-research/](skills
 
 ### Multi-Provider Routing
 
-Works across OpenAI GPT-5.2, Google Gemini, xAI Grok, and Azure OpenAI. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
+Works across OpenAI GPT-5.2, Google Gemini (including Deep Research Agent), xAI Grok, and Azure OpenAI. Both OpenAI and Gemini support native async deep research via the same provider-agnostic interface. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
 
 ### Cost Controls
 
@@ -110,7 +110,7 @@ Report security issues: nick@pueo.io
 
 ## About
 
-Built by **Nick Seal** ([nick@pueo.io](mailto:nick@pueo.io)). Started as a weekend experiment with OpenAI's deep research API and grew into a system for automating research workflows, building document-based experts, and integrating with AI agents.
+Built by **Nick Seal** ([nick@pueo.io](mailto:nick@pueo.io)). Started as a weekend experiment with OpenAI's deep research API and grew into a provider-agnostic system for automating research workflows, building document-based experts, and integrating with AI agents.
 
 Feedback and contributions welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
 
