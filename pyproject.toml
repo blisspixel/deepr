@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "deepr"
-version = "2.3.0"
+name = "deepr-research"
+version = "2.6.0"
 description = "Research automation platform that replicates human research team workflows using AI"
 readme = "README.md"
 license = {text = "MIT"}
@@ -64,7 +64,7 @@ deepr = "deepr.cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/blisspixel/deepr"
-Documentation = "https://docs.deepr.ai"
+Documentation = "https://github.com/blisspixel/deepr/tree/main/docs"
 Repository = "https://github.com/blisspixel/deepr"
 Issues = "https://github.com/blisspixel/deepr/issues"
 
