@@ -19,8 +19,9 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Note**: 47x cheaper than GPT-5.2 for comparable tasks
 
 ### Google (Gemini)
-- **Models**: Gemini 2.5 Flash, Gemini 3 Pro
-- **Best for**: Large context windows (1M+ tokens), document analysis
+- **Deep Research**: Native Deep Research Agent via Interactions API (async background jobs)
+- **Models**: Gemini 2.5 Flash, Gemini 3 Pro, Deep Research Agent (`deep-research-pro-preview-12-2025`)
+- **Best for**: Large context windows (1M+ tokens), document analysis, autonomous deep research
 
 ### Anthropic (Claude)
 - **Models**: Claude Sonnet 4.5, Claude Opus 4.5, Claude Haiku 4.5
@@ -30,7 +31,8 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 | Task | Recommended Model | Cost | Latency | Notes |
 |------|-------------------|------|---------|-------|
-| Deep Research | o4-mini-deep-research | $0.50-2.00 | 5-20 min | Async, comprehensive |
+| Deep Research (OpenAI) | o4-mini-deep-research | $0.50-2.00 | 5-20 min | Async, comprehensive |
+| Deep Research (Gemini) | deep-research-pro-preview | ~$0.80-1.00 | 5-20 min | Async, Google Search built-in |
 | Complex Research | o3-deep-research | $2.00-5.00 | 10-30 min | Maximum depth |
 | Planning/Curriculum | GPT-5.2 | $0.20-0.30 | 2-5s | Best reasoning |
 | Quick Lookups | Grok 4 Fast | $0.01 | <1s | Cost-effective |
@@ -42,9 +44,10 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 **The 80/20 Rule**: Use fast/cheap models for 80% of operations, reserve expensive models for the 20% that need them.
 
 ### Deep Research (~20% of operations)
-- **Models**: o4-mini-deep-research, o3-deep-research
-- **Cost**: $0.50-$5.00 per query
+- **Models**: o4-mini-deep-research, o3-deep-research, Gemini Deep Research Agent
+- **Cost**: $0.50-$5.00 per query (OpenAI), ~$0.80-1.00 (Gemini)
 - **Use for**: Novel problem-solving, critical decisions, complex synthesis
+- **Note**: Both OpenAI and Gemini deep research use async background jobs with polling
 
 ### Fast/General Operations (~80% of operations)
 - **Models**: Grok 4 Fast, Gemini 2.5 Flash
@@ -62,6 +65,9 @@ deepr research "Complex topic"
 
 # Override with specific model
 deepr research "Topic" --model o3-deep-research
+
+# Use Gemini Deep Research Agent
+deepr research "Topic" --model gemini-deep-research
 ```
 
 ### Expert System
