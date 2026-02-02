@@ -10,7 +10,7 @@ from datetime import datetime
 class ToolConfig:
     """Configuration for research tools."""
 
-    type: Literal["web_search_preview", "code_interpreter", "file_search"]
+    type: Literal["web_search_preview", "code_interpreter", "file_search", "google_search"]
     vector_store_ids: Optional[List[str]] = None
     container: Optional[Dict[str, Any]] = None
 

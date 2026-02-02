@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@output_options` decorator adds `--verbose`, `--json`, `--quiet` to commands
 - Conflicting flags rejected with clear error messages
 
+**Gemini Deep Research Agent (5.4)**
+- Native Gemini Deep Research support via Google Interactions API (`client.interactions.create()`)
+- Dual-mode `GeminiProvider`: deep research agent for async research, `generate_content` for regular queries
+- Model detection routes `deep-research` models to Interactions API automatically
+- File Search Store integration for document grounding (`client.file_search_stores.create()`)
+- Citation URL resolution for Google grounding redirect URLs
+- Adaptive polling intervals: 5s (first 60s), 10s (60-300s), 20s (300s+)
+- Experimental API warning suppression for stable operation
+- Added `gemini/deep-research` to model capabilities registry
+- 19 new tests covering deep research submission, status polling, file stores, citations, and adaptive polling
+
 **Auto-Fallback on Provider Failures (5.2)**
 - `AutonomousProviderRouter` wired into `_run_single()` in `cli/commands/run.py`
 - Retry with fallback: timeout retries once then falls back, rate limit falls back immediately, auth error skips provider
