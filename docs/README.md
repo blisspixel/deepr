@@ -1,6 +1,6 @@
 # Deepr Documentation
 
-> **Note**: Model information current as of January 31, 2026. AI evolves rapidly - verify at provider websites.
+> **Note**: Model information current as of February 2026. AI evolves rapidly - verify at provider websites.
 
 ## Getting Started
 

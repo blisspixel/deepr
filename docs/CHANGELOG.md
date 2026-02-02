@@ -5,7 +5,56 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v2.5
+## [Unreleased] - v2.6
+
+### Added
+
+**CLI Trace Flags (4.1)**
+- `--explain` flag on `deepr research` and `deepr run focus` shows task hierarchy with model/cost reasoning
+- `--timeline` flag renders Rich table with offset, task, status, duration, cost per phase
+- `--full-trace` flag dumps complete trace JSON to `data/traces/{job_id}_trace.json`
+- `TraceFlags` dataclass wired through CLI command decorators, backward compatible
+
+**Output Modes (7.1)**
+- `OutputMode` enum: MINIMAL (default), VERBOSE, JSON, QUIET
+- `OutputContext` and `OutputFormatter` for consistent output across commands
+- `@output_options` decorator adds `--verbose`, `--json`, `--quiet` to commands
+- Conflicting flags rejected with clear error messages
+
+**Auto-Fallback on Provider Failures (5.2)**
+- `AutonomousProviderRouter` wired into `_run_single()` in `cli/commands/run.py`
+- Retry with fallback: timeout retries once then falls back, rate limit falls back immediately, auth error skips provider
+- Max 3 fallback attempts before failure
+- `_classify_provider_error()` bridges provider errors to core error hierarchy
+- Vector store graceful degradation when falling back to non-OpenAI providers
+- Fallback events emitted to trace and shown in `--explain` output
+- `--no-fallback` flag on `focus`, `single`, `docs`, `run_alias`, `research` commands
+
+**Cost Attribution Dashboard (4.3)**
+- `deepr costs breakdown --period` flag (today, week, month, all) replaces `--days`
+- `deepr costs timeline` command with ASCII bar chart, anomaly detection (>2x average), `--weekly` aggregation
+- `deepr costs expert "Name"` subcommand shows per-expert cost breakdown, budget utilization, per-operation costs
+- `CostAggregator.get_entries_by_expert()` and `get_expert_breakdown()` helpers
+- Cost metadata (`total_cost`, `cost_by_model`) stored in `reports/{job_id}/metadata.json`
+
+**Docker and Deployment**
+- Dockerfile with Python 3.11-slim, non-root user (UID 1000), healthcheck
+- `.dockerignore` reducing build context from 168MB to ~2MB
+- `docker-compose.yml` with bridge network, resource limits (512MB, 1 CPU)
+
+### Fixed
+- Synced `setup.py` and `pyproject.toml` dependencies (added google-genai, numpy, aiohttp, flasgger, flask-limiter, httpx, requests, beautifulsoup4)
+- Fixed `pyproject.toml` URLs pointing to wrong GitHub organization
+- Moved `test_conversation_memory.py` from unit to integration tests (was loading 4.3GB knowledge graph)
+- Fixed model registry tests referencing `gpt-5` instead of `gpt-5.2`
+- Fixed staleness urgency test expecting wrong value for missing cutoff date
+- Fixed skill frontmatter token count test (limit bumped from 200 to 300 after metadata growth)
+
+### Changed
+- Test suite grew from 1300 to 2800+ tests
+- Dockerfile uses `pip install --no-cache-dir .` instead of editable install
+
+## [2.5.0] - 2026-01-15
 
 ### Added
 
@@ -33,12 +82,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tracks context economy (tokens per task)
 - MetricsTracker for aggregating metrics across sessions
 
+**MCP Server Architecture**
+- Job pattern for async research: `deepr_research()` returns immediately, poll with `deepr_check_status()`
+- SQLite persistence for job state across server restarts
+- Reports exposed as MCP Resources (`deepr://reports/{job_id}/final.md`, `summary.json`, etc.)
+- Progress notifications via subscription manager
+- Structured error responses with `ToolError` dataclass (error_code, retry_hint, fallback_suggestion)
+- Trace ID propagation for end-to-end debugging
+
 **Claude Skill Infrastructure**
 - Created `skills/deepr-research/` directory following Claude Skill conventions
 - Added SKILL.md with activation keywords and progressive disclosure
 - Added reference documents for research modes, expert system, cost guidance, prompt patterns, troubleshooting, and MCP patterns
 - Added scripts for research decision classification and result formatting
 - Added templates for research report output
+- LLM-optimized tool descriptions with usage hints, negative guidance, example invocations
+- Prompt primitives: `deep_research_task`, `expert_consultation`, `comparative_analysis`
+- Install scripts (`install.sh`, `install.ps1`) with env var checking
+- `deepr_status` health check tool
+
+**Security Hardening**
+- SSRF protection: blocks requests to private/internal IPs, optional domain allowlist
+- Path traversal protection via `PathValidator` in sandbox module
+- MCP Sampling primitives for human-in-the-loop (`SamplingRequest`, `SamplingResponse`)
+
+**Multi-Runtime Configuration**
+- Config templates for OpenClaw, Claude Desktop, Cursor, VS Code
+- Docker variant config with volume mounts
+- Per-runtime setup guides in `mcp/README.md`
+
+**Claude-Specific Optimizations**
+- Chain of Thought guidance prepended to research tool descriptions
+- Lazy loading for large reports (summary + resource URI, configurable threshold)
 
 **Elicitation System**
 - ElicitationHandler for structured user input requests via JSON-RPC
