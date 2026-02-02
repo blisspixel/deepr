@@ -152,28 +152,22 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ---
 
-### Priority 9: MCP Ecosystem (remaining)
+### MCP Ecosystem (remaining)
 
 **What exists:** Full MCP server with 10 tools, persistence, security, skill packaging, Docker, multi-runtime configs.
 
-#### 9.2 Distribution (remaining)
-- [ ] GitHub release workflow for skill distribution
-- [ ] Add to ClawHub / skill registry (when available)
-
-#### 9.3 MCP Client Mode (Deepr as Tool Consumer)
+#### MCP Client Mode (Deepr as Tool Consumer)
 - Design complete (SearchBackend, BrowserBackend protocols, architecture doc)
 - [ ] Implement MCP client connections (Stdio, SSE transports)
 - [ ] Brave Search and Puppeteer/Playwright MCP adapters
 - [ ] Recursive agent composition for sub-agent summarization
 
-#### 9.4 Security (remaining)
+#### Remaining MCP Items
+- [ ] GitHub release workflow for skill distribution
 - [ ] Wire sampling into web scraper (CAPTCHA/paywall detection)
 - [ ] Rate limiting for external requests
 
-#### 9.5 Structured Output (remaining)
-- [ ] XML tags for complex results (not yet needed)
-
-#### 9.7 Future MCP Directions (Stretch)
+#### Stretch Goals
 - [ ] Multi-agent swarm support (specialized variants, manager routing)
 - [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
 - [ ] Memory integration (cross-session persistence, vector DB)
@@ -214,120 +208,32 @@ Recommended sequence for remaining work:
 
 ---
 
-## Model Strategy
-
-**Dual approach: Deep Research + Fast Models**
-
-| Use Case | Model | Cost | When |
-|----------|-------|------|------|
-| Deep Research | o4-mini-deep-research | $0.50-2.00 | Complex analysis (~20%) |
-| Planning | GPT-5.2 | $0.20-0.30 | Curriculum, synthesis |
-| Quick ops | Grok 4 Fast | $0.01 | Lookups, chat (~80%) |
-| Large docs | Gemini 3 Pro | $0.15 | 1M token context |
-
-Using fast models for 80% of operations reduces costs by ~90%.
-
-See [docs/MODELS.md](docs/MODELS.md) for full guide.
-
----
-
-## Budget Protection
-
-Multi-layer controls prevent runaway costs:
-
-**Hard Limits:**
-- Per operation: $10 max
-- Per day: $50 max
-- Per month: $500 max
-
-**Features:**
-- Session budgets with alerts at 50%, 80%, 95%
-- Circuit breaker after repeated failures
-- Pause/resume for long-running operations
-- CLI validation for high budgets
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#cost-safety) for details.
-
----
-
 ## Non-Goals
 
 Not building:
-- Chat interface (use ChatGPT)
-- Real-time responses (deep research takes minutes)
+- Chat interface (use ChatGPT, Copilot, Claude, Gemini, Grok, etc.)
+- Real-time responses (deep research takes minutes by design)
 - Sub-$1 research (comprehensive research costs money)
 - Mobile apps
-- Complex export formats
 - Features that might not work reliably
-
----
-
-## Philosophy
-
-Every feature should:
-- Support long-running research workflows
-- Build context across phases
-- Synthesize from multiple sources
-- Work across providers
-
-Focus on intelligence layer (planning, synthesis, routing), not infrastructure.
-
----
 
 ## Contributing
 
-High-value areas:
-- Context chaining logic
-- Synthesis prompts
-- Cost optimization
-- Provider integrations
-- CLI UX improvements
-
-Most impactful work is on intelligence layer and user experience.
-
----
-
-## Dogfooding
-
-Deepr is used to build Deepr:
-- Research implementation questions
-- Get comprehensive answers with citations
-- Implement based on findings
-- Document the research
-
-Example: "Research best practices for context injection in multi-step LLM workflows"
-- Cost: $0.17
-- Result: 15KB report with citations
-- Impact: Validated ContextBuilder design
-
----
-
-## Future Vision
-
-See [docs/VISION.md](docs/VISION.md) for aspirational features:
-- Visible thinking (show reasoning)
-- Persistent memory (remember across sessions)
-- Graph-based knowledge (relationship-aware retrieval)
-- Self-improving experts
-- Expert councils
-
----
+High-value areas: context chaining logic, synthesis prompts, cost optimization, provider integrations, CLI UX. Most impactful work is on the intelligence layer, not infrastructure.
 
 ## Version History
 
 | Version | Focus | Status |
 |---------|-------|--------|
-| v2.0 | Core infrastructure | Complete |
-| v2.1 | Adaptive research workflow | Complete |
+| v2.0-2.1 | Core infrastructure, adaptive research | Complete |
 | v2.2 | Semantic commands | Complete |
 | v2.3 | Expert system | Complete |
-| v2.4 | MCP integration | Complete |
-| v2.5 | Agentic experts | Complete |
-| v2.6 | MCP Ecosystem + Observability | In Progress |
+| v2.4-2.5 | MCP integration, agentic experts | Complete |
+| v2.6 | Observability, fallback, cost dashboard | In Progress |
 | v2.7 | Modern CLI UX | Planned |
 | v2.8 | Provider routing | Planned |
 | v3.0+ | Self-improvement | Future |
 
----
+See [docs/MODELS.md](docs/MODELS.md) for model selection, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details and budget protection, and [docs/VISION.md](docs/VISION.md) for long-term direction.
 
 **[MIT License](LICENSE)** | **[GitHub](https://github.com/blisspixel/deepr)**
