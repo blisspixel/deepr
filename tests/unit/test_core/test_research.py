@@ -580,7 +580,7 @@ class TestPropertyBasedValidation:
             # Property: Long prompts must raise ValueError
             with pytest.raises(ValueError) as exc_info:
                 import asyncio
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     orchestrator.submit_research(prompt=prompt)
                 )
             
@@ -631,7 +631,7 @@ class TestPropertyBasedValidation:
             # Property: Valid prompts should not raise prompt-length errors
             import asyncio
             try:
-                result = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.run(
                     orchestrator.submit_research(prompt=prompt)
                 )
                 # If we get here, prompt validation passed
