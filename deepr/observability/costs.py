@@ -502,17 +502,40 @@ class CostAggregator:
         
         return entries
     
+    def get_entries_by_expert(self, expert_name: str) -> List[CostEntry]:
+        """Get all cost entries for a specific expert.
+
+        Args:
+            expert_name: Name of the expert to filter by
+
+        Returns:
+            List of matching cost entries
+        """
+        return [e for e in self._entries if e.metadata.get("expert") == expert_name]
+
+    def get_expert_breakdown(self, expert_name: str) -> Dict[str, float]:
+        """Get cost breakdown by operation type for a specific expert.
+
+        Args:
+            expert_name: Name of the expert
+
+        Returns:
+            Dictionary mapping operation type to total cost
+        """
+        entries = self.get_entries_by_expert(expert_name)
+        return self._aggregate_by_field(entries, lambda e: e.operation)
+
     def _aggregate_by_field(
         self,
         entries: List[CostEntry],
         key_func
     ) -> Dict[str, float]:
         """Aggregate costs by a field extracted via key function.
-        
+
         Args:
             entries: Entries to aggregate
             key_func: Function to extract grouping key from entry
-            
+
         Returns:
             Dictionary mapping key to total cost
         """

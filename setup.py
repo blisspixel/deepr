@@ -18,8 +18,16 @@ setup(
         "azure-identity>=1.12.0",
         "azure-servicebus>=7.11.0",
         "azure-storage-blob>=12.19.0",
+        "google-genai>=1.0.0",
+        "numpy>=1.24.0",
         "colorama>=0.4.6",
         "rich>=13.0.0",
+        "aiohttp>=3.9.0",
+        "flasgger>=0.9.7",
+        "flask-limiter>=3.5.0",
+        "httpx>=0.23.0",
+        "requests>=2.28.0",
+        "beautifulsoup4>=4.12.0",
     ],
     entry_points={
         "console_scripts": [
