@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-> **Note**: Model information current as of January 31, 2026. AI models evolve rapidly - verify current pricing and capabilities at provider websites before making decisions.
+> **Note**: Model information current as of February 2026. AI models evolve rapidly - verify current pricing and capabilities at provider websites before making decisions.
 
 ## Overview
 
