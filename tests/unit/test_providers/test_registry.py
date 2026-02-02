@@ -18,7 +18,7 @@ class TestModelCapabilities:
     def test_registry_not_empty(self):
         """Test that registry contains model definitions."""
         assert len(MODEL_CAPABILITIES) > 0
-        assert "openai/gpt-5" in MODEL_CAPABILITIES
+        assert "openai/gpt-5.2" in MODEL_CAPABILITIES
         assert "xai/grok-4-fast" in MODEL_CAPABILITIES
 
     def test_all_capabilities_valid(self):
@@ -37,10 +37,10 @@ class TestModelCapabilities:
     def test_get_model_capability(self):
         """Test getting model capability by provider and model."""
         # Valid model
-        cap = get_model_capability("openai", "gpt-5")
+        cap = get_model_capability("openai", "gpt-5.2")
         assert cap is not None
         assert cap.provider == "openai"
-        assert cap.model == "gpt-5"
+        assert cap.model == "gpt-5.2"
 
         # Invalid model
         cap = get_model_capability("invalid", "model")
@@ -95,7 +95,7 @@ class TestModelCapabilities:
 
     def test_openai_models(self):
         """Test OpenAI model capabilities."""
-        gpt5 = get_model_capability("openai", "gpt-5")
+        gpt5 = get_model_capability("openai", "gpt-5.2")
         assert gpt5 is not None
         assert "reasoning" in gpt5.specializations
         assert gpt5.context_window >= 128_000

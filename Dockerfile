@@ -6,9 +6,9 @@ RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
 WORKDIR /app
 
 # Install dependencies first (cache layer)
-COPY pyproject.toml setup.py setup.cfg ./
+COPY pyproject.toml setup.py README.md ./
 COPY deepr/__init__.py deepr/__init__.py
-RUN pip install --no-cache-dir -e . 2>/dev/null || pip install --no-cache-dir .
+RUN pip install --no-cache-dir .
 
 # Copy application code
 COPY deepr/ deepr/
