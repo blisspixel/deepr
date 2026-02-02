@@ -1,6 +1,6 @@
 # Deepr
 
-![Tests](https://img.shields.io/badge/tests-1300%2B%20collected-green)
+![Tests](https://img.shields.io/badge/tests-2800%2B%20passing-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
@@ -156,7 +156,7 @@ Features:
 
 Status: Core implementation complete. Unit tests pass. Initial testing shows the system works as designed, but this is early-stage software. More real-world testing needed to validate reliability. The "consciousness" and "belief" terminology describes the architecture's goals, not claims about actual AI capabilities.
 
-See [ROADMAP.md](ROADMAP.md#priority-25-expert-system-done) for detailed documentation.
+See [docs/EXPERTS.md](docs/EXPERTS.md) for detailed documentation.
 
 ### Structured Learning Workflow
 
@@ -348,6 +348,25 @@ deepr jobs get <job-id>
 deepr jobs cancel <job-id>
 ```
 
+### Cost Tracking
+
+```bash
+# View cost summary
+deepr costs show
+
+# Cost trends with anomaly detection
+deepr costs timeline --days 14
+
+# Breakdown by provider, model, or operation
+deepr costs breakdown --by provider --period week
+
+# Per-expert cost tracking
+deepr costs expert "Expert Name"
+
+# Cost estimation before submitting
+deepr cost estimate "Your prompt"
+```
+
 ### Diagnostics
 
 ```bash
@@ -356,10 +375,6 @@ deepr doctor
 
 # Skip connectivity tests
 deepr doctor --skip-connectivity
-
-# View cost analytics
-deepr cost summary
-deepr analytics report
 ```
 
 ---
@@ -448,7 +463,7 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples and best pract
 
 ## Documentation
 
-> **Note**: Model information current as of January 31, 2026. AI evolves rapidly - verify at provider websites.
+> **Note**: Model information current as of February 2026. AI evolves rapidly - verify at provider websites.
 
 **Getting Started:**
 - [QUICK_START.md](docs/QUICK_START.md) - 5-minute setup guide
@@ -490,7 +505,7 @@ deepr/
 ├── mcp/                    # Runtime config templates
 ├── data/                   # Local data (reports, jobs DB)
 ├── docs/                   # Documentation
-└── tests/                  # Test suite (361+ MCP tests)
+└── tests/                  # Test suite (2800+ tests, 361 MCP-specific)
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed component documentation.
