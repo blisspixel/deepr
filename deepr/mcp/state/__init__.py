@@ -48,6 +48,9 @@ from .sandbox import (
     PathValidator,
     SandboxManager,
 )
+from .persistence import (
+    JobPersistence,
+)
 
 __all__ = [
     # Subscriptions
@@ -87,4 +90,6 @@ __all__ = [
     "SandboxResult",
     "PathValidator",
     "SandboxManager",
+    # Persistence
+    "JobPersistence",
 ]

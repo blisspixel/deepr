@@ -11,7 +11,7 @@
 
 ---
 
-## Current Status (v2.5)
+## Current Status (v2.6)
 
 ### What Works
 
@@ -21,7 +21,7 @@
 - Expert system with autonomous learning
 - Agentic expert chat (experts can trigger research)
 - Knowledge synthesis and gap awareness
-- MCP server for AI agent integration
+- MCP server with 10 tools, persistence, security, multi-runtime configs
 - Multi-layer budget protection
 - CLI and Web UI
 
@@ -32,8 +32,9 @@
 - [x] Autonomous learning with curriculum generation
 - [x] Agentic research in expert chat
 - [x] MCP Advanced Patterns (Dynamic Tool Discovery, Subscriptions, Elicitation)
+- [x] MCP Ecosystem Integration (server wiring, skill packaging, configs, security)
 - [x] Budget protection with pause/resume
-- [x] 302+ tests passing
+- [x] 1300+ tests passing (361 MCP-specific)
 
 ---
 
@@ -268,9 +269,6 @@
   - [ ] Store: `{"built_on": ["report-abc", "report-xyz"]}`
   - [ ] Show lineage in `deepr jobs status <id>`
   - [ ] Enable "research genealogy" queries
-- [ ] Warn if reusing stale context (>30 days old)
-- [ ] Show cost savings estimate when reusing context
-- [ ] Track context lineage in report metadata (which reports built on which)
 
 ---
 
@@ -333,9 +331,9 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ---
 
-### Priority 9: MCP Ecosystem Integration (NEW)
+### Priority 9: MCP Ecosystem Integration (MOSTLY DONE)
 
-**What exists:** Basic MCP server with tool discovery, subscriptions, elicitation
+**What exists:** Full MCP server with 10 tools, SQLite persistence, SSRF protection, multi-runtime configs, agent skill packaging, Docker deployment, MCP client interfaces (design only).
 
 **Already implemented (from Priority 3):**
 - Dynamic Tool Discovery (85% context reduction)
@@ -343,148 +341,106 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 - Human-in-the-Loop Elicitation
 - Sandboxed Execution contexts
 
-**Goal:** Transform Deepr from standalone tool into a first-class citizen of the agentic AI ecosystem (OpenClaw, Claude Desktop, IDE integrations)
+**Goal:** Make Deepr a useful participant in the agentic AI ecosystem (OpenClaw, Claude Desktop, IDE integrations)
 
-#### 9.1 Enhanced MCP Server Architecture
-- [ ] Implement Job Pattern for async research
-  - [ ] `start_research()` returns `{job_id, status, estimated_time}` immediately
-  - [ ] `get_job_status(job_id)` for polling progress
-  - [ ] `cancel_job(job_id)` for user-initiated cancellation
-  - [ ] Store job state in SQLite for persistence across restarts
-  - [ ] Add job timeout handling (configurable, default 30 min)
-  - [ ] Make jobs resumable after Gateway/OpenClaw restart
-- [ ] Expose reports as MCP Resources
-  - [ ] `deepr://reports/{job_id}/final.md` - polished output
-  - [ ] `deepr://reports/{job_id}/summary.json` - structured metadata
-  - [ ] `deepr://logs/{job_id}/search_trace.json` - query history for provenance
-  - [ ] `deepr://logs/{job_id}/decisions.md` - reasoning log
+#### 9.1 Enhanced MCP Server Architecture (DONE)
+- [x] Implement Job Pattern for async research
+  - [x] `deepr_research()` returns `{job_id, trace_id, status, estimated_time}` immediately
+  - [x] `deepr_check_status(job_id)` for polling progress
+  - [x] `deepr_cancel_job(job_id)` for user-initiated cancellation
+  - [x] Store job state in SQLite for persistence across restarts (`persistence.py`)
+  - [x] Mark incomplete jobs as failed on restart recovery
+  - [x] Trace ID generation and propagation for end-to-end debugging
+- [x] Expose reports as MCP Resources
+  - [x] `deepr://reports/{job_id}/final.md` - polished output
+  - [x] `deepr://reports/{job_id}/summary.json` - structured metadata
+  - [x] `deepr://logs/{job_id}/search_trace.json` - query history for provenance
+  - [x] `deepr://logs/{job_id}/decisions.md` - reasoning log
   - [ ] `deepr://cache/{url_hash}` - raw source content (optional, for verification)
-- [ ] Progress notifications via MCP protocol
-  - [ ] Emit `notifications/progress` events during research phases
-  - [ ] Include phase name, percentage, current action description
-  - [ ] Support both polling and push notification patterns
-  - [ ] Event-driven bus: QueryReceived -> PlanCreated -> DataFound -> ReadingComplete -> SynthesisComplete
-- [ ] Structured error responses
-  - [ ] Return errors as structured objects, not exceptions
-  - [ ] Include error_code, message, retry_hint, fallback_suggestion
-  - [ ] Graceful degradation when sub-operations fail
-  - [ ] Never raise uncaught exceptions in tools (return error strings instead)
+- [x] Progress notifications via MCP protocol
+  - [x] Emit updates via subscription manager during research phases
+  - [x] Include phase name, progress, current action description
+  - [x] Support both polling and push notification patterns
+  - [ ] Event-driven bus (QueryReceived -> PlanCreated -> etc.) - not yet needed
+- [x] Structured error responses
+  - [x] Return errors as structured objects via `ToolError` dataclass
+  - [x] Include error_code, message, retry_hint, fallback_suggestion
+  - [x] Graceful degradation when sub-operations fail
+  - [x] All tools return error dicts instead of raising exceptions
 
-#### 9.2 AgentSkill Packaging for Distribution
-- [ ] Create SKILL.md metadata file
-  - [ ] YAML frontmatter: name, description, license, authors, version
-  - [ ] Compatibility matrix: os (darwin, linux, win32), python version
-  - [ ] Required environment variables list
-  - [ ] Required binaries (python3, uv)
-  - [ ] `requires.bins` validation (OpenClaw refuses to load if missing)
-  - [ ] `requires.env` validation (warn if API keys missing)
-- [ ] LLM-optimized tool descriptions
-  - [ ] Add usage hints in tool docstrings ("Use when user asks for comprehensive analysis")
-  - [ ] Add parameter guidance ("For financial topics, set depth=4 and breadth=6")
-  - [ ] Add negative guidance ("Do not use for simple factual lookups")
-  - [ ] Include example invocations in descriptions
-  - [ ] Flatten nested Pydantic models for maximum client compatibility
-- [ ] Prompt primitives for template menus
-  - [ ] Implement `@mcp.prompt("deep_research_task")` decorator
-  - [ ] Create standard research prompt templates
-  - [ ] Allow users to select from template menu in Claude Desktop
-- [ ] Installation and validation
-  - [ ] Create `install.sh` / `install.ps1` scripts
-  - [ ] Validate Python version and dependencies on load
-  - [ ] Check for required API keys, warn if missing
-  - [ ] Health check endpoint for runtime validation (`deepr_status` tool)
-- [ ] Package structure
-  - [ ] `~/.openclaw/skills/deepr-research/SKILL.md`
-  - [ ] `~/.openclaw/skills/deepr-research/server.py`
-  - [ ] `~/.openclaw/skills/deepr-research/requirements.txt`
+#### 9.2 AgentSkill Packaging for Distribution (DONE)
+- [x] Create SKILL.md metadata file
+  - [x] YAML frontmatter: name, description, license, authors, version
+  - [x] Compatibility matrix: os (darwin, linux, win32), python version
+  - [x] Required environment variables list
+  - [x] Required binaries (python3)
+  - [x] `requires.bins` and `requires.env` fields
+- [x] LLM-optimized tool descriptions
+  - [x] Usage hints in tool descriptions
+  - [x] Negative guidance ("Do not use for simple factual lookups")
+  - [x] Example invocations in descriptions
+  - [x] Flat input schemas for maximum client compatibility
+- [x] Prompt primitives for template menus
+  - [x] `deep_research_task`, `expert_consultation`, `comparative_analysis`
+  - [x] Wired into `prompts/list` and `prompts/get` JSON-RPC methods
+- [x] Installation and validation
+  - [x] `install.sh` and `install.ps1` scripts with env var checking
+  - [x] `deepr_status` health check tool
+- [ ] Distribution
   - [ ] Create GitHub release workflow for skill distribution
   - [ ] Add to ClawHub / skill registry (when available)
 
-#### 9.3 MCP Client Mode (Deepr as Tool Consumer)
-- [ ] Implement MCP client connection manager
+#### 9.3 MCP Client Mode (Deepr as Tool Consumer) - DESIGN ONLY
+- [x] Define interfaces and architecture
+  - [x] `SearchBackend` protocol with `BuiltinSearchBackend` adapter
+  - [x] `BrowserBackend` protocol with `BuiltinBrowserBackend` adapter
+  - [x] `MCPSearchBackend` and `MCPBrowserBackend` stubs (raise NotImplementedError)
+  - [x] Architecture document: `docs/mcp-client-architecture.md`
+  - [x] Configuration design for backend selection
+- [ ] Implement MCP client connections (not yet started)
   - [ ] Connect to local MCP servers via Stdio transport
   - [ ] Connect to remote MCP servers via SSE transport
-  - [ ] Handle connection lifecycle (init, reconnect, cleanup)
-  - [ ] Cache tool schemas from connected servers
-- [ ] Swappable search backends
-  - [ ] Abstract search interface in `deepr/tools/search.py`
-  - [ ] Brave Search MCP adapter (`@modelcontextprotocol/server-brave-search`)
-  - [ ] Tavily MCP adapter (when available)
-  - [ ] Google Custom Search MCP adapter
-  - [ ] Config option: `search_backend: "brave-mcp" | "tavily-mcp" | "builtin"`
-- [ ] Swappable browser backends
-  - [ ] Abstract browser interface in `deepr/tools/browser.py`
-  - [ ] Puppeteer MCP adapter for JavaScript-heavy sites
-  - [ ] Playwright MCP adapter alternative
-  - [ ] Config option: `browser_backend: "builtin" | "puppeteer-mcp" | "playwright-mcp"`
+  - [ ] Brave Search MCP adapter
+  - [ ] Puppeteer/Playwright MCP adapter
 - [ ] Recursive agent composition
-  - [ ] Offload summarization to cheaper models via sub-agent (gpt-4o-mini)
-  - [ ] Delegate PDF reading to specialized tool
+  - [ ] Offload summarization to cheaper models via sub-agent
   - [ ] Config for sub-agent model selection
-  - [ ] Cost optimization: use expensive models for synthesis, cheap for reading
-- [ ] Development workflow
-  - [ ] Document MCP Inspector testing (`npx @modelcontextprotocol/inspector`)
-  - [ ] Test server in isolation before OpenClaw integration
-  - [ ] Add trace_id propagation for debugging across tool calls
 
-#### 9.4 Security Hardening for Autonomous Operation
-- [ ] Docker deployment option
-  - [ ] Create `Dockerfile` with minimal attack surface
-  - [ ] Non-root user execution (UID 1000)
-  - [ ] Document volume mount strategy (workspace only)
-  - [ ] Network isolation: prefer bridge over host mode
-  - [ ] Add `docker-compose.yml` for easy deployment
-- [ ] Path traversal protection
-  - [ ] Validate all file paths against workspace root
-  - [ ] Block access to `~/.ssh`, `~/.aws`, etc.
-  - [ ] Implement safe path resolution utility:
-    ```python
-    safe_root = Path("~/.openclaw/workspace").resolve()
-    target = (safe_root / filename).resolve()
-    if safe_root not in target.parents:
-        raise SecurityError("Path traversal blocked")
-    ```
-  - [ ] Add tests for path traversal attempts
-- [ ] Network security
-  - [ ] Block requests to internal IPs (127.0.0.0/8, 192.168.0.0/16, 10.0.0.0/8)
-  - [ ] Allowlist mode for outbound domains (optional)
+#### 9.4 Security Hardening for Autonomous Operation (DONE)
+- [x] Docker deployment option
+  - [x] `Dockerfile` with Python 3.11-slim, non-root user (UID 1000)
+  - [x] `docker-compose.yml` with bridge network, resource limits (512M, 1 CPU)
+  - [x] Volume mount for data directory only
+- [x] Path traversal protection (via existing `PathValidator` in sandbox module)
+- [x] Network security
+  - [x] SSRF protection: block internal IPs (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, IPv6 equivalents)
+  - [x] Optional domain allowlist via `DEEPR_ALLOWED_DOMAINS` env var
+  - [x] Audit logging for validated URLs
+  - [x] SSRF validation wired into `deepr_research` file URL checking
+- [x] Human-in-the-loop sampling
+  - [x] MCP Sampling primitives: `SamplingRequest`, `SamplingResponse`
+  - [x] Factory functions: `create_captcha_request`, `create_paywall_request`, `create_confirmation_request`
+  - [ ] Wire sampling into web scraper (when CAPTCHA/paywall detected)
   - [ ] Rate limiting for external requests
-  - [ ] Log all outbound requests for audit
-- [ ] Human-in-the-loop sampling
-  - [ ] Implement MCP Sampling primitive for user confirmation
-  - [ ] Pause on CAPTCHA detection, request user help
-  - [ ] Pause on paywall detection, offer alternatives
-  - [ ] Configurable sensitivity levels (always-ask, smart, never-ask)
 
-#### 9.5 Claude-Specific Optimizations
-- [ ] Chain of Thought prompting
-  - [ ] Add `<thinking>` tag guidance in SKILL.md instructions
-  - [ ] Encourage parameter reasoning before tool invocation
-  - [ ] Add "explain your search strategy" to tool descriptions
-  - [ ] Force System 2 check: "When using this tool, first explain your strategy"
-- [ ] Structured output formatting
-  - [ ] Return complex results in XML tags for better parsing
-  - [ ] `<research_result>`, `<summary>`, `<key_sources>`, `<resource_link>`
-  - [ ] Add schema documentation for structured outputs
-- [ ] Context window management
-  - [ ] Return summary + resource URI for large outputs (lazy loading)
-  - [ ] Implement "lazy loading" pattern (agent fetches details on demand)
-  - [ ] Add `max_response_tokens` config option
-  - [ ] Truncation with "use resource URI for full content" hint
-  - [ ] Example: "Key points: A, B, C. Full 15,000 word doc at deepr://reports/xyz"
+#### 9.5 Claude-Specific Optimizations (DONE)
+- [x] Chain of Thought prompting
+  - [x] CoT guidance prepended to research tool descriptions in registry
+  - [x] "Before calling, explain your research strategy" in tool descriptions
+- [x] Context window management
+  - [x] Lazy loading: large reports return summary + `deepr://reports/{id}/final.md` URI
+  - [x] Configurable threshold via `DEEPR_MAX_INLINE_CHARS` (default 8000)
+  - [x] Truncation with hint to use `resources/read` for full content
+- [ ] Structured output formatting (not yet needed)
+  - [ ] XML tags for complex results (`<research_result>`, `<summary>`, etc.)
 
-#### 9.6 OpenClaw Configuration Templates
-- [ ] Create `mcp/openclaw-config.json` template
-  - [ ] Stdio transport configuration (local)
-  - [ ] SSE transport configuration (remote)
-  - [ ] Environment variable injection
-  - [ ] autoAllow settings for common tools
-- [ ] Create `mcp/claude-desktop-config.json` template
-- [ ] Documentation for each runtime environment
-  - [ ] OpenClaw setup guide
-  - [ ] Claude Desktop setup guide
-  - [ ] VS Code / Cursor setup guide
-  - [ ] Zed setup guide
+#### 9.6 Multi-Runtime Configuration Templates (DONE)
+- [x] `mcp/openclaw-config.json` - stdio with autoAllow for read-only tools
+- [x] `mcp/openclaw-docker-config.json` - Docker variant with volume mounts
+- [x] `mcp/mcp-config-claude-desktop.json` - Claude Desktop format
+- [x] `mcp/mcp-config-cursor.json` - Cursor format
+- [x] `mcp/mcp-config-vscode.json` - VS Code format
+- [x] `mcp/README.md` - per-runtime setup guides, tool reference, troubleshooting
 
 #### 9.7 Future MCP Directions (Stretch Goals)
 - [ ] Multi-agent swarm support
@@ -546,13 +502,13 @@ Recommended implementation sequence:
 5. **4.3 Cost Dashboard** - Data exists, needs CLI
 6. **6.1 Context Discovery** - New feature, moderate effort
 7. **7.3 Real-Time Progress** - Depends on API capabilities
-8. **9.1 Enhanced MCP Server** - Job pattern enables better agent integration
-9. **9.2 AgentSkill Packaging** - Distribution for OpenClaw/Claude Desktop
-10. **9.4 Security Hardening** - Required before public skill distribution
-11. **9.5 Claude-Specific Optimizations** - Better LLM integration
-12. **9.6 OpenClaw Configuration Templates** - User onboarding
+8. ~~**9.1 Enhanced MCP Server**~~ - Done
+9. ~~**9.2 AgentSkill Packaging**~~ - Done (except distribution)
+10. ~~**9.4 Security Hardening**~~ - Done
+11. ~~**9.5 Claude-Specific Optimizations**~~ - Done
+12. ~~**9.6 Configuration Templates**~~ - Done
 13. **7.4 TUI Dashboard** - Stretch goal, nice to have
-14. **9.3 MCP Client Mode** - Advanced, enables swappable backends
+14. **9.3 MCP Client Mode** - Design done, connections not yet built
 15. **9.7 Future MCP Directions** - Stretch goals (swarms, edge, memory)
 
 ---
@@ -632,7 +588,7 @@ Most impactful work is on intelligence layer and user experience.
 
 ## Dogfooding
 
-We use Deepr to build Deepr:
+Deepr is used to build Deepr:
 - Research implementation questions
 - Get comprehensive answers with citations
 - Implement based on findings
@@ -666,10 +622,9 @@ See [docs/VISION.md](docs/VISION.md) for aspirational features:
 | v2.3 | Expert system | Complete |
 | v2.4 | MCP integration | Complete |
 | v2.5 | Agentic experts | Complete |
-| v2.6 | Observability | In Progress |
+| v2.6 | MCP Ecosystem + Observability | In Progress |
 | v2.7 | Modern CLI UX | Planned |
 | v2.8 | Provider routing | Planned |
-| v2.9 | MCP Ecosystem | Planned |
 | v3.0+ | Self-improvement | Future |
 
 ---
