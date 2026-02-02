@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist
+build
+.eggs
+
+# Tests and docs
+tests/
+docs/
+*.md
+!README.md
+!deepr/**/*.md
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Environment
+.env
+.env.*
+*.env
+
+# Data (large expert knowledge graphs, etc.)
+data/
+experts/
+
+# Docker
+Dockerfile
+docker-compose.yml
+mcp/docker-compose.yml
+
+# Misc
+.claude
+.pytest_cache
+.mypy_cache
+htmlcov
+.coverage

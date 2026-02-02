@@ -190,17 +190,14 @@ class TestStalenessDetection:
         )
         assert stale.get_staleness_details()["urgency"] == "high"
         
-        # No cutoff with recent activity - low urgency (falls back to updated_at)
-        # This is the actual behavior: FreshnessChecker uses last_activity when
-        # last_learning is None, so a newly created expert appears "fresh"
+        # No cutoff = incomplete expert, needs initial learning = critical urgency
         incomplete_recent = ExpertProfile(
             name="IncompleteRecent",
             vector_store_id="vs_incomplete_recent",
             knowledge_cutoff_date=None
         )
-        # Note: This returns "low" because updated_at defaults to now
-        assert incomplete_recent.get_staleness_details()["urgency"] == "low"
-        assert incomplete_recent.is_knowledge_stale() is True  # But is_stale is True
+        assert incomplete_recent.get_staleness_details()["urgency"] == "critical"
+        assert incomplete_recent.is_knowledge_stale() is True
 
     def test_suggest_refresh_returns_none_when_fresh(self):
         """Test suggest_refresh returns None for fresh experts."""

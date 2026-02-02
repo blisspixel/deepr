@@ -848,6 +848,8 @@ async def _handle_immediate_job(
             base_path=config.get("results_dir", "data/reports")
         )
 
+        # Compute cost for report metadata
+        actual_cost_meta = response.usage.cost if response.usage and response.usage.cost else 0.0
         report_metadata = await storage.save_report(
             job_id=job_id,
             filename="report.md",
@@ -858,6 +860,8 @@ async def _handle_immediate_job(
                 "model": model,
                 "status": "completed",
                 "provider_job_id": provider_job_id,
+                "total_cost": actual_cost_meta,
+                "cost_by_model": {model: actual_cost_meta},
             }
         )
 

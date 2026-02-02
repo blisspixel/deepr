@@ -118,22 +118,24 @@
   - [ ] Track output tokens (completion)
   - [ ] Track cached tokens (if applicable)
 
-#### 4.3 Cost Attribution Dashboard
-- [ ] Create `deepr cost breakdown` command
-  - [ ] Query cost data from SQLite
-  - [ ] Group by: operation type, provider, model, expert
-  - [ ] Format as table with totals
-  - [ ] Add `--period` flag (today, week, month, all)
-- [ ] Create `deepr cost timeline` command
-  - [ ] Show daily/weekly/monthly cost trends
-  - [ ] ASCII chart or simple table format
-  - [ ] Highlight anomalies (days > 2x average)
-- [ ] Add cost breakdown to report metadata
-  - [ ] Store in `reports/{job_id}/metadata.json`
-  - [ ] Include: total_cost, cost_by_phase, cost_by_model
-- [ ] Show cost per expert, per research type
-  - [ ] Add `deepr expert costs "Expert Name"` subcommand
-  - [ ] Track learning vs chat vs research costs separately
+#### 4.3 Cost Attribution Dashboard — DONE
+- [x] Create `deepr costs breakdown` command (existed: by provider/operation/model with Rich tables)
+  - [x] Group by: operation type, provider, model, expert
+  - [x] Format as table with totals
+  - [x] Add `--period` flag (today, week, month, all) — replaces `--days`, converts to `start_date`
+- [x] Create `deepr costs timeline` command
+  - [x] Show daily/weekly cost trends (`--days`, `--weekly` flags)
+  - [x] ASCII bar chart via Rich Table with proportional `█` bars
+  - [x] Highlight anomalies (days > 2x average) in red with `!` prefix
+  - [x] Summary line: average cost per period + anomaly count
+- [x] Add cost breakdown to report metadata
+  - [x] Store `total_cost` and `cost_by_model` in `reports/{job_id}/metadata.json`
+  - [x] Added to `_handle_immediate_job()` metadata dict in `run.py`
+- [x] Show cost per expert, per research type
+  - [x] Add `deepr costs expert "Expert Name"` subcommand
+  - [x] Shows: total_research_cost, monthly_spending, budget utilization, conversations, research runs
+  - [x] Per-operation breakdown from CostEntry metadata (`expert` field)
+  - [x] `CostAggregator.get_entries_by_expert()` + `get_expert_breakdown()` helpers
 
 #### 4.4 Decision Logs in Natural Language
 - [ ] Extend ThoughtStream to generate human-readable summaries
@@ -173,24 +175,27 @@
   - [ ] Show trends: "GPT-5.2 latency increased 20% this week"
   - [ ] Alert on significant degradation
 
-#### 5.2 Auto-Fallback on Provider Failures
-- [ ] Wire AutonomousProviderRouter into `cli/commands/run.py`
-  - [ ] Replace static provider selection with router
-  - [ ] Pass task type hint to router for optimal selection
-  - [ ] Respect `--provider` flag as override
-- [ ] Add retry with fallback in `_run_single()`
-  - [ ] On timeout: retry once, then fallback
-  - [ ] On rate limit: immediate fallback
-  - [ ] On auth error: skip provider, log warning
-  - [ ] Max 3 fallback attempts before failure
-- [ ] Emit fallback events to trace
-  - [ ] Log: original provider, failure reason, fallback provider
-  - [ ] Include in `--explain` output
-  - [ ] Track fallback frequency per provider
-- [ ] Add `--no-fallback` flag
-  - [ ] Fail immediately on provider error
-  - [ ] Useful for debugging provider-specific issues
-  - [ ] Show clear error message with provider name
+#### 5.2 Auto-Fallback on Provider Failures (DONE)
+- [x] Wire AutonomousProviderRouter into `cli/commands/run.py`
+  - [x] Replace static provider selection with router (`_run_single()` uses `router.select_provider()`)
+  - [x] Pass task type hint to router for optimal selection
+  - [x] Respect `--provider` flag as override (`user_specified_provider` parameter)
+- [x] Add retry with fallback in `_run_single()`
+  - [x] On timeout: retry once, then fallback
+  - [x] On rate limit: immediate fallback
+  - [x] On auth error: skip provider, log warning
+  - [x] Max 3 fallback attempts before failure (`MAX_FALLBACK_ATTEMPTS`)
+  - [x] `_classify_provider_error()` bridges `providers.base.ProviderError` → core error hierarchy
+  - [x] Vector store graceful degradation on fallback to non-OpenAI providers
+- [x] Emit fallback events to trace
+  - [x] Log: original provider, failure reason, fallback provider via `op.add_event("fallback_triggered")`
+  - [x] Include in `--explain` output (`_show_trace_explain()` displays fallback events)
+  - [x] Track fallback frequency per provider via router metrics
+- [x] Add `--no-fallback` flag
+  - [x] Fail immediately on provider error
+  - [x] Available on `focus`, `single`, `docs`, `run_alias`, and `research` commands
+  - [x] Show clear error message with provider name
+- [x] 16 test cases in `test_run_fallback.py` (classify errors + fallback behavior)
 
 #### 5.3 Continuous Optimization
 - [ ] Implement exploration vs exploitation
@@ -502,9 +507,9 @@ Recommended implementation sequence:
 
 1. **7.1 Minimal Default Output** - Quick win, improves UX immediately
 2. **4.1 CLI Trace Flags** - Infrastructure exists, just needs CLI wiring
-3. **5.2 Auto-Fallback** - Router exists, needs integration
+3. ~~**5.2 Auto-Fallback**~~ - Done
 4. **7.2 Interactive Mode** - High user value
-5. **4.3 Cost Dashboard** - Data exists, needs CLI
+5. ~~**4.3 Cost Dashboard**~~ - Done
 6. **6.1 Context Discovery** - New feature, moderate effort
 7. **7.3 Real-Time Progress** - Depends on API capabilities
 8. ~~**9.1 Enhanced MCP Server**~~ - Done
