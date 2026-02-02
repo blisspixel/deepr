@@ -1,4 +1,9 @@
-"""Unit tests for conversation memory persistence."""
+"""Integration tests for conversation memory persistence.
+
+These tests require a real expert profile with knowledge graph data on disk.
+They call start_chat_session which eagerly loads the full knowledge graph,
+so they must NOT be in the unit test suite.
+"""
 import pytest
 import asyncio
 import json
@@ -6,7 +11,7 @@ from pathlib import Path
 from deepr.experts.chat import start_chat_session
 from deepr.experts.profile import ExpertStore
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.integration, pytest.mark.requires_api]
 
 
 @pytest.mark.asyncio
