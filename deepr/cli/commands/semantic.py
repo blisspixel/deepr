@@ -15,7 +15,7 @@ All flags from the underlying commands are supported.
 import click
 import asyncio
 from typing import Optional
-from deepr.cli.commands.run import _run_single, _run_campaign, _run_team
+from deepr.cli.commands.run import _run_single, _run_campaign, _run_team, TraceFlags
 from deepr.cli.colors import print_header, print_section_header, print_success, print_error, print_key_value, console
 from deepr.cli.output import OutputContext, OutputMode, output_options
 
@@ -61,6 +61,9 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--mode", type=click.Choice(["focus", "docs", "auto"]), default="auto",
               help="Research mode (auto=detect automatically)")
 @click.option("--scrape-only", is_flag=True, help="Company research: only scrape, don't submit research job")
+@click.option("--explain", is_flag=True, help="Show decision reasoning after completion")
+@click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
+@click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
 @output_options
 def research(
     query: str,
@@ -76,6 +79,9 @@ def research(
     yes: bool,
     mode: str,
     scrape_only: bool,
+    explain: bool,
+    timeline: bool,
+    full_trace: bool,
     output_context: OutputContext,
 ):
     """Run research with automatic mode detection.
@@ -266,7 +272,8 @@ def research(
             query = f"Create comprehensive documentation for: {query}"
 
     # Call the underlying _run_single implementation
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
+    trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, trace_flags=trace_flags))
 
 
 @click.command()
