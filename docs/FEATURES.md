@@ -1,6 +1,6 @@
 # Deepr Features Guide
 
-Complete guide to all Deepr features as of v2.3
+Complete guide to all Deepr features as of v2.6
 
 ## Table of Contents
 
@@ -153,7 +153,7 @@ DEEPR_AUTO_REFINE=true
 ```
 
 **What it adds:**
-- Temporal context ("As of October 2025...")
+- Temporal context (adds current date for recency)
 - Structured deliverables
 - Scope clarification
 - Missing context detection
@@ -334,24 +334,41 @@ deepr cost estimate "Your prompt"
 deepr cost estimate "Prompt" --model o3-deep-research
 ```
 
-### Cost Tracking
+### Cost Dashboard
 
 ```bash
-# Overall summary
-deepr cost summary
+# Daily/monthly summary with budget utilization
+deepr costs show
 
-# By time period
-deepr cost summary --period today
-deepr cost summary --period week
-deepr cost summary --period month
+# Cost history over time
+deepr costs history --days 14
+
+# Breakdown by provider, operation, or model
+deepr costs breakdown --by provider --period today
+deepr costs breakdown --by model --period week
+deepr costs breakdown --by operation --period all
+
+# Cost trends with ASCII chart and anomaly detection
+deepr costs timeline --days 30
+deepr costs timeline --days 60 --weekly
+
+# Per-expert cost tracking
+deepr costs expert "Expert Name"
+
+# View active cost alerts
+deepr costs alerts
+
+# View or set cost limits
+deepr costs limits
+deepr costs limits --daily 15 --monthly 150
 ```
 
 **Shows:**
-- Total spending and breakdown
-- Cost by model
-- Budget percentage used
-- Average cost per job
-- Completed vs pending costs
+- Daily and monthly spending with budget utilization
+- Cost breakdown by provider, operation, model, or expert
+- Timeline chart with anomaly detection (days > 2x average highlighted)
+- Per-expert costs: total research cost, monthly spending, budget usage, per-operation breakdown
+- Active alerts at configurable thresholds (50%, 80%, 95%)
 
 ### Budget Limits
 
@@ -544,7 +561,8 @@ deepr run          # Low-level research modes (focus, docs, project, team)
 deepr jobs         # Job management (list, status, get, cancel)
 deepr vector       # Vector store management
 deepr prep         # Campaign management
-deepr cost         # Cost management
+deepr cost         # Cost estimation
+deepr costs        # Cost dashboard (show, history, breakdown, timeline, alerts, expert)
 deepr config       # Configuration
 deepr analytics    # Usage analytics
 deepr doctor       # System diagnostics

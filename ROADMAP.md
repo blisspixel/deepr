@@ -1,6 +1,6 @@
 # Deepr Development Roadmap
 
-> **Note**: Model and pricing information current as of January 31, 2026. AI evolves rapidly - verify at provider websites.
+> **Note**: Model and pricing information current as of February 2026. AI evolves rapidly - verify at provider websites.
 
 ## Quick Links
 
@@ -8,326 +8,137 @@
 - [Expert System Guide](docs/EXPERTS.md) - Creating and using domain experts
 - [Vision & Future](docs/VISION.md) - Aspirational features (v3.0+)
 - [Architecture](docs/ARCHITECTURE.md) - Technical details, security, observability
+- [Changelog](docs/CHANGELOG.md) - Detailed release history
 
 ---
 
 ## Current Status (v2.6)
+
+Multi-provider research automation with expert system, MCP integration, and observability. 2800+ tests passing.
 
 ### What Works
 
 - Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4, Azure)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
-- Expert system with autonomous learning
-- Agentic expert chat (experts can trigger research)
-- Knowledge synthesis and gap awareness
+- Expert system with autonomous learning, agentic chat, knowledge synthesis
 - MCP server with 10 tools, persistence, security, multi-runtime configs
-- Multi-layer budget protection
-- CLI and Web UI
-
-### Recent Completions
-
-- [x] Semantic command interface
-- [x] Expert system foundation (create, chat, learn)
-- [x] Autonomous learning with curriculum generation
-- [x] Agentic research in expert chat
-- [x] MCP Advanced Patterns (Dynamic Tool Discovery, Subscriptions, Elicitation)
-- [x] MCP Ecosystem Integration (server wiring, skill packaging, configs, security)
-- [x] Budget protection with pause/resume
-- [x] 1300+ tests passing (361 MCP-specific)
+- CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
+- Output modes (`--verbose`, `--json`, `--quiet`)
+- Auto-fallback on provider failures with `--no-fallback` override
+- Cost dashboard (`costs timeline`, `costs breakdown --period`, `costs expert`)
+- Multi-layer budget protection with pause/resume
+- Docker deployment option
 
 ---
 
-## Completed Priorities
+## Completed Work
 
-### Priority 1: UX Polish (DONE)
+Implementation details for completed priorities are in the [Changelog](docs/CHANGELOG.md).
 
-- [x] Cross-platform path handling
-- [x] Progress feedback during operations
-- [x] `deepr doctor` diagnostics
-- [x] Stale job status refresh
-- [x] Consistent command patterns
-
-### Priority 2: Semantic Commands (DONE)
-
-- [x] `deepr research` with auto-mode detection
-- [x] `deepr learn` for multi-phase learning
-- [x] `deepr team` for multi-perspective analysis
-- [x] `deepr check` for fact verification
-- [x] `deepr make docs/strategy` for artifact generation
-
-### Priority 2.5: Expert System (DONE)
-
-- [x] Expert creation with document ingestion
-- [x] Agentic chat with research triggers
-- [x] Knowledge gap detection and filling
-- [x] Export/import for sharing
-
-### Priority 3: MCP Integration (DONE)
-
-- [x] Core MCP server implementation
-- [x] Dynamic tool discovery (85% context reduction)
-- [x] Resource subscriptions (70% token savings)
-- [x] Human-in-the-loop elicitation
+| Priority | Description | Version |
+|----------|-------------|---------|
+| P1 | UX Polish (doctor, progress, paths) | v2.0-2.1 |
+| P2 | Semantic Commands (research, learn, team, check, make) | v2.2 |
+| P2.5 | Expert System (create, chat, learn, export/import) | v2.3 |
+| P3 | MCP Integration (server, tool discovery, subscriptions, elicitation) | v2.4-2.5 |
+| 4.1 | CLI Trace Flags (--explain, --timeline, --full-trace) | v2.6 |
+| 4.3 | Cost Attribution Dashboard (timeline, breakdown --period, expert costs) | v2.6 |
+| 5.2 | Auto-Fallback on Provider Failures (retry, classify, --no-fallback) | v2.6 |
+| 7.1 | Minimal Default Output (OutputMode, @output_options) | v2.6 |
+| 9.1 | MCP Server Architecture (job pattern, resources, notifications, errors) | v2.5 |
+| 9.2 | AgentSkill Packaging (SKILL.md, prompts, install scripts) | v2.5 |
+| 9.4 | Security Hardening (Docker, SSRF, path traversal, sampling) | v2.5-2.6 |
+| 9.5 | Claude-Specific Optimizations (CoT, lazy loading, context management) | v2.5 |
+| 9.6 | Multi-Runtime Config Templates (OpenClaw, Claude Desktop, Cursor, VS Code) | v2.5 |
 
 ---
 
-## Active Priorities
+## Next Priorities
 
-### Priority 4: Observability (IN PROGRESS)
+### Priority 4: Observability (remaining)
 
-**What exists:** TraceContext, Span, MetadataEmitter, ThoughtStream infrastructure
-
-#### 4.1 CLI Flags for Trace Visibility (DONE)
-- [x] Add `--explain` flag to `deepr research` and `deepr run focus`
-  - [x] `_show_trace_explain()` shows task hierarchy with model/cost reasoning
-  - [x] Collect decision points via MetadataEmitter spans during research execution
-  - [x] Format as bullet list: "Used o4-mini via openai, cost $0.10"
-  - [x] Show at end of command, after result
-- [x] Add `--timeline` flag
-  - [x] `_show_trace_timeline()` renders Rich table with offset, task, status, duration, cost
-  - [x] Track start/end timestamps for each phase via MetadataEmitter
-  - [x] Format: `[0s] research_job → [1s] provider_submit → ...`
-  - [x] Include cost per phase and cost breakdown by type
-- [x] Add `--full-trace` flag
-  - [x] Dump complete trace to `data/traces/{job_id}_trace.json`
-  - [x] Include all spans, metadata, token counts
-  - [x] `deepr research trace <id>` also available for post-hoc viewing
-- [x] Wire flags through to MetadataEmitter in `cli/commands/run.py`
-  - [x] `TraceFlags` dataclass with `any_enabled` property
-  - [x] Added to `focus` and `research` Click command decorators
-  - [x] Passed through to `_run_single()` → `_submit_to_provider()` → `_handle_immediate_job()`
-  - [x] Backward compatible (no flags = current behavior, traces always saved for later viewing)
+**What exists:** TraceContext, Span, MetadataEmitter, ThoughtStream, CLI trace flags, cost dashboard.
 
 #### 4.2 Auto-Generated Metadata
-- [ ] Instrument `core/research.py` to emit spans
-  - [ ] Add `@traced("plan")` decorator to planning phase
-  - [ ] Add `@traced("search")` decorator to search phase
-  - [ ] Add `@traced("analyze")` decorator to analysis phase
-  - [ ] Add `@traced("synthesize")` decorator to synthesis phase
+- [ ] Instrument `core/research.py` to emit spans per phase (plan, search, analyze, synthesize)
 - [ ] Instrument `experts/chat.py` to emit spans for tool calls
-  - [ ] Wrap each tool invocation in span context
-  - [ ] Record tool name, arguments, result size
-  - [ ] Track tool call duration
-- [ ] Add cost attribution to each span
-  - [ ] Calculate cost from token counts + model pricing
-  - [ ] Store in span metadata: `{"cost_usd": 0.042, "tokens_in": 1500, "tokens_out": 800}`
-  - [ ] Aggregate costs up the span tree
-- [ ] Add token counts to spans
-  - [ ] Track input tokens (prompt)
-  - [ ] Track output tokens (completion)
-  - [ ] Track cached tokens (if applicable)
-
-#### 4.3 Cost Attribution Dashboard — DONE
-- [x] Create `deepr costs breakdown` command (existed: by provider/operation/model with Rich tables)
-  - [x] Group by: operation type, provider, model, expert
-  - [x] Format as table with totals
-  - [x] Add `--period` flag (today, week, month, all) — replaces `--days`, converts to `start_date`
-- [x] Create `deepr costs timeline` command
-  - [x] Show daily/weekly cost trends (`--days`, `--weekly` flags)
-  - [x] ASCII bar chart via Rich Table with proportional `█` bars
-  - [x] Highlight anomalies (days > 2x average) in red with `!` prefix
-  - [x] Summary line: average cost per period + anomaly count
-- [x] Add cost breakdown to report metadata
-  - [x] Store `total_cost` and `cost_by_model` in `reports/{job_id}/metadata.json`
-  - [x] Added to `_handle_immediate_job()` metadata dict in `run.py`
-- [x] Show cost per expert, per research type
-  - [x] Add `deepr costs expert "Expert Name"` subcommand
-  - [x] Shows: total_research_cost, monthly_spending, budget utilization, conversations, research runs
-  - [x] Per-operation breakdown from CostEntry metadata (`expert` field)
-  - [x] `CostAggregator.get_entries_by_expert()` + `get_expert_breakdown()` helpers
+- [ ] Add cost attribution to each span (cost from token counts + model pricing)
+- [ ] Add token counts to spans (input, output, cached)
 
 #### 4.4 Decision Logs in Natural Language
-- [ ] Extend ThoughtStream to generate human-readable summaries
-  - [ ] Convert structured decisions to prose
-  - [ ] Example: "Selected Grok 4 for this query because it's 10x cheaper than GPT-5.2 and the task is simple lookup."
-- [ ] Add `--why` flag
-  - [ ] Show model selection reasoning inline
-  - [ ] Show provider fallback reasoning if triggered
-  - [ ] Show budget decisions (why paused, why continued)
-- [ ] Store decision logs alongside reports
-  - [ ] Write to `reports/{job_id}/decisions.md`
-  - [ ] Include timestamps and context
-  - [ ] Link to relevant spans in trace.json
+- [ ] Extend ThoughtStream to generate human-readable decision summaries
+- [ ] Add `--why` flag for inline model/provider/budget reasoning
+- [ ] Store decision logs alongside reports in `reports/{job_id}/decisions.md`
 
 ---
 
-### Priority 5: Provider Routing (TODO)
+### Priority 5: Provider Routing (remaining)
 
-**What exists:** AutonomousProviderRouter with scoring, fallback, circuit breakers (not wired into main flow)
+**What exists:** AutonomousProviderRouter with scoring, fallback, circuit breakers. Auto-fallback wired into CLI.
 
 #### 5.1 Real-Time Performance Benchmarking
-- [ ] Add latency percentiles to ProviderMetrics
-  - [ ] Track p50, p95, p99 latency per provider
-  - [ ] Use sliding window (last 100 requests)
-  - [ ] Store in SQLite for persistence
-- [ ] Track success rate by task type
-  - [ ] Categories: research, chat, synthesis, planning
-  - [ ] Calculate success rate per provider per category
-  - [ ] Weight recent results higher (exponential decay)
-- [ ] Add `deepr providers benchmark` command
-  - [ ] Run standardized test queries against each provider
-  - [ ] Measure: latency, token throughput, error rate
-  - [ ] Output comparison table
-  - [ ] Add `--quick` flag for fast smoke test
-- [ ] Store benchmark history for trend analysis
-  - [ ] Save each benchmark run with timestamp
-  - [ ] Show trends: "GPT-5.2 latency increased 20% this week"
-  - [ ] Alert on significant degradation
-
-#### 5.2 Auto-Fallback on Provider Failures (DONE)
-- [x] Wire AutonomousProviderRouter into `cli/commands/run.py`
-  - [x] Replace static provider selection with router (`_run_single()` uses `router.select_provider()`)
-  - [x] Pass task type hint to router for optimal selection
-  - [x] Respect `--provider` flag as override (`user_specified_provider` parameter)
-- [x] Add retry with fallback in `_run_single()`
-  - [x] On timeout: retry once, then fallback
-  - [x] On rate limit: immediate fallback
-  - [x] On auth error: skip provider, log warning
-  - [x] Max 3 fallback attempts before failure (`MAX_FALLBACK_ATTEMPTS`)
-  - [x] `_classify_provider_error()` bridges `providers.base.ProviderError` → core error hierarchy
-  - [x] Vector store graceful degradation on fallback to non-OpenAI providers
-- [x] Emit fallback events to trace
-  - [x] Log: original provider, failure reason, fallback provider via `op.add_event("fallback_triggered")`
-  - [x] Include in `--explain` output (`_show_trace_explain()` displays fallback events)
-  - [x] Track fallback frequency per provider via router metrics
-- [x] Add `--no-fallback` flag
-  - [x] Fail immediately on provider error
-  - [x] Available on `focus`, `single`, `docs`, `run_alias`, and `research` commands
-  - [x] Show clear error message with provider name
-- [x] 16 test cases in `test_run_fallback.py` (classify errors + fallback behavior)
+- [ ] Add latency percentiles (p50, p95, p99) to ProviderMetrics with sliding window
+- [ ] Track success rate by task type (research, chat, synthesis, planning)
+- [ ] Add `deepr providers benchmark` command with `--quick` option
+- [ ] Store benchmark history for trend analysis and degradation alerts
 
 #### 5.3 Continuous Optimization
-- [ ] Implement exploration vs exploitation
-  - [ ] 90% exploitation: use best known provider
-  - [ ] 10% exploration: try alternatives to gather data
-  - [ ] Configurable ratio via `DEEPR_EXPLORATION_RATE`
-  - [ ] Disable exploration with `--no-explore` flag
-- [ ] A/B testing mode
-  - [ ] `deepr providers ab-test "query" --providers gpt-5.2,grok-4`
-  - [ ] Run same query on multiple providers
-  - [ ] Compare: latency, cost, output quality (manual rating)
-  - [ ] Store results for future reference
-- [ ] Add `deepr providers status` command
-  - [ ] Show all configured providers
-  - [ ] Status: healthy, degraded, disabled, unconfigured
-  - [ ] Last success/failure timestamp
-  - [ ] Current circuit breaker state
-- [ ] Auto-disable failing providers
-  - [ ] Threshold: >50% failure rate over 10 requests
-  - [ ] Auto-re-enable after 1 hour cooldown
-  - [ ] Manual override: `deepr providers enable <name>`
-  - [ ] Log disable/enable events
+- [ ] Exploration vs exploitation (90/10 default, configurable)
+- [ ] A/B testing mode: same query on multiple providers
+- [ ] `deepr providers status` command (health, circuit breaker state)
+- [ ] Auto-disable failing providers (>50% failure rate, 1hr cooldown)
 
 ---
 
-### Priority 6: Context Discovery (TODO)
+### Priority 6: Context Discovery
 
-**What exists:** Reports stored with metadata, ContextBuilder service
+**What exists:** Reports stored with metadata, ContextBuilder service.
 
 #### 6.1 Detect Related Prior Research
-- [ ] Index report metadata in SQLite
-  - [ ] Create `report_index` table: id, topic, date, cost, summary_embedding
-  - [ ] Index on creation (hook into report save)
-  - [ ] Backfill existing reports with `deepr index rebuild`
-- [ ] Add semantic similarity search
-  - [ ] Generate embeddings for report summaries (first 500 chars)
-  - [ ] Use cosine similarity for matching
-  - [ ] Cache embeddings to avoid recomputation
-  - [ ] Threshold: similarity > 0.7 = related
-- [ ] Create `deepr search "topic"` command
-  - [ ] Search by keyword (title, summary)
-  - [ ] Search by semantic similarity
-  - [ ] Combine results, deduplicate
-  - [ ] Output: report ID, date, similarity score, summary snippet
-- [ ] Show similarity scores and dates
-  - [ ] Format: `[0.85] 2026-01-15 - PostgreSQL connection pooling strategies`
-  - [ ] Sort by relevance (similarity) by default
-  - [ ] Add `--sort date` for chronological
+- [ ] Index report metadata in SQLite with embeddings
+- [ ] Semantic similarity search (cosine, threshold > 0.7)
+- [ ] `deepr search "topic"` command with keyword + semantic results
+- [ ] Similarity scores and date sorting
 
 #### 6.2 Notify-Only (Never Auto-Inject)
-- [ ] Show "Related research found" message
-  - [ ] Check for related reports before starting research
-  - [ ] Display count and top 3 matches
-  - [ ] Non-blocking: research continues after message
-- [ ] Display actionable hint
-  - [ ] "Found 3 related reports from last 30 days."
-  - [ ] "Use --context <id> to include previous findings."
-  - [ ] "Use --ignore-related to skip this check."
-- [ ] Add `--ignore-related` flag
-  - [ ] Skip the similarity check entirely
-  - [ ] Useful for intentionally fresh research
-  - [ ] Persists in config: `deepr config set ignore_related true`
+- [ ] "Related research found" message before starting research
+- [ ] Actionable hint: "Use --context <id> to include previous findings"
+- [ ] `--ignore-related` flag to skip check
 
 #### 6.3 Explicit Reuse with Warnings
-- [ ] Add `--context <report-id>` flag
-  - [ ] Load previous report summary into context
-  - [ ] Prepend to research prompt: "Building on previous research: ..."
-  - [ ] Support multiple: `--context id1 --context id2`
-- [ ] Warn if reusing stale context
-  - [ ] Threshold: >30 days old
-  - [ ] Warning: "Context from 45 days ago may be outdated. Continue? [y/N]"
-  - [ ] Override with `--force`
-- [ ] Show cost savings estimate
-  - [ ] Calculate: "Reusing context saves ~$0.50 in search costs"
-  - [ ] Based on historical cost of similar queries
-- [ ] Track context lineage in report metadata
-  - [ ] Store: `{"built_on": ["report-abc", "report-xyz"]}`
-  - [ ] Show lineage in `deepr jobs status <id>`
-  - [ ] Enable "research genealogy" queries
+- [ ] `--context <report-id>` flag to include previous research
+- [ ] Stale context warnings (>30 days)
+- [ ] Cost savings estimate and context lineage tracking
 
 ---
 
-### Priority 7: Modern CLI UX (NEW)
-
-**Problem:** Current CLI feels like 2020 - wall of text output, no interactivity, no streaming.
-
-#### 7.1 Minimal Default Output ✅ DONE
-- [x] Default to quiet mode: `✓ Research complete (2m 15s, $0.42) → reports/abc123/`
-- [x] Move current verbose output to `--verbose` flag
-- [x] Add `--json` flag for machine-readable output (for scripting/piping)
-- [x] Add `--quiet` flag for zero output except errors
-
-> **Implemented:** `OutputMode` enum (MINIMAL/VERBOSE/JSON/QUIET), `OutputContext`, `OutputFormatter`, and `@output_options` decorator in `deepr/cli/output.py`. All main commands (`focus`, `docs`, `research`) use `@output_options`. Conflicting flags (e.g. `--json --quiet`) are rejected.
+### Priority 7: Modern CLI UX (remaining)
 
 #### 7.2 Interactive Mode
-- [ ] `deepr` with no args → interactive menu using `questionary` or `InquirerPy`
-- [ ] `deepr research` with no query → prompt for query interactively
-- [ ] Recent queries autocomplete (store last 20 queries)
+- [ ] `deepr` with no args opens interactive menu (questionary/InquirerPy)
+- [ ] Query autocomplete from recent history
 - [ ] Provider/model picker with cost estimates
-- [ ] Budget confirmation as interactive prompt, not y/n
 
 #### 7.3 Real-Time Progress for Long Operations
-- [ ] Poll OpenAI deep research status API and show phase progress
-- [ ] Display: "Searching... (12 sources found)" → "Analyzing..." → "Synthesizing..."
+- [ ] Poll provider status API and show phase progress
 - [ ] Stream partial results when API supports it
-- [ ] Show ETA based on historical job durations
 - [ ] Progress bar for multi-phase operations
 
-#### 7.4 TUI Dashboard (Stretch Goal)
-- [ ] `deepr ui` → opens Textual-based terminal UI
-- [ ] Dashboard showing: active jobs, recent results, budget status
-- [ ] Live updating job status
-- [ ] Keyboard navigation (j/k for up/down, enter to view)
-- [ ] Split pane: job list | job details
+#### 7.4 TUI Dashboard (Stretch)
+- [ ] `deepr ui` opens Textual-based terminal UI
+- [ ] Active jobs, recent results, budget status
+- [ ] Keyboard navigation, split pane layout
 
 #### 7.5 Command Consolidation
-- [ ] Remove deprecated command aliases (`run single`, `run campaign`)
-- [ ] Consolidate to three top-level commands:
-  - `deepr research "query"` - all research operations
-  - `deepr jobs` - job management (list, status, cancel, get)
-  - `deepr expert` - expert system
-- [ ] Add `deepr config` for settings (budget, default provider, etc.)
-- [ ] Update all documentation to reflect simplified commands
+- [ ] Remove deprecated aliases (`run single`, `run campaign`)
+- [ ] Consolidate to core commands: `research`, `jobs`, `expert`, `config`
+- [ ] Update documentation to match
 
-#### 7.6 Output Improvements (partial) ✅
-- [x] Remove `======` separator walls
-- [x] Use subtle dividers (single line, dim color)
+#### 7.6 Output Improvements (remaining)
 - [ ] Consistent key-value formatting across all commands
-- [ ] Truncate long outputs with "... (use --full to see all)"
-- [ ] Hyperlinks to reports in terminals that support them (iTerm2, Windows Terminal)
-
-> **Implemented:** `_show_research_header()` modernized with `─` dividers and Rich formatting. Trace display functions (`_show_trace_explain`, `_show_trace_timeline`) use Rich Tables and Panels.
+- [ ] Truncate long outputs with "use --full to see all"
+- [ ] Hyperlinks to reports in supported terminals
 
 ---
 
@@ -341,161 +152,48 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ---
 
-### Priority 9: MCP Ecosystem Integration (MOSTLY DONE)
+### Priority 9: MCP Ecosystem (remaining)
 
-**What exists:** Full MCP server with 10 tools, SQLite persistence, SSRF protection, multi-runtime configs, agent skill packaging, Docker deployment, MCP client interfaces (design only).
+**What exists:** Full MCP server with 10 tools, persistence, security, skill packaging, Docker, multi-runtime configs.
 
-**Already implemented (from Priority 3):**
-- Dynamic Tool Discovery (85% context reduction)
-- Resource Subscriptions (70% token savings)
-- Human-in-the-Loop Elicitation
-- Sandboxed Execution contexts
+#### 9.2 Distribution (remaining)
+- [ ] GitHub release workflow for skill distribution
+- [ ] Add to ClawHub / skill registry (when available)
 
-**Goal:** Make Deepr a useful participant in the agentic AI ecosystem (OpenClaw, Claude Desktop, IDE integrations)
+#### 9.3 MCP Client Mode (Deepr as Tool Consumer)
+- Design complete (SearchBackend, BrowserBackend protocols, architecture doc)
+- [ ] Implement MCP client connections (Stdio, SSE transports)
+- [ ] Brave Search and Puppeteer/Playwright MCP adapters
+- [ ] Recursive agent composition for sub-agent summarization
 
-#### 9.1 Enhanced MCP Server Architecture (DONE)
-- [x] Implement Job Pattern for async research
-  - [x] `deepr_research()` returns `{job_id, trace_id, status, estimated_time}` immediately
-  - [x] `deepr_check_status(job_id)` for polling progress
-  - [x] `deepr_cancel_job(job_id)` for user-initiated cancellation
-  - [x] Store job state in SQLite for persistence across restarts (`persistence.py`)
-  - [x] Mark incomplete jobs as failed on restart recovery
-  - [x] Trace ID generation and propagation for end-to-end debugging
-- [x] Expose reports as MCP Resources
-  - [x] `deepr://reports/{job_id}/final.md` - polished output
-  - [x] `deepr://reports/{job_id}/summary.json` - structured metadata
-  - [x] `deepr://logs/{job_id}/search_trace.json` - query history for provenance
-  - [x] `deepr://logs/{job_id}/decisions.md` - reasoning log
-  - [ ] `deepr://cache/{url_hash}` - raw source content (optional, for verification)
-- [x] Progress notifications via MCP protocol
-  - [x] Emit updates via subscription manager during research phases
-  - [x] Include phase name, progress, current action description
-  - [x] Support both polling and push notification patterns
-  - [ ] Event-driven bus (QueryReceived -> PlanCreated -> etc.) - not yet needed
-- [x] Structured error responses
-  - [x] Return errors as structured objects via `ToolError` dataclass
-  - [x] Include error_code, message, retry_hint, fallback_suggestion
-  - [x] Graceful degradation when sub-operations fail
-  - [x] All tools return error dicts instead of raising exceptions
+#### 9.4 Security (remaining)
+- [ ] Wire sampling into web scraper (CAPTCHA/paywall detection)
+- [ ] Rate limiting for external requests
 
-#### 9.2 AgentSkill Packaging for Distribution (DONE)
-- [x] Create SKILL.md metadata file
-  - [x] YAML frontmatter: name, description, license, authors, version
-  - [x] Compatibility matrix: os (darwin, linux, win32), python version
-  - [x] Required environment variables list
-  - [x] Required binaries (python3)
-  - [x] `requires.bins` and `requires.env` fields
-- [x] LLM-optimized tool descriptions
-  - [x] Usage hints in tool descriptions
-  - [x] Negative guidance ("Do not use for simple factual lookups")
-  - [x] Example invocations in descriptions
-  - [x] Flat input schemas for maximum client compatibility
-- [x] Prompt primitives for template menus
-  - [x] `deep_research_task`, `expert_consultation`, `comparative_analysis`
-  - [x] Wired into `prompts/list` and `prompts/get` JSON-RPC methods
-- [x] Installation and validation
-  - [x] `install.sh` and `install.ps1` scripts with env var checking
-  - [x] `deepr_status` health check tool
-- [ ] Distribution
-  - [ ] Create GitHub release workflow for skill distribution
-  - [ ] Add to ClawHub / skill registry (when available)
+#### 9.5 Structured Output (remaining)
+- [ ] XML tags for complex results (not yet needed)
 
-#### 9.3 MCP Client Mode (Deepr as Tool Consumer) - DESIGN ONLY
-- [x] Define interfaces and architecture
-  - [x] `SearchBackend` protocol with `BuiltinSearchBackend` adapter
-  - [x] `BrowserBackend` protocol with `BuiltinBrowserBackend` adapter
-  - [x] `MCPSearchBackend` and `MCPBrowserBackend` stubs (raise NotImplementedError)
-  - [x] Architecture document: `docs/mcp-client-architecture.md`
-  - [x] Configuration design for backend selection
-- [ ] Implement MCP client connections (not yet started)
-  - [ ] Connect to local MCP servers via Stdio transport
-  - [ ] Connect to remote MCP servers via SSE transport
-  - [ ] Brave Search MCP adapter
-  - [ ] Puppeteer/Playwright MCP adapter
-- [ ] Recursive agent composition
-  - [ ] Offload summarization to cheaper models via sub-agent
-  - [ ] Config for sub-agent model selection
-
-#### 9.4 Security Hardening for Autonomous Operation (DONE)
-- [x] Docker deployment option
-  - [x] `Dockerfile` with Python 3.11-slim, non-root user (UID 1000)
-  - [x] `docker-compose.yml` with bridge network, resource limits (512M, 1 CPU)
-  - [x] Volume mount for data directory only
-- [x] Path traversal protection (via existing `PathValidator` in sandbox module)
-- [x] Network security
-  - [x] SSRF protection: block internal IPs (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, IPv6 equivalents)
-  - [x] Optional domain allowlist via `DEEPR_ALLOWED_DOMAINS` env var
-  - [x] Audit logging for validated URLs
-  - [x] SSRF validation wired into `deepr_research` file URL checking
-- [x] Human-in-the-loop sampling
-  - [x] MCP Sampling primitives: `SamplingRequest`, `SamplingResponse`
-  - [x] Factory functions: `create_captcha_request`, `create_paywall_request`, `create_confirmation_request`
-  - [ ] Wire sampling into web scraper (when CAPTCHA/paywall detected)
-  - [ ] Rate limiting for external requests
-
-#### 9.5 Claude-Specific Optimizations (DONE)
-- [x] Chain of Thought prompting
-  - [x] CoT guidance prepended to research tool descriptions in registry
-  - [x] "Before calling, explain your research strategy" in tool descriptions
-- [x] Context window management
-  - [x] Lazy loading: large reports return summary + `deepr://reports/{id}/final.md` URI
-  - [x] Configurable threshold via `DEEPR_MAX_INLINE_CHARS` (default 8000)
-  - [x] Truncation with hint to use `resources/read` for full content
-- [ ] Structured output formatting (not yet needed)
-  - [ ] XML tags for complex results (`<research_result>`, `<summary>`, etc.)
-
-#### 9.6 Multi-Runtime Configuration Templates (DONE)
-- [x] `mcp/openclaw-config.json` - stdio with autoAllow for read-only tools
-- [x] `mcp/openclaw-docker-config.json` - Docker variant with volume mounts
-- [x] `mcp/mcp-config-claude-desktop.json` - Claude Desktop format
-- [x] `mcp/mcp-config-cursor.json` - Cursor format
-- [x] `mcp/mcp-config-vscode.json` - VS Code format
-- [x] `mcp/README.md` - per-runtime setup guides, tool reference, troubleshooting
-
-#### 9.7 Future MCP Directions (Stretch Goals)
-- [ ] Multi-agent swarm support
-  - [ ] Specialized variants: Deepr-Finance, Deepr-Code
-  - [ ] OpenClaw as "Manager Agent" routing to specialists
-  - [ ] Tool definitions for domain-specific research
-- [ ] Remote MCP and edge deployment
-  - [ ] SSE transport for cloud-hosted Deepr
-  - [ ] Cloudflare Workers deployment option
-  - [ ] Parallel research instances (50+ concurrent)
-  - [ ] Config switch: `command` (local) vs `url` (remote)
-- [ ] Memory integration
-  - [ ] "You researched X last week, use cached results?"
-  - [ ] Integration with OpenClaw Memory MCP Server
-  - [ ] Local Vector DB option (Chroma/FAISS)
-  - [ ] Cross-session knowledge persistence
+#### 9.7 Future MCP Directions (Stretch)
+- [ ] Multi-agent swarm support (specialized variants, manager routing)
+- [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
+- [ ] Memory integration (cross-session persistence, vector DB)
 
 ---
 
 ## Code Quality
 
-### Completed
-- [x] Custom exception hierarchy (`deepr/core/errors.py`)
-- [x] Embedding cache for search optimization
-- [x] Test organization cleanup
-- [x] Performance documentation
-- [x] Security documentation
-
-### TODO
-
 #### ExpertProfile Refactoring
 - [ ] Split `experts/profile.py` into `profile.py` (data) and `profile_manager.py` (operations)
 - [ ] Extract belief management to `experts/beliefs_manager.py`
 - [ ] Add profile versioning for schema migrations
-- [ ] Add profile validation on load
 
 #### Configuration Consolidation
 - [ ] Audit all config sources (`config.py`, `unified_config.py`, env vars, CLI flags)
 - [ ] Create single `Settings` class as source of truth
 - [ ] Deprecate duplicate config loading paths
-- [ ] Add `deepr config show` to display effective configuration
 
 #### Test Coverage
 - [ ] Add integration tests for provider fallback
-- [ ] Add tests for CLI interactive mode
 - [ ] Add performance regression tests
 - [ ] Target: 80% coverage on core modules
 
@@ -503,23 +201,16 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ## Build Order
 
-Recommended implementation sequence:
+Recommended sequence for remaining work:
 
-1. **7.1 Minimal Default Output** - Quick win, improves UX immediately
-2. **4.1 CLI Trace Flags** - Infrastructure exists, just needs CLI wiring
-3. ~~**5.2 Auto-Fallback**~~ - Done
-4. **7.2 Interactive Mode** - High user value
-5. ~~**4.3 Cost Dashboard**~~ - Done
-6. **6.1 Context Discovery** - New feature, moderate effort
-7. **7.3 Real-Time Progress** - Depends on API capabilities
-8. ~~**9.1 Enhanced MCP Server**~~ - Done
-9. ~~**9.2 AgentSkill Packaging**~~ - Done (except distribution)
-10. ~~**9.4 Security Hardening**~~ - Done
-11. ~~**9.5 Claude-Specific Optimizations**~~ - Done
-12. ~~**9.6 Configuration Templates**~~ - Done
-13. **7.4 TUI Dashboard** - Stretch goal, nice to have
-14. **9.3 MCP Client Mode** - Design done, connections not yet built
-15. **9.7 Future MCP Directions** - Stretch goals (swarms, edge, memory)
+1. **7.2 Interactive Mode** - High user value
+2. **6.1 Context Discovery** - New feature, moderate effort
+3. **4.2 Auto-Generated Metadata** - Observability depth
+4. **7.3 Real-Time Progress** - Depends on API capabilities
+5. **5.1 Provider Benchmarking** - Data-driven routing
+6. **9.3 MCP Client Mode** - Design done, connections not yet built
+7. **7.4 TUI Dashboard** - Stretch goal
+8. **9.7 Future MCP Directions** - Stretch goals
 
 ---
 

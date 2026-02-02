@@ -1,6 +1,6 @@
 # Expert System Guide
 
-> **Note**: Model information current as of January 31, 2026. Verify current model capabilities at provider websites.
+> **Note**: Model information current as of February 2026. Verify current model capabilities at provider websites.
 
 ## Overview
 

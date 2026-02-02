@@ -63,10 +63,10 @@ dev = [
 deepr = "deepr.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/anthropics/deepr"
+Homepage = "https://github.com/blisspixel/deepr"
 Documentation = "https://docs.deepr.ai"
-Repository = "https://github.com/anthropics/deepr"
-Issues = "https://github.com/anthropics/deepr/issues"
+Repository = "https://github.com/blisspixel/deepr"
+Issues = "https://github.com/blisspixel/deepr/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
