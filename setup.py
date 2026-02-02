@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="deepr",
-    version="2.3.0",
+    name="deepr-research",
+    version="2.6.0",
     packages=find_packages(),
     install_requires=[
         "openai>=1.0.0",
