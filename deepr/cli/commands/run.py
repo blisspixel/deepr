@@ -11,11 +11,117 @@ from deepr.queue.base import ResearchJob, JobStatus
 from deepr.cli.commands.budget import check_budget_approval
 from deepr.cli.colors import console, print_success, print_error, print_warning
 from deepr.cli.output import (
-    OutputContext, OutputMode, OutputFormatter, OperationResult, output_options
+    OutputContext, OutputMode, OutputFormatter, OperationResult, output_options,
+    format_duration, format_cost,
 )
 from datetime import datetime
 import json
 import uuid
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class TraceFlags:
+    """Flags for trace visibility after research completion."""
+    explain: bool = False
+    timeline: bool = False
+    full_trace: bool = False
+
+    @property
+    def any_enabled(self) -> bool:
+        return self.explain or self.timeline or self.full_trace
+
+
+def _show_trace_explain(emitter) -> None:
+    """Show decision reasoning from trace data."""
+    from rich.panel import Panel
+
+    total_cost = emitter.get_total_cost()
+    task_count = len(emitter.tasks)
+
+    console.print()
+    console.print(Panel(
+        f"[bold]Research Path[/bold]\n\n"
+        f"Trace ID: {emitter.trace_context.trace_id}\n"
+        f"Tasks: {task_count}\n"
+        f"Total Cost: {format_cost(total_cost)}",
+        title="Explain",
+        border_style="dim",
+    ))
+
+    for task in emitter.tasks:
+        indent = "  " if task.parent_task_id else ""
+        icon = "+" if task.status == "completed" else "x" if task.status == "failed" else "o"
+        color = "green" if task.status == "completed" else "red" if task.status == "failed" else "yellow"
+        console.print(f"{indent}[{color}]{icon}[/] {task.task_type}")
+        if task.model:
+            reason = f"Used {task.model}"
+            if task.provider:
+                reason += f" via {task.provider}"
+            if task.cost > 0:
+                reason += f", cost {format_cost(task.cost)}"
+            console.print(f"{indent}  [dim]{reason}[/dim]")
+
+
+def _show_trace_timeline(emitter) -> None:
+    """Show phase timeline from trace data."""
+    from rich.table import Table
+
+    timeline_data = emitter.get_timeline()
+    if not timeline_data:
+        return
+
+    console.print()
+    table = Table(title="Timeline", border_style="dim", show_lines=False)
+    table.add_column("Offset", style="dim", width=8)
+    table.add_column("Task", style="cyan")
+    table.add_column("Status", width=10)
+    table.add_column("Duration", justify="right", width=10)
+    table.add_column("Cost", justify="right", width=8)
+
+    # Calculate offsets from first task
+    first_start = None
+    for entry in timeline_data:
+        from datetime import datetime as _dt
+        try:
+            start = _dt.fromisoformat(entry["start_time"])
+            if first_start is None:
+                first_start = start
+            offset_s = (start - first_start).total_seconds()
+            offset_str = f"[{format_duration(offset_s)}]" if offset_s > 0 else "[0s]"
+        except (ValueError, KeyError):
+            offset_str = "[-]"
+
+        status_color = "green" if entry.get("status") == "completed" else "red"
+        duration = format_duration(entry["duration_ms"] / 1000) if entry.get("duration_ms") else "-"
+        cost = format_cost(entry["cost"]) if entry.get("cost", 0) > 0 else "-"
+
+        table.add_row(
+            offset_str,
+            entry.get("task_type", "unknown"),
+            f"[{status_color}]{entry.get('status', '?')}[/{status_color}]",
+            duration,
+            cost,
+        )
+
+    console.print(table)
+
+    breakdown = emitter.get_cost_breakdown()
+    if any(v > 0 for v in breakdown.values()):
+        console.print(f"\n[dim]Cost by type:[/dim]")
+        for task_type, cost in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
+            if cost > 0:
+                console.print(f"  {task_type}: {format_cost(cost)}")
+
+
+def _save_and_show_full_trace(emitter, job_id: str) -> None:
+    """Save full trace to disk and print path."""
+    trace_path = Path(f"data/traces/{job_id[:12]}_trace.json")
+    emitter.save_trace(trace_path)
+    console.print(f"\n[dim]Full trace saved to {trace_path}[/dim]")
+    console.print(f"[dim]  {len(emitter.tasks)} tasks, {len(emitter.trace_context.spans)} spans[/dim]")
 
 
 def estimate_cost(model: str, enable_web_search: bool = True) -> float:
@@ -44,6 +150,9 @@ def run():
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@click.option("--explain", is_flag=True, help="Show decision reasoning after completion")
+@click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
+@click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
 @output_options
 def focus(
     query: str,
@@ -54,6 +163,9 @@ def focus(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    explain: bool,
+    timeline: bool,
+    full_trace: bool,
     output_context: OutputContext,
 ):
     """Run a focused research job (quick, single-turn research).
@@ -64,8 +176,10 @@ def focus(
         deepr run focus "Company analysis" --upload data.csv --limit 5.00
         deepr run focus "Query" --provider gemini -m gemini-2.5-flash
         deepr run focus "Latest from xAI" --provider grok -m grok-4-fast
+        deepr run focus "AI trends" --explain --timeline
     """
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
+    trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, trace_flags=trace_flags))
 
 
 @run.command()
@@ -89,15 +203,7 @@ def single(
     yes: bool,
     output_context: OutputContext,
 ):
-    """[DEPRECATED: Use 'deepr run focus'] Run a single research job.
-
-    Examples:
-        deepr run single "Analyze AI code editor market 2025"
-        deepr run single "Latest quantum computing trends" -m o3-deep-research
-        deepr run single "Company analysis" --upload data.csv --limit 5.00
-        deepr run single "Query" --provider gemini -m gemini-2.5-flash
-        deepr run single "Latest from xAI" --provider grok -m grok-4-fast
-    """
+    """[DEPRECATED: Use 'deepr run focus'] Run a single research job."""
     if output_context.mode == OutputMode.VERBOSE:
         click.echo("[DEPRECATION] 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
     asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
@@ -113,16 +219,18 @@ async def _run_single(
     limit: Optional[float],
     yes: bool,
     output_context: Optional[OutputContext] = None,
+    trace_flags: Optional[TraceFlags] = None,
 ):
     """Execute single research job.
-    
+
     Orchestrates the research workflow:
     1. Budget approval
     2. File uploads (if any)
     3. Job submission to queue
     4. Provider API submission
     5. Result handling
-    
+    6. Trace display (if --explain/--timeline/--full-trace)
+
     Args:
         query: Research query
         model: Model to use
@@ -133,6 +241,7 @@ async def _run_single(
         limit: Cost limit
         yes: Skip confirmation
         output_context: Output formatting context (optional for backward compatibility)
+        trace_flags: Optional trace visibility flags
     """
     # Import refactored modules
     from deepr.cli.commands.provider_factory import (
@@ -140,23 +249,38 @@ async def _run_single(
         supports_background_jobs, supports_vector_stores
     )
     from deepr.cli.commands.file_handler import handle_file_uploads
-    
+    from deepr.observability.metadata import MetadataEmitter
+
+    if trace_flags is None:
+        trace_flags = TraceFlags()
+
     # Create default output context if not provided (backward compatibility)
     if output_context is None:
         output_context = OutputContext(mode=OutputMode.VERBOSE)
-    
+
     formatter = OutputFormatter(output_context)
     start_time = time.time()
-    
+
+    # Initialize trace emitter
+    emitter = MetadataEmitter()
+    op = emitter.start_task("research_job", prompt=query, attributes={
+        "provider": provider,
+        "model": model,
+        "web_search": not no_web,
+        "code_interpreter": not no_code,
+    })
+    op.set_model(model, provider)
+
     # Estimate cost and show header
     estimated_cost = estimate_cost(model, enable_web_search=not no_web)
     _show_research_header(output_context, query, provider, model, estimated_cost, upload)
-    
+
     # Start operation feedback
     formatter.start_operation(f"Researching: {query[:50]}...")
 
     # Budget check
     if not _check_budget(yes, estimated_cost, output_context):
+        emitter.fail_task(op, "budget_declined")
         return
 
     # Handle file uploads using refactored module
@@ -165,34 +289,66 @@ async def _run_single(
     if upload:
         from deepr.config import load_config
         config = load_config()
-        
+
+        upload_op = emitter.start_task("file_upload", attributes={
+            "file_count": len(upload),
+        })
+
         upload_result = await handle_file_uploads(
             provider, upload, formatter, config
         )
-        
+
         # Report errors in verbose mode
         if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
             for error in upload_result.errors:
                 print_warning(error)
-        
+
         # Extract results
         vector_store_id = upload_result.vector_store_id
         if not supports_vector_stores(provider):
             document_ids = upload_result.uploaded_ids
+
+        upload_op.set_attribute("uploaded_count", len(upload_result.uploaded_ids))
+        emitter.complete_task(upload_op)
 
     # Create and enqueue job
     job_id, job = await _create_and_enqueue_job(
         query, model, provider, no_web, no_code,
         document_ids, vector_store_id, limit, upload
     )
+    op.set_attribute("job_id", job_id)
     formatter.progress("Submitting research job...")
 
     # Submit to provider and handle response
     await _submit_to_provider(
         job_id, query, model, provider, no_web, no_code,
         document_ids, vector_store_id, output_context,
-        formatter, start_time
+        formatter, start_time, emitter
     )
+
+    # Complete top-level span
+    actual_cost = 0.0
+    for task in emitter.tasks:
+        actual_cost += task.cost
+    op.set_cost(actual_cost)
+    if op.metadata.status == "running":
+        emitter.complete_task(op)
+
+    # Save trace (always, for later `deepr research trace` viewing)
+    trace_path = Path(f"data/traces/research_{job_id[:12]}.json")
+    try:
+        emitter.save_trace(trace_path)
+    except Exception:
+        pass  # Non-critical
+
+    # Display trace info if flags are set (skip for JSON/QUIET modes)
+    if trace_flags.any_enabled and output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
+        if trace_flags.explain:
+            _show_trace_explain(emitter)
+        if trace_flags.timeline:
+            _show_trace_timeline(emitter)
+        if trace_flags.full_trace:
+            _save_and_show_full_trace(emitter, job_id)
 
 
 def _show_research_header(
@@ -205,16 +361,16 @@ def _show_research_header(
 ) -> None:
     """Display research header in verbose mode."""
     if output_context.mode == OutputMode.VERBOSE:
-        click.echo("\n" + "="*70)
-        click.echo("  DEEPR - Single Research")
-        click.echo("="*70 + "\n")
-        click.echo(f"Query: {query}")
-        click.echo(f"Provider: {provider}")
-        click.echo(f"Model: {model}")
-        click.echo(f"Estimated cost: ${estimated_cost:.2f}")
+        console.print()
+        console.print("[bold]Research[/bold]", highlight=False)
+        console.print(f"[dim]{'─' * 40}[/dim]")
+        console.print(f"  Query:    {query}")
+        console.print(f"  Provider: {provider}")
+        console.print(f"  Model:    {model}")
+        console.print(f"  Est cost: {format_cost(estimated_cost)}")
         if upload:
-            click.echo(f"Files: {', '.join(upload)}")
-        click.echo()
+            console.print(f"  Files:    {', '.join(upload)}")
+        console.print()
 
 
 def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContext) -> bool:
@@ -280,7 +436,8 @@ async def _submit_to_provider(
     vector_store_id: Optional[str],
     output_context: OutputContext,
     formatter: OutputFormatter,
-    start_time: float
+    start_time: float,
+    emitter=None,
 ) -> None:
     """Submit job to provider API and handle response."""
     from deepr.cli.commands.provider_factory import (
@@ -289,10 +446,20 @@ async def _submit_to_provider(
     )
     from deepr.providers.base import ResearchRequest, ToolConfig
     from deepr.config import load_config
-    
+
     config = load_config()
     queue = SQLiteQueue()
-    
+
+    # Start provider submission span
+    submit_op = None
+    if emitter:
+        submit_op = emitter.start_task("provider_submit", attributes={
+            "provider": provider,
+            "model": model,
+            "job_id": job_id,
+        })
+        submit_op.set_model(model, provider)
+
     try:
         provider_instance = create_provider_instance(provider, config)
         
@@ -315,19 +482,26 @@ async def _submit_to_provider(
         )
         
         provider_job_id = await provider_instance.submit_research(request)
-        
+        if submit_op:
+            submit_op.set_attribute("provider_job_id", provider_job_id)
+
         # Handle response based on provider type
         if supports_background_jobs(provider):
+            if submit_op:
+                emitter.complete_task(submit_op)
             await _handle_background_job(
                 job_id, provider_job_id, output_context, queue
             )
         else:
             await _handle_immediate_job(
                 job_id, provider_job_id, query, model, provider_instance,
-                output_context, formatter, start_time, config, queue
+                output_context, formatter, start_time, config, queue,
+                emitter, submit_op,
             )
 
     except Exception as e:
+        if submit_op and emitter:
+            emitter.fail_task(submit_op, str(e))
         duration = time.time() - start_time
         result = OperationResult(
             success=False,
@@ -424,21 +598,23 @@ async def _handle_immediate_job(
     formatter: OutputFormatter,
     start_time: float,
     config: dict,
-    queue: SQLiteQueue
+    queue: SQLiteQueue,
+    emitter=None,
+    submit_op=None,
 ) -> None:
     """Handle Gemini/Grok immediate job completion."""
     response = await provider_instance.get_status(provider_job_id)
-    
+
     if response.status == "completed":
         # Extract and save content
         content = _extract_response_content(response)
-        
+
         from deepr.storage import create_storage
         storage = create_storage(
             config.get("storage", "local"),
             base_path=config.get("results_dir", "data/reports")
         )
-        
+
         report_metadata = await storage.save_report(
             job_id=job_id,
             filename="report.md",
@@ -451,7 +627,7 @@ async def _handle_immediate_job(
                 "provider_job_id": provider_job_id,
             }
         )
-        
+
         # Update queue
         await queue.update_status(job_id, JobStatus.COMPLETED)
         actual_cost = response.usage.cost if response.usage and response.usage.cost else 0.0
@@ -462,7 +638,18 @@ async def _handle_immediate_job(
                 cost=response.usage.cost,
                 tokens_used=response.usage.total_tokens
             )
-        
+
+        # Record cost/tokens in trace
+        if submit_op:
+            submit_op.set_cost(actual_cost)
+            if response.usage:
+                submit_op.set_tokens(
+                    getattr(response.usage, "input_tokens", 0) or 0,
+                    getattr(response.usage, "output_tokens", 0) or 0,
+                )
+            if emitter:
+                emitter.complete_task(submit_op)
+
         # Output result
         duration = time.time() - start_time
         result = OperationResult(
@@ -475,6 +662,8 @@ async def _handle_immediate_job(
         formatter.complete(result)
     else:
         # Still processing
+        if submit_op and emitter:
+            emitter.complete_task(submit_op)
         await queue.update_status(
             job_id=job_id,
             status=JobStatus.PROCESSING,
