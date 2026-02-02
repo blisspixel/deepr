@@ -44,35 +44,39 @@ pytest_debug.log
 # ==============================================================================
 # Deepr Runtime Data
 # ==============================================================================
-# SQLite databases
+# All runtime data (reports, queue, experts, traces, logs, etc.)
+/data/
+
+# SQLite databases (anywhere in the repo)
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
 *.sqlite3
 
-# Runtime data directories
-data/logs/
-data/queue/
-data/uploads/
-data/campaigns/
-data/templates/
-data/vector_stores/
-data/experts/
-logs/*.log
-
 # ==============================================================================
 # Local/Development Directories
 # ==============================================================================
-# Archive and backups (local development artifacts)
+# Archive, backups, and personal notes
 archive/
 backups/
 DEPRECATED/
+/docs/archive/
+/docs/ideas/
+/docs/reference/
+/reports/
+/tests/data/
+
+# Log files
+logs/
+*.log
 
 # Temporary files
 *.tmp
 *.bak
 last_response.json
+CODE_QUALITY_REVIEW.md
+nul
 
 # ==============================================================================
 # Frontend
@@ -108,15 +112,3 @@ Desktop.ini
 ngrok.exe
 ngrok
 bin/ngrok.exe
-
-# ==============================================================================
-# Local/Personal
-# ==============================================================================
-nul
-_ul
-/data
-/docs/ideas
-/docs/reference
-/reports
-/tests/data
-CODE_QUALITY_REVIEW.md
