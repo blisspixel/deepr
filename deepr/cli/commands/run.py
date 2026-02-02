@@ -21,6 +21,41 @@ import uuid
 
 from dataclasses import dataclass
 
+MAX_FALLBACK_ATTEMPTS = 3
+
+
+def _classify_provider_error(exc: Exception, provider: str) -> None:
+    """Re-raise exception as a core ProviderError subclass for fallback routing.
+
+    Maps provider-layer exceptions (deepr.providers.base.ProviderError and
+    generic exceptions) into the core error hierarchy so the fallback loop
+    can make smart decisions based on error type.
+    """
+    from deepr.core.errors import (
+        ProviderError as CoreProviderError,
+        ProviderTimeoutError,
+        ProviderRateLimitError,
+        ProviderAuthError,
+        ProviderUnavailableError,
+    )
+
+    # Already a core error — re-raise as-is
+    if isinstance(exc, CoreProviderError):
+        raise exc
+
+    error_str = str(exc).lower()
+
+    if "timeout" in error_str or "timed out" in error_str:
+        raise ProviderTimeoutError(provider, timeout_seconds=0) from exc
+    elif "rate limit" in error_str or "429" in error_str or "rate_limit" in error_str:
+        raise ProviderRateLimitError(provider) from exc
+    elif "auth" in error_str or "401" in error_str or "api key" in error_str or "unauthorized" in error_str:
+        raise ProviderAuthError(provider) from exc
+    elif "503" in error_str or "502" in error_str or "unavailable" in error_str:
+        raise ProviderUnavailableError(provider) from exc
+    else:
+        raise CoreProviderError(f"{provider}: {exc}") from exc
+
 
 @dataclass
 class TraceFlags:
@@ -63,6 +98,22 @@ def _show_trace_explain(emitter) -> None:
             if task.cost > 0:
                 reason += f", cost {format_cost(task.cost)}"
             console.print(f"{indent}  [dim]{reason}[/dim]")
+
+    # Show fallback events if any occurred
+    fallback_events = []
+    for span in emitter.trace_context.spans:
+        for event in getattr(span, "events", []):
+            if event.get("name") == "fallback_triggered":
+                fallback_events.append(event.get("attributes", {}))
+
+    if fallback_events:
+        console.print(f"\n[bold]Fallback Events[/bold]")
+        for attrs in fallback_events:
+            console.print(
+                f"  [yellow]![/] {attrs.get('from_provider')}/{attrs.get('from_model')} "
+                f"-> {attrs.get('to_provider')}/{attrs.get('to_model')}"
+            )
+            console.print(f"    [dim]Reason: {attrs.get('reason', 'unknown')}[/dim]")
 
 
 def _show_trace_timeline(emitter) -> None:
@@ -153,6 +204,7 @@ def run():
 @click.option("--explain", is_flag=True, help="Show decision reasoning after completion")
 @click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
 @click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
+@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
 @output_options
 def focus(
     query: str,
@@ -166,6 +218,7 @@ def focus(
     explain: bool,
     timeline: bool,
     full_trace: bool,
+    no_fallback: bool,
     output_context: OutputContext,
 ):
     """Run a focused research job (quick, single-turn research).
@@ -179,7 +232,7 @@ def focus(
         deepr run focus "AI trends" --explain --timeline
     """
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, trace_flags=trace_flags))
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, trace_flags=trace_flags, no_fallback=no_fallback))
 
 
 @run.command()
@@ -191,6 +244,7 @@ def focus(
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
 @output_options
 def single(
     query: str,
@@ -201,12 +255,13 @@ def single(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    no_fallback: bool,
     output_context: OutputContext,
 ):
     """[DEPRECATED: Use 'deepr run focus'] Run a single research job."""
     if output_context.mode == OutputMode.VERBOSE:
         click.echo("[DEPRECATION] 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback))
 
 
 async def _run_single(
@@ -220,16 +275,19 @@ async def _run_single(
     yes: bool,
     output_context: Optional[OutputContext] = None,
     trace_flags: Optional[TraceFlags] = None,
+    no_fallback: bool = False,
+    user_specified_provider: bool = True,
 ):
-    """Execute single research job.
+    """Execute single research job with automatic provider fallback.
 
     Orchestrates the research workflow:
-    1. Budget approval
-    2. File uploads (if any)
-    3. Job submission to queue
-    4. Provider API submission
-    5. Result handling
-    6. Trace display (if --explain/--timeline/--full-trace)
+    1. Router-based provider selection (if user didn't specify --provider)
+    2. Budget approval
+    3. File uploads (if any)
+    4. Job submission to queue
+    5. Provider API submission with fallback loop
+    6. Result handling
+    7. Trace display (if --explain/--timeline/--full-trace)
 
     Args:
         query: Research query
@@ -242,6 +300,8 @@ async def _run_single(
         yes: Skip confirmation
         output_context: Output formatting context (optional for backward compatibility)
         trace_flags: Optional trace visibility flags
+        no_fallback: Disable automatic provider fallback on failure
+        user_specified_provider: True when user explicitly passed --provider
     """
     # Import refactored modules
     from deepr.cli.commands.provider_factory import (
@@ -250,6 +310,14 @@ async def _run_single(
     )
     from deepr.cli.commands.file_handler import handle_file_uploads
     from deepr.observability.metadata import MetadataEmitter
+    from deepr.observability.provider_router import AutonomousProviderRouter
+    from deepr.core.errors import (
+        ProviderError as CoreProviderError,
+        ProviderTimeoutError,
+        ProviderRateLimitError,
+        ProviderAuthError,
+        ProviderUnavailableError,
+    )
 
     if trace_flags is None:
         trace_flags = TraceFlags()
@@ -261,6 +329,22 @@ async def _run_single(
     formatter = OutputFormatter(output_context)
     start_time = time.time()
 
+    # Initialize provider router for intelligent selection and fallback
+    router = AutonomousProviderRouter()
+
+    # Router-based provider selection when user didn't specify
+    if not user_specified_provider:
+        try:
+            selected_provider, selected_model = router.select_provider(
+                task_type="research",
+            )
+            provider = selected_provider
+            model = selected_model
+            if output_context.mode == OutputMode.VERBOSE:
+                console.print(f"  [dim]Router selected: {provider}/{model}[/dim]")
+        except Exception:
+            pass  # Keep original provider/model on router failure
+
     # Initialize trace emitter
     emitter = MetadataEmitter()
     op = emitter.start_task("research_job", prompt=query, attributes={
@@ -268,6 +352,7 @@ async def _run_single(
         "model": model,
         "web_search": not no_web,
         "code_interpreter": not no_code,
+        "router_selected": not user_specified_provider,
     })
     op.set_model(model, provider)
 
@@ -319,12 +404,168 @@ async def _run_single(
     op.set_attribute("job_id", job_id)
     formatter.progress("Submitting research job...")
 
-    # Submit to provider and handle response
-    await _submit_to_provider(
-        job_id, query, model, provider, no_web, no_code,
-        document_ids, vector_store_id, output_context,
-        formatter, start_time, emitter
-    )
+    # === Fallback loop: submit to provider with automatic retry/fallback ===
+    current_provider = provider
+    current_model = model
+    attempted = []  # (provider, model) tuples that have failed
+    fallback_count = 0
+    last_error = None
+    success = False
+
+    while fallback_count <= MAX_FALLBACK_ATTEMPTS:
+        try:
+            # Handle vector_store degradation on fallback to non-supporting provider
+            effective_vector_store_id = vector_store_id
+            if vector_store_id and not supports_vector_stores(current_provider):
+                effective_vector_store_id = None
+                if output_context.mode == OutputMode.VERBOSE:
+                    print_warning(
+                        f"{current_provider} does not support file search; "
+                        f"proceeding without uploaded file context"
+                    )
+
+            submit_start = time.time()
+            await _submit_to_provider(
+                job_id, query, current_model, current_provider, no_web, no_code,
+                document_ids, effective_vector_store_id, output_context,
+                formatter, start_time, emitter
+            )
+
+            # Success — record metrics
+            submit_latency = (time.time() - submit_start) * 1000
+            try:
+                router.record_result(
+                    current_provider, current_model, success=True,
+                    latency_ms=submit_latency,
+                )
+            except Exception:
+                pass  # Non-critical
+            success = True
+            break
+
+        except ProviderAuthError as e:
+            # Auth errors: skip provider entirely, don't retry same provider
+            last_error = e
+            try:
+                router.record_result(current_provider, current_model, success=False, error=str(e))
+            except Exception:
+                pass
+            if output_context.mode == OutputMode.VERBOSE:
+                print_warning(f"{current_provider}: authentication failed, skipping")
+            attempted.append((current_provider, current_model))
+
+        except ProviderRateLimitError as e:
+            # Rate limit: immediate fallback (provider already retried internally)
+            last_error = e
+            try:
+                router.record_result(current_provider, current_model, success=False, error=str(e))
+            except Exception:
+                pass
+            attempted.append((current_provider, current_model))
+
+        except ProviderTimeoutError as e:
+            # Timeout: retry same provider once, then fallback
+            last_error = e
+            if (current_provider, current_model) not in attempted:
+                # First timeout for this provider — retry once
+                attempted.append((current_provider, current_model))
+                if output_context.mode == OutputMode.VERBOSE:
+                    console.print(f"  [yellow]Timeout on {current_provider}/{current_model}, retrying...[/yellow]")
+                continue  # Retry same provider without incrementing fallback_count
+
+            # Second timeout — record and fall through to fallback
+            try:
+                router.record_result(current_provider, current_model, success=False, error=str(e))
+            except Exception:
+                pass
+
+        except CoreProviderError as e:
+            # Generic provider error or unavailable: immediate fallback
+            last_error = e
+            try:
+                router.record_result(current_provider, current_model, success=False, error=str(e))
+            except Exception:
+                pass
+            attempted.append((current_provider, current_model))
+
+        # === Fallback selection ===
+
+        # If --no-fallback, stop after first error
+        if no_fallback:
+            duration = time.time() - start_time
+            result = OperationResult(
+                success=False,
+                duration_seconds=duration,
+                cost_usd=0.0,
+                job_id=job_id,
+                error=f"Provider {current_provider}/{current_model} failed: {last_error}",
+                error_code="PROVIDER_ERROR"
+            )
+            formatter.complete(result)
+            emitter.fail_task(op, str(last_error))
+            return
+
+        # Get fallback from router
+        fallback = router.get_fallback(current_provider, current_model, reason=str(last_error))
+
+        # If router returned an already-attempted provider, try select_provider with exclusions
+        if fallback and fallback in attempted:
+            try:
+                fallback = router.select_provider(task_type="research", exclude=attempted)
+                if fallback in attempted:
+                    fallback = None
+            except Exception:
+                fallback = None
+
+        if fallback is None:
+            # No more fallbacks available
+            duration = time.time() - start_time
+            result = OperationResult(
+                success=False,
+                duration_seconds=duration,
+                cost_usd=0.0,
+                job_id=job_id,
+                error=f"All providers failed. Last error: {last_error}",
+                error_code="ALL_PROVIDERS_FAILED"
+            )
+            formatter.complete(result)
+            emitter.fail_task(op, "all_providers_failed")
+            return
+
+        fallback_provider, fallback_model = fallback
+
+        # Emit fallback event to trace
+        op.add_event("fallback_triggered", {
+            "from_provider": current_provider,
+            "from_model": current_model,
+            "to_provider": fallback_provider,
+            "to_model": fallback_model,
+            "reason": str(last_error),
+            "attempt": fallback_count + 1,
+        })
+
+        if output_context.mode == OutputMode.VERBOSE:
+            console.print(
+                f"  [yellow]Falling back: {current_provider}/{current_model} "
+                f"-> {fallback_provider}/{fallback_model}[/yellow]"
+            )
+
+        current_provider, current_model = fallback
+        fallback_count += 1
+
+    if not success:
+        duration = time.time() - start_time
+        result = OperationResult(
+            success=False,
+            duration_seconds=duration,
+            cost_usd=0.0,
+            job_id=job_id,
+            error=f"Exhausted all fallback attempts. Last error: {last_error}",
+            error_code="FALLBACK_EXHAUSTED"
+        )
+        formatter.complete(result)
+        emitter.fail_task(op, "fallback_exhausted")
+        return
 
     # Complete top-level span
     actual_cost = 0.0
@@ -502,16 +743,8 @@ async def _submit_to_provider(
     except Exception as e:
         if submit_op and emitter:
             emitter.fail_task(submit_op, str(e))
-        duration = time.time() - start_time
-        result = OperationResult(
-            success=False,
-            duration_seconds=duration,
-            cost_usd=0.0,
-            job_id=job_id,
-            error=f"Failed to submit to provider: {e}",
-            error_code="PROVIDER_ERROR"
-        )
-        formatter.complete(result)
+        # Re-raise as classified core error for the fallback loop in _run_single
+        _classify_provider_error(e, provider)
 
 
 def _build_tools_list(
@@ -942,6 +1175,7 @@ async def _run_team(
 @click.option("--upload", "-u", multiple=True, help="Upload existing documentation for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
+@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
 @output_options
 def docs(
     topic: str,
@@ -950,6 +1184,7 @@ def docs(
     upload: tuple,
     limit: Optional[float],
     yes: bool,
+    no_fallback: bool,
     output_context: OutputContext,
 ):
     """Run documentation-oriented research.
@@ -981,7 +1216,8 @@ well-structured documentation that is clear, accurate, and useful. Include:
         upload=upload,
         limit=limit,
         yes=yes,
-        output_context=output_context
+        output_context=output_context,
+        no_fallback=no_fallback,
     ))
 
 
@@ -995,10 +1231,11 @@ well-structured documentation that is clear, accurate, and useful. Include:
 @click.option("--upload", "-u", multiple=True)
 @click.option("--limit", "-l", type=float)
 @click.option("--yes", "-y", is_flag=True)
+@click.option("--no-fallback", is_flag=True)
 @output_options
-def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, output_context):
+def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, no_fallback, output_context):
     """Quick alias for 'deepr run focus' - run a focused research job."""
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context))
+    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback))
 
 
 if __name__ == "__main__":
