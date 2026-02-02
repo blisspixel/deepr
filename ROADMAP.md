@@ -19,7 +19,7 @@ Multi-provider research automation with expert system, MCP integration, and obse
 ### What Works
 
 - Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4, Azure)
-- Deep Research via OpenAI API (o3/o4-mini-deep-research)
+- Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis
 - MCP server with 10 tools, persistence, security, multi-runtime configs
@@ -51,6 +51,7 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | 9.4 | Security Hardening (Docker, SSRF, path traversal, sampling) | v2.5-2.6 |
 | 9.5 | Claude-Specific Optimizations (CoT, lazy loading, context management) | v2.5 |
 | 9.6 | Multi-Runtime Config Templates (OpenClaw, Claude Desktop, Cursor, VS Code) | v2.5 |
+| 5.4 | Gemini Deep Research Agent (Interactions API, File Search Stores, adaptive polling) | v2.6 |
 
 ---
 
