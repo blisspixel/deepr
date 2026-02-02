@@ -1,270 +1,265 @@
 # MCP Integration Guide
 
-**Status**: Complete - 7 tools implemented and ready for use
+**Status**: 10 tools, dynamic discovery, resource subscriptions, prompt templates
 
-Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents like Claude Desktop and Cursor.
+Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed.
 
 ---
 
-## Quick Start
+## Setup by Runtime
 
-### 1. Configure Claude Desktop
+### OpenClaw
 
-Create/edit `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Copy `mcp/openclaw-config.json` to your OpenClaw MCP configuration:
 
 ```json
 {
   "mcpServers": {
-    "deepr": {
+    "deepr-research": {
       "command": "python",
       "args": ["-m", "deepr.mcp.server"],
       "env": {
-        "OPENAI_API_KEY": "your-api-key-here"
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "DEEPR_LOG_LEVEL": "INFO",
+        "DEEPR_LOG_FORMAT": "json"
+      },
+      "autoAllow": [
+        "deepr_tool_search", "deepr_status", "deepr_list_experts",
+        "deepr_get_expert_info", "deepr_check_status", "deepr_get_result"
+      ]
+    }
+  }
+}
+```
+
+The `autoAllow` list includes read-only tools that don't incur costs. Cost-incurring tools (`deepr_research`, `deepr_agentic_research`, `deepr_query_expert`) require approval.
+
+For Docker deployment, use `mcp/openclaw-docker-config.json` instead.
+
+### Claude Desktop
+
+Edit `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS).
+
+Use the template from `mcp/mcp-config-claude-desktop.json`:
+
+```json
+{
+  "mcpServers": {
+    "deepr-research": {
+      "command": "python",
+      "args": ["-m", "deepr.mcp.server"],
+      "env": {
+        "OPENAI_API_KEY": "your-openai-key-here"
       }
     }
   }
 }
 ```
 
-### 2. Restart Claude Desktop
+Restart Claude Desktop after saving.
 
-### 3. Test
+### Cursor
 
-Ask Claude: **"What MCP tools do you have access to?"**
+Edit Cursor MCP settings. Use the template from `mcp/mcp-config-cursor.json` (same format as Claude Desktop).
 
-You should see 7 Deepr tools available.
+### VS Code
+
+Add to your VS Code MCP settings (`.vscode/mcp.json` or user settings). Use the template from `mcp/mcp-config-vscode.json`:
+
+```json
+{
+  "servers": {
+    "deepr-research": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "deepr.mcp.server"],
+      "env": {
+        "OPENAI_API_KEY": "your-openai-key-here"
+      }
+    }
+  }
+}
+```
+
+### Zed
+
+Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
+
+```json
+{
+  "language_models": {
+    "mcp": {
+      "deepr-research": {
+        "command": "python",
+        "args": ["-m", "deepr.mcp.server"],
+        "env": {
+          "OPENAI_API_KEY": "your-openai-key-here"
+        }
+      }
+    }
+  }
+}
+```
 
 ---
 
 ## Available Tools
 
+### System Tools
+
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `deepr_tool_search` | Dynamic tool discovery via BM25 search | Free |
+| `deepr_status` | Health check (version, uptime, active jobs, spending) | Free |
+
 ### Research Tools
 
-| Tool | Purpose | Key Parameters |
-|------|---------|----------------|
-| `deepr_research` | Submit single research job | `prompt`, `model`, `provider` |
-| `deepr_check_status` | Check job progress | `job_id` or `workflow_id` |
-| `deepr_get_result` | Get completed report | `job_id` or `workflow_id` |
-| `deepr_agentic_research` | Autonomous multi-step research | `goal`, `expert_name`, `budget` |
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `deepr_research` | Submit deep research job | $0.10-0.50 |
+| `deepr_check_status` | Check job progress | Free |
+| `deepr_get_result` | Get completed report | Free |
+| `deepr_cancel_job` | Cancel running job | Free |
+| `deepr_agentic_research` | Autonomous multi-step research | $1-10 |
 
 ### Expert Tools
 
-| Tool | Purpose | Key Parameters |
-|------|---------|----------------|
-| `deepr_list_experts` | List domain experts | None |
-| `deepr_query_expert` | Ask an expert | `expert_name`, `question`, `agentic` |
-| `deepr_get_expert_info` | Get expert details | `expert_name` |
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `deepr_list_experts` | List domain experts | Free |
+| `deepr_query_expert` | Query expert with question | Low |
+| `deepr_get_expert_info` | Expert details and stats | Free |
 
-### Expert Tool Usage
+### Dynamic Discovery
 
-**List Available Experts:**
-```
-User: "What domain experts are available in Deepr?"
-Claude: Uses deepr_list_experts() to show all experts with their domains and knowledge counts.
-```
+Deepr uses a gateway pattern for context efficiency. By default, `tools/list` returns only `deepr_tool_search`. Agents search for capabilities by description:
 
-**Query an Expert:**
 ```
-User: "Ask the AWS expert about Lambda cold start optimization"
-Claude: Uses deepr_query_expert(expert_name="AWS Expert", question="...", agentic=false)
-Returns: Answer with confidence score, sources, and cost.
+deepr_tool_search(query="submit research job")  -> returns deepr_research schema
+deepr_tool_search(query="expert knowledge")     -> returns expert tool schemas
 ```
 
-**Agentic Expert Query (with research):**
-```
-User: "Ask the AWS expert about the latest Lambda features, and have it research if needed"
-Claude: Uses deepr_query_expert(expert_name="AWS Expert", question="...", agentic=true, budget=5.0)
-Returns: Answer that may include newly researched information.
-```
-
-**Get Expert Details:**
-```
-User: "Tell me about the quantum computing expert"
-Claude: Uses deepr_get_expert_info(expert_name="Quantum Expert")
-Returns: Domain, knowledge count, beliefs, last updated, and capabilities.
-```
+This reduces initial context by ~85%.
 
 ---
 
-## Usage Examples
+## Resource URIs
 
-### Simple Research
-```
-User: "Use deepr_research to analyze quantum computing trends"
+Subscribe to resources for push notifications instead of polling (70% token savings):
 
--- Returns job_id
--- Wait 5-10 minutes
--- Check status with deepr_check_status(job_id)
--- Get results with deepr_get_result(job_id)
-```
+### Campaign Resources (live)
+| URI | Content |
+|-----|---------|
+| `deepr://campaigns/{id}/status` | Job phase, progress, cost |
+| `deepr://campaigns/{id}/plan` | Research plan |
+| `deepr://campaigns/{id}/beliefs` | Accumulated findings |
 
-### Autonomous Multi-Step Research
-```
-User: "List experts, then use deepr_agentic_research with the quantum expert to do comprehensive market analysis with $10 budget"
+### Report Artifacts (completed)
+| URI | Content |
+|-----|---------|
+| `deepr://reports/{id}/final.md` | Full research report |
+| `deepr://reports/{id}/summary.json` | Report metadata |
 
--- Returns workflow_id
--- Expert autonomously conducts multiple research jobs
--- Synthesizes findings into comprehensive report
--- All within $10 budget
-```
+### Log Artifacts (provenance)
+| URI | Content |
+|-----|---------|
+| `deepr://logs/{id}/search_trace.json` | Search query history |
+| `deepr://logs/{id}/decisions.md` | Decision log |
 
-### Query an Expert
-```
-User: "Ask the agentic_digital_consciousness expert about reflection patterns in AI agents"
-
--- Returns answer with sources and cost
-```
-
----
-
-## Parameter Reference
-
-### `deepr_research()`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompt` | string | *required* | Research question |
-| `model` | string | `o4-mini-deep-research` | Model name |
-| `provider` | string | `openai` | openai/azure/gemini/grok |
-| `budget` | float | `null` | Cost limit ($) |
-| `files` | array | `null` | File paths |
-
-**Returns**: `job_id`, `status`, `estimated_time`, `cost_estimate`
-
-### `deepr_agentic_research()`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `goal` | string | *required* | High-level research goal |
-| `expert_name` | string | *optional* | Expert for agentic reasoning |
-| `budget` | float | `5.0` | Total workflow budget |
-
-**Returns**: `workflow_id`, `status`, `expert_name`, `budget_allocated`
+### Expert Resources (persistent)
+| URI | Content |
+|-----|---------|
+| `deepr://experts/{id}/profile` | Expert metadata |
+| `deepr://experts/{id}/beliefs` | Knowledge with confidence |
+| `deepr://experts/{id}/gaps` | Known knowledge gaps |
 
 ---
 
-## Model Selection
+## Prompt Templates
 
-| Model | Cost | Time | Use Case |
-|-------|------|------|----------|
-| `o4-mini-deep-research` | $0.10 | 5-10 min | Quick research, cost-sensitive |
-| `o3-deep-research` | $0.50 | 10-20 min | Deep analysis, critical decisions |
+Three prompt templates available via `prompts/list`:
+
+| Prompt | Description |
+|--------|-------------|
+| `deep_research_task` | Comprehensive research with executive summary |
+| `expert_consultation` | Domain expert Q&A with gap handling |
+| `comparative_analysis` | Multi-option comparison with decision matrix |
 
 ---
 
-## Provider Options
+## Structured Errors
 
-Add the appropriate API key to config:
-- `openai`: `OPENAI_API_KEY`
-- `azure`: `AZURE_OPENAI_API_KEY`
-- `gemini`: `GEMINI_API_KEY`
-- `grok`: `XAI_API_KEY`
+All tools return structured errors for agent retry/fallback:
+
+```json
+{
+  "error_code": "BUDGET_EXCEEDED",
+  "message": "Research blocked by cost safety: daily limit reached",
+  "retry_hint": "Wait for daily limit reset",
+  "fallback_suggestion": "Daily spent: $45.00"
+}
+```
+
+Common error codes: `BUDGET_EXCEEDED`, `JOB_NOT_FOUND`, `EXPERT_NOT_FOUND`, `PROVIDER_NOT_CONFIGURED`, `BUDGET_INSUFFICIENT`, `EXPERT_REQUIRED`, `TOOL_NOT_FOUND`.
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key for research |
+| `XAI_API_KEY` | No | xAI/Grok API key |
+| `GEMINI_API_KEY` | No | Google Gemini API key |
+| `AZURE_OPENAI_API_KEY` | No | Azure OpenAI API key |
+| `DEEPR_LOG_LEVEL` | No | Logging level (default: INFO) |
+| `DEEPR_LOG_FORMAT` | No | `text` or `json` (default: text) |
+
+---
+
+## Architecture
+
+```
+StdioServer (JSON-RPC transport)
+    -> Method dispatch (initialize, tools/*, resources/*, prompts/*)
+        -> DeeprMCPServer (business logic)
+            -> MCPResourceHandler (resource reads, subscriptions)
+            -> JobManager (job lifecycle, notifications)
+            -> GatewayTool + ToolRegistry (BM25 dynamic discovery)
+            -> ResearchOrchestrator (research execution)
+            -> ExpertStore (expert management)
+```
+
+**Transport**: stdio (JSON-RPC 2.0 over stdin/stdout)
+**Job Tracking**: In-memory with SQLite persistence (`data/mcp_jobs.db`)
+**Logging**: Structured JSON to stderr (for OpenClaw log aggregation)
 
 ---
 
 ## Troubleshooting
 
 **Server not starting:**
-- Check Python in PATH: `python --version`
-- Verify Deepr installed: `pip show deepr`
+- Verify Python 3.9+: `python --version`
+- Verify Deepr installed: `pip show deepr` or `deepr --version`
 - Try absolute Python path in config
-- Check Claude Desktop logs: Help - View Logs
+- Check logs in your runtime (Claude Desktop: Help -> View Logs)
 
 **API key issues:**
 - Verify key in config JSON (no extra quotes/spaces)
-- Check environment variable is set
-- Try setting in `.env` file as fallback
+- For OpenClaw, use `${OPENAI_API_KEY}` syntax for env injection
+- Test with `deepr doctor` from CLI
 
-**Job not found:**
-- MCP server restarts lose in-memory tracking
-- Jobs still exist on provider side
-- Check provider API directly if needed
+**"No tools found":**
+- Deepr uses dynamic discovery. Ask: "Search for research tools" to trigger `deepr_tool_search`
+- Or use `deepr_status` to verify the server is running
 
----
-
-## Security
-
-Following OpenAI MCP security guidelines:
-
-- API keys in config only (never in code)
-- Use budget limits for cost control
-- Start with o4-mini for testing
-- Monitor costs with `deepr budget status`
-- Read-only operations (safe for `require_approval: never`)
+**Job not found after restart:**
+- Jobs are persisted in SQLite but provider instances are lost
+- Check `data/mcp_jobs.db` for job history
+- Re-submit if needed
 
 ---
 
-## What Makes This Unique
-
-**Deepr is the only async research infrastructure for AI agents.**
-
-| Feature | Perplexity | Tavily | Deepr |
-|---------|-----------|--------|-------|
-| Research Model | Sync | Sync | **Async** |
-| Multi-Step | No | No | **Yes** |
-| Expert System | No | No | **Yes** |
-| Agentic Mode | No | No | **Yes** |
-
-When agents need comprehensive research (not just quick web search), they call Deepr.
-
----
-
-## Example Prompts for Claude
-
-```
-# Discovery
-"What MCP tools do you have access to?"
-"Show me the Deepr research tools"
-
-# Simple Research
-"Use deepr_research to analyze renewable energy trends"
-"Research quantum computing with o3-deep-research model"
-
-# Agentic Research
-"List experts, then start autonomous research on AI agents with $10 budget"
-"Use deepr_agentic_research with quantum expert for market analysis"
-
-# Expert Queries
-"What domain experts are available?"
-"Ask the agentic expert about metacognition patterns"
-
-# Monitoring
-"Check status of job [job_id]"
-"Get the results for my research"
-```
-
----
-
-## Implementation Details
-
-**Location**: `deepr/mcp/server.py`
-
-**Transport**: stdio-based (lightweight, no dependencies)
-
-**Architecture**:
-- Async Python with `asyncio`
-- JSON-RPC style messaging
-- In-memory job tracking
-- Provider API for status checks
-
-**Job Tracking**:
-- In-memory per session (lost on restart)
-- Jobs persist on provider side
-- Use provider API as source of truth
-
----
-
-## Next Steps
-
-1. Install Claude Desktop or Cursor
-2. Copy config to MCP settings location
-3. Add your API key
-4. Restart the AI assistant
-5. Test: "What MCP tools do you have?"
-6. Start researching!
-
----
-
-**Implementation Date:** November 11, 2025
-**Status:** Production-ready
-**Tools:** 7 (4 research + 3 expert)
+**Tools:** 10 (3 system + 4 research + 3 expert)
+**Resources:** 10 URI schemes across 4 resource types
+**Prompts:** 3 templates

@@ -6,11 +6,38 @@ description: |
   - Domain expert consultation with persistent knowledge and belief formation
   - Multi-step agentic research workflows with Plan-Execute-Review cycles
   - Cost-aware research decisions with budget tracking and elicitation
-  
-  Keywords: research, deep research, investigate, analyze, domain expert, 
+
+  Keywords: research, deep research, investigate, analyze, domain expert,
   comprehensive analysis, async research, expert consultation, multi-step research,
   knowledge synthesis, autonomous learning
-version: 1.0.0
+version: 2.6.0
+license: MIT
+authors:
+  - Nick Seal
+requires:
+  bins:
+    - python3
+  env:
+    - OPENAI_API_KEY
+  optional_env:
+    - XAI_API_KEY
+    - GEMINI_API_KEY
+    - AZURE_OPENAI_API_KEY
+    - BRAVE_API_KEY
+os:
+  - darwin
+  - linux
+  - win32
+python: ">=3.9"
+metadata:
+  openclaw:
+    install:
+      - id: python-deps
+        kind: command
+        cmd: "pip install -e ."
+    requires:
+      bins:
+        - python3
 ---
 
 # Deepr Research Skill
@@ -210,20 +237,54 @@ When presenting research results:
 ## Resource URIs
 
 Monitor async operations via MCP resources:
-- `deepr://campaigns/{id}` - Live research status
+
+### Campaign Resources (live job tracking)
+- `deepr://campaigns/{id}/status` - Job state, progress, cost
 - `deepr://campaigns/{id}/plan` - Research plan (inspectable)
-- `deepr://campaigns/{id}/beliefs` - Synthesized findings
+- `deepr://campaigns/{id}/beliefs` - Accumulated findings with confidence
+
+### Report Artifacts (completed research)
+- `deepr://reports/{id}/final.md` - Full research report (markdown)
+- `deepr://reports/{id}/summary.json` - Report metadata (cost, model, sources)
+
+### Log Artifacts (provenance/debugging)
+- `deepr://logs/{id}/search_trace.json` - Search queries and results for provenance
+- `deepr://logs/{id}/decisions.md` - Human-readable decision log
+
+### Expert Resources (persistent knowledge)
 - `deepr://experts/{id}/profile` - Expert metadata
 - `deepr://experts/{id}/beliefs` - Expert knowledge with confidence
 - `deepr://experts/{id}/gaps` - Known knowledge gaps
 
+## Available Tools
+
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `deepr_tool_search` | Dynamic tool discovery - search capabilities by query | Free |
+| `deepr_status` | Health check - version, uptime, active jobs, spending | Free |
+| `deepr_research` | Submit deep research job | $0.10-0.50 |
+| `deepr_check_status` | Check research job progress | Free |
+| `deepr_get_result` | Get completed research results | Free |
+| `deepr_cancel_job` | Cancel a running research job | Free |
+| `deepr_agentic_research` | Autonomous multi-step research | $1-10 |
+| `deepr_list_experts` | List available domain experts | Free |
+| `deepr_query_expert` | Query a domain expert | Low |
+| `deepr_get_expert_info` | Get detailed expert information | Free |
+
 ## Error Handling
 
-| Error | Action |
-|-------|--------|
-| Job timeout (>30 min) | Suggest checking later or resubmitting |
-| Budget exceeded | Explain limit, offer alternatives |
-| Expert not found | List available experts |
-| API key missing | Direct to setup instructions |
+All tools return structured errors with these fields:
+- `error_code`: Machine-readable code (e.g., `BUDGET_EXCEEDED`, `JOB_NOT_FOUND`)
+- `message`: Human-readable description
+- `retry_hint`: Suggestion for how to retry (optional)
+- `fallback_suggestion`: Alternative approach (optional)
+
+| Error Code | Action |
+|------------|--------|
+| `BUDGET_EXCEEDED` | Explain limit, offer alternatives, suggest waiting for daily reset |
+| `JOB_NOT_FOUND` | Verify job_id, suggest listing jobs |
+| `EXPERT_NOT_FOUND` | List available experts with `deepr_list_experts` |
+| `PROVIDER_NOT_CONFIGURED` | Direct user to setup instructions |
+| `BUDGET_INSUFFICIENT` | Suggest increasing budget parameter |
 
 See `references/` for detailed documentation on each topic.

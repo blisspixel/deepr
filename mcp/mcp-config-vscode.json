@@ -1,6 +1,7 @@
 {
-  "mcpServers": {
+  "servers": {
     "deepr-research": {
+      "type": "stdio",
       "command": "python",
       "args": ["-m", "deepr.mcp.server"],
       "env": {
