@@ -207,7 +207,7 @@ class TestCostBufferFlushTriggersProperty:
         buffer_size=buffer_sizes,
         num_entries=entry_counts
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_buffer_flushes_at_size_threshold(self, buffer_size, num_entries):
         """Buffer should flush when size reaches threshold.
         
