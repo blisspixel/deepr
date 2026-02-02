@@ -64,6 +64,7 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--explain", is_flag=True, help="Show decision reasoning after completion")
 @click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
 @click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
+@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
 @output_options
 def research(
     query: str,
@@ -82,6 +83,7 @@ def research(
     explain: bool,
     timeline: bool,
     full_trace: bool,
+    no_fallback: bool,
     output_context: OutputContext,
 ):
     """Run research with automatic mode detection.
@@ -109,6 +111,9 @@ def research(
         deepr research "Query" --provider grok -m grok-4-fast
     """
     from deepr.cli.validation import validate_prompt, validate_upload_files, validate_budget
+
+    # Track whether user explicitly specified a provider (before defaults are applied)
+    user_specified_provider = provider is not None
 
     # Validate query/prompt length
     try:
@@ -273,7 +278,12 @@ def research(
 
     # Call the underlying _run_single implementation
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, trace_flags=trace_flags))
+    asyncio.run(_run_single(
+        query, model, provider, no_web, no_code, upload, limit, yes,
+        output_context, trace_flags=trace_flags,
+        no_fallback=no_fallback,
+        user_specified_provider=user_specified_provider,
+    ))
 
 
 @click.command()
