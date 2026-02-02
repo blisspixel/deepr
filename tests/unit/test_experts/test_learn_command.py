@@ -162,30 +162,31 @@ class TestLearnOutputMessages:
     def test_learn_header_format(self):
         """Test that learn command shows proper header."""
         from deepr.cli.commands.semantic import expert
-        
+
         runner = CliRunner()
-        with patch("deepr.experts.profile.ExpertStore") as mock_store:
+        with patch("deepr.experts.profile.ExpertStore") as mock_store, \
+             patch("asyncio.run", return_value=None):
             mock_profile = Mock()
             mock_profile.name = "Test Expert"
             mock_store.return_value.load.return_value = mock_profile
-            
-            # Will fail at async part but we can check header
+
             result = runner.invoke(expert, ["learn", "Test Expert", "Topic", "-y"])
-        
+
         assert "Learn: Test Expert" in result.output
 
     def test_learn_shows_topic(self):
         """Test that learn command shows the topic being researched."""
         from deepr.cli.commands.semantic import expert
-        
+
         runner = CliRunner()
-        with patch("deepr.experts.profile.ExpertStore") as mock_store:
+        with patch("deepr.experts.profile.ExpertStore") as mock_store, \
+             patch("asyncio.run", return_value=None):
             mock_profile = Mock()
             mock_profile.name = "Test Expert"
             mock_store.return_value.load.return_value = mock_profile
-            
+
             result = runner.invoke(expert, ["learn", "Test Expert", "Quantum computing", "-y"])
-        
+
         assert "Topic to research: Quantum computing" in result.output
 
 
