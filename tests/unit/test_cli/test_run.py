@@ -23,6 +23,10 @@ from deepr.cli.commands.run import (
     run,
     focus,
     estimate_cost,
+    TraceFlags,
+    _show_trace_explain,
+    _show_trace_timeline,
+    _save_and_show_full_trace,
 )
 
 
@@ -283,6 +287,152 @@ class TestPropertyBasedCostEstimation:
         # Should not raise for any boolean value
         cost = estimate_cost("o4-mini-deep-research", enable_web_search=enable_web_search)
         assert cost > 0
+
+
+class TestTraceFlags:
+    """Test TraceFlags dataclass."""
+
+    def test_default_all_false(self):
+        """Default TraceFlags has all flags disabled."""
+        flags = TraceFlags()
+        assert not flags.explain
+        assert not flags.timeline
+        assert not flags.full_trace
+        assert not flags.any_enabled
+
+    def test_any_enabled_with_explain(self):
+        """any_enabled is True when explain is set."""
+        flags = TraceFlags(explain=True)
+        assert flags.any_enabled
+
+    def test_any_enabled_with_timeline(self):
+        """any_enabled is True when timeline is set."""
+        flags = TraceFlags(timeline=True)
+        assert flags.any_enabled
+
+    def test_any_enabled_with_full_trace(self):
+        """any_enabled is True when full_trace is set."""
+        flags = TraceFlags(full_trace=True)
+        assert flags.any_enabled
+
+    def test_all_flags_enabled(self):
+        """All flags can be enabled simultaneously."""
+        flags = TraceFlags(explain=True, timeline=True, full_trace=True)
+        assert flags.any_enabled
+
+
+class TestTraceFlagsCLI:
+    """Test trace flags in CLI commands."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_focus_accepts_explain_flag(self, runner):
+        """Focus command accepts --explain flag."""
+        with patch("deepr.cli.commands.run.asyncio.run"):
+            result = runner.invoke(run, ["focus", "Test query", "--explain", "--yes"])
+            assert result.exit_code == 0 or "Error" not in result.output
+
+    def test_focus_accepts_timeline_flag(self, runner):
+        """Focus command accepts --timeline flag."""
+        with patch("deepr.cli.commands.run.asyncio.run"):
+            result = runner.invoke(run, ["focus", "Test query", "--timeline", "--yes"])
+            assert result.exit_code == 0 or "Error" not in result.output
+
+    def test_focus_accepts_full_trace_flag(self, runner):
+        """Focus command accepts --full-trace flag."""
+        with patch("deepr.cli.commands.run.asyncio.run"):
+            result = runner.invoke(run, ["focus", "Test query", "--full-trace", "--yes"])
+            assert result.exit_code == 0 or "Error" not in result.output
+
+    def test_focus_accepts_all_trace_flags(self, runner):
+        """Focus command accepts all trace flags together."""
+        with patch("deepr.cli.commands.run.asyncio.run"):
+            result = runner.invoke(run, [
+                "focus", "Test query",
+                "--explain", "--timeline", "--full-trace", "--yes"
+            ])
+            assert result.exit_code == 0 or "Error" not in result.output
+
+    def test_trace_flags_compatible_with_verbose(self, runner):
+        """Trace flags work with --verbose output mode."""
+        with patch("deepr.cli.commands.run.asyncio.run"):
+            result = runner.invoke(run, [
+                "focus", "Test query",
+                "--explain", "--verbose", "--yes"
+            ])
+            assert result.exit_code == 0 or "Error" not in result.output
+
+
+class TestTraceDisplay:
+    """Test trace display functions."""
+
+    def _make_emitter(self):
+        """Create a MetadataEmitter with sample data."""
+        from deepr.observability.metadata import MetadataEmitter
+        emitter = MetadataEmitter()
+
+        op = emitter.start_task("research_job", prompt="Test query", attributes={
+            "provider": "openai", "model": "o4-mini",
+        })
+        op.set_model("o4-mini", "openai")
+        op.set_cost(0.15)
+        op.set_tokens(1000, 500)
+        emitter.complete_task(op)
+
+        child = emitter.start_task("provider_submit", attributes={
+            "provider": "openai",
+        })
+        child.set_model("o4-mini", "openai")
+        child.set_cost(0.10)
+        emitter.complete_task(child)
+
+        return emitter
+
+    def test_show_trace_explain(self, capsys):
+        """_show_trace_explain outputs task hierarchy."""
+        emitter = self._make_emitter()
+        _show_trace_explain(emitter)
+        captured = capsys.readouterr()
+        assert "research_job" in captured.out
+        assert "provider_submit" in captured.out
+        assert "$0.10" in captured.out or "0.10" in captured.out
+
+    def test_show_trace_timeline(self, capsys):
+        """_show_trace_timeline outputs timeline table."""
+        emitter = self._make_emitter()
+        _show_trace_timeline(emitter)
+        captured = capsys.readouterr()
+        assert "Timeline" in captured.out
+        assert "research_job" in captured.out
+
+    def test_save_and_show_full_trace(self, capsys, tmp_path):
+        """_save_and_show_full_trace saves trace file."""
+        emitter = self._make_emitter()
+        # Patch Path to use tmp_path
+        trace_path = tmp_path / "test_trace.json"
+        with patch("deepr.cli.commands.run.Path") as mock_path:
+            mock_path.return_value = trace_path
+            _save_and_show_full_trace(emitter, "research-abc123def")
+
+        captured = capsys.readouterr()
+        assert "trace" in captured.out.lower() or "saved" in captured.out.lower()
+
+    def test_explain_empty_emitter(self, capsys):
+        """_show_trace_explain handles empty emitter."""
+        from deepr.observability.metadata import MetadataEmitter
+        emitter = MetadataEmitter()
+        _show_trace_explain(emitter)
+        captured = capsys.readouterr()
+        assert "Explain" in captured.out or "Research Path" in captured.out
+
+    def test_timeline_empty_emitter(self, capsys):
+        """_show_trace_timeline handles empty emitter gracefully."""
+        from deepr.observability.metadata import MetadataEmitter
+        emitter = MetadataEmitter()
+        _show_trace_timeline(emitter)
+        # Should not raise
 
 
 if __name__ == "__main__":
