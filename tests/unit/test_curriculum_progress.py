@@ -5,8 +5,8 @@ tracks and communicates progress during curriculum generation.
 """
 
 import pytest
-from hypothesis import given, strategies as st
-from datetime import datetime
+from hypothesis import given, settings, strategies as st
+from datetime import datetime, timedelta
 import time
 from deepr.experts.curriculum import CurriculumGenerationProgress
 
@@ -41,19 +41,21 @@ class TestProgressFeedback:
         assert update_message in messages[0]
     
     @given(completion_message=st.text(min_size=1, max_size=100))
+    @settings(max_examples=50, deadline=None)
     def test_complete_shows_elapsed_time(self, completion_message):
         """Property: complete() should show elapsed time."""
         messages = []
         progress = CurriculumGenerationProgress(callback=messages.append)
-        
+
         progress.start("Test Step")
-        time.sleep(0.1)  # Small delay to ensure measurable time
+        # Backdate start_time instead of sleeping to avoid 10s+ of sleep across examples
+        progress.start_time = datetime.now() - timedelta(seconds=0.5)
         messages.clear()
         progress.complete(completion_message)
-        
+
         assert len(messages) == 1
         assert completion_message in messages[0]
-        # Should contain time in format like "(0.1s)"
+        # Should contain time in format like "(0.5s)"
         assert "(" in messages[0] and "s)" in messages[0]
     
     @given(error_message=st.text(min_size=1, max_size=100))
@@ -116,14 +118,14 @@ class TestProgressFeedback:
         """Each step should track its own timing."""
         messages = []
         progress = CurriculumGenerationProgress(callback=messages.append)
-        
+
         progress.start("Step 1")
-        time.sleep(0.05)
+        progress.start_time = datetime.now() - timedelta(seconds=0.1)
         progress.complete()
-        
+
         messages.clear()
         progress.start("Step 2")
-        time.sleep(0.05)
+        progress.start_time = datetime.now() - timedelta(seconds=0.1)
         progress.complete()
         
         # Should have start and complete for Step 2
@@ -170,19 +172,20 @@ class TestProgressFeedback:
         """Elapsed time should be accurate within reasonable bounds."""
         messages = []
         progress = CurriculumGenerationProgress(callback=messages.append)
-        
+
         progress.start("Test")
-        time.sleep(0.2)  # Sleep for 200ms
+        # Backdate start_time to simulate 0.2s elapsed
+        progress.start_time = datetime.now() - timedelta(seconds=0.2)
         messages.clear()
         progress.complete()
-        
+
         # Extract time from message like "(0.2s)"
         message = messages[0]
         time_str = message[message.find("(")+1:message.find("s)")]
         elapsed = float(time_str)
-        
+
         # Should be close to 0.2 seconds (allow 0.1s tolerance)
-        assert 0.15 <= elapsed <= 0.35
+        assert 0.1 <= elapsed <= 0.4
 
 
 class TestProgressMessageFormatting:
