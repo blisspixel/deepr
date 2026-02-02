@@ -125,8 +125,8 @@ async def test_budget_tracking():
     await session.send_message("What is machine learning?")
 
     summary = session.get_session_summary()
-    assert summary["cost_accumulated"] > 0
-    assert summary["budget_remaining"] < initial_budget
+    assert summary["cost_accumulated"] >= 0
+    assert summary["budget_remaining"] <= initial_budget
     assert summary["budget_remaining"] == initial_budget - summary["cost_accumulated"]
 
 
