@@ -44,14 +44,16 @@ class ResourceURI:
 def parse_resource_uri(uri: str) -> Optional[ResourceURI]:
     """
     Parse a resource URI string into components.
-    
+
     Args:
         uri: URI string like "deepr://campaigns/abc123/status"
-    
+              or "deepr://reports/abc123/final.md"
+              or "deepr://logs/abc123/search_trace.json"
+
     Returns:
         ResourceURI if valid, None otherwise
     """
-    pattern = r"^deepr://(?P<type>campaigns|experts)/(?P<id>[a-zA-Z0-9_-]+)/(?P<sub>\w+)$"
+    pattern = r"^deepr://(?P<type>campaigns|experts|reports|logs)/(?P<id>[a-zA-Z0-9_-]+)/(?P<sub>[\w.]+)$"
     match = re.match(pattern, uri)
     
     if not match:

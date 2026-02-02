@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "deepr-research": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "--env-file", ".env",
+        "-v", "${HOME}/.deepr/data:/app/data",
+        "deepr-mcp:latest"
+      ],
+      "autoAllow": [
+        "deepr_tool_search",
+        "deepr_status",
+        "deepr_list_experts",
+        "deepr_get_expert_info",
+        "deepr_check_status",
+        "deepr_get_result"
+      ]
+    }
+  }
+}
