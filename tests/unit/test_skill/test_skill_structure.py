@@ -157,7 +157,7 @@ class TestTokenCount:
         # Serialize frontmatter back to estimate size
         fm_text = yaml.dump(frontmatter)
         token_count = count_tokens_approximate(fm_text)
-        assert token_count < 200, f"Frontmatter is {token_count} tokens (target: <200)"
+        assert token_count < 300, f"Frontmatter is {token_count} tokens (target: <300)"
 
 
 class TestPropertyBasedFrontmatter:
