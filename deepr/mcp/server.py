@@ -1,24 +1,49 @@
 """MCP Server for Deepr.
 
 Exposes Deepr research and expert functionality via Model Context Protocol
-for use by other AI agents (Claude Desktop, Cursor, etc.).
+for use by AI agents (OpenClaw, Claude Desktop, Cursor, VS Code, Zed).
+
+Architecture:
+    StdioServer (transport) -> method dispatch -> DeeprMCPServer (business logic)
+                                                  -> MCPResourceHandler (resources)
+                                                  -> JobManager (state tracking)
+                                                  -> GatewayTool (tool discovery)
+                                                  -> ToolRegistry (BM25 search)
 
 Tools exposed:
+- deepr_tool_search: Dynamic tool discovery (gateway pattern, ~85% context reduction)
+- deepr_status: Health check and server status
 - deepr_research: Submit deep research jobs
 - deepr_check_status: Check research job status
 - deepr_get_result: Get completed research results
+- deepr_cancel_job: Cancel a running research job
 - deepr_agentic_research: Start autonomous multi-step research workflows
 - deepr_list_experts: List available domain experts
 - deepr_query_expert: Query a domain expert
 - deepr_get_expert_info: Get detailed expert information
+
+Resources:
+- deepr://campaigns/{id}/status - Job state and progress
+- deepr://campaigns/{id}/plan - Research plan
+- deepr://campaigns/{id}/beliefs - Accumulated findings
+- deepr://reports/{id}/final.md - Completed research report
+- deepr://reports/{id}/summary.json - Report metadata
+- deepr://logs/{id}/search_trace.json - Search query history
+- deepr://experts/{id}/profile - Expert profile
+- deepr://experts/{id}/beliefs - Expert beliefs
+- deepr://experts/{id}/gaps - Knowledge gaps
 """
 import os
 import sys
 import asyncio
 import json
+import logging
+import time
+import uuid
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 from datetime import datetime
+from dataclasses import dataclass, asdict
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -32,9 +57,92 @@ from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
 from deepr.config import load_config
 
+from deepr.mcp.transport.stdio import StdioServer, Message
+from deepr.mcp.state.resource_handler import MCPResourceHandler, get_resource_handler
+from deepr.mcp.state.job_manager import JobManager, JobPhase
+from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
+from deepr.mcp.search.gateway import GatewayTool
+from deepr.mcp.security import SSRFProtector
+
+# Prompt primitives (template menus for MCP clients)
+try:
+    from skills.deepr_research_prompts import list_prompts, get_prompt  # type: ignore
+except ImportError:
+    # Fallback: try relative import from skills directory
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent.parent / "skills" / "deepr-research"))
+        from prompts import list_prompts, get_prompt
+    except ImportError:
+        def list_prompts():
+            return []
+        def get_prompt(name, arguments):
+            return {"error": "Prompts module not available"}
+
+
+# Configure structured JSON logging to stderr (for OpenClaw log aggregation)
+logger = logging.getLogger("deepr.mcp")
+_log_handler = logging.StreamHandler(sys.stderr)
+_log_format = os.environ.get("DEEPR_LOG_FORMAT", "text")
+if _log_format == "json":
+    _log_handler.setFormatter(logging.Formatter(
+        '{"ts":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}'
+    ))
+else:
+    _log_handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+    ))
+logger.addHandler(_log_handler)
+logger.setLevel(getattr(logging, os.environ.get("DEEPR_LOG_LEVEL", "INFO").upper(), logging.INFO))
+
+
+# Server version and start time for health checks
+SERVER_VERSION = "2.6.0"
+_server_start_time: float = 0.0
+
+
+@dataclass
+class ToolError:
+    """Structured error response returned by tools instead of raising exceptions.
+
+    Agents can parse these fields to decide on retry/fallback strategies.
+    """
+    error_code: str
+    message: str
+    retry_hint: Optional[str] = None
+    fallback_suggestion: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        d: dict = {"error_code": self.error_code, "message": self.message}
+        if self.retry_hint:
+            d["retry_hint"] = self.retry_hint
+        if self.fallback_suggestion:
+            d["fallback_suggestion"] = self.fallback_suggestion
+        return d
+
+
+def _make_error(
+    code: str,
+    message: str,
+    retry_hint: Optional[str] = None,
+    fallback: Optional[str] = None,
+) -> dict:
+    """Convenience for returning a structured error dict from a tool."""
+    return ToolError(
+        error_code=code,
+        message=message,
+        retry_hint=retry_hint,
+        fallback_suggestion=fallback,
+    ).to_dict()
+
 
 class DeeprMCPServer:
-    """MCP server for Deepr research and experts."""
+    """MCP server for Deepr research and experts.
+
+    Integrates with:
+    - MCPResourceHandler: unified resource reads, subscriptions, expert resources
+    - JobManager: research job lifecycle and notifications
+    - ToolRegistry + GatewayTool: dynamic tool discovery via BM25 search
+    """
 
     def __init__(self):
         """Initialize MCP server with research and expert capabilities."""
@@ -44,14 +152,101 @@ class DeeprMCPServer:
 
         # Research-related components
         self.config = load_config()
-        self.active_jobs: Dict[str, Dict] = {}  # Track submitted jobs
+        self.active_jobs: Dict[str, Dict] = {}  # Provider instance cache
 
+        # MCP infrastructure
+        self.resource_handler = get_resource_handler()
+        self.registry = create_default_registry()
+        self.gateway = GatewayTool(self.registry)
+
+        # Security: SSRF protection for outbound requests
+        allowed_domains_env = os.environ.get("DEEPR_ALLOWED_DOMAINS", "")
+        allowed_domains = (
+            [d.strip() for d in allowed_domains_env.split(",") if d.strip()]
+            if allowed_domains_env
+            else None
+        )
+        self.ssrf_protector = SSRFProtector(
+            allowed_domains=allowed_domains,
+            audit_log=True,
+        )
+
+        # Register the three new tools in the registry
+        _register_new_tools(self.registry)
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_status (health check)
+    # ------------------------------------------------------------------ #
+    async def deepr_status(self) -> Dict:
+        """Health check returning server version, uptime, active jobs, and cost summary."""
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+            cost_safety = get_cost_safety_manager()
+            spending = cost_safety.get_spending_summary()
+        except Exception:
+            spending = {"daily": {"spent": 0, "remaining": "unknown"}, "monthly": {"spent": 0}}
+
+        uptime = time.time() - _server_start_time if _server_start_time else 0
+        active_count = len(self.resource_handler.jobs.list_jobs(phase=None))
+
+        return {
+            "status": "healthy",
+            "version": SERVER_VERSION,
+            "uptime_seconds": round(uptime, 1),
+            "active_jobs": active_count,
+            "transport": "stdio",
+            "cost_summary": {
+                "daily_spent": spending.get("daily", {}).get("spent", 0),
+                "daily_remaining": spending.get("daily", {}).get("remaining", "unknown"),
+                "monthly_spent": spending.get("monthly", {}).get("spent", 0),
+            },
+            "capabilities": {
+                "tools": self.registry.count(),
+                "dynamic_discovery": True,
+                "resource_subscriptions": True,
+                "elicitation": True,
+            },
+        }
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_tool_search (gateway / dynamic discovery)
+    # ------------------------------------------------------------------ #
+    async def deepr_tool_search(self, query: str, limit: int = 3) -> Dict:
+        """Search Deepr capabilities by natural language query."""
+        return self.gateway.search(query, limit=limit)
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_cancel_job
+    # ------------------------------------------------------------------ #
+    async def deepr_cancel_job(self, job_id: str) -> Dict:
+        """Cancel a running research job."""
+        state = self.resource_handler.jobs.get_state(job_id)
+        if not state:
+            return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
+
+        terminal = {JobPhase.COMPLETED, JobPhase.FAILED, JobPhase.CANCELLED}
+        if state.phase in terminal:
+            return _make_error(
+                "JOB_ALREADY_TERMINAL",
+                f"Job '{job_id}' already in terminal state: {state.phase.value}",
+            )
+
+        await self.resource_handler.jobs.update_phase(job_id, JobPhase.CANCELLED)
+        self.resource_handler.persist_job(job_id)
+        # Clean up provider cache
+        self.active_jobs.pop(job_id, None)
+
+        return {
+            "job_id": job_id,
+            "status": "cancelled",
+            "message": f"Job '{job_id}' has been cancelled.",
+        }
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_list_experts
+    # ------------------------------------------------------------------ #
     async def list_experts(self) -> List[Dict]:
-        """List all available experts.
-
-        Returns:
-            List of expert summaries
-        """
+        """List all available experts."""
         try:
             experts = self.store.list_all()
             return [
@@ -60,26 +255,22 @@ class DeeprMCPServer:
                     "domain": expert["domain"],
                     "description": expert["description"],
                     "documents": expert["stats"]["documents"],
-                    "conversations": expert["stats"]["conversations"]
+                    "conversations": expert["stats"]["conversations"],
                 }
                 for expert in experts
             ]
         except Exception as e:
-            return [{"error": str(e)}]
+            return [_make_error("EXPERT_LIST_FAILED", str(e))]
 
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_get_expert_info
+    # ------------------------------------------------------------------ #
     async def get_expert_info(self, expert_name: str) -> Dict:
-        """Get detailed information about a specific expert.
-
-        Args:
-            expert_name: Name of the expert
-
-        Returns:
-            Expert information dictionary
-        """
+        """Get detailed information about a specific expert."""
         try:
             expert = self.store.load(expert_name)
             if not expert:
-                return {"error": f"Expert '{expert_name}' not found"}
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
             return {
                 "name": expert.name,
@@ -90,56 +281,46 @@ class DeeprMCPServer:
                     "documents": expert.total_documents,
                     "conversations": expert.stats.get("conversations", 0),
                     "research_jobs": len(expert.research_jobs),
-                    "total_cost": expert.stats.get("total_cost", 0.0)
+                    "total_cost": expert.stats.get("total_cost", 0.0),
                 },
                 "created_at": expert.created_at.isoformat() if expert.created_at else None,
-                "last_knowledge_refresh": expert.last_knowledge_refresh.isoformat() if expert.last_knowledge_refresh else None
+                "last_knowledge_refresh": (
+                    expert.last_knowledge_refresh.isoformat()
+                    if expert.last_knowledge_refresh
+                    else None
+                ),
             }
         except Exception as e:
-            return {"error": str(e)}
+            return _make_error("EXPERT_INFO_FAILED", str(e))
 
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_query_expert
+    # ------------------------------------------------------------------ #
     async def query_expert(
         self,
         expert_name: str,
         question: str,
         budget: float = 0.0,
-        agentic: bool = False
+        agentic: bool = False,
     ) -> Dict:
-        """Query an expert with a question.
-
-        Args:
-            expert_name: Name of the expert
-            question: Question to ask
-            budget: Optional budget for research (if agentic)
-            agentic: Enable agentic mode (expert can trigger research)
-
-        Returns:
-            Expert response with sources and cost
-        """
+        """Query an expert with a question."""
         try:
-            # Load expert
             expert = self.store.load(expert_name)
             if not expert:
-                return {"error": f"Expert '{expert_name}' not found"}
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            # Create or reuse session
             session_key = f"{expert_name}_{id(question)}"
             if session_key not in self.sessions:
                 self.sessions[session_key] = ExpertChatSession(
                     expert,
                     budget=budget if agentic else None,
-                    agentic=agentic
+                    agentic=agentic,
                 )
 
             session = self.sessions[session_key]
-
-            # Send message
             response_text = await session.send_message(question)
-
-            # Get session summary for cost tracking
             summary = session.get_session_summary()
 
-            # Clean up session
             del self.sessions[session_key]
 
             return {
@@ -147,12 +328,14 @@ class DeeprMCPServer:
                 "expert": expert_name,
                 "cost": summary["cost_accumulated"],
                 "budget_remaining": summary.get("budget_remaining"),
-                "research_triggered": summary["research_jobs_triggered"]
+                "research_triggered": summary["research_jobs_triggered"],
             }
-
         except Exception as e:
-            return {"error": str(e)}
+            return _make_error("EXPERT_QUERY_FAILED", str(e))
 
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_research
+    # ------------------------------------------------------------------ #
     async def deepr_research(
         self,
         prompt: str,
@@ -161,23 +344,13 @@ class DeeprMCPServer:
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
         budget: Optional[float] = None,
-        files: Optional[List[str]] = None
+        files: Optional[List[str]] = None,
     ) -> Dict:
-        """Submit a deep research job.
-
-        Args:
-            prompt: Research question or prompt
-            model: Model to use (default: o4-mini-deep-research)
-            provider: Provider to use (openai, azure, gemini, grok)
-            enable_web_search: Enable web search tool
-            enable_code_interpreter: Enable code interpreter tool
-            budget: Optional budget limit in dollars
-            files: Optional list of file paths to include
-
-        Returns:
-            Job information with job_id, estimated_time, cost_estimate
-        """
+        """Submit a deep research job."""
         try:
+            # Generate trace_id for end-to-end request tracking
+            trace_id = uuid.uuid4().hex[:16]
+
             # Estimate cost based on model
             if "o4-mini" in model:
                 cost_estimate = 0.15
@@ -188,52 +361,56 @@ class DeeprMCPServer:
             else:
                 cost_estimate = 0.20
                 estimated_time = "5-15 minutes"
-            
+
             # CRITICAL: Validate budget BEFORE any API calls
             from deepr.experts.cost_safety import get_cost_safety_manager
-            import uuid
-            
+
             cost_safety = get_cost_safety_manager()
             session_id = f"mcp_research_{uuid.uuid4().hex[:8]}"
-            
-            # Check against global limits
+
             allowed, reason, _ = cost_safety.check_operation(
                 session_id=session_id,
                 operation_type="mcp_research",
                 estimated_cost=cost_estimate,
-                require_confirmation=False
+                require_confirmation=False,
             )
-            
-            if not allowed:
-                return {
-                    "error": f"Research blocked by cost safety: {reason}",
-                    "cost_estimate": cost_estimate,
-                    "daily_spent": cost_safety.daily_cost,
-                    "daily_limit": cost_safety.max_daily
-                }
-            
-            # Check against explicit budget if provided
-            if budget is not None and cost_estimate > budget:
-                return {
-                    "error": f"Estimated cost ${cost_estimate:.2f} exceeds budget ${budget:.2f}",
-                    "cost_estimate": cost_estimate,
-                    "budget": budget
-                }
-            
-            # Create provider instance
-            if provider == "openai":
-                api_key = self.config.get("api_key")
-            elif provider == "azure":
-                api_key = self.config.get("azure_api_key")
-            elif provider == "gemini":
-                api_key = self.config.get("gemini_api_key")
-            elif provider == "grok":
-                api_key = self.config.get("xai_api_key")
-            else:
-                return {"error": f"Unknown provider: {provider}"}
 
+            if not allowed:
+                return _make_error(
+                    "BUDGET_EXCEEDED",
+                    f"Research blocked by cost safety: {reason}",
+                    retry_hint="Wait for daily limit reset or increase budget with 'deepr budget set'",
+                    fallback=f"Daily spent: ${cost_safety.daily_cost:.2f}",
+                )
+
+            if budget is not None and cost_estimate > budget:
+                return _make_error(
+                    "BUDGET_INSUFFICIENT",
+                    f"Estimated cost ${cost_estimate:.2f} exceeds budget ${budget:.2f}",
+                    retry_hint=f"Set budget >= ${cost_estimate:.2f}",
+                )
+
+            # SSRF: validate any user-provided file URLs
+            if files:
+                for f in files:
+                    if f.startswith(("http://", "https://")):
+                        try:
+                            self.ssrf_protector.validate_url(f)
+                        except ValueError as ssrf_err:
+                            return _make_error(
+                                "SSRF_BLOCKED",
+                                str(ssrf_err),
+                                fallback="Only public URLs are allowed as file sources",
+                            )
+
+            # Create provider instance
+            api_key = self._get_api_key(provider)
             if not api_key:
-                return {"error": f"No API key configured for provider: {provider}"}
+                return _make_error(
+                    "PROVIDER_NOT_CONFIGURED",
+                    f"No API key configured for provider: {provider}",
+                    fallback="Configure via .env file or environment variables",
+                )
 
             provider_instance = create_provider(provider, api_key)
             storage_instance = create_storage("local", base_path="data/reports")
@@ -241,13 +418,9 @@ class DeeprMCPServer:
             report_generator = ReportGenerator()
 
             orchestrator = ResearchOrchestrator(
-                provider_instance,
-                storage_instance,
-                doc_manager,
-                report_generator
+                provider_instance, storage_instance, doc_manager, report_generator
             )
 
-            # Submit research (orchestrator now validates budget too)
             job_id = await orchestrator.submit_research(
                 prompt=prompt,
                 model=model,
@@ -256,130 +429,207 @@ class DeeprMCPServer:
                 enable_code_interpreter=enable_code_interpreter,
                 cost_sensitive=budget is not None and budget < 0.20,
                 budget_limit=budget,
-                session_id=session_id
+                session_id=session_id,
             )
 
-            # Track job
+            # Track in JobManager for resource subscriptions
+            await self.resource_handler.jobs.create_job(
+                job_id=job_id,
+                goal=prompt,
+                model=model,
+                estimated_cost=cost_estimate,
+                estimated_time=estimated_time,
+            )
+            # Store trace_id in job metadata for end-to-end tracking
+            state = self.resource_handler.jobs.get_state(job_id)
+            if state:
+                state.metadata["trace_id"] = trace_id
+                state.metadata["session_id"] = session_id
+
+            # Persist to SQLite
+            self.resource_handler.persist_job(job_id)
+
+            # Cache provider instance for status checks
             self.active_jobs[job_id] = {
-                "job_id": job_id,
-                "prompt": prompt,
-                "model": model,
-                "provider": provider,
-                "submitted_at": datetime.now().isoformat(),
-                "status": "submitted",
                 "provider_instance": provider_instance,
-                "cost_estimate": cost_estimate
+                "submitted_at": datetime.now().isoformat(),
             }
-            
-            # Get spending summary for transparency
+
+            logger.info("Research job %s submitted (trace=%s)", job_id, trace_id)
+
             spending = cost_safety.get_spending_summary()
+            resource_uris = self.resource_handler.get_resource_uri_for_job(job_id)
 
             return {
                 "job_id": job_id,
+                "trace_id": trace_id,
                 "status": "submitted",
                 "estimated_time": estimated_time,
                 "cost_estimate": cost_estimate,
                 "daily_spent": spending["daily"]["spent"],
                 "daily_remaining": spending["daily"]["remaining"],
-                "message": f"Research job submitted successfully. Use deepr_check_status with job_id '{job_id}' to check progress."
+                "resource_uris": resource_uris,
+                "message": (
+                    f"Research job submitted. Use deepr_check_status with job_id "
+                    f"'{job_id}' to check progress, or subscribe to "
+                    f"{resource_uris['status']} for push notifications."
+                ),
             }
 
         except ValueError as ve:
-            # Budget validation errors
-            return {"error": str(ve)}
+            return _make_error("VALIDATION_ERROR", str(ve))
         except Exception as e:
-            return {"error": str(e)}
+            logger.exception("deepr_research failed")
+            return _make_error("INTERNAL_ERROR", str(e))
 
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_check_status
+    # ------------------------------------------------------------------ #
     async def deepr_check_status(self, job_id: str) -> Dict:
-        """Check the status of a research job.
-
-        Args:
-            job_id: Job ID returned from deepr_research
-
-        Returns:
-            Job status information including progress and cost
-        """
+        """Check the status of a research job."""
         try:
-            if job_id not in self.active_jobs:
-                return {"error": f"Job '{job_id}' not found"}
+            # First check JobManager (canonical state)
+            state = self.resource_handler.jobs.get_state(job_id)
 
-            job_info = self.active_jobs[job_id]
-            provider_instance = job_info["provider_instance"]
+            if job_id not in self.active_jobs and not state:
+                return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
 
-            # Check status with provider
-            try:
-                status = await provider_instance.get_job_status(job_id)
+            job_cache = self.active_jobs.get(job_id, {})
+            provider_instance = job_cache.get("provider_instance")
 
-                job_info["status"] = status["status"]
-                job_info["progress"] = status.get("progress", "unknown")
-                job_info["elapsed_time"] = status.get("elapsed_time")
-                job_info["cost_so_far"] = status.get("cost", 0.0)
+            if provider_instance:
+                try:
+                    status = await provider_instance.get_job_status(job_id)
+                    # Sync provider status into JobManager
+                    phase_map = {
+                        "completed": JobPhase.COMPLETED,
+                        "failed": JobPhase.FAILED,
+                        "in_progress": JobPhase.EXECUTING,
+                        "queued": JobPhase.QUEUED,
+                    }
+                    provider_phase = phase_map.get(
+                        status.get("status", ""), JobPhase.EXECUTING
+                    )
+                    await self.resource_handler.jobs.update_phase(
+                        job_id,
+                        provider_phase,
+                        cost_so_far=status.get("cost", 0.0),
+                    )
+                    self.resource_handler.persist_job(job_id)
 
+                    return {
+                        "job_id": job_id,
+                        "status": status["status"],
+                        "progress": status.get("progress"),
+                        "elapsed_time": status.get("elapsed_time"),
+                        "cost_so_far": status.get("cost", 0.0),
+                        "submitted_at": job_cache.get("submitted_at"),
+                    }
+                except Exception:
+                    pass
+
+            # Fallback to JobManager state
+            if state:
                 return {
                     "job_id": job_id,
-                    "status": status["status"],
-                    "progress": status.get("progress"),
-                    "elapsed_time": status.get("elapsed_time"),
-                    "cost_so_far": status.get("cost", 0.0),
-                    "submitted_at": job_info["submitted_at"]
+                    "status": state.phase.value,
+                    "progress": state.progress,
+                    "cost_so_far": state.cost_so_far,
+                    "submitted_at": state.started_at.isoformat(),
                 }
 
-            except Exception as provider_error:
-                # If provider doesn't have the job yet, it might still be queued
-                return {
-                    "job_id": job_id,
-                    "status": "submitted",
-                    "message": "Job submitted, waiting for provider to begin processing",
-                    "submitted_at": job_info["submitted_at"]
-                }
+            return {
+                "job_id": job_id,
+                "status": "submitted",
+                "message": "Job submitted, waiting for provider to begin processing",
+            }
 
         except Exception as e:
-            return {"error": str(e)}
+            return _make_error("STATUS_CHECK_FAILED", str(e))
 
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_get_result
+    # ------------------------------------------------------------------ #
     async def deepr_get_result(self, job_id: str) -> Dict:
-        """Get the results of a completed research job.
-
-        Args:
-            job_id: Job ID returned from deepr_research
-
-        Returns:
-            Research results including markdown report and metadata
-        """
+        """Get the results of a completed research job."""
         try:
-            if job_id not in self.active_jobs:
-                return {"error": f"Job '{job_id}' not found"}
+            job_cache = self.active_jobs.get(job_id)
+            if not job_cache:
+                return _make_error("JOB_NOT_FOUND", f"Job '{job_id}' not found")
 
-            job_info = self.active_jobs[job_id]
-            provider_instance = job_info["provider_instance"]
+            provider_instance = job_cache.get("provider_instance")
+            if not provider_instance:
+                return _make_error("PROVIDER_LOST", "Provider instance no longer available")
 
-            # Check if completed
             status = await provider_instance.get_job_status(job_id)
 
             if status["status"] != "completed":
                 return {
                     "job_id": job_id,
                     "status": status["status"],
-                    "message": f"Job not yet complete. Current status: {status['status']}"
+                    "message": f"Job not yet complete. Current status: {status['status']}",
                 }
 
-            # Get result
             result = await provider_instance.get_job_result(job_id)
+
+            # Update JobManager to completed
+            await self.resource_handler.jobs.update_phase(
+                job_id, JobPhase.COMPLETED, progress=1.0,
+                cost_so_far=result.get("cost", 0.0),
+            )
+            self.resource_handler.persist_job(job_id)
 
             # Clean up
             del self.active_jobs[job_id]
 
+            report = result.get("report", "")
+            cost_final = result.get("cost", 0.0)
+            metadata = result.get("metadata", {})
+            sources = result.get("sources", [])
+
+            # Lazy loading: if report is large, return summary + resource URI
+            # so agents can fetch the full report on demand
+            max_inline = int(os.environ.get("DEEPR_MAX_INLINE_CHARS", "8000"))
+            if len(report) > max_inline:
+                # Build a truncated summary with key sections
+                summary_text = report[:2000]
+                if "\n## " in report[2000:]:
+                    # Try to include at least the next section header
+                    next_section = report.find("\n## ", 2000)
+                    if next_section > 0 and next_section < 3000:
+                        summary_text = report[:next_section]
+
+                return {
+                    "job_id": job_id,
+                    "status": "completed",
+                    "summary": summary_text + "\n\n... (truncated)",
+                    "full_report_uri": f"deepr://reports/{job_id}/final.md",
+                    "report_length": len(report),
+                    "cost_final": cost_final,
+                    "metadata": metadata,
+                    "sources_count": len(sources),
+                    "hint": (
+                        "Report truncated for context efficiency. "
+                        "Use resources/read with the full_report_uri to get the complete report."
+                    ),
+                }
+
             return {
                 "job_id": job_id,
                 "status": "completed",
-                "markdown_report": result.get("report", ""),
-                "cost_final": result.get("cost", 0.0),
-                "metadata": result.get("metadata", {}),
-                "sources": result.get("sources", [])
+                "markdown_report": report,
+                "cost_final": cost_final,
+                "metadata": metadata,
+                "sources": sources,
+                "resource_uri": f"deepr://reports/{job_id}/final.md",
             }
 
         except Exception as e:
-            return {"error": str(e)}
+            return _make_error("RESULT_FETCH_FAILED", str(e))
 
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_agentic_research
+    # ------------------------------------------------------------------ #
     async def deepr_agentic_research(
         self,
         goal: str,
@@ -388,187 +638,436 @@ class DeeprMCPServer:
         sources: Optional[List[str]] = None,
         files: Optional[List[str]] = None,
         model: str = "o4-mini-deep-research",
-        provider: str = "openai"
+        provider: str = "openai",
     ) -> Dict:
-        """Start an agentic research workflow that can trigger multiple research jobs.
-
-        This is different from deepr_research - it uses an expert agent that can
-        autonomously decide when to trigger additional research based on findings.
-
-        Args:
-            goal: High-level research goal
-            expert_name: Expert to use for agentic reasoning (optional, creates temp expert if not provided)
-            budget: Total budget for the agentic workflow (default $5, max $10)
-            sources: Preferred sources to prioritize
-            files: Files to include as context
-            model: Model to use for research jobs
-            provider: Provider to use
-
-        Returns:
-            Workflow information with workflow_id, expert_name, plan, estimated_cost
-        """
+        """Start an agentic research workflow."""
         try:
-            import uuid
             workflow_id = str(uuid.uuid4())
-            
-            # CRITICAL: Validate and cap budget for agentic workflows
+            trace_id = uuid.uuid4().hex[:16]
+
             from deepr.experts.cost_safety import get_cost_safety_manager, CostSafetyManager
-            
+
             cost_safety = get_cost_safety_manager()
-            
-            # Cap agentic budget at absolute max per operation
             max_agentic_budget = min(budget, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION)
+
             if budget > max_agentic_budget:
-                return {
-                    "error": f"Agentic budget ${budget:.2f} exceeds maximum ${max_agentic_budget:.2f}",
-                    "max_allowed": max_agentic_budget,
-                    "suggestion": f"Use budget=${max_agentic_budget:.2f} or lower"
-                }
-            
-            # Check against daily/monthly limits
+                return _make_error(
+                    "BUDGET_EXCEEDS_MAX",
+                    f"Agentic budget ${budget:.2f} exceeds maximum ${max_agentic_budget:.2f}",
+                    retry_hint=f"Use budget=${max_agentic_budget:.2f} or lower",
+                )
+
             session_id = f"agentic_{workflow_id[:8]}"
             allowed, reason, _ = cost_safety.check_operation(
                 session_id=session_id,
                 operation_type="agentic_research",
-                estimated_cost=max_agentic_budget,  # Reserve full budget
-                require_confirmation=False
+                estimated_cost=max_agentic_budget,
+                require_confirmation=False,
             )
-            
+
             if not allowed:
                 spending = cost_safety.get_spending_summary()
-                return {
-                    "error": f"Agentic research blocked: {reason}",
-                    "daily_spent": spending["daily"]["spent"],
-                    "daily_limit": spending["daily"]["limit"],
-                    "daily_remaining": spending["daily"]["remaining"]
-                }
+                return _make_error(
+                    "BUDGET_EXCEEDED",
+                    f"Agentic research blocked: {reason}",
+                    retry_hint="Wait for daily limit reset",
+                    fallback=f"Daily remaining: ${spending['daily']['remaining']}",
+                )
 
-            # If expert_name provided, use existing expert
             if expert_name:
                 expert = self.store.load(expert_name)
                 if not expert:
-                    return {"error": f"Expert '{expert_name}' not found"}
+                    return _make_error(
+                        "EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found"
+                    )
             else:
-                # For now, return a plan without actually creating a temporary expert
-                # This can be enhanced later with temporary expert creation
-                return {
-                    "workflow_id": workflow_id,
-                    "status": "planned",
-                    "message": "Agentic research requires an expert. Please provide expert_name or create one first.",
-                    "suggestion": "Use deepr_list_experts to see available experts, or create one with the CLI: deepr expert make <name> <domain>"
-                }
+                return _make_error(
+                    "EXPERT_REQUIRED",
+                    "Agentic research requires an expert.",
+                    fallback=(
+                        "Use deepr_list_experts to see available experts, or create "
+                        "one with the CLI: deepr expert make <name> <domain>"
+                    ),
+                )
 
-            # Create agentic session with validated budget
+            # Track in JobManager
+            await self.resource_handler.jobs.create_job(
+                job_id=workflow_id,
+                goal=goal,
+                model=model,
+                estimated_cost=max_agentic_budget,
+                estimated_time="varies",
+            )
+            await self.resource_handler.jobs.update_phase(
+                workflow_id, JobPhase.EXECUTING
+            )
+            # Store trace_id in job metadata
+            state = self.resource_handler.jobs.get_state(workflow_id)
+            if state:
+                state.metadata["trace_id"] = trace_id
+            self.resource_handler.persist_job(workflow_id)
+
             session = ExpertChatSession(
-                expert,
-                budget=max_agentic_budget,
-                agentic=True  # Enable agentic mode
+                expert, budget=max_agentic_budget, agentic=True
             )
 
-            # Enhanced prompt for agentic behavior
-            agentic_prompt = f"""Research Goal: {goal}
-
-I need you to conduct comprehensive research on this goal. You have autonomous research capabilities with a budget of ${max_agentic_budget:.2f}.
-
-Please:
-1. Analyze what research is needed to fully address this goal
-2. Break it down into research questions
-3. Conduct research autonomously (you can trigger research jobs as needed)
-4. Synthesize findings into a comprehensive report
-
-"""
+            agentic_prompt = (
+                f"Research Goal: {goal}\n\n"
+                f"I need you to conduct comprehensive research on this goal. "
+                f"You have autonomous research capabilities with a budget of "
+                f"${max_agentic_budget:.2f}.\n\n"
+                f"Please:\n"
+                f"1. Analyze what research is needed to fully address this goal\n"
+                f"2. Break it down into research questions\n"
+                f"3. Conduct research autonomously\n"
+                f"4. Synthesize findings into a comprehensive report\n"
+            )
             if sources:
                 agentic_prompt += f"\nPreferred sources: {', '.join(sources)}\n"
-
             if files:
                 agentic_prompt += f"\nContext files provided: {len(files)} files\n"
 
-            # Start the agentic workflow
             response = await session.send_message(agentic_prompt)
 
-            # Track the workflow
-            workflow_info = {
-                "workflow_id": workflow_id,
-                "goal": goal,
-                "expert_name": expert.name,
-                "budget": max_agentic_budget,
-                "budget_remaining": max_agentic_budget,
-                "status": "in_progress",
-                "started_at": datetime.now().isoformat(),
-                "session": session
+            self.active_jobs[workflow_id] = {
+                "provider_instance": None,
+                "session": session,
+                "submitted_at": datetime.now().isoformat(),
             }
 
-            self.active_jobs[workflow_id] = workflow_info
-            
-            # Get spending summary for transparency
             spending = cost_safety.get_spending_summary()
+            resource_uris = self.resource_handler.get_resource_uri_for_job(workflow_id)
+
+            logger.info("Agentic workflow %s started (trace=%s)", workflow_id, trace_id)
 
             return {
                 "workflow_id": workflow_id,
+                "trace_id": trace_id,
                 "status": "in_progress",
                 "expert_name": expert.name,
                 "budget_allocated": max_agentic_budget,
                 "daily_spent": spending["daily"]["spent"],
                 "daily_remaining": spending["daily"]["remaining"],
-                "initial_response": response[:500] + "..." if len(response) > 500 else response,
-                "message": f"Agentic workflow started. The expert will autonomously conduct research and report back. Use deepr_check_status with workflow_id '{workflow_id}' to monitor progress."
+                "initial_response": (
+                    response[:500] + "..." if len(response) > 500 else response
+                ),
+                "resource_uris": resource_uris,
+                "message": (
+                    f"Agentic workflow started. Use deepr_check_status with "
+                    f"workflow_id '{workflow_id}' to monitor progress."
+                ),
             }
 
         except Exception as e:
-            return {"error": str(e)}
+            logger.exception("deepr_agentic_research failed")
+            return _make_error("INTERNAL_ERROR", str(e))
 
-
-# Simplified stdio-based MCP server (no dependencies required)
-async def run_stdio_server():
-    """Run MCP server using stdio for communication."""
-    server = DeeprMCPServer()
-
-    # Read from stdin, write to stdout
-    print("Deepr MCP Server started", file=sys.stderr)
-    print("Listening for requests on stdin...", file=sys.stderr)
-
-    while True:
+    # ------------------------------------------------------------------ #
+    # Helpers
+    # ------------------------------------------------------------------ #
+    def validate_outbound_url(self, url: str) -> Optional[dict]:
+        """Validate a URL against SSRF rules. Returns error dict or None if valid."""
         try:
-            # Read request from stdin
-            line = sys.stdin.readline()
-            if not line:
-                break
+            self.ssrf_protector.validate_url(url)
+            return None
+        except ValueError as e:
+            return _make_error("SSRF_BLOCKED", str(e))
 
-            request = json.loads(line.strip())
-            method = request.get("method")
-            params = request.get("params", {})
+    def _get_api_key(self, provider: str) -> Optional[str]:
+        """Resolve API key for a provider from config or environment."""
+        key_map = {
+            "openai": ("api_key", "OPENAI_API_KEY"),
+            "azure": ("azure_api_key", "AZURE_OPENAI_API_KEY"),
+            "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
+            "grok": ("xai_api_key", "XAI_API_KEY"),
+        }
+        config_key, env_key = key_map.get(provider, (None, None))
+        if config_key:
+            return self.config.get(config_key) or os.environ.get(env_key, "")
+        return None
 
-            # Handle request
-            result = None
-            if method == "list_experts":
-                result = await server.list_experts()
-            elif method == "get_expert_info":
-                result = await server.get_expert_info(**params)
-            elif method == "query_expert":
-                result = await server.query_expert(**params)
-            elif method == "deepr_research":
-                result = await server.deepr_research(**params)
-            elif method == "deepr_check_status":
-                result = await server.deepr_check_status(**params)
-            elif method == "deepr_get_result":
-                result = await server.deepr_get_result(**params)
-            elif method == "deepr_agentic_research":
-                result = await server.deepr_agentic_research(**params)
-            else:
-                result = {"error": f"Unknown method: {method}"}
 
-            # Write response to stdout
-            response = {"id": request.get("id"), "result": result}
-            print(json.dumps(response), flush=True)
+# ------------------------------------------------------------------ #
+# Tool Registration
+# ------------------------------------------------------------------ #
 
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            error_response = {
-                "id": request.get("id") if "request" in locals() else None,
-                "error": str(e)
-            }
-            print(json.dumps(error_response), flush=True)
+def _register_new_tools(registry: ToolRegistry) -> None:
+    """Register the three new tools (status, cancel, tool_search) in the registry."""
+    registry.register(ToolSchema(
+        name="deepr_status",
+        description=(
+            "Health check for the Deepr MCP server. Returns version, uptime, "
+            "active jobs count, daily/monthly cost summary, and available capabilities. "
+            "Use this to verify the server is running and check spending before starting research."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {},
+        },
+        category="system",
+        cost_tier="free",
+    ))
+
+    registry.register(ToolSchema(
+        name="deepr_cancel_job",
+        description=(
+            "Cancel a running research job. Use when the user wants to stop an "
+            "in-progress research task. Cannot cancel already completed or failed jobs."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "description": "Job ID from deepr_research or deepr_agentic_research",
+                },
+            },
+            "required": ["job_id"],
+        },
+        category="research",
+        cost_tier="free",
+    ))
+
+    # Note: deepr_tool_search is already defined in GatewayTool.SCHEMA
+    # but we register it in the registry too so it appears in full tool lists.
+    registry.register(GatewayTool.SCHEMA)
+
+
+# ------------------------------------------------------------------ #
+# MCP Protocol Handlers (JSON-RPC methods)
+# ------------------------------------------------------------------ #
+
+def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list:
+    """Build the tools list for tools/list response.
+
+    If use_gateway is True, only return the gateway tool (dynamic discovery).
+    If False, return all tools (for clients that don't support dynamic discovery).
+    """
+    if use_gateway:
+        return [GatewayTool.get_gateway_schema()]
+    return [t.to_mcp_format() for t in server.registry.all_tools()]
+
+
+async def _handle_initialize(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle MCP initialize handshake."""
+    return {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+            "tools": {"listChanged": False},
+            "resources": {"subscribe": True, "listChanged": False},
+            "prompts": {"listChanged": False},
+            "logging": {},
+        },
+        "serverInfo": {
+            "name": "deepr-research",
+            "version": SERVER_VERSION,
+        },
+    }
+
+
+async def _handle_tools_list(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle tools/list."""
+    # If client sent _fullList hint, return all tools
+    full_list = params.get("_fullList", False)
+    tools = _build_tools_list(server, use_gateway=not full_list)
+    return {"tools": tools}
+
+
+async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle tools/call - dispatch to appropriate tool method."""
+    name = params.get("name", "")
+    arguments = params.get("arguments", {})
+
+    tool_dispatch = {
+        "deepr_status": lambda args: server.deepr_status(),
+        "deepr_tool_search": lambda args: server.deepr_tool_search(
+            query=args.get("query", ""),
+            limit=args.get("limit", 3),
+        ),
+        "deepr_cancel_job": lambda args: server.deepr_cancel_job(
+            job_id=args.get("job_id", ""),
+        ),
+        "deepr_research": lambda args: server.deepr_research(**args),
+        "deepr_check_status": lambda args: server.deepr_check_status(
+            job_id=args.get("job_id", ""),
+        ),
+        "deepr_get_result": lambda args: server.deepr_get_result(
+            job_id=args.get("job_id", ""),
+        ),
+        "deepr_agentic_research": lambda args: server.deepr_agentic_research(**args),
+        "deepr_list_experts": lambda args: server.list_experts(),
+        "deepr_query_expert": lambda args: server.query_expert(**args),
+        "deepr_get_expert_info": lambda args: server.get_expert_info(
+            expert_name=args.get("expert_name", ""),
+        ),
+    }
+
+    handler = tool_dispatch.get(name)
+    if not handler:
+        return {
+            "content": [{"type": "text", "text": json.dumps(
+                _make_error("TOOL_NOT_FOUND", f"Unknown tool: {name}")
+            )}],
+            "isError": True,
+        }
+
+    try:
+        result = await handler(arguments)
+        text = json.dumps(result, default=str)
+        is_error = isinstance(result, dict) and "error_code" in result
+        return {
+            "content": [{"type": "text", "text": text}],
+            "isError": is_error,
+        }
+    except Exception as e:
+        logger.exception(f"Tool {name} failed")
+        return {
+            "content": [{"type": "text", "text": json.dumps(
+                _make_error("TOOL_EXECUTION_FAILED", str(e))
+            )}],
+            "isError": True,
+        }
+
+
+async def _handle_resources_list(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle resources/list."""
+    uris = server.resource_handler.list_resources()
+    resources = [
+        {"uri": uri, "name": uri.split("/")[-1], "mimeType": "application/json"}
+        for uri in uris
+    ]
+    return {"resources": resources}
+
+
+async def _handle_resources_read(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle resources/read."""
+    uri = params.get("uri", "")
+    response = server.resource_handler.read_resource(uri)
+
+    if response.success:
+        return {
+            "contents": [{
+                "uri": uri,
+                "mimeType": "application/json",
+                "text": json.dumps(response.data, default=str),
+            }]
+        }
+
+    return {
+        "contents": [{
+            "uri": uri,
+            "mimeType": "application/json",
+            "text": json.dumps({"error": response.error}),
+        }]
+    }
+
+
+async def _handle_resources_subscribe(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle resources/subscribe."""
+    uri = params.get("uri", "")
+
+    async def _notification_callback(data: dict):
+        # In stdio mode, notifications are written directly to stdout
+        # The transport layer handles this
+        pass
+
+    result = await server.resource_handler.handle_subscribe(uri, _notification_callback)
+    return result
+
+
+async def _handle_resources_unsubscribe(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle resources/unsubscribe."""
+    sub_id = params.get("subscription_id", "")
+    result = await server.resource_handler.handle_unsubscribe(sub_id)
+    return result
+
+
+async def _handle_prompts_list(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle prompts/list - return available prompt templates."""
+    return {"prompts": list_prompts()}
+
+
+async def _handle_prompts_get(server: DeeprMCPServer, params: dict) -> dict:
+    """Handle prompts/get - render a prompt template with arguments."""
+    name = params.get("name", "")
+    arguments = params.get("arguments", {})
+    return get_prompt(name, arguments)
+
+
+# ------------------------------------------------------------------ #
+# Backward-compatible method names (old raw dispatch)
+# ------------------------------------------------------------------ #
+
+_LEGACY_METHOD_MAP = {
+    "list_experts": "deepr_list_experts",
+    "get_expert_info": "deepr_get_expert_info",
+    "query_expert": "deepr_query_expert",
+}
+
+
+# ------------------------------------------------------------------ #
+# Server Entry Point
+# ------------------------------------------------------------------ #
+
+async def run_stdio_server():
+    """Run MCP server using StdioServer for proper JSON-RPC dispatch."""
+    global _server_start_time
+    _server_start_time = time.time()
+
+    deepr_server = DeeprMCPServer()
+    stdio = StdioServer()
+
+    # Register MCP protocol methods
+    async def handle_initialize(params: dict) -> dict:
+        return await _handle_initialize(deepr_server, params)
+
+    async def handle_tools_list(params: dict) -> dict:
+        return await _handle_tools_list(deepr_server, params)
+
+    async def handle_tools_call(params: dict) -> dict:
+        return await _handle_tools_call(deepr_server, params)
+
+    async def handle_resources_list(params: dict) -> dict:
+        return await _handle_resources_list(deepr_server, params)
+
+    async def handle_resources_read(params: dict) -> dict:
+        return await _handle_resources_read(deepr_server, params)
+
+    async def handle_resources_subscribe(params: dict) -> dict:
+        return await _handle_resources_subscribe(deepr_server, params)
+
+    async def handle_resources_unsubscribe(params: dict) -> dict:
+        return await _handle_resources_unsubscribe(deepr_server, params)
+
+    async def handle_prompts_list(params: dict) -> dict:
+        return await _handle_prompts_list(deepr_server, params)
+
+    async def handle_prompts_get(params: dict) -> dict:
+        return await _handle_prompts_get(deepr_server, params)
+
+    # Register standard MCP methods
+    stdio.register_method("initialize", handle_initialize)
+    stdio.register_method("tools/list", handle_tools_list)
+    stdio.register_method("tools/call", handle_tools_call)
+    stdio.register_method("resources/list", handle_resources_list)
+    stdio.register_method("resources/read", handle_resources_read)
+    stdio.register_method("resources/subscribe", handle_resources_subscribe)
+    stdio.register_method("resources/unsubscribe", handle_resources_unsubscribe)
+    stdio.register_method("prompts/list", handle_prompts_list)
+    stdio.register_method("prompts/get", handle_prompts_get)
+
+    # Register legacy method names for backward compatibility
+    for legacy_name, new_name in _LEGACY_METHOD_MAP.items():
+        async def _make_legacy(params, tool_name=new_name):
+            return await _handle_tools_call(
+                deepr_server, {"name": tool_name, "arguments": params}
+            )
+        stdio.register_method(legacy_name, _make_legacy)
+
+    logger.info("Deepr MCP Server v%s started (stdio transport)", SERVER_VERSION)
+    logger.info("Registered %d tools, gateway discovery enabled", deepr_server.registry.count())
+
+    await stdio.run()
 
 
 def main():
@@ -576,7 +1075,7 @@ def main():
     try:
         asyncio.run(run_stdio_server())
     except KeyboardInterrupt:
-        print("\nShutting down MCP server...", file=sys.stderr)
+        logger.info("Shutting down MCP server...")
 
 
 if __name__ == "__main__":

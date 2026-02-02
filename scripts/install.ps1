@@ -37,11 +37,30 @@ try {
 }
 
 Write-Host ""
+Write-Host "Checking environment variables..." -ForegroundColor Yellow
+$missing = $false
+if (-not $env:OPENAI_API_KEY) {
+    Write-Host "  WARNING: OPENAI_API_KEY not set (required for research)" -ForegroundColor Red
+    $missing = $true
+}
+foreach ($key in @("XAI_API_KEY", "GEMINI_API_KEY", "AZURE_OPENAI_API_KEY")) {
+    if ([Environment]::GetEnvironmentVariable($key)) {
+        Write-Host "  $key set" -ForegroundColor Green
+    }
+}
+if ($missing) {
+    Write-Host "  Set required keys in .env or system environment" -ForegroundColor Yellow
+}
+
+Write-Host ""
 Write-Host "Installation complete! You can now use 'deepr' from anywhere." -ForegroundColor Green
 Write-Host ""
 Write-Host "Quick start:" -ForegroundColor Cyan
 Write-Host "  deepr --help                   # Show all commands"
+Write-Host "  deepr doctor                   # Check configuration"
 Write-Host "  deepr expert list              # List experts"
-Write-Host "  deepr expert chat <name>       # Chat with an expert"
-Write-Host "  deepr run focus <query>        # Run quick research"
+Write-Host "  deepr research `"query`"         # Run research"
+Write-Host ""
+Write-Host "MCP server:" -ForegroundColor Cyan
+Write-Host "  python -m deepr.mcp.server     # Start MCP server (stdio)"
 Write-Host ""

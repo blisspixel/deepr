@@ -1,6 +1,6 @@
 # Deepr
 
-![Tests](https://img.shields.io/badge/tests-1217%20collected-green)
+![Tests](https://img.shields.io/badge/tests-1300%2B%20collected-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
@@ -156,30 +156,36 @@ Features:
 
 Status: Core implementation complete. Unit tests pass. Initial testing shows the system works as designed, but this is early-stage software. More real-world testing needed to validate reliability. The "consciousness" and "belief" terminology describes the architecture's goals, not claims about actual AI capabilities.
 
-See [ROADMAP.md](ROADMAP.md#priority-25-agentic-expert-system-capability-extension) for detailed documentation.
+See [ROADMAP.md](ROADMAP.md#priority-25-expert-system-done) for detailed documentation.
 
 ### Structured Learning Workflow
 
-Four types of knowledge artifacts that mirror how experts actually work. See [ROADMAP.md](ROADMAP.md#structured-learning-approach) for detailed workflow and cost breakdown.
+Four types of knowledge artifacts that mirror how experts actually work. See [docs/EXPERTS.md](docs/EXPERTS.md) for detailed workflow and cost breakdown.
 
 ### MCP Integration
 
-Expose Deepr to AI agents via Model Context Protocol. Allows Claude Desktop, Cursor, and other MCP-compatible agents to:
-- Submit long-running research jobs
-- Query domain experts
-- Orchestrate multi-step research workflows
-- Subscribe to research progress via resource URIs
-- Handle budget decisions through elicitation
+Exposes Deepr to AI agents via Model Context Protocol. Works with OpenClaw, Claude Desktop, Cursor, VS Code, and Zed. Provides 10 tools across system, research, and expert categories.
 
-**Advanced MCP Patterns:**
-- Dynamic Tool Discovery: Reduces context by ~85% through on-demand tool schema loading
-- Resource Subscriptions: Event-driven async monitoring (70% token savings vs polling)
-- Human-in-the-Loop Elicitation: Cost governance with structured user decisions
-- Sandboxed Execution: Isolated contexts for heavy research operations
+What agents can do:
+- Submit and monitor long-running research jobs
+- Query domain experts with optional agentic research
+- Discover tools dynamically (reduces agent context by ~85%)
+- Subscribe to research progress via resource URIs (avoids polling)
+- Handle budget decisions through elicitation prompts
+- Cancel running jobs and check server health
 
-**Status:** Core implementation complete. Testing with MCP clients ongoing.
+Infrastructure:
+- SQLite persistence for job state across server restarts
+- SSRF protection for outbound requests
+- Structured error responses with retry hints
+- Trace ID propagation for end-to-end debugging
+- Lazy loading for large reports (summary + resource URI)
+- MCP prompt templates for common workflows
+- Docker support with non-root execution
 
-See [mcp/README.md](mcp/README.md) for setup instructions and [skills/deepr-research/](skills/deepr-research/) for the Claude Skill.
+**Status:** Server architecture, skill packaging, multi-runtime configs, security hardening, and persistence are implemented. Testing with MCP clients ongoing. MCP client mode (Deepr consuming other MCP servers) is designed but not yet connected.
+
+See [mcp/README.md](mcp/README.md) for setup instructions and [skills/deepr-research/](skills/deepr-research/) for the agent skill.
 
 ### Web Scraping
 
@@ -250,7 +256,7 @@ deepr learn "Commercial property underwriting" --phases 4
 deepr team "Should we expand to Europe or Asia first?"
 
 # Latest developments (news)
-deepr news "Kubernetes security vulnerabilities 2025"
+deepr news "Kubernetes security vulnerabilities 2026"
 ```
 
 ### Semantic Commands
@@ -377,7 +383,7 @@ Research produces versioned markdown files with:
 - Metadata (cost, model, provider)
 - Reproducible results
 
-Stored in `reports/[job-id]/` with human-readable directory names.
+Stored in `data/reports/[job-id]/` with human-readable directory names.
 
 ### Budget Protection
 
@@ -467,18 +473,24 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for more prompt examples and best pract
 
 ```
 deepr/
-├── deepr/              # Core package
-│   ├── cli/            # Command-line interface
-│   ├── core/           # Research orchestration
-│   ├── experts/        # Expert system
-│   ├── providers/      # AI provider integrations
-│   ├── mcp/            # Model Context Protocol server
-│   └── utils/          # Utilities (scraping, etc.)
-├── data/               # Local data
-│   └── experts/        # Expert profiles and knowledge
-├── reports/            # Research outputs
-├── docs/               # Documentation
-└── tests/              # Test suite
+├── deepr/                  # Core package
+│   ├── cli/                # Command-line interface
+│   ├── core/               # Research orchestration
+│   ├── experts/            # Expert system
+│   ├── providers/          # AI provider integrations
+│   ├── mcp/                # Model Context Protocol server
+│   │   ├── search/         # Tool registry and BM25 gateway
+│   │   ├── security/       # SSRF protection, sampling primitives
+│   │   ├── state/          # Jobs, subscriptions, persistence
+│   │   └── transport/      # Stdio and HTTP transports
+│   ├── tools/              # Backend protocols (search, browser)
+│   └── utils/              # Utilities (scraping, etc.)
+├── skills/                 # Agent skill packages
+│   └── deepr-research/     # MCP skill (SKILL.md, prompts)
+├── mcp/                    # Runtime config templates
+├── data/                   # Local data (reports, jobs DB)
+├── docs/                   # Documentation
+└── tests/                  # Test suite (361+ MCP tests)
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed component documentation.
@@ -500,10 +512,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed component document
 Deepr implements multiple security layers:
 
 - **Input Validation**: Path traversal protection, file size/type limits, prompt length limits
-- **SSRF Protection**: Blocks requests to private IPs and localhost
+- **SSRF Protection**: Blocks requests to private/internal IPs (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16). Optional domain allowlist via `DEEPR_ALLOWED_DOMAINS`
 - **API Key Security**: Environment variables only, automatic log redaction
 - **Budget Controls**: Multi-layer cost limits prevent runaway spending
 - **No Shell Injection**: All subprocess calls use safe argument lists
+- **Docker Isolation**: Non-root user (UID 1000), bridge networking, resource limits
 
 **Best Practices:**
 - Start with small budgets (`deepr budget set 5`)

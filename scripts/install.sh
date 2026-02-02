@@ -28,11 +28,30 @@ else
 fi
 
 echo
+echo "Checking environment variables..."
+missing=0
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo "  ⚠ OPENAI_API_KEY not set (required for research)"
+    missing=1
+fi
+for key in XAI_API_KEY GEMINI_API_KEY AZURE_OPENAI_API_KEY; do
+    if [ -n "${!key}" ]; then
+        echo "  ✓ $key set"
+    fi
+done
+if [ $missing -eq 1 ]; then
+    echo "  Set required keys in .env or your shell profile"
+fi
+
+echo
 echo "Installation complete! You can now use 'deepr' from anywhere."
 echo
 echo "Quick start:"
 echo "  deepr --help                   # Show all commands"
+echo "  deepr doctor                   # Check configuration"
 echo "  deepr expert list              # List experts"
-echo "  deepr expert chat <name>       # Chat with an expert"
-echo "  deepr run focus <query>        # Run quick research"
+echo "  deepr research \"query\"         # Run research"
+echo
+echo "MCP server:"
+echo "  python -m deepr.mcp.server     # Start MCP server (stdio)"
 echo
