@@ -104,14 +104,14 @@ Model and pricing information current as of February 2026.
 
 ## Security
 
-Input validation with path traversal protection. SSRF protection blocking private/internal IPs. API keys via environment variables only with automatic log redaction. Multi-layer budget controls. Docker isolation option (non-root, bridge networking, resource limits).
+Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License — use at your own risk.
 
-Report security issues: security@deepr.dev
+Report security issues: nick@pueo.io
 
 ## About
 
-Deepr is a research automation tool by **Nick Seal**. It started as a weekend experiment with OpenAI's deep research API and grew into a system for automating research workflows, building document-based experts, and integrating with AI agents.
+Built by **Nick Seal** ([nick@pueo.io](mailto:nick@pueo.io)). Started as a weekend experiment with OpenAI's deep research API and grew into a system for automating research workflows, building document-based experts, and integrating with AI agents.
 
-Feedback welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
+Feedback and contributions welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
 
 **[MIT License](LICENSE)** | **[GitHub](https://github.com/blisspixel/deepr)**
