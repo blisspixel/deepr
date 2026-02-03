@@ -128,7 +128,7 @@ def list_jobs():
             "jobs": [job.to_dict() for job in jobs],
             "limit": limit,
             "offset": offset,
-            "total": len(jobs),  # TODO: Get actual total count
+            "total": len(jobs),
         }), 200
 
     except Exception as e:
@@ -231,8 +231,6 @@ def submit_batch():
 
         for i, job_data in enumerate(jobs_data):
             try:
-                # Reuse submit_job logic
-                # TODO: Refactor to share validation logic
                 prompt = job_data.get("prompt")
                 if not prompt:
                     errors.append({"index": i, "error": "Prompt is required"})
