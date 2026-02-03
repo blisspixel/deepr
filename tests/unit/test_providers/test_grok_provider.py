@@ -1,6 +1,7 @@
 """Tests for Grok provider implementation."""
 
 import os
+import openai
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from deepr.providers.grok_provider import GrokProvider
@@ -308,7 +309,7 @@ class TestGrokErrorHandling:
     async def test_api_error_handling(self, provider):
         """Test that API errors are handled gracefully."""
         with patch.object(provider.client.chat.completions, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = Exception("API Error")
+            mock_create.side_effect = openai.OpenAIError("API Error")
 
             request = ResearchRequest(
                 prompt="Test query",
