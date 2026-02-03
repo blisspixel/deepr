@@ -179,25 +179,74 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
     ),
 
     # Anthropic Models
+    # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.
+    # Research capability is achieved via Extended Thinking + tool use + our orchestration.
+    # For research, we recommend Opus 4.5 - best reasoning at ~$0.80/query.
+    
+    "anthropic/claude-opus-4-5": ModelCapability(
+        provider="anthropic",
+        model="claude-opus-4-5",
+        cost_per_query=0.80,  # Estimated with 32K thinking budget
+        latency_ms=15000,     # Slower due to extended thinking
+        context_window=200_000,
+        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks"],
+        strengths=[
+            "Best Claude model for research",
+            "Excellent at complex multi-step reasoning",
+            "Strong synthesis and analysis",
+            "Extended Thinking with high token budget",
+            "66% cheaper than Opus 4 ($5 vs $15 input)"
+        ],
+        weaknesses=[
+            "No native deep research API (requires orchestration)",
+            "Slower than Sonnet (~15s vs ~3s)",
+            "Higher cost than Sonnet (~$0.80 vs ~$0.48/query)"
+        ],
+        input_cost_per_1m=5.00,
+        output_cost_per_1m=25.00,
+    ),
+
     "anthropic/claude-sonnet-4-5": ModelCapability(
         provider="anthropic",
         model="claude-sonnet-4-5",
-        cost_per_query=0.25,
+        cost_per_query=0.48,  # Estimated with 16K thinking budget
         latency_ms=3000,
         context_window=200_000,
-        specializations=["reasoning", "coding", "analysis"],
+        specializations=["reasoning", "coding", "analysis", "balanced"],
         strengths=[
-            "Strong reasoning capabilities",
-            "Excellent at following instructions",
-            "Good coding abilities",
+            "Good balance of quality and cost",
+            "Fast responses (~3s)",
+            "Extended Thinking support",
             "Large context window"
         ],
         weaknesses=[
-            "Higher cost",
-            "Not specialized for research"
+            "Less capable than Opus for complex research",
+            "No native deep research API"
         ],
         input_cost_per_1m=3.00,
         output_cost_per_1m=15.00,
+    ),
+
+    "anthropic/claude-haiku-4-5": ModelCapability(
+        provider="anthropic",
+        model="claude-haiku-4-5",
+        cost_per_query=0.05,
+        latency_ms=1500,
+        context_window=200_000,
+        specializations=["speed", "cost", "general"],
+        strengths=[
+            "Very fast responses",
+            "Lowest cost ($1/$5 per MTok)",
+            "Good for simple queries",
+            "Large context window"
+        ],
+        weaknesses=[
+            "No Extended Thinking support",
+            "Not suitable for deep research",
+            "Less capable reasoning"
+        ],
+        input_cost_per_1m=1.00,
+        output_cost_per_1m=5.00,
     ),
 }
 
