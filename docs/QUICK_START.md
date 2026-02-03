@@ -19,7 +19,16 @@ Get started with Deepr in 5 minutes.
 ```bash
 git clone https://github.com/blisspixel/deepr.git
 cd deepr
-pip install -e .
+pip install -e .                        # Core CLI (minimal dependencies)
+```
+
+Optional extras for additional features:
+
+```bash
+pip install -e ".[web]"                 # Web UI and MCP server
+pip install -e ".[azure]"               # Azure cloud deployment
+pip install -e ".[docs]"                # Document processing for experts
+pip install -e ".[full]"                # All features
 ```
 
 ### 2. Configure API Key

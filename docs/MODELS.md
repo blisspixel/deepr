@@ -29,8 +29,10 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Best for**: Large context windows (1M+ tokens), document analysis, autonomous deep research
 
 ### Anthropic (Claude)
-- **Models**: Claude Sonnet 4.5, Claude Opus 4.5, Claude Haiku 4.5
-- **Best for**: Coding tasks, extended thinking/reasoning transparency
+- **Deep Research**: No turnkey API - uses Extended Thinking + tool use + orchestration
+- **Models**: Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5
+- **Best for**: Complex reasoning with transparency (Extended Thinking), coding tasks
+- **Note**: Opus 4.5 recommended for research (~$0.80/query with 32K thinking budget)
 
 ## Model Selection by Task
 
@@ -43,6 +45,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 | Quick Lookups | Grok 4 Fast | $0.01 | <1s | Cost-effective |
 | Large Documents | Gemini 3 Pro | $0.15 | 3-5s | 1M token context |
 | Coding Tasks | Claude Sonnet 4.5 | $0.25 | 2-4s | Best for code |
+| Complex Reasoning | Claude Opus 4.5 | $0.80 | 10-15s | Extended Thinking |
 
 ## Cost Optimization Strategy
 
