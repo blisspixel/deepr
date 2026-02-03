@@ -29,6 +29,30 @@ os:
   - linux
   - win32
 python: ">=3.9"
+allowed-tools:
+  # Gateway and discovery
+  - deepr_tool_search
+  - deepr_status
+  # Research operations
+  - deepr_research
+  - deepr_check_status
+  - deepr_get_result
+  - deepr_cancel_job
+  - deepr_agentic_research
+  # Expert operations
+  - deepr_list_experts
+  - deepr_query_expert
+  - deepr_get_expert_info
+restricted-tools:
+  # Administrative operations require explicit elevation
+  - deepr_delete_expert
+  - deepr_reset_costs
+  - deepr_purge_jobs
+commands:
+  - research
+  - expert
+  - check
+  - costs
 metadata:
   openclaw:
     install:
