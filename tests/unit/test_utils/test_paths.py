@@ -484,7 +484,7 @@ class TestPathHandlerPropertyTests:
                 # 1. Starts with a drive letter (C:\)
                 # 2. Is a UNC path (\\server\share)
                 path_str_result = str(normalized)
-                is_drive_path = len(path_str_result) >= 3 and path_str_result[1] == ':' and path_str_result[0].isalpha()
+                is_drive_path = len(path_str_result) >= 3 and path_str_result[1] == ':' and path_str_result[0].isalpha() and path_str_result[2] in ('\\', '/')
                 is_unc_path = path_str_result.startswith('\\\\')
                 if is_drive_path or is_unc_path:
                     assert normalized.is_absolute(), f"Normalized path should be absolute: {normalized}"

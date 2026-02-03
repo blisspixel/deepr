@@ -52,8 +52,7 @@ def get_trends():
     try:
         days = min(int(request.args.get("days", 30)), 90)
 
-        # TODO: Implement actual trend calculation from job log
-        # For now, return mock data structure
+        # Cost trends are tracked via CLI (deepr costs timeline); API returns structure only
         trends = {
             "daily": [],
             "cumulative": 0,
@@ -65,7 +64,7 @@ def get_trends():
             date = today - timedelta(days=days - i - 1)
             trends["daily"].append({
                 "date": date.strftime("%Y-%m-%d"),
-                "cost": 0,  # TODO: Calculate from actual jobs
+                "cost": 0,
                 "jobs": 0,
             })
 
@@ -91,7 +90,7 @@ def get_breakdown():
         by = request.args.get("by", "model")
         days = min(int(request.args.get("days", 30)), 90)
 
-        # TODO: Implement actual breakdown from job log
+        # Cost breakdown is tracked via CLI (deepr costs breakdown); API returns structure only
         breakdown = {
             "dimension": by,
             "items": [],
@@ -194,8 +193,7 @@ def update_limits():
         if not data:
             return jsonify({"error": "Request body is required"}), 400
 
-        # TODO: Implement config update
-        # For now, just validate the values
+        # Validates values but does not persist (budget is managed via CLI)
         per_job = data.get("per_job")
         daily = data.get("daily")
         monthly = data.get("monthly")
