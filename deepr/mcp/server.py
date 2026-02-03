@@ -45,9 +45,7 @@ from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
+from deepr.core.errors import DeeprError
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.experts.chat import ExpertChatSession
 from deepr.providers import create_provider
@@ -183,7 +181,7 @@ class DeeprMCPServer:
             from deepr.experts.cost_safety import get_cost_safety_manager
             cost_safety = get_cost_safety_manager()
             spending = cost_safety.get_spending_summary()
-        except Exception:
+        except (ImportError, KeyError, ValueError):
             spending = {"daily": {"spent": 0, "remaining": "unknown"}, "monthly": {"spent": 0}}
 
         uptime = time.time() - _server_start_time if _server_start_time else 0
@@ -259,7 +257,7 @@ class DeeprMCPServer:
                 }
                 for expert in experts
             ]
-        except Exception as e:
+        except (OSError, KeyError, ValueError) as e:
             return [_make_error("EXPERT_LIST_FAILED", str(e))]
 
     # ------------------------------------------------------------------ #
@@ -290,7 +288,7 @@ class DeeprMCPServer:
                     else None
                 ),
             }
-        except Exception as e:
+        except (OSError, KeyError, ValueError) as e:
             return _make_error("EXPERT_INFO_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
@@ -330,7 +328,7 @@ class DeeprMCPServer:
                 "budget_remaining": summary.get("budget_remaining"),
                 "research_triggered": summary["research_jobs_triggered"],
             }
-        except Exception as e:
+        except (OSError, KeyError, ValueError, DeeprError) as e:
             return _make_error("EXPERT_QUERY_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
@@ -526,6 +524,8 @@ class DeeprMCPServer:
                         "submitted_at": job_cache.get("submitted_at"),
                     }
                 except Exception:
+                    # Provider status check may fail transiently; fall through
+                    # to JobManager state below.
                     pass
 
             # Fallback to JobManager state

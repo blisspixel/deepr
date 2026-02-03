@@ -16,6 +16,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError as GenaiAPIError
 from .base import (
     DeepResearchProvider,
     ResearchRequest,
@@ -86,10 +87,11 @@ class GeminiProvider(DeepResearchProvider):
             "deep-research": DEEP_RESEARCH_AGENT,
         }
 
-        # Pricing per 1M tokens (as of February 2026)
+        # Pricing per 1M tokens -- sourced from registry, with local fallbacks
+        from .registry import get_token_pricing
         self.pricing = {
-            "gemini-2.5-pro": {"input": 1.25, "output": 5.00},
-            "gemini-2.5-flash": {"input": 0.075, "output": 0.30},
+            "gemini-2.5-pro": get_token_pricing("gemini-3-pro"),  # gemini-2.5-pro shares tier
+            "gemini-2.5-flash": get_token_pricing("gemini-2.5-flash"),
             "gemini-2.5-flash-lite": {"input": 0.0375, "output": 0.15},
         }
 
@@ -239,7 +241,7 @@ class GeminiProvider(DeepResearchProvider):
                 logger.info(f"Gemini deep research started: {interaction_id}")
                 return interaction_id
 
-            except Exception as e:
+            except GenaiAPIError as e:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)
                     logger.warning(
@@ -377,7 +379,7 @@ class GeminiProvider(DeepResearchProvider):
 
                 return
 
-            except Exception as e:
+            except GenaiAPIError as e:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)
                     logger.warning(f"Gemini error (attempt {attempt + 1}/{max_retries}): {e}")
@@ -622,7 +624,7 @@ class GeminiProvider(DeepResearchProvider):
             logger.info(f"Created file search store: {store_name} with {len(file_ids)} files")
             return store_name
 
-        except Exception as e:
+        except GenaiAPIError as e:
             logger.warning(f"Failed to create file search store: {e}")
             return None
 
@@ -646,6 +648,8 @@ class GeminiProvider(DeepResearchProvider):
             logger.info(f"Cleaned up file search store: {store_name}")
 
         except Exception as e:
+            # Fire-and-forget cleanup; may fail for many reasons (already
+            # deleted, network, auth expiry). Log and continue.
             logger.warning(f"Failed to cleanup file search store {store_name}: {e}")
 
     # =========================================================================
@@ -752,7 +756,7 @@ class GeminiProvider(DeepResearchProvider):
 
             return file_obj.name
 
-        except Exception as e:
+        except (OSError, GenaiAPIError) as e:
             raise ProviderError(
                 message=f"Failed to upload document: {str(e)}",
                 provider="gemini",
@@ -798,7 +802,7 @@ class GeminiProvider(DeepResearchProvider):
             for file_id in vs_data["file_ids"]:
                 self.client.files.get(name=file_id)
             return True
-        except Exception:
+        except GenaiAPIError:
             return False
 
     async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:

@@ -8,6 +8,7 @@ Grok uses chat completions API (OpenAI-compatible) with:
 
 import os
 import asyncio
+import openai
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 
@@ -71,11 +72,13 @@ class GrokProvider(DeepResearchProvider):
             "grok-mini": "grok-3-mini",
         }
 
-        # Pricing (per million tokens)
+        # Pricing (per million tokens) -- grok-4-fast from registry, rest local
+        from .registry import get_token_pricing
+        _grok_fast = get_token_pricing("grok-4-fast")
         self.pricing = {
             "grok-4": {"input": 3.00, "output": 15.00},
-            "grok-4-fast-reasoning": {"input": 0.20, "output": 0.50},
-            "grok-4-fast-non-reasoning": {"input": 0.20, "output": 0.50},
+            "grok-4-fast-reasoning": _grok_fast,
+            "grok-4-fast-non-reasoning": _grok_fast,
             "grok-3": {"input": 3.00, "output": 15.00},
             "grok-3-mini": {"input": 0.30, "output": 0.50},
             "grok-code-fast-1": {"input": 0.20, "output": 1.50},
@@ -171,7 +174,7 @@ class GrokProvider(DeepResearchProvider):
                 "completed_at": datetime.now(timezone.utc),
             })
 
-        except Exception as e:
+        except openai.OpenAIError as e:
             self.jobs[job_id].update({
                 "status": "failed",
                 "error": str(e),

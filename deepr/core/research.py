@@ -13,14 +13,17 @@ from .documents import DocumentManager
 from .reports import ReportGenerator
 
 
-# Cost estimates per model for budget validation
+# Cost estimates sourced from the model registry (single source of truth).
+# get_cost_estimate() looks up cost_per_query from providers/registry.py.
+from ..providers.registry import get_cost_estimate, MODEL_CAPABILITIES
+
+DEFAULT_COST_ESTIMATE = 0.20  # Fallback for unknown models
+
+# Derived from registry for backward compatibility (used by tests).
 MODEL_COST_ESTIMATES = {
-    "o3-deep-research": 0.50,           # $0.30-0.70 typical
-    "o3-deep-research-2025-06-26": 0.50,
-    "o4-mini-deep-research": 0.15,      # $0.10-0.25 typical
-    "o4-mini-deep-research-2025-06-26": 0.15,
+    cap.model: cap.cost_per_query
+    for cap in MODEL_CAPABILITIES.values()
 }
-DEFAULT_COST_ESTIMATE = 0.20  # Conservative default
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +81,7 @@ class ResearchOrchestrator:
                         data = json.load(f)
                         return data.get("message", self._get_fallback_message())
 
-        except Exception:
+        except (OSError, json.JSONDecodeError, KeyError):
             pass
 
         return self._get_fallback_message()
@@ -151,7 +154,7 @@ class ResearchOrchestrator:
             prompt = sanitization_result.sanitized
         
         # CRITICAL: Validate budget BEFORE any API calls
-        estimated_cost = MODEL_COST_ESTIMATES.get(model, DEFAULT_COST_ESTIMATE)
+        estimated_cost = get_cost_estimate(model)
         
         # Import cost safety manager for budget validation
         from ..experts.cost_safety import get_cost_safety_manager
@@ -350,7 +353,8 @@ class ResearchOrchestrator:
             try:
                 await self.provider.delete_vector_store(vector_store_id)
             except Exception as e:
-                # Log but don't fail on cleanup errors
+                # Provider cleanup may fail for many reasons (network, auth, already
+                # deleted, etc.); log and continue -- this is fire-and-forget.
                 logger.warning("Failed to cleanup vector store %s: %s", vector_store_id, e)
 
     async def cancel_job(self, job_id: str) -> bool:
