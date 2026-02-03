@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 
 from ...config import load_config
 from ...providers import create_provider
+from ... import __version__
 
 
 bp = Blueprint("config", __name__)
@@ -157,7 +158,7 @@ def get_status():
 
         status = {
             "healthy": True,
-            "version": "2.6.0",
+            "version": __version__,
             "provider": config.get("provider", "openai"),
             "queue": {
                 "type": config.get("queue", "local"),
