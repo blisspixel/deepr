@@ -1,6 +1,6 @@
 # Deepr
 
-![Tests](https://img.shields.io/badge/tests-2820%2B%20passing-green)
+![Tests](https://img.shields.io/badge/tests-3000%2B%20passing-green)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
@@ -61,6 +61,14 @@ See [mcp/README.md](mcp/README.md) for setup and [skills/deepr-research/](skills
 
 Works across OpenAI (GPT-5.2, o3-deep-research, o4-mini-deep-research), Google Gemini (2.5 Flash, 3 Pro, Deep Research Agent), xAI Grok (4, 4 Fast), and Azure OpenAI. Both OpenAI and Gemini support native async deep research via the same provider-agnostic interface. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
 
+## Stability
+
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, CLI output modes, OpenAI and Gemini providers, local SQLite storage.
+
+**Experimental:** MCP server (functional but MCP spec is maturing), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates, Grok provider.
+
+See [ROADMAP.md](ROADMAP.md) for detailed status.
+
 ### Cost Controls
 
 Research costs real money ($1-$20 per run depending on depth). Deepr has multi-layer budget protection: per-operation, daily, and monthly limits with alerts. Pause/resume at budget boundaries.
@@ -105,7 +113,7 @@ Model and pricing information current as of February 2026.
 
 ## Security
 
-Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 2820+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License -- use at your own risk.
+Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 3000+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License -- use at your own risk.
 
 Report security issues: nick@pueo.io
 
