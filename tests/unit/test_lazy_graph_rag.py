@@ -1192,7 +1192,7 @@ class TestConceptPropertyTests:
             max_size=5
         )
     )
-    @settings(max_examples=30)
+    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
     def test_concept_sets_preserved(self, original_forms, document_ids):
         """Property: Concept sets are preserved through serialization."""
         concept = Concept(
