@@ -5,9 +5,17 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v2.6
+## [2.6.0] - 2026-02-03
 
 ### Added
+
+**Documentation Overhaul**
+- Rewrote README to better communicate value proposition for enterprise users (cloud architects, CIOs)
+- Added "MCP + Skills" section highlighting research infrastructure for AI agents
+- New workflow example: Claude Code → query expert → fill knowledge gaps → continue with accurate info
+- Emphasized expert system differentiation: self-aware, self-improving, persistent, portable
+- Enterprise-focused examples: competitive intelligence, due diligence at scale, institutional knowledge retention
+- Updated decision table and "What You Can Do" section with AI agent capabilities first
 
 **CLI Trace Flags (4.1)**
 - `--explain` flag on `deepr research` and `deepr run focus` shows task hierarchy with model/cost reasoning
