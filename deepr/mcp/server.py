@@ -66,11 +66,16 @@ from deepr.mcp.security import SSRFProtector
 try:
     from skills.deepr_research_prompts import list_prompts, get_prompt  # type: ignore
 except ImportError:
-    # Fallback: try relative import from skills directory
+    # Fallback: load prompts module from skills directory without sys.path manipulation
     try:
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent / "skills" / "deepr-research"))
-        from prompts import list_prompts, get_prompt
-    except ImportError:
+        import importlib.util
+        _prompts_path = Path(__file__).parent.parent.parent / "skills" / "deepr-research" / "prompts.py"
+        _spec = importlib.util.spec_from_file_location("deepr_prompts", _prompts_path)
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        list_prompts = _mod.list_prompts
+        get_prompt = _mod.get_prompt
+    except (ImportError, FileNotFoundError, AttributeError, OSError):
         def list_prompts():
             return []
         def get_prompt(name, arguments):
@@ -94,7 +99,7 @@ logger.setLevel(getattr(logging, os.environ.get("DEEPR_LOG_LEVEL", "INFO").upper
 
 
 # Server version and start time for health checks
-SERVER_VERSION = "2.6.0"
+from deepr import __version__ as SERVER_VERSION
 _server_start_time: float = 0.0
 
 

@@ -1777,12 +1777,6 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                     enable_discovery=not no_discovery  # Skip discovery if --no-discovery flag is set
                 )
 
-                print(f"DEBUG CLI: Received curriculum: {curriculum}")
-                print(f"DEBUG CLI: Curriculum type: {type(curriculum)}")
-                if curriculum:
-                    print(f"DEBUG CLI: Curriculum.topics: {curriculum.topics}")
-                    print(f"DEBUG CLI: Number of topics: {len(curriculum.topics) if curriculum.topics else 0}")
-
                 # Display curriculum summary
                 if not curriculum or not curriculum.topics:
                     print_error("Curriculum generation failed - no topics created")

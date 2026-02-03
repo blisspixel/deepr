@@ -741,9 +741,9 @@ def continue_research(topics: int, yes: bool):
                                 "title": task_info.get("title"),
                                 "result": result_data.decode("utf-8")
                             })
-                        except:
+                        except (OSError, UnicodeDecodeError, KeyError):
                             pass
-            except:
+            except (OSError, KeyError, ValueError) as e:
                 print_error("Could not load previous campaign results")
                 raise click.Abort()
 
