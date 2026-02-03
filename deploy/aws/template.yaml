@@ -1,0 +1,1346 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Deepr Research Platform - AWS Serverless Deployment (Security Hardened)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API Key (stored in Secrets Manager)
+    MinLength: 1
+
+  GoogleApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Google API Key for Gemini (optional)
+
+  XaiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: xAI API Key for Grok (optional)
+
+  DailyBudget:
+    Type: Number
+    Default: 50
+    Description: Daily spending limit in USD
+    MinValue: 1
+    MaxValue: 10000
+
+  MonthlyBudget:
+    Type: Number
+    Default: 500
+    Description: Monthly spending limit in USD
+    MinValue: 1
+    MaxValue: 100000
+
+  AllowedIPRanges:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Optional comma-separated list of allowed CIDR ranges (e.g., 10.0.0.0/8,192.168.1.0/24)
+
+  EnableWAF:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable WAF protection on API Gateway
+
+Conditions:
+  HasAllowedIPs: !Not [!Equals [!Join ['', !Ref AllowedIPRanges], '']]
+  WAFEnabled: !Equals [!Ref EnableWAF, 'true']
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+    Tracing: Active
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        QUEUE_URL: !Ref JobQueue
+        RESULTS_BUCKET: !Ref ResultsBucket
+        JOBS_TABLE: !Ref JobsTable
+        SECRETS_ARN: !Ref ApiSecrets
+        LOG_LEVEL: INFO
+
+Resources:
+  # ============================================================================
+  # KMS - Encryption Key
+  # ============================================================================
+  DeeprKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for Deepr encryption
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowRootAccountFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+          - Sid: AllowDeeprServices
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+                - sqs.amazonaws.com
+                - s3.amazonaws.com
+                - secretsmanager.amazonaws.com
+            Action:
+              - kms:Decrypt
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+            Condition:
+              StringEquals:
+                kms:CallerAccount: !Ref AWS::AccountId
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  DeeprKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/deepr-${Environment}
+      TargetKeyId: !Ref DeeprKMSKey
+
+  # ============================================================================
+  # Secrets Manager - API Keys with Rotation Support
+  # ============================================================================
+  ApiSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub deepr/${Environment}/api-keys
+      Description: Deepr API keys for LLM providers
+      KmsKeyId: !Ref DeeprKMSKey
+      SecretString: !Sub |
+        {
+          "OPENAI_API_KEY": "${OpenAIApiKey}",
+          "GOOGLE_API_KEY": "${GoogleApiKey}",
+          "XAI_API_KEY": "${XaiApiKey}",
+          "DEEPR_BUDGET_DAILY": "${DailyBudget}",
+          "DEEPR_BUDGET_MONTHLY": "${MonthlyBudget}"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Internal API key for service-to-service auth
+  InternalApiKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub deepr/${Environment}/internal-api-key
+      Description: Internal API key for authenticated access
+      KmsKeyId: !Ref DeeprKMSKey
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: api_key
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # DynamoDB - Job Metadata (replaces S3 scanning)
+  # ============================================================================
+  JobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub deepr-jobs-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: !Ref DeeprKMSKey
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: submitted_at
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-submitted-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: submitted_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: user-submitted-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: submitted_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # API Gateway with API Key Authentication
+  # ============================================================================
+  DeeprApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub deepr-api-${Environment}
+      StageName: !Ref Environment
+      TracingEnabled: true
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationLatency":"$context.integrationLatency"}'
+      MethodSettings:
+        - ResourcePath: /*
+          HttpMethod: '*'
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+          LoggingLevel: INFO
+          MetricsEnabled: true
+      Auth:
+        ApiKeyRequired: true
+        UsagePlan:
+          CreateUsagePlan: PER_API
+          UsagePlanName: !Sub deepr-usage-plan-${Environment}
+          Throttle:
+            BurstLimit: 100
+            RateLimit: 50
+          Quota:
+            Limit: 10000
+            Period: DAY
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Api-Key,Authorization'"
+        AllowOrigin: "'*'"
+        MaxAge: "'3600'"
+      GatewayResponses:
+        UNAUTHORIZED:
+          StatusCode: 401
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+          ResponseTemplates:
+            application/json: '{"error": "Unauthorized"}'
+        MISSING_AUTHENTICATION_TOKEN:
+          StatusCode: 403
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+          ResponseTemplates:
+            application/json: '{"error": "Missing API key"}'
+        THROTTLED:
+          StatusCode: 429
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+          ResponseTemplates:
+            application/json: '{"error": "Rate limit exceeded"}'
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/deepr-api-${Environment}
+      RetentionInDays: 90
+      KmsKeyId: !GetAtt DeeprKMSKey.Arn
+
+  # ============================================================================
+  # WAF - Web Application Firewall
+  # ============================================================================
+  WAFWebACL:
+    Type: AWS::WAFv2::WebACL
+    Condition: WAFEnabled
+    Properties:
+      Name: !Sub deepr-waf-${Environment}
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub deepr-waf-${Environment}
+      Rules:
+        # Rate limiting - 1000 requests per 5 minutes per IP
+        - Name: RateLimitRule
+          Priority: 1
+          Statement:
+            RateBasedStatement:
+              Limit: 1000
+              AggregateKeyType: IP
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitRule
+
+        # AWS Managed Rules - Common Rule Set
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesCommonRuleSet
+
+        # AWS Managed Rules - Known Bad Inputs
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesKnownBadInputsRuleSet
+
+        # AWS Managed Rules - SQL Injection
+        - Name: AWSManagedRulesSQLiRuleSet
+          Priority: 4
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesSQLiRuleSet
+
+        # Log requests without user agent (potential bots)
+        - Name: LogMissingUserAgent
+          Priority: 5
+          Statement:
+            SizeConstraintStatement:
+              FieldToMatch:
+                SingleHeader:
+                  Name: user-agent
+              ComparisonOperator: EQ
+              Size: 0
+              TextTransformations:
+                - Priority: 0
+                  Type: NONE
+          Action:
+            Count: {}  # Count only for monitoring
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: LogMissingUserAgent
+
+  WAFWebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Condition: WAFEnabled
+    Properties:
+      ResourceArn: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/${DeeprApi}/stages/${Environment}
+      WebACLArn: !GetAtt WAFWebACL.Arn
+
+  # ============================================================================
+  # Lambda Functions with Least Privilege IAM
+  # ============================================================================
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub deepr-api-${Environment}
+      Handler: handler.lambda_handler
+      CodeUri: ./src/api/
+      Description: Deepr API - job submission and status
+      ReservedConcurrentExecutions: 100
+      KmsKeyArn: !GetAtt DeeprKMSKey.Arn
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # SQS - Send only to specific queue
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt JobQueue.Arn
+            # S3 - Read/Write only to specific bucket and prefixes
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub ${ResultsBucket.Arn}/jobs/*
+                - !Sub ${ResultsBucket.Arn}/results/*
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt ResultsBucket.Arn
+              Condition:
+                StringLike:
+                  s3:prefix:
+                    - 'jobs/*'
+                    - 'results/*'
+            # DynamoDB - Full access to jobs table
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource:
+                - !GetAtt JobsTable.Arn
+                - !Sub ${JobsTable.Arn}/index/*
+            # Secrets Manager - Read only specific secret
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Ref ApiSecrets
+                - !Ref InternalApiKey
+            # KMS - Decrypt only with our key
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:GenerateDataKey
+              Resource: !GetAtt DeeprKMSKey.Arn
+            # CloudWatch - Write logs
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/deepr-api-${Environment}:*
+            # X-Ray tracing
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+              Resource: '*'
+      Events:
+        SubmitJob:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /jobs
+            Method: POST
+            Auth:
+              ApiKeyRequired: true
+        ListJobs:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /jobs
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+        GetJob:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /jobs/{job_id}
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+        CancelJob:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /jobs/{job_id}/cancel
+            Method: POST
+            Auth:
+              ApiKeyRequired: true
+        GetResult:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /results/{job_id}
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+        GetCosts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /costs
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+        Health:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DeeprApi
+            Path: /health
+            Method: GET
+            Auth:
+              ApiKeyRequired: false  # Health check doesn't need auth
+
+  ApiFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/deepr-api-${Environment}
+      RetentionInDays: 30
+      KmsKeyId: !GetAtt DeeprKMSKey.Arn
+
+  # ============================================================================
+  # Job Queue (SQS) with Encryption
+  # ============================================================================
+  JobQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub deepr-jobs-${Environment}
+      VisibilityTimeout: 5400  # 90 minutes (for long research jobs)
+      MessageRetentionPeriod: 1209600  # 14 days
+      KmsMasterKeyId: !Ref DeeprKMSKey
+      KmsDataKeyReusePeriodSeconds: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub deepr-jobs-dlq-${Environment}
+      MessageRetentionPeriod: 1209600
+      KmsMasterKeyId: !Ref DeeprKMSKey
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # SQS Queue Policy - restrict to this account only
+  JobQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref JobQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyExternalAccess
+            Effect: Deny
+            Principal: '*'
+            Action: sqs:*
+            Resource: !GetAtt JobQueue.Arn
+            Condition:
+              StringNotEquals:
+                aws:PrincipalAccount: !Ref AWS::AccountId
+
+  # ============================================================================
+  # Results Storage (S3) with KMS Encryption
+  # ============================================================================
+  ResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub deepr-results-${Environment}-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref DeeprKMSKey
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: !Sub deepr-results-${Environment}/
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldResults
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ResultsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ResultsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ResultsBucket.Arn
+              - !Sub ${ResultsBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          - Sid: DenyUnencryptedUploads
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub ${ResultsBucket.Arn}/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: aws:kms
+
+  # Access logs bucket
+  AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub deepr-access-logs-${Environment}-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 365
+
+  AccessLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AccessLogsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: S3ServerAccessLogsPolicy
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub ${AccessLogsBucket.Arn}/*
+            Condition:
+              ArnLike:
+                aws:SourceArn: !GetAtt ResultsBucket.Arn
+
+  # ============================================================================
+  # VPC with Private Subnets and NAT Gateway
+  # ============================================================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-vpc-${Environment}
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-igw-${Environment}
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # Public subnets (for NAT Gateway)
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-public-1-${Environment}
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-public-2-${Environment}
+
+  # Private subnets (for Lambda and Fargate)
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-private-1-${Environment}
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-private-2-${Environment}
+
+  # NAT Gateway with Elastic IP
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-nat-eip-1-${Environment}
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-nat-1-${Environment}
+
+  # Route tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-public-rt-${Environment}
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-private-rt-${Environment}
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ============================================================================
+  # VPC Endpoints for Private AWS Service Access
+  # ============================================================================
+  S3VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  DynamoDBVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
+      VpcId: !Ref VPC
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  SQSVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.sqs
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  SecretsManagerVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  KMSVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.kms
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  LogsVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  ECRApiVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  ECRDkrVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  VPCEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for VPC endpoints
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: HTTPS from Lambda
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref WorkerSecurityGroup
+          Description: HTTPS from Workers
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-vpce-sg-${Environment}
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS outbound
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-lambda-sg-${Environment}
+
+  # ============================================================================
+  # Worker (Fargate) - Security Hardened
+  # ============================================================================
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub deepr-cluster-${Environment}
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub deepr-worker-${Environment}
+      Cpu: '1024'
+      Memory: '2048'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt WorkerExecutionRole.Arn
+      TaskRoleArn: !GetAtt WorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/deepr-worker:latest
+          Essential: true
+          ReadonlyRootFilesystem: true
+          User: '1000:1000'  # Non-root user
+          Environment:
+            - Name: QUEUE_URL
+              Value: !Ref JobQueue
+            - Name: RESULTS_BUCKET
+              Value: !Ref ResultsBucket
+            - Name: JOBS_TABLE
+              Value: !Ref JobsTable
+            - Name: SECRETS_ARN
+              Value: !Ref ApiSecrets
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: LOG_LEVEL
+              Value: INFO
+          MountPoints:
+            - SourceVolume: tmp
+              ContainerPath: /tmp
+              ReadOnly: false
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - 'python -c "import sys; sys.exit(0)"'
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+      Volumes:
+        - Name: tmp
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub deepr-worker-${Environment}
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref WorkerTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      EnableExecuteCommand: false  # Disable exec for security
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref WorkerSecurityGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Deepr worker
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS outbound for API calls
+      Tags:
+        - Key: Name
+          Value: !Sub deepr-worker-sg-${Environment}
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/fargate/deepr-worker-${Environment}
+      RetentionInDays: 30
+      KmsKeyId: !GetAtt DeeprKMSKey.Arn
+
+  WorkerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub deepr-worker-exec-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref ApiSecrets
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: !GetAtt DeeprKMSKey.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub deepr-worker-task-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WorkerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # SQS - Receive and delete from specific queue only
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource: !GetAtt JobQueue.Arn
+              # S3 - Write only to specific prefixes
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${ResultsBucket.Arn}/jobs/*
+                  - !Sub ${ResultsBucket.Arn}/results/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub ${ResultsBucket.Arn}/jobs/*
+              # DynamoDB - Update job status only
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt JobsTable.Arn
+              # Secrets Manager - Read only
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref ApiSecrets
+              # KMS - Decrypt only
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt DeeprKMSKey.Arn
+              # CloudWatch - Write logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/fargate/deepr-worker-${Environment}:*
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # Auto Scaling
+  # ============================================================================
+  WorkerScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 10
+      MinCapacity: 0
+      ResourceId: !Sub service/${ECSCluster}/${WorkerService.Name}
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  WorkerScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: deepr-worker-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WorkerScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # Scale based on queue depth
+  QueueDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub deepr-queue-depth-${Environment}
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt JobQueue.QueueName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref ScaleUpPolicy
+
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: deepr-scale-up
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref WorkerScalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            ScalingAdjustment: 2
+
+  # ============================================================================
+  # Security Monitoring Alarms
+  # ============================================================================
+  HighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub deepr-high-error-rate-${Environment}
+      AlarmDescription: High API error rate detected
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub deepr-api-${Environment}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  UnauthorizedAccessAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub deepr-unauthorized-access-${Environment}
+      AlarmDescription: High number of unauthorized access attempts
+      MetricName: 4XXError
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub deepr-api-${Environment}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  DLQMessagesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub deepr-dlq-messages-${Environment}
+      AlarmDescription: Messages appearing in dead letter queue
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  SecretsAccessAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub deepr-secrets-access-${Environment}
+      AlarmDescription: Unusual secrets access pattern detected
+      MetricName: CallCount
+      Namespace: AWS/SecretsManager
+      Dimensions:
+        - Name: SecretId
+          Value: !Ref ApiSecrets
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  # ============================================================================
+  # ECR Repository for Worker Image
+  # ============================================================================
+  WorkerRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: deepr-worker
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: KMS
+        KmsKey: !GetAtt DeeprKMSKey.Arn
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${DeeprApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/
+
+  ApiKeyId:
+    Description: API Key ID (retrieve value from API Gateway console)
+    Value: !Sub '${DeeprApi}ApiKey'
+
+  QueueUrl:
+    Description: SQS Queue URL
+    Value: !Ref JobQueue
+
+  ResultsBucket:
+    Description: S3 bucket for results
+    Value: !Ref ResultsBucket
+
+  JobsTable:
+    Description: DynamoDB table for job metadata
+    Value: !Ref JobsTable
+
+  WorkerCluster:
+    Description: ECS Cluster name
+    Value: !Ref ECSCluster
+
+  WorkerRepository:
+    Description: ECR repository for worker images
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${WorkerRepository}
+
+  KMSKeyArn:
+    Description: KMS key ARN for encryption
+    Value: !GetAtt DeeprKMSKey.Arn
+
+  VpcId:
+    Description: VPC ID
+    Value: !Ref VPC
