@@ -51,6 +51,32 @@ All three cloud deployments follow the same security-hardened pattern:
 | Encryption | KMS | Azure Key Vault | Cloud KMS |
 | Network | VPC + Private Subnets | VNet + Private Endpoints | VPC + Serverless Connector |
 
+## Project Structure
+
+```
+deploy/
+├── README.md           # This file
+├── shared/             # Shared API library (cloud-agnostic utilities)
+│   ├── setup.py
+│   └── deepr_api_common/
+│       ├── __init__.py
+│       ├── validation.py   # Input validation (job ID, prompt, model, etc.)
+│       ├── security.py     # API key validation, CORS/security headers
+│       ├── models.py       # Job document creation, TTL, cost estimation
+│       └── responses.py    # Response formatting utilities
+├── aws/                # AWS SAM/CloudFormation deployment
+│   ├── template.yaml   # SAM template
+│   └── src/api/handler.py
+├── azure/              # Azure Bicep deployment
+│   ├── main.bicep      # Bicep template
+│   └── functions/function_app.py
+└── gcp/                # GCP Terraform deployment
+    ├── main.tf         # Terraform config
+    └── functions/main.py
+```
+
+The shared library (`deploy/shared/deepr_api_common/`) provides reusable validation, security, and response utilities. Each cloud handler can import from it to reduce code duplication.
+
 ## Quick Start
 
 ### AWS
@@ -95,11 +121,15 @@ All deployments are hardened following cloud provider Well-Architected Framework
 
 ### Authentication & Authorization
 
+All API handlers support two authentication methods:
+- **Authorization Header**: `Authorization: Bearer <api-key>`
+- **X-Api-Key Header**: `X-Api-Key: <api-key>`
+
 | Feature | AWS | Azure | GCP |
 |---------|-----|-------|-----|
-| API Authentication | API Gateway API Keys | Azure AD / Function Keys | IAP / API Keys |
+| API Authentication | Secrets Manager + handler validation | Key Vault + handler validation | Environment variable + handler validation |
 | Rate Limiting | WAF + API Gateway throttling | App Gateway WAF | Cloud Armor |
-| Request Validation | API Gateway validators | Function input validation | Cloud Endpoints |
+| Request Validation | Handler input validation | Handler input validation | Handler input validation |
 
 ### Network Security
 
@@ -191,29 +221,89 @@ DEEPR_BUDGET_MONTHLY=500
 API_KEY=your-secure-api-key
 ```
 
+## API Features
+
+All handlers include:
+
+| Feature | Description |
+|---------|-------------|
+| **Authentication** | API key via `Authorization: Bearer` or `X-Api-Key` header |
+| **CORS** | Preflight OPTIONS handling for browser clients |
+| **Input Validation** | Prompt length (10,000 chars), model validation, UUID format |
+| **Security Headers** | HSTS, X-Frame-Options, X-Content-Type-Options, Cache-Control |
+| **Document TTL** | 90-day automatic cleanup of job records |
+| **Error Handling** | Structured JSON error responses with appropriate HTTP codes |
+
 ## API Usage
 
-All endpoints (except `/health`) require authentication:
+All endpoints (except `/health`) require authentication. Use either header format:
 
 ```bash
 # Get API endpoint URL from deployment output
 API_URL="https://your-api-endpoint"
 API_KEY="your-api-key"
 
-# Submit a job
+# Health check (no auth required)
+curl "$API_URL/health"
+
+# Submit a job (using X-Api-Key header)
 curl -X POST "$API_URL/jobs" \
   -H "Content-Type: application/json" \
   -H "X-Api-Key: $API_KEY" \
   -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?"}'
 
-# Check job status
-curl "$API_URL/jobs/{job_id}" \
-  -H "X-Api-Key: $API_KEY"
+# Submit a job (using Authorization Bearer header)
+curl -X POST "$API_URL/jobs" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"prompt": "What are the best practices for PostgreSQL connection pooling?", "model": "o4-mini-deep-research"}'
 
-# Get result
-curl "$API_URL/results/{job_id}" \
-  -H "X-Api-Key: $API_KEY"
+# List jobs
+curl "$API_URL/jobs" -H "X-Api-Key: $API_KEY"
+
+# List jobs filtered by status
+curl "$API_URL/jobs?status=completed&limit=10" -H "X-Api-Key: $API_KEY"
+
+# Check job status
+curl "$API_URL/jobs/{job_id}" -H "X-Api-Key: $API_KEY"
+
+# Cancel a job
+curl -X POST "$API_URL/jobs/{job_id}/cancel" -H "X-Api-Key: $API_KEY"
+
+# Get result (markdown report)
+curl "$API_URL/results/{job_id}" -H "X-Api-Key: $API_KEY"
+
+# Get cost summary
+curl "$API_URL/costs" -H "X-Api-Key: $API_KEY"
 ```
+
+### Request Body (POST /jobs)
+
+```json
+{
+  "prompt": "Your research question (required, max 10,000 chars)",
+  "model": "o4-mini-deep-research",
+  "priority": 3,
+  "enable_web_search": true,
+  "metadata": {"project": "example"}
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `prompt` | string | Yes | - | Research question (max 10,000 characters) |
+| `model` | string | No | `o4-mini-deep-research` | Model to use (see valid models below) |
+| `priority` | integer | No | 3 | Priority 1-5 (1 = highest) |
+| `enable_web_search` | boolean | No | true | Enable web search for research |
+| `metadata` | object | No | {} | Custom metadata (max 4KB) |
+
+**Valid Models:**
+- `o4-mini-deep-research` (default, lower cost)
+- `o3-deep-research` (higher quality)
+- `gemini-2.0-flash-thinking-exp`
+- `gemini-2.5-pro-exp-03-25`
+- `grok-3-mini-fast`
+- `grok-3-fast`
 
 ## Customization
 
