@@ -9,8 +9,11 @@ No static personas. Each question gets a custom dream team.
 
 import os
 import json
+import logging
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
+
+logger = logging.getLogger(__name__)
 
 
 class TeamArchitect:
@@ -167,7 +170,7 @@ Only include people you find with actual research. If unable to find information
 
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            print(f"Warning: Could not research company people: {e}")
+            logger.warning("Could not research company people: %s", e)
             return None
 
     def _build_team_design_prompt(

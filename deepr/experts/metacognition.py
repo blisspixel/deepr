@@ -4,10 +4,13 @@ Tracks what the expert knows vs doesn't know, confidence levels, and learning pa
 """
 
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -85,7 +88,7 @@ class MetaCognitionTracker:
                 self.uncertainty_log = data.get("uncertainty_log", [])
 
             except Exception as e:
-                print(f"Error loading meta-knowledge: {e}")
+                logger.error("Error loading meta-knowledge: %s", e)
 
     def _save(self):
         """Save meta-knowledge to disk."""
@@ -124,7 +127,7 @@ class MetaCognitionTracker:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            print(f"Error saving meta-knowledge: {e}")
+            logger.error("Error saving meta-knowledge: %s", e)
 
     def record_knowledge_gap(self, topic: str, confidence: float = 0.0) -> KnowledgeGap:
         """Record a knowledge gap when expert admits it doesn't know something.

@@ -138,14 +138,14 @@ class OpenAIProvider(DeepResearchProvider):
                 if attempt < max_retries - 1:
                     # Exponential backoff
                     wait_time = retry_delay * (2 ** attempt)
-                    print(f"Provider error (attempt {attempt + 1}/{max_retries}): {e}")
-                    print(f"Retrying in {wait_time}s...")
+                    logger.warning("Provider error (attempt %d/%d): %s", attempt + 1, max_retries, e)
+                    logger.warning("Retrying in %ss...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
                 elif fallback_model and attempt == max_retries - 1:
                     # Last attempt: try fallback model
-                    print(f"Max retries reached for {request.model}")
-                    print(f"Graceful degradation: Falling back to {fallback_model}")
+                    logger.warning("Max retries reached for %s", request.model)
+                    logger.warning("Graceful degradation: Falling back to %s", fallback_model)
                     request.model = fallback_model
                     continue
                 else:

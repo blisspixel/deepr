@@ -438,9 +438,7 @@ Budget remaining: ${budget_remaining:.2f}
             return results
 
         except Exception as e:
-            print(f"Error searching knowledge base: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Error searching knowledge base: %s", e, exc_info=True)
             return []
 
     def _is_fast_moving_domain(self) -> bool:
@@ -834,7 +832,7 @@ Budget remaining: ${budget_remaining:.2f}
             return True
 
         except Exception as e:
-            print(f"Error adding research to knowledge base: {e}")
+            logger.error("Error adding research to knowledge base: %s", e)
             return False
 
     def should_trigger_synthesis(self) -> bool:
