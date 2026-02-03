@@ -57,6 +57,11 @@ Coverage minimum is 60% on core modules. CI enforces this on every push and PR.
 - `deepr/providers/` -- Model provider integrations (OpenAI, Gemini, Grok, Azure)
 - `deepr/experts/` -- Domain expert system
 - `deepr/mcp/` -- MCP server and tools
+- `deploy/` -- Cloud deployment templates
+- `deploy/aws/` -- AWS SAM/CloudFormation (Lambda, DynamoDB, Fargate)
+- `deploy/azure/` -- Azure Bicep (Functions, Cosmos DB, Container Apps)
+- `deploy/gcp/` -- GCP Terraform (Cloud Functions, Firestore, Cloud Run)
+- `deploy/shared/` -- Shared API library (`deepr_api_common`)
 - `tests/unit/` -- Unit tests
 - `tests/integration/` -- Integration tests (require API keys)
 
@@ -68,6 +73,18 @@ Coverage minimum is 60% on core modules. CI enforces this on every push and PR.
 - Use specific exception types, not bare `except Exception`.
 - Model pricing and capabilities go in `deepr/providers/registry.py` (single source of truth).
 - Version is defined once in `deepr/__init__.py` and imported elsewhere.
+
+## Cloud Deployment Guidelines
+
+When modifying cloud handlers (`deploy/*/`):
+
+- Use native cloud tooling: SAM for AWS, Bicep for Azure, Terraform for GCP.
+- Validate input at the handler level (prompt length, model, job ID format).
+- Include security headers (HSTS, X-Frame-Options, X-Content-Type-Options).
+- Add CORS OPTIONS handling for browser clients.
+- Use the shared library (`deploy/shared/deepr_api_common/`) for common utilities.
+- Verify handler syntax with `python -m py_compile <handler.py>`.
+- Test API key validation with both `Authorization: Bearer` and `X-Api-Key` headers.
 
 ## High-Impact Areas
 
