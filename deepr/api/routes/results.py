@@ -46,7 +46,6 @@ def list_results():
         storage = get_storage()
 
         # List all result files
-        # TODO: Implement proper search, filtering, and pagination
         results = asyncio.run(storage.list_results(
             limit=limit,
             offset=offset,
@@ -151,8 +150,7 @@ def search_results():
         limit = min(int(request.args.get("limit", 20)), 50)
 
         storage = get_storage()
-        # TODO: Implement full-text search
-        # For now, just return empty results
+        # Full-text search not yet implemented; use deepr search CLI instead
         results = []
 
         return jsonify({

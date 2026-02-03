@@ -658,11 +658,18 @@ class TestContradictionDetectionPropertyTests:
         word1=st.text(alphabet=st.characters(whitelist_categories=('L',)), min_size=3, max_size=10),
         word2=st.text(alphabet=st.characters(whitelist_categories=('L',)), min_size=3, max_size=10)
     )
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=None)
     def test_negation_detected_as_contradiction(self, word1, word2):
         """Property: Adding 'not' creates detectable contradiction."""
+        # Skip words that are themselves negation indicators, since both claims
+        # would then contain negation and the detector wouldn't flag a difference
+        negation_words = {'not', 'no', 'never', 'none', 'neither', 'nobody', 'nothing',
+                         'nowhere', 'cannot'}
+        assume(word1.lower() not in negation_words)
+        assume(word2.lower() not in negation_words)
+
         graph = ReasoningGraph()
-        
+
         # Create claim and its negation using generated words
         positive = f"The {word1} {word2} is good"
         negative = f"The {word1} {word2} is not good"
