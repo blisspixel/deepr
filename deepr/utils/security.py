@@ -120,7 +120,7 @@ def validate_path(
     return resolved
 
 
-def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_private: bool = False) -> bool:
+def is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_private: bool = False) -> bool:
     """Check if an IP address should be blocked.
 
     Handles both IPv4 and IPv6 addresses.
@@ -133,7 +133,7 @@ def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_priv
     return False
 
 
-def _resolve_all_ips(hostname: str) -> list[str]:
+def resolve_all_ips(hostname: str) -> list[str]:
     """Resolve hostname to all IP addresses (IPv4 and IPv6).
 
     Uses getaddrinfo instead of gethostbyname to support IPv6.
@@ -180,7 +180,7 @@ def is_safe_url(url: str, allow_private: bool = False) -> bool:
             return False
 
         # Resolve hostname to all IPs (IPv4 + IPv6) and check each
-        ip_strings = _resolve_all_ips(parsed.hostname)
+        ip_strings = resolve_all_ips(parsed.hostname)
         if not ip_strings:
             # DNS resolution failed -- be conservative and block
             return False
@@ -188,7 +188,7 @@ def is_safe_url(url: str, allow_private: bool = False) -> bool:
         for ip_str in ip_strings:
             try:
                 ip = ipaddress.ip_address(ip_str)
-                if _is_blocked_ip(ip, allow_private):
+                if is_blocked_ip(ip, allow_private):
                     return False
             except ValueError:
                 return False
