@@ -165,7 +165,7 @@ class JobManager:
                     if record.get("response_id") == response_id:
                         record["status"] = new_status
                         line = json.dumps(record)
-                except Exception:
+                except (json.JSONDecodeError, KeyError):
                     pass
                 updated_lines.append(line if line.endswith("\n") else line + "\n")
 
@@ -183,7 +183,7 @@ class JobManager:
                     record = json.loads(line)
                     if record.get("response_id") == response_id:
                         return JobRecord(**record)
-                except Exception:
+                except (json.JSONDecodeError, KeyError, TypeError):
                     continue
 
         return None
@@ -203,7 +203,7 @@ class JobManager:
                     record_dict = json.loads(line)
                     if status is None or record_dict.get("status") == status:
                         jobs.append(JobRecord(**record_dict))
-                except Exception:
+                except (json.JSONDecodeError, KeyError, TypeError):
                     continue
 
         # Sort by timestamp (newest first)
@@ -233,7 +233,7 @@ class JobManager:
                         retained.append(line)
                     else:
                         cleaned += 1
-                except Exception:
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                     retained.append(line)
 
         if cleaned > 0:

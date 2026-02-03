@@ -4,7 +4,7 @@ import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import AzureError, ResourceNotFoundError
 from .base import StorageBackend, ReportMetadata, StorageError
 
 
@@ -109,7 +109,7 @@ class AzureBlobStorage(StorageBackend):
                 content_type=content_type,
             )
 
-        except Exception as e:
+        except AzureError as e:
             raise StorageError(
                 message=f"Failed to save report to blob storage: {str(e)}",
                 storage_type="blob",
@@ -136,7 +136,7 @@ class AzureBlobStorage(StorageBackend):
                 storage_type="blob",
                 original_error=None,
             )
-        except Exception as e:
+        except AzureError as e:
             raise StorageError(
                 message=f"Failed to retrieve report from blob storage: {str(e)}",
                 storage_type="blob",
@@ -176,7 +176,7 @@ class AzureBlobStorage(StorageBackend):
 
             return reports
 
-        except Exception as e:
+        except AzureError as e:
             raise StorageError(
                 message=f"Failed to list reports in blob storage: {str(e)}",
                 storage_type="blob",
@@ -206,7 +206,7 @@ class AzureBlobStorage(StorageBackend):
 
         except ResourceNotFoundError:
             return False
-        except Exception as e:
+        except AzureError as e:
             raise StorageError(
                 message=f"Failed to delete report from blob storage: {str(e)}",
                 storage_type="blob",
@@ -226,7 +226,7 @@ class AzureBlobStorage(StorageBackend):
 
         except ResourceNotFoundError:
             return False
-        except Exception:
+        except AzureError:
             return False
 
     async def get_report_url(self, job_id: str, filename: str, expires_in: int = 3600) -> str:
@@ -260,7 +260,7 @@ class AzureBlobStorage(StorageBackend):
                 # If using managed identity, return direct URL (requires public access or additional auth)
                 return blob_client.url
 
-        except Exception as e:
+        except AzureError as e:
             raise StorageError(
                 message=f"Failed to generate report URL: {str(e)}",
                 storage_type="blob",
@@ -283,7 +283,7 @@ class AzureBlobStorage(StorageBackend):
 
             return deleted_count
 
-        except Exception as e:
+        except AzureError as e:
             raise StorageError(
                 message=f"Failed to cleanup old reports: {str(e)}",
                 storage_type="blob",

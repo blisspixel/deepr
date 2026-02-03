@@ -288,7 +288,7 @@ class LocalStorage(StorageBackend):
                 content_type=content_type,
             )
 
-        except Exception as e:
+        except OSError as e:
             raise StorageError(
                 message=f"Failed to save report: {str(e)}", storage_type="local", original_error=e
             )
@@ -307,7 +307,7 @@ class LocalStorage(StorageBackend):
             raise StorageError(
                 message=str(e), storage_type="local", original_error=e
             )
-        except Exception as e:
+        except OSError as e:
             raise StorageError(
                 message=f"Failed to retrieve report: {str(e)}",
                 storage_type="local",
@@ -366,7 +366,7 @@ class LocalStorage(StorageBackend):
 
             return reports
 
-        except Exception as e:
+        except OSError as e:
             raise StorageError(
                 message=f"Failed to list reports: {str(e)}",
                 storage_type="local",
@@ -391,7 +391,7 @@ class LocalStorage(StorageBackend):
                     return True
                 return False
 
-        except Exception as e:
+        except OSError as e:
             raise StorageError(
                 message=f"Failed to delete report: {str(e)}",
                 storage_type="local",
@@ -443,7 +443,7 @@ class LocalStorage(StorageBackend):
 
             return deleted_count
 
-        except Exception as e:
+        except OSError as e:
             raise StorageError(
                 message=f"Failed to cleanup old reports: {str(e)}",
                 storage_type="local",
