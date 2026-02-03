@@ -671,9 +671,15 @@ class GeminiProvider(DeepResearchProvider):
 
         try:
             import httpx
+            from deepr.utils.security import is_safe_url
             async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
                 response = await client.head(url)
-                return str(response.url)
+                final_url = str(response.url)
+                # Validate the resolved URL is not an internal address
+                if not is_safe_url(final_url):
+                    logger.warning("SSRF: redirect resolved to blocked URL: %s", final_url)
+                    return url
+                return final_url
         except Exception:
             return url
 

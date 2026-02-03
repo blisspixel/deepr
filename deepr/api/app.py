@@ -38,7 +38,31 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"])
+
+# CORS: use env var in production, default to localhost dev servers
+_cors_origins = os.getenv(
+    "DEEPR_CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:5174,http://localhost:3000"
+)
+CORS(app, origins=[o.strip() for o in _cors_origins.split(",")])
+
+# Bearer token authentication
+_api_token = os.getenv("DEEPR_API_TOKEN")
+
+
+@app.before_request
+def _check_auth():
+    """Require bearer token if DEEPR_API_TOKEN is set."""
+    if not _api_token:
+        return  # No token configured -- allow all (local dev)
+    # Skip auth for health check and docs
+    if request.path in ("/health", "/api/docs", "/apispec_1.json"):
+        return
+    if request.path.startswith("/flasgger_static"):
+        return
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != _api_token:
+        return jsonify({"error": "Unauthorized"}), 401
 
 # =============================================================================
 # OpenAPI/Swagger Configuration
@@ -491,7 +515,8 @@ def list_jobs():
         return jsonify({'jobs': jobs_data, 'total': len(jobs_data)})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/jobs/<job_id>', methods=['GET'])
@@ -575,7 +600,8 @@ def get_job(job_id):
         return jsonify({'job': job_data})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/jobs', methods=['POST'])
@@ -717,7 +743,8 @@ def submit_job():
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/jobs/<job_id>/cancel', methods=['POST'])
@@ -767,7 +794,8 @@ def cancel_job(job_id):
         success = run_async(queue.cancel_job(job_id))
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/jobs/<job_id>', methods=['DELETE'])
@@ -817,7 +845,8 @@ def delete_job(job_id):
         success = run_async(queue.cancel_job(job_id))
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/jobs/stats', methods=['GET'])
@@ -875,7 +904,8 @@ def get_stats():
         return jsonify(stats)
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/results/<job_id>', methods=['GET'])
@@ -963,7 +993,8 @@ def get_result(job_id):
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/cost/summary', methods=['GET'])
@@ -1026,13 +1057,18 @@ def get_cost_summary():
         }
         return jsonify(summary)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error("API error: %s", type(e).__name__)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 if __name__ == '__main__':
+    debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes")
+    host = os.getenv("DEEPR_HOST", "127.0.0.1")
+    port = int(os.getenv("DEEPR_PORT", "5000"))
     print("\n" + "="*70)
-    print("  Deepr API Server")
-    print("  Running on http://localhost:5000")
-    print("  CORS enabled for React dev server (port 5173)")
+    print(f"  Deepr API Server")
+    print(f"  Running on http://{host}:{port}")
+    if debug:
+        print("  WARNING: Debug mode enabled -- do not use in production")
     print("="*70 + "\n")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=debug, host=host, port=port)
