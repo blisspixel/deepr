@@ -228,8 +228,8 @@ deepr expert chat "Python Async Expert" --agentic --budget 3
 ## What's Next?
 
 - [EXAMPLES.md](EXAMPLES.md) - Real-world use cases
-- [EXPERT_SYSTEM.md](EXPERT_SYSTEM.md) - Deep dive on expert features
-- [LEARNING_WORKFLOW.md](LEARNING_WORKFLOW.md) - Structured learning strategies
+- [EXPERTS.md](EXPERTS.md) - Expert system guide
+- [FEATURES.md](FEATURES.md) - Complete command reference
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Technical details
 
 ---

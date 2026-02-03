@@ -180,6 +180,14 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ## Code Quality
 
+#### Completed
+- [x] Split `cli/commands/semantic.py` (3,318 lines) into `cli/commands/semantic/` package (`research.py`, `artifacts.py`, `experts.py`)
+- [x] Tightened exception handling across storage, providers, core, and services (replaced broad `except Exception` with specific types)
+- [x] Consolidated model pricing into single registry source of truth (`providers/registry.py`)
+- [x] Replaced `print()` calls in library code with structured `logging`
+- [x] Removed dead legacy CLI module, `setup.py`, `sys.path` hacks
+- [x] Single-sourced version string from `deepr/__init__.py`
+
 #### ExpertProfile Refactoring
 - [ ] Split `experts/profile.py` into `profile.py` (data) and `profile_manager.py` (operations)
 - [ ] Extract belief management to `experts/beliefs_manager.py`
