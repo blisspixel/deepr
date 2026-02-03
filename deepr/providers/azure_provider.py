@@ -3,7 +3,7 @@
 import os
 import asyncio
 from typing import Optional, List, Dict
-from openai import AsyncAzureOpenAI
+from openai import AsyncAzureOpenAI, APIError as OpenAIAPIError
 from azure.identity.aio import DefaultAzureCredential
 from .base import (
     DeepResearchProvider,
@@ -128,7 +128,7 @@ class AzureProvider(DeepResearchProvider):
             response = await self.client.responses.create(**payload)
             return response.id
 
-        except Exception as e:
+        except OpenAIAPIError as e:
             raise ProviderError(
                 message=f"Failed to submit research to Azure: {str(e)}",
                 provider="azure",
@@ -187,7 +187,7 @@ class AzureProvider(DeepResearchProvider):
                 error=getattr(response, "error", None),
             )
 
-        except Exception as e:
+        except OpenAIAPIError as e:
             raise ProviderError(
                 message=f"Failed to get status from Azure: {str(e)}",
                 provider="azure",
@@ -199,7 +199,7 @@ class AzureProvider(DeepResearchProvider):
         try:
             await self.client.responses.cancel(job_id)
             return True
-        except Exception as e:
+        except OpenAIAPIError as e:
             raise ProviderError(
                 message=f"Failed to cancel job on Azure: {str(e)}",
                 provider="azure",
@@ -212,7 +212,7 @@ class AzureProvider(DeepResearchProvider):
             with open(file_path, "rb") as f:
                 file_obj = await self.client.files.create(file=f, purpose=purpose)
             return file_obj.id
-        except Exception as e:
+        except (OpenAIAPIError, OSError) as e:
             raise ProviderError(
                 message=f"Failed to upload document to Azure: {str(e)}",
                 provider="azure",
@@ -233,7 +233,7 @@ class AzureProvider(DeepResearchProvider):
 
             return VectorStore(id=vs.id, name=name, file_ids=file_ids)
 
-        except Exception as e:
+        except OpenAIAPIError as e:
             raise ProviderError(
                 message=f"Failed to create vector store on Azure: {str(e)}",
                 provider="azure",
@@ -273,7 +273,7 @@ class AzureProvider(DeepResearchProvider):
 
         except TimeoutError:
             raise
-        except Exception as e:
+        except OpenAIAPIError as e:
             raise ProviderError(
                 message=f"Failed to wait for vector store on Azure: {str(e)}",
                 provider="azure",
@@ -285,7 +285,7 @@ class AzureProvider(DeepResearchProvider):
         try:
             await self.client.vector_stores.delete(vector_store_id)
             return True
-        except Exception as e:
+        except OpenAIAPIError as e:
             raise ProviderError(
                 message=f"Failed to delete vector store on Azure: {str(e)}",
                 provider="azure",
