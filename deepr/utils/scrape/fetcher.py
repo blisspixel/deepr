@@ -1,5 +1,6 @@
 """Adaptive content fetcher - tries multiple strategies until content is retrieved."""
 
+import json
 import time
 import logging
 import random
@@ -474,7 +475,7 @@ class ContentFetcher:
                 error="No archive.org snapshot available",
             )
 
-        except Exception as e:
+        except (requests.RequestException, json.JSONDecodeError, KeyError, ValueError) as e:
             return FetchResult(
                 url=url,
                 success=False,
