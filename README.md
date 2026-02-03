@@ -5,21 +5,56 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
-Deep research from your terminal. Submit a question, get back a cited report in minutes. Build domain experts from your documents. Expose it all to AI agents via MCP.
+Deep research from your terminal. The same deep research agents behind ChatGPT and Gemini, but scriptable, automatable, and integrated with your tools.
 
 ```bash
 deepr research "PostgreSQL connection pooling strategies for high-traffic applications"
 ```
 
-Uses deep research agents from OpenAI (o3-deep-research, o4-mini-deep-research) and Google Gemini (Deep Research Agent) to produce structured, cited reports -- the same reasoning behind ChatGPT and Gemini deep research, accessible as a CLI tool you can script, automate, and build on.
+Uses OpenAI (o3-deep-research, o4-mini-deep-research) and Google Gemini (Deep Research Agent) APIs to produce structured, cited reports. Unlike the web UIs, Deepr runs from the command line -- so you can script it, pipe it, cron it, or call it from your AI agents via MCP.
+
+## Why Deepr?
+
+ChatGPT and Gemini have deep research built in. Deepr wraps the same underlying APIs and adds:
+
+- **Automation** - Run research from scripts, cron jobs, CI pipelines. No browser required.
+- **Domain experts** - Build persistent experts from your documents that answer questions, track knowledge gaps, and research autonomously to fill them.
+- **MCP integration** - Your AI agents (Claude, Cursor, VS Code) can invoke deep research as a tool.
+- **Multi-provider** - Same interface across OpenAI, Gemini, Grok, and Anthropic. Switch without changing code.
+- **Cost controls** - Per-job budgets, daily limits, cost tracking. Pay for what you use.
+- **Local storage** - Reports saved as markdown files you own.
+
+If you just need occasional research, use ChatGPT. If you need to automate research workflows, build document-based experts, or integrate with AI agents, Deepr is the tool.
 
 ## Installation
 
 ```bash
-pip install -e .                        # Python 3.9+
+pip install -e .                        # Core CLI (minimal dependencies)
 cp .env.example .env                    # Add OPENAI_API_KEY=sk-...
 deepr doctor && deepr budget set 5      # Verify setup, set $5 budget
 ```
+
+Optional extras for additional features:
+
+```bash
+pip install -e ".[web]"                 # Web UI and MCP server
+pip install -e ".[azure]"               # Azure cloud deployment
+pip install -e ".[docs]"                # Document processing for experts
+pip install -e ".[full]"                # All features
+pip install -e ".[dev]"                 # Development and testing
+```
+
+## Start Here
+
+Most users should start with these three commands:
+
+```bash
+deepr research "Your question here"     # Run a research job (~$1-2)
+deepr costs show                        # Check what you spent
+deepr expert make "Topic Expert" --files docs/*.md  # Create an expert from docs
+```
+
+That's the core loop. Everything else (MCP, cloud deploy, multi-provider routing) is optional.
 
 See [docs/QUICK_START.md](docs/QUICK_START.md) for a guided setup.
 
@@ -59,13 +94,15 @@ See [mcp/README.md](mcp/README.md) for setup and [skills/deepr-research/](skills
 
 ### Multi-Provider Routing
 
-Works across OpenAI (GPT-5.2, o3-deep-research, o4-mini-deep-research), Google Gemini (2.5 Flash, 3 Pro, Deep Research Agent), xAI Grok (4, 4 Fast), and Azure OpenAI. Both OpenAI and Gemini support native async deep research via the same provider-agnostic interface. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
+Works across OpenAI (GPT-5.2, o3-deep-research, o4-mini-deep-research), Google Gemini (2.5 Flash, 3 Pro, Deep Research Agent), xAI Grok (4, 4 Fast), Anthropic Claude (Opus 4.5, Sonnet 4.5, Haiku 4.5), and Azure OpenAI. OpenAI and Gemini support native async deep research; Anthropic uses Extended Thinking + tool orchestration for research capability. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
 
 ## Stability
 
 **Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, CLI output modes, OpenAI and Gemini providers, local SQLite storage.
 
 **Experimental:** MCP server (functional but MCP spec is maturing), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates, Grok provider.
+
+**Model pricing note:** AI model pricing changes frequently. The costs in this README are estimates as of February 2026. Always check provider pricing pages before large jobs. The model registry ([`deepr/providers/registry.py`](deepr/providers/registry.py)) is the single source of truth for model info.
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -113,7 +150,16 @@ Model and pricing information current as of February 2026.
 
 ## Security
 
-Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 3000+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License -- use at your own risk.
+Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 3000+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff.
+
+**Verify the claims:**
+- SSRF protection: [`deepr/utils/security.py`](deepr/utils/security.py) - blocks internal IPs, validates DNS
+- Budget controls: [`deepr/experts/cost_safety.py`](deepr/experts/cost_safety.py) - circuit breakers, session limits
+- Path traversal: [`deepr/utils/security.py`](deepr/utils/security.py) - `validate_path()` sandboxes file operations
+- Provider routing: [`deepr/observability/provider_router.py`](deepr/observability/provider_router.py) - scoring, fallback
+- Run tests yourself: `pytest tests/ -v` (3000+ tests, ~2 min)
+
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for threat model and implementation details. This software is provided as-is under the MIT License -- use at your own risk.
 
 Report security issues: nick@pueo.io
 
