@@ -426,7 +426,7 @@ class ExpertStore:
                             data = json.load(f)
                             profiles.append(ExpertProfile.from_dict(data))
                     except Exception as e:
-                        print(f"Warning: Could not load {profile_path}: {e}")
+                        logger.warning("Could not load %s: %s", profile_path, e)
         return sorted(profiles, key=lambda p: p.updated_at, reverse=True)
 
     def delete(self, name: str) -> bool:

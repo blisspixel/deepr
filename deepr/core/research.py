@@ -1,6 +1,7 @@
 """Research orchestration and coordination."""
 
 import json
+import logging
 import uuid
 from typing import Optional, List, Dict, Any
 from pathlib import Path
@@ -20,6 +21,8 @@ MODEL_COST_ESTIMATES = {
     "o4-mini-deep-research-2025-06-26": 0.15,
 }
 DEFAULT_COST_ESTIMATE = 0.20  # Conservative default
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchOrchestrator:
@@ -348,7 +351,7 @@ class ResearchOrchestrator:
                 await self.provider.delete_vector_store(vector_store_id)
             except Exception as e:
                 # Log but don't fail on cleanup errors
-                print(f"Warning: Failed to cleanup vector store {vector_store_id}: {e}")
+                logger.warning("Failed to cleanup vector store %s: %s", vector_store_id, e)
 
     async def cancel_job(self, job_id: str) -> bool:
         """
