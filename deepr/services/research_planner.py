@@ -15,9 +15,12 @@ Example:
 """
 
 import os
+import logging
 from typing import List, Dict, Optional
 from openai import OpenAI
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchPlanner:
@@ -220,7 +223,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 
         except Exception as e:
             # Fallback: generate basic research tasks
-            print(f"Error planning research: {e}")
+            logger.error("Error planning research: %s", e)
             return self._fallback_plan(scenario, max_tasks)
 
     def _fallback_plan(self, scenario: str, max_tasks: int) -> List[Dict[str, str]]:
