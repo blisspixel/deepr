@@ -55,19 +55,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **CI and Code Quality Tooling**
 - GitHub Actions CI workflow: lint (ruff) + unit tests on push to `main` and PRs, Python 3.11/3.12 matrix
-- `.pre-commit-config.yaml` with ruff (lint+format), black, trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, debug-statements
+- `.pre-commit-config.yaml` with ruff (lint+format), trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, debug-statements
 - `[tool.coverage]` in `pyproject.toml`: source/omit config, 60% minimum threshold, show_missing
-- `[tool.ruff]` and `[tool.black]` configuration in `pyproject.toml`
+- `[tool.ruff]` configuration in `pyproject.toml`
+- `CONTRIBUTING.md` with setup, dev workflow, code style, testing, and guidelines
 - CI enforces coverage minimum (`--cov-fail-under=60`) via `pytest-cov`
 - `pytest-cov` added to `[project.optional-dependencies] dev`
 
 ### Fixed
-- Synced `setup.py` and `pyproject.toml` dependencies (added google-genai, numpy, aiohttp, flasgger, flask-limiter, httpx, requests, beautifulsoup4)
 - Fixed `pyproject.toml` URLs pointing to wrong GitHub organization
 - Moved `test_conversation_memory.py` from unit to integration tests (was loading 4.3GB knowledge graph)
 - Fixed model registry tests referencing `gpt-5` instead of `gpt-5.2`
 - Fixed staleness urgency test expecting wrong value for missing cutoff date
 - Fixed skill frontmatter token count test (limit bumped from 200 to 300 after metadata growth)
+- Fixed flaky Hypothesis test `test_negation_detected_as_contradiction` (negation words in generated inputs + deadline exceeded on cold init)
+- Fixed flaky Hypothesis test `test_normalize_produces_absolute_path` (drive-relative paths like `H:0` misidentified as absolute on Windows)
 
 ### Changed
 - Test suite grew from 1300 to 2820+ tests
@@ -78,14 +80,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `sys.path.insert()` hack in MCP server; uses standard package imports
 - Removed 4 DEBUG `print()` statements left in production code (`semantic.py`)
 - Fixed 3 bare `except:` catches with specific exception types (`prep.py`, `web/app.py`)
-- Aligned `setup.py` classifiers with `pyproject.toml` (Alpha -> Beta, added Python 3.12, Science/Research audience)
 - Single-sourced version string: 5 modules now import `__version__` from `deepr/__init__.py` instead of hardcoding
 - Replaced last `sys.path.insert()` in MCP server (skills loading) with `importlib.util.spec_from_file_location()`
 - Converted remaining `print()` in `formatting/normalize.py` and `formatting/converters.py` to structured logging
 - Dockerfile uses `pip install --no-cache-dir .` instead of editable install
 
+- Removed redundant `black` from pre-commit hooks (ruff-format covers formatting) and `[tool.black]` from `pyproject.toml`
+- Replaced 10 stub TODO comments in API routes with explanatory comments noting CLI-managed features
+- Cleaned up API route stubs in `config.py`, `jobs.py`, `cost.py`, `results.py`
+
 ### Removed
 - Deleted dead legacy CLI module (`deepr/cli.py`, 350 lines) shadowed by `deepr/cli/` package
+- Deleted `setup.py` (fully redundant with `pyproject.toml`)
 
 ## [2.5.0] - 2026-01-15
 
