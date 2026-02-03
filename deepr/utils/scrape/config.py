@@ -3,6 +3,8 @@
 import os
 from typing import Optional
 
+from deepr import __version__
+
 
 class ScrapeConfig:
     """Configuration for web scraping behavior."""
@@ -52,7 +54,7 @@ class ScrapeConfig:
     @staticmethod
     def _default_user_agent() -> str:
         """Get default user agent string."""
-        return "deepr/2.6.0 (Research; +https://github.com/blisspixel/deepr)"
+        return f"deepr/{__version__} (Research; +https://github.com/blisspixel/deepr)"
 
     @classmethod
     def from_env(cls) -> "ScrapeConfig":

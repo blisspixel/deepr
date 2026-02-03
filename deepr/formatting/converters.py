@@ -1,11 +1,14 @@
 """Report format conversion utilities."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Optional
 from docx import Document
 from .normalize import normalize_markdown
 from .style import apply_styles_to_doc, format_paragraph
+
+logger = logging.getLogger(__name__)
 
 
 class ReportConverter:
@@ -92,7 +95,7 @@ class ReportConverter:
                 return content
 
         except Exception as e:
-            print(f"PDF conversion failed: {e}")
+            logger.warning("PDF conversion failed: %s", e)
             return None
 
     async def generate_all_formats(

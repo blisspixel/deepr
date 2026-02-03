@@ -55,6 +55,7 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
 ]
@@ -67,6 +68,39 @@ Homepage = "https://github.com/blisspixel/deepr"
 Documentation = "https://github.com/blisspixel/deepr/tree/main/docs"
 Repository = "https://github.com/blisspixel/deepr"
 Issues = "https://github.com/blisspixel/deepr/issues"
+
+[tool.coverage.run]
+source = ["deepr"]
+omit = [
+    "deepr/cli/commands/*",
+    "deepr/web/*",
+    "deepr/utils/check_expert_status.py",
+    "deepr/utils/download_expert_reports.py",
+    "deepr/utils/integrate_pending_research.py",
+    "deepr/utils/retrieve_expert_reports.py",
+]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.black]
+target-version = ["py39", "py310", "py311", "py312"]
+line-length = 120
 
 [tool.setuptools.packages.find]
 where = ["."]
