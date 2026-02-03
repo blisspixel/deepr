@@ -1,6 +1,6 @@
 # Deepr
 
-![Tests](https://img.shields.io/badge/tests-2800%2B%20passing-green)
+![Tests](https://img.shields.io/badge/tests-2820%2B%20passing-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
@@ -10,7 +10,7 @@ Deep research from your terminal. Submit a question, get back a cited report in 
 deepr research "PostgreSQL connection pooling strategies for high-traffic applications"
 ```
 
-Uses deep research agents from OpenAI (o3, o4-mini) and Google Gemini (Deep Research Agent) to produce structured, cited reports — the same reasoning behind ChatGPT and Gemini deep research, accessible as a CLI tool you can script, automate, and build on.
+Uses deep research agents from OpenAI (o3-deep-research, o4-mini-deep-research) and Google Gemini (Deep Research Agent) to produce structured, cited reports -- the same reasoning behind ChatGPT and Gemini deep research, accessible as a CLI tool you can script, automate, and build on.
 
 ## Installation
 
@@ -58,7 +58,7 @@ See [mcp/README.md](mcp/README.md) for setup and [skills/deepr-research/](skills
 
 ### Multi-Provider Routing
 
-Works across OpenAI GPT-5.2, Google Gemini (including Deep Research Agent), xAI Grok, and Azure OpenAI. Both OpenAI and Gemini support native async deep research via the same provider-agnostic interface. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
+Works across OpenAI (GPT-5.2, o3-deep-research, o4-mini-deep-research), Google Gemini (2.5 Flash, 3 Pro, Deep Research Agent), xAI Grok (4, 4 Fast), and Azure OpenAI. Both OpenAI and Gemini support native async deep research via the same provider-agnostic interface. Automatically routes tasks to the best model for the job. Auto-fallback retries on provider failures with circuit breakers.
 
 ### Cost Controls
 

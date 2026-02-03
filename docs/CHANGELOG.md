@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed skill frontmatter token count test (limit bumped from 200 to 300 after metadata growth)
 
 ### Changed
-- Test suite grew from 1300 to 2800+ tests
+- Test suite grew from 1300 to 2820+ tests
 - Dockerfile uses `pip install --no-cache-dir .` instead of editable install
 
 ## [2.5.0] - 2026-01-15

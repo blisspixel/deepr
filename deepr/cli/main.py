@@ -20,7 +20,7 @@ from typing import Optional
 
 
 @click.group()
-@click.version_option(version="2.3.0", prog_name="Deepr")
+@click.version_option(version="2.6.0", prog_name="Deepr")
 def cli():
     """
     Deepr - Research automation platform.

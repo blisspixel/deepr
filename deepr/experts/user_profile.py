@@ -5,10 +5,13 @@ experts to remember users and adapt responses.
 """
 
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, field, asdict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -128,7 +131,7 @@ class UserProfileTracker:
                 return profile
 
             except Exception as e:
-                print(f"Error loading user profile: {e}")
+                logger.error("Error loading user profile: %s", e)
 
         # Create new profile
         now = datetime.utcnow()
@@ -178,7 +181,7 @@ class UserProfileTracker:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            print(f"Error saving user profile: {e}")
+            logger.error("Error saving user profile: %s", e)
 
     def record_interaction(
         self,

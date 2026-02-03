@@ -10,10 +10,13 @@ similarity search without re-embedding documents on every query.
 import os
 import json
 import hashlib
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingCache:
@@ -162,7 +165,7 @@ class EmbeddingCache:
                 })
                 
             except Exception as e:
-                print(f"Error embedding {filename}: {e}")
+                logger.error("Error embedding %s: %s", filename, e)
                 continue
         
         if not new_embeddings:
@@ -216,7 +219,7 @@ class EmbeddingCache:
             )
             query_embedding = np.array(response.data[0].embedding)
         except Exception as e:
-            print(f"Error embedding query: {e}")
+            logger.error("Error embedding query: %s", e)
             return []
         
         # Compute cosine similarity with all cached embeddings (vectorized)

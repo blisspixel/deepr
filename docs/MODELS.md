@@ -9,9 +9,14 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 ## Provider Landscape
 
 ### OpenAI
-- **Deep Research**: Only provider with turnkey async Deep Research API
+- **Deep Research**: Turnkey async Deep Research API via Responses endpoint
 - **Models**: GPT-5.2, GPT-5.1, gpt-5-mini, gpt-5-nano, o3-deep-research, o4-mini-deep-research
 - **Best for**: Planning, curriculum generation, deep research
+
+### Azure OpenAI
+- **Models**: Same as OpenAI, deployed through Azure
+- **Best for**: Enterprise environments with Azure compliance requirements
+- **Note**: Requires Azure AD credentials or managed identity; set `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` in `.env`
 
 ### xAI (Grok)
 - **Models**: Grok 4, Grok 4 Fast, Grok 4 Heavy
@@ -90,6 +95,10 @@ OPENAI_API_KEY=sk-...
 XAI_API_KEY=...
 GEMINI_API_KEY=...
 ANTHROPIC_API_KEY=...
+
+# Azure OpenAI (alternative to OPENAI_API_KEY)
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_KEY=...
 ```
 
 Deepr will use available providers and route appropriately.
