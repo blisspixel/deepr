@@ -8,17 +8,17 @@
 **The same deep research agents behind ChatGPT and Gemini — but scriptable.**
 
 ```bash
-deepr research "PostgreSQL connection pooling strategies for high-traffic applications"
+deepr research "What are the security implications of AWS Bedrock vs Azure OpenAI for enterprise RAG?"
 ```
 
 ChatGPT and Gemini have powerful deep research, but it's trapped in a chat window. You can't script it, schedule it, or call it from your AI agents. Deepr fixes that.
 
 ## What You Can Do
 
-- **Schedule overnight research** — Set up a cron job, wake up to a structured report with citations
-- **Batch-process queries** — Run 50 research jobs overnight for competitive analysis, market research, or documentation
-- **Give your AI agents research superpowers** — Claude, Cursor, and VS Code can call deep research mid-task via MCP
-- **Build experts from your docs** — Upload your documents, create an expert that knows what it doesn't know and researches to fill gaps
+- **Give your AI agents real research capabilities** — Claude Code, Cursor, VS Code can call deep research mid-task. Not hallucinations — actual research with citations. Agents can query experts, trigger research to fill knowledge gaps, and continue with accurate information.
+- **Build institutional knowledge that doesn't walk out the door** — Create experts from your architecture docs, runbooks, and post-mortems. They learn, improve, and stay when people leave.
+- **Weekly competitive intelligence** — Schedule research on competitor announcements, market trends, or regulatory changes. Wake up Monday with a digest.
+- **Due diligence at scale** — Researching an acquisition target? Run 30 queries overnight covering their tech stack, patents, key hires, and market position.
 - **Switch providers without changing code** — Same interface across OpenAI, Gemini, Grok, and Anthropic
 
 ## Why Deepr?
@@ -26,9 +26,10 @@ ChatGPT and Gemini have powerful deep research, but it's trapped in a chat windo
 | If you need... | Use |
 |----------------|-----|
 | Occasional research | ChatGPT or Gemini web UI |
-| Automated research workflows | **Deepr** |
-| AI agents that can research | **Deepr** (via MCP) |
-| Document-based experts that learn | **Deepr** |
+| Automated research on a schedule | **Deepr** |
+| AI agents that can research and learn mid-task | **Deepr** (MCP + Skills) |
+| Institutional knowledge that learns and persists | **Deepr** |
+| Due diligence or competitive intel at scale | **Deepr** |
 
 Deepr wraps the same underlying APIs (OpenAI's o3/o4-mini-deep-research, Gemini's Deep Research Agent) and adds:
 
@@ -67,45 +68,85 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for a guided setup.
 Submit research queries that use the same deep research agents as ChatGPT and Gemini. They search the web, synthesize sources, and produce structured reports with citations. Results saved locally as markdown.
 
 ```bash
-deepr research "How do top fintech companies handle PCI compliance at scale?"
-deepr check "Kubernetes 1.28 deprecated PodSecurityPolicy"
-deepr learn "Kubernetes networking" --phases 3
-deepr team "Should we build vs. buy our data platform?"
-deepr make strategy "Launch a SaaS product in healthcare" --perspective investor
+# Architecture decisions
+deepr research "Kubernetes vs ECS Fargate for multi-tenant SaaS: cost, complexity, and scaling tradeoffs"
+
+# Compliance research
+deepr check "Does SOC 2 Type II require encryption at rest for all PII?"
+
+# Technology evaluation
+deepr learn "Service mesh options for hybrid cloud" --phases 3
+
+# Strategic decisions
+deepr team "Should we build an internal ML platform or use AWS SageMaker?"
+
+# Vendor analysis
+deepr make strategy "Migrate from Snowflake to Databricks" --perspective cost
 ```
 
 ### Domain Experts (The Interesting Part)
 
-This is where Deepr goes beyond simple API wrappers.
+This is where Deepr goes beyond "ChatGPT but CLI."
 
-Traditional RAG: Upload docs → query → get answer. Static. Never learns.
+**The problem:** Your best architect leaves. Their knowledge — scattered across Confluence, Slack threads, and their head — walks out the door. Or: AWS releases 47 new services this year. Your team can't keep up.
 
-Deepr experts: Upload docs → expert recognizes what it *doesn't* know → triggers research to fill gaps → integrates new knowledge permanently.
+**Traditional RAG:** Upload docs → query → get answer. Static. Never learns. Never knows what it's missing.
+
+**Deepr experts are different:**
+- **Self-aware** — They recognize when they don't know something instead of hallucinating
+- **Self-improving** — They can trigger research to fill their own knowledge gaps
+- **Persistent** — New knowledge integrates permanently, not just for one session
+- **Portable** — Export an expert and share it across your organization
 
 ```bash
-# Create an expert from your documents
-deepr expert make "Supply Chain Expert" --files docs/*.md
+# Create an expert from your architecture docs, runbooks, ADRs
+deepr expert make "Platform Team Expert" --files docs/*.md confluence-export/*.html
 
 # Chat with it — when it hits a knowledge gap, it researches
-deepr expert chat "Supply Chain Expert" --agentic --budget 5
+deepr expert chat "Platform Team Expert" --agentic --budget 5
 
-# Proactively fill knowledge gaps
-deepr expert fill-gaps "Supply Chain Expert" --budget 5 --top 3
+# Proactively fill knowledge gaps (e.g., new AWS services)
+deepr expert fill-gaps "Platform Team Expert" --budget 5 --top 3
+
+# Export for the whole team
+deepr expert export "Platform Team Expert" --output ./team-experts/
 ```
 
-Experts form beliefs with confidence levels, track what they don't know, and learn autonomously within budget limits. Export and share them.
+**Example:** You create a "Cloud Architecture" expert from your internal docs. Someone asks about AWS Bedrock Guardrails (released last month). Instead of hallucinating, the expert says "I don't have information on that" and (in agentic mode) researches it, then integrates the findings permanently. Next time anyone asks, it knows.
+
+This is institutional knowledge that learns, improves, and doesn't quit.
 
 See [docs/EXPERTS.md](docs/EXPERTS.md) for details.
 
-### MCP Integration (For AI Agent Users)
+### MCP + Skills (Research Infrastructure for AI Agents)
 
-If you use Claude Desktop, Cursor, VS Code, or Zed — your AI agents can call Deepr as a tool via Model Context Protocol.
+This is where Deepr becomes more than a CLI — it's **research infrastructure for AI agents**.
 
-**Example workflow:** You're coding in Cursor, ask about a library, and your agent realizes it needs current information. It calls `deepr research`, waits for results, and continues with accurate, cited information.
+If you use Claude Code, Cursor, VS Code, or Zed, your AI agents can call Deepr as a tool via MCP. But with the included **skill** (`skills/deepr-research/`), agents learn *how* to use research intelligently:
 
-Agents can submit and monitor research jobs, query domain experts, subscribe to progress, and handle budget decisions. SQLite persistence, SSRF protection, Docker support.
+**The workflow:**
+```
+You (in Cursor): "Design a multi-region failover system for DynamoDB"
 
-See [mcp/README.md](mcp/README.md) for setup.
+Claude Code:
+  1. Realizes it needs current AWS documentation (not 2023 training data)
+  2. Calls deepr_query_expert("Cloud Architecture Expert", "DynamoDB multi-region patterns")
+  3. Expert identifies knowledge gap: "I don't have info on DynamoDB Global Tables v2"
+  4. Agent triggers deepr_agentic_research to fill the gap
+  5. Expert learns the new information permanently
+  6. Claude continues with accurate, cited architecture recommendations
+```
+
+**What the skill teaches agents:**
+- When to use quick search vs deep research vs expert consultation
+- How to chain: Research → Plan → Query Expert → Fill Gaps → Continue
+- Cost awareness (confirm before expensive operations)
+- Resource subscriptions (70% token savings vs polling)
+- Sandboxed execution (heavy research runs isolated, clean results returned)
+
+**The result:** Your AI coding assistant can do real research mid-task — not just hallucinate or use stale training data. And the experts it consults get smarter over time.
+
+10 MCP tools, resource subscriptions, prompt templates, budget elicitation. See [mcp/README.md](mcp/README.md) for setup.
 
 ### Multi-Provider Support
 
