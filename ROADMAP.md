@@ -24,7 +24,7 @@ These features are well-tested and used regularly:
 - **Cost controls**: Budget limits, cost tracking, `costs show/timeline/breakdown`
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
-- **Provider support**: OpenAI (GPT-5.2, o3/o4-mini-deep-research), Gemini (2.5 Flash, Deep Research Agent)
+- **Provider support**: OpenAI (GPT-5.2, o3/o4-mini-deep-research), Gemini (2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -36,10 +36,11 @@ These features work but APIs or behavior may change:
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
 - **Grok provider**: Basic support, less tested than OpenAI/Gemini
+- **Anthropic provider**: Uses Extended Thinking + orchestration (no native deep research API)
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4, Azure)
+- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4, Anthropic Claude, Azure)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis
