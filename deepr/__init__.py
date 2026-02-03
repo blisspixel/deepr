@@ -4,7 +4,7 @@ Deepr: Modular research automation pipeline.
 Supports multiple AI providers (OpenAI, Azure) and storage backends (local, blob).
 """
 
-__version__ = "2.0.0"
+__version__ = "2.6.0"
 __author__ = "blisspixel"
 
 from .config import AppConfig

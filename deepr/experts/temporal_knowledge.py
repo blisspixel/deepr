@@ -5,10 +5,13 @@ and understands the timeline of learning.
 """
 
 import json
+import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -122,7 +125,7 @@ class TemporalKnowledgeTracker:
                 self.stale_topics = set(data.get("stale_topics", []))
 
             except Exception as e:
-                print(f"Error loading temporal knowledge: {e}")
+                logger.error("Error loading temporal knowledge: %s", e)
 
     def _save(self):
         """Save temporal knowledge to disk."""
@@ -159,7 +162,7 @@ class TemporalKnowledgeTracker:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            print(f"Error saving temporal knowledge: {e}")
+            logger.error("Error saving temporal knowledge: %s", e)
 
     def record_learning(
         self,

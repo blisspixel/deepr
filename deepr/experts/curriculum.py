@@ -351,8 +351,8 @@ class CurriculumGenerator:
                 
                 # If we didn't get enough topics, that's an error
                 if len(filtered_topics) < (expected_docs + expected_quick + expected_deep):
-                    print(f"WARNING: Only got {len(filtered_topics)} topics, expected {expected_docs + expected_quick + expected_deep}")
-                    print(f"  Got: docs={docs_taken}, quick={quick_taken}, deep={deep_taken}")
+                    logger.warning("Only got %d topics, expected %d", len(filtered_topics), expected_docs + expected_quick + expected_deep)
+                    logger.warning("  Got: docs=%d, quick=%d, deep=%d", docs_taken, quick_taken, deep_taken)
                 
                 # Update curriculum with filtered topics
                 curriculum.topics = filtered_topics

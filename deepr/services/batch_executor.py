@@ -11,6 +11,7 @@ Executes research tasks in phases:
 """
 
 import asyncio
+import logging
 from typing import Dict, List, Optional
 from datetime import datetime
 import json
@@ -19,6 +20,8 @@ from deepr.queue.base import QueueBackend, JobStatus, ResearchJob
 from deepr.providers.base import DeepResearchProvider
 from deepr.storage.base import StorageBackend
 from deepr.services.context_builder import ContextBuilder
+
+logger = logging.getLogger(__name__)
 
 
 class BatchExecutor:
@@ -68,7 +71,7 @@ class BatchExecutor:
         # Execute each phase sequentially
         for phase_num in sorted(phases.keys()):
             phase_tasks = phases[phase_num]
-            print(f"\nExecuting Phase {phase_num} ({len(phase_tasks)} tasks)...")
+            logger.info("Executing Phase %d (%d tasks)...", phase_num, len(phase_tasks))
 
             # Execute all tasks in phase (in parallel)
             phase_results = await self._execute_phase(
@@ -247,7 +250,7 @@ class BatchExecutor:
                     }
 
                     pending.remove(task_id)
-                    print(f"  [FAIL] Task {task_id}: {task_titles[task_id]} (FAILED)")
+                    logger.warning("Task %s: %s (FAILED)", task_id, task_titles[task_id])
 
                 elif job.status == JobStatus.COMPLETED:
                     # Retrieve result
@@ -267,7 +270,7 @@ class BatchExecutor:
                         }
 
                         pending.remove(task_id)
-                        print(f"  [OK] Task {task_id}: {task_titles[task_id]} (${job.cost:.2f})")
+                        logger.info("Task %s: %s ($%.2f)", task_id, task_titles[task_id], job.cost)
                     except Exception as e:
                         # Handle case where job is marked complete but report is missing
                         results[task_id] = {
@@ -279,7 +282,7 @@ class BatchExecutor:
                         }
 
                         pending.remove(task_id)
-                        print(f"  [FAIL] Task {task_id}: {task_titles[task_id]} (Report error: {e})")
+                        logger.warning("Task %s: %s (Report error: %s)", task_id, task_titles[task_id], e)
 
         return results
 
