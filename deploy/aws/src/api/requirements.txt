@@ -1,0 +1,3 @@
+boto3>=1.26.0
+# Shared library (install from deploy/shared before deployment)
+# deepr-api-common @ file:../../../shared
