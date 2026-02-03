@@ -10,6 +10,7 @@ Feature: code-quality-security-hardening
 """
 
 import os
+import openai
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
@@ -552,7 +553,7 @@ class TestErrorHandling:
     async def test_submit_research_non_retryable_error(self, provider):
         """Test that non-retryable errors raise immediately."""
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = ValueError("Invalid parameter")
+            mock_create.side_effect = openai.OpenAIError("Invalid parameter")
             
             request = ResearchRequest(
                 prompt="Test prompt",
@@ -571,7 +572,7 @@ class TestErrorHandling:
     async def test_get_status_raises_provider_error(self, provider):
         """Test that get_status raises ProviderError on failure."""
         with patch.object(provider.client.responses, "retrieve", new_callable=AsyncMock) as mock_retrieve:
-            mock_retrieve.side_effect = Exception("API error")
+            mock_retrieve.side_effect = openai.OpenAIError("API error")
             
             with pytest.raises(ProviderError, match="Failed to get status"):
                 await provider.get_status("resp_test123")
@@ -591,7 +592,7 @@ class TestErrorHandling:
     async def test_cancel_job_raises_provider_error(self, provider):
         """Test that cancel_job raises ProviderError on failure."""
         with patch.object(provider.client.responses, "cancel", new_callable=AsyncMock) as mock_cancel:
-            mock_cancel.side_effect = Exception("Cancel failed")
+            mock_cancel.side_effect = openai.OpenAIError("Cancel failed")
             
             with pytest.raises(ProviderError, match="Failed to cancel job"):
                 await provider.cancel_job("resp_test123")
@@ -638,7 +639,7 @@ class TestDocumentOperations:
         test_file.write_text("Test content")
 
         with patch.object(provider.client.files, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = Exception("Upload failed")
+            mock_create.side_effect = openai.OpenAIError("Upload failed")
             
             with pytest.raises(ProviderError, match="Failed to upload document"):
                 await provider.upload_document(str(test_file))
@@ -667,7 +668,7 @@ class TestDocumentOperations:
     async def test_create_vector_store_raises_provider_error(self, provider):
         """Test that create_vector_store raises ProviderError on failure."""
         with patch.object(provider.client.vector_stores, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = Exception("Creation failed")
+            mock_create.side_effect = openai.OpenAIError("Creation failed")
             
             with pytest.raises(ProviderError, match="Failed to create vector store"):
                 await provider.create_vector_store("test-store", ["file_1"])
@@ -687,7 +688,7 @@ class TestDocumentOperations:
     async def test_delete_vector_store_raises_provider_error(self, provider):
         """Test that delete_vector_store raises ProviderError on failure."""
         with patch.object(provider.client.vector_stores, "delete", new_callable=AsyncMock) as mock_delete:
-            mock_delete.side_effect = Exception("Delete failed")
+            mock_delete.side_effect = openai.OpenAIError("Delete failed")
             
             with pytest.raises(ProviderError, match="Failed to delete vector store"):
                 await provider.delete_vector_store("vs_test123")
@@ -728,7 +729,7 @@ class TestDocumentOperations:
     async def test_list_vector_stores_raises_provider_error(self, provider):
         """Test that list_vector_stores raises ProviderError on failure."""
         with patch.object(provider.client.vector_stores, "list", new_callable=AsyncMock) as mock_list:
-            mock_list.side_effect = Exception("List failed")
+            mock_list.side_effect = openai.OpenAIError("List failed")
             
             with pytest.raises(ProviderError, match="Failed to list vector stores"):
                 await provider.list_vector_stores()
