@@ -2,8 +2,11 @@
 
 import os
 import asyncio
+import logging
 from typing import Optional, List
 import openai
+
+logger = logging.getLogger(__name__)
 from openai import AsyncOpenAI
 from .base import (
     DeepResearchProvider,
