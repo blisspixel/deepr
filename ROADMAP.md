@@ -14,7 +14,7 @@
 
 ## Current Status (v2.6)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 2800+ tests passing.
+Multi-provider research automation with expert system, MCP integration, and observability. 2820+ tests passing.
 
 ### What Works
 

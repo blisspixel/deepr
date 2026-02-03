@@ -14,11 +14,14 @@ import os
 from typing import Optional, Dict, Any
 from pathlib import Path
 from datetime import datetime
+import logging
 
 from deepr.utils.scrape import scrape_for_company_research, ScrapeConfig
 from deepr.core.research import ResearchOrchestrator
 from deepr.core.jobs import JobStatus
 from deepr.config import load_config
+
+logger = logging.getLogger(__name__)
 
 
 class CompanyResearchOrchestrator:
@@ -63,12 +66,12 @@ class CompanyResearchOrchestrator:
                 - message: Status message
         """
         # Phase 1: Web Scraping
-        print(f"\n{'='*70}")
-        print(f"  Phase 1: Web Scraping")
-        print(f"{'='*70}\n")
-        print(f"Company: {company_name}")
-        print(f"Website: {website}\n")
-        print("[Scraping company website for fresh content...]")
+        logger.info("=" * 70)
+        logger.info("  Phase 1: Web Scraping")
+        logger.info("=" * 70)
+        logger.info("Company: %s", company_name)
+        logger.info("Website: %s", website)
+        logger.info("Scraping company website for fresh content...")
 
         # Configure scraping for company research
         scrape_config = ScrapeConfig(
@@ -92,8 +95,8 @@ class CompanyResearchOrchestrator:
                 'message': "Could not scrape company website. Try again or check URL."
             }
 
-        print(f"\n[OK] Scraped {scrape_results['pages_scraped']} pages successfully")
-        print(f"[OK] Content saved to: {scrape_results['scraped_file']}\n")
+        logger.info("Scraped %d pages successfully", scrape_results['pages_scraped'])
+        logger.info("Content saved to: %s", scrape_results['scraped_file'])
 
         # If scrape-only mode, return here
         if scrape_only:
@@ -106,10 +109,10 @@ class CompanyResearchOrchestrator:
             }
 
         # Phase 2: Deep Research
-        print(f"{'='*70}")
-        print(f"  Phase 2: Strategic Research")
-        print(f"{'='*70}\n")
-        print("[Submitting deep research job with scraped content...]")
+        logger.info("=" * 70)
+        logger.info("  Phase 2: Strategic Research")
+        logger.info("=" * 70)
+        logger.info("Submitting deep research job with scraped content...")
 
         # Build strategic research prompt
         research_prompt = self._build_research_prompt(company_name, website)
@@ -118,8 +121,8 @@ class CompanyResearchOrchestrator:
         model = model or os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
         provider = provider or os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
 
-        print(f"Model: {model}")
-        print(f"Provider: {provider}\n")
+        logger.info("Model: %s", model)
+        logger.info("Provider: %s", provider)
 
         # Submit research job with scraped content as uploaded document
         job_result = await self.research_orchestrator.submit_research(
@@ -141,12 +144,12 @@ class CompanyResearchOrchestrator:
 
         job_id = job_result['job_id']
 
-        print(f"\n[OK] Research job submitted: {job_id}")
-        print(f"\nThis will take 5-20 minutes depending on model and depth.")
-        print(f"\nMonitor progress:")
-        print(f"  deepr jobs status {job_id}")
-        print(f"\nRetrieve results:")
-        print(f"  deepr jobs get {job_id}")
+        logger.info("Research job submitted: %s", job_id)
+        logger.info("This will take 5-20 minutes depending on model and depth.")
+        logger.info("Monitor progress:")
+        logger.info("  deepr jobs status %s", job_id)
+        logger.info("Retrieve results:")
+        logger.info("  deepr jobs get %s", job_id)
 
         return {
             'success': True,
