@@ -1,1488 +1,12 @@
-"""Semantic command interface - intent-based commands for natural workflows.
-
-This module provides natural, intent-based commands that map to the underlying
-implementation commands in run.py. Users think in terms of "I want to research X"
-not "Should I use focus or docs mode?".
-
-Command mapping:
-    deepr research  -> Automatically chooses between run focus/docs based on prompt
-    deepr learn     -> Maps to run project (multi-phase learning)
-    deepr team      -> Maps to run team (multi-perspective analysis)
-
-All flags from the underlying commands are supported.
-"""
+"""Expert system commands - create, manage, and interact with domain experts."""
 
 import click
 import asyncio
 from typing import Optional
-from deepr.cli.commands.run import _run_single, _run_campaign, _run_team, TraceFlags
-from deepr.cli.colors import print_header, print_section_header, print_success, print_error, print_key_value, console
-from deepr.cli.output import OutputContext, OutputMode, output_options
-
-
-def detect_research_mode(prompt: str) -> str:
-    """Auto-detect whether this is documentation research or focused research.
-
-    Returns:
-        "docs" if prompt seems documentation-oriented, "focus" otherwise
-    """
-    # Keywords that suggest documentation intent
-    doc_keywords = [
-        "document", "documentation", "docs", "guide", "tutorial",
-        "how to", "explain", "api", "reference", "spec", "specification",
-        "architecture", "design doc", "readme", "manual"
-    ]
-
-    prompt_lower = prompt.lower()
-
-    # Check if prompt contains documentation-related keywords
-    for keyword in doc_keywords:
-        if keyword in prompt_lower:
-            return "docs"
-
-    # Default to focused research
-    return "focus"
-
-
-@click.command()
-@click.argument("query")
-@click.argument("company_name", required=False)
-@click.argument("website", required=False)
-@click.option("--model", "-m", default=None, help="Research model to use (defaults based on provider)")
-@click.option("--provider", "-p", default=None,
-              type=click.Choice(["openai", "azure", "gemini", "xai"]),
-              help="Research provider (defaults: deep-research=openai, general=xai)")
-@click.option("--no-web", is_flag=True, help="Disable web search")
-@click.option("--no-code", is_flag=True, help="Disable code interpreter")
-@click.option("--upload", "-u", multiple=True, help="Upload files for context")
-@click.option("--scrape", "-s", help="Scrape website for primary source research")
-@click.option("--limit", "-l", type=float, help="Cost limit in dollars")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
-@click.option("--mode", type=click.Choice(["focus", "docs", "auto"]), default="auto",
-              help="Research mode (auto=detect automatically)")
-@click.option("--scrape-only", is_flag=True, help="Company research: only scrape, don't submit research job")
-@click.option("--explain", is_flag=True, help="Show decision reasoning after completion")
-@click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
-@click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
-@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
-@output_options
-def research(
-    query: str,
-    company_name: Optional[str],
-    website: Optional[str],
-    model: Optional[str],
-    provider: Optional[str],
-    no_web: bool,
-    no_code: bool,
-    upload: tuple,
-    scrape: Optional[str],
-    limit: Optional[float],
-    yes: bool,
-    mode: str,
-    scrape_only: bool,
-    explain: bool,
-    timeline: bool,
-    full_trace: bool,
-    no_fallback: bool,
-    output_context: OutputContext,
-):
-    """Run research with automatic mode detection.
-
-    Automatically detects whether you need focused research or documentation
-    research based on your query. You can override with --mode.
-
-    COMPANY RESEARCH MODE:
-        deepr research company "<company_name>" "<website>"
-
-        Runs strategic company research with two phases:
-        1. Scrapes company website for fresh content
-        2. Submits deep research job with strategic analysis prompt
-
-        Output: Consultant-grade strategic overview with 10 sections
-        (Executive Summary, Products/Services, USP, Mission/Vision, History,
-        Achievements, Target Audience, Financials, KPIs, SWOT)
-
-    GENERAL RESEARCH EXAMPLES:
-        deepr research "Analyze AI code editor market 2025"
-        deepr research "Document the authentication flow" --mode docs
-        deepr research "Latest quantum computing trends" -m o3-deep-research
-        deepr research "Company analysis" --upload data.csv --limit 5.00
-        deepr research "Strategic analysis of Acme Corp" --scrape https://acmecorp.com
-        deepr research "Query" --provider grok -m grok-4-fast
-    """
-    from deepr.cli.validation import validate_prompt, validate_upload_files, validate_budget
-
-    # Track whether user explicitly specified a provider (before defaults are applied)
-    user_specified_provider = provider is not None
-
-    # Validate query/prompt length
-    try:
-        query = validate_prompt(query, max_length=50000, field_name="query")
-    except click.UsageError as e:
-        click.echo(f"Error: {e}", err=True)
-        return
-
-    # Validate files if provided
-    if upload:
-        try:
-            upload = tuple(str(f) for f in validate_upload_files(upload))
-        except click.UsageError as e:
-            click.echo(f"Error: {e}", err=True)
-            return
-
-    # Validate budget/limit if provided - warns for high amounts
-    if limit is not None:
-        try:
-            limit = validate_budget(limit, min_budget=0.1)
-        except (click.UsageError, click.Abort) as e:
-            if isinstance(e, click.Abort):
-                click.echo("Cancelled")
-                return
-            click.echo(f"Error: {e}", err=True)
-            return
-
-    # Check if this is company research mode
-    if query.lower() == "company":
-        if not company_name or not website:
-            click.echo("Error: Company research requires both company name and website")
-            click.echo("\nUsage:")
-            click.echo('  deepr research company "Company Name" "https://company.com"')
-            click.echo("\nExample:")
-            click.echo('  deepr research company "Driscoll Health System" "https://driscollchildrens.org/"')
-            return
-
-        # Run company research workflow
-        from deepr.core.company_research import CompanyResearchOrchestrator
-
-        print_header("Strategic Company Research")
-
-        orchestrator = CompanyResearchOrchestrator()
-        result = asyncio.run(orchestrator.research_company(
-            company_name=company_name,
-            website=website,
-            model=model,
-            provider=provider,
-            budget_limit=limit,
-            skip_confirmation=yes,
-            scrape_only=scrape_only,
-        ))
-
-        if not result.get('success'):
-            print_error(result.get('error', 'Unknown error'))
-            return
-
-        print_header("Company Research Complete")
-
-        if result.get('job_id'):
-            print_key_value("Job ID", result['job_id'])
-            print_key_value("Scraped Content", result['scraped_file'])
-            print_key_value("Pages Captured", str(result['pages_scraped']))
-        else:
-            print_key_value("Scraped Content", result['scraped_file'])
-            print_key_value("Pages Captured", str(result['pages_scraped']))
-
-        return
-
-    # Determine provider and model based on configuration
-    import os
-
-    # Determine if this is deep research or general operation
-    is_deep_research = model is None or ("deep-research" in model.lower() if model else True)
-
-    # Use defaults from environment if not specified
-    if provider is None:
-        if is_deep_research:
-            provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-            operation_type = "deep research"
-        else:
-            provider = os.getenv("DEEPR_DEFAULT_PROVIDER", "xai")
-            operation_type = "general operations"
-        if output_context.mode == OutputMode.VERBOSE:
-            click.echo(f"[Using {provider} provider (default for {operation_type})]")
-
-    if model is None:
-        if is_deep_research:
-            model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
-        else:
-            model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-fast")
-        if output_context.mode == OutputMode.VERBOSE:
-            click.echo(f"[Using {model} model (default for {provider})]")
-
-    # Handle scraping if requested
-    if scrape:
-        if output_context.mode == OutputMode.VERBOSE:
-            click.echo(f"\n[Scraping {scrape} for primary source research...]")
-
-        try:
-            from deepr.utils.scrape import scrape_website, ScrapeConfig
-            import tempfile
-            import os
-
-            # Configure scraping (default mode for research)
-            config = ScrapeConfig(
-                max_pages=20,
-                max_depth=2,
-                try_selenium=False,  # HTTP only by default, faster
-            )
-
-            # Scrape website
-            results = scrape_website(
-                url=scrape,
-                purpose="company research" if mode == "focus" or mode == "auto" else "documentation",
-                config=config,
-                synthesize=False,  # We'll let deep research handle synthesis
-            )
-
-            if results['success']:
-                if output_context.mode == OutputMode.VERBOSE:
-                    click.echo(f"[Scraped {results['pages_scraped']} pages successfully]")
-
-                # Save scraped content to temporary file for upload
-                temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8')
-                temp_file.write(f"# Scraped Content from {scrape}\n\n")
-                temp_file.write(f"**Scraped {results['pages_scraped']} pages**\n\n")
-
-                for url, content in results['scraped_data'].items():
-                    temp_file.write(f"## Source: {url}\n\n")
-                    temp_file.write(content)
-                    temp_file.write("\n\n---\n\n")
-
-                temp_file.close()
-
-                # Add to upload list
-                upload = list(upload) + [temp_file.name]
-                if output_context.mode == OutputMode.VERBOSE:
-                    click.echo(f"[Scraped content saved and added to research context]\n")
-            else:
-                if output_context.mode == OutputMode.VERBOSE:
-                    click.echo(f"[WARNING: Scraping failed - continuing with web research only]")
-                    click.echo(f"[Error: {results.get('error', 'Unknown error')}]\n")
-
-        except Exception as e:
-            if output_context.mode == OutputMode.VERBOSE:
-                click.echo(f"[WARNING: Scraping failed - {e}]")
-                click.echo(f"[Continuing with web research only]\n")
-
-    # Auto-detect mode if set to auto
-    if mode == "auto":
-        detected_mode = detect_research_mode(query)
-        if output_context.mode == OutputMode.VERBOSE:
-            click.echo(f"[Auto-detected mode: {detected_mode}]")
-    else:
-        detected_mode = mode
-
-    # Modify query for docs mode to optimize for documentation
-    if detected_mode == "docs":
-        if not query.lower().startswith("create") and not query.lower().startswith("document"):
-            query = f"Create comprehensive documentation for: {query}"
-
-    # Call the underlying _run_single implementation
-    trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(_run_single(
-        query, model, provider, no_web, no_code, upload, limit, yes,
-        output_context, trace_flags=trace_flags,
-        no_fallback=no_fallback,
-        user_specified_provider=user_specified_provider,
-    ))
-
-
-@click.command()
-@click.argument("topic")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
-@click.option("--provider", default="openai",
-              type=click.Choice(["openai", "azure", "gemini", "xai"]),
-              help="Research provider")
-@click.option("--lead", default="gpt-5", help="Lead planner model")
-@click.option("--phases", "-p", type=int, default=3, help="Number of learning phases")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
-def learn(
-    topic: str,
-    model: str,
-    provider: str,
-    lead: str,
-    phases: int,
-    yes: bool,
-):
-    """Learn about a topic through multi-phase research.
-
-    Creates a structured learning path with multiple research phases that build
-    on each other. Perfect for deep-diving into new technologies, concepts, or domains.
-
-    Examples:
-        deepr learn "Ford EV strategy for 2026"
-        deepr learn "Azure Landing Zones" --phases 4
-        deepr learn "Rust programming language" -m o3-deep-research
-        deepr learn "Machine learning fundamentals"
-    """
-    click.echo(f"[Learning Mode: Multi-phase research with {phases} phases]")
-    asyncio.run(_run_campaign(topic, model, lead, phases, yes))
-
-
-@click.command()
-@click.argument("question")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
-@click.option("--provider", default="openai",
-              type=click.Choice(["openai", "azure", "gemini", "xai"]),
-              help="Research provider")
-@click.option("--perspectives", "-p", type=int, default=6, help="Number of perspectives")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
-def team(
-    question: str,
-    model: str,
-    provider: str,
-    perspectives: int,
-    yes: bool,
-):
-    """Analyze a question from multiple perspectives (dream team).
-
-    Uses Six Thinking Hats methodology to analyze the question from different
-    angles simultaneously. Perfect for complex decisions, strategic questions,
-    or situations that need diverse viewpoints.
-
-    Examples:
-        deepr team "Should we pivot to enterprise?"
-        deepr team "Evaluate merger opportunity" --perspectives 8
-        deepr team "Technology decision" -m o3-deep-research
-    """
-    click.echo(f"[Team Mode: {perspectives} perspectives analyzing in parallel]")
-    asyncio.run(_run_team(question, model, perspectives, yes))
-
-
-@click.command()
-@click.argument("claim")
-@click.option("--sources", "-s", help="Restrict verification to specific domains/sources")
-@click.option("--provider", "-p", help="Provider (default: xai for fast verification)")
-@click.option("--model", "-m", help="Model (default: grok-4-fast)")
-@click.option("--verbose", "-v", is_flag=True, help="Show detailed reasoning")
-def check(claim: str, sources: Optional[str], provider: Optional[str], 
-          model: Optional[str], verbose: bool):
-    """Verify a factual claim quickly.
-    
-    Uses a cost-effective model to verify facts and return a structured
-    verdict with confidence level and supporting evidence.
-    
-    Examples:
-        deepr check "Does Fabric support private endpoints?"
-        deepr check "GPT-5 was released in 2025" --sources official
-        deepr check "Python 3.12 added pattern matching" -v
-    """
-    from deepr.cli.validation import validate_prompt
-    
-    # Validate claim
-    try:
-        claim = validate_prompt(claim, max_length=5000, field_name="claim")
-    except click.UsageError as e:
-        click.echo(f"Error: {e}", err=True)
-        return
-    
-    asyncio.run(_verify_fact(claim, sources, provider, model, verbose))
-
-
-@click.group()
-def make():
-    """Create artifacts from research.
-    
-    Generate documentation, strategic analysis, and other artifacts
-    from research results.
-    
-    COMMANDS:
-      deepr make docs "topic"      Generate documentation
-      deepr make strategy "topic"  Strategic analysis
-    
-    EXAMPLES:
-      deepr make docs "Azure Landing Zone guide"
-      deepr make docs "API reference" --format html
-      deepr make strategy "Cloud migration" --perspective technical
-    """
-    pass
-
-
-@make.command(name="docs")
-@click.argument("topic")
-@click.option("--format", "-f", "output_format", 
-              type=click.Choice(["markdown", "html", "pdf"]), default="markdown",
-              help="Output format (default: markdown)")
-@click.option("--outline", is_flag=True, default=False,
-              help="Generate only an outline for review before full generation")
-@click.option("--files", "-F", multiple=True, type=click.Path(exists=True),
-              help="Existing documents to incorporate as context")
-@click.option("--provider", "-p", default=None,
-              type=click.Choice(["openai", "azure", "gemini", "xai"]),
-              help="AI provider (default: openai for deep research)")
-@click.option("--model", "-m", default=None,
-              help="Model to use (default: o4-mini-deep-research)")
-@click.option("--output", "-o", type=click.Path(), default=None,
-              help="Output file path (default: auto-generated)")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def make_docs(topic: str, output_format: str, outline: bool, files: tuple,
-              provider: Optional[str], model: Optional[str], 
-              output: Optional[str], yes: bool):
-    """Generate structured documentation from research.
-    
-    Creates comprehensive documentation with inline citations from research
-    sources. Supports multiple output formats and can incorporate existing
-    documents as context.
-    
-    EXAMPLES:
-      # Generate markdown documentation
-      deepr make docs "Azure Landing Zone + Fabric integration guide"
-      
-      # Generate HTML documentation
-      deepr make docs "API reference" --format html
-      
-      # Preview outline before full generation
-      deepr make docs "Architecture overview" --outline
-      
-      # Include existing docs as context
-      deepr make docs "Migration guide" --files existing/*.md
-      
-      # Specify output file
-      deepr make docs "User guide" -o docs/user-guide.md
-    
-    NOTE: PDF export requires pandoc or weasyprint to be installed.
-    """
-    from deepr.cli.validation import validate_prompt, validate_upload_files
-    
-    # Validate topic
-    try:
-        topic = validate_prompt(topic, max_length=10000, field_name="topic")
-    except click.UsageError as e:
-        click.echo(f"Error: {e}", err=True)
-        return
-    
-    # Validate files if provided
-    if files:
-        try:
-            files = tuple(str(f) for f in validate_upload_files(files))
-        except click.UsageError as e:
-            click.echo(f"Error: {e}", err=True)
-            return
-    
-    asyncio.run(_generate_docs(topic, output_format, outline, files, provider, model, output, yes))
-
-
-async def _generate_docs(
-    topic: str,
-    output_format: str,
-    outline: bool,
-    files: tuple,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
-    yes: bool
-):
-    """Generate documentation with research and citations."""
-    import os
-    import re
-    from pathlib import Path
-    from datetime import datetime
-    from deepr.config import AppConfig
-    from deepr.providers import create_provider
-    from deepr.cli.progress import ProgressFeedback
-    
-    config = AppConfig.from_env()
-    progress = ProgressFeedback()
-    
-    # Set defaults for provider and model
-    if not provider:
-        provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-    if not model:
-        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
-    
-    console.print(f"[dim]Using {provider}/{model}[/dim]")
-    
-    # Get API key based on provider
-    if provider == "xai":
-        api_key = os.getenv("XAI_API_KEY")
-    elif provider == "gemini":
-        api_key = os.getenv("GEMINI_API_KEY")
-    elif provider == "azure":
-        api_key = config.provider.azure_api_key
-    else:
-        api_key = config.provider.openai_api_key
-    
-    if not api_key:
-        print_error(f"No API key found for provider: {provider}")
-        console.print(f"\nSet the appropriate environment variable:")
-        if provider == "xai":
-            console.print("  export XAI_API_KEY=your-key")
-        elif provider == "gemini":
-            console.print("  export GEMINI_API_KEY=your-key")
-        elif provider == "azure":
-            console.print("  export AZURE_OPENAI_API_KEY=your-key")
-        else:
-            console.print("  export OPENAI_API_KEY=your-key")
-        return
-    
-    provider_instance = create_provider(provider, api_key=api_key)
-    
-    # Read context files if provided
-    context_content = ""
-    if files:
-        console.print(f"[dim]Reading {len(files)} context files...[/dim]")
-        for file_path in files:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    context_content += f"\n\n## Context from: {os.path.basename(file_path)}\n\n{content}"
-            except Exception as e:
-                print_error(f"Failed to read {file_path}: {e}")
-    
-    # Build the prompt
-    if outline:
-        prompt = f'''Create a detailed outline for documentation about: {topic}
-
-The outline should include:
-1. Document title
-2. Executive summary (2-3 sentences)
-3. Main sections with subsections (3-5 levels deep)
-4. Key topics to cover in each section
-5. Suggested diagrams or visuals
-6. Estimated word count per section
-
-Format as markdown with clear hierarchy.
-{f"Use this existing content as context:{context_content}" if context_content else ""}
-'''
-    else:
-        prompt = f'''Create comprehensive documentation about: {topic}
-
-Requirements:
-1. Start with a clear title and executive summary
-2. Organize content into logical sections with clear headings
-3. Include inline citations in format [Source: source_name] for all factual claims
-4. Add code examples where relevant (with syntax highlighting hints)
-5. Include practical examples and use cases
-6. Add a "References" section at the end listing all sources
-7. Use clear, professional technical writing style
-8. Target audience: technical professionals
-
-{f"Incorporate and build upon this existing content:{context_content}" if context_content else ""}
-
-Output format: Well-structured markdown with proper headings, lists, and code blocks.
-'''
-    
-    # Show what we're doing
-    print_header("Documentation Generation")
-    print_key_value("Topic", topic)
-    print_key_value("Format", output_format)
-    print_key_value("Mode", "Outline only" if outline else "Full documentation")
-    if files:
-        print_key_value("Context files", str(len(files)))
-    
-    if not yes and not outline:
-        estimated_cost = "$1.00-$3.00" if "deep-research" in model else "$0.10-$0.50"
-        console.print(f"\n[dim]Estimated cost: {estimated_cost}[/dim]")
-        if not click.confirm("\nProceed with documentation generation?"):
-            console.print("Cancelled")
-            return
-    
-    # Generate documentation
-    with progress.operation("Generating documentation..." if not outline else "Generating outline..."):
-        try:
-            response = await provider_instance.complete(prompt, model=model)
-            content = response.choices[0].message.content
-            cost = getattr(response, 'cost', 0.0) if hasattr(response, 'cost') else 0.0
-        except Exception as e:
-            print_error(f"Generation failed: {e}")
-            return
-    
-    progress.phase_complete("Generation complete", cost=cost)
-    
-    # Determine output path
-    if not output:
-        # Generate filename from topic
-        safe_topic = re.sub(r'[^\w\s-]', '', topic.lower())
-        safe_topic = re.sub(r'[-\s]+', '-', safe_topic)[:50]
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        if outline:
-            output = f"outline_{safe_topic}_{timestamp}.md"
-        else:
-            ext = {"markdown": "md", "html": "html", "pdf": "pdf"}[output_format]
-            output = f"docs_{safe_topic}_{timestamp}.{ext}"
-    
-    output_path = Path(output)
-    
-    # Convert format if needed
-    if output_format == "html" and not outline:
-        try:
-            import markdown
-            html_content = markdown.markdown(content, extensions=['tables', 'fenced_code', 'toc'])
-            html_doc = f'''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>{topic}</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.6; }}
-        h1, h2, h3 {{ color: #333; }}
-        code {{ background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; }}
-        pre {{ background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto; }}
-        blockquote {{ border-left: 4px solid #ddd; margin: 0; padding-left: 1rem; color: #666; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        th, td {{ border: 1px solid #ddd; padding: 0.5rem; text-align: left; }}
-        th {{ background: #f4f4f4; }}
-    </style>
-</head>
-<body>
-{html_content}
-</body>
-</html>'''
-            content = html_doc
-        except ImportError:
-            print_error("HTML conversion requires 'markdown' package. Install with: pip install markdown")
-            console.print("Saving as markdown instead...")
-            output_path = output_path.with_suffix('.md')
-            
-    elif output_format == "pdf" and not outline:
-        # Try pandoc first, then weasyprint
-        try:
-            import subprocess
-            temp_md = output_path.with_suffix('.md')
-            with open(temp_md, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            result = subprocess.run(
-                ['pandoc', str(temp_md), '-o', str(output_path), '--pdf-engine=xelatex'],
-                capture_output=True, text=True
-            )
-            
-            if result.returncode != 0:
-                raise Exception(f"pandoc failed: {result.stderr}")
-            
-            temp_md.unlink()  # Clean up temp file
-            console.print(f"[dim]PDF generated using pandoc[/dim]")
-            
-        except FileNotFoundError:
-            print_error("PDF export requires pandoc. Install from: https://pandoc.org/installing.html")
-            console.print("Saving as markdown instead...")
-            output_path = output_path.with_suffix('.md')
-        except Exception as e:
-            print_error(f"PDF conversion failed: {e}")
-            console.print("Saving as markdown instead...")
-            output_path = output_path.with_suffix('.md')
-    
-    # Save the output (for markdown or fallback)
-    if output_path.suffix in ['.md', '.html']:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-    
-    # Display result
-    print_header("Documentation Complete")
-    print_key_value("Output", str(output_path))
-    print_key_value("Format", output_format)
-    print_key_value("Cost", f"${cost:.4f}")
-    
-    if outline:
-        console.print("\n[dim]Review the outline, then generate full docs with:[/dim]")
-        console.print(f'  deepr make docs "{topic}"')
-    else:
-        # Show preview
-        preview_lines = content.split('\n')[:15]
-        console.print("\n[dim]Preview:[/dim]")
-        for line in preview_lines:
-            console.print(f"  {line[:80]}")
-        if len(content.split('\n')) > 15:
-            console.print("  ...")
-
-
-@make.command(name="strategy")
-@click.argument("topic")
-@click.option("--perspective", "-p", 
-              type=click.Choice(["technical", "business", "financial", "all"]), default="all",
-              help="Analysis perspective (default: all)")
-@click.option("--horizon", "-h", "time_horizon",
-              type=click.Choice(["3mo", "6mo", "12mo", "3yr"]), default="12mo",
-              help="Planning timeframe (default: 12mo)")
-@click.option("--provider", "-P", default=None,
-              type=click.Choice(["openai", "azure", "gemini", "xai"]),
-              help="AI provider (default: openai for deep research)")
-@click.option("--model", "-m", default=None,
-              help="Model to use (default: o4-mini-deep-research)")
-@click.option("--output", "-o", type=click.Path(), default=None,
-              help="Output file path (default: auto-generated)")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def make_strategy(topic: str, perspective: str, time_horizon: str,
-                  provider: Optional[str], model: Optional[str], 
-                  output: Optional[str], yes: bool):
-    """Generate strategic analysis from research.
-    
-    Creates business-focused strategic synthesis with executive summary,
-    key findings, recommendations, risks, and timeline.
-    
-    EXAMPLES:
-      # Generate strategic analysis
-      deepr make strategy "Fabric adoption roadmap for enterprise"
-      
-      # Technical perspective only
-      deepr make strategy "Cloud migration" --perspective technical
-      
-      # Short-term planning (3 months)
-      deepr make strategy "Q1 priorities" --horizon 3mo
-      
-      # Business perspective with 3-year horizon
-      deepr make strategy "Market expansion" -p business -h 3yr
-    """
-    from deepr.cli.validation import validate_prompt
-    
-    # Validate topic
-    try:
-        topic = validate_prompt(topic, max_length=10000, field_name="topic")
-    except click.UsageError as e:
-        click.echo(f"Error: {e}", err=True)
-        return
-    
-    asyncio.run(_generate_strategy(topic, perspective, time_horizon, provider, model, output, yes))
-
-
-async def _generate_strategy(
-    topic: str,
-    perspective: str,
-    time_horizon: str,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
-    yes: bool
-):
-    """Generate strategic analysis with structured sections."""
-    import os
-    import re
-    from pathlib import Path
-    from datetime import datetime
-    from deepr.config import AppConfig
-    from deepr.providers import create_provider
-    from deepr.cli.progress import ProgressFeedback
-    
-    config = AppConfig.from_env()
-    progress = ProgressFeedback()
-    
-    # Set defaults for provider and model
-    if not provider:
-        provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-    if not model:
-        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
-    
-    console.print(f"[dim]Using {provider}/{model}[/dim]")
-    
-    # Get API key based on provider
-    if provider == "xai":
-        api_key = os.getenv("XAI_API_KEY")
-    elif provider == "gemini":
-        api_key = os.getenv("GEMINI_API_KEY")
-    elif provider == "azure":
-        api_key = config.provider.azure_api_key
-    else:
-        api_key = config.provider.openai_api_key
-    
-    if not api_key:
-        print_error(f"No API key found for provider: {provider}")
-        console.print(f"\nSet the appropriate environment variable:")
-        if provider == "xai":
-            console.print("  export XAI_API_KEY=your-key")
-        elif provider == "gemini":
-            console.print("  export GEMINI_API_KEY=your-key")
-        elif provider == "azure":
-            console.print("  export AZURE_OPENAI_API_KEY=your-key")
-        else:
-            console.print("  export OPENAI_API_KEY=your-key")
-        return
-    
-    provider_instance = create_provider(provider, api_key=api_key)
-    
-    # Map time horizon to description
-    horizon_desc = {
-        "3mo": "3 months (short-term tactical)",
-        "6mo": "6 months (medium-term)",
-        "12mo": "12 months (annual planning)",
-        "3yr": "3 years (long-term strategic)"
-    }[time_horizon]
-    
-    # Map perspective to focus areas
-    perspective_focus = {
-        "technical": "Focus on technical architecture, implementation details, technology choices, integration patterns, and technical risks.",
-        "business": "Focus on business value, ROI, market positioning, competitive advantage, and organizational impact.",
-        "financial": "Focus on cost analysis, budget requirements, financial risks, investment timeline, and expected returns.",
-        "all": "Provide a comprehensive analysis covering technical, business, and financial perspectives."
-    }[perspective]
-    
-    # Build the prompt
-    prompt = f'''Create a strategic analysis for: {topic}
-
-Planning Horizon: {horizon_desc}
-Perspective: {perspective_focus}
-
-Structure the analysis with these sections:
-
-## Executive Summary
-A concise 2-3 paragraph overview of the strategic recommendation.
-
-## Current State Assessment
-Analysis of the current situation, challenges, and opportunities.
-
-## Key Findings
-Numbered list of the most important discoveries from research.
-Include inline citations [Source: source_name] for factual claims.
-
-## Strategic Recommendations
-Prioritized recommendations with rationale for each.
-Include implementation considerations.
-
-## Risk Analysis
-Identify key risks with likelihood, impact, and mitigation strategies.
-Format as a table if appropriate.
-
-## Implementation Timeline
-Phase-based timeline aligned with the {time_horizon} horizon.
-Include milestones and dependencies.
-
-## Resource Requirements
-Budget estimates, team requirements, and technology needs.
-
-## Success Metrics
-KPIs and success criteria for measuring progress.
-
-## References
-List all sources cited in the analysis.
-
-Use clear, professional business writing. Target audience: executive leadership and senior technical staff.
-'''
-    
-    # Show what we're doing
-    print_header("Strategic Analysis")
-    print_key_value("Topic", topic)
-    print_key_value("Perspective", perspective)
-    print_key_value("Time Horizon", horizon_desc)
-    
-    if not yes:
-        estimated_cost = "$2.00-$5.00" if "deep-research" in model else "$0.20-$1.00"
-        console.print(f"\n[dim]Estimated cost: {estimated_cost}[/dim]")
-        if not click.confirm("\nProceed with strategic analysis?"):
-            console.print("Cancelled")
-            return
-    
-    # Generate strategy
-    with progress.operation("Generating strategic analysis..."):
-        try:
-            response = await provider_instance.complete(prompt, model=model)
-            content = response.choices[0].message.content
-            cost = getattr(response, 'cost', 0.0) if hasattr(response, 'cost') else 0.0
-        except Exception as e:
-            print_error(f"Generation failed: {e}")
-            return
-    
-    progress.phase_complete("Analysis complete", cost=cost)
-    
-    # Determine output path
-    if not output:
-        # Generate filename from topic
-        safe_topic = re.sub(r'[^\w\s-]', '', topic.lower())
-        safe_topic = re.sub(r'[-\s]+', '-', safe_topic)[:50]
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output = f"strategy_{safe_topic}_{timestamp}.md"
-    
-    output_path = Path(output)
-    
-    # Save the output
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    
-    # Display result
-    print_header("Strategic Analysis Complete")
-    print_key_value("Output", str(output_path))
-    print_key_value("Perspective", perspective)
-    print_key_value("Horizon", time_horizon)
-    print_key_value("Cost", f"${cost:.4f}")
-    
-    # Show preview
-    preview_lines = content.split('\n')[:20]
-    console.print("\n[dim]Preview:[/dim]")
-    for line in preview_lines:
-        console.print(f"  {line[:80]}")
-    if len(content.split('\n')) > 20:
-        console.print("  ...")
-
-
-@click.group()
-def agentic():
-    """Autonomous multi-step research workflows.
-    
-    Execute complex research goals through Plan-Execute-Review cycles
-    without manual orchestration.
-    
-    COMMANDS:
-      deepr agentic research "topic" --goal "goal"  Autonomous research
-    
-    EXAMPLES:
-      deepr agentic research "Fabric ALZ governance" --goal "produce reference docs"
-      deepr agentic research "Cloud migration" --goal "create checklist" --rounds 3
-    """
-    pass
-
-
-@agentic.command(name="research")
-@click.argument("topic")
-@click.option("--goal", "-g", required=True,
-              help="The goal to achieve (e.g., 'produce reference docs + checklist')")
-@click.option("--rounds", "-r", type=int, default=3,
-              help="Maximum Plan-Execute-Review cycles (default: 3)")
-@click.option("--budget", "-b", type=float, default=10.0,
-              help="Budget limit for entire workflow (default: $10)")
-@click.option("--provider", "-p", default=None,
-              type=click.Choice(["openai", "azure", "gemini", "xai"]),
-              help="AI provider (default: openai)")
-@click.option("--model", "-m", default=None,
-              help="Model to use (default: o4-mini-deep-research)")
-@click.option("--output", "-o", type=click.Path(), default=None,
-              help="Output directory for results (default: auto-generated)")
-@click.option("--resume", is_flag=True, default=False,
-              help="Resume from previous interrupted session")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def agentic_research(topic: str, goal: str, rounds: int, budget: float,
-                     provider: Optional[str], model: Optional[str],
-                     output: Optional[str], resume: bool, yes: bool):
-    """Execute autonomous multi-step research workflow.
-    
-    Runs Plan-Execute-Review cycles to achieve complex research goals.
-    Each cycle:
-    1. PLAN: Analyze goal and create research plan
-    2. EXECUTE: Run research tasks from the plan
-    3. REVIEW: Evaluate progress and decide next steps
-    
-    Intermediate results are saved automatically, allowing resume if interrupted.
-    
-    EXAMPLES:
-      # Basic agentic research
-      deepr agentic research "Fabric ALZ governance" --goal "produce reference docs"
-      
-      # With budget and round limits
-      deepr agentic research "Cloud migration" --goal "create checklist" -r 5 -b 20
-      
-      # Resume interrupted session
-      deepr agentic research "Topic" --goal "Goal" --resume
-    """
-    from deepr.cli.validation import validate_prompt, validate_budget
-    
-    # Validate inputs
-    try:
-        topic = validate_prompt(topic, max_length=5000, field_name="topic")
-        goal = validate_prompt(goal, max_length=2000, field_name="goal")
-    except click.UsageError as e:
-        click.echo(f"Error: {e}", err=True)
-        return
-    
-    # Validate budget
-    if not yes:
-        try:
-            budget = validate_budget(budget, min_budget=1.0)
-        except (click.UsageError, click.Abort) as e:
-            if isinstance(e, click.Abort):
-                click.echo("Cancelled")
-                return
-            click.echo(f"Error: {e}", err=True)
-            return
-    
-    asyncio.run(_run_agentic_research(topic, goal, rounds, budget, provider, model, output, resume, yes))
-
-
-async def _run_agentic_research(
-    topic: str,
-    goal: str,
-    max_rounds: int,
-    budget: float,
-    provider: Optional[str],
-    model: Optional[str],
-    output_dir: Optional[str],
-    resume: bool,
-    yes: bool
-):
-    """Execute autonomous multi-step research with Plan-Execute-Review cycles."""
-    import os
-    import re
-    import json
-    from pathlib import Path
-    from datetime import datetime
-    from deepr.config import AppConfig
-    from deepr.providers import create_provider
-    from deepr.cli.progress import ProgressFeedback
-    
-    config = AppConfig.from_env()
-    progress = ProgressFeedback()
-    
-    # Set defaults for provider and model
-    if not provider:
-        provider = os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
-    if not model:
-        model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
-    
-    console.print(f"[dim]Using {provider}/{model}[/dim]")
-    
-    # Get API key based on provider
-    if provider == "xai":
-        api_key = os.getenv("XAI_API_KEY")
-    elif provider == "gemini":
-        api_key = os.getenv("GEMINI_API_KEY")
-    elif provider == "azure":
-        api_key = config.provider.azure_api_key
-    else:
-        api_key = config.provider.openai_api_key
-    
-    if not api_key:
-        print_error(f"No API key found for provider: {provider}")
-        return
-    
-    provider_instance = create_provider(provider, api_key=api_key)
-    
-    # Setup output directory
-    if not output_dir:
-        safe_topic = re.sub(r'[^\w\s-]', '', topic.lower())
-        safe_topic = re.sub(r'[-\s]+', '-', safe_topic)[:30]
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_dir = f"agentic_{safe_topic}_{timestamp}"
-    
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    # State file for resume capability
-    state_file = output_path / "agentic_state.json"
-    
-    # Initialize or load state
-    if resume and state_file.exists():
-        with open(state_file, 'r', encoding='utf-8') as f:
-            state = json.load(f)
-        console.print(f"[dim]Resuming from round {state['current_round']}/{state['max_rounds']}[/dim]")
-        current_round = state['current_round']
-        total_cost = state['total_cost']
-        completed_tasks = state['completed_tasks']
-        research_results = state['research_results']
-    else:
-        state = {
-            'topic': topic,
-            'goal': goal,
-            'max_rounds': max_rounds,
-            'budget': budget,
-            'current_round': 1,
-            'total_cost': 0.0,
-            'completed_tasks': [],
-            'research_results': [],
-            'started_at': datetime.now().isoformat()
-        }
-        current_round = 1
-        total_cost = 0.0
-        completed_tasks = []
-        research_results = []
-    
-    # Display plan
-    print_header("Agentic Research")
-    print_key_value("Topic", topic)
-    print_key_value("Goal", goal)
-    print_key_value("Max Rounds", str(max_rounds))
-    print_key_value("Budget", f"${budget:.2f}")
-    print_key_value("Output", str(output_path))
-    
-    if not yes and not resume:
-        console.print(f"\n[dim]Estimated cost: $3.00-$10.00 depending on complexity[/dim]")
-        if not click.confirm("\nProceed with agentic research?"):
-            console.print("Cancelled")
-            return
-    
-    def save_state():
-        """Save current state for resume capability."""
-        state['current_round'] = current_round
-        state['total_cost'] = total_cost
-        state['completed_tasks'] = completed_tasks
-        state['research_results'] = research_results
-        state['updated_at'] = datetime.now().isoformat()
-        with open(state_file, 'w', encoding='utf-8') as f:
-            json.dump(state, f, indent=2)
-    
-    try:
-        while current_round <= max_rounds and total_cost < budget:
-            print_section_header(f"Round {current_round}/{max_rounds}")
-            
-            # PHASE 1: PLAN
-            console.print("[bold cyan]PLAN[/bold cyan] - Creating research plan...")
-            
-            plan_prompt = f'''You are a research planner. Create a research plan for:
-
-Topic: {topic}
-Goal: {goal}
-Round: {current_round}/{max_rounds}
-Budget remaining: ${budget - total_cost:.2f}
-
-Previous completed tasks: {json.dumps(completed_tasks) if completed_tasks else "None"}
-
-Create 2-4 specific research tasks that will help achieve the goal.
-Each task should be:
-- Specific and actionable
-- Achievable in one research query
-- Building toward the overall goal
-
-Respond with JSON:
-{{
-    "tasks": [
-        {{"id": 1, "description": "task description", "priority": "high/medium/low"}},
-        ...
-    ],
-    "reasoning": "why these tasks will help achieve the goal"
-}}
-'''
-            
-            with progress.operation("Planning..."):
-                try:
-                    plan_response = await provider_instance.complete(plan_prompt, model=model)
-                    plan_content = plan_response.choices[0].message.content
-                    plan_cost = getattr(plan_response, 'cost', 0.05) if hasattr(plan_response, 'cost') else 0.05
-                    total_cost += plan_cost
-                except Exception as e:
-                    print_error(f"Planning failed: {e}")
-                    save_state()
-                    return
-            
-            # Parse plan
-            try:
-                plan_json = re.search(r'\{[\s\S]*\}', plan_content)
-                if plan_json:
-                    plan = json.loads(plan_json.group())
-                    tasks = plan.get('tasks', [])
-                else:
-                    tasks = [{"id": 1, "description": f"Research {topic} to achieve: {goal}", "priority": "high"}]
-            except json.JSONDecodeError:
-                tasks = [{"id": 1, "description": f"Research {topic} to achieve: {goal}", "priority": "high"}]
-            
-            console.print(f"[dim]Plan created ({len(tasks)} tasks, ${plan_cost:.4f})[/dim]")
-            for task in tasks:
-                console.print(f"  • {task['description'][:60]}...")
-            
-            # PHASE 2: EXECUTE
-            console.print("\n[bold cyan]EXECUTE[/bold cyan] - Running research tasks...")
-            
-            round_results = []
-            for task in tasks:
-                if total_cost >= budget:
-                    console.print(f"[yellow]Budget exhausted. Pausing...[/yellow]")
-                    break
-                
-                task_desc = task['description']
-                console.print(f"\n[dim]Task: {task_desc[:50]}...[/dim]")
-                
-                with progress.operation(f"Researching..."):
-                    try:
-                        research_prompt = f'''Research the following to help achieve the goal "{goal}":
-
-{task_desc}
-
-Provide comprehensive findings with citations [Source: source_name].
-'''
-                        research_response = await provider_instance.complete(research_prompt, model=model)
-                        research_content = research_response.choices[0].message.content
-                        research_cost = getattr(research_response, 'cost', 0.5) if hasattr(research_response, 'cost') else 0.5
-                        total_cost += research_cost
-                        
-                        round_results.append({
-                            'task': task_desc,
-                            'result': research_content,
-                            'cost': research_cost
-                        })
-                        completed_tasks.append(task_desc)
-                        
-                        console.print(f"[dim]Complete (${research_cost:.4f})[/dim]")
-                        
-                    except Exception as e:
-                        print_error(f"Research failed: {e}")
-                        round_results.append({
-                            'task': task_desc,
-                            'result': f"Error: {e}",
-                            'cost': 0
-                        })
-            
-            research_results.extend(round_results)
-            
-            # Save intermediate results
-            round_file = output_path / f"round_{current_round}_results.md"
-            with open(round_file, 'w', encoding='utf-8') as f:
-                f.write(f"# Round {current_round} Results\n\n")
-                for result in round_results:
-                    f.write(f"## Task: {result['task']}\n\n")
-                    f.write(result['result'])
-                    f.write(f"\n\n---\n\n")
-            
-            # PHASE 3: REVIEW
-            console.print("\n[bold cyan]REVIEW[/bold cyan] - Evaluating progress...")
-            
-            review_prompt = f'''Review the research progress:
-
-Goal: {goal}
-Completed tasks: {len(completed_tasks)}
-Budget used: ${total_cost:.2f} of ${budget:.2f}
-Rounds completed: {current_round}/{max_rounds}
-
-Latest results summary:
-{chr(10).join([f"- {r['task'][:50]}..." for r in round_results])}
-
-Evaluate:
-1. How much progress toward the goal? (0-100%)
-2. Is the goal achieved?
-3. What's missing?
-
-Respond with JSON:
-{{
-    "progress_percent": 0-100,
-    "goal_achieved": true/false,
-    "missing": ["what's still needed"],
-    "recommendation": "continue/complete"
-}}
-'''
-            
-            with progress.operation("Reviewing..."):
-                try:
-                    review_response = await provider_instance.complete(review_prompt, model=model)
-                    review_content = review_response.choices[0].message.content
-                    review_cost = getattr(review_response, 'cost', 0.05) if hasattr(review_response, 'cost') else 0.05
-                    total_cost += review_cost
-                except Exception as e:
-                    print_error(f"Review failed: {e}")
-                    save_state()
-                    return
-            
-            # Parse review
-            try:
-                review_json = re.search(r'\{[\s\S]*\}', review_content)
-                if review_json:
-                    review = json.loads(review_json.group())
-                else:
-                    review = {"progress_percent": 50, "goal_achieved": False, "recommendation": "continue"}
-            except json.JSONDecodeError:
-                review = {"progress_percent": 50, "goal_achieved": False, "recommendation": "continue"}
-            
-            progress_pct = review.get('progress_percent', 50)
-            goal_achieved = review.get('goal_achieved', False)
-            
-            console.print(f"[dim]Progress: {progress_pct}% | Cost: ${total_cost:.2f}[/dim]")
-            
-            # Save state after each round
-            current_round += 1
-            save_state()
-            
-            # Check if goal achieved
-            if goal_achieved or review.get('recommendation') == 'complete':
-                console.print("\n[green]Goal achieved![/green]")
-                break
-            
-            # Budget check
-            if total_cost >= budget * 0.95:
-                console.print(f"\n[yellow]Budget nearly exhausted (${total_cost:.2f}/${budget:.2f}). Pausing...[/yellow]")
-                break
-    
-    except KeyboardInterrupt:
-        console.print("\n[yellow]Interrupted. Saving state...[/yellow]")
-        save_state()
-        console.print(f"Resume with: deepr agentic research \"{topic}\" --goal \"{goal}\" --resume")
-        return
-    
-    # Generate final synthesis
-    print_section_header("Final Synthesis")
-    
-    synthesis_prompt = f'''Synthesize all research results into a final deliverable for:
-
-Goal: {goal}
-
-Research findings:
-{chr(10).join([f"- {r['task']}: {r['result'][:200]}..." for r in research_results[:10]])}
-
-Create a comprehensive final document that achieves the stated goal.
-Include all relevant findings with citations.
-'''
-    
-    with progress.operation("Synthesizing final results..."):
-        try:
-            synthesis_response = await provider_instance.complete(synthesis_prompt, model=model)
-            synthesis_content = synthesis_response.choices[0].message.content
-            synthesis_cost = getattr(synthesis_response, 'cost', 0.5) if hasattr(synthesis_response, 'cost') else 0.5
-            total_cost += synthesis_cost
-        except Exception as e:
-            print_error(f"Synthesis failed: {e}")
-            synthesis_content = "Synthesis failed. See individual round results."
-    
-    # Save final output
-    final_file = output_path / "final_output.md"
-    with open(final_file, 'w', encoding='utf-8') as f:
-        f.write(f"# {topic}\n\n")
-        f.write(f"**Goal:** {goal}\n\n")
-        f.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        f.write(f"---\n\n")
-        f.write(synthesis_content)
-    
-    # Update state as complete
-    state['completed_at'] = datetime.now().isoformat()
-    state['total_cost'] = total_cost
-    state['status'] = 'complete'
-    save_state()
-    
-    # Display summary
-    print_header("Agentic Research Complete")
-    print_key_value("Rounds completed", str(current_round - 1))
-    print_key_value("Tasks completed", str(len(completed_tasks)))
-    print_key_value("Total cost", f"${total_cost:.4f}")
-    print_key_value("Output directory", str(output_path))
-    print_key_value("Final output", str(final_file))
-    
-    # Show preview
-    preview_lines = synthesis_content.split('\n')[:10]
-    console.print("\n[dim]Preview:[/dim]")
-    for line in preview_lines:
-        console.print(f"  {line[:80]}")
-    if len(synthesis_content.split('\n')) > 10:
-        console.print("  ...")
-
-
-async def _verify_fact(
-    claim: str,
-    sources: Optional[str],
-    provider: Optional[str],
-    model: Optional[str],
-    verbose: bool
-):
-    """Verify a fact with schema validation and structured output."""
-    import json
-    import re
-    from pydantic import BaseModel, Field, field_validator
-    from typing import List
-    from deepr.config import AppConfig
-    from deepr.providers import create_provider
-    from deepr.core.evidence import Evidence, FactCheckResult, Verdict
-    from deepr.cli.progress import ProgressFeedback
-    
-    # Pydantic model for LLM response validation
-    class FactCheckResponse(BaseModel):
-        verdict: str = Field(..., pattern="^(TRUE|FALSE|UNCERTAIN)$")
-        confidence: float = Field(..., ge=0.0, le=1.0)
-        scope: str = Field(default="general")
-        evidence: List[dict] = Field(default_factory=list)
-        reasoning: str = ""
-        
-        @field_validator('confidence', mode='before')
-        @classmethod
-        def normalize_confidence(cls, v):
-            if isinstance(v, str):
-                v = float(v.rstrip('%')) / 100 if '%' in v else float(v)
-            return max(0.0, min(1.0, v))
-    
-    config = AppConfig.from_env()
-    progress = ProgressFeedback()
-    
-    # Get provider and model for fact checking
-    if not provider or not model:
-        task_provider, task_model = config.provider.get_model_for_task("fact_check")
-        provider = provider or task_provider
-        model = model or task_model
-    
-    console.print(f"[dim]Using {provider}/{model} for verification[/dim]")
-    
-    # Get API key based on provider
-    if provider == "xai":
-        import os
-        api_key = os.getenv("XAI_API_KEY")
-    elif provider == "openai":
-        api_key = config.provider.openai_api_key
-    elif provider == "gemini":
-        import os
-        api_key = os.getenv("GEMINI_API_KEY")
-    else:
-        api_key = config.provider.openai_api_key
-    
-    provider_instance = create_provider(provider, api_key=api_key)
-    
-    # Build verification prompt
-    scope_instruction = f"\nScope: Only check against {sources}" if sources else ""
-    
-    prompt = f'''Verify this claim and respond with valid JSON only.
-
-Claim: {claim}{scope_instruction}
-
-Required JSON format:
-{{
-    "verdict": "TRUE" | "FALSE" | "UNCERTAIN",
-    "confidence": 0.0-1.0,
-    "scope": "what sources/domain was checked",
-    "evidence": [
-        {{"source": "source name", "quote": "relevant quote", "supports_claim": true/false}}
-    ],
-    "reasoning": "brief explanation of verdict"
-}}
-
-Rules:
-- TRUE: Claim is supported by evidence
-- FALSE: Claim is contradicted by evidence  
-- UNCERTAIN: Insufficient or conflicting evidence
-- Confidence should reflect certainty (0.5 = uncertain, 0.9+ = very confident)
-'''
-    
-    # Execute with retry loop
-    max_attempts = 3
-    last_error = None
-    result = None
-    
-    with progress.operation("Verifying claim..."):
-        for attempt in range(max_attempts):
-            try:
-                response = await provider_instance.complete(prompt, model=model)
-                content = response.choices[0].message.content
-                
-                # Extract JSON from response
-                json_match = re.search(r'\{[\s\S]*\}', content)
-                if not json_match:
-                    raise ValueError("No JSON found in response")
-                
-                data = json.loads(json_match.group())
-                validated = FactCheckResponse(**data)
-                
-                # Convert to canonical result
-                evidence_list = [
-                    Evidence.create(
-                        source=e.get("source", "unknown"),
-                        quote=e.get("quote", ""),
-                        supports=[claim] if e.get("supports_claim") else [],
-                        contradicts=[claim] if not e.get("supports_claim") else []
-                    )
-                    for e in validated.evidence
-                ]
-                
-                result = FactCheckResult(
-                    claim=claim,
-                    verdict=Verdict(validated.verdict),
-                    confidence=validated.confidence,
-                    scope=validated.scope,
-                    evidence=evidence_list,
-                    reasoning=validated.reasoning,
-                    cost=getattr(response, 'cost', 0.0) if hasattr(response, 'cost') else 0.0
-                )
-                break
-                
-            except (json.JSONDecodeError, ValueError) as e:
-                last_error = e
-                if attempt < max_attempts - 1:
-                    prompt += f"\n\nPrevious response was invalid: {e}. Please provide valid JSON."
-    
-    # Handle failure
-    if result is None:
-        result = FactCheckResult(
-            claim=claim,
-            verdict=Verdict.UNCERTAIN,
-            confidence=0.0,
-            scope="verification_failed",
-            evidence=[],
-            reasoning=f"Schema validation failed after {max_attempts} attempts: {last_error}"
-        )
-        progress.phase_error("Verification failed")
-    else:
-        progress.phase_complete("Verification complete", cost=result.cost)
-    
-    # Display result
-    console.print()
-    console.print(result.to_cli_output())
-    
-    if verbose and result.reasoning:
-        console.print(f"\n[dim]Full reasoning: {result.reasoning}[/dim]")
+from deepr.cli.colors import (
+    print_header, print_section_header, print_success, print_error,
+    print_warning, print_key_value, print_list_item, console
+)
 
 
 @click.group(invoke_without_command=True)
@@ -1546,8 +70,8 @@ def expert(ctx, list):
               help="Skip source discovery phase (faster but less comprehensive)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation for autonomous learning")
 def make_expert(name: str, files: tuple, description: Optional[str], provider: str,
-                learn: bool, budget: Optional[float], topics: Optional[int], 
-                docs: Optional[int], quick: Optional[int], deep: Optional[int], 
+                learn: bool, budget: Optional[float], topics: Optional[int],
+                docs: Optional[int], quick: Optional[int], deep: Optional[int],
                 no_discovery: bool, yes: bool):
     """Create a new domain expert with a knowledge base.
 
@@ -1682,33 +206,33 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
         # Calculate topics and budget based on provided options
         has_topic_counts = any([docs is not None, quick is not None, deep is not None])
-        
+
         if has_topic_counts:
             # Mode 2 or 3: User specified topic counts
             docs_count = docs or 0
             quick_count = quick or 0
             deep_count = deep or 0
-            
+
             if docs_count < 0 or quick_count < 0 or deep_count < 0:
                 click.echo("Error: Topic counts must be non-negative")
                 return
-            
+
             total_topics = docs_count + quick_count + deep_count
-            
+
             if total_topics == 0:
                 click.echo("Error: Must specify at least one topic (--docs, --quick, or --deep)")
                 click.echo("Example: deepr expert make 'Expert' -f test.md --learn --docs 1")
                 return
-            
+
             # Calculate budget from topic counts using actual config values
             from deepr.config import AppConfig
             temp_config = AppConfig.from_env()
             expert_config = temp_config.expert
-            
+
             # docs and quick are both FOCUS mode (grok-4-fast: ~$0.002)
             # deep is CAMPAIGN mode (o4-mini-deep-research: ~$1.00)
             calculated_budget = (docs_count * expert_config.quick_research_cost) + (quick_count * expert_config.quick_research_cost) + (deep_count * expert_config.deep_research_cost)
-            
+
             if budget is not None:
                 # Mode 3: Validate calculated budget against provided budget
                 if calculated_budget > budget:
@@ -1724,10 +248,10 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
             else:
                 # Mode 2: Use calculated budget
                 budget_to_use = calculated_budget
-            
+
             # Override topics parameter with calculated total
             topics_to_use = total_topics
-            
+
         else:
             # Mode 1: Budget only, auto-calculate topic mix
             if not budget:
@@ -1740,11 +264,11 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
             if budget <= 0:
                 click.echo("Error: Budget must be positive")
                 return
-            
+
             budget_to_use = budget
             # Use default of 15 topics if not specified
             topics_to_use = topics if topics is not None else 15
-            
+
             # Will be auto-calculated by curriculum generator
             docs_count = None
             quick_count = None
@@ -1781,9 +305,9 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                 if not curriculum or not curriculum.topics:
                     print_error("Curriculum generation failed - no topics created")
                     return {"error": "No topics generated"}
-                
+
                 print_header(f"Curriculum: {len(curriculum.topics)} topics")
-                
+
                 for i, topic in enumerate(curriculum.topics, 1):
                     console.print(f"{i}. [bold]{topic.title}[/bold]")
                     console.print(f"   [dim]Mode:[/dim] {topic.research_mode} | [dim]Type:[/dim] {topic.research_type}")
@@ -1791,7 +315,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                     if topic.sources:
                         console.print(f"   [dim]Sources:[/dim] {len(topic.sources)}")
                     console.print()
-                
+
                 console.print(f"[dim]Total:[/dim] ${curriculum.total_estimated_cost:.2f}, ~{curriculum.total_estimated_minutes}min\n")
                 console.print("Starting execution...")
 
@@ -1812,14 +336,14 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                 return {"error": e}
 
         result = asyncio.run(generate_and_execute_curriculum())
-        
+
         # Check if curriculum generation failed
         if result and isinstance(result, dict) and "error" in result:
             error = result["error"]
             click.echo(f"\nError: {str(error)}")
             click.echo(f"Expert created but learning failed. Try again later.")
             return
-        
+
         progress = result
 
         if progress:
@@ -1911,13 +435,13 @@ def expert_info(name: str):
         return
 
     from deepr.cli.colors import print_header, print_key_value, print_list_item, console
-    
+
     print_header(f"Expert: {profile.name}")
-    
+
     print_key_value("Description", profile.description or "N/A")
     print_key_value("Provider", profile.provider)
     print_key_value("Model", profile.model)
-    
+
     console.print()
     console.print("[bold cyan]Knowledge Base[/bold cyan]")
     print_key_value("Vector Store ID", profile.vector_store_id, indent=1)
@@ -1989,7 +513,7 @@ def delete_expert(name: str, yes: bool):
 @click.option("--synthesize/--no-synthesize", default=True,
               help="Re-synthesize consciousness after learning (default: yes)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, 
+def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                  synthesize: bool, yes: bool):
     """Add knowledge to an expert on demand.
 
@@ -2063,7 +587,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
     if topic:
         print_key_value("Topic to research", topic)
         print_key_value("Research budget", f"${budget:.2f}")
-    
+
     if files:
         print_key_value("Files to upload", str(len(files)))
         for f in files[:5]:
@@ -2109,7 +633,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                     documents_added += 1
                     research_results.append(result)
                     print_success(f"Research complete (${cost:.4f})")
-                    
+
                     # Show snippet of what was learned
                     answer = result.get("answer", "")
                     if answer:
@@ -2145,12 +669,12 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
             # Upload to vector store
             if uploaded_files:
                 click.echo(f"\nUploading {len(uploaded_files)} files to vector store...")
-                
+
                 try:
                     for file_path in uploaded_files:
                         file_id = await provider.upload_document(str(file_path))
                         await provider.add_file_to_vector_store(
-                            profile.vector_store_id, 
+                            profile.vector_store_id,
                             file_id
                         )
                         documents_added += 1
@@ -2177,7 +701,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                 knowledge_dir = store.get_knowledge_dir(name)
                 worldview_path = knowledge_dir / "worldview.json"
                 existing_worldview = None
-                
+
                 if worldview_path.exists():
                     try:
                         existing_worldview = Worldview.load(worldview_path)
@@ -2207,7 +731,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                     print_success("Synthesis complete!")
                     click.echo(f"    Beliefs: {len(new_worldview.beliefs)}")
                     click.echo(f"    Knowledge gaps: {len(new_worldview.knowledge_gaps)}")
-                    
+
                     if synthesis_result.get('beliefs_formed', 0) > 0:
                         click.echo(f"    New beliefs formed: {synthesis_result['beliefs_formed']}")
                 else:
@@ -2230,12 +754,12 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
     if result['research_results'] > 0:
         print_key_value("Research queries", str(result['research_results']))
     print_key_value("Total cost", f"${result['total_cost']:.4f}")
-    
+
     if synthesize and result['documents_added'] > 0:
         console.print("\nExpert consciousness has been updated.")
     elif result['documents_added'] > 0:
         console.print("\nKnowledge added. Run with --synthesize to update consciousness.")
-    
+
     console.print(f'\nChat with: deepr chat expert "{name}"')
 
 
@@ -2523,7 +1047,7 @@ def import_expert(name: str, corpus: str, yes: bool):
 
     # Validate corpus
     validation = validate_corpus(corpus_path)
-    
+
     if not validation["valid"]:
         print_error("Invalid corpus structure")
         for error in validation["errors"]:
@@ -2557,7 +1081,7 @@ def import_expert(name: str, corpus: str, yes: bool):
         try:
             config = AppConfig.from_env()
             provider = create_provider("openai", api_key=config.provider.openai_api_key)
-            
+
             profile = await import_corpus(name, corpus_path, store, provider)
             return {"success": True, "profile": profile}
         except Exception as e:
@@ -2613,7 +1137,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
     from deepr.providers import create_provider
     from datetime import datetime
     from deepr.cli.colors import (
-        print_header, print_success, print_error, print_warning, 
+        print_header, print_success, print_error, print_warning,
         print_info, print_step, print_result, get_symbol, console
     )
 
@@ -2897,6 +1421,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 console.print(f"Processing {len(docs_to_process)} documents...\n")
 
                 # Synthesize
+                from datetime import datetime
                 synthesis_result = await synthesizer.synthesize_new_knowledge(
                     expert_name=profile.name,
                     domain=profile.domain or profile.description,
@@ -3312,7 +1837,3 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     if summary['research_jobs_triggered'] > 0:
         print_key_value("Research Jobs", str(summary['research_jobs_triggered']))
     console.print()
-
-
-if __name__ == "__main__":
-    research()

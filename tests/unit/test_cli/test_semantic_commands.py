@@ -404,13 +404,13 @@ class TestValidationIntegration:
 
     def test_learn_validates_empty_topic(self, runner):
         """Test that learn validates empty topic."""
-        with patch("deepr.cli.commands.semantic.asyncio.run"):
+        with patch("deepr.cli.commands.semantic.research.asyncio.run"):
             result = runner.invoke(cli, ['learn', ''])
             # Empty topic should be rejected or handled
 
     def test_team_validates_empty_question(self, runner):
         """Test that team validates empty question."""
-        with patch("deepr.cli.commands.semantic.asyncio.run"):
+        with patch("deepr.cli.commands.semantic.research.asyncio.run"):
             result = runner.invoke(cli, ['team', ''])
             # Empty question should be rejected or handled
 
