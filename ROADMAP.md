@@ -14,7 +14,7 @@
 
 ## Current Status (v2.6)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 2820+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff and black.
+Multi-provider research automation with expert system, MCP integration, and observability. 2820+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
 
 ### What Works
 
@@ -30,7 +30,7 @@ Multi-provider research automation with expert system, MCP integration, and obse
 - Multi-layer budget protection with pause/resume
 - Docker deployment option
 - GitHub Actions CI (lint + unit tests on push/PR)
-- Pre-commit hooks (ruff, black, trailing whitespace, debug statement detection)
+- Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
 - Coverage configuration with 60% minimum threshold
 
 ---
