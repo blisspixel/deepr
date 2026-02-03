@@ -3,27 +3,19 @@ Network security for the Deepr MCP server.
 
 Provides SSRF (Server-Side Request Forgery) protection by blocking
 requests to internal/private IP ranges, and optional domain allowlisting.
+
+Delegates IP resolution and blocking to deepr.utils.security for
+consistent SSRF protection across the entire codebase.
 """
 
 import ipaddress
 import logging
-import socket
 from typing import Optional
 from urllib.parse import urlparse
 
-logger = logging.getLogger("deepr.mcp.security")
+from deepr.utils.security import is_blocked_ip, resolve_all_ips
 
-# Private/internal IP ranges that should never be accessed by research
-BLOCKED_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),       # Loopback
-    ipaddress.ip_network("10.0.0.0/8"),         # Private class A
-    ipaddress.ip_network("172.16.0.0/12"),      # Private class B
-    ipaddress.ip_network("192.168.0.0/16"),     # Private class C
-    ipaddress.ip_network("169.254.0.0/16"),     # Link-local
-    ipaddress.ip_network("::1/128"),            # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),           # IPv6 unique local
-    ipaddress.ip_network("fe80::/10"),          # IPv6 link-local
-]
+logger = logging.getLogger("deepr.mcp.security")
 
 
 def is_internal_ip(ip_str: str) -> bool:
@@ -37,21 +29,10 @@ def is_internal_ip(ip_str: str) -> bool:
     """
     try:
         ip = ipaddress.ip_address(ip_str)
-        return any(ip in network for network in BLOCKED_NETWORKS)
+        return is_blocked_ip(ip)
     except ValueError:
         # If we can't parse it, block it to be safe
         return True
-
-
-def resolve_hostname(hostname: str) -> Optional[str]:
-    """Resolve a hostname to its IP address.
-
-    Returns None if resolution fails.
-    """
-    try:
-        return socket.gethostbyname(hostname)
-    except socket.gaierror:
-        return None
 
 
 class SSRFProtector:
@@ -59,6 +40,9 @@ class SSRFProtector:
 
     Blocks requests to internal IPs and optionally enforces
     a domain allowlist for outbound requests.
+
+    Resolves all IP addresses (IPv4 + IPv6) for a hostname and
+    blocks if any resolve to an internal range.
 
     Usage:
         protector = SSRFProtector()
@@ -88,6 +72,10 @@ class SSRFProtector:
     def validate_url(self, url: str) -> str:
         """Validate a URL is safe for outbound requests.
 
+        Resolves all IPs (IPv4 + IPv6) for the hostname and blocks
+        if any resolve to an internal range. Also blocks when DNS
+        resolution fails entirely (conservative approach).
+
         Args:
             url: URL to validate
 
@@ -109,15 +97,23 @@ class SSRFProtector:
                 f"SSRF blocked: domain '{hostname}' not in allowlist"
             )
 
-        # Resolve hostname and check IP
-        ip = resolve_hostname(hostname)
-        if ip and is_internal_ip(ip):
+        # Resolve all IPs (IPv4 + IPv6) and check each
+        ip_strings = resolve_all_ips(hostname)
+
+        if not ip_strings:
+            # DNS resolution failed -- block conservatively
             raise ValueError(
-                f"SSRF blocked: '{hostname}' resolves to internal IP {ip}"
+                f"SSRF blocked: DNS resolution failed for '{hostname}'"
             )
 
+        for ip_str in ip_strings:
+            if is_internal_ip(ip_str):
+                raise ValueError(
+                    f"SSRF blocked: '{hostname}' resolves to internal IP {ip_str}"
+                )
+
         if self._audit_log:
-            logger.debug("URL validated: %s -> %s", hostname, ip or "unresolved")
+            logger.debug("URL validated: %s -> %s", hostname, ip_strings)
 
         return url
 

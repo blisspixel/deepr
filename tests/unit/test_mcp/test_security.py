@@ -18,8 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from deepr.mcp.security.network import (
     SSRFProtector,
     is_internal_ip,
-    resolve_hostname,
-    BLOCKED_NETWORKS,
 )
 from deepr.mcp.security.sampling import (
     SamplingRequest,
@@ -72,8 +70,6 @@ class TestIsInternalIP:
         """Unparseable IPs should be blocked for safety."""
         assert is_internal_ip("not_an_ip") is True
 
-    def test_blocked_networks_list_not_empty(self):
-        assert len(BLOCKED_NETWORKS) >= 5
 
 
 # ------------------------------------------------------------------ #
@@ -84,31 +80,31 @@ class TestSSRFProtector:
 
     def test_allows_public_url(self):
         protector = SSRFProtector()
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="8.8.8.8"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
             url = protector.validate_url("https://api.openai.com/v1/chat")
             assert url == "https://api.openai.com/v1/chat"
 
     def test_blocks_localhost(self):
         protector = SSRFProtector()
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="127.0.0.1"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["127.0.0.1"]):
             with pytest.raises(ValueError, match="SSRF blocked"):
                 protector.validate_url("http://localhost/admin")
 
     def test_blocks_internal_ip_url(self):
         protector = SSRFProtector()
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="10.0.0.5"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["10.0.0.5"]):
             with pytest.raises(ValueError, match="SSRF blocked"):
                 protector.validate_url("http://internal-service.local/api")
 
     def test_blocks_private_class_c(self):
         protector = SSRFProtector()
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="192.168.1.1"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["192.168.1.1"]):
             with pytest.raises(ValueError, match="SSRF blocked"):
                 protector.validate_url("http://router.home/config")
 
     def test_blocks_link_local(self):
         protector = SSRFProtector()
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="169.254.169.254"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["169.254.169.254"]):
             with pytest.raises(ValueError, match="SSRF blocked"):
                 protector.validate_url("http://metadata.google.internal/")
 
@@ -117,12 +113,19 @@ class TestSSRFProtector:
         with pytest.raises(ValueError, match="no hostname"):
             protector.validate_url("file:///etc/passwd")
 
-    def test_allows_unresolved_hostname(self):
-        """If DNS resolution fails, URL should still be allowed (no IP to check)."""
+    def test_blocks_unresolved_hostname(self):
+        """If DNS resolution fails, URL should be blocked (conservative)."""
         protector = SSRFProtector()
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value=None):
-            url = protector.validate_url("https://some-api.example.com/data")
-            assert url == "https://some-api.example.com/data"
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=[]):
+            with pytest.raises(ValueError, match="DNS resolution failed"):
+                protector.validate_url("https://some-api.example.com/data")
+
+    def test_blocks_if_any_ip_is_internal(self):
+        """If hostname resolves to both public and internal IPs, block."""
+        protector = SSRFProtector()
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8", "127.0.0.1"]):
+            with pytest.raises(ValueError, match="SSRF blocked"):
+                protector.validate_url("https://dual-homed.example.com/api")
 
 
 # ------------------------------------------------------------------ #
@@ -133,7 +136,7 @@ class TestDomainAllowlist:
 
     def test_allows_listed_domain(self):
         protector = SSRFProtector(allowed_domains=["api.openai.com"])
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="8.8.8.8"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
             url = protector.validate_url("https://api.openai.com/v1/models")
             assert "openai" in url
 
@@ -146,14 +149,14 @@ class TestDomainAllowlist:
         protector = SSRFProtector(
             allowed_domains=["api.openai.com", "api.x.ai", "api.google.com"]
         )
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="8.8.8.8"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
             protector.validate_url("https://api.openai.com/v1")
             protector.validate_url("https://api.x.ai/v1")
             protector.validate_url("https://api.google.com/v1")
 
     def test_no_allowlist_allows_all_public(self):
         protector = SSRFProtector(allowed_domains=None)
-        with patch("deepr.mcp.security.network.resolve_hostname", return_value="8.8.8.8"):
+        with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
             protector.validate_url("https://any-domain.com/api")
 
 
