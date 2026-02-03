@@ -6,16 +6,21 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.5)
+## Current State (v2.6)
 
 What works today:
+- Multi-provider deep research (OpenAI, Gemini, Grok, Azure)
+- Gemini Deep Research Agent via Interactions API
 - Multi-phase research with context chaining
-- Domain experts from documents
+- Domain experts from documents with autonomous learning
 - Agentic research (experts can trigger research)
 - Knowledge synthesis and gap awareness
-- MCP integration for AI agents
+- MCP server with 10 tools, persistence, security
+- CLI observability (--explain, --timeline, --full-trace)
+- Auto-fallback on provider failures
+- Cost dashboard with per-expert tracking
 
-## Near-Term Vision (v2.6-2.9)
+## Near-Term Vision (v2.7-2.9)
 
 ### Visible Thinking
 
@@ -102,16 +107,16 @@ Build trust before adding autonomy:
 - Complex export formats
 - Features that might not work reliably
 
-## The Core Insight
+## The Core Idea
 
-Most AI tools give answers. Deepr aims to give understanding.
+Research is more useful when it builds on itself. Deepr tries to connect research across sessions so each query benefits from prior work.
 
-- Answers are isolated facts
-- Understanding comes from connections
-- Connections emerge from context chaining
-- Context chaining requires proper sequencing
+- Isolated queries produce isolated answers
+- Connecting queries produces broader context
+- Context chaining links multiple research phases
+- Agentic planning sequences research automatically
 
-Agentic planning automates research strategy, not just research execution.
+This is an ongoing effort. Results vary depending on query complexity and document quality.
 
 ## Contributing
 
