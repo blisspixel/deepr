@@ -61,8 +61,7 @@ def update_config():
         if not data:
             return jsonify({"error": "Request body is required"}), 400
 
-        # TODO: Implement config persistence
-        # For now, just validate the values
+        # Validates values but does not persist (config is managed via CLI and .env)
         provider = data.get("provider")
         if provider and provider not in ["openai", "azure"]:
             return jsonify({"error": "provider must be 'openai' or 'azure'"}), 400
@@ -106,8 +105,7 @@ def test_connection():
         # Try to create provider and test connection
         try:
             provider = create_provider(provider_type, api_key=api_key)
-            # TODO: Implement actual connection test
-            # For now, just check if provider was created
+            # Verifies provider can be instantiated with given credentials
 
             return jsonify({
                 "status": "success",

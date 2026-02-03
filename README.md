@@ -105,7 +105,7 @@ Model and pricing information current as of February 2026.
 
 ## Security
 
-Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 2820+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff and black. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License -- use at your own risk.
+Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 2820+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License -- use at your own risk.
 
 Report security issues: nick@pueo.io
 
