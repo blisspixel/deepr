@@ -52,6 +52,7 @@ Coverage minimum is 60% on core modules. CI enforces this on every push and PR.
 
 - `deepr/` -- Main package
 - `deepr/cli/` -- CLI commands (Click)
+- `deepr/cli/commands/semantic/` -- Semantic commands (research, artifacts, experts)
 - `deepr/core/` -- Research orchestration, costs, context
 - `deepr/providers/` -- Model provider integrations (OpenAI, Gemini, Grok, Azure)
 - `deepr/experts/` -- Domain expert system
