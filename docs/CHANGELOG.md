@@ -58,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.pre-commit-config.yaml` with ruff (lint+format), black, trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, debug-statements
 - `[tool.coverage]` in `pyproject.toml`: source/omit config, 60% minimum threshold, show_missing
 - `[tool.ruff]` and `[tool.black]` configuration in `pyproject.toml`
+- CI enforces coverage minimum (`--cov-fail-under=60`) via `pytest-cov`
+- `pytest-cov` added to `[project.optional-dependencies] dev`
 
 ### Fixed
 - Synced `setup.py` and `pyproject.toml` dependencies (added google-genai, numpy, aiohttp, flasgger, flask-limiter, httpx, requests, beautifulsoup4)
@@ -77,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed 4 DEBUG `print()` statements left in production code (`semantic.py`)
 - Fixed 3 bare `except:` catches with specific exception types (`prep.py`, `web/app.py`)
 - Aligned `setup.py` classifiers with `pyproject.toml` (Alpha -> Beta, added Python 3.12, Science/Research audience)
+- Single-sourced version string: 5 modules now import `__version__` from `deepr/__init__.py` instead of hardcoding
+- Replaced last `sys.path.insert()` in MCP server (skills loading) with `importlib.util.spec_from_file_location()`
+- Converted remaining `print()` in `formatting/normalize.py` and `formatting/converters.py` to structured logging
 - Dockerfile uses `pip install --no-cache-dir .` instead of editable install
 
 ### Removed
