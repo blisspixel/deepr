@@ -1,0 +1,8 @@
+azure-functions
+azure-identity
+azure-keyvault-secrets
+azure-cosmos
+azure-storage-blob
+azure-storage-queue
+# Shared library (install from deploy/shared before deployment)
+# deepr-api-common @ file:../../shared
