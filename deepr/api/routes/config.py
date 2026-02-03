@@ -35,7 +35,7 @@ def get_config():
         return jsonify({"config": safe_config}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("", methods=["PATCH"])
@@ -69,7 +69,7 @@ def update_config():
         return jsonify({"message": "Configuration updated successfully"}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/test", methods=["POST"])
@@ -121,7 +121,7 @@ def test_connection():
             }), 400
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/status", methods=["GET"])
@@ -171,4 +171,4 @@ def get_status():
         return jsonify({"status": status}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500

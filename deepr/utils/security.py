@@ -120,9 +120,36 @@ def validate_path(
     return resolved
 
 
+def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, allow_private: bool = False) -> bool:
+    """Check if an IP address should be blocked.
+
+    Handles both IPv4 and IPv6 addresses.
+    """
+    if ip.is_reserved or ip.is_multicast:
+        return True
+    if not allow_private:
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            return True
+    return False
+
+
+def _resolve_all_ips(hostname: str) -> list[str]:
+    """Resolve hostname to all IP addresses (IPv4 and IPv6).
+
+    Uses getaddrinfo instead of gethostbyname to support IPv6.
+    """
+    try:
+        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        return list({result[4][0] for result in results})
+    except socket.gaierror:
+        return []
+
+
 def is_safe_url(url: str, allow_private: bool = False) -> bool:
     """
     Check if a URL is safe to fetch (SSRF protection).
+
+    Resolves both IPv4 and IPv6 addresses and blocks private/internal ranges.
 
     Args:
         url: URL to validate
@@ -152,24 +179,19 @@ def is_safe_url(url: str, allow_private: bool = False) -> bool:
         if not parsed.hostname:
             return False
 
-        # Resolve hostname to IP and check
-        try:
-            ip_str = socket.gethostbyname(parsed.hostname)
-            ip = ipaddress.ip_address(ip_str)
-
-            # Block private IPs unless explicitly allowed
-            if not allow_private:
-                if ip.is_private or ip.is_loopback or ip.is_link_local:
-                    return False
-
-            # Always block reserved/multicast
-            if ip.is_reserved or ip.is_multicast:
-                return False
-
-        except (socket.gaierror, ValueError):
-            # DNS resolution failed or invalid IP
-            # Be conservative and block
+        # Resolve hostname to all IPs (IPv4 + IPv6) and check each
+        ip_strings = _resolve_all_ips(parsed.hostname)
+        if not ip_strings:
+            # DNS resolution failed -- be conservative and block
             return False
+
+        for ip_str in ip_strings:
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                if _is_blocked_ip(ip, allow_private):
+                    return False
+            except ValueError:
+                return False
 
         return True
 

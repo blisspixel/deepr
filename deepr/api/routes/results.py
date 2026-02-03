@@ -61,7 +61,7 @@ def list_results():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>", methods=["GET"])
@@ -83,7 +83,7 @@ def get_result(job_id: str):
         return jsonify({"result": result}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>/download/<format>", methods=["GET"])
@@ -126,7 +126,7 @@ def download_result(job_id: str, format: str):
         )
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/search", methods=["GET"])
@@ -160,7 +160,7 @@ def search_results():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>/tags", methods=["POST"])
@@ -193,7 +193,7 @@ def add_tags(job_id: str):
         return jsonify({"message": "Tags added successfully", "tags": tags}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>/tags/<tag>", methods=["DELETE"])
@@ -215,4 +215,4 @@ def remove_tag(job_id: str, tag: str):
         return jsonify({"message": "Tag removed successfully"}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
