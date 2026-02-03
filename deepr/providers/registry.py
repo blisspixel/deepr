@@ -19,6 +19,8 @@ class ModelCapability:
     specializations: List[str]  # Areas where this model excels
     strengths: List[str]  # Key strengths
     weaknesses: List[str]  # Known limitations
+    input_cost_per_1m: float = 0.0  # Cost per 1M input tokens (USD)
+    output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
 
 
 # Model capabilities registry
@@ -41,7 +43,29 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
         weaknesses=[
             "Higher cost than gpt-4o",
             "Overkill for simple queries"
-        ]
+        ],
+        input_cost_per_1m=2.50,
+        output_cost_per_1m=10.00,
+    ),
+
+    "openai/o3-deep-research": ModelCapability(
+        provider="openai",
+        model="o3-deep-research",
+        cost_per_query=0.50,
+        latency_ms=120_000,
+        context_window=128_000,
+        specializations=["research", "analysis", "strategic_planning"],
+        strengths=[
+            "Extended reasoning chains",
+            "Deep multi-step analysis",
+            "High quality comprehensive research",
+        ],
+        weaknesses=[
+            "Expensive",
+            "Slow (2-5 minutes)",
+        ],
+        input_cost_per_1m=11.0,
+        output_cost_per_1m=44.0,
     ),
 
     "openai/o4-mini-deep-research": ModelCapability(
@@ -61,7 +85,9 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
             "Expensive ($2 per query)",
             "Slow (30-60 seconds minimum)",
             "Overkill for simple queries"
-        ]
+        ],
+        input_cost_per_1m=1.10,
+        output_cost_per_1m=4.40,
     ),
 
     # xAI Models (Grok)
@@ -82,7 +108,9 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
             "Less capable at complex reasoning",
             "Not ideal for multi-step analysis",
             "Lower quality for strategic work"
-        ]
+        ],
+        input_cost_per_1m=0.20,
+        output_cost_per_1m=0.50,
     ),
 
     # Google Models (Gemini)
@@ -103,7 +131,9 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
             "Slower than fast models",
             "Not as strong at pure reasoning",
             "Context size overkill for simple queries"
-        ]
+        ],
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=5.00,
     ),
 
     "gemini/deep-research": ModelCapability(
@@ -123,7 +153,9 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
             "Slow (5-20 minutes per job)",
             "~$1 per job",
             "Experimental API (may change)"
-        ]
+        ],
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=5.00,
     ),
 
     "gemini/gemini-2.5-flash": ModelCapability(
@@ -141,7 +173,9 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
         weaknesses=[
             "Lower quality than premium models",
             "Not ideal for complex reasoning"
-        ]
+        ],
+        input_cost_per_1m=0.075,
+        output_cost_per_1m=0.30,
     ),
 
     # Anthropic Models
@@ -161,9 +195,59 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
         weaknesses=[
             "Higher cost",
             "Not specialized for research"
-        ]
+        ],
+        input_cost_per_1m=3.00,
+        output_cost_per_1m=15.00,
     ),
 }
+
+
+def get_token_pricing(model: str) -> Dict[str, float]:
+    """Get per-token pricing for a model.
+
+    Searches registry by model name across all providers.
+
+    Args:
+        model: Model name (e.g., "o3-deep-research", "grok-4-fast")
+
+    Returns:
+        Dict with "input" and "output" costs per 1M tokens.
+        Returns default pricing if model not found.
+    """
+    # Try exact match first
+    for cap in MODEL_CAPABILITIES.values():
+        if cap.model == model and cap.input_cost_per_1m > 0:
+            return {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m}
+
+    # Try partial match (e.g., "o4-mini-deep-research-2025-06-26" matches "o4-mini-deep-research")
+    for cap in MODEL_CAPABILITIES.values():
+        if cap.model in model and cap.input_cost_per_1m > 0:
+            return {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m}
+
+    # Default to o4-mini pricing
+    default = MODEL_CAPABILITIES.get("openai/o4-mini-deep-research")
+    if default:
+        return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
+    return {"input": 1.10, "output": 4.40}
+
+
+def get_cost_estimate(model: str) -> float:
+    """Get per-query cost estimate for a model.
+
+    Args:
+        model: Model name
+
+    Returns:
+        Estimated cost per query in USD. Returns 0.20 if model not found.
+    """
+    for cap in MODEL_CAPABILITIES.values():
+        if cap.model == model:
+            return cap.cost_per_query
+    # Partial match
+    for cap in MODEL_CAPABILITIES.values():
+        if cap.model in model:
+            return cap.cost_per_query
+    return 0.20
 
 
 def get_model_capability(provider: str, model: str) -> Optional[ModelCapability]:

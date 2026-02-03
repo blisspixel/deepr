@@ -51,19 +51,11 @@ class UsageStats:
         """
         Calculate cost based on token usage and model.
 
-        Pricing (as of 2025):
-        - o3-deep-research: $11/M input, $44/M output
-        - o4-mini-deep-research: $1.10/M input, $4.40/M output
+        Pricing is sourced from the model registry (providers/registry.py).
         """
-        pricing = {
-            "o3-deep-research": {"input": 11.0, "output": 44.0},
-            "o3-deep-research-2025-06-26": {"input": 11.0, "output": 44.0},
-            "o4-mini-deep-research": {"input": 1.10, "output": 4.40},
-            "o4-mini-deep-research-2025-06-26": {"input": 1.10, "output": 4.40},
-        }
+        from .registry import get_token_pricing
 
-        # Default to o4-mini pricing if model not found
-        prices = pricing.get(model, pricing["o4-mini-deep-research"])
+        prices = get_token_pricing(model)
 
         input_cost = (input_tokens / 1_000_000) * prices["input"]
         output_cost = (output_tokens / 1_000_000) * prices["output"]
