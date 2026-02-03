@@ -135,7 +135,7 @@ def get_job(job_id):
             try:
                 result = loop.run_until_complete(storage.get_report(job_id=job_id, filename='report.md'))
                 job_data['result'] = result.decode('utf-8')
-            except:
+            except (OSError, UnicodeDecodeError, KeyError):
                 job_data['result'] = None
 
         return jsonify(job_data)

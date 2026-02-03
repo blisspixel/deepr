@@ -18,9 +18,11 @@ import click
 import asyncio
 from typing import Optional
 
+from deepr import __version__
+
 
 @click.group()
-@click.version_option(version="2.6.0", prog_name="Deepr")
+@click.version_option(version=__version__, prog_name="Deepr")
 def cli():
     """
     Deepr - Research automation platform.

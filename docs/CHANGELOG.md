@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.dockerignore` reducing build context from 168MB to ~2MB
 - `docker-compose.yml` with bridge network, resource limits (512MB, 1 CPU)
 
+**CI and Code Quality Tooling**
+- GitHub Actions CI workflow: lint (ruff) + unit tests on push to `main` and PRs, Python 3.11/3.12 matrix
+- `.pre-commit-config.yaml` with ruff (lint+format), black, trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, debug-statements
+- `[tool.coverage]` in `pyproject.toml`: source/omit config, 60% minimum threshold, show_missing
+- `[tool.ruff]` and `[tool.black]` configuration in `pyproject.toml`
+
 ### Fixed
 - Synced `setup.py` and `pyproject.toml` dependencies (added google-genai, numpy, aiohttp, flasgger, flask-limiter, httpx, requests, beautifulsoup4)
 - Fixed `pyproject.toml` URLs pointing to wrong GitHub organization
@@ -68,6 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated model pricing into single registry source of truth (`deepr/providers/registry.py`); removed hardcoded pricing from `base.py`, `research.py`, and provider modules
 - Tightened exception handling in core, providers, and MCP server (bare `except Exception` replaced with `openai.OpenAIError`, `GenaiAPIError`, `DeeprError`, `OSError`, etc.)
 - Removed `sys.path.insert()` hack in MCP server; uses standard package imports
+- Removed 4 DEBUG `print()` statements left in production code (`semantic.py`)
+- Fixed 3 bare `except:` catches with specific exception types (`prep.py`, `web/app.py`)
+- Aligned `setup.py` classifiers with `pyproject.toml` (Alpha -> Beta, added Python 3.12, Science/Research audience)
 - Dockerfile uses `pip install --no-cache-dir .` instead of editable install
 
 ### Removed
