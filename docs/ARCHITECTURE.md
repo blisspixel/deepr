@@ -33,9 +33,10 @@ Deepr is an agentic research platform that uses AI models to conduct deep resear
 - **Location**: `deepr/providers/`
 - **Purpose**: Unified interface to AI providers
 - **Providers**:
-  - OpenAI (GPT-5.2, o4-mini-deep-research)
+  - OpenAI (GPT-5.2, o3-deep-research, o4-mini-deep-research)
+  - Azure OpenAI (same models, Azure-hosted)
   - xAI (Grok 4 Fast, Grok 4)
-  - Google (Gemini 2.5 Flash, Gemini 3 Pro)
+  - Google (Gemini 2.5 Flash, Gemini 3 Pro, Deep Research Agent)
   - Anthropic (Claude Sonnet 4.5)
 
 ### 4. Model Registry
@@ -133,7 +134,9 @@ Configuration is managed through:
 ```
 deepr/
 ├── api/              # REST API (Flask)
-├── cli/              # Command-line interface
+├── cli/              # Command-line interface (Click)
+│   └── commands/
+│       └── semantic/ # research, artifacts, experts modules
 ├── config/           # Configuration management
 ├── core/             # Core business logic
 ├── experts/          # Expert system (beliefs, memory, learning)
