@@ -77,6 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced 47 `print()` calls in 13 library modules with structured `logging` (lazy `%s` formatting)
 - Consolidated model pricing into single registry source of truth (`deepr/providers/registry.py`); removed hardcoded pricing from `base.py`, `research.py`, and provider modules
 - Tightened exception handling in core, providers, and MCP server (bare `except Exception` replaced with `openai.OpenAIError`, `GenaiAPIError`, `DeeprError`, `OSError`, etc.)
+- Tightened exception handling in storage and services: `storage/local.py` (5 catches → `OSError`), `storage/blob.py` (7 catches → `AzureError`), `core/jobs.py` (4 catches → `json.JSONDecodeError`/`KeyError`/`TypeError`/`ValueError`), `utils/scrape/fetcher.py` (1 catch → `requests.RequestException`/`json.JSONDecodeError`/`KeyError`/`ValueError`)
+- Split monolithic `cli/commands/semantic.py` (3,318 lines) into `cli/commands/semantic/` package: `research.py` (research/learn/team/check commands), `artifacts.py` (make/agentic commands), `experts.py` (expert subcommands). Backward-compatible re-exports in `__init__.py`
 - Removed `sys.path.insert()` hack in MCP server; uses standard package imports
 - Removed 4 DEBUG `print()` statements left in production code (`semantic.py`)
 - Fixed 3 bare `except:` catches with specific exception types (`prep.py`, `web/app.py`)
