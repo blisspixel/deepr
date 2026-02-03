@@ -63,7 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Test suite grew from 1300 to 2820+ tests
+- Unified all version strings to 2.6.0 across package, CLI, API, and user-agent
+- Replaced 47 `print()` calls in 13 library modules with structured `logging` (lazy `%s` formatting)
+- Consolidated model pricing into single registry source of truth (`deepr/providers/registry.py`); removed hardcoded pricing from `base.py`, `research.py`, and provider modules
+- Tightened exception handling in core, providers, and MCP server (bare `except Exception` replaced with `openai.OpenAIError`, `GenaiAPIError`, `DeeprError`, `OSError`, etc.)
+- Removed `sys.path.insert()` hack in MCP server; uses standard package imports
 - Dockerfile uses `pip install --no-cache-dir .` instead of editable install
+
+### Removed
+- Deleted dead legacy CLI module (`deepr/cli.py`, 350 lines) shadowed by `deepr/cli/` package
 
 ## [2.5.0] - 2026-01-15
 
