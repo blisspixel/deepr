@@ -1,4 +1,8 @@
+import logging
 import re
+
+logger = logging.getLogger(__name__)
+
 
 def normalize_markdown(text: str) -> str:
     """
@@ -6,7 +10,7 @@ def normalize_markdown(text: str) -> str:
     and standardizing Markdown elements for conversion, while preserving line breaks.
     """
     if not text:
-        print("Error: The input text is empty.")
+        logger.warning("Input text is empty")
         return ""
 
     # Normalize line breaks to Unix-style (LF)

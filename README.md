@@ -1,6 +1,7 @@
 # Deepr
 
 ![Tests](https://img.shields.io/badge/tests-2820%2B%20passing-green)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
@@ -104,7 +105,7 @@ Model and pricing information current as of February 2026.
 
 ## Security
 
-Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License — use at your own risk.
+Deepr includes input validation, SSRF protection, API key redaction in logs, budget controls, and optional Docker isolation. CI runs lint (ruff) and 2820+ unit tests on every push via GitHub Actions. Pre-commit hooks enforce formatting with ruff and black. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. This software is provided as-is under the MIT License -- use at your own risk.
 
 Report security issues: nick@pueo.io
 
