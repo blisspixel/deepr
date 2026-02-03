@@ -53,6 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.dockerignore` reducing build context from 168MB to ~2MB
 - `docker-compose.yml` with bridge network, resource limits (512MB, 1 CPU)
 
+**Cloud Deployment Templates (10.1)**
+- AWS SAM/CloudFormation template (`deploy/aws/`) with Lambda API, SQS queue, Fargate worker, DynamoDB, S3
+- Azure Bicep template (`deploy/azure/`) with Functions, Queue Storage, Container Apps, Cosmos DB, Blob Storage
+- GCP Terraform template (`deploy/gcp/`) with Cloud Functions, Pub/Sub, Cloud Run, Firestore, Cloud Storage
+- Shared API library (`deploy/shared/deepr_api_common/`) with validation, security headers, response utilities
+- API key authentication via Authorization Bearer token and X-Api-Key header
+- CORS preflight OPTIONS handling on all endpoints
+- Security headers (HSTS, X-Frame-Options, X-Content-Type-Options, Cache-Control)
+- 90-day TTL on job documents for automatic cleanup (DynamoDB, Firestore, Cosmos DB)
+- Input validation with sanitization (prompt length, model validation, UUID format)
+- Detailed deployment documentation in `deploy/README.md`
+
 **CI and Code Quality Tooling**
 - GitHub Actions CI workflow: lint (ruff) + unit tests on push to `main` and PRs, Python 3.11/3.12 matrix
 - `.pre-commit-config.yaml` with ruff (lint+format), trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, debug-statements
