@@ -100,7 +100,7 @@ def submit_job():
         }), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("", methods=["GET"])
@@ -132,7 +132,7 @@ def list_jobs():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>", methods=["GET"])
@@ -154,7 +154,7 @@ def get_job(job_id: str):
         return jsonify({"job": job.to_dict()}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>", methods=["DELETE"])
@@ -176,7 +176,7 @@ def delete_job(job_id: str):
         return "", 204
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/<job_id>/cancel", methods=["POST"])
@@ -199,7 +199,7 @@ def cancel_job(job_id: str):
         return jsonify({"message": "Job cancelled successfully"}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/batch", methods=["POST"])
@@ -279,4 +279,4 @@ def submit_batch():
         }), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500

@@ -192,6 +192,19 @@ class ContentFetcher:
                 )
                 response.raise_for_status()
 
+                # SSRF: validate final URL after redirects
+                final_url = response.url
+                if final_url != url:
+                    try:
+                        validate_url(final_url, allow_private=False)
+                    except SSRFError:
+                        logger.warning("SSRF protection blocked redirect target: %s", final_url)
+                        return FetchResult(
+                            url=url,
+                            success=False,
+                            error=f"Redirect target blocked for security reasons: {final_url}",
+                        )
+
                 return FetchResult(
                     url=url,
                     html=response.text,
