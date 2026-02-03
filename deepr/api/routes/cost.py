@@ -35,7 +35,7 @@ def get_summary():
         return jsonify({"summary": summary}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/trends", methods=["GET"])
@@ -71,7 +71,7 @@ def get_trends():
         return jsonify({"trends": trends, "days": days}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/breakdown", methods=["GET"])
@@ -99,7 +99,7 @@ def get_breakdown():
         return jsonify({"breakdown": breakdown, "days": days}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/estimate", methods=["POST"])
@@ -145,7 +145,7 @@ def estimate_cost():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/limits", methods=["GET"])
@@ -168,7 +168,7 @@ def get_limits():
         return jsonify({"limits": limits}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/limits", methods=["PATCH"])
@@ -208,4 +208,4 @@ def update_limits():
         return jsonify({"message": "Limits updated successfully", "limits": data}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500

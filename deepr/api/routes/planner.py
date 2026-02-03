@@ -103,7 +103,7 @@ def plan_research():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/execute", methods=["POST"])
@@ -211,7 +211,7 @@ def execute_plan():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @bp.route("/batch/<batch_id>", methods=["GET"])
@@ -295,4 +295,4 @@ def get_batch_status(batch_id: str):
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500

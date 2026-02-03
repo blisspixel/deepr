@@ -1,5 +1,6 @@
 """Make and agentic command groups - artifact generation and autonomous research."""
 
+import os
 import click
 import asyncio
 from typing import Optional
@@ -267,19 +268,24 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
         # Try pandoc first, then weasyprint
         try:
             import subprocess
-            temp_md = output_path.with_suffix('.md')
-            with open(temp_md, 'w', encoding='utf-8') as f:
-                f.write(content)
+            import tempfile
+            with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.md', encoding='utf-8', delete=False
+            ) as tmp:
+                tmp.write(content)
+                temp_md = tmp.name
 
-            result = subprocess.run(
-                ['pandoc', str(temp_md), '-o', str(output_path), '--pdf-engine=xelatex'],
-                capture_output=True, text=True
-            )
+            try:
+                result = subprocess.run(
+                    ['pandoc', temp_md, '-o', str(output_path), '--pdf-engine=xelatex'],
+                    capture_output=True, text=True
+                )
 
-            if result.returncode != 0:
-                raise Exception(f"pandoc failed: {result.stderr}")
+                if result.returncode != 0:
+                    raise Exception(f"pandoc failed: {result.stderr}")
+            finally:
+                os.unlink(temp_md)
 
-            temp_md.unlink()  # Clean up temp file
             console.print(f"[dim]PDF generated using pandoc[/dim]")
 
         except FileNotFoundError:
