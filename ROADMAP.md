@@ -62,19 +62,25 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 
 ## Cloud Deployment
 
-Serverless deployment templates for AWS, Azure, and GCP. See [deploy/README.md](deploy/README.md).
+Serverless deployment templates for AWS, Azure, and GCP. Each uses native cloud tooling. See [deploy/README.md](deploy/README.md).
 
-| Cloud | API | Queue | Worker | Storage |
-|-------|-----|-------|--------|---------|
-| AWS | Lambda | SQS | Fargate | S3 |
-| Azure | Functions | Queue Storage | Container Apps | Blob Storage |
-| GCP | Cloud Functions | Pub/Sub | Cloud Run | Cloud Storage |
+| Cloud | IaC | API | Queue | Worker | Database | Storage |
+|-------|-----|-----|-------|--------|----------|---------|
+| AWS | SAM/CloudFormation | Lambda | SQS | Fargate | DynamoDB | S3 |
+| Azure | Bicep | Functions | Queue Storage | Container Apps | Cosmos DB | Blob Storage |
+| GCP | Terraform | Cloud Functions | Pub/Sub | Cloud Run | Firestore | Cloud Storage |
 
 All deployments include:
+- API key authentication (Bearer token and X-Api-Key header)
+- CORS preflight handling for browser clients
+- Input validation and request sanitization
+- Security headers (HSTS, X-Frame-Options, X-Content-Type-Options)
 - Auto-scaling workers based on queue depth
 - Secrets management (no API keys in code)
-- 90-day result retention
+- 90-day document TTL for automatic cleanup
 - Dead letter queues for failed jobs
+
+A shared library (`deploy/shared/deepr_api_common/`) provides reusable validation, security, and response utilities across all cloud handlers.
 
 ```bash
 # Quick start (AWS example)
