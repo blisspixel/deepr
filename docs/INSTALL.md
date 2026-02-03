@@ -9,7 +9,7 @@ Complete installation guide for Deepr on Linux, macOS, and Windows.
 **Linux / macOS:**
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/deepr.git
+git clone https://github.com/blisspixel/deepr.git
 cd deepr
 
 # Install (this creates the 'deepr' command)
@@ -22,7 +22,7 @@ deepr --version
 **Windows:**
 ```powershell
 # Clone repository
-git clone https://github.com/yourusername/deepr.git
+git clone https://github.com/blisspixel/deepr.git
 cd deepr
 
 # Install (this creates the 'deepr' command)
@@ -115,7 +115,7 @@ For contributing to Deepr:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/deepr.git
+git clone https://github.com/blisspixel/deepr.git
 cd deepr
 
 # Create virtual environment (recommended)
@@ -291,7 +291,7 @@ After installation:
 ## Getting Help
 
 - Documentation: All markdown files in `docs/`
-- Issues: https://github.com/yourusername/deepr/issues
+- Issues: https://github.com/blisspixel/deepr/issues
 - Questions: Create a GitHub discussion
 
 # Check help
