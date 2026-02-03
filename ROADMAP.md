@@ -29,6 +29,7 @@ Multi-provider research automation with expert system, MCP integration, and obse
 - Cost dashboard (`costs timeline`, `costs breakdown --period`, `costs expert`)
 - Multi-layer budget protection with pause/resume
 - Docker deployment option
+- Cloud deployment templates (AWS, Azure, GCP)
 - GitHub Actions CI (lint + unit tests on push/PR)
 - Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
 - Coverage configuration with 60% minimum threshold
@@ -55,6 +56,32 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | 9.5 | Claude-Specific Optimizations (CoT, lazy loading, context management) | v2.5 |
 | 9.6 | Multi-Runtime Config Templates (OpenClaw, Claude Desktop, Cursor, VS Code) | v2.5 |
 | 5.4 | Gemini Deep Research Agent (Interactions API, File Search Stores, adaptive polling) | v2.6 |
+| 10.1 | Cloud Deployment Templates (AWS SAM, Azure Bicep, GCP Terraform) | v2.6 |
+
+---
+
+## Cloud Deployment
+
+Serverless deployment templates for AWS, Azure, and GCP. See [deploy/README.md](deploy/README.md).
+
+| Cloud | API | Queue | Worker | Storage |
+|-------|-----|-------|--------|---------|
+| AWS | Lambda | SQS | Fargate | S3 |
+| Azure | Functions | Queue Storage | Container Apps | Blob Storage |
+| GCP | Cloud Functions | Pub/Sub | Cloud Run | Cloud Storage |
+
+All deployments include:
+- Auto-scaling workers based on queue depth
+- Secrets management (no API keys in code)
+- 90-day result retention
+- Dead letter queues for failed jobs
+
+```bash
+# Quick start (AWS example)
+cd deploy/aws
+cp .env.example .env  # Add your API keys
+sam build && sam deploy --guided
+```
 
 ---
 
