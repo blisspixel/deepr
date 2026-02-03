@@ -50,18 +50,27 @@ class AnthropicProvider(DeepResearchProvider):
     """
 
     SUPPORTED_MODELS = [
-        "claude-opus-4-1",
-        "claude-opus-4",
-        "claude-sonnet-4-5",
-        "claude-sonnet-4",
-        "claude-sonnet-3-7",
+        "claude-opus-4-5",      # Latest flagship - $5/$25 per MTok
+        "claude-opus-4-1",      # Legacy - $15/$75 per MTok
+        "claude-opus-4",        # Legacy - $15/$75 per MTok
+        "claude-sonnet-4-5",    # Best value for research - $3/$15 per MTok
+        "claude-sonnet-4",      # Previous gen - $3/$15 per MTok
+        "claude-sonnet-3-7",    # Legacy - $3/$15 per MTok
+        "claude-haiku-4-5",     # Fast/cheap - $1/$5 per MTok (no Extended Thinking)
     ]
+
+    # Recommended models by use case
+    RECOMMENDED_MODELS = {
+        "research": "claude-opus-4-5",      # Best reasoning for deep research (~$0.80/query)
+        "balanced": "claude-sonnet-4-5",    # Good quality, lower cost (~$0.48/query)
+        "fast": "claude-haiku-4-5",         # Quick answers, cheapest (no Extended Thinking)
+    }
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "claude-sonnet-4-5",
-        thinking_budget: int = 16000,  # Recommended for complex tasks
+        model: str = "claude-opus-4-5",  # Default to Opus for research quality
+        thinking_budget: int = 32000,    # Higher budget for Opus research tasks
         web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
     ):
         """
@@ -69,9 +78,14 @@ class AnthropicProvider(DeepResearchProvider):
 
         Args:
             api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
-            model: Claude model supporting Extended Thinking
-            thinking_budget: Token budget for Extended Thinking (min 1024, rec 16k+)
+            model: Claude model (default: claude-opus-4-5 for best research quality)
+            thinking_budget: Token budget for Extended Thinking (default 32K for research)
             web_search_backend: Web search backend (brave, tavily, duckduckgo, auto)
+        
+        Model recommendations:
+            - Research tasks: claude-opus-4-5 (~$0.80/query) - best reasoning
+            - Balanced: claude-sonnet-4-5 (~$0.48/query) - good quality, lower cost
+            - Fast/cheap: claude-haiku-4-5 - no Extended Thinking support
         """
         if not ANTHROPIC_AVAILABLE:
             raise ImportError(
@@ -266,13 +280,18 @@ class AnthropicProvider(DeepResearchProvider):
         Map generic model key to Anthropic model name.
 
         Examples:
-            "claude-4-opus" -> "claude-opus-4"
+            "claude-4-opus" -> "claude-opus-4-5"
             "claude-sonnet" -> "claude-sonnet-4-5"
+            "claude-haiku" -> "claude-haiku-4-5"
         """
         model_mapping = {
-            "claude-4-opus": "claude-opus-4",
-            "claude-opus": "claude-opus-4-1",
+            # Current generation (4.5)
+            "claude-opus": "claude-opus-4-5",
+            "claude-4-opus": "claude-opus-4-5",
             "claude-sonnet": "claude-sonnet-4-5",
+            "claude-haiku": "claude-haiku-4-5",
+            # Legacy mappings
+            "claude-4-opus-legacy": "claude-opus-4-1",
             "claude-3.7-sonnet": "claude-sonnet-3-7",
         }
 
@@ -351,31 +370,66 @@ Always show your work. Transparency builds trust."""
         return "".join(parts)
 
 
-# Pricing (as of 2025-01)
+# Pricing (as of 2026-02)
+# Source: https://www.anthropic.com/pricing
 ANTHROPIC_PRICING = {
+    # Claude 4.5 series (latest)
+    "claude-opus-4-5": {
+        "input": 5.00,   # per MTok - 66% cheaper than Opus 4!
+        "output": 25.00,
+        "thinking": 5.00,  # Extended Thinking charged at input rate
+    },
+    "claude-sonnet-4-5": {
+        "input": 3.00,   # per MTok (prompts ≤200K tokens)
+        "output": 15.00,
+        "thinking": 3.00,
+        # Note: $6/$15 for prompts >200K tokens
+    },
+    "claude-haiku-4-5": {
+        "input": 1.00,   # per MTok
+        "output": 5.00,
+        "thinking": None,  # Haiku doesn't support Extended Thinking
+    },
+    
+    # Claude 4 series (legacy but still available)
     "claude-opus-4-1": {
-        "input": 15.00,  # per MTok
+        "input": 15.00,
         "output": 75.00,
-        "thinking": 15.00,  # Extended Thinking charged at input rate
+        "thinking": 15.00,
     },
     "claude-opus-4": {
         "input": 15.00,
         "output": 75.00,
         "thinking": 15.00,
     },
-    "claude-sonnet-4-5": {
-        "input": 3.00,
-        "output": 15.00,
-        "thinking": 3.00,
-    },
     "claude-sonnet-4": {
         "input": 3.00,
         "output": 15.00,
         "thinking": 3.00,
     },
+    
+    # Claude 3.7 (legacy)
     "claude-sonnet-3-7": {
         "input": 3.00,
         "output": 15.00,
         "thinking": 3.00,
+    },
+}
+
+# Additional Anthropic API costs (not per-token)
+ANTHROPIC_TOOL_PRICING = {
+    "web_search": 10.00,  # $10 per 1,000 searches (released Sept 2025)
+    # Note: Web search also incurs token costs for results
+}
+
+# Prompt caching pricing (for Opus 4.5)
+ANTHROPIC_CACHE_PRICING = {
+    "claude-opus-4-5": {
+        "cache_write": 6.25,   # per MTok to write to cache
+        "cache_read": 0.50,    # per MTok to read from cache (90% savings!)
+    },
+    "claude-sonnet-4-5": {
+        "cache_write": 3.75,
+        "cache_read": 0.30,
     },
 }

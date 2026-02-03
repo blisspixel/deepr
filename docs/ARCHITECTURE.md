@@ -37,7 +37,7 @@ Deepr is an agentic research platform that uses AI models to conduct deep resear
   - Azure OpenAI (same models, Azure-hosted)
   - xAI (Grok 4 Fast, Grok 4)
   - Google (Gemini 2.5 Flash, Gemini 3 Pro, Deep Research Agent)
-  - Anthropic (Claude Sonnet 4.5)
+  - Anthropic (Claude Opus 4.5, Sonnet 4.5, Haiku 4.5)
 
 ### 4. Model Registry
 - **Location**: `deepr/providers/registry.py`
@@ -104,7 +104,8 @@ Expert ready to answer questions
 - **o4-mini-deep-research** (OpenAI): $2.00, 60s, best for deep research
 - **Grok 4 Fast** (xAI): $0.01, 1s, best for quick lookups
 - **Gemini 3 Pro** (Google): $0.15, 4s, 1M context for large docs
-- **Claude Sonnet 4.5** (Anthropic): $0.25, 3s, best for coding
+- **Claude Opus 4.5** (Anthropic): $0.80, 15s, best for complex reasoning with Extended Thinking
+- **Claude Sonnet 4.5** (Anthropic): $0.48, 3s, balanced quality/cost for coding
 
 Models are selected based on:
 - **Task complexity**: Simple vs complex reasoning
