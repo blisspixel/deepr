@@ -75,7 +75,8 @@ except ImportError:
         _spec.loader.exec_module(_mod)
         list_prompts = _mod.list_prompts
         get_prompt = _mod.get_prompt
-    except (ImportError, FileNotFoundError, AttributeError, OSError):
+    except (ImportError, FileNotFoundError, AttributeError, OSError) as e:
+        logging.getLogger(__name__).debug("Could not load prompts module: %s", e)
         def list_prompts():
             return []
         def get_prompt(name, arguments):
