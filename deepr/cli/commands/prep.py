@@ -66,7 +66,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
     try:
         import json
         from pathlib import Path
-        from datetime import datetime
+        from datetime import datetime, timezone
         from deepr.services.research_planner import ResearchPlanner
 
         # Check existing docs if requested
@@ -183,7 +183,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             "tasks": tasks,
             "phases": len(phases),
             "requires_review": review_before_execute,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
 
         with open(plan_file, "w") as f:
@@ -523,7 +523,7 @@ def pause(plan_id: Optional[str]):
     try:
         import json
         from pathlib import Path
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         # Load plan
         plan_dir = Path(".deepr/plans")
@@ -560,7 +560,7 @@ def pause(plan_id: Optional[str]):
 
         # Mark as paused
         plan_data["status"] = "paused"
-        plan_data["paused_at"] = datetime.utcnow().isoformat()
+        plan_data["paused_at"] = datetime.now(timezone.utc).isoformat()
 
         # Save
         with open(plan_file, "w") as f:
@@ -596,7 +596,7 @@ def resume(plan_id: Optional[str]):
     try:
         import json
         from pathlib import Path
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         # Load plan
         plan_dir = Path(".deepr/plans")
@@ -646,7 +646,7 @@ def resume(plan_id: Optional[str]):
 
         # Mark as active
         plan_data["status"] = "active"
-        plan_data["resumed_at"] = datetime.utcnow().isoformat()
+        plan_data["resumed_at"] = datetime.now(timezone.utc).isoformat()
 
         # Save
         with open(plan_file, "w") as f:
