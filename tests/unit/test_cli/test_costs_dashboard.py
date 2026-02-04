@@ -2,8 +2,13 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from click.testing import CliRunner
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from deepr.cli.main import cli
 from deepr.observability.costs import CostEntry, CostDashboard, CostAggregator
@@ -17,7 +22,7 @@ def runner():
 def _make_entries(days=7, base_cost=1.0, anomaly_day=None):
     """Create test cost entries over several days."""
     entries = []
-    now = datetime.utcnow()
+    now = utc_now()
     for i in range(days):
         cost = base_cost
         if anomaly_day is not None and i == anomaly_day:
@@ -46,7 +51,7 @@ def _make_dashboard_mock(entries=None, days=7, base_cost=1.0, anomaly_day=None):
     # Wire up get_daily_history to use real aggregator logic
     def get_daily_history(num_days):
         history = []
-        today = datetime.utcnow().date()
+        today = utc_now().date()
         for i in range(num_days):
             target_date = today - timedelta(days=i)
             total = sum(e.cost for e in entries if e.date == target_date)
@@ -104,7 +109,7 @@ class TestBreakdownPeriod:
 
     def _make_period_dashboard(self):
         """Create dashboard with entries spanning multiple periods."""
-        now = datetime.utcnow()
+        now = utc_now()
         entries = [
             CostEntry(operation="research", provider="openai", cost=1.0,
                       timestamp=now),  # today
@@ -206,7 +211,7 @@ class TestExpertCosts:
         mock_store_cls = MagicMock()
         mock_store_cls.return_value.load.return_value = mock_profile
 
-        now = datetime.utcnow()
+        now = utc_now()
         entries = [
             CostEntry(operation="research", provider="openai", cost=5.0,
                       timestamp=now, metadata={"expert": "Climate Expert"}),
