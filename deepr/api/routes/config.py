@@ -1,11 +1,13 @@
 """Configuration management API routes."""
 
+import logging
 from flask import Blueprint, request, jsonify
 
 from ...config import load_config
 from ...providers import create_provider
 from ... import __version__
 
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("config", __name__)
 
@@ -35,6 +37,7 @@ def get_config():
         return jsonify({"config": safe_config}), 200
 
     except Exception as e:
+        logger.exception("Error getting config: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -69,6 +72,7 @@ def update_config():
         return jsonify({"message": "Configuration updated successfully"}), 200
 
     except Exception as e:
+        logger.exception("Error updating config: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -121,6 +125,7 @@ def test_connection():
             }), 400
 
     except Exception as e:
+        logger.exception("Error testing connection: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -147,10 +152,18 @@ def get_status():
 
         # Get cost controller
         from ...core.costs import CostController
+        try:
+            max_cost_per_job = float(config.get("max_cost_per_job", 10.0))
+            max_daily_cost = float(config.get("max_daily_cost", 100.0))
+            max_monthly_cost = float(config.get("max_monthly_cost", 1000.0))
+        except (ValueError, TypeError):
+            max_cost_per_job = 10.0
+            max_daily_cost = 100.0
+            max_monthly_cost = 1000.0
         cost_controller = CostController(
-            max_cost_per_job=float(config.get("max_cost_per_job", 10.0)),
-            max_daily_cost=float(config.get("max_daily_cost", 100.0)),
-            max_monthly_cost=float(config.get("max_monthly_cost", 1000.0)),
+            max_cost_per_job=max_cost_per_job,
+            max_daily_cost=max_daily_cost,
+            max_monthly_cost=max_monthly_cost,
         )
         spending = cost_controller.get_spending_summary()
 
@@ -171,4 +184,5 @@ def get_status():
         return jsonify({"status": status}), 200
 
     except Exception as e:
+        logger.exception("Error getting status: %s", e)
         return jsonify({"error": "Internal server error"}), 500

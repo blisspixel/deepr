@@ -1,6 +1,7 @@
 """Job management API routes."""
 
 import asyncio
+import logging
 from flask import Blueprint, request, jsonify
 from typing import Optional
 
@@ -9,6 +10,7 @@ from ...queue.base import ResearchJob, JobStatus
 from ...core.costs import CostEstimator, CostController
 from ...config import load_config
 
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("jobs", __name__)
 
@@ -24,10 +26,19 @@ def get_queue():
 def get_cost_controller():
     """Get cost controller from config."""
     config = load_config()
+    try:
+        max_cost_per_job = float(config.get("max_cost_per_job", 10.0))
+        max_daily_cost = float(config.get("max_daily_cost", 100.0))
+        max_monthly_cost = float(config.get("max_monthly_cost", 1000.0))
+    except (ValueError, TypeError):
+        # Fall back to defaults if config values are invalid
+        max_cost_per_job = 10.0
+        max_daily_cost = 100.0
+        max_monthly_cost = 1000.0
     return CostController(
-        max_cost_per_job=float(config.get("max_cost_per_job", 10.0)),
-        max_daily_cost=float(config.get("max_daily_cost", 100.0)),
-        max_monthly_cost=float(config.get("max_monthly_cost", 1000.0)),
+        max_cost_per_job=max_cost_per_job,
+        max_daily_cost=max_daily_cost,
+        max_monthly_cost=max_monthly_cost,
     )
 
 
@@ -100,6 +111,7 @@ def submit_job():
         }), 201
 
     except Exception as e:
+        logger.exception("Error submitting job: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -118,8 +130,11 @@ def list_jobs():
     """
     try:
         status = request.args.get("status")
-        limit = min(int(request.args.get("limit", 50)), 100)
-        offset = int(request.args.get("offset", 0))
+        try:
+            limit = min(int(request.args.get("limit", 50)), 100)
+            offset = int(request.args.get("offset", 0))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid limit or offset parameter"}), 400
 
         queue = get_queue()
         jobs = asyncio.run(queue.list_jobs(status=status, limit=limit, offset=offset))
@@ -132,6 +147,7 @@ def list_jobs():
         }), 200
 
     except Exception as e:
+        logger.exception("Error listing jobs: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -154,6 +170,7 @@ def get_job(job_id: str):
         return jsonify({"job": job.to_dict()}), 200
 
     except Exception as e:
+        logger.exception("Error getting job %s: %s", job_id, e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -176,6 +193,7 @@ def delete_job(job_id: str):
         return "", 204
 
     except Exception as e:
+        logger.exception("Error deleting job %s: %s", job_id, e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -199,6 +217,7 @@ def cancel_job(job_id: str):
         return jsonify({"message": "Job cancelled successfully"}), 200
 
     except Exception as e:
+        logger.exception("Error cancelling job %s: %s", job_id, e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -279,4 +298,5 @@ def submit_batch():
         }), 201
 
     except Exception as e:
+        logger.exception("Error submitting batch jobs: %s", e)
         return jsonify({"error": "Internal server error"}), 500

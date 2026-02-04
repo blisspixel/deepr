@@ -252,7 +252,7 @@ class AzureBlobStorage(StorageBackend):
                     blob_name=blob_name,
                     account_key=account_key,
                     permission=BlobSasPermissions(read=True),
-                    expiry=datetime.utcnow() + timedelta(seconds=expires_in),
+                    expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
                 )
 
                 return f"{blob_client.url}?{sas_token}"
