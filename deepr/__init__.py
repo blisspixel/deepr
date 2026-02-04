@@ -8,7 +8,8 @@ __version__ = "2.6.0"
 __author__ = "blisspixel"
 
 from .config import AppConfig
+from .core.settings import Settings, get_settings
 from .providers import create_provider
 from .storage import create_storage
 
-__all__ = ["AppConfig", "create_provider", "create_storage"]
+__all__ = ["AppConfig", "Settings", "get_settings", "create_provider", "create_storage"]
