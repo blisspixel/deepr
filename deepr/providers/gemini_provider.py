@@ -362,8 +362,9 @@ class GeminiProvider(DeepResearchProvider):
                 full_response = "".join(response_parts)
                 thoughts_summary = "".join(thought_parts) if thought_parts else None
 
-                input_tokens = len(request.prompt.split()) * 1.3
-                output_tokens = len(full_response.split()) * 1.3
+                # Token estimation: ~4 chars per token is more accurate than word-based
+                input_tokens = len(request.prompt) // 4
+                output_tokens = len(full_response) // 4
 
                 job_data.update({
                     "status": "completed",
@@ -609,18 +610,22 @@ class GeminiProvider(DeepResearchProvider):
             Store name for use in tools, or None on failure
         """
         try:
-            store = self.client.file_search_stores.create(
-                config={"display_name": name}
-            )
-            store_name = store.name
-
-            for file_id in file_ids:
-                self.client.file_search_stores.upload_to_file_search_store(
-                    file=file_id,
-                    file_search_store_name=store_name,
-                    config={"mime_type": "text/plain"},
+            # Run synchronous SDK calls in thread pool to avoid blocking event loop
+            def _create_store():
+                store = self.client.file_search_stores.create(
+                    config={"display_name": name}
                 )
+                store_name = store.name
 
+                for file_id in file_ids:
+                    self.client.file_search_stores.upload_to_file_search_store(
+                        file=file_id,
+                        file_search_store_name=store_name,
+                        config={"mime_type": "text/plain"},
+                    )
+                return store_name
+
+            store_name = await asyncio.to_thread(_create_store)
             logger.info(f"Created file search store: {store_name} with {len(file_ids)} files")
             return store_name
 
@@ -636,15 +641,19 @@ class GeminiProvider(DeepResearchProvider):
         until manually deleted. Always clean up after use.
         """
         try:
-            # Delete documents first
-            docs = self.client.file_search_stores.documents.list(
-                file_search_store_name=store_name
-            )
-            for doc in docs:
-                self.client.file_search_stores.documents.delete(name=doc.name)
+            # Run synchronous SDK calls in thread pool to avoid blocking event loop
+            def _cleanup_store():
+                # Delete documents first
+                docs = self.client.file_search_stores.documents.list(
+                    file_search_store_name=store_name
+                )
+                for doc in docs:
+                    self.client.file_search_stores.documents.delete(name=doc.name)
 
-            # Delete the store itself
-            self.client.file_search_stores.delete(name=store_name)
+                # Delete the store itself
+                self.client.file_search_stores.delete(name=store_name)
+
+            await asyncio.to_thread(_cleanup_store)
             logger.info(f"Cleaned up file search store: {store_name}")
 
         except Exception as e:
