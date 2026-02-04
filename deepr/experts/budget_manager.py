@@ -45,9 +45,9 @@ class BudgetManager:
         """Set reset date to first of next month."""
         now = datetime.now(timezone.utc)
         if now.month == 12:
-            self.reset_date = datetime(now.year + 1, 1, 1)
+            self.reset_date = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
         else:
-            self.reset_date = datetime(now.year, now.month + 1, 1)
+            self.reset_date = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
     
     def check_and_reset_if_needed(self) -> bool:
         """Check if monthly reset is needed and perform it.
@@ -63,13 +63,13 @@ class BudgetManager:
         
         if now >= self.reset_date:
             self.monthly_spending = 0.0
-            
+
             # Set next reset date
             if now.month == 12:
-                self.reset_date = datetime(now.year + 1, 1, 1)
+                self.reset_date = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
             else:
-                self.reset_date = datetime(now.year, now.month + 1, 1)
-            
+                self.reset_date = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
+
             return True
         
         return False

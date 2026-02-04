@@ -8,10 +8,15 @@ Requirements: 4.5, 4.6 - Property-based testing for ExpertProfile
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from hypothesis import given, strategies as st, settings, assume
 
 from deepr.experts.profile import ExpertProfile
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 from deepr.experts.budget_manager import BudgetManager
 from deepr.experts.activity_tracker import ActivityTracker
 from deepr.experts.serializer import (
@@ -43,10 +48,11 @@ vector_store_id_strategy = st.text(
 # Strategy for domain velocity
 domain_velocity_strategy = st.sampled_from(["slow", "medium", "fast"])
 
-# Strategy for reasonable datetime values (within last 2 years)
+# Strategy for reasonable datetime values (within last 2 years) - timezone-aware
 datetime_strategy = st.datetimes(
     min_value=datetime(2024, 1, 1),
-    max_value=datetime(2026, 12, 31)
+    max_value=datetime(2026, 12, 31),
+    timezones=st.just(timezone.utc)
 )
 
 # Strategy for optional datetime
@@ -195,7 +201,7 @@ class TestDomainVelocityThresholds:
         days_old: int
     ):
         """Property: staleness detection is consistent with domain velocity thresholds."""
-        now = datetime.utcnow()
+        now = utc_now()
         cutoff = now - timedelta(days=days_old)
         
         profile = ExpertProfile(
@@ -223,7 +229,7 @@ class TestDomainVelocityThresholds:
     @settings(max_examples=30, deadline=None)
     def test_freshness_status_has_required_fields(self, domain_velocity: str):
         """Property: freshness status always contains required fields."""
-        now = datetime.utcnow()
+        now = utc_now()
         cutoff = now - timedelta(days=45)
         
         profile = ExpertProfile(
