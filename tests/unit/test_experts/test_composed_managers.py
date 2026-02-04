@@ -239,9 +239,109 @@ class TestActivityTrackerStandalone:
         tracker = ActivityTracker()
         tracker.record_activity("chat")
         tracker.record_activity("research")
-        
+
         data = tracker.to_dict()
         restored = ActivityTracker.from_dict(data)
-        
+
         assert restored.conversations == 1
         assert restored.research_triggered == 1
+
+    def test_activity_tracker_history_trimming(self):
+        """Should trim history when exceeding MAX_HISTORY_ENTRIES."""
+        tracker = ActivityTracker()
+
+        # Record more activities than the max
+        for i in range(60):
+            tracker.record_activity("chat", {"index": i})
+
+        # Should be trimmed to MAX_HISTORY_ENTRIES (50)
+        assert len(tracker.activity_history) == 50
+        # Should keep the most recent
+        assert tracker.activity_history[-1]["details"]["index"] == 59
+
+    def test_activity_tracker_get_stats(self):
+        """get_stats should return comprehensive statistics."""
+        tracker = ActivityTracker()
+        tracker.record_activity("chat")
+        tracker.record_activity("chat")
+        tracker.record_activity("research")
+
+        stats = tracker.get_stats()
+
+        assert stats["conversations"] == 2
+        assert stats["research_triggered"] == 1
+        assert stats["total_activities"] == 3
+        assert stats["last_activity"] is not None
+        assert len(stats["recent_activity_types"]) == 3
+
+    def test_activity_tracker_get_stats_empty(self):
+        """get_stats should work with no activities."""
+        tracker = ActivityTracker()
+
+        stats = tracker.get_stats()
+
+        assert stats["conversations"] == 0
+        assert stats["research_triggered"] == 0
+        assert stats["total_activities"] == 0
+        assert stats["last_activity"] is None
+        assert stats["recent_activity_types"] == []
+
+    def test_activity_tracker_get_recent_activity_types(self):
+        """_get_recent_activity_types should return recent types."""
+        tracker = ActivityTracker()
+        tracker.record_activity("chat")
+        tracker.record_activity("research")
+        tracker.record_activity("learning")
+
+        types = tracker._get_recent_activity_types(limit=2)
+
+        assert len(types) == 2
+        assert types == ["research", "learning"]
+
+    def test_activity_tracker_get_activity_count_since(self):
+        """get_activity_count_since should count activities after timestamp."""
+        from datetime import datetime, timedelta, timezone
+
+        tracker = ActivityTracker()
+
+        # Record some activities
+        tracker.record_activity("chat")
+        tracker.record_activity("research")
+
+        # Count from an hour ago (should get all)
+        since = datetime.now(timezone.utc) - timedelta(hours=1)
+        count = tracker.get_activity_count_since(since)
+
+        assert count == 2
+
+    def test_activity_tracker_get_activity_count_since_filters(self):
+        """get_activity_count_since should filter old activities."""
+        from datetime import datetime, timedelta, timezone
+
+        tracker = ActivityTracker()
+
+        # Add an old entry manually
+        old_time = datetime.now(timezone.utc) - timedelta(days=2)
+        tracker.activity_history.append({
+            "timestamp": old_time.isoformat(),
+            "type": "chat",
+            "details": None
+        })
+
+        # Add a recent entry
+        tracker.record_activity("chat")
+
+        # Count from yesterday (should only get the recent one)
+        since = datetime.now(timezone.utc) - timedelta(days=1)
+        count = tracker.get_activity_count_since(since)
+
+        assert count == 1
+
+    def test_activity_tracker_from_dict_empty(self):
+        """from_dict should handle empty data."""
+        tracker = ActivityTracker.from_dict({})
+
+        assert tracker.conversations == 0
+        assert tracker.research_triggered == 0
+        assert tracker.last_activity is None
+        assert tracker.activity_history == []
