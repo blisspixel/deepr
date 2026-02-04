@@ -457,5 +457,172 @@ class TestVerdictPropertyTests:
         assert verdict.value == verdict.value.upper()
 
 
+from deepr.core.evidence import ExpertAnswer
+
+
+class TestExpertAnswer:
+    """Test ExpertAnswer dataclass."""
+
+    def test_create_minimal_answer(self):
+        """Should create answer with minimal fields."""
+        answer = ExpertAnswer(answer_text="This is the answer")
+
+        assert answer.answer_text == "This is the answer"
+        assert answer.evidence == []
+        assert answer.confidence == 0.0
+        assert answer.cost == 0.0
+
+    def test_create_full_answer(self):
+        """Should create answer with all fields."""
+        evidence = Evidence.create(source="test.md", quote="Quote")
+        answer = ExpertAnswer(
+            answer_text="This is the answer",
+            evidence=[evidence],
+            confidence=0.9,
+            cost=0.05,
+            reasoning_trace="Step 1: ...\nStep 2: ..."
+        )
+
+        assert answer.answer_text == "This is the answer"
+        assert len(answer.evidence) == 1
+        assert answer.confidence == 0.9
+        assert answer.cost == 0.05
+        assert answer.reasoning_trace is not None
+
+    def test_to_cli_output_minimal(self):
+        """Should render minimal CLI output."""
+        answer = ExpertAnswer(answer_text="The answer is 42")
+        output = answer.to_cli_output()
+
+        assert "The answer is 42" in output
+
+    def test_to_cli_output_with_evidence(self):
+        """Should render CLI output with evidence."""
+        evidence = Evidence.create(
+            source="guide.md",
+            quote="Quote",
+            url="https://example.com"
+        )
+        answer = ExpertAnswer(
+            answer_text="The answer",
+            evidence=[evidence]
+        )
+        output = answer.to_cli_output()
+
+        assert "The answer" in output
+        assert "Sources:" in output
+        assert "guide.md" in output
+
+    def test_to_cli_output_with_cost(self):
+        """Should show cost in CLI output."""
+        answer = ExpertAnswer(
+            answer_text="The answer",
+            cost=0.0123
+        )
+        output = answer.to_cli_output()
+
+        assert "Cost:" in output
+        assert "$0.0123" in output
+
+    def test_to_cli_output_verbose_with_reasoning(self):
+        """Should show reasoning trace in verbose mode."""
+        answer = ExpertAnswer(
+            answer_text="The answer",
+            reasoning_trace="Step 1: Analyzed docs\nStep 2: Synthesized"
+        )
+        output = answer.to_cli_output(verbose=True)
+
+        assert "Reasoning:" in output
+        assert "Step 1:" in output
+
+    def test_to_cli_output_verbose_no_reasoning(self):
+        """Should not show reasoning section if no trace."""
+        answer = ExpertAnswer(answer_text="The answer")
+        output = answer.to_cli_output(verbose=True)
+
+        assert "Reasoning:" not in output
+
+    def test_to_mcp_payload(self):
+        """Should render MCP payload."""
+        evidence = Evidence.create(source="test.md", quote="Quote")
+        answer = ExpertAnswer(
+            answer_text="The answer",
+            evidence=[evidence],
+            confidence=0.85,
+            cost=0.02
+        )
+        payload = answer.to_mcp_payload()
+
+        assert payload["answer"] == "The answer"
+        assert len(payload["evidence"]) == 1
+        assert payload["confidence"] == 0.85
+        assert payload["cost"] == 0.02
+
+    def test_to_mcp_payload_empty_evidence(self):
+        """Should handle empty evidence in payload."""
+        answer = ExpertAnswer(answer_text="No sources")
+        payload = answer.to_mcp_payload()
+
+        assert payload["answer"] == "No sources"
+        assert payload["evidence"] == []
+
+
+class TestFactCheckResultCliOutput:
+    """Additional tests for FactCheckResult CLI output."""
+
+    def test_cli_output_with_evidence_markers(self):
+        """Should show support/contradict markers."""
+        evidence = Evidence.create(
+            source="test.md",
+            quote="This supports the claim",
+            supports=["claim1"]
+        )
+        result = FactCheckResult(
+            claim="claim1",
+            verdict=Verdict.TRUE,
+            confidence=0.9,
+            scope="test",
+            evidence=[evidence]
+        )
+        output = result.to_cli_output()
+
+        assert "Evidence:" in output
+        assert "test.md" in output
+
+    def test_cli_output_with_url(self):
+        """Should show URL in evidence."""
+        evidence = Evidence.create(
+            source="test.md",
+            quote="Quote",
+            url="https://example.com/doc"
+        )
+        result = FactCheckResult(
+            claim="Test",
+            verdict=Verdict.TRUE,
+            confidence=0.9,
+            scope="test",
+            evidence=[evidence]
+        )
+        output = result.to_cli_output()
+
+        assert "https://example.com/doc" in output
+
+    def test_cli_output_truncates_long_quotes(self):
+        """Should truncate very long quotes."""
+        long_quote = "A" * 200
+        evidence = Evidence.create(source="test.md", quote=long_quote)
+        result = FactCheckResult(
+            claim="Test",
+            verdict=Verdict.TRUE,
+            confidence=0.9,
+            scope="test",
+            evidence=[evidence]
+        )
+        output = result.to_cli_output()
+
+        # Should truncate to ~100 chars + "..."
+        assert "..." in output
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
