@@ -3,10 +3,26 @@
 import sqlite3
 import json
 import asyncio
-from typing import Optional, List, Dict, Any
+import logging
+from typing import Optional, List, Dict, Any, TypeVar
 from datetime import datetime, timedelta
 from pathlib import Path
 from .base import QueueBackend, ResearchJob, JobStatus, QueueError
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+def _safe_json_loads(data: Optional[str], default: T, context: str = "") -> T:
+    """Safely parse JSON with fallback to default value."""
+    if not data:
+        return default
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        logger.warning("Failed to parse JSON%s: %s", f" for {context}" if context else "", e)
+        return default
 
 
 class SQLiteQueue(QueueBackend):
@@ -119,8 +135,9 @@ class SQLiteQueue(QueueBackend):
 
     def _dict_to_job(self, row: Dict[str, Any]) -> ResearchJob:
         """Convert database row to job object."""
+        job_id = row["id"]
         return ResearchJob(
-            id=row["id"],
+            id=job_id,
             prompt=row["prompt"],
             model=row["model"],
             provider=row.get("provider", "openai"),  # Default to openai for backwards compatibility
@@ -129,7 +146,7 @@ class SQLiteQueue(QueueBackend):
             submitted_at=datetime.fromisoformat(row["submitted_at"]),
             started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
             completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
-            documents=json.loads(row["documents"]) if row["documents"] else [],
+            documents=_safe_json_loads(row["documents"], [], f"job {job_id} documents"),
             enable_web_search=bool(row["enable_web_search"]),
             enable_code_interpreter=bool(row["enable_code_interpreter"]),
             cost_limit=row["cost_limit"],
@@ -137,15 +154,15 @@ class SQLiteQueue(QueueBackend):
             worker_id=row["worker_id"],
             attempts=row["attempts"],
             last_error=row["last_error"],
-            report_paths=json.loads(row["report_paths"]) if row["report_paths"] else {},
+            report_paths=_safe_json_loads(row["report_paths"], {}, f"job {job_id} report_paths"),
             cost=row["cost"],
             tokens_used=row["tokens_used"],
             tenant_id=row["tenant_id"],
             workspace_id=row["workspace_id"],
             submitted_by=row["submitted_by"],
-            tags=json.loads(row["tags"]) if row["tags"] else [],
+            tags=_safe_json_loads(row["tags"], [], f"job {job_id} tags"),
             callback_url=row["callback_url"],
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+            metadata=_safe_json_loads(row["metadata"], {}, f"job {job_id} metadata"),
         )
 
     async def enqueue(self, job: ResearchJob) -> str:
