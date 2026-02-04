@@ -94,22 +94,133 @@ class JobPlan:
 
 
 @dataclass
+class TemporalFindingRecord:
+    """A timestamped finding for temporal tracking."""
+    id: str
+    text: str
+    phase: int
+    confidence: float
+    finding_type: str
+    timestamp: str
+    source: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "text": self.text,
+            "phase": self.phase,
+            "confidence": self.confidence,
+            "finding_type": self.finding_type,
+            "timestamp": self.timestamp,
+            "source": self.source,
+        }
+
+
+@dataclass
+class HypothesisRecord:
+    """A hypothesis with evolution history."""
+    id: str
+    current_text: str
+    confidence: float
+    phase_created: int
+    evolution_count: int = 0
+    status: str = "active"  # active, invalidated
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "current_text": self.current_text,
+            "confidence": self.confidence,
+            "phase_created": self.phase_created,
+            "evolution_count": self.evolution_count,
+            "status": self.status,
+        }
+
+
+@dataclass
 class JobBeliefs:
     """Accumulated beliefs/findings from a job."""
-    
+
     job_id: str
     beliefs: list[dict] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     confidence: float = 0.0
-    
+
+    # Temporal knowledge tracking
+    temporal_findings: list[TemporalFindingRecord] = field(default_factory=list)
+    hypothesis_history: list[HypothesisRecord] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         return {
             "job_id": self.job_id,
             "beliefs": self.beliefs,
             "sources": self.sources,
             "confidence": self.confidence,
-            "belief_count": len(self.beliefs)
+            "belief_count": len(self.beliefs),
+            "temporal_findings": [f.to_dict() for f in self.temporal_findings],
+            "hypothesis_history": [h.to_dict() for h in self.hypothesis_history],
+            "temporal_finding_count": len(self.temporal_findings),
+            "active_hypotheses": len([h for h in self.hypothesis_history if h.status == "active"]),
         }
+
+    def add_temporal_finding(
+        self,
+        finding_id: str,
+        text: str,
+        phase: int,
+        confidence: float,
+        finding_type: str,
+        source: Optional[str] = None,
+    ) -> TemporalFindingRecord:
+        """Add a temporal finding record."""
+        record = TemporalFindingRecord(
+            id=finding_id,
+            text=text,
+            phase=phase,
+            confidence=confidence,
+            finding_type=finding_type,
+            timestamp=datetime.now().isoformat(),
+            source=source,
+        )
+        self.temporal_findings.append(record)
+        return record
+
+    def add_hypothesis(
+        self,
+        hypothesis_id: str,
+        text: str,
+        confidence: float,
+        phase: int,
+    ) -> HypothesisRecord:
+        """Add a hypothesis record."""
+        record = HypothesisRecord(
+            id=hypothesis_id,
+            current_text=text,
+            confidence=confidence,
+            phase_created=phase,
+        )
+        self.hypothesis_history.append(record)
+        return record
+
+    def update_hypothesis(
+        self,
+        hypothesis_id: str,
+        new_text: Optional[str] = None,
+        new_confidence: Optional[float] = None,
+        status: Optional[str] = None,
+    ) -> Optional[HypothesisRecord]:
+        """Update an existing hypothesis."""
+        for h in self.hypothesis_history:
+            if h.id == hypothesis_id:
+                if new_text is not None:
+                    h.current_text = new_text
+                if new_confidence is not None:
+                    h.confidence = new_confidence
+                if status is not None:
+                    h.status = status
+                h.evolution_count += 1
+                return h
+        return None
 
 
 class JobManager:

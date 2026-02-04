@@ -8,19 +8,48 @@ Based on research findings (docs/research and documentation/context_chaining_bes
 - Keep summaries under 2K tokens
 - Use structured outputs (bullet lists)
 - Summary memory cuts token usage ~70%
+
+Includes token budget management and intelligent context pruning.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from openai import OpenAI
 import os
 
+from deepr.core.constants import MAX_CONTEXT_TOKENS, TOKEN_BUDGET_DEFAULT
+from deepr.services.context_pruner import ContextPruner, ContextItem, PruningDecision
+from deepr.services.token_budget import TokenBudgetAllocator, BudgetPlan
+
 
 class ContextBuilder:
-    """Builds context from prior research for subsequent phases."""
+    """Builds context from prior research for subsequent phases.
 
-    def __init__(self, api_key: str = None):
-        """Initialize context builder with OpenAI client."""
+    Includes token budget management and intelligent pruning for
+    long research sessions.
+    """
+
+    def __init__(
+        self,
+        api_key: str = None,
+        token_budget: Optional[int] = None,
+        enable_pruning: bool = True,
+    ):
+        """Initialize context builder with OpenAI client.
+
+        Args:
+            api_key: OpenAI API key
+            token_budget: Maximum tokens for context (default from constants)
+            enable_pruning: Whether to enable intelligent pruning
+        """
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        self.token_budget = token_budget or MAX_CONTEXT_TOKENS
+        self.enable_pruning = enable_pruning
+
+        # Initialize pruner
+        self.pruner = ContextPruner() if enable_pruning else None
+
+        # Track pruning decisions for explain output
+        self.last_pruning_decision: Optional[PruningDecision] = None
 
     async def summarize_research(self, report_content: str, max_tokens: int = 500) -> str:
         """
@@ -66,6 +95,8 @@ Summary (bullet list, ~{target_words} words):"""
         self,
         task: Dict,
         completed_tasks: Dict[int, Dict],
+        token_budget: Optional[int] = None,
+        current_query: Optional[str] = None,
     ) -> str:
         """
         Build context string for a task based on dependencies.
@@ -73,20 +104,22 @@ Summary (bullet list, ~{target_words} words):"""
         Args:
             task: Current task with 'depends_on' field
             completed_tasks: Dict mapping task ID to task data with 'result'
+            token_budget: Optional override for token budget
+            current_query: Current query for relevance-based pruning
 
         Returns:
             Context string to inject into prompt
         """
         depends_on = task.get("depends_on", [])
+        budget = token_budget or self.token_budget
+        query = current_query or task.get("prompt", "")
 
         if not depends_on:
             return ""
 
-        # Build context from dependencies
-        context_parts = [
-            "Context from previous research:",
-            "",
-        ]
+        # Collect context items for potential pruning
+        context_items = []
+        from datetime import datetime, timezone
 
         for dep_id in depends_on:
             if dep_id not in completed_tasks:
@@ -95,14 +128,56 @@ Summary (bullet list, ~{target_words} words):"""
             dep_task = completed_tasks[dep_id]
             dep_title = dep_task.get("title", f"Task {dep_id}")
             dep_result = dep_task.get("result", "")
+            dep_phase = dep_task.get("phase", 1)
 
             if not dep_result:
                 continue
 
-            # Summarize dependency result
-            summary = await self.summarize_research(dep_result, max_tokens=400)
+            # Create context item for pruning
+            item = ContextItem(
+                id=f"dep_{dep_id}",
+                text=dep_result,
+                source=dep_title,
+                timestamp=datetime.now(timezone.utc),
+                phase=dep_phase,
+                importance=0.7,  # Dependency context is important
+            )
+            context_items.append((dep_id, item))
 
-            context_parts.append(f"## From: {dep_title}")
+        # Apply pruning if enabled and needed
+        if self.enable_pruning and self.pruner and context_items:
+            items_only = [item for _, item in context_items]
+            total_tokens = sum(item.tokens for item in items_only)
+
+            if total_tokens > budget:
+                pruned_items, self.last_pruning_decision = self.pruner.prune(
+                    context_items=items_only,
+                    current_query=query,
+                    token_budget=budget,
+                )
+
+                # Rebuild mapping
+                pruned_ids = {item.id for item in pruned_items}
+                context_items = [
+                    (dep_id, item) for dep_id, item in context_items
+                    if item.id in pruned_ids
+                ]
+
+        # Build context from (possibly pruned) items
+        context_parts = [
+            "Context from previous research:",
+            "",
+        ]
+
+        for dep_id, item in context_items:
+            dep_result = item.text
+
+            # Summarize dependency result
+            # Use smaller max_tokens if we have many dependencies
+            max_summary_tokens = min(400, budget // max(len(context_items), 1))
+            summary = await self.summarize_research(dep_result, max_tokens=max_summary_tokens)
+
+            context_parts.append(f"## From: {item.source}")
             context_parts.append(summary)
             context_parts.append("")
 
@@ -112,6 +187,31 @@ Summary (bullet list, ~{target_words} words):"""
         context_parts.append("")
 
         return "\n".join(context_parts)
+
+    def get_context_utilization(self) -> Dict:
+        """Get context utilization metrics for --explain output.
+
+        Returns:
+            Dictionary with utilization metrics
+        """
+        if not self.last_pruning_decision:
+            return {
+                "pruning_applied": False,
+                "budget": self.token_budget,
+            }
+
+        decision = self.last_pruning_decision
+        return {
+            "pruning_applied": True,
+            "original_items": decision.original_count,
+            "final_items": decision.pruned_count,
+            "original_tokens": decision.original_tokens,
+            "final_tokens": decision.final_tokens,
+            "budget": decision.budget,
+            "tokens_saved": decision.original_tokens - decision.final_tokens,
+            "items_removed": len(decision.items_removed),
+            "strategy": decision.strategy_used,
+        }
 
     async def build_synthesis_context(
         self,

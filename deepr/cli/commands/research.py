@@ -54,7 +54,15 @@ def research():
               help="Override max cost for this job (USD)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.option("--auto-select", is_flag=True, help="Use autonomous provider router for selection")
-def submit(prompt: str, provider: str, model: str, priority: int, web_search: bool, cost_limit: float, yes: bool, auto_select: bool):
+@click.option("--entropy-threshold", type=float, default=None,
+              help="Entropy threshold for stopping (0.0-1.0, lower = stop earlier)")
+@click.option("--token-budget", type=int, default=None,
+              help="Token budget for context management")
+@click.option("--research-mode", type=click.Choice(["read_only", "standard", "extended", "unrestricted"]),
+              default="standard", help="Research mode controlling tool access")
+def submit(prompt: str, provider: str, model: str, priority: int, web_search: bool,
+           cost_limit: float, yes: bool, auto_select: bool, entropy_threshold: float,
+           token_budget: int, research_mode: str):
     """Submit a deep research job."""
     print_section_header("Submit Deep Research Job")
 
@@ -84,6 +92,11 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
     click.echo(f"   Model: {model}")
     click.echo(f"   Priority: {priority} ({'high' if priority <= 2 else 'normal' if priority <= 4 else 'low'})")
     click.echo(f"   Web Search: {'enabled' if web_search else 'disabled'}")
+    click.echo(f"   Research Mode: {research_mode}")
+    if entropy_threshold is not None:
+        click.echo(f"   Entropy Threshold: {entropy_threshold}")
+    if token_budget is not None:
+        click.echo(f"   Token Budget: {token_budget:,}")
     click.echo(f"   Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
 
     if not yes and not click.confirm("\nSubmit deep research job?"):
@@ -128,6 +141,16 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
         provider_instance = create_provider(resolved_provider, api_key=api_key)
 
         job_id = str(uuid.uuid4())
+
+        # Build metadata with new options
+        job_metadata = {
+            "research_mode": research_mode,
+        }
+        if entropy_threshold is not None:
+            job_metadata["entropy_threshold"] = entropy_threshold
+        if token_budget is not None:
+            job_metadata["token_budget"] = token_budget
+
         job = ResearchJob(
             id=job_id,
             prompt=prompt,
@@ -138,6 +161,7 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
             submitted_at=datetime.utcnow(),
             cost_limit=cost_limit if cost_limit is not None else config.get("max_cost_per_job", 10.0),
             enable_web_search=web_search,
+            metadata=job_metadata,
         )
 
         async def submit_job():
@@ -498,37 +522,41 @@ def wait(job_id: str, timeout: int):
 @click.argument("job_id")
 @click.option("--explain", is_flag=True, help="Show research path reasoning")
 @click.option("--timeline", is_flag=True, help="Show reasoning evolution timeline")
+@click.option("--temporal", is_flag=True, help="Show temporal knowledge timeline with findings/hypotheses")
 @click.option("--full-trace", is_flag=True, help="Export complete audit trail")
 @click.option("--output", "-o", type=click.Path(), help="Output file for full trace export")
-def trace(job_id: str, explain: bool, timeline: bool, full_trace: bool, output: str):
+@click.option("--show-budget", is_flag=True, help="Show token budget utilization")
+def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, full_trace: bool, output: str, show_budget: bool):
     """View trace information for a research job.
-    
+
     Examples:
         deepr research trace abc123 --explain
         deepr research trace abc123 --timeline
+        deepr research trace abc123 --temporal
         deepr research trace abc123 --full-trace -o trace.json
+        deepr research trace abc123 --show-budget
     """
     from pathlib import Path
     from rich.table import Table
     from rich.panel import Panel
-    
+
     print_section_header(f"Trace: {job_id[:8]}...")
-    
+
     # Find trace file
     trace_dir = Path("data/traces")
     trace_files = list(trace_dir.glob(f"*{job_id[:8]}*.json"))
-    
+
     if not trace_files:
         print_error(f"No trace found for job {job_id}")
         console.print(f"\n[dim]Traces are saved in {trace_dir}[/dim]")
         return
-    
+
     trace_path = trace_files[0]
-    
+
     try:
         from deepr.observability.metadata import MetadataEmitter
         emitter = MetadataEmitter.load_trace(trace_path)
-        
+
         if explain:
             # Show research path reasoning
             console.print(Panel(
@@ -538,7 +566,7 @@ def trace(job_id: str, explain: bool, timeline: bool, full_trace: bool, output: 
                 f"Total Cost: ${emitter.get_total_cost():.4f}",
                 title="Research Path"
             ))
-            
+
             # Show task hierarchy
             console.print("\n[bold]Task Hierarchy:[/bold]")
             for task in emitter.tasks:
@@ -551,24 +579,24 @@ def trace(job_id: str, explain: bool, timeline: bool, full_trace: bool, output: 
                     console.print(f"{indent}   Cost: ${task.cost:.4f}")
                 if task.context_sources:
                     console.print(f"{indent}   Sources: {len(task.context_sources)}")
-        
+
         if timeline:
             # Show reasoning evolution timeline
             timeline_data = emitter.get_timeline()
-            
+
             table = Table(title="Reasoning Timeline")
             table.add_column("Time", style="dim")
             table.add_column("Task", style="cyan")
             table.add_column("Status")
             table.add_column("Duration", justify="right")
             table.add_column("Cost", justify="right")
-            
+
             for entry in timeline_data:
                 start = entry["start_time"][:19].replace("T", " ")
                 status_color = "green" if entry["status"] == "completed" else "red"
                 duration = f"{entry['duration_ms']:.0f}ms" if entry.get("duration_ms") else "-"
                 cost = f"${entry['cost']:.4f}" if entry.get("cost", 0) > 0 else "-"
-                
+
                 table.add_row(
                     start,
                     entry["task_type"],
@@ -576,24 +604,32 @@ def trace(job_id: str, explain: bool, timeline: bool, full_trace: bool, output: 
                     duration,
                     cost
                 )
-            
+
             console.print(table)
-            
+
             # Cost breakdown
             breakdown = emitter.get_cost_breakdown()
             if breakdown:
                 console.print("\n[bold]Cost Breakdown:[/bold]")
                 for task_type, cost in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
                     console.print(f"  {task_type}: ${cost:.4f}")
-        
+
+        if temporal:
+            # Show temporal knowledge timeline
+            _render_temporal_timeline(job_id, trace_path)
+
+        if show_budget:
+            # Show token budget utilization
+            _render_budget_utilization(emitter)
+
         if full_trace:
             # Export complete audit trail
             output_path = Path(output) if output else Path(f"trace_{job_id[:8]}_export.json")
             emitter.save_trace(output_path)
             print_success(f"Full trace exported to {output_path}")
             console.print(f"\n[dim]Contains {len(emitter.tasks)} tasks and {len(emitter.trace_context.spans)} spans[/dim]")
-        
-        if not (explain or timeline or full_trace):
+
+        if not (explain or timeline or temporal or full_trace or show_budget):
             # Default: show summary
             console.print(Panel(
                 f"[bold]Trace Summary[/bold]\n\n"
@@ -601,10 +637,139 @@ def trace(job_id: str, explain: bool, timeline: bool, full_trace: bool, output: 
                 f"Tasks: {len(emitter.tasks)}\n"
                 f"Spans: {len(emitter.trace_context.spans)}\n"
                 f"Total Cost: ${emitter.get_total_cost():.4f}\n\n"
-                f"Use --explain, --timeline, or --full-trace for details",
+                f"Use --explain, --timeline, --temporal, --show-budget, or --full-trace for details",
                 title="Trace Info"
             ))
-    
+
     except Exception as e:
         print_error(f"Error loading trace: {e}")
         raise click.Abort()
+
+
+def _render_temporal_timeline(job_id: str, trace_path):
+    """Render temporal knowledge timeline.
+
+    Args:
+        job_id: Job identifier
+        trace_path: Path to trace file
+    """
+    from rich.table import Table
+    from rich.panel import Panel
+    import json
+
+    try:
+        # Try to load temporal data from trace
+        with open(trace_path, 'r') as f:
+            trace_data = json.load(f)
+
+        temporal_data = trace_data.get("temporal", {})
+        findings = temporal_data.get("findings", [])
+        hypotheses = temporal_data.get("hypotheses", {})
+
+        if not findings and not hypotheses:
+            console.print("[dim]No temporal knowledge data found in trace.[/dim]")
+            console.print("[dim]Temporal tracking requires the TemporalKnowledgeTracker to be enabled.[/dim]")
+            return
+
+        # Render findings timeline
+        if findings:
+            table = Table(title="Temporal Findings Timeline")
+            table.add_column("Time", style="dim", width=10)
+            table.add_column("Phase", justify="center", width=6)
+            table.add_column("Type", style="cyan", width=12)
+            table.add_column("Finding", width=50)
+            table.add_column("Conf", justify="right", width=6)
+
+            for finding in findings[:20]:  # Limit to 20 most recent
+                time_str = finding.get("timestamp", "")[:10]
+                phase = str(finding.get("phase", "?"))
+                ftype = finding.get("finding_type", "unknown")
+                text = finding.get("text", "")[:50]
+                if len(finding.get("text", "")) > 50:
+                    text += "..."
+                conf = f"{finding.get('confidence', 0):.2f}"
+
+                # Color code by type
+                type_colors = {
+                    "fact": "blue",
+                    "observation": "cyan",
+                    "inference": "yellow",
+                    "hypothesis": "magenta",
+                    "contradiction": "red",
+                    "confirmation": "green",
+                }
+                color = type_colors.get(ftype, "white")
+
+                table.add_row(
+                    time_str,
+                    phase,
+                    f"[{color}]{ftype}[/{color}]",
+                    text,
+                    conf
+                )
+
+            console.print(table)
+
+        # Render hypothesis evolution
+        if hypotheses:
+            console.print("\n[bold]Hypothesis Evolution:[/bold]")
+
+            for h_id, h_data in hypotheses.items():
+                status = h_data.get("current_state", {}).get("confidence", 0)
+                status_color = "green" if status > 0.5 else "yellow" if status > 0 else "red"
+                status_text = "ACTIVE" if status > 0 else "INVALIDATED"
+
+                console.print(f"\n[bold]{h_id}[/bold] [{status_color}]{status_text}[/{status_color}]")
+                console.print(f"  Current: {h_data.get('current_state', {}).get('text', 'N/A')[:60]}...")
+                console.print(f"  Confidence: {status:.2f}")
+                console.print(f"  Evolutions: {len(h_data.get('evolution_history', []))}")
+
+    except json.JSONDecodeError:
+        console.print("[red]Error: Could not parse trace file.[/red]")
+    except Exception as e:
+        console.print(f"[red]Error rendering temporal timeline: {e}[/red]")
+
+
+def _render_budget_utilization(emitter):
+    """Render token budget utilization from trace.
+
+    Args:
+        emitter: MetadataEmitter with trace data
+    """
+    from rich.table import Table
+    from rich.progress import Progress, BarColumn, TextColumn
+
+    console.print("\n[bold]Token Budget Utilization:[/bold]\n")
+
+    # Get token usage from tasks
+    total_tokens = 0
+    phase_tokens = {}
+
+    for task in emitter.tasks:
+        tokens = task.attributes.get("tokens_used", 0)
+        total_tokens += tokens
+
+        phase = task.attributes.get("phase", "unknown")
+        if phase not in phase_tokens:
+            phase_tokens[phase] = 0
+        phase_tokens[phase] += tokens
+
+    # Show budget bar
+    from deepr.core.constants import TOKEN_BUDGET_DEFAULT
+    budget = TOKEN_BUDGET_DEFAULT
+
+    used_pct = min(total_tokens / budget * 100, 100)
+    bar_width = 40
+    filled = int(used_pct / 100 * bar_width)
+
+    color = "green" if used_pct < 70 else "yellow" if used_pct < 90 else "red"
+    bar = f"[{color}]{'█' * filled}[/{color}]{'░' * (bar_width - filled)}"
+
+    console.print(f"Total Budget: {bar} {total_tokens:,} / {budget:,} ({used_pct:.1f}%)")
+
+    # Phase breakdown
+    if phase_tokens:
+        console.print("\n[bold]By Phase:[/bold]")
+        for phase, tokens in sorted(phase_tokens.items()):
+            pct = tokens / max(total_tokens, 1) * 100
+            console.print(f"  Phase {phase}: {tokens:,} tokens ({pct:.1f}%)")

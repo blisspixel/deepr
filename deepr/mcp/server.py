@@ -58,9 +58,14 @@ from deepr.config import load_config
 from deepr.mcp.transport.stdio import StdioServer, Message
 from deepr.mcp.state.resource_handler import MCPResourceHandler, get_resource_handler
 from deepr.mcp.state.job_manager import JobManager, JobPhase
+from deepr.mcp.state.task_durability import TaskDurabilityManager, TaskStatus, DurableTask
+from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
 from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
 from deepr.mcp.search.gateway import GatewayTool
 from deepr.mcp.security import SSRFProtector
+from deepr.mcp.security.instruction_signing import InstructionSigner, SignedInstruction
+from deepr.mcp.security.output_verification import OutputVerifier
+from deepr.mcp.security.tool_allowlist import ToolAllowlist, ResearchMode
 
 # Prompt primitives (template menus for MCP clients)
 try:
@@ -175,7 +180,24 @@ class DeeprMCPServer:
             audit_log=True,
         )
 
-        # Register the three new tools in the registry
+        # Task durability for reconnection support
+        self.durability_manager = TaskDurabilityManager()
+        self.async_dispatcher = AsyncTaskDispatcher()
+
+        # Security: instruction signing, output verification, tool allowlist
+        self.instruction_signer = InstructionSigner()
+        self.output_verifier = OutputVerifier()
+
+        # Research mode from environment (default: standard)
+        research_mode_str = os.environ.get("DEEPR_RESEARCH_MODE", "standard")
+        try:
+            research_mode = ResearchMode(research_mode_str)
+        except ValueError:
+            research_mode = ResearchMode.STANDARD
+            logger.warning("Invalid DEEPR_RESEARCH_MODE '%s', using 'standard'", research_mode_str)
+        self.tool_allowlist = ToolAllowlist(mode=research_mode)
+
+        # Register the tools in the registry
         _register_new_tools(self.registry)
 
     # ------------------------------------------------------------------ #
@@ -209,6 +231,14 @@ class DeeprMCPServer:
                 "dynamic_discovery": True,
                 "resource_subscriptions": True,
                 "elicitation": True,
+            },
+            "security": {
+                "research_mode": self.tool_allowlist.mode.value,
+                "allowed_tools": len(self.tool_allowlist.get_allowed_tools()),
+                "blocked_tools": len(self.tool_allowlist.get_blocked_tools()),
+                "tools_requiring_confirmation": len(self.tool_allowlist.get_tools_requiring_confirmation()),
+                "instruction_signing": True,
+                "output_verification": True,
             },
         }
 
@@ -769,6 +799,49 @@ class DeeprMCPServer:
             return _make_error("INTERNAL_ERROR", str(e))
 
     # ------------------------------------------------------------------ #
+    # Task Durability Methods
+    # ------------------------------------------------------------------ #
+    async def deepr_get_task_progress(self, task_id: str) -> Dict:
+        """Get progress for a durable task."""
+        task = await self.durability_manager.get_task(task_id)
+        if not task:
+            return _make_error("TASK_NOT_FOUND", f"Task '{task_id}' not found")
+        return task.to_dict()
+
+    async def deepr_list_recoverable_tasks(self, job_id: str) -> Dict:
+        """List recoverable tasks for a job."""
+        tasks = await self.durability_manager.get_recoverable_tasks(job_id)
+        return {
+            "job_id": job_id,
+            "recoverable_tasks": [t.to_dict() for t in tasks],
+            "count": len(tasks),
+        }
+
+    async def deepr_resume_task(self, task_id: str) -> Dict:
+        """Resume a paused task."""
+        task = await self.durability_manager.resume_task(task_id)
+        if not task:
+            return _make_error("TASK_NOT_FOUND", f"Task '{task_id}' not found or not resumable")
+        return {
+            "task_id": task_id,
+            "status": task.status.value,
+            "checkpoint": task.checkpoint,
+            "message": f"Task '{task_id}' resumed from checkpoint",
+        }
+
+    async def deepr_pause_task(self, task_id: str) -> Dict:
+        """Pause a running task."""
+        task = await self.durability_manager.pause_task(task_id)
+        if not task:
+            return _make_error("TASK_NOT_FOUND", f"Task '{task_id}' not found")
+        return {
+            "task_id": task_id,
+            "status": task.status.value,
+            "checkpoint": task.checkpoint,
+            "message": f"Task '{task_id}' paused",
+        }
+
+    # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
     def validate_outbound_url(self, url: str) -> Optional[dict]:
@@ -880,9 +953,42 @@ async def _handle_tools_list(server: DeeprMCPServer, params: dict) -> dict:
 
 
 async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
-    """Handle tools/call - dispatch to appropriate tool method."""
+    """Handle tools/call - dispatch to appropriate tool method.
+
+    Integrates security checks:
+    1. Tool allowlist - checks if tool is allowed in current research mode
+    2. Instruction signing - signs the instruction for audit trail
+    3. Output verification - records output hash for integrity verification
+    """
     name = params.get("name", "")
     arguments = params.get("arguments", {})
+    job_id = arguments.get("job_id") or arguments.get("workflow_id")
+
+    # Security: Check tool allowlist
+    validation = server.tool_allowlist.validate_tool_call(name)
+    if not validation["allowed"]:
+        logger.warning("Tool '%s' blocked by allowlist: %s", name, validation["reason"])
+        return {
+            "content": [{"type": "text", "text": json.dumps(
+                _make_error(
+                    "TOOL_BLOCKED",
+                    validation["reason"],
+                    fallback=f"Current research mode: {validation['mode']}",
+                )
+            )}],
+            "isError": True,
+        }
+
+    # Security: Check if confirmation is required (for future elicitation integration)
+    if validation["requires_confirmation"]:
+        logger.info("Tool '%s' requires confirmation in mode '%s'", name, validation["mode"])
+        # Note: Full elicitation integration would prompt user here
+        # For now, we log and proceed (confirmation handling is in elicitation module)
+
+    # Security: Sign the instruction for audit trail
+    instruction = {"tool": name, "arguments": arguments}
+    signed = server.instruction_signer.sign(instruction)
+    logger.debug("Signed instruction for tool '%s': nonce=%s", name, signed.nonce)
 
     tool_dispatch = {
         "deepr_status": lambda args: server.deepr_status(),
@@ -906,6 +1012,19 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
         "deepr_get_expert_info": lambda args: server.get_expert_info(
             expert_name=args.get("expert_name", ""),
         ),
+        # Task durability endpoints
+        "deepr_get_task_progress": lambda args: server.deepr_get_task_progress(
+            task_id=args.get("task_id", ""),
+        ),
+        "deepr_list_recoverable_tasks": lambda args: server.deepr_list_recoverable_tasks(
+            job_id=args.get("job_id", ""),
+        ),
+        "deepr_resume_task": lambda args: server.deepr_resume_task(
+            task_id=args.get("task_id", ""),
+        ),
+        "deepr_pause_task": lambda args: server.deepr_pause_task(
+            task_id=args.get("task_id", ""),
+        ),
     }
 
     handler = tool_dispatch.get(name)
@@ -919,11 +1038,34 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
 
     try:
         result = await handler(arguments)
+
+        # Security: Record output for verification
+        verified_output = server.output_verifier.record_output(
+            tool_name=name,
+            content=result,
+            job_id=job_id,
+            metadata={
+                "instruction_nonce": signed.nonce,
+                "research_mode": server.tool_allowlist.mode.value,
+            },
+        )
+        logger.debug(
+            "Recorded output for tool '%s': id=%s, hash=%s",
+            name, verified_output.id, verified_output.content_hash[:16]
+        )
+
         text = json.dumps(result, default=str)
         is_error = isinstance(result, dict) and "error_code" in result
+
         return {
             "content": [{"type": "text", "text": text}],
             "isError": is_error,
+            # Include verification metadata for audit trail
+            "_verification": {
+                "output_id": verified_output.id,
+                "content_hash": verified_output.content_hash,
+                "instruction_nonce": signed.nonce,
+            },
         }
     except Exception as e:
         logger.exception(f"Tool {name} failed")
