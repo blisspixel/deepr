@@ -137,10 +137,10 @@ sam build && sam deploy --guided
 - [ ] Wire `--why` flag to CLI commands (currently use `--explain`)
 
 #### 4.5 Research Quality Metrics
-- [ ] Entropy-based stopping criteria (detect when searches yield diminishing returns)
-- [ ] Information gain tracking per research phase
-- [ ] Auto-pivot detection (when to change search strategy vs. terminate)
-- [ ] Quality score in research output (novelty, relevance, confidence)
+- [x] Entropy-based stopping criteria (`EntropyStoppingCriteria` in `observability/stopping_criteria.py`)
+- [x] Information gain tracking per research phase (`InformationGainTracker` in `observability/information_gain.py`)
+- [x] Auto-pivot detection (`StoppingDecision.pivot_suggestion` in stopping_criteria.py)
+- [x] Quality score in research output (`QualityMetrics` in `observability/quality_metrics.py`)
 
 ---
 
