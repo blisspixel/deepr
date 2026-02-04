@@ -1,7 +1,7 @@
 """Simple API wrapper for submitting and managing research jobs."""
 
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from deepr.config import AppConfig
 from deepr.queue.local_queue import SQLiteQueue
@@ -63,7 +63,7 @@ class ResearchAPI:
             model=model,
             provider=provider,
             status=JobStatus.QUEUED,
-            submitted_at=datetime.utcnow(),
+            submitted_at=datetime.now(timezone.utc),
             documents=[vector_store_id] if vector_store_id else [],
             enable_web_search=enable_web,
             enable_code_interpreter=enable_code,
