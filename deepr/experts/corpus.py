@@ -20,7 +20,7 @@ Corpus Structure:
 import json
 import shutil
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -31,7 +31,7 @@ class CorpusManifest:
     
     name: str
     version: str = "1.0"
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     source_expert: str = ""
     domain: str = ""
     description: str = ""
@@ -233,7 +233,7 @@ def _generate_readme(profile: Any, worldview: Any, doc_count: int) -> str:
     lines.extend([
         "---",
         "",
-        f"*Exported on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC*",
+        f"*Exported on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC*",
     ])
     
     return "\n".join(lines)
@@ -301,7 +301,7 @@ async def import_corpus(
         await provider.wait_for_vector_store(vector_store.id, timeout=300)
     
     # Create expert profile
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     profile = ExpertProfile(
         name=new_expert_name,
         vector_store_id=vector_store.id,

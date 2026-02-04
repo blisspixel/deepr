@@ -23,8 +23,13 @@ Usage:
 import json
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -57,8 +62,8 @@ class Belief:
     confidence: float
     evidence_refs: List[str] = field(default_factory=list)
     domain: str = ""
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
     contradictions_with: List[str] = field(default_factory=list)
     source_type: str = "learned"  # learned, inferred, user_provided
     decay_rate: float = 0.01  # Per day
@@ -77,7 +82,7 @@ class Belief:
         Returns:
             Current confidence after decay
         """
-        days_elapsed = (datetime.utcnow() - self.updated_at).days
+        days_elapsed = (datetime.now(timezone.utc) - self.updated_at).days
         decayed = self.confidence * math.exp(-self.decay_rate * days_elapsed)
         return max(0.0, min(1.0, decayed))
     
@@ -89,13 +94,13 @@ class Belief:
             reason: Reason for update
         """
         self.history.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "old_confidence": self.confidence,
             "new_confidence": new_confidence,
             "reason": reason
         })
         self.confidence = new_confidence
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def add_evidence(self, evidence_ref: str):
         """Add evidence reference.
@@ -105,7 +110,7 @@ class Belief:
         """
         if evidence_ref not in self.evidence_refs:
             self.evidence_refs.append(evidence_ref)
-            self.updated_at = datetime.utcnow()
+            self.updated_at = datetime.now(timezone.utc)
     
     def add_contradiction(self, belief_id: str):
         """Mark contradiction with another belief.
@@ -150,8 +155,8 @@ class Belief:
             confidence=data["confidence"],
             evidence_refs=data.get("evidence_refs", []),
             domain=data.get("domain", ""),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.utcnow(),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.utcnow(),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(timezone.utc),
             contradictions_with=data.get("contradictions_with", []),
             source_type=data.get("source_type", "learned"),
             decay_rate=data.get("decay_rate", 0.01),
@@ -182,7 +187,7 @@ class BeliefChange:
     old_confidence: float = 0.0
     reason: str = ""
     evidence: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     
     def to_expression(self) -> str:
         """Generate natural language expression of change.
@@ -650,7 +655,7 @@ class BeliefStore:
                 new_confidence=cdata["new_confidence"],
                 reason=cdata.get("reason", ""),
                 evidence=cdata.get("evidence", ""),
-                timestamp=datetime.fromisoformat(cdata["timestamp"]) if "timestamp" in cdata else datetime.utcnow()
+                timestamp=datetime.fromisoformat(cdata["timestamp"]) if "timestamp" in cdata else datetime.now(timezone.utc)
             ))
 
 

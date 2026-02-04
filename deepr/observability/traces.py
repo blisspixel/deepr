@@ -25,8 +25,13 @@ Usage:
 import uuid
 import json
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from contextlib import contextmanager
@@ -61,7 +66,7 @@ class Span:
     trace_id: str
     parent_span_id: Optional[str]
     name: str
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=_utc_now)
     end_time: Optional[datetime] = None
     status: SpanStatus = SpanStatus.RUNNING
     attributes: Dict[str, Any] = field(default_factory=dict)
@@ -86,7 +91,7 @@ class Span:
         """
         self.events.append({
             "name": name,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "attributes": attributes or {}
         })
     
@@ -104,7 +109,7 @@ class Span:
         Args:
             status: Final status (default: COMPLETED)
         """
-        self.end_time = datetime.utcnow()
+        self.end_time = datetime.now(timezone.utc)
         self.status = status
     
     def fail(self, error: Optional[str] = None):
@@ -113,7 +118,7 @@ class Span:
         Args:
             error: Optional error message
         """
-        self.end_time = datetime.utcnow()
+        self.end_time = datetime.now(timezone.utc)
         self.status = SpanStatus.FAILED
         if error:
             self.set_attribute("error", error)
