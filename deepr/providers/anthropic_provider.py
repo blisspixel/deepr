@@ -22,7 +22,7 @@ Comparison to OpenAI:
 import os
 import json
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     from anthropic import Anthropic, AnthropicError
@@ -222,17 +222,17 @@ class AnthropicProvider(DeepResearchProvider):
         # Since Anthropic is synchronous, jobs complete immediately
         # This is a compatibility shim
         return ResearchResponse(
-            job_id=job_id,
+            id=job_id,
             status="completed",
-            result="Research completed (synchronous)",
+            output=None,  # Synchronous - no stored output
             usage=UsageStats(
                 input_tokens=0,
                 output_tokens=0,
-                thinking_tokens=0,
-                total_cost=0.0
+                reasoning_tokens=0,
+                cost=0.0
             ),
-            created_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
         )
 
     async def cancel_job(self, job_id: str) -> bool:
