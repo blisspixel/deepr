@@ -1,4 +1,14 @@
-"""Research orchestration and coordination."""
+"""Research orchestration and coordination.
+
+Provides the ResearchOrchestrator class that coordinates the complete research
+workflow including:
+- Research job submission with cost validation
+- Document upload and vector store management
+- Job completion processing and report generation
+- Resource cleanup
+
+Instrumented with distributed tracing for observability (4.2 Auto-Generated Metadata).
+"""
 
 import json
 import logging
@@ -12,6 +22,8 @@ from ..utils.prompt_security import PromptSanitizer, SanitizationResult
 from .documents import DocumentManager
 from .reports import ReportGenerator
 
+# Observability infrastructure
+from ..observability.metadata import MetadataEmitter
 
 # Cost estimates sourced from the model registry (single source of truth).
 # get_cost_estimate() looks up cost_per_query from providers/registry.py.
@@ -46,6 +58,7 @@ class ResearchOrchestrator:
         document_manager: DocumentManager,
         report_generator: ReportGenerator,
         system_message: Optional[str] = None,
+        emitter: Optional[MetadataEmitter] = None,
     ):
         """
         Initialize research orchestrator.
@@ -56,12 +69,16 @@ class ResearchOrchestrator:
             document_manager: Document management instance
             report_generator: Report generation instance
             system_message: Custom system message (optional)
+            emitter: Optional MetadataEmitter for span tracking
         """
         self.provider = provider
         self.storage = storage
         self.document_manager = document_manager
         self.report_generator = report_generator
         self.system_message = system_message or self._load_default_system_message()
+
+        # Observability: MetadataEmitter for span tracking
+        self._emitter = emitter or MetadataEmitter()
 
         # Track active vector stores for cleanup
         self.active_vector_stores: Dict[str, str] = {}  # job_id -> vector_store_id
@@ -137,113 +154,153 @@ class ResearchOrchestrator:
             Exception: If submission fails
             ValueError: If budget would be exceeded or prompt is unsafe
         """
-        # SECURITY: Sanitize prompt before any processing
-        if not skip_sanitization:
-            sanitizer = PromptSanitizer()
-            sanitization_result = sanitizer.sanitize(prompt)
-            
-            # Block high-risk prompts entirely
-            if sanitization_result.risk_level == "high":
+        # Start observability span for research submission
+        with self._emitter.operation(
+            "research_submit",
+            prompt=prompt[:500],
+            attributes={"model": model, "cost_sensitive": cost_sensitive}
+        ) as op:
+            # SECURITY: Sanitize prompt before any processing
+            if not skip_sanitization:
+                sanitizer = PromptSanitizer()
+                sanitization_result = sanitizer.sanitize(prompt)
+
+                # Block high-risk prompts entirely
+                if sanitization_result.risk_level == "high":
+                    op.add_event("prompt_blocked", {"risk_level": "high", "patterns": sanitization_result.patterns_detected})
+                    raise ValueError(
+                        f"Prompt blocked due to high-risk patterns detected: "
+                        f"{', '.join(sanitization_result.patterns_detected)}. "
+                        f"Please rephrase your research query."
+                    )
+
+                # Use sanitized prompt (neutralizes medium-risk patterns)
+                if sanitization_result.patterns_detected:
+                    op.add_event("prompt_sanitized", {"patterns": sanitization_result.patterns_detected})
+                prompt = sanitization_result.sanitized
+
+            # CRITICAL: Validate budget BEFORE any API calls
+            estimated_cost = get_cost_estimate(model)
+            op.set_attribute("estimated_cost", estimated_cost)
+
+            # Import cost safety manager for budget validation
+            from ..experts.cost_safety import get_cost_safety_manager
+
+            cost_safety = get_cost_safety_manager()
+
+            # Create or use session for tracking
+            tracking_session_id = session_id or f"research_{uuid.uuid4().hex[:8]}"
+            op.set_attribute("session_id", tracking_session_id)
+
+            # Check against global limits (daily/monthly)
+            allowed, reason, needs_confirm = cost_safety.check_operation(
+                session_id=tracking_session_id,
+                operation_type="research_submit",
+                estimated_cost=estimated_cost,
+                require_confirmation=False  # CLI/API handles confirmation
+            )
+
+            if not allowed:
+                op.add_event("budget_blocked", {"reason": reason})
+                raise ValueError(f"Research blocked by cost safety: {reason}")
+
+            # Check against explicit budget limit if provided
+            if budget_limit is not None and estimated_cost > budget_limit:
+                op.add_event("budget_exceeded", {"limit": budget_limit, "estimated": estimated_cost})
                 raise ValueError(
-                    f"Prompt blocked due to high-risk patterns detected: "
-                    f"{', '.join(sanitization_result.patterns_detected)}. "
-                    f"Please rephrase your research query."
+                    f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}"
                 )
-            
-            # Use sanitized prompt (neutralizes medium-risk patterns)
-            prompt = sanitization_result.sanitized
-        
-        # CRITICAL: Validate budget BEFORE any API calls
-        estimated_cost = get_cost_estimate(model)
-        
-        # Import cost safety manager for budget validation
-        from ..experts.cost_safety import get_cost_safety_manager
-        
-        cost_safety = get_cost_safety_manager()
-        
-        # Create or use session for tracking
-        tracking_session_id = session_id or f"research_{uuid.uuid4().hex[:8]}"
-        
-        # Check against global limits (daily/monthly)
-        allowed, reason, needs_confirm = cost_safety.check_operation(
-            session_id=tracking_session_id,
-            operation_type="research_submit",
-            estimated_cost=estimated_cost,
-            require_confirmation=False  # CLI/API handles confirmation
-        )
-        
-        if not allowed:
-            raise ValueError(f"Research blocked by cost safety: {reason}")
-        
-        # Check against explicit budget limit if provided
-        if budget_limit is not None and estimated_cost > budget_limit:
-            raise ValueError(
-                f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}"
-            )
-        
-        # Generate job ID
-        job_id = str(uuid.uuid4())
 
-        # Prepare metadata
-        job_metadata = metadata or {}
-        job_metadata["job_id"] = job_id
-        # OpenAI metadata fields have 512 char limit - validate prompt length
-        if len(prompt) > 300:
-            raise ValueError(
-                f"Research prompt too long ({len(prompt)} chars). "
-                f"Must be under 300 characters for API compatibility. "
-                f"Please use a more concise prompt."
-            )
-        job_metadata["original_prompt"] = prompt
+            op.add_event("budget_validated", {"estimated_cost": estimated_cost})
 
-        # Use provided vector_store_id or create one from documents
-        if documents:
-            file_ids = await self.document_manager.upload_documents(documents, self.provider)
+            # Generate job ID
+            job_id = str(uuid.uuid4())
+            op.set_attribute("job_id", job_id)
 
-            if file_ids:
-                vector_store = await self.document_manager.create_vector_store(
-                    f"deepr-{job_id}", file_ids, self.provider
+            # Prepare metadata
+            job_metadata = metadata or {}
+            job_metadata["job_id"] = job_id
+            # OpenAI metadata fields have 512 char limit - validate prompt length
+            if len(prompt) > 300:
+                raise ValueError(
+                    f"Research prompt too long ({len(prompt)} chars). "
+                    f"Must be under 300 characters for API compatibility. "
+                    f"Please use a more concise prompt."
                 )
-                vector_store_id = vector_store.id
-                self.active_vector_stores[job_id] = vector_store_id
-        # If vector_store_id provided but no documents, use the existing vector store
-        # Don't track it for cleanup since we didn't create it
+            job_metadata["original_prompt"] = prompt
 
-        # Build tools configuration
-        tools = self._build_tools(
-            vector_store_id=vector_store_id,
-            enable_web_search=enable_web_search,
-            enable_code_interpreter=enable_code_interpreter and not cost_sensitive,
-        )
+            # Use provided vector_store_id or create one from documents
+            documents_count = 0
+            if documents:
+                documents_count = len(documents)
+                op.set_attribute("documents_count", documents_count)
+                op.add_event("document_upload_start", {"count": documents_count})
 
-        # Use cost-sensitive model if requested
-        if cost_sensitive:
-            if "o3" in model:
-                model = "o4-mini-deep-research"
+                file_ids = await self.document_manager.upload_documents(documents, self.provider)
 
-        # Build research request
-        request = ResearchRequest(
-            prompt=self._enhance_prompt(prompt, documents is not None),
-            model=model,
-            system_message=custom_system_message or self.system_message,
-            tools=tools,
-            metadata=job_metadata,
-            webhook_url=webhook_url,
-            tool_choice="required" if vector_store_id else "auto",
-        )
+                if file_ids:
+                    op.add_event("document_upload_complete", {"file_ids_count": len(file_ids)})
+                    vector_store = await self.document_manager.create_vector_store(
+                        f"deepr-{job_id}", file_ids, self.provider
+                    )
+                    vector_store_id = vector_store.id
+                    self.active_vector_stores[job_id] = vector_store_id
+                    op.set_attribute("vector_store_id", vector_store_id)
+            # If vector_store_id provided but no documents, use the existing vector store
+            # Don't track it for cleanup since we didn't create it
+            elif vector_store_id:
+                op.set_attribute("vector_store_id", vector_store_id)
+                op.set_attribute("vector_store_existing", True)
 
-        # Submit to provider
-        response_id = await self.provider.submit_research(request)
+            # Build tools configuration
+            tools = self._build_tools(
+                vector_store_id=vector_store_id,
+                enable_web_search=enable_web_search,
+                enable_code_interpreter=enable_code_interpreter and not cost_sensitive,
+            )
 
-        # Record cost in safety manager for tracking
-        cost_safety.record_cost(
-            session_id=tracking_session_id,
-            operation_type="research_submit",
-            actual_cost=estimated_cost,
-            details=f"Job {response_id}: {prompt[:50]}..."
-        )
+            # Track enabled tools
+            enabled_tools = [t.type for t in tools]
+            op.set_attribute("tools_enabled", enabled_tools)
 
-        return response_id
+            # Use cost-sensitive model if requested
+            original_model = model
+            if cost_sensitive:
+                if "o3" in model:
+                    model = "o4-mini-deep-research"
+                    op.add_event("model_downgraded", {"from": original_model, "to": model})
+
+            # Set final model info
+            op.set_model(model, self.provider.__class__.__name__)
+
+            # Build research request
+            request = ResearchRequest(
+                prompt=self._enhance_prompt(prompt, documents is not None),
+                model=model,
+                system_message=custom_system_message or self.system_message,
+                tools=tools,
+                metadata=job_metadata,
+                webhook_url=webhook_url,
+                tool_choice="required" if vector_store_id else "auto",
+            )
+
+            # Submit to provider
+            op.add_event("provider_submit_start", {"model": model})
+            response_id = await self.provider.submit_research(request)
+            op.add_event("provider_submit_complete", {"response_id": response_id})
+
+            # Record cost in safety manager for tracking
+            cost_safety.record_cost(
+                session_id=tracking_session_id,
+                operation_type="research_submit",
+                actual_cost=estimated_cost,
+                details=f"Job {response_id}: {prompt[:50]}..."
+            )
+
+            # Set final cost on span
+            op.set_cost(estimated_cost)
+
+            return response_id
 
     def _enhance_prompt(self, prompt: str, has_documents: bool) -> str:
         """Enhance prompt with citation instructions."""
@@ -304,47 +361,75 @@ class ResearchOrchestrator:
         Raises:
             Exception: If processing fails
         """
-        # Get job results from provider
-        response = await self.provider.get_status(job_id)
+        # Start observability span for completion processing
+        with self._emitter.operation(
+            "research_completion",
+            attributes={"job_id": job_id, "append_references": append_references}
+        ) as op:
+            # Get job results from provider
+            op.add_event("fetch_status_start")
+            response = await self.provider.get_status(job_id)
+            op.set_attribute("job_status", response.status)
 
-        if response.status != "completed":
-            raise ValueError(f"Job {job_id} is not completed (status: {response.status})")
+            if response.status != "completed":
+                op.add_event("job_not_completed", {"status": response.status})
+                raise ValueError(f"Job {job_id} is not completed (status: {response.status})")
 
-        # Extract text from response
-        raw_text = self.report_generator.extract_text_from_response(response)
+            op.add_event("fetch_status_complete", {"status": response.status})
 
-        if not raw_text:
-            raise ValueError(f"No content found in completed job {job_id}")
+            # Extract text from response
+            raw_text = self.report_generator.extract_text_from_response(response)
 
-        # Extract metadata for title generation
-        title = response.metadata.get("report_title", "Research Report") if response.metadata else "Research Report"
+            if not raw_text:
+                op.add_event("no_content_found")
+                raise ValueError(f"No content found in completed job {job_id}")
 
-        # Optionally append references
-        if append_references:
-            references = ReportConverter.extract_references(raw_text)
-            if references:
-                raw_text += "\n\n## References\n" + "\n".join(f"- {url}" for url in references)
+            # Track content size
+            op.set_attribute("raw_text_length", len(raw_text))
 
-        # Generate all report formats
-        reports = await self.report_generator.generate_reports(
-            text=raw_text,
-            title=title,
-            formats=output_formats,
-        )
+            # Extract metadata for title generation
+            title = response.metadata.get("report_title", "Research Report") if response.metadata else "Research Report"
+            op.set_attribute("report_title", title)
 
-        # Save reports to storage
-        for format_name, content in reports.items():
-            content_type = self.storage.get_content_type(f"report.{format_name}")
-            await self.storage.save_report(
-                job_id=job_id,
-                filename=f"report.{format_name}",
-                content=content,
-                content_type=content_type,
-                metadata={"title": title, "status": "completed"},
+            # Optionally append references
+            if append_references:
+                references = ReportConverter.extract_references(raw_text)
+                if references:
+                    raw_text += "\n\n## References\n" + "\n".join(f"- {url}" for url in references)
+                    op.add_event("references_appended", {"count": len(references)})
+
+            # Generate all report formats
+            op.add_event("report_generation_start", {"formats": output_formats or ["all"]})
+            reports = await self.report_generator.generate_reports(
+                text=raw_text,
+                title=title,
+                formats=output_formats,
             )
+            op.add_event("report_generation_complete", {"formats_generated": list(reports.keys())})
 
-        # Clean up vector store if exists
-        await self._cleanup_vector_store(job_id)
+            # Save reports to storage
+            saved_formats = []
+            for format_name, content in reports.items():
+                content_type = self.storage.get_content_type(f"report.{format_name}")
+                await self.storage.save_report(
+                    job_id=job_id,
+                    filename=f"report.{format_name}",
+                    content=content,
+                    content_type=content_type,
+                    metadata={"title": title, "status": "completed"},
+                )
+                saved_formats.append(format_name)
+
+            op.add_event("reports_saved", {"formats": saved_formats})
+            op.set_attribute("formats_saved", saved_formats)
+
+            # Clean up vector store if exists
+            vector_store_id = self.active_vector_stores.get(job_id)
+            if vector_store_id:
+                op.add_event("vector_store_cleanup_start", {"vector_store_id": vector_store_id})
+            await self._cleanup_vector_store(job_id)
+            if vector_store_id:
+                op.add_event("vector_store_cleanup_complete")
 
     async def _cleanup_vector_store(self, job_id: str):
         """Clean up vector store for a job."""
@@ -367,10 +452,20 @@ class ResearchOrchestrator:
         Returns:
             True if cancellation was successful
         """
-        success = await self.provider.cancel_job(job_id)
-        if success:
-            await self._cleanup_vector_store(job_id)
-        return success
+        with self._emitter.operation(
+            "research_cancel",
+            attributes={"job_id": job_id}
+        ) as op:
+            success = await self.provider.cancel_job(job_id)
+            op.set_attribute("cancel_success", success)
+
+            if success:
+                op.add_event("job_cancelled")
+                await self._cleanup_vector_store(job_id)
+            else:
+                op.add_event("cancel_failed")
+
+            return success
 
     async def get_job_status(self, job_id: str):
         """
@@ -383,3 +478,37 @@ class ResearchOrchestrator:
             ResearchResponse with current status
         """
         return await self.provider.get_status(job_id)
+
+    @property
+    def trace(self) -> MetadataEmitter:
+        """Get the MetadataEmitter for accessing trace data.
+
+        Returns:
+            MetadataEmitter instance with all recorded spans
+        """
+        return self._emitter
+
+    def get_trace_summary(self) -> Dict[str, Any]:
+        """Get a summary of traced operations.
+
+        Returns:
+            Dictionary with trace summary including:
+            - trace_id: Unique trace identifier
+            - total_cost: Sum of costs across all operations
+            - cost_breakdown: Cost by operation type
+            - timeline: List of operations in order
+        """
+        return {
+            "trace_id": self._emitter.trace_context.trace_id,
+            "total_cost": self._emitter.get_total_cost(),
+            "cost_breakdown": self._emitter.get_cost_breakdown(),
+            "timeline": self._emitter.get_timeline(),
+        }
+
+    def save_trace(self, path: Path):
+        """Save the trace to a JSON file.
+
+        Args:
+            path: Path to save the trace
+        """
+        self._emitter.save_trace(path)
