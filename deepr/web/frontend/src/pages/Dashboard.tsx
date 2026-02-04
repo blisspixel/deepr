@@ -131,35 +131,44 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+        <div
+          className="p-5 border rounded-xl"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
             Active Jobs
           </p>
-          <p className="text-3xl font-semibold mt-1" style={{ color: 'var(--color-text-primary)' }}>
-            {recentJobs.filter((j) => ['pending', 'in_progress'].includes(j.status)).length}
+          <p className="text-3xl font-semibold mt-2 text-[var(--color-text-primary)] tabular-nums">
+            {recentJobs.filter((j) => ['queued', 'processing'].includes(j.status)).length}
           </p>
         </div>
 
-        <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+        <div
+          className="p-5 border rounded-xl"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
             Today's Spending
           </p>
-          <p className="text-3xl font-semibold mt-1" style={{ color: 'var(--color-text-primary)' }}>
+          <p className="text-3xl font-semibold mt-2 text-[var(--color-text-primary)] tabular-nums">
             ${costSummary?.daily.toFixed(2) || '0.00'}
           </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+          <p className="text-xs mt-1.5 text-[var(--color-text-tertiary)]">
             of ${costSummary?.daily_limit.toFixed(2) || '100.00'} limit
           </p>
         </div>
 
-        <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+        <div
+          className="p-5 border rounded-xl"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
             Monthly Spending
           </p>
-          <p className="text-3xl font-semibold mt-1" style={{ color: 'var(--color-text-primary)' }}>
+          <p className="text-3xl font-semibold mt-2 text-[var(--color-text-primary)] tabular-nums">
             ${costSummary?.monthly.toFixed(2) || '0.00'}
           </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+          <p className="text-xs mt-1.5 text-[var(--color-text-tertiary)]">
             of ${costSummary?.monthly_limit.toFixed(2) || '1000.00'} limit
           </p>
         </div>
@@ -177,9 +186,12 @@ export default function Dashboard() {
         </div>
 
         {recentJobs.length === 0 ? (
-          <div className="text-center py-12 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
-            <p style={{ color: 'var(--color-text-secondary)' }}>
-              No jobs yet. Submit your first research task above!
+          <div
+            className="text-center py-12 border rounded-xl"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <p className="text-[var(--color-text-secondary)]">
+              No jobs yet. Submit your first research task above.
             </p>
           </div>
         ) : (
@@ -187,22 +199,33 @@ export default function Dashboard() {
             {recentJobs.map((job) => (
               <div
                 key={job.id}
-                className="p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                style={{ borderColor: 'var(--color-border)' }}
+                className="p-4 border rounded-xl cursor-pointer transition-all duration-150 hover:border-[var(--color-border-hover)] hover:shadow-sm"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface)'
+                }}
                 onClick={() => navigate(`/jobs`)}
               >
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+                    <p className="font-medium truncate text-[var(--color-text-primary)]">
                       {job.prompt.substring(0, 100)}
                       {job.prompt.length > 100 ? '...' : ''}
                     </p>
-                    <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                      {job.model} · {job.status}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{job.model}</span>
+                      <span className="text-[var(--color-border)]">·</span>
+                      <span className={`badge ${
+                        job.status === 'completed' ? 'badge-success' :
+                        job.status === 'failed' ? 'badge-error' :
+                        job.status === 'processing' ? 'badge-info' : 'badge-neutral'
+                      }`}>
+                        {job.status}
+                      </span>
+                    </div>
                   </div>
                   {job.cost > 0 && (
-                    <span className="text-sm font-medium ml-4" style={{ color: 'var(--color-text-primary)' }}>
+                    <span className="text-sm font-semibold text-[var(--color-text-primary)] tabular-nums">
                       ${job.cost.toFixed(2)}
                     </span>
                   )}
