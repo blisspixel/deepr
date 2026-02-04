@@ -3,8 +3,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Literal
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 class JobStatus(str, Enum):
@@ -29,7 +34,7 @@ class ResearchJob:
     priority: int = 5  # 1-10, higher = more priority
 
     # Timestamps
-    submitted_at: datetime = field(default_factory=datetime.utcnow)
+    submitted_at: datetime = field(default_factory=_utc_now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
