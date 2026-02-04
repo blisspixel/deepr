@@ -13,6 +13,17 @@ from deepr.cli.colors import (
     truncate_text,
     truncate_path,
     _format_duration,
+    print_header,
+    print_success,
+    print_error,
+    print_warning,
+    print_info,
+    print_command,
+    print_cost,
+    print_status,
+    print_result,
+    print_step,
+    print_deprecation,
     UNICODE_SYMBOLS,
     ASCII_SYMBOLS,
 )
@@ -171,3 +182,112 @@ class TestDurationFormatting:
         assert _format_duration(60) == "1m 0s"
         assert _format_duration(90) == "1m 30s"
         assert _format_duration(125) == "2m 5s"
+
+
+class TestPrintFunctions:
+    """Tests for print functions with mocked console."""
+
+    @pytest.fixture
+    def mock_console(self, mocker):
+        """Mock the console for testing print functions."""
+        return mocker.patch("deepr.cli.colors.console")
+
+    def test_print_header(self, mock_console):
+        """print_header should print styled header."""
+        print_header("Test Header")
+        assert mock_console.print.call_count >= 2
+
+    def test_print_success(self, mock_console):
+        """print_success should print with success style."""
+        print_success("Operation succeeded")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "Operation succeeded" in call_args
+
+    def test_print_error(self, mock_console):
+        """print_error should print with error style."""
+        print_error("Something failed")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "Something failed" in call_args
+
+    def test_print_warning(self, mock_console):
+        """print_warning should print with warning style."""
+        print_warning("Caution needed")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "Caution needed" in call_args
+
+    def test_print_info(self, mock_console):
+        """print_info should print with info style."""
+        print_info("Information message")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "Information message" in call_args
+
+    def test_print_command(self, mock_console):
+        """print_command should format as command example."""
+        print_command("deepr research 'test'")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "deepr research" in call_args
+
+    def test_print_cost(self, mock_console):
+        """print_cost should format cost value."""
+        print_cost(0.0234)
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "0.0234" in call_args
+
+    def test_print_status_completed(self, mock_console):
+        """print_status should handle completed status."""
+        print_status("completed", "Job finished")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "Job finished" in call_args
+
+    def test_print_status_processing(self, mock_console):
+        """print_status should handle processing status."""
+        print_status("processing", "Job running")
+        mock_console.print.assert_called_once()
+
+    def test_print_status_failed(self, mock_console):
+        """print_status should handle failed status."""
+        print_status("failed", "Job failed")
+        mock_console.print.assert_called_once()
+
+    def test_print_status_queued(self, mock_console):
+        """print_status should handle queued status."""
+        print_status("queued", "Job waiting")
+        mock_console.print.assert_called_once()
+
+    def test_print_result_success(self, mock_console):
+        """print_result should format success message."""
+        print_result("Task complete", duration_seconds=12.5, cost_usd=0.05, success=True)
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "Task complete" in call_args
+
+    def test_print_result_failure(self, mock_console):
+        """print_result should format failure message."""
+        print_result("Task failed", success=False)
+        mock_console.print.assert_called_once()
+
+    def test_print_result_no_meta(self, mock_console):
+        """print_result should work without duration and cost."""
+        print_result("Simple message")
+        mock_console.print.assert_called_once()
+
+    def test_print_step(self, mock_console):
+        """print_step should format step indicator."""
+        print_step(1, 5, "Starting process")
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args[0][0]
+        assert "1/5" in call_args
+        assert "Starting process" in call_args
+
+    def test_print_deprecation(self, mock_console):
+        """print_deprecation should show deprecation warning."""
+        print_deprecation("old-cmd", "new-cmd")
+        # Should print multiple times (empty lines + panel)
+        assert mock_console.print.call_count >= 2
