@@ -6,19 +6,33 @@ interface CardProps {
   className?: string
   onClick?: () => void
   hoverable?: boolean
+  padding?: 'none' | 'sm' | 'md' | 'lg'
 }
 
-export default function Card({ children, className, onClick, hoverable = false }: CardProps) {
+export default function Card({
+  children,
+  className,
+  onClick,
+  hoverable = false,
+  padding = 'none'
+}: CardProps) {
+  const paddingStyles = {
+    none: '',
+    sm: 'p-3',
+    md: 'p-4',
+    lg: 'p-6',
+  }
+
   return (
     <div
       className={clsx(
-        'rounded-2xl',
+        'rounded-xl border transition-all duration-150',
+        'bg-[var(--color-surface)] border-[var(--color-border)]',
+        hoverable && 'hover:border-[var(--color-border-hover)] hover:shadow-sm',
         onClick && 'cursor-pointer',
+        paddingStyles[padding],
         className
       )}
-      style={{
-        backgroundColor: 'var(--color-surface)',
-      }}
       onClick={onClick}
     >
       {children}

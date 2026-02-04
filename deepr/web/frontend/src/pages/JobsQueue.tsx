@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '@/api/jobs'
-import Card, { CardBody } from '@/components/common/Card'
 import Button from '@/components/common/Button'
 
 export default function JobsQueue() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const queryClient = useQueryClient()
 
   const { data: jobsData, isLoading } = useQuery({
     queryKey: ['jobs', 'list'],
@@ -13,92 +13,147 @@ export default function JobsQueue() {
     refetchInterval: 5000,
   })
 
+  const cancelMutation = useMutation({
+    mutationFn: (jobId: string) => jobsApi.cancel(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+
   const jobs = jobsData?.jobs || []
 
   const filteredJobs = statusFilter === 'all'
     ? jobs
-    : jobs.filter(j => j.status === statusFilter)
+    : jobs.filter(j => {
+        if (statusFilter === 'active') return ['queued', 'processing'].includes(j.status)
+        return j.status === statusFilter
+      })
 
-  const getStatusText = (status: string) => {
-    const map: Record<string, string> = {
-      'pending': 'Queued',
-      'in_progress': 'Running',
-      'processing': 'Running',
-      'completed': 'Done',
-      'failed': 'Failed'
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { class: string; label: string }> = {
+      'queued': { class: 'badge-neutral', label: 'Queued' },
+      'processing': { class: 'badge-info', label: 'Running' },
+      'completed': { class: 'badge-success', label: 'Done' },
+      'failed': { class: 'badge-error', label: 'Failed' },
+      'cancelled': { class: 'badge-warning', label: 'Cancelled' },
     }
-    return map[status] || status
+    return config[status] || { class: 'badge-neutral', label: status }
   }
+
+  const filters = [
+    { key: 'all', label: 'All' },
+    { key: 'active', label: 'Active' },
+    { key: 'completed', label: 'Done' },
+    { key: 'failed', label: 'Failed' },
+  ]
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+          <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">
             Queue
           </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+          <p className="text-sm mt-1 text-[var(--color-text-secondary)]">
             {filteredJobs.length} job{filteredJobs.length !== 1 ? 's' : ''}
           </p>
         </div>
 
-        <div className="flex gap-2">
-          {['all', 'processing', 'completed'].map((filter) => (
+        {/* Filter Tabs */}
+        <div className="flex gap-1 p-1 rounded-lg bg-[var(--color-surface)]">
+          {filters.map((filter) => (
             <button
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
-              className="px-3 py-1.5 text-xs rounded-lg transition-all"
-              style={{
-                backgroundColor: statusFilter === filter ? 'var(--color-surface)' : 'transparent',
-                color: statusFilter === filter ? 'var(--color-text-primary)' : 'var(--color-text-secondary)'
-              }}
+              key={filter.key}
+              onClick={() => setStatusFilter(filter.key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 ${
+                statusFilter === filter.key
+                  ? 'bg-[var(--color-bg)] text-[var(--color-text-primary)] shadow-sm'
+                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+              }`}
             >
-              {filter === 'all' ? 'All' : filter === 'processing' ? 'Active' : 'Done'}
+              {filter.label}
             </button>
           ))}
         </div>
       </div>
 
+      {/* Jobs List */}
       {isLoading ? (
-        <Card>
-          <CardBody>
-            <p className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-              Loading...
-            </p>
-          </CardBody>
-        </Card>
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="p-4 border rounded-xl bg-[var(--color-surface)]"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <div className="skeleton h-4 w-3/4 mb-3" />
+              <div className="skeleton h-3 w-1/4" />
+            </div>
+          ))}
+        </div>
       ) : filteredJobs.length === 0 ? (
-        <Card>
-          <CardBody>
-            <p className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-              No jobs found
-            </p>
-          </CardBody>
-        </Card>
+        <div
+          className="text-center py-12 border rounded-xl bg-[var(--color-surface)]"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          <p className="text-[var(--color-text-secondary)]">
+            No jobs found
+          </p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {filteredJobs.map((job) => (
-            <Card key={job.id}>
-              <CardBody>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start gap-4">
-                    <p className="text-sm flex-1" style={{ color: 'var(--color-text-primary)' }}>
-                      {job.prompt.substring(0, 150)}
-                      {job.prompt.length > 150 ? '...' : ''}
+          {filteredJobs.map((job) => {
+            const statusBadge = getStatusBadge(job.status)
+            const isActive = ['queued', 'processing'].includes(job.status)
+
+            return (
+              <div
+                key={job.id}
+                className="p-4 border rounded-xl transition-all duration-150 hover:border-[var(--color-border-hover)]"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface)'
+                }}
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--color-text-primary)] line-clamp-2">
+                      {job.prompt}
                     </p>
-                    <span className="text-xs whitespace-nowrap" style={{ color: 'var(--color-text-secondary)' }}>
-                      {getStatusText(job.status)}
-                    </span>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-[var(--color-text-tertiary)]">
+                        {job.model}
+                      </span>
+                      <span className="text-[var(--color-border)]">·</span>
+                      <span className={`badge ${statusBadge.class}`}>
+                        {statusBadge.label}
+                      </span>
+                      {job.cost > 0 && (
+                        <>
+                          <span className="text-[var(--color-border)]">·</span>
+                          <span className="text-xs font-medium text-[var(--color-text-secondary)] tabular-nums">
+                            ${job.cost.toFixed(2)}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex justify-between items-center text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    <span>{job.model}</span>
-                    {job.cost > 0 && <span>${job.cost.toFixed(2)}</span>}
-                  </div>
+                  {isActive && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => cancelMutation.mutate(job.id)}
+                      disabled={cancelMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
-              </CardBody>
-            </Card>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
