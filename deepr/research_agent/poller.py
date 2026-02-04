@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+import re
+from datetime import datetime
 from typing import Optional
 
 from ..queue import create_queue
@@ -12,6 +14,22 @@ from ..core.costs import CostController
 
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_report_filename(query: str) -> str:
+    """Generate a human-readable filename from the research query."""
+    slug = query.lower().strip()
+    filler_words = ['the', 'a', 'an', 'for', 'and', 'or', 'of', 'to', 'in', 'on', 'with', 'latest', 'best', 'create', 'comprehensive', 'documentation']
+    words = slug.split()
+    words = [w for w in words if w not in filler_words]
+    slug = ' '.join(words)
+    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+    slug = re.sub(r'\s+', '-', slug.strip())
+    slug = re.sub(r'-+', '-', slug)
+    slug = slug[:50].rstrip('-')
+    if len(slug) < 5:
+        slug = f"research-{datetime.now().strftime('%Y%m%d-%H%M')}"
+    return f"{slug}.md"
 
 
 class JobPoller:
@@ -137,6 +155,9 @@ class JobPoller:
         try:
             logger.info(f"Job {job.id} completed, saving results")
 
+            # Generate query-based filename
+            report_filename = _generate_report_filename(job.prompt) if job.prompt else "report.md"
+
             # Extract content from response
             content = ""
             if response.output:
@@ -150,7 +171,7 @@ class JobPoller:
             # Save to storage
             await self.storage.save_report(
                 job_id=job.id,
-                filename="report.md",
+                filename=report_filename,
                 content=content.encode('utf-8'),
                 content_type="text/markdown"
             )
@@ -162,7 +183,7 @@ class JobPoller:
             # Update queue with results
             await self.queue.update_results(
                 job_id=job.id,
-                report_paths={"markdown": "report.md"},
+                report_paths={"markdown": report_filename},
                 cost=cost,
                 tokens_used=tokens
             )

@@ -216,8 +216,8 @@ class TestModelSelection:
     def test_research_uses_deep_research_model(self, router):
         """Test that research queries use deep research model."""
         config = router.select_model("Research the latest AI trends comprehensively")
-        # Should use deep research model when budget allows
-        assert config.model == "o4-mini-deep-research" or config.cost_estimate >= 0.5
+        # Should use deep research model when budget allows (o3-deep-research is BEST)
+        assert config.model == "o3-deep-research" or config.cost_estimate >= 0.5
 
     def test_complex_uses_high_reasoning(self, router):
         """Test that complex queries use high reasoning effort."""
@@ -253,14 +253,14 @@ class TestModelSelection:
         assert config.provider == "openai"
 
     def test_openai_constraint_research_uses_deep_research(self, router):
-        """Test that OpenAI constraint with research uses o4-mini-deep-research."""
+        """Test that OpenAI constraint with research uses o3-deep-research (BEST model)."""
         config = router.select_model(
             "Research the latest AI trends comprehensively",
             provider_constraint="openai",
             budget_remaining=5.0
         )
         assert config.provider == "openai"
-        assert config.model == "o4-mini-deep-research"
+        assert config.model == "o3-deep-research"
 
     def test_large_context_uses_gemini(self, router):
         """Test that large context uses Gemini."""

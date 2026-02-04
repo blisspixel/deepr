@@ -16,7 +16,7 @@ def test_default_configuration():
     assert config.default_provider == "xai", "Default provider should be xai"
     assert config.default_model == "grok-4-fast", "Default model should be grok-4-fast"
     assert config.deep_research_provider == "openai", "Deep research provider should be openai"
-    assert config.deep_research_model == "o4-mini-deep-research", "Deep research model should be o4-mini-deep-research"
+    assert config.deep_research_model == "o3-deep-research", "Deep research model should be o3-deep-research (BEST model)"
 
     print("[OK] Default configuration verified:")
     print(f"  General operations: {config.default_provider} / {config.default_model}")
@@ -90,14 +90,14 @@ def test_use_case_routing():
     print("\n[Use Case Routing]")
     print("Operation                    Provider  Model")
     print("-" * 60)
-    print("Deep Research                openai    o4-mini-deep-research")
+    print("Deep Research                openai    o3-deep-research (BEST)")
     print("Expert Chat                  xai       grok-4-fast")
     print("Team Research                xai       grok-4-fast")
     print("Planning/Synthesis           xai       grok-4-fast")
     print("Context Summarization        xai       grok-4-fast")
     print("Link Filtering (Scraping)    xai       grok-4-fast")
     print("Document Processing          xai       grok-4-fast")
-    print("\nStrategy: Use xAI for 80% of operations, OpenAI for deep research")
+    print("\nStrategy: Use xAI for 80% of operations, OpenAI o3 for deep research")
     print("Expected total cost reduction: ~78%\n")
 
 
@@ -122,7 +122,7 @@ def run_all_tests():
         print("=" * 70)
         print()
         print("Dual provider configuration working correctly:")
-        print("- Deep Research -> OpenAI (o4-mini-deep-research)")
+        print("- Deep Research -> OpenAI (o3-deep-research) - BEST model")
         print("- General Operations -> xAI (grok-4-fast)")
         print("- Expected cost savings: 78%")
         print()

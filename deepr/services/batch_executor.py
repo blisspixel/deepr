@@ -253,11 +253,12 @@ class BatchExecutor:
                     logger.warning("Task %s: %s (FAILED)", task_id, task_titles[task_id])
 
                 elif job.status == JobStatus.COMPLETED:
-                    # Retrieve result
+                    # Retrieve result - use stored filename from job.report_paths
                     try:
+                        report_filename = job.report_paths.get("markdown", "report.md") if job.report_paths else "report.md"
                         result_data = await self.storage.get_report(
                             job_id=job_id,
-                            filename="report.md",
+                            filename=report_filename,
                         )
 
                         results[task_id] = {

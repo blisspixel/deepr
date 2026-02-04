@@ -190,7 +190,7 @@ def research(
 
     if model is None:
         if is_deep_research:
-            model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+            model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
         else:
             model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-fast")
         if output_context.mode == OutputMode.VERBOSE:
@@ -276,7 +276,7 @@ def research(
 
 @click.command()
 @click.argument("topic")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model (default: o3-deep-research for comprehensive results)")
 @click.option("--provider", default="openai",
               type=click.Choice(["openai", "azure", "gemini", "xai"]),
               help="Research provider")
@@ -308,7 +308,7 @@ def learn(
 
 @click.command()
 @click.argument("question")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model (default: o3-deep-research for comprehensive results)")
 @click.option("--provider", default="openai",
               type=click.Choice(["openai", "azure", "gemini", "xai"]),
               help="Research provider")

@@ -273,18 +273,19 @@ class AutonomousProviderRouter:
     """
     
     # Default fallback chain (provider, model) tuples
+    # Only includes actually supported providers: openai, azure, gemini, xai
     DEFAULT_FALLBACK_CHAIN = [
-        ("openai", "gpt-4o"),
-        ("openai", "gpt-4o-mini"),
-        ("anthropic", "claude-3-5-sonnet-20241022"),
+        ("openai", "o3-deep-research"),
+        ("openai", "o4-mini-deep-research"),
         ("xai", "grok-4-fast"),
+        ("gemini", "gemini-2.5-flash"),
     ]
     
-    # Task-specific preferences
+    # Task-specific preferences (only supported providers)
     TASK_PREFERENCES = {
-        "research": [("openai", "o4-mini-deep-research"), ("openai", "gpt-4o")],
-        "chat": [("openai", "gpt-4o"), ("anthropic", "claude-3-5-sonnet-20241022")],
-        "synthesis": [("openai", "gpt-4o"), ("anthropic", "claude-3-5-sonnet-20241022")],
+        "research": [("openai", "o3-deep-research"), ("openai", "o4-mini-deep-research")],
+        "chat": [("openai", "gpt-4o"), ("xai", "grok-4-fast")],
+        "synthesis": [("openai", "gpt-4o"), ("xai", "grok-4-fast")],
         "fact_check": [("xai", "grok-4-fast"), ("openai", "gpt-4o-mini")],
         "quick": [("xai", "grok-4-fast"), ("openai", "gpt-4o-mini")],
     }
@@ -412,7 +413,7 @@ class AutonomousProviderRouter:
             for fallback in self.fallback_chain:
                 if fallback not in exclude:
                     return fallback
-            return ("openai", "gpt-4o")
+            return ("openai", "o3-deep-research")
         
         # Score candidates
         scored = []
