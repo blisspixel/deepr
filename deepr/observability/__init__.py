@@ -17,6 +17,15 @@ from deepr.observability.information_gain import (
     InformationGainMetrics,
     PriorContext,
 )
+from deepr.observability.temporal_tracker import (
+    TemporalKnowledgeTracker,
+    TemporalFinding,
+    Hypothesis,
+    HypothesisEvolution,
+    FindingType,
+    EvolutionType,
+)
+from deepr.observability.timeline_renderer import TimelineRenderer
 
 __all__ = [
     "TraceContext",
@@ -38,4 +47,12 @@ __all__ = [
     "InformationGainTracker",
     "InformationGainMetrics",
     "PriorContext",
+    # Temporal tracking
+    "TemporalKnowledgeTracker",
+    "TemporalFinding",
+    "Hypothesis",
+    "HypothesisEvolution",
+    "FindingType",
+    "EvolutionType",
+    "TimelineRenderer",
 ]

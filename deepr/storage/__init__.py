@@ -4,6 +4,7 @@ from typing import Literal
 from .base import StorageBackend, ReportMetadata
 from .local import LocalStorage
 from .blob import AzureBlobStorage
+from .findings_store import FindingsStore, StoredFinding
 
 StorageType = Literal["local", "blob"]
 
@@ -37,4 +38,6 @@ __all__ = [
     "AzureBlobStorage",
     "create_storage",
     "StorageType",
+    "FindingsStore",
+    "StoredFinding",
 ]
