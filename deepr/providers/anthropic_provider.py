@@ -275,6 +275,10 @@ class AnthropicProvider(DeepResearchProvider):
         """Not applicable for Anthropic."""
         raise NotImplementedError("Anthropic doesn't support vector stores")
 
+    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+        """Not applicable for Anthropic."""
+        raise NotImplementedError("Anthropic doesn't support vector stores")
+
     def get_model_name(self, model_key: str) -> str:
         """
         Map generic model key to Anthropic model name.
