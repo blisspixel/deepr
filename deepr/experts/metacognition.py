@@ -6,7 +6,7 @@ Tracks what the expert knows vs doesn't know, confidence levels, and learning pa
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 
@@ -97,7 +97,7 @@ class MetaCognitionTracker:
 
             data = {
                 "expert_name": self.expert_name,
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "knowledge_gaps": {
                     topic: {
                         "topic": gap.topic,
@@ -139,7 +139,7 @@ class MetaCognitionTracker:
         Returns:
             The KnowledgeGap object
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if topic in self.knowledge_gaps:
             gap = self.knowledge_gaps[topic]
@@ -175,10 +175,10 @@ class MetaCognitionTracker:
         if topic in self.knowledge_gaps:
             gap = self.knowledge_gaps[topic]
             gap.research_triggered = True
-            gap.research_date = datetime.utcnow()
+            gap.research_date = datetime.now(timezone.utc)
 
         self.uncertainty_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "topic": topic,
             "action": "research_triggered",
             "research_mode": research_mode
@@ -194,7 +194,7 @@ class MetaCognitionTracker:
             confidence_after: Confidence level after learning (0.0 to 1.0)
             sources: List of source documents or research IDs
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Update knowledge gap
         if topic in self.knowledge_gaps:

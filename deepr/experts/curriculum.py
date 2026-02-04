@@ -6,7 +6,7 @@ based on their domain and initial knowledge base.
 
 from dataclasses import dataclass
 from typing import List, Optional, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 from openai import AsyncOpenAI
@@ -549,7 +549,7 @@ class CurriculumGenerator:
         """
         # Check for environment variable override
         timeout = int(os.getenv("DEEPR_DISCOVERY_TIMEOUT", str(timeout)))
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         
         discovery_prompt = f"""You are a research librarian helping to identify the best sources for building domain expertise.
 
@@ -694,7 +694,7 @@ Generate the source list now for: {domain}"""
             deep_count: Optional exact number of deep research topics to generate
         """
 
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         doc_list = "\n".join(f"- {doc}" for doc in initial_documents)
         
@@ -1208,7 +1208,7 @@ Generate the curriculum now:"""
             topics=topics,
             total_estimated_cost=total_cost,
             total_estimated_minutes=total_minutes,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.now(timezone.utc)
         )
 
     def _truncate_to_budget(

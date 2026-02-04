@@ -32,8 +32,13 @@ Usage:
 
 import json
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 import hashlib
@@ -53,7 +58,7 @@ class ReasoningStep:
     content: str
     confidence: float = 0.0
     sources: List[str] = field(default_factory=list)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -71,7 +76,7 @@ class ReasoningStep:
             content=data["content"],
             confidence=data.get("confidence", 0.0),
             sources=data.get("sources", []),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.utcnow()
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc)
         )
 
 
@@ -104,7 +109,7 @@ class Episode:
     reasoning_chain: List[ReasoningStep] = field(default_factory=list)
     user_id: Optional[str] = None
     session_id: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     quality_score: Optional[float] = None
     tags: Set[str] = field(default_factory=set)
     tier: MemoryTier = MemoryTier.WORKING
@@ -149,7 +154,7 @@ class Episode:
             ],
             user_id=data.get("user_id"),
             session_id=data.get("session_id"),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.utcnow(),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
             quality_score=data.get("quality_score"),
             tags=set(data.get("tags", [])),
             tier=MemoryTier(data.get("tier", "working"))
@@ -203,8 +208,8 @@ class UserProfile:
     interests: Dict[str, int] = field(default_factory=dict)  # topic -> count
     preferences: Dict[str, Any] = field(default_factory=dict)
     interaction_count: int = 0
-    first_seen: datetime = field(default_factory=datetime.utcnow)
-    last_seen: datetime = field(default_factory=datetime.utcnow)
+    first_seen: datetime = field(default_factory=_utc_now)
+    last_seen: datetime = field(default_factory=_utc_now)
     feedback_history: List[tuple] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -227,8 +232,8 @@ class UserProfile:
             interests=data.get("interests", {}),
             preferences=data.get("preferences", {}),
             interaction_count=data.get("interaction_count", 0),
-            first_seen=datetime.fromisoformat(data["first_seen"]) if "first_seen" in data else datetime.utcnow(),
-            last_seen=datetime.fromisoformat(data["last_seen"]) if "last_seen" in data else datetime.utcnow(),
+            first_seen=datetime.fromisoformat(data["first_seen"]) if "first_seen" in data else datetime.now(timezone.utc),
+            last_seen=datetime.fromisoformat(data["last_seen"]) if "last_seen" in data else datetime.now(timezone.utc),
             feedback_history=data.get("feedback_history", [])
         )
     
@@ -319,7 +324,7 @@ class MetaKnowledge:
     knowledge_gaps: List[Dict[str, Any]] = field(default_factory=list)
     confidence_by_topic: Dict[str, float] = field(default_factory=dict)
     learning_events: List[Dict[str, Any]] = field(default_factory=list)
-    last_updated: datetime = field(default_factory=datetime.utcnow)
+    last_updated: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -339,7 +344,7 @@ class MetaKnowledge:
             knowledge_gaps=data.get("knowledge_gaps", []),
             confidence_by_topic=data.get("confidence_by_topic", {}),
             learning_events=data.get("learning_events", []),
-            last_updated=datetime.fromisoformat(data["last_updated"]) if "last_updated" in data else datetime.utcnow()
+            last_updated=datetime.fromisoformat(data["last_updated"]) if "last_updated" in data else datetime.now(timezone.utc)
         )
     
     def record_gap(self, topic: str, query: str, confidence: float = 0.0):
@@ -354,7 +359,7 @@ class MetaKnowledge:
             "topic": topic,
             "query": query,
             "confidence": confidence,
-            "discovered_at": datetime.utcnow().isoformat(),
+            "discovered_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False
         }
         
@@ -365,7 +370,7 @@ class MetaKnowledge:
                 return
         
         self.knowledge_gaps.append(gap)
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(timezone.utc)
     
     def resolve_gap(self, topic: str):
         """Mark a knowledge gap as resolved.
@@ -376,9 +381,9 @@ class MetaKnowledge:
         for gap in self.knowledge_gaps:
             if gap["topic"] == topic:
                 gap["resolved"] = True
-                gap["resolved_at"] = datetime.utcnow().isoformat()
+                gap["resolved_at"] = datetime.now(timezone.utc).isoformat()
         
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(timezone.utc)
     
     def record_learning(self, topic: str, source: str, confidence_gain: float):
         """Record a learning event.
@@ -392,7 +397,7 @@ class MetaKnowledge:
             "topic": topic,
             "source": source,
             "confidence_gain": confidence_gain,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         self.learning_events.append(event)
         
@@ -403,7 +408,7 @@ class MetaKnowledge:
         # Check if this resolves a gap
         self.resolve_gap(topic)
         
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(timezone.utc)
     
     def get_confidence(self, topic: str) -> float:
         """Get confidence for a topic.
@@ -632,7 +637,7 @@ class HierarchicalMemory:
         base_score = intersection / union
         
         # Boost for recency
-        age_days = (datetime.utcnow() - episode.timestamp).days
+        age_days = (datetime.now(timezone.utc) - episode.timestamp).days
         recency_boost = 1.0 / (1.0 + age_days / 30)  # Decay over 30 days
         
         # Boost for quality
@@ -692,7 +697,7 @@ class HierarchicalMemory:
         """
         profile = self.get_user_profile(user_id)
         profile.interaction_count += 1
-        profile.last_seen = datetime.utcnow()
+        profile.last_seen = datetime.now(timezone.utc)
         
         # Extract topics from query
         keywords = self._extract_keywords(query)
@@ -965,7 +970,7 @@ class UserProfileLearner:
         
         # Update basic stats
         profile.interaction_count += 1
-        profile.last_seen = datetime.utcnow()
+        profile.last_seen = datetime.now(timezone.utc)
         
         # Learn expertise from query complexity
         self._learn_expertise(profile, query)
@@ -1061,11 +1066,11 @@ class UserProfileLearner:
                 profile.preferences['verbosity'] = 'concise'
             
             # Record positive feedback
-            profile.feedback_history.append(('positive', datetime.utcnow().isoformat()))
+            profile.feedback_history.append(('positive', datetime.now(timezone.utc).isoformat()))
         
         # Negative feedback
         elif any(word in feedback_lower for word in ['bad', 'wrong', 'unhelpful', 'confusing']):
-            profile.feedback_history.append(('negative', datetime.utcnow().isoformat()))
+            profile.feedback_history.append(('negative', datetime.now(timezone.utc).isoformat()))
         
         # Specific preferences
         if 'too long' in feedback_lower or 'shorter' in feedback_lower:

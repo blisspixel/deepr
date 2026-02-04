@@ -18,8 +18,13 @@ Usage:
 import json
 import re
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 from contextlib import contextmanager
@@ -60,7 +65,7 @@ class Thought:
     private_payload: Optional[Dict[str, Any]] = None
     confidence: Optional[float] = None
     evidence_refs: Optional[List[str]] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -258,7 +263,7 @@ class ThoughtStream:
         log_dir.mkdir(parents=True, exist_ok=True)
         
         # Create session log file
-        session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        session_id = _utc_now().strftime("%Y%m%d_%H%M%S")
         self.log_path = log_dir / f"thoughts_{session_id}.jsonl"
         
         # Track thoughts for this session

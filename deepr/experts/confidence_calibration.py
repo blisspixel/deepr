@@ -22,8 +22,13 @@ Usage:
 import json
 import math
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 
@@ -33,7 +38,7 @@ class CalibrationExample:
     """A single calibration training example."""
     raw_confidence: float
     was_correct: bool
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -49,7 +54,7 @@ class CalibrationExample:
         return cls(
             raw_confidence=data["raw_confidence"],
             was_correct=data["was_correct"],
-            timestamp=datetime.fromisoformat(data.get("timestamp", datetime.utcnow().isoformat())),
+            timestamp=datetime.fromisoformat(data.get("timestamp", datetime.now(timezone.utc).isoformat())),
             metadata=data.get("metadata", {})
         )
 
