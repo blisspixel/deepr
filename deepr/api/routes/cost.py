@@ -1,11 +1,13 @@
 """Cost analytics API routes."""
 
+import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 
 from ...core.costs import CostEstimator, CostController
 from ...config import load_config
 
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("cost", __name__)
 
@@ -13,10 +15,18 @@ bp = Blueprint("cost", __name__)
 def get_cost_controller():
     """Get cost controller from config."""
     config = load_config()
+    try:
+        max_cost_per_job = float(config.get("max_cost_per_job", 10.0))
+        max_daily_cost = float(config.get("max_daily_cost", 100.0))
+        max_monthly_cost = float(config.get("max_monthly_cost", 1000.0))
+    except (ValueError, TypeError):
+        max_cost_per_job = 10.0
+        max_daily_cost = 100.0
+        max_monthly_cost = 1000.0
     return CostController(
-        max_cost_per_job=float(config.get("max_cost_per_job", 10.0)),
-        max_daily_cost=float(config.get("max_daily_cost", 100.0)),
-        max_monthly_cost=float(config.get("max_monthly_cost", 1000.0)),
+        max_cost_per_job=max_cost_per_job,
+        max_daily_cost=max_daily_cost,
+        max_monthly_cost=max_monthly_cost,
     )
 
 
@@ -35,6 +45,7 @@ def get_summary():
         return jsonify({"summary": summary}), 200
 
     except Exception as e:
+        logger.exception("Error getting cost summary: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -50,7 +61,10 @@ def get_trends():
         200: Trend data for charts
     """
     try:
-        days = min(int(request.args.get("days", 30)), 90)
+        try:
+            days = min(int(request.args.get("days", 30)), 90)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid days parameter"}), 400
 
         # Cost trends are tracked via CLI (deepr costs timeline); API returns structure only
         trends = {
@@ -71,6 +85,7 @@ def get_trends():
         return jsonify({"trends": trends, "days": days}), 200
 
     except Exception as e:
+        logger.exception("Error getting cost trends: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -88,7 +103,10 @@ def get_breakdown():
     """
     try:
         by = request.args.get("by", "model")
-        days = min(int(request.args.get("days", 30)), 90)
+        try:
+            days = min(int(request.args.get("days", 30)), 90)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid days parameter"}), 400
 
         # Cost breakdown is tracked via CLI (deepr costs breakdown); API returns structure only
         breakdown = {
@@ -99,6 +117,7 @@ def get_breakdown():
         return jsonify({"breakdown": breakdown, "days": days}), 200
 
     except Exception as e:
+        logger.exception("Error getting cost breakdown: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -145,6 +164,7 @@ def estimate_cost():
         }), 200
 
     except Exception as e:
+        logger.exception("Error estimating cost: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -159,15 +179,23 @@ def get_limits():
     try:
         config = load_config()
 
-        limits = {
-            "per_job": float(config.get("max_cost_per_job", 10.0)),
-            "daily": float(config.get("max_daily_cost", 100.0)),
-            "monthly": float(config.get("max_monthly_cost", 1000.0)),
-        }
+        try:
+            limits = {
+                "per_job": float(config.get("max_cost_per_job", 10.0)),
+                "daily": float(config.get("max_daily_cost", 100.0)),
+                "monthly": float(config.get("max_monthly_cost", 1000.0)),
+            }
+        except (ValueError, TypeError):
+            limits = {
+                "per_job": 10.0,
+                "daily": 100.0,
+                "monthly": 1000.0,
+            }
 
         return jsonify({"limits": limits}), 200
 
     except Exception as e:
+        logger.exception("Error getting limits: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -208,4 +236,5 @@ def update_limits():
         return jsonify({"message": "Limits updated successfully", "limits": data}), 200
 
     except Exception as e:
+        logger.exception("Error updating limits: %s", e)
         return jsonify({"error": "Internal server error"}), 500

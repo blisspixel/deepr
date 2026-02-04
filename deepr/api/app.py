@@ -61,7 +61,7 @@ def _check_auth():
     if request.path.startswith("/flasgger_static"):
         return
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != _api_token:
+    if not auth.startswith("Bearer ") or len(auth) <= 7 or auth[7:] != _api_token:
         return jsonify({"error": "Unauthorized"}), 401
 
 # =============================================================================
@@ -482,12 +482,19 @@ def list_jobs():
         schema:
           $ref: '#/definitions/Error'
     """
-    limit = int(request.args.get('limit', 100))
-    offset = int(request.args.get('offset', 0))
+    try:
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid limit or offset parameter'}), 400
+
     status_filter = request.args.get('status', None)
 
     if status_filter:
-        status_enum = JobStatus(status_filter)
+        try:
+            status_enum = JobStatus(status_filter)
+        except ValueError:
+            return jsonify({'error': f'Invalid status: {status_filter}'}), 400
         jobs = run_async(queue.list_jobs(status=status_enum, limit=limit, offset=offset))
     else:
         jobs = run_async(queue.list_jobs(limit=limit, offset=offset))
@@ -671,6 +678,9 @@ def submit_job():
           $ref: '#/definitions/Error'
     """
     data = request.json
+    if data is None:
+        return jsonify({'error': 'Request body must be JSON'}), 400
+
     prompt = data.get('prompt')
     model = data.get('model', 'o4-mini-deep-research')
     priority = data.get('priority', 3)

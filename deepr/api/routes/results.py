@@ -1,12 +1,14 @@
 """Results retrieval API routes."""
 
 import asyncio
+import logging
 from flask import Blueprint, request, jsonify, send_file
 from pathlib import Path
 
 from ...storage import create_storage
 from ...config import load_config
 
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("results", __name__)
 
@@ -38,8 +40,11 @@ def list_results():
     try:
         search = request.args.get("search")
         tags = request.args.get("tags", "").split(",") if request.args.get("tags") else []
-        limit = min(int(request.args.get("limit", 50)), 100)
-        offset = int(request.args.get("offset", 0))
+        try:
+            limit = min(int(request.args.get("limit", 50)), 100)
+            offset = int(request.args.get("offset", 0))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid limit or offset parameter"}), 400
         sort = request.args.get("sort", "date")
         order = request.args.get("order", "desc")
 
@@ -61,6 +66,7 @@ def list_results():
         }), 200
 
     except Exception as e:
+        logger.exception("Error listing results: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -83,6 +89,7 @@ def get_result(job_id: str):
         return jsonify({"result": result}), 200
 
     except Exception as e:
+        logger.exception("Error getting result %s: %s", job_id, e)
         return jsonify({"error": "Internal server error"}), 500
 
 
