@@ -2,11 +2,13 @@
 
 Uses the Responses API (NOT deprecated Assistants API) with custom tool calling
 to retrieve from the vector store.
+
+Instrumented with distributed tracing for observability (4.2 Auto-Generated Metadata).
 """
 
 import os
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from pathlib import Path
 from openai import AsyncOpenAI
@@ -20,6 +22,9 @@ from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 from deepr.experts.reasoning_graph import ReasoningGraph, ReasoningState
 from deepr.experts.memory import HierarchicalMemory, Episode, ReasoningStep
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
+
+# Observability infrastructure
+from deepr.observability.metadata import MetadataEmitter
 
 
 class ExpertChatSession:
@@ -99,6 +104,9 @@ class ExpertChatSession:
         
         # LazyGraphRAG for hybrid retrieval
         self.lazy_graph_rag = LazyGraphRAG(expert_name=expert.name)
+
+        # Observability: MetadataEmitter for span tracking
+        self._emitter = MetadataEmitter()
 
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
@@ -984,6 +992,17 @@ Budget remaining: ${budget_remaining:.2f}
             if status_callback:
                 status_callback(status)
 
+        # Start observability span for chat message
+        op = self._emitter.start_task(
+            "chat_message",
+            prompt=user_message[:500],
+            attributes={
+                "expert_name": self.expert.name,
+                "agentic_mode": self.agentic,
+                "budget_remaining": self.budget - self.cost_accumulated,
+            }
+        )
+
         try:
             # Check if query is complex enough for Tree of Thoughts reasoning
             # ToT provides better answers for complex queries through hypothesis
@@ -1201,6 +1220,13 @@ Budget remaining: ${budget_remaining:.2f}
                             "sources": [r.get("filename", "unknown") for r in search_results]
                         })
 
+                        # Track tool call in observability span
+                        op.add_event("tool_call_search", {
+                            "query": query[:100],
+                            "results_count": len(search_results),
+                            "top_score": search_results[0].get("score", 0) if search_results else 0
+                        })
+
                         # Track knowledge gap if search returned empty
                         if self.metacognition and len(search_results) == 0:
                             topic = query[:100]  # Use query as topic
@@ -1270,6 +1296,13 @@ Budget remaining: ${budget_remaining:.2f}
                             "mode": "standard_research",
                             "cost": result.get("cost", 0.0)
                         })
+
+                        # Track tool call in observability span
+                        op.add_event("tool_call_standard_research", {
+                            "query": query[:100],
+                            "cost": result.get("cost", 0.0),
+                            "has_answer": "answer" in result
+                        })
                         
                         # Emit result thought
                         if "answer" in result:
@@ -1328,7 +1361,14 @@ Budget remaining: ${budget_remaining:.2f}
                         # Execute deep research (async submission)
                         report_status("Submitting deep research ($0.10-0.30, 5-20 min)...")
                         result = await self._deep_research(query)
-                        
+
+                        # Track tool call in observability span
+                        op.add_event("tool_call_deep_research", {
+                            "query": query[:100],
+                            "job_id": result.get("job_id", ""),
+                            "estimated_cost": result.get("estimated_cost", 0)
+                        })
+
                         # Emit result thought
                         if "job_id" in result:
                             self.thought_stream.emit(
@@ -1449,19 +1489,27 @@ Budget remaining: ${budget_remaining:.2f}
                     if new_beliefs > 0:
                         final_message += f"\n\n_[Consciousness updated: {new_beliefs} new beliefs formed]_"
 
+            # Complete observability span with final metrics
+            op.set_cost(self.cost_accumulated)
+            op.set_attribute("tool_calls_count", round_count)
+            op.set_attribute("response_length", len(final_message))
+            self._emitter.complete_task(op)
+
             return final_message
 
         except Exception as e:
+            # Mark span as failed
+            self._emitter.fail_task(op, str(e))
             return f"Error communicating with expert: {str(e)}"
 
     def get_session_summary(self) -> Dict:
         """Get a summary of the chat session including cost safety status."""
         # Get cost session summary
         cost_summary = self.cost_session.get_summary() if hasattr(self, 'cost_session') else {}
-        
+
         # Get global spending summary
         global_spending = self.cost_safety.get_spending_summary() if hasattr(self, 'cost_safety') else {}
-        
+
         return {
             "expert_name": self.expert.name,
             "messages_exchanged": len([m for m in self.messages if m["role"] == "user"]),
@@ -1480,6 +1528,40 @@ Budget remaining: ${budget_remaining:.2f}
             "monthly_spent": global_spending.get("monthly", {}).get("spent", 0),
             "monthly_limit": global_spending.get("monthly", {}).get("limit", 0),
         }
+
+    @property
+    def trace(self) -> MetadataEmitter:
+        """Get the MetadataEmitter for accessing trace data.
+
+        Returns:
+            MetadataEmitter instance with all recorded spans
+        """
+        return self._emitter
+
+    def get_trace_summary(self) -> Dict[str, Any]:
+        """Get a summary of traced operations in this chat session.
+
+        Returns:
+            Dictionary with trace summary including:
+            - trace_id: Unique trace identifier
+            - total_cost: Sum of costs across all operations
+            - cost_breakdown: Cost by operation type
+            - timeline: List of operations in order
+        """
+        return {
+            "trace_id": self._emitter.trace_context.trace_id,
+            "total_cost": self._emitter.get_total_cost(),
+            "cost_breakdown": self._emitter.get_cost_breakdown(),
+            "timeline": self._emitter.get_timeline(),
+        }
+
+    def save_trace(self, path: Path):
+        """Save the trace to a JSON file.
+
+        Args:
+            path: Path to save the trace
+        """
+        self._emitter.save_trace(path)
 
     def save_conversation(self, session_id: Optional[str] = None) -> str:
         """Save conversation to expert's conversations folder.

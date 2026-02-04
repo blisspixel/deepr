@@ -125,10 +125,10 @@ sam build && sam deploy --guided
 **What exists:** TraceContext, Span, MetadataEmitter, ThoughtStream, CLI trace flags, cost dashboard.
 
 #### 4.2 Auto-Generated Metadata
-- [ ] Instrument `core/research.py` to emit spans per phase (plan, search, analyze, synthesize)
-- [ ] Instrument `experts/chat.py` to emit spans for tool calls
-- [ ] Add cost attribution to each span (cost from token counts + model pricing)
-- [ ] Add token counts to spans (input, output, cached)
+- [x] Instrument `core/research.py` to emit spans per phase (submit, completion, cancel)
+- [x] Instrument `experts/chat.py` to emit spans for tool calls (search, standard_research, deep_research)
+- [x] Add cost attribution to each span (cost from token counts + model pricing)
+- [x] Add token counts to spans (input, output via set_tokens())
 
 #### 4.4 Decision Logs in Natural Language
 - [ ] Extend ThoughtStream to generate human-readable decision summaries
