@@ -134,6 +134,12 @@ sam build && sam deploy --guided
 - [ ] Add `--why` flag for inline model/provider/budget reasoning
 - [ ] Store decision logs alongside reports in `reports/{job_id}/decisions.md`
 
+#### 4.5 Research Quality Metrics
+- [ ] Entropy-based stopping criteria (detect when searches yield diminishing returns)
+- [ ] Information gain tracking per research phase
+- [ ] Auto-pivot detection (when to change search strategy vs. terminate)
+- [ ] Quality score in research output (novelty, relevance, confidence)
+
 ---
 
 ### Priority 5: Provider Routing (remaining)
@@ -173,6 +179,18 @@ sam build && sam deploy --guided
 - [ ] `--context <report-id>` flag to include previous research
 - [ ] Stale context warnings (>30 days)
 - [ ] Cost savings estimate and context lineage tracking
+
+#### 6.4 Temporal Knowledge Tracking
+- [ ] Track *when* findings were discovered (not just what)
+- [ ] Context chaining: output of phase N becomes structured input for phase N+1
+- [ ] Research timeline visualization (`--timeline` for multi-phase research)
+- [ ] Hypothesis evolution tracking (how understanding changed during research)
+
+#### 6.5 Dynamic Context Management
+- [ ] Context pruning for long research sessions (summarize older findings)
+- [ ] Token budget allocation across research phases
+- [ ] Offload intermediate findings to persistent storage
+- [ ] Context window utilization metrics in `--explain` output
 
 ---
 
@@ -225,15 +243,60 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 - [ ] Brave Search and Puppeteer/Playwright MCP adapters
 - [ ] Recursive agent composition for sub-agent summarization
 
+#### Async Task Handling
+- [ ] Long-running task support with `task_id` returns
+- [ ] Progress monitoring via `notifications/progress` subscription
+- [ ] Task durability (survive connection interruptions, resume on reconnect)
+- [ ] Parallel task dispatch (multiple MCP servers simultaneously)
+- [ ] Task timeout and cancellation support
+
+#### Enhanced Elicitation
+- [ ] Human-in-the-loop for blocked operations (CAPTCHA, paywall, ambiguous data)
+- [ ] Elicitation routing to user via CLI prompt or web dashboard notification
+- [ ] Credential pass-through for gated content (user provides, agent uses)
+- [ ] Elicitation timeout with graceful degradation
+
 #### Remaining MCP Items
 - [ ] GitHub release workflow for skill distribution
 - [ ] Wire sampling into web scraper (CAPTCHA/paywall detection)
 - [ ] Rate limiting for external requests
 
+#### Skill System Enhancements
+- [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
+- [ ] Meta-skills: generate temporary skills for niche research topics
+- [ ] Skill marketplace discovery (`deepr skills search`)
+- [ ] Skill versioning and dependency management
+
 #### Stretch Goals
 - [ ] Multi-agent swarm support (specialized variants, manager routing)
 - [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
 - [ ] Memory integration (cross-session persistence, vector DB)
+
+---
+
+### Execution Security
+
+**What exists:** Docker deployment, SSRF protection, path traversal prevention, API key encryption.
+
+Defense-in-depth for autonomous research operations, especially when using agentic mode or MCP tools with write access.
+
+#### Cryptographic Verification
+- [ ] Sign all instructions sent to MCP tools (prevent prompt injection relay)
+- [ ] Hash verification for tool outputs (detect tampering)
+- [ ] Audit trail with cryptographic proof of execution sequence
+- [ ] Optional: Integrate with signing services (Crittora, Sigstore)
+
+#### Execution Isolation
+- [ ] Sandboxed execution for untrusted tool outputs (parse in isolated process)
+- [ ] Container-per-task option for high-security research
+- [ ] Resource limits (CPU, memory, network) per MCP tool invocation
+- [ ] Network egress controls (allowlist domains for research tools)
+
+#### Permission Boundaries
+- [ ] Read-only default for all file operations
+- [ ] Write operations require explicit `--allow-write` or elicitation confirmation
+- [ ] Budget policy enforcement (max spend per session/day)
+- [ ] Tool allowlist per research mode (`--tools web,search` restricts available tools)
 
 ---
 
@@ -309,18 +372,26 @@ Recommended sequence for remaining work:
 1. **7.2 Interactive Mode** - High user value
 2. **6.1 Context Discovery** - New feature, moderate effort
 3. **4.2 Auto-Generated Metadata** - Observability depth
-4. **7.3 Real-Time Progress** - Depends on API capabilities
-5. **5.1 Provider Benchmarking** - Data-driven routing
+4. **4.5 Research Quality Metrics** - Entropy-based stopping, quality scores
+5. **6.4-6.5 Temporal Knowledge & Context Management** - Long research sessions
+6. **7.3 Real-Time Progress** - Depends on API capabilities
+7. **5.1 Provider Benchmarking** - Data-driven routing
+
+**MCP & Execution:**
+8. **MCP Client Mode** - Design done, connections not yet built
+9. **Async Task Handling** - Progress monitoring, parallel dispatch
+10. **Enhanced Elicitation** - Human-in-the-loop for blocked operations
+11. **Execution Security** - Permission boundaries, isolation (for agentic mode)
 
 **Web Dashboard:**
-6. **Report Viewer** - Markdown rendering, syntax highlighting
-7. **Expert Management UI** - Expose CLI expert features to web
-8. **WebSocket Progress** - Real-time job updates
+12. **Report Viewer** - Markdown rendering, syntax highlighting
+13. **Expert Management UI** - Expose CLI expert features to web
+14. **WebSocket Progress** - Real-time job updates
 
-**Infrastructure:**
-9. **9.3 MCP Client Mode** - Design done, connections not yet built
-10. **Authentication** - Required for team deployment
-11. **7.4 TUI Dashboard** - Stretch goal
+**Team Features:**
+15. **Authentication** - Required for team deployment
+16. **Skill System Enhancements** - Conversion, meta-skills, marketplace
+17. **7.4 TUI Dashboard** - Stretch goal
 
 ---
 
@@ -340,9 +411,13 @@ We welcome contributions. Here's where help is most valuable:
 
 | Area | Examples | Impact |
 |------|----------|--------|
+| **Context management** | Temporal tracking, context pruning, phase chaining | High |
+| **Research quality** | Entropy metrics, stopping criteria, quality scoring | High |
+| **MCP client mode** | Async tasks, progress handling, elicitation flows | High |
 | **Provider integrations** | New providers, API updates, error handling | High |
 | **Cost optimization** | Token estimation, caching, batch strategies | High |
 | **Expert system** | Knowledge synthesis, gap detection, learning | High |
+| **Execution security** | Sandboxing, verification, permission boundaries | Medium |
 | **CLI UX** | Interactive mode, progress, output formatting | Medium |
 | **Web dashboard** | React components, API endpoints, real-time updates | Medium |
 | **Documentation** | Examples, tutorials, API docs | Medium |
