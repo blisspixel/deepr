@@ -18,8 +18,13 @@ Usage:
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from typing import Any, Dict, List, Optional, Tuple
 
 # Check if DSPy is available
@@ -255,7 +260,7 @@ class FeedbackEntry:
     answer: str
     rating: str  # "good", "bad", or numeric
     feedback_text: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     expert_name: str = ""
     id: str = field(default="")
     
@@ -286,7 +291,7 @@ class FeedbackEntry:
             answer=data["answer"],
             rating=data["rating"],
             feedback_text=data.get("feedback_text", ""),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.utcnow(),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
             expert_name=data.get("expert_name", "")
         )
     
@@ -456,7 +461,7 @@ class OptimizationResult:
     num_examples: int = 0
     metrics_before: Dict[str, float] = field(default_factory=dict)
     metrics_after: Dict[str, float] = field(default_factory=dict)
-    optimized_at: datetime = field(default_factory=datetime.utcnow)
+    optimized_at: datetime = field(default_factory=_utc_now)
     error: str = ""
     
     def to_dict(self) -> Dict[str, Any]:
@@ -848,7 +853,7 @@ class DSPyOptimizer:
         
         # Check time since last optimization
         last_opt = datetime.fromisoformat(history[-1]["optimized_at"])
-        days_elapsed = (datetime.utcnow() - last_opt).days
+        days_elapsed = (datetime.now(timezone.utc) - last_opt).days
         
         if days_elapsed >= days_since_last:
             return True, f"{days_elapsed} days since last optimization"

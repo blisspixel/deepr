@@ -30,8 +30,13 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -70,7 +75,7 @@ class Concept:
     section_ids: Set[str] = field(default_factory=set)
     frequency: int = 0
     tf_idf_score: float = 0.0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     id: str = field(default="")
     
     def __post_init__(self):
@@ -107,7 +112,7 @@ class Concept:
             section_ids=set(data.get("section_ids", [])),
             frequency=data.get("frequency", 0),
             tf_idf_score=data.get("tf_idf_score", 0.0),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.utcnow()
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc)
         )
 
 
@@ -128,7 +133,7 @@ class Edge:
     edge_type: EdgeType
     weight: float = 1.0
     document_ids: Set[str] = field(default_factory=set)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
     
     def __post_init__(self):
         if isinstance(self.document_ids, list):
@@ -156,7 +161,7 @@ class Edge:
             edge_type=EdgeType(data["edge_type"]),
             weight=data.get("weight", 1.0),
             document_ids=set(data.get("document_ids", [])),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.utcnow()
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc)
         )
 
 
@@ -1000,8 +1005,8 @@ class CachedSubgraph:
     node_ids: Set[str] = field(default_factory=set)
     node_summaries: Dict[str, str] = field(default_factory=dict)
     prompt_blocks: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    last_accessed: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    last_accessed: datetime = field(default_factory=_utc_now)
     access_count: int = 0
     
     def __post_init__(self):
@@ -1010,7 +1015,7 @@ class CachedSubgraph:
     
     def touch(self):
         """Update access time and count."""
-        self.last_accessed = datetime.utcnow()
+        self.last_accessed = datetime.now(timezone.utc)
         self.access_count += 1
     
     def to_dict(self) -> Dict[str, Any]:
@@ -1031,8 +1036,8 @@ class CachedSubgraph:
             node_ids=set(data.get("node_ids", [])),
             node_summaries=data.get("node_summaries", {}),
             prompt_blocks=data.get("prompt_blocks", []),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.utcnow(),
-            last_accessed=datetime.fromisoformat(data["last_accessed"]) if "last_accessed" in data else datetime.utcnow(),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc),
+            last_accessed=datetime.fromisoformat(data["last_accessed"]) if "last_accessed" in data else datetime.now(timezone.utc),
             access_count=data.get("access_count", 0)
         )
 
@@ -1663,7 +1668,7 @@ class LazyGraphRAG:
         Returns:
             Indexing statistics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         # Extract sections
         sections = self.extractor.extract_sections(content, document_id)
@@ -1689,12 +1694,12 @@ class LazyGraphRAG:
         
         # Track indexed document
         self._indexed_docs.add(document_id)
-        self._last_index_time = datetime.utcnow()
+        self._last_index_time = datetime.now(timezone.utc)
         
         # Persist graph
         self.graph.save()
         
-        elapsed = (datetime.utcnow() - start_time).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         return {
             "document_id": document_id,
@@ -1718,7 +1723,7 @@ class LazyGraphRAG:
         Returns:
             Indexing statistics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         total_concepts = 0
         total_edges = 0
@@ -1738,7 +1743,7 @@ class LazyGraphRAG:
                 total_edges += result["edges"]
                 total_sections += result["sections"]
         
-        elapsed = (datetime.utcnow() - start_time).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         return {
             "documents": len(documents),
@@ -1945,7 +1950,7 @@ class LazyGraphRAG:
             self._sufficiency_log: List[Dict[str, Any]] = []
         
         self._sufficiency_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "query": query[:100],
             "coverage": sufficiency.coverage,
             "redundancy": sufficiency.redundancy,

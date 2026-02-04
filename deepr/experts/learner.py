@@ -7,7 +7,7 @@ and integrating findings into expert knowledge bases.
 import asyncio
 from dataclasses import dataclass
 from typing import List, Optional, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 import click
 
 from deepr.config import AppConfig
@@ -154,7 +154,7 @@ class AutonomousLearner:
                 completed_topics=saved_progress.get('completed_topics', []),
                 failed_topics=saved_progress.get('failed_topics', []),
                 total_cost=saved_progress.get('total_cost_so_far', 0.0),
-                started_at=datetime.fromisoformat(saved_progress.get('started_at', datetime.utcnow().isoformat()))
+                started_at=datetime.fromisoformat(saved_progress.get('started_at', datetime.now(timezone.utc).isoformat()))
             )
             # Update session with prior cost
             session.total_cost = progress.total_cost
@@ -168,7 +168,7 @@ class AutonomousLearner:
                 completed_topics=[],
                 failed_topics=[],
                 total_cost=0.0,
-                started_at=datetime.utcnow()
+                started_at=datetime.now(timezone.utc)
             )
 
         # Get execution order (respects dependencies)
@@ -209,7 +209,7 @@ class AutonomousLearner:
                 await self._simulate_phase_execution(
                     phase_topics, progress, budget_limit, progress_callback
                 )
-            progress.completed_at = datetime.utcnow()
+            progress.completed_at = datetime.now(timezone.utc)
             self.cost_safety.close_session(session_id)
             return progress
 
@@ -270,7 +270,7 @@ class AutonomousLearner:
             if all_job_ids:
                 await self._poll_and_integrate_reports(expert, all_job_ids, session, progress_callback)
 
-            progress.completed_at = datetime.utcnow()
+            progress.completed_at = datetime.now(timezone.utc)
             
             # Get final cost from session
             progress.total_cost = session.total_cost
@@ -430,7 +430,7 @@ class AutonomousLearner:
         
         progress_data = {
             "expert_name": expert.name,
-            "paused_at": datetime.utcnow().isoformat(),
+            "paused_at": datetime.now(timezone.utc).isoformat(),
             "completed_topics": progress.completed_topics,
             "failed_topics": progress.failed_topics,
             "remaining_topics": [
@@ -669,7 +669,7 @@ class AutonomousLearner:
         
         # Update expert metadata
         expert.total_documents += acquired
-        expert.last_knowledge_refresh = datetime.utcnow()
+        expert.last_knowledge_refresh = datetime.now(timezone.utc)
         store.save(expert)
         
         self._log_progress(
@@ -1120,7 +1120,7 @@ class AutonomousLearner:
 
         # Update expert metadata
         expert.total_documents += uploaded
-        expert.last_knowledge_refresh = datetime.utcnow()
+        expert.last_knowledge_refresh = datetime.now(timezone.utc)
 
         store = ExpertStore()
         store.save(expert)
@@ -1289,9 +1289,9 @@ class AutonomousLearner:
         expert.total_research_cost += progress.total_cost
 
         # Update knowledge cutoff to now
-        expert.last_knowledge_refresh = datetime.utcnow()
+        expert.last_knowledge_refresh = datetime.now(timezone.utc)
         if not expert.knowledge_cutoff_date:
-            expert.knowledge_cutoff_date = datetime.utcnow()
+            expert.knowledge_cutoff_date = datetime.now(timezone.utc)
 
         # Save updated profile
         store = ExpertStore()

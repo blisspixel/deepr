@@ -13,7 +13,7 @@ import hashlib
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class EmbeddingCache:
         with open(self.index_path, 'w', encoding='utf-8') as f:
             json.dump({
                 "expert_name": self.expert_name,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
                 "document_count": len(self.index),
                 "documents": self.index
             }, f, indent=2)
@@ -161,7 +161,7 @@ class EmbeddingCache:
                     "content_preview": content[:500],  # Store preview for results
                     "full_content": content[:2000],  # Store more for search results
                     "char_count": len(content),
-                    "embedded_at": datetime.utcnow().isoformat()
+                    "embedded_at": datetime.now(timezone.utc).isoformat()
                 })
                 
             except Exception as e:

@@ -16,7 +16,7 @@ contradiction detection, belief revision, and richer knowledge graphs.
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import json
 
@@ -211,7 +211,7 @@ class KnowledgeSynthesizer:
                 domain=domain,
                 beliefs=beliefs,
                 knowledge_gaps=gaps,
-                last_synthesis=datetime.utcnow(),
+                last_synthesis=datetime.now(timezone.utc),
                 synthesis_count=1
             )
 
@@ -359,8 +359,8 @@ Output ONLY the JSON, no other text.
                     statement=b['statement'],
                     confidence=b['confidence'],
                     evidence=b.get('evidence', [doc['filename'] for doc in documents]),
-                    formed_at=datetime.utcnow(),
-                    last_updated=datetime.utcnow()
+                    formed_at=datetime.now(timezone.utc),
+                    last_updated=datetime.now(timezone.utc)
                 ))
 
             # Convert to KnowledgeGap objects
@@ -370,7 +370,7 @@ Output ONLY the JSON, no other text.
                     topic=g['topic'],
                     questions=g['questions'],
                     priority=g.get('priority', 3),
-                    identified_at=datetime.utcnow()
+                    identified_at=datetime.now(timezone.utc)
                 ))
 
             return beliefs, gaps
@@ -397,7 +397,7 @@ Output ONLY the JSON, no other text.
                 old_belief.statement = new_belief.statement
                 old_belief.confidence = new_belief.confidence
                 old_belief.evidence.extend(new_belief.evidence)
-                old_belief.last_updated = datetime.utcnow()
+                old_belief.last_updated = datetime.now(timezone.utc)
             else:
                 # Add new belief
                 existing.beliefs.append(new_belief)
@@ -406,7 +406,7 @@ Output ONLY the JSON, no other text.
         existing.knowledge_gaps.extend(new_gaps)
 
         # Update metadata
-        existing.last_synthesis = datetime.utcnow()
+        existing.last_synthesis = datetime.now(timezone.utc)
         existing.synthesis_count += 1
 
         return existing
