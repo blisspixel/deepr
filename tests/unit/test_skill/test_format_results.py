@@ -168,14 +168,19 @@ class TestCitationExtraction:
 class TestFormatFunctions:
     """Test individual formatting functions."""
     
-    @given(st.lists(st.text(min_size=1, max_size=100).filter(lambda x: x.strip()), max_size=10))
+    @given(st.lists(
+        st.text(min_size=1, max_size=100).filter(lambda x: x.strip() and "- " not in x),
+        max_size=10
+    ))
     @settings(max_examples=50)
     def test_format_findings_produces_bullet_list(self, findings: list[str]):
         """
         Property: format_findings produces valid bullet list.
+
+        Filters out findings containing "- " to avoid false positives in bullet counting.
         """
         result = format_findings(findings)
-        
+
         if findings:
             for finding in findings:
                 assert finding in result

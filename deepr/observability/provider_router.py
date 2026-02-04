@@ -39,6 +39,16 @@ def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
     return datetime.now(timezone.utc)
 
+
+def _parse_datetime(iso_str: Optional[str]) -> Optional[datetime]:
+    """Parse ISO datetime string ensuring timezone awareness."""
+    if not iso_str:
+        return None
+    dt = datetime.fromisoformat(iso_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
 # Configuration constants
 ROLLING_WINDOW_SIZE = 20  # Number of recent samples for rolling averages
 MAX_STORED_FALLBACK_EVENTS = 100  # Maximum fallback events to persist
@@ -219,8 +229,8 @@ class ProviderMetrics:
             failure_count=data.get("failure_count", 0),
             total_latency_ms=data.get("total_latency_ms", 0.0),
             total_cost=data.get("total_cost", 0.0),
-            last_success=datetime.fromisoformat(data["last_success"]) if data.get("last_success") else None,
-            last_failure=datetime.fromisoformat(data["last_failure"]) if data.get("last_failure") else None,
+            last_success=_parse_datetime(data.get("last_success")),
+            last_failure=_parse_datetime(data.get("last_failure")),
             last_error=data.get("last_error", ""),
             rolling_latencies=data.get("rolling_latencies", []),
             rolling_costs=data.get("rolling_costs", [])
@@ -669,7 +679,7 @@ class AutonomousProviderRouter:
                     fallback_model=event_data["fallback_model"],
                     reason=event_data["reason"],
                     success=event_data["success"],
-                    timestamp=datetime.fromisoformat(event_data["timestamp"])
+                    timestamp=_parse_datetime(event_data["timestamp"])
                 ))
             
             logger.debug(

@@ -9,10 +9,15 @@ Tests cover:
 import json
 import math
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from deepr.observability.provider_router import (
     AutonomousProviderRouter,
@@ -168,7 +173,7 @@ class TestProviderMetrics:
         metrics.record_success(latency_ms=1000.0, cost=0.05)
         
         # Manually set last_success to be older than the failure we're about to record
-        metrics.last_success = datetime.utcnow() - timedelta(minutes=5)
+        metrics.last_success = utc_now() - timedelta(minutes=5)
         
         # Now record failure (will have current timestamp)
         metrics.record_failure(error="Recent error")

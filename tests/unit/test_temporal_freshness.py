@@ -11,9 +11,14 @@ Uses hypothesis for property-based testing.
 import pytest
 import math
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from hypothesis import given, settings, strategies as st, HealthCheck, assume
 
@@ -113,7 +118,7 @@ class TestTemporalStateDays:
     def test_days_since_creation(self):
         """Test days since creation calculation."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=30)
+            created_at=utc_now() - timedelta(days=30)
         )
         
         days = state.days_since_creation()
@@ -123,7 +128,7 @@ class TestTemporalStateDays:
     def test_days_since_last_activity(self):
         """Test days since last activity calculation."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=15)
+            last_activity=utc_now() - timedelta(days=15)
         )
         
         days = state.days_since_last_activity()
@@ -141,7 +146,7 @@ class TestTemporalStateDays:
     def test_days_since_last_learning_with_value(self):
         """Test days since last learning with value."""
         state = TemporalState(
-            last_learning=datetime.utcnow() - timedelta(days=10)
+            last_learning=utc_now() - timedelta(days=10)
         )
         
         days = state.days_since_last_learning()
@@ -159,7 +164,7 @@ class TestTemporalStateDays:
     def test_days_since_last_chat_with_value(self):
         """Test days since last chat with value."""
         state = TemporalState(
-            last_chat=datetime.utcnow() - timedelta(days=5)
+            last_chat=utc_now() - timedelta(days=5)
         )
         
         days = state.days_since_last_chat()
@@ -200,7 +205,7 @@ class TestTemporalStateActivityCount:
         # Add old activity manually
         old_entry = {
             "type": "chat",
-            "timestamp": (datetime.utcnow() - timedelta(days=60)).isoformat(),
+            "timestamp": (utc_now() - timedelta(days=60)).isoformat(),
             "details": {}
         }
         state.activity_history.insert(0, old_entry)
@@ -217,7 +222,7 @@ class TestTemporalStateStatus:
     def test_is_active_true(self):
         """Test is_active returns True for recent activity."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=10)
+            last_activity=utc_now() - timedelta(days=10)
         )
         
         assert state.is_active(threshold_days=30) is True
@@ -225,7 +230,7 @@ class TestTemporalStateStatus:
     def test_is_active_false(self):
         """Test is_active returns False for old activity."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=60)
+            last_activity=utc_now() - timedelta(days=60)
         )
         
         assert state.is_active(threshold_days=30) is False
@@ -233,7 +238,7 @@ class TestTemporalStateStatus:
     def test_is_dormant_true(self):
         """Test is_dormant returns True for very old activity."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=120)
+            last_activity=utc_now() - timedelta(days=120)
         )
         
         assert state.is_dormant(threshold_days=90) is True
@@ -241,7 +246,7 @@ class TestTemporalStateStatus:
     def test_is_dormant_false(self):
         """Test is_dormant returns False for recent activity."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=30)
+            last_activity=utc_now() - timedelta(days=30)
         )
         
         assert state.is_dormant(threshold_days=90) is False
@@ -253,7 +258,7 @@ class TestTemporalStateAgeCategory:
     def test_age_category_new(self):
         """Test new age category."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=3)
+            created_at=utc_now() - timedelta(days=3)
         )
         
         assert state.get_age_category() == "new"
@@ -261,7 +266,7 @@ class TestTemporalStateAgeCategory:
     def test_age_category_young(self):
         """Test young age category."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=15)
+            created_at=utc_now() - timedelta(days=15)
         )
         
         assert state.get_age_category() == "young"
@@ -269,7 +274,7 @@ class TestTemporalStateAgeCategory:
     def test_age_category_established(self):
         """Test established age category."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=60)
+            created_at=utc_now() - timedelta(days=60)
         )
         
         assert state.get_age_category() == "established"
@@ -277,7 +282,7 @@ class TestTemporalStateAgeCategory:
     def test_age_category_mature(self):
         """Test mature age category."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=200)
+            created_at=utc_now() - timedelta(days=200)
         )
         
         assert state.get_age_category() == "mature"
@@ -381,7 +386,7 @@ class TestFreshnessCheckerCheck:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=10)
+            last_learning=utc_now() - timedelta(days=10)
         )
         
         assert status.level == FreshnessLevel.FRESH
@@ -394,7 +399,7 @@ class TestFreshnessCheckerCheck:
         
         # 50-80% of velocity = aging (45-72 days for 90 day velocity)
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=60)
+            last_learning=utc_now() - timedelta(days=60)
         )
         
         assert status.level == FreshnessLevel.AGING
@@ -406,7 +411,7 @@ class TestFreshnessCheckerCheck:
         
         # 100-150% of velocity = stale (90-135 days for 90 day velocity)
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=100)
+            last_learning=utc_now() - timedelta(days=100)
         )
         
         assert status.level == FreshnessLevel.STALE
@@ -418,7 +423,7 @@ class TestFreshnessCheckerCheck:
         
         # >150% of velocity = critical (>135 days for 90 day velocity)
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=200)
+            last_learning=utc_now() - timedelta(days=200)
         )
         
         assert status.level == FreshnessLevel.CRITICAL
@@ -429,7 +434,7 @@ class TestFreshnessCheckerCheck:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         status = checker.check(
-            last_activity=datetime.utcnow() - timedelta(days=30)
+            last_activity=utc_now() - timedelta(days=30)
         )
         
         assert status.level == FreshnessLevel.FRESH
@@ -444,7 +449,7 @@ class TestFreshnessCheckerMethods:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         result = checker.is_stale(
-            last_learning=datetime.utcnow() - timedelta(days=100)
+            last_learning=utc_now() - timedelta(days=100)
         )
         
         assert result is True
@@ -454,7 +459,7 @@ class TestFreshnessCheckerMethods:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         result = checker.is_stale(
-            last_learning=datetime.utcnow() - timedelta(days=30)
+            last_learning=utc_now() - timedelta(days=30)
         )
         
         assert result is False
@@ -464,7 +469,7 @@ class TestFreshnessCheckerMethods:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         days = checker.days_until_stale(
-            last_learning=datetime.utcnow() - timedelta(days=30)
+            last_learning=utc_now() - timedelta(days=30)
         )
         
         assert days == 60  # 90 - 30
@@ -474,7 +479,7 @@ class TestFreshnessCheckerMethods:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         days = checker.days_until_stale(
-            last_learning=datetime.utcnow() - timedelta(days=120)
+            last_learning=utc_now() - timedelta(days=120)
         )
         
         assert days == -30  # 90 - 120
@@ -492,7 +497,7 @@ class TestFreshnessCheckerMethods:
         checker = FreshnessChecker(domain="technology", velocity_days=90)
         
         status = checker.get_status(
-            last_learning=datetime.utcnow() - timedelta(days=30)
+            last_learning=utc_now() - timedelta(days=30)
         )
         
         assert isinstance(status, dict)
@@ -633,7 +638,7 @@ class TestTemporalStateProperties:
     def test_days_since_creation_non_negative(self, days_old):
         """Property: Days since creation is always non-negative."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=days_old)
+            created_at=utc_now() - timedelta(days=days_old)
         )
         
         days = state.days_since_creation()
@@ -650,7 +655,7 @@ class TestTemporalStateProperties:
     def test_days_since_activity_non_negative(self, days_old):
         """Property: Days since activity is always non-negative."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=days_old)
+            last_activity=utc_now() - timedelta(days=days_old)
         )
         
         days = state.days_since_last_activity()
@@ -691,7 +696,7 @@ class TestTemporalStateProperties:
     def test_activity_updates_last_activity(self, activity_types):
         """Property: Recording activity always updates last_activity."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=100)
+            last_activity=utc_now() - timedelta(days=100)
         )
         old_activity = state.last_activity
         
@@ -711,7 +716,7 @@ class TestTemporalStateProperties:
     def test_is_active_is_dormant_mutually_exclusive(self, threshold, days_old):
         """Property: is_active and is_dormant are mutually exclusive at same threshold."""
         state = TemporalState(
-            last_activity=datetime.utcnow() - timedelta(days=days_old)
+            last_activity=utc_now() - timedelta(days=days_old)
         )
         
         active = state.is_active(threshold_days=threshold)
@@ -730,7 +735,7 @@ class TestTemporalStateProperties:
     def test_age_category_always_valid(self, days_old):
         """Property: Age category is always one of the valid values."""
         state = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=days_old)
+            created_at=utc_now() - timedelta(days=days_old)
         )
         
         category = state.get_age_category()
@@ -747,8 +752,8 @@ class TestTemporalStateProperties:
     def test_serialization_roundtrip(self, days_old):
         """Property: Serialization roundtrip preserves data."""
         original = TemporalState(
-            created_at=datetime.utcnow() - timedelta(days=days_old),
-            last_activity=datetime.utcnow() - timedelta(days=days_old // 2)
+            created_at=utc_now() - timedelta(days=days_old),
+            last_activity=utc_now() - timedelta(days=days_old // 2)
         )
         original.record_activity("chat")
         
@@ -780,7 +785,7 @@ class TestFreshnessCheckerProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days_since)
+            last_learning=utc_now() - timedelta(days=days_since)
         )
         
         assert 0.0 <= status.score <= 1.0
@@ -798,7 +803,7 @@ class TestFreshnessCheckerProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days_since)
+            last_learning=utc_now() - timedelta(days=days_since)
         )
         
         assert status.level in FreshnessLevel
@@ -817,10 +822,10 @@ class TestFreshnessCheckerProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status1 = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days1)
+            last_learning=utc_now() - timedelta(days=days1)
         )
         status2 = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days2)
+            last_learning=utc_now() - timedelta(days=days2)
         )
         
         if days1 <= days2:
@@ -842,7 +847,7 @@ class TestFreshnessCheckerProperties:
         # Just under 50% threshold
         days = int(velocity_days * 0.4)
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days)
+            last_learning=utc_now() - timedelta(days=days)
         )
         
         assert status.level == FreshnessLevel.FRESH
@@ -861,7 +866,7 @@ class TestFreshnessCheckerProperties:
         # Beyond 150% threshold
         days = int(velocity_days * 2.0)
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days)
+            last_learning=utc_now() - timedelta(days=days)
         )
         
         assert status.level == FreshnessLevel.CRITICAL
@@ -879,7 +884,7 @@ class TestFreshnessCheckerProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days_since)
+            last_learning=utc_now() - timedelta(days=days_since)
         )
         
         is_stale = status.is_stale()
@@ -902,7 +907,7 @@ class TestFreshnessCheckerProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=days_since)
+            last_learning=utc_now() - timedelta(days=days_since)
         )
         
         needs_refresh = status.needs_refresh()
@@ -924,7 +929,7 @@ class TestFreshnessCheckerProperties:
         """Property: days_until_stale follows formula."""
         checker = FreshnessChecker(velocity_days=velocity_days)
         
-        last_learning = datetime.utcnow() - timedelta(days=days_since)
+        last_learning = utc_now() - timedelta(days=days_since)
         days_until = checker.days_until_stale(last_learning=last_learning)
         
         expected = velocity_days - days_since
@@ -950,7 +955,7 @@ class TestScoreCalculationProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status = checker.check(
-            last_learning=datetime.utcnow()
+            last_learning=utc_now()
         )
         
         assert abs(status.score - 1.0) < 0.01
@@ -967,7 +972,7 @@ class TestScoreCalculationProperties:
         checker = FreshnessChecker(velocity_days=velocity_days)
         
         status = checker.check(
-            last_learning=datetime.utcnow() - timedelta(days=velocity_days)
+            last_learning=utc_now() - timedelta(days=velocity_days)
         )
         
         # At velocity_days, score should be e^(-1) ~ 0.368
@@ -993,8 +998,8 @@ class TestBackwardCompatibility:
         """Property: TemporalState handles missing fields in from_dict."""
         # Minimal data (simulating old format)
         data = {
-            "created_at": (datetime.utcnow() - timedelta(days=days_old)).isoformat(),
-            "last_activity": datetime.utcnow().isoformat()
+            "created_at": (utc_now() - timedelta(days=days_old)).isoformat(),
+            "last_activity": utc_now().isoformat()
         }
         
         state = TemporalState.from_dict(data)
