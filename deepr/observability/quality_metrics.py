@@ -41,21 +41,24 @@ class EvaluationResult:
     """Result of evaluating a single response."""
     example_id: str
     category: str
-    
+
     # Citation metrics
     citation_precision: float  # Relevant citations / Total citations
     citation_recall: float     # Found citations / Expected citations
     citation_f1: float         # Harmonic mean of precision and recall
-    
+
     # Relevance metrics
     answer_relevance: float    # 0-1 score for answer quality
     contains_expected: bool    # Whether answer contains expected terms
-    
+
     # Confidence metrics
     confidence: float          # Model's stated confidence
     is_correct: bool           # Whether answer was correct
     brier_score: float         # (confidence - correct)^2
-    
+
+    # Novelty metrics (for information gain tracking)
+    novelty_score: float = 0.0  # How novel/unique this response is (0-1)
+
     # Overall
     quality_score: float       # Weighted combination
     timestamp: datetime = field(default_factory=_utc_now)
@@ -72,6 +75,7 @@ class EvaluationResult:
             "confidence": self.confidence,
             "is_correct": self.is_correct,
             "brier_score": self.brier_score,
+            "novelty_score": self.novelty_score,
             "quality_score": self.quality_score,
             "timestamp": self.timestamp.isoformat()
         }
