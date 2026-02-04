@@ -45,6 +45,8 @@ Replace flat vector search with relationship-aware retrieval:
 - Understand connections between concepts
 - Traverse knowledge graphs
 - Answer "how" and "why" questions better
+- Temporal dimension: track *when* findings were discovered, not just what
+- Context chaining: output of phase N becomes structured input for phase N+1
 
 ### Self-Correction
 
@@ -52,6 +54,8 @@ Detect and fix errors automatically:
 - Contradiction detection
 - Claim verification
 - Confidence decay for outdated info
+- Entropy-based stopping (detect when searches yield diminishing returns)
+- Meta-cognitive evaluation ("Did this search yield new information or just confirm priors?")
 
 ## Long-Term Vision (v3.0+)
 
@@ -97,6 +101,14 @@ Build trust before adding autonomy:
 - User controls their data
 - No vendor lock-in
 - Best tool for each task
+
+### Secure Autonomy
+
+As agents gain more autonomy (agentic mode, MCP tool access), security becomes critical:
+- Defense in depth (sandboxing, verification, permission boundaries)
+- Read-only by default, write requires explicit consent
+- Cryptographic verification of tool outputs
+- Budget enforcement to prevent runaway costs
 
 ## What We're Not Building
 
