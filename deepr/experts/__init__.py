@@ -1,8 +1,8 @@
 """Expert system - persistent domain experts with agentic research capabilities.
 
 Provides:
-- ExpertProfile: Core expert metadata and configuration
-- ExpertStore: Persistence layer for expert profiles
+- ExpertProfile: Core expert metadata and configuration (profile.py)
+- ExpertStore: Persistence layer with schema migrations (profile_store.py)
 - BudgetManager: Monthly learning budget tracking
 - ActivityTracker: Conversation and research counting
 - FreshnessChecker: Knowledge freshness evaluation
@@ -10,7 +10,8 @@ Provides:
 """
 
 from .embedding_cache import EmbeddingCache
-from .profile import ExpertProfile, ExpertStore
+from .profile import ExpertProfile
+from .profile_store import ExpertStore, PROFILE_SCHEMA_VERSION, migrate_profile_data
 from .chat import ExpertChatSession, start_chat_session
 from .synthesis import KnowledgeSynthesizer, Worldview, Belief, KnowledgeGap
 from .budget_manager import BudgetManager
@@ -23,6 +24,8 @@ __all__ = [
     # Core profile
     "ExpertProfile",
     "ExpertStore",
+    "PROFILE_SCHEMA_VERSION",
+    "migrate_profile_data",
     # Composed managers
     "BudgetManager",
     "ActivityTracker",
