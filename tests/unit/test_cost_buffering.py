@@ -14,7 +14,7 @@ import pytest
 import tempfile
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -298,7 +298,7 @@ class TestCostBufferFlushTriggersProperty:
             initial_buffer_count = dashboard.buffer_count
             
             # Simulate time passing by manipulating _last_flush
-            dashboard._last_flush = datetime.utcnow() - timedelta(seconds=flush_interval + 1)
+            dashboard._last_flush = datetime.now(timezone.utc) - timedelta(seconds=flush_interval + 1)
             
             # Record another entry - should trigger time-based flush
             dashboard.record("chat", "anthropic", 0.02)

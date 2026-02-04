@@ -119,7 +119,7 @@ class CircuitBreaker:
         if self.state != CircuitState.OPEN:
             return None
         
-        elapsed = (datetime.now(timezone.utc)() - self.last_state_change).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.last_state_change).total_seconds()
         remaining = self.recovery_timeout - elapsed
         return max(0, int(remaining))
     
@@ -150,7 +150,7 @@ class CircuitBreaker:
             - CLOSED -> OPEN: If failure_count >= failure_threshold
         """
         self.failure_count += 1
-        self.last_failure_time = datetime.now(timezone.utc)()
+        self.last_failure_time = datetime.now(timezone.utc)
         
         if self.state == CircuitState.HALF_OPEN:
             # Recovery failed - reopen the circuit
@@ -176,7 +176,7 @@ class CircuitBreaker:
         if self.state != CircuitState.OPEN:
             return
         
-        elapsed = (datetime.now(timezone.utc)() - self.last_state_change).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.last_state_change).total_seconds()
         if elapsed >= self.recovery_timeout:
             self._transition_to(CircuitState.HALF_OPEN)
             logger.info(
@@ -192,7 +192,7 @@ class CircuitBreaker:
         """
         old_state = self.state
         self.state = new_state
-        self.last_state_change = datetime.now(timezone.utc)()
+        self.last_state_change = datetime.now(timezone.utc)
         
         # Reset failure count when closing circuit
         if new_state == CircuitState.CLOSED:
