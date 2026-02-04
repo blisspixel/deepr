@@ -5,7 +5,7 @@ import json
 import asyncio
 import logging
 from typing import Optional, List, Dict, Any, TypeVar
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from .base import QueueBackend, ResearchJob, JobStatus, QueueError
 
@@ -222,7 +222,7 @@ class SQLiteQueue(QueueBackend):
                 started_at = ?,
                 attempts = attempts + 1
             WHERE id = ? AND status = 'queued'
-        """, (worker_id, datetime.utcnow().isoformat(), job_id))
+        """, (worker_id, datetime.now(timezone.utc).isoformat(), job_id))
 
         if cursor.rowcount == 0:
             # Job was claimed by another worker
@@ -301,7 +301,7 @@ class SQLiteQueue(QueueBackend):
 
         if status == JobStatus.COMPLETED:
             updates.append("completed_at = ?")
-            values.append(datetime.utcnow().isoformat())
+            values.append(datetime.now(timezone.utc).isoformat())
 
         values.append(job_id)
 
@@ -431,7 +431,7 @@ class SQLiteQueue(QueueBackend):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
         cursor.execute("""
             DELETE FROM research_queue

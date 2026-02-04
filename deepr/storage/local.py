@@ -438,8 +438,9 @@ class LocalStorage(StorageBackend):
 
                 # Delete entire job directory if all files are old
                 if all_old:
+                    file_count = len(list(job_dir.iterdir()))
                     shutil.rmtree(job_dir)
-                    deleted_count += len(list(job_dir.iterdir()))
+                    deleted_count += file_count
 
             return deleted_count
 
