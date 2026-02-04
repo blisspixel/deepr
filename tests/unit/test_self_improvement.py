@@ -11,9 +11,14 @@ Uses hypothesis for property-based testing.
 import pytest
 import asyncio
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Set
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from hypothesis import given, settings, strategies as st, HealthCheck, assume
 
@@ -49,7 +54,7 @@ class TestStalenessDetection:
         - Aging: <= velocity_days * 0.8 (24 days for fast)
         - Stale: > velocity_days * 0.8 (> 24 days for fast)
         """
-        now = datetime.utcnow()
+        now = utc_now()
         
         # 15 days old - fresh (within 0.5x threshold)
         profile_fresh = ExpertProfile(
@@ -77,7 +82,7 @@ class TestStalenessDetection:
         - Aging: <= velocity_days * 0.8 (72 days for medium)
         - Stale: > velocity_days * 0.8 (> 72 days for medium)
         """
-        now = datetime.utcnow()
+        now = utc_now()
         
         # 45 days old - fresh (within 0.5x threshold)
         profile_fresh = ExpertProfile(
@@ -105,7 +110,7 @@ class TestStalenessDetection:
         - Aging: <= velocity_days * 0.8 (144 days for slow)
         - Stale: > velocity_days * 0.8 (> 144 days for slow)
         """
-        now = datetime.utcnow()
+        now = utc_now()
         
         # 90 days old - fresh (within 0.5x threshold)
         profile_fresh = ExpertProfile(
@@ -127,7 +132,7 @@ class TestStalenessDetection:
 
     def test_staleness_details_structure(self):
         """Test get_staleness_details returns complete structure."""
-        now = datetime.utcnow()
+        now = utc_now()
         profile = ExpertProfile(
             name="Test",
             vector_store_id="vs_test",
@@ -161,7 +166,7 @@ class TestStalenessDetection:
         will have "fresh" status (not "incomplete") because FreshnessChecker
         falls back to last_activity when last_learning is None.
         """
-        now = datetime.utcnow()
+        now = utc_now()
         
         # Fresh - low urgency (within 0.5x threshold = 45 days for medium)
         fresh = ExpertProfile(
@@ -201,7 +206,7 @@ class TestStalenessDetection:
 
     def test_suggest_refresh_returns_none_when_fresh(self):
         """Test suggest_refresh returns None for fresh experts."""
-        now = datetime.utcnow()
+        now = utc_now()
         profile = ExpertProfile(
             name="Fresh",
             vector_store_id="vs_fresh",
@@ -214,7 +219,7 @@ class TestStalenessDetection:
 
     def test_suggest_refresh_returns_suggestion_when_stale(self):
         """Test suggest_refresh returns suggestion for stale experts."""
-        now = datetime.utcnow()
+        now = utc_now()
         profile = ExpertProfile(
             name="Stale",
             vector_store_id="vs_stale",
@@ -690,7 +695,7 @@ class TestArchiveOutdated:
         
         # Add old entry
         old_entry = KnowledgeEntry(content="Old entry")
-        old_entry.updated_at = datetime.utcnow() - timedelta(days=60)
+        old_entry.updated_at = utc_now() - timedelta(days=60)
         consolidator.add_entry(old_entry)
         
         # Add recent entry
@@ -747,7 +752,7 @@ class TestConsolidateAsync:
         ))
         
         old_entry = KnowledgeEntry(content="Old information")
-        old_entry.updated_at = datetime.utcnow() - timedelta(days=60)
+        old_entry.updated_at = utc_now() - timedelta(days=60)
         consolidator.add_entry(old_entry)
         
         result = await consolidator.consolidate()
@@ -875,7 +880,7 @@ class TestStalenessPropertyTests:
         velocity_days = {"slow": 180, "medium": 90, "fast": 30}[velocity]
         stale_threshold = int(velocity_days * 0.8)  # Stale starts at 0.8x
         
-        now = datetime.utcnow()
+        now = utc_now()
         profile = ExpertProfile(
             name="Test",
             vector_store_id="vs_test",
@@ -1015,7 +1020,7 @@ class TestConsolidationPropertyTests:
                 archive_age_days=archive_threshold
             )
             
-            now = datetime.utcnow()
+            now = utc_now()
             for i, age_days in enumerate(age_days_list):
                 entry = KnowledgeEntry(content=f"Entry {i}")
                 entry.updated_at = now - timedelta(days=age_days)

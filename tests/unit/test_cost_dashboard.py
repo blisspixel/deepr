@@ -8,10 +8,15 @@ Tests cover:
 
 import json
 import tempfile
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 import pytest
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from deepr.observability.costs import (
     AlertManager,
@@ -248,7 +253,7 @@ class TestAlertManager:
         """Should not trigger same alert twice on same day."""
         manager = AlertManager(thresholds=[0.5])
         # Use UTC date to match AlertManager's internal behavior
-        today = datetime.utcnow().date()
+        today = utc_now().date()
         
         # First check triggers alert
         alerts1 = manager.check_daily_alerts(6.0, 10.0, today)
@@ -261,7 +266,7 @@ class TestAlertManager:
     def test_check_monthly_alerts_triggers(self):
         """Should trigger monthly alerts when threshold exceeded."""
         manager = AlertManager(thresholds=[0.5])
-        now = datetime.utcnow()
+        now = utc_now()
         
         alerts = manager.check_monthly_alerts(
             monthly_total=55.0,
@@ -276,7 +281,7 @@ class TestAlertManager:
     def test_check_monthly_alerts_no_duplicate(self):
         """Should not trigger same monthly alert twice."""
         manager = AlertManager(thresholds=[0.5])
-        now = datetime.utcnow()
+        now = utc_now()
         
         # First check triggers
         alerts1 = manager.check_monthly_alerts(55.0, 100.0, now.year, now.month)
@@ -289,7 +294,7 @@ class TestAlertManager:
     def test_get_active_alerts_daily(self):
         """Should return today's daily alerts as active."""
         manager = AlertManager(thresholds=[0.5])
-        now = datetime.utcnow()
+        now = utc_now()
         today = now.date()
         
         # Trigger an alert
@@ -303,7 +308,7 @@ class TestAlertManager:
     def test_get_active_alerts_excludes_old_daily(self):
         """Should not return yesterday's daily alerts as active."""
         manager = AlertManager(thresholds=[0.5])
-        now = datetime.utcnow()
+        now = utc_now()
         yesterday = (now - timedelta(days=1)).date()
         
         # Trigger an alert for yesterday
@@ -321,7 +326,7 @@ class TestAlertManager:
     def test_get_active_alerts_monthly(self):
         """Should return this month's monthly alerts as active."""
         manager = AlertManager(thresholds=[0.5])
-        now = datetime.utcnow()
+        now = utc_now()
         
         # Trigger a monthly alert
         manager.check_monthly_alerts(55.0, 100.0, now.year, now.month)
@@ -380,7 +385,7 @@ class TestCostAggregator:
 
     def test_get_daily_total_filters_by_date(self):
         """Daily total should only include entries from specified date."""
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = utc_now() - timedelta(days=1)
         entries = [
             CostEntry(operation="test", provider="openai", cost=0.10),  # today
             CostEntry(operation="test", provider="anthropic", cost=0.20, timestamp=yesterday),
@@ -490,7 +495,7 @@ class TestCostAggregator:
 
     def test_filter_by_date_start_only(self):
         """Filter should include entries from start date onwards."""
-        now = datetime.utcnow()
+        now = utc_now()
         yesterday = now - timedelta(days=1)
         two_days_ago = now - timedelta(days=2)
         
@@ -510,7 +515,7 @@ class TestCostAggregator:
 
     def test_filter_by_date_end_only(self):
         """Filter should include entries up to end date."""
-        now = datetime.utcnow()
+        now = utc_now()
         yesterday = now - timedelta(days=1)
         two_days_ago = now - timedelta(days=2)
         
@@ -530,7 +535,7 @@ class TestCostAggregator:
 
     def test_filter_by_date_range(self):
         """Filter should include entries within date range."""
-        now = datetime.utcnow()
+        now = utc_now()
         yesterday = now - timedelta(days=1)
         two_days_ago = now - timedelta(days=2)
         three_days_ago = now - timedelta(days=3)
@@ -663,7 +668,7 @@ class TestCostDashboard:
         dashboard.record("research", "openai", 0.10)
         
         # Add entry for yesterday (manually set timestamp)
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = utc_now() - timedelta(days=1)
         entry = CostEntry(
             operation="chat",
             provider="anthropic",
@@ -977,7 +982,7 @@ class TestCostDashboardEdgeCases:
         dashboard = CostDashboard(storage_path=temp_storage)
         
         # Add entries at different times
-        now = datetime.utcnow()
+        now = utc_now()
         yesterday = now - timedelta(days=1)
         
         # Today's entry

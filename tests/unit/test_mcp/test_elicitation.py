@@ -310,12 +310,14 @@ class TestElicitationHandlerAsync:
     
     @pytest.mark.asyncio
     async def test_wait_for_response_timeout(self, handler):
-        """wait_for_response should return None on timeout."""
+        """wait_for_response should return timeout response by default."""
         request = handler.create_budget_elicitation("test", 5.0, 2.0)
-        
+
         response = await handler.wait_for_response(request.id, timeout=0.1)
-        
-        assert response is None
+
+        # Default behavior returns timeout response with _timeout flag
+        assert response is not None
+        assert response.get("_timeout") is True
         assert request.status == ElicitationStatus.TIMEOUT
     
     @pytest.mark.asyncio
