@@ -11,7 +11,7 @@ from deepr.mcp.state.task_durability import (
     DurableTask,
     TaskStatus,
 )
-from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
+from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher, DispatchResult
 
 
 class TestTaskDurabilityIntegration:
@@ -83,7 +83,7 @@ class TestTaskDurabilityIntegration:
             # Resume the task
             resumed = await manager2.resume_task(recovered_task.id)
 
-            assert resumed.status == TaskStatus.IN_PROGRESS
+            assert resumed.status == TaskStatus.RUNNING
 
             # Continue work
             await manager2.update_progress(
@@ -100,7 +100,7 @@ class TestTaskDurabilityIntegration:
             # Complete the task
             completed = await manager2.complete_task(
                 resumed.id,
-                result={
+                final_checkpoint={
                     "report": "Final research report",
                     "total_findings": 4,
                     "sources_used": 18,
@@ -108,7 +108,7 @@ class TestTaskDurabilityIntegration:
             )
 
             assert completed.status == TaskStatus.COMPLETED
-            assert completed.result["total_findings"] == 4
+            assert completed.checkpoint["total_findings"] == 4
 
             manager2.close()
 
@@ -224,16 +224,15 @@ class TestAsyncDispatcherIntegration:
         """Test dispatching multiple tasks in parallel."""
         dispatcher = AsyncTaskDispatcher()
 
-        results = []
-
         async def mock_task(task_id: str, delay: float) -> dict:
             await asyncio.sleep(delay)
             return {"task_id": task_id, "completed": True}
 
+        # Create coroutines at dispatch time
         tasks = [
-            {"id": "task1", "fn": lambda: mock_task("task1", 0.1)},
-            {"id": "task2", "fn": lambda: mock_task("task2", 0.1)},
-            {"id": "task3", "fn": lambda: mock_task("task3", 0.1)},
+            {"id": "task1", "coro": mock_task("task1", 0.1)},
+            {"id": "task2", "coro": mock_task("task2", 0.1)},
+            {"id": "task3", "coro": mock_task("task3", 0.1)},
         ]
 
         start_time = asyncio.get_event_loop().time()
@@ -246,9 +245,11 @@ class TestAsyncDispatcherIntegration:
         # Should complete faster than sequential (3 * 0.1 = 0.3s)
         assert elapsed < 0.25  # Allow some overhead
 
-        assert len(results) == 3
-        for task_id, result in results.items():
-            assert result["completed"] is True
+        assert isinstance(results, DispatchResult)
+        assert len(results.tasks) == 3
+        for task_id, task in results.tasks.items():
+            if task.result:
+                assert task.result["completed"] is True
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -263,10 +264,11 @@ class TestAsyncDispatcherIntegration:
             await asyncio.sleep(0.05)
             return {"name": name}
 
+        # Create coroutines at dispatch time
         tasks = [
-            {"id": "A", "fn": lambda: tracked_task("A")},
-            {"id": "B", "fn": lambda: tracked_task("B")},
-            {"id": "C", "fn": lambda: tracked_task("C")},
+            {"id": "A", "coro": tracked_task("A")},
+            {"id": "B", "coro": tracked_task("B")},
+            {"id": "C", "coro": tracked_task("C")},
         ]
 
         # B depends on A, C depends on B
@@ -276,6 +278,9 @@ class TestAsyncDispatcherIntegration:
         }
 
         results = await dispatcher.dispatch_with_dependencies(tasks, dependencies)
+
+        # All tasks should complete
+        assert results.success_count == 3
 
         # A should complete before B, B before C
         assert execution_order.index("A") < execution_order.index("B")
@@ -289,24 +294,23 @@ class TestAsyncDispatcherIntegration:
 
         progress_updates = []
 
-        async def on_progress(task_id: str, progress: float, status: str):
+        async def on_progress(task_id: str, progress: float):
             progress_updates.append({
                 "task_id": task_id,
                 "progress": progress,
-                "status": status,
             })
 
         async def mock_task_with_progress(task_id: str) -> dict:
             return {"task_id": task_id, "done": True}
 
         tasks = [
-            {"id": "task1", "fn": lambda: mock_task_with_progress("task1")},
-            {"id": "task2", "fn": lambda: mock_task_with_progress("task2")},
+            {"id": "task1", "coro": mock_task_with_progress("task1")},
+            {"id": "task2", "coro": mock_task_with_progress("task2")},
         ]
 
         await dispatcher.dispatch(tasks, on_progress=on_progress)
 
-        # Should have received progress updates
+        # Should have received progress updates (start and end for each task)
         assert len(progress_updates) > 0
 
 
@@ -327,9 +331,9 @@ class TestDurabilityWithDispatcher:
             task1 = await manager.create_task("job1", "Parallel Task 1", {"data": []})
             task2 = await manager.create_task("job1", "Parallel Task 2", {"data": []})
 
-            async def execute_with_durability(task: DurableTask) -> dict:
+            async def execute_with_durability(task: DurableTask, mgr: TaskDurabilityManager) -> dict:
                 # Update progress
-                await manager.update_progress(
+                await mgr.update_progress(
                     task.id,
                     progress=0.5,
                     checkpoint={"data": ["partial"]},
@@ -341,14 +345,14 @@ class TestDurabilityWithDispatcher:
                 return {"task_id": task.id, "result": "done"}
 
             tasks = [
-                {"id": task1.id, "fn": lambda t=task1: execute_with_durability(t)},
-                {"id": task2.id, "fn": lambda t=task2: execute_with_durability(t)},
+                {"id": task1.id, "coro": execute_with_durability(task1, manager)},
+                {"id": task2.id, "coro": execute_with_durability(task2, manager)},
             ]
 
             results = await dispatcher.dispatch(tasks)
 
             # Both should complete
-            assert len(results) == 2
+            assert results.success_count == 2
 
             # Verify durability recorded progress
             t1 = await manager.get_task(task1.id)
