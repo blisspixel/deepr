@@ -22,7 +22,7 @@ Usage:
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Callable, Optional, List, Tuple
 from functools import wraps
@@ -65,7 +65,7 @@ class SchemaVersion:
         return cls(
             schema_type=data.get("schema_type", "unknown"),
             version=data.get("version", "0.0.0"),
-            created_at=data.get("created_at", datetime.utcnow().isoformat()),
+            created_at=data.get("created_at", datetime.now(timezone.utc).isoformat()),
             migrated_from=data.get("migrated_from")
         )
 
@@ -91,7 +91,7 @@ def add_schema_version(
     schema_info = SchemaVersion(
         schema_type=schema_type,
         version=version,
-        created_at=datetime.utcnow().isoformat()
+        created_at=datetime.now(timezone.utc).isoformat()
     )
     
     # Create new dict with schema_version at the top
@@ -290,7 +290,7 @@ def migrate(
         result["schema_version"] = SchemaVersion(
             schema_type=schema_type,
             version=target_version,
-            created_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
             migrated_from=current_version
         ).to_dict()
         return result
@@ -306,7 +306,7 @@ def migrate(
             result["schema_version"] = SchemaVersion(
                 schema_type=schema_type,
                 version=to_v,
-                created_at=datetime.utcnow().isoformat(),
+                created_at=datetime.now(timezone.utc).isoformat(),
                 migrated_from=from_v
             ).to_dict()
     

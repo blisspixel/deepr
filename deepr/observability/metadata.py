@@ -20,8 +20,13 @@ Usage:
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
 
@@ -57,7 +62,7 @@ class TaskMetadata:
     tokens_output: int = 0
     cost: float = 0.0
     context_sources: List[str] = field(default_factory=list)
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=_utc_now)
     end_time: Optional[datetime] = None
     status: str = "running"
     error: Optional[str] = None
@@ -231,7 +236,7 @@ class MetadataEmitter:
             op: The operation context
             status: Final status
         """
-        op.metadata.end_time = datetime.utcnow()
+        op.metadata.end_time = datetime.now(timezone.utc)
         op.metadata.status = status
         
         span_status = SpanStatus.COMPLETED if status == "completed" else SpanStatus.FAILED
@@ -247,7 +252,7 @@ class MetadataEmitter:
             op: The operation context
             error: Error message
         """
-        op.metadata.end_time = datetime.utcnow()
+        op.metadata.end_time = datetime.now(timezone.utc)
         op.metadata.status = "failed"
         op.metadata.error = error
         
@@ -353,7 +358,7 @@ class MetadataEmitter:
             "cost_breakdown": self.get_cost_breakdown(),
             "total_cost": self.get_total_cost(),
             "context_lineage": self.get_context_lineage(),
-            "exported_at": datetime.utcnow().isoformat()
+            "exported_at": datetime.now(timezone.utc).isoformat()
         }
         
         with open(path, 'w', encoding='utf-8') as f:
