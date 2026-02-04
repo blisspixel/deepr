@@ -225,32 +225,35 @@ class ElicitationHandler:
     async def wait_for_response(
         self,
         request_id: str,
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
+        use_default_on_timeout: bool = True,
     ) -> Optional[dict]:
         """
         Wait for a response to an elicitation request.
-        
+
         Args:
             request_id: ID of the elicitation request
             timeout: Override timeout (uses request timeout if None)
-        
+            use_default_on_timeout: If True, return default response on timeout
+
         Returns:
             Response dict or None if timeout/cancelled
-        
+
         Note:
             On timeout, the request status is set to TIMEOUT and resources
-            are cleaned up to prevent memory leaks.
+            are cleaned up to prevent memory leaks. If use_default_on_timeout
+            is True, a sensible default response is returned instead of None.
         """
         request = self._pending.get(request_id)
         if not request:
             return None
-        
+
         event = self._response_events.get(request_id)
         if not event:
             return None
-        
+
         wait_timeout = timeout or request.timeout_seconds
-        
+
         try:
             await asyncio.wait_for(event.wait(), timeout=wait_timeout)
             return request.response
@@ -258,7 +261,76 @@ class ElicitationHandler:
             request.status = ElicitationStatus.TIMEOUT
             # Clean up the event to prevent memory leak
             self._response_events.pop(request_id, None)
+
+            # Return default response if requested
+            if use_default_on_timeout:
+                default = self._get_default_response(request)
+                default["_timeout"] = True
+                default["_timeout_seconds"] = wait_timeout
+                return default
+
             return None
+
+    def _get_default_response(self, request: ElicitationRequest) -> dict:
+        """
+        Get a sensible default response for an elicitation request.
+
+        Used for graceful degradation when user doesn't respond in time.
+
+        Args:
+            request: The elicitation request
+
+        Returns:
+            Default response dict based on schema
+        """
+        schema = request.schema
+        response = {}
+
+        properties = schema.get("properties", {})
+
+        for prop_name, prop_schema in properties.items():
+            prop_type = prop_schema.get("type", "string")
+
+            # Use explicit default if provided
+            if "default" in prop_schema:
+                response[prop_name] = prop_schema["default"]
+                continue
+
+            # Use first enum value
+            if "enum" in prop_schema:
+                enum_values = prop_schema["enum"]
+                # Prefer safe options like "abort", "skip", "cancel"
+                safe_options = ["abort", "skip", "cancel", "no", "deny"]
+                for safe in safe_options:
+                    if safe in enum_values:
+                        response[prop_name] = safe
+                        break
+                else:
+                    response[prop_name] = enum_values[0]
+                continue
+
+            # Type-based defaults
+            if prop_type == "boolean":
+                response[prop_name] = False
+            elif prop_type == "number":
+                response[prop_name] = prop_schema.get("minimum", 0)
+            elif prop_type == "integer":
+                response[prop_name] = prop_schema.get("minimum", 0)
+            elif prop_type == "string":
+                response[prop_name] = ""
+            elif prop_type == "array":
+                response[prop_name] = []
+            elif prop_type == "object":
+                response[prop_name] = {}
+            else:
+                response[prop_name] = None
+
+        # Special handling for known decision types
+        if "decision" in properties:
+            response["decision"] = "abort"
+            response["reason"] = "Timeout - no user response received"
+
+        return response
     
     def submit_response(self, request_id: str, response: dict) -> bool:
         """
