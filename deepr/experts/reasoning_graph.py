@@ -16,7 +16,7 @@ Usage:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any, Callable, TypedDict
 import json
@@ -258,7 +258,7 @@ class ReasoningState:
     def add_trace(self, phase: str, action: str, details: Optional[Dict] = None):
         """Add an entry to the reasoning trace."""
         self.trace.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "phase": phase,
             "action": action,
             "details": details or {}

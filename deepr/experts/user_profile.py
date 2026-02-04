@@ -7,7 +7,7 @@ experts to remember users and adapt responses.
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, field, asdict
 
@@ -134,7 +134,7 @@ class UserProfileTracker:
                 logger.error("Error loading user profile: %s", e)
 
         # Create new profile
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         profile = UserProfile(
             user_id=user_id,
             first_seen=now,
@@ -203,7 +203,7 @@ class UserProfileTracker:
         if not self.current_profile:
             return
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         profile = self.current_profile
 
         # Update profile
@@ -297,7 +297,7 @@ class UserProfileTracker:
         # Recent activity
         if profile.recent_interactions:
             last_interaction = profile.recent_interactions[-1]
-            days_ago = (datetime.utcnow() - last_interaction.timestamp).days
+            days_ago = (datetime.now(timezone.utc) - last_interaction.timestamp).days
             if days_ago == 0:
                 parts.append("Active today")
             elif days_ago == 1:

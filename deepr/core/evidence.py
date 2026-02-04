@@ -9,8 +9,13 @@ All interfaces MUST use this schema for citations to ensure consistency.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from typing import List, Optional, Dict, Any
 import hashlib
 import json
@@ -46,7 +51,7 @@ class Evidence:
     url: Optional[str] = None
     quote: str = ""
     span: Optional[tuple] = None
-    retrieved_at: datetime = field(default_factory=datetime.utcnow)
+    retrieved_at: datetime = field(default_factory=_utc_now)
     supports: List[str] = field(default_factory=list)
     contradicts: List[str] = field(default_factory=list)
     
@@ -83,7 +88,7 @@ class Evidence:
             url=data.get("url"),
             quote=data.get("quote", ""),
             span=tuple(data["span"]) if data.get("span") else None,
-            retrieved_at=datetime.fromisoformat(data["retrieved_at"]) if data.get("retrieved_at") else datetime.utcnow(),
+            retrieved_at=datetime.fromisoformat(data["retrieved_at"]) if data.get("retrieved_at") else _utc_now(),
             supports=data.get("supports", []),
             contradicts=data.get("contradicts", [])
         )
