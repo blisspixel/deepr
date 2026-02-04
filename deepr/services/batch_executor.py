@@ -8,11 +8,14 @@ Executes research tasks in phases:
 - Phase 2: Analysis tasks (sequential, with Phase 1 context)
 - Phase 3+: Subsequent phases (with accumulated context)
 - Final: Synthesis (integrates all findings)
+
+Includes entropy-based stopping criteria and information gain tracking
+to detect diminishing returns and optimize research efficiency.
 """
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import json
 
@@ -20,12 +23,23 @@ from deepr.queue.base import QueueBackend, JobStatus, ResearchJob
 from deepr.providers.base import DeepResearchProvider
 from deepr.storage.base import StorageBackend
 from deepr.services.context_builder import ContextBuilder
+from deepr.observability.stopping_criteria import (
+    EntropyStoppingCriteria,
+    Finding,
+    PhaseContext,
+    StoppingDecision,
+)
+from deepr.observability.information_gain import InformationGainTracker
 
 logger = logging.getLogger(__name__)
 
 
 class BatchExecutor:
-    """Executes multi-phase research campaigns with context chaining."""
+    """Executes multi-phase research campaigns with context chaining.
+
+    Includes entropy-based stopping criteria and information gain tracking
+    to detect diminishing returns and optimize research efficiency.
+    """
 
     def __init__(
         self,
@@ -33,17 +47,33 @@ class BatchExecutor:
         provider: DeepResearchProvider,
         storage: StorageBackend,
         context_builder: ContextBuilder,
+        entropy_threshold: Optional[float] = None,
     ):
-        """Initialize batch executor with required services."""
+        """Initialize batch executor with required services.
+
+        Args:
+            queue: Queue backend for job management
+            provider: Research provider for API calls
+            storage: Storage backend for reports
+            context_builder: Context builder for phase chaining
+            entropy_threshold: Optional override for entropy stopping threshold
+        """
         self.queue = queue
         self.provider = provider
         self.storage = storage
         self.context_builder = context_builder
 
+        # Initialize stopping criteria and information gain tracking
+        self.stopping_criteria = EntropyStoppingCriteria(
+            entropy_threshold=entropy_threshold
+        )
+        self.info_gain_tracker = InformationGainTracker()
+
     async def execute_campaign(
         self,
         tasks: List[Dict],
         campaign_id: str,
+        enable_stopping_criteria: bool = True,
     ) -> Dict:
         """
         Execute a complete research campaign.
@@ -51,10 +81,15 @@ class BatchExecutor:
         Args:
             tasks: List of task definitions with phase/dependency info
             campaign_id: Unique identifier for this campaign
+            enable_stopping_criteria: Whether to use entropy-based stopping
 
         Returns:
             Campaign results with all task outputs
         """
+        # Reset trackers for new campaign
+        self.stopping_criteria.reset()
+        self.info_gain_tracker.reset()
+
         # Group tasks by phase
         phases = self._group_by_phase(tasks)
         max_phase = max(phases.keys())
@@ -66,7 +101,11 @@ class BatchExecutor:
             "started_at": datetime.now().isoformat(),
             "phases": {},
             "tasks": {},
+            "quality_metrics": {},
         }
+
+        # Track prior entropy for information gain
+        prior_entropy: Optional[float] = None
 
         # Execute each phase sequentially
         for phase_num in sorted(phases.keys()):
@@ -74,17 +113,20 @@ class BatchExecutor:
             logger.info("Executing Phase %d (%d tasks)...", phase_num, len(phase_tasks))
 
             # Execute all tasks in phase (in parallel)
-            phase_results = await self._execute_phase(
+            phase_results, stopping_decision = await self._execute_phase(
                 phase_tasks=phase_tasks,
                 phase_num=phase_num,
                 completed_tasks=completed_tasks,
                 campaign_id=campaign_id,
+                prior_entropy=prior_entropy,
             )
 
             # Store results
             campaign_results["phases"][phase_num] = {
                 "task_count": len(phase_tasks),
                 "completed": len(phase_results),
+                "entropy": stopping_decision.entropy if stopping_decision else None,
+                "information_gain": stopping_decision.information_gain if stopping_decision else None,
             }
 
             for task_id, result in phase_results.items():
@@ -97,11 +139,38 @@ class BatchExecutor:
                     "cost": result.get("cost", 0.0),
                 }
 
+            # Update prior entropy for next phase
+            if stopping_decision:
+                prior_entropy = stopping_decision.entropy
+
+            # Check stopping criteria
+            if enable_stopping_criteria and stopping_decision and stopping_decision.should_stop:
+                logger.info(
+                    "Stopping campaign early: %s (entropy=%.3f, gain=%.3f)",
+                    stopping_decision.reason,
+                    stopping_decision.entropy,
+                    stopping_decision.information_gain,
+                )
+                campaign_results["early_stop"] = {
+                    "phase": phase_num,
+                    "reason": stopping_decision.reason,
+                    "entropy": stopping_decision.entropy,
+                    "information_gain": stopping_decision.information_gain,
+                    "pivot_suggestion": stopping_decision.pivot_suggestion,
+                }
+                break
+
         # Save campaign results
         campaign_results["completed_at"] = datetime.now().isoformat()
         campaign_results["total_cost"] = sum(
             t.get("cost", 0.0) for t in campaign_results["tasks"].values()
         )
+
+        # Add quality metrics summary
+        campaign_results["quality_metrics"] = {
+            "info_gain_summary": self.info_gain_tracker.get_summary(),
+            "final_entropy": prior_entropy,
+        }
 
         await self._save_campaign_results(campaign_id, campaign_results)
 
@@ -113,7 +182,8 @@ class BatchExecutor:
         phase_num: int,
         completed_tasks: Dict[int, Dict],
         campaign_id: str,
-    ) -> Dict[int, Dict]:
+        prior_entropy: Optional[float] = None,
+    ) -> Tuple[Dict[int, Dict], Optional[StoppingDecision]]:
         """
         Execute all tasks in a phase.
 
@@ -122,9 +192,10 @@ class BatchExecutor:
             phase_num: Phase number
             completed_tasks: Previously completed tasks
             campaign_id: Campaign identifier
+            prior_entropy: Entropy from previous phase for information gain
 
         Returns:
-            Dict mapping task_id to results
+            Tuple of (Dict mapping task_id to results, StoppingDecision)
         """
         # Submit all tasks in phase
         job_ids = {}
@@ -160,7 +231,76 @@ class BatchExecutor:
         # Wait for all tasks to complete
         results = await self._wait_for_completion(job_ids, phase_tasks)
 
-        return results
+        # Extract findings from results for quality metrics
+        findings = self._extract_findings(results, phase_num)
+
+        # Record information gain
+        finding_texts = [f.text for f in findings]
+        self.info_gain_tracker.record_phase_findings(
+            phase=phase_num,
+            findings=finding_texts,
+            prior_context={"known_facts": [r.get("result", "") for r in completed_tasks.values()]},
+        )
+
+        # Build phase context for stopping criteria
+        original_query = phase_tasks[0].get("prompt", "") if phase_tasks else ""
+        phase_context = PhaseContext(
+            phase_num=phase_num,
+            original_query=original_query,
+            current_focus=original_query,
+            total_findings=len(findings),
+            prior_entropy=prior_entropy,
+            iteration_count=phase_num,
+        )
+
+        # Evaluate stopping criteria
+        stopping_decision = self.stopping_criteria.evaluate(findings, phase_context)
+
+        logger.info(
+            "Phase %d metrics: entropy=%.3f, info_gain=%.3f, findings=%d, should_stop=%s",
+            phase_num,
+            stopping_decision.entropy,
+            stopping_decision.information_gain,
+            len(findings),
+            stopping_decision.should_stop,
+        )
+
+        return results, stopping_decision
+
+    def _extract_findings(
+        self,
+        results: Dict[int, Dict],
+        phase_num: int,
+    ) -> List[Finding]:
+        """Extract findings from task results.
+
+        Args:
+            results: Task results dictionary
+            phase_num: Current phase number
+
+        Returns:
+            List of Finding objects
+        """
+        findings = []
+
+        for task_id, result in results.items():
+            result_text = result.get("result", "")
+            if not result_text:
+                continue
+
+            # Split long results into paragraph-level findings
+            paragraphs = [p.strip() for p in result_text.split("\n\n") if p.strip()]
+
+            for para in paragraphs[:20]:  # Limit to avoid huge finding lists
+                if len(para) > 50:  # Skip very short paragraphs
+                    findings.append(Finding(
+                        text=para,
+                        phase=phase_num,
+                        confidence=0.7,  # Default confidence
+                        source=result.get("title", f"task_{task_id}"),
+                    ))
+
+        return findings
 
     async def _submit_task(
         self,
