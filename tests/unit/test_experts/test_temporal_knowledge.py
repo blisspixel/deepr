@@ -5,11 +5,16 @@ knowledge evolution, staleness detection, and timeline management.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import json
 import tempfile
 from unittest.mock import patch
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from deepr.experts.temporal_knowledge import (
     KnowledgeFact,
@@ -23,7 +28,7 @@ class TestKnowledgeFact:
 
     def test_create_fact(self):
         """Test creating a knowledge fact."""
-        now = datetime.utcnow()
+        now = utc_now()
         fact = KnowledgeFact(
             topic="Python",
             fact_text="Python 3.12 was released in October 2023",
@@ -42,7 +47,7 @@ class TestKnowledgeFact:
         fact = KnowledgeFact(
             topic="Test",
             fact_text="Test fact",
-            learned_at=datetime.utcnow(),
+            learned_at=utc_now(),
             source="test",
             confidence=0.8
         )
@@ -53,7 +58,7 @@ class TestKnowledgeFact:
         fact = KnowledgeFact(
             topic="Test",
             fact_text="Old fact",
-            learned_at=datetime.utcnow(),
+            learned_at=utc_now(),
             source="test",
             confidence=0.8,
             superseded_by="new_fact_001"
@@ -65,10 +70,10 @@ class TestKnowledgeFact:
         fact = KnowledgeFact(
             topic="Test",
             fact_text="Time-sensitive fact",
-            learned_at=datetime.utcnow() - timedelta(days=10),
+            learned_at=utc_now() - timedelta(days=10),
             source="test",
             confidence=0.8,
-            valid_until=datetime.utcnow() - timedelta(days=1)
+            valid_until=utc_now() - timedelta(days=1)
         )
         assert fact.is_current is False
 
@@ -77,10 +82,10 @@ class TestKnowledgeFact:
         fact = KnowledgeFact(
             topic="Test",
             fact_text="Time-sensitive fact",
-            learned_at=datetime.utcnow(),
+            learned_at=utc_now(),
             source="test",
             confidence=0.8,
-            valid_until=datetime.utcnow() + timedelta(days=30)
+            valid_until=utc_now() + timedelta(days=30)
         )
         assert fact.is_current is True
 
@@ -89,7 +94,7 @@ class TestKnowledgeFact:
         fact = KnowledgeFact(
             topic="Test",
             fact_text="Test fact",
-            learned_at=datetime.utcnow() - timedelta(days=5),
+            learned_at=utc_now() - timedelta(days=5),
             source="test",
             confidence=0.8
         )
@@ -100,7 +105,7 @@ class TestKnowledgeFact:
         fact = KnowledgeFact(
             topic="Test",
             fact_text="Test fact",
-            learned_at=datetime.utcnow(),
+            learned_at=utc_now(),
             source="test",
             confidence=0.8
         )
@@ -124,7 +129,7 @@ class TestKnowledgeEvolution:
 
     def test_get_current_facts_all_current(self):
         """Test get_current_facts when all facts are current."""
-        now = datetime.utcnow()
+        now = utc_now()
         facts = [
             KnowledgeFact("Test", "Fact 1", now, "src1", 0.8),
             KnowledgeFact("Test", "Fact 2", now, "src2", 0.9),
@@ -135,7 +140,7 @@ class TestKnowledgeEvolution:
 
     def test_get_current_facts_some_superseded(self):
         """Test get_current_facts with some superseded facts."""
-        now = datetime.utcnow()
+        now = utc_now()
         facts = [
             KnowledgeFact("Test", "Old fact", now, "src1", 0.8, superseded_by="fact_002"),
             KnowledgeFact("Test", "New fact", now, "src2", 0.9),
@@ -147,7 +152,7 @@ class TestKnowledgeEvolution:
 
     def test_get_timeline(self):
         """Test get_timeline returns chronological order."""
-        now = datetime.utcnow()
+        now = utc_now()
         facts = [
             KnowledgeFact("Test", "Second fact", now, "src2", 0.8),
             KnowledgeFact("Test", "First fact", now - timedelta(days=1), "src1", 0.8),
@@ -211,7 +216,7 @@ class TestTemporalKnowledgeTracker:
         
         fact = temp_tracker.facts_by_id[fact_id]
         assert fact.valid_until is not None
-        assert fact.valid_until > datetime.utcnow()
+        assert fact.valid_until > utc_now()
 
     def test_record_multiple_facts_same_topic(self, temp_tracker):
         """Test recording multiple facts for the same topic."""
@@ -246,7 +251,7 @@ class TestTemporalKnowledgeTracker:
     def test_get_stale_knowledge_old_facts(self, temp_tracker):
         """Test get_stale_knowledge with old facts."""
         # Manually add an old fact
-        old_date = datetime.utcnow() - timedelta(days=100)
+        old_date = utc_now() - timedelta(days=100)
         fact = KnowledgeFact(
             topic="Old Topic",
             fact_text="Old fact",
@@ -281,14 +286,14 @@ class TestTemporalKnowledgeTracker:
     def test_needs_refresh_expired_facts(self, temp_tracker):
         """Test needs_refresh when facts have expired."""
         # Add expired fact
-        expired_date = datetime.utcnow() - timedelta(days=10)
+        expired_date = utc_now() - timedelta(days=10)
         fact = KnowledgeFact(
             topic="Expired",
             fact_text="Expired fact",
             learned_at=expired_date,
             source="src",
             confidence=0.8,
-            valid_until=datetime.utcnow() - timedelta(days=1)
+            valid_until=utc_now() - timedelta(days=1)
         )
         temp_tracker.knowledge_by_topic["Expired"] = KnowledgeEvolution(
             topic="Expired",

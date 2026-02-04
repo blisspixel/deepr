@@ -5,13 +5,18 @@ and programmatic date injection without making any external API calls.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from deepr.experts.profile import (
     ExpertProfile,
     ExpertStore,
     get_expert_system_message,
     DEFAULT_EXPERT_SYSTEM_MESSAGE
 )
+
+
+def utc_now():
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 class TestExpertProfileDataStructure:
@@ -34,7 +39,7 @@ class TestExpertProfileDataStructure:
 
     def test_expert_profile_with_full_metadata(self):
         """Test creating an expert with all fields."""
-        now = datetime.utcnow()
+        now = utc_now()
 
         profile = ExpertProfile(
             name="Azure Expert",
@@ -78,7 +83,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_fast_domain_fresh(self):
         """Test fast domain with fresh knowledge (< 30 days)."""
-        now = datetime.utcnow()
+        now = utc_now()
         recent = now - timedelta(days=15)  # 15 days old
 
         profile = ExpertProfile(
@@ -92,7 +97,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_fast_domain_stale(self):
         """Test fast domain with stale knowledge (> 30 days)."""
-        now = datetime.utcnow()
+        now = utc_now()
         old = now - timedelta(days=45)  # 45 days old
 
         profile = ExpertProfile(
@@ -106,7 +111,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_medium_domain_fresh(self):
         """Test medium domain with fresh knowledge (< 90 days)."""
-        now = datetime.utcnow()
+        now = utc_now()
         recent = now - timedelta(days=60)  # 60 days old
 
         profile = ExpertProfile(
@@ -120,7 +125,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_medium_domain_stale(self):
         """Test medium domain with stale knowledge (> 90 days)."""
-        now = datetime.utcnow()
+        now = utc_now()
         old = now - timedelta(days=120)  # 120 days old
 
         profile = ExpertProfile(
@@ -134,7 +139,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_slow_domain_fresh(self):
         """Test slow domain with fresh knowledge (< 180 days)."""
-        now = datetime.utcnow()
+        now = utc_now()
         recent = now - timedelta(days=100)  # 100 days old
 
         profile = ExpertProfile(
@@ -148,7 +153,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_slow_domain_stale(self):
         """Test slow domain with stale knowledge (> 180 days)."""
-        now = datetime.utcnow()
+        now = utc_now()
         old = now - timedelta(days=200)  # 200 days old
 
         profile = ExpertProfile(
@@ -185,7 +190,7 @@ class TestFreshnessStatus:
         FreshnessChecker uses 50% of threshold as "fresh" boundary.
         For medium domain (90 days), fresh is < 45 days.
         """
-        now = datetime.utcnow()
+        now = utc_now()
         recent = now - timedelta(days=30)  # 30 days old (threshold is 90, fresh < 45)
 
         profile = ExpertProfile(
@@ -215,7 +220,7 @@ class TestFreshnessStatus:
         
         For medium domain (90 days), aging is 45-72 days.
         """
-        now = datetime.utcnow()
+        now = utc_now()
         aging = now - timedelta(days=60)  # 60 days old (in aging range: 45-72)
 
         profile = ExpertProfile(
@@ -239,7 +244,7 @@ class TestFreshnessStatus:
         
         For medium domain (90 days), stale is 72-135 days (80-150% of threshold).
         """
-        now = datetime.utcnow()
+        now = utc_now()
         stale = now - timedelta(days=120)  # 120 days old (in stale range: 72-135)
 
         profile = ExpertProfile(
@@ -265,7 +270,7 @@ class TestProgrammaticDateInjection:
 
     def test_system_message_contains_current_date(self):
         """Test that system message contains today's date (not hardcoded)."""
-        now = datetime.utcnow()
+        now = utc_now()
         today_str = now.strftime("%Y-%m-%d")
         today_readable = now.strftime("%B %d, %Y")
 
@@ -281,7 +286,7 @@ class TestProgrammaticDateInjection:
 
     def test_system_message_calculates_knowledge_age(self):
         """Test that system message correctly calculates knowledge age."""
-        now = datetime.utcnow()
+        now = utc_now()
         old_cutoff = now - timedelta(days=120)
 
         message = get_expert_system_message(
@@ -298,7 +303,7 @@ class TestProgrammaticDateInjection:
 
     def test_system_message_shows_stale_status(self):
         """Test that system message correctly identifies stale knowledge."""
-        now = datetime.utcnow()
+        now = utc_now()
 
         # Fast domain with old knowledge (>30 days)
         old_cutoff = now - timedelta(days=45)
@@ -313,7 +318,7 @@ class TestProgrammaticDateInjection:
 
     def test_system_message_shows_fresh_status(self):
         """Test that system message correctly identifies fresh knowledge."""
-        now = datetime.utcnow()
+        now = utc_now()
 
         # Medium domain with recent knowledge (<90 days)
         recent_cutoff = now - timedelta(days=30)
@@ -327,7 +332,7 @@ class TestProgrammaticDateInjection:
 
     def test_system_message_domain_velocity_thresholds(self):
         """Test that system message respects domain velocity thresholds."""
-        now = datetime.utcnow()
+        now = utc_now()
         cutoff = now - timedelta(days=60)
 
         # Slow domain (180 day threshold) - should be fresh
@@ -361,7 +366,7 @@ class TestExpertProfileSerialization:
 
     def test_to_dict_conversion(self):
         """Test converting profile to dictionary."""
-        now = datetime.utcnow()
+        now = utc_now()
 
         profile = ExpertProfile(
             name="Test Expert",
@@ -385,7 +390,7 @@ class TestExpertProfileSerialization:
 
     def test_from_dict_conversion(self):
         """Test creating profile from dictionary."""
-        now = datetime.utcnow()
+        now = utc_now()
 
         data = {
             "name": "Test Expert",
@@ -421,7 +426,7 @@ class TestExpertProfileSerialization:
 
     def test_roundtrip_serialization(self):
         """Test that to_dict -> from_dict preserves data."""
-        now = datetime.utcnow()
+        now = utc_now()
 
         original = ExpertProfile(
             name="Roundtrip Expert",
@@ -490,7 +495,7 @@ class TestExpertStoreSaveLoad:
         """Test saving and loading an expert profile."""
         store = ExpertStore(base_path=str(tmp_path))
 
-        now = datetime.utcnow()
+        now = utc_now()
         profile = ExpertProfile(
             name="Test Expert",
             vector_store_id="vs_test",
