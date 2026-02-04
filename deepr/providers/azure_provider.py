@@ -47,12 +47,13 @@ class AzureProvider(DeepResearchProvider):
         # Initialize client
         if use_managed_identity:
             # Use Azure Managed Identity for authentication
-            credential = DefaultAzureCredential()
+            # Store credential as instance variable to prevent garbage collection
+            self._credential = DefaultAzureCredential()
             # Note: token provider setup for async client
             from azure.core.credentials import AccessToken
 
             async def get_token():
-                token = await credential.get_token("https://cognitiveservices.azure.com/.default")
+                token = await self._credential.get_token("https://cognitiveservices.azure.com/.default")
                 return token.token
 
             self.client = AsyncAzureOpenAI(
