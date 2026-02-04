@@ -736,7 +736,17 @@ def continue_research(topics: int, yes: bool):
                     if task_info.get("status") == "completed":
                         job_id = task_info.get("job_id")
                         try:
-                            result_data = asyncio.run(storage.get_report(job_id, "report.md"))
+                            # Try to get report_paths from job, fallback to report.md
+                            report_filename = "report.md"
+                            try:
+                                job = asyncio.run(queue.get_job(job_id))
+                                if job and job.report_paths and "markdown" in job.report_paths:
+                                    stored_path = job.report_paths["markdown"]
+                                    report_filename = stored_path.split("/")[-1] if "/" in stored_path else stored_path
+                            except Exception:
+                                pass
+                            
+                            result_data = asyncio.run(storage.get_report(job_id, report_filename))
                             completed_results.append({
                                 "title": task_info.get("title"),
                                 "result": result_data.decode("utf-8")

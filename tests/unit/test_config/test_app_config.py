@@ -73,7 +73,7 @@ class TestProviderConfig:
         pc = ProviderConfig()
         provider, model = pc.get_model_for_task("deep_research")
         assert provider == "openai"
-        assert model == "o4-mini-deep-research"
+        assert model == "o3-deep-research"  # BEST model for deep research
 
     def test_get_model_for_task_unknown(self):
         """Unknown task falls back to (default_provider, default_model)."""
