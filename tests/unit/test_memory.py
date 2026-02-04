@@ -16,6 +16,7 @@ Property tests validate:
 
 import pytest
 import json
+import string
 import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -890,7 +891,7 @@ class TestEpisodePropertyTests:
             assert abs(restored.quality_score - episode.quality_score) < 1e-10
 
     @given(
-        tags=st.lists(st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=('L',))), min_size=0, max_size=10)
+        tags=st.lists(st.text(min_size=1, max_size=20, alphabet=string.ascii_letters), min_size=0, max_size=10)
     )
     @settings(max_examples=30)
     def test_episode_tags_preserved(self, tags):
