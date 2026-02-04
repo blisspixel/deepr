@@ -11,8 +11,13 @@ Usage:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 @dataclass
@@ -28,8 +33,8 @@ class TemporalState:
         last_chat: Last chat interaction
         activity_history: Recent activity log
     """
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    last_activity: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    last_activity: datetime = field(default_factory=_utc_now)
     last_learning: Optional[datetime] = None
     last_chat: Optional[datetime] = None
     activity_history: List[Dict[str, Any]] = field(default_factory=list)
@@ -41,7 +46,7 @@ class TemporalState:
             activity_type: Type of activity (chat, learn, refresh, etc.)
             details: Optional activity details
         """
-        now = datetime.utcnow()
+        now = _utc_now()
         self.last_activity = now
         
         if activity_type == "chat":
@@ -67,7 +72,7 @@ class TemporalState:
         Returns:
             Number of days
         """
-        return (datetime.utcnow() - self.created_at).days
+        return (_utc_now() - self.created_at).days
     
     def days_since_last_activity(self) -> int:
         """Get days since last activity.
@@ -75,7 +80,7 @@ class TemporalState:
         Returns:
             Number of days
         """
-        return (datetime.utcnow() - self.last_activity).days
+        return (_utc_now() - self.last_activity).days
     
     def days_since_last_learning(self) -> Optional[int]:
         """Get days since last learning activity.
@@ -85,7 +90,7 @@ class TemporalState:
         """
         if self.last_learning is None:
             return None
-        return (datetime.utcnow() - self.last_learning).days
+        return (_utc_now() - self.last_learning).days
     
     def days_since_last_chat(self) -> Optional[int]:
         """Get days since last chat.
@@ -95,7 +100,7 @@ class TemporalState:
         """
         if self.last_chat is None:
             return None
-        return (datetime.utcnow() - self.last_chat).days
+        return (_utc_now() - self.last_chat).days
     
     def get_activity_count(self, activity_type: str, days: int = 30) -> int:
         """Get activity count in recent period.
@@ -107,7 +112,7 @@ class TemporalState:
         Returns:
             Count of activities
         """
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = _utc_now() - timedelta(days=days)
         count = 0
         
         for entry in self.activity_history:
@@ -195,8 +200,8 @@ class TemporalState:
             TemporalState instance
         """
         return cls(
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.utcnow(),
-            last_activity=datetime.fromisoformat(data["last_activity"]) if "last_activity" in data else datetime.utcnow(),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else _utc_now(),
+            last_activity=datetime.fromisoformat(data["last_activity"]) if "last_activity" in data else _utc_now(),
             last_learning=datetime.fromisoformat(data["last_learning"]) if data.get("last_learning") else None,
             last_chat=datetime.fromisoformat(data["last_chat"]) if data.get("last_chat") else None,
             activity_history=data.get("activity_history", [])

@@ -10,7 +10,7 @@ Usage:
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -125,7 +125,7 @@ class FreshnessChecker:
         Returns:
             FreshnessStatus with assessment
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Determine reference date
         if last_learning:
@@ -209,7 +209,7 @@ class FreshnessChecker:
         if last_learning is None:
             return -999
         
-        days_since = (datetime.utcnow() - last_learning).days
+        days_since = (datetime.now(timezone.utc) - last_learning).days
         return self.velocity_days - days_since
     
     def _calculate_score(self, days_since: int) -> float:
@@ -288,7 +288,7 @@ class FreshnessChecker:
         if not sources:
             return {"count": 0}
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         ages = []
         
         for source in sources:

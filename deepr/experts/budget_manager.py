@@ -8,7 +8,7 @@ Requirements: 5.2 - Extract monthly budget tracking logic
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 
@@ -43,7 +43,7 @@ class BudgetManager:
     
     def _initialize_reset_date(self) -> None:
         """Set reset date to first of next month."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if now.month == 12:
             self.reset_date = datetime(now.year + 1, 1, 1)
         else:
@@ -55,7 +55,7 @@ class BudgetManager:
         Returns:
             True if reset was performed, False otherwise
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         if self.reset_date is None:
             self._initialize_reset_date()
@@ -137,7 +137,7 @@ class BudgetManager:
         
         # Record in history
         self.refresh_history.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "operation": operation,
             "amount": amount,
             "details": details,
@@ -173,7 +173,7 @@ class BudgetManager:
         Returns:
             Number of refreshes this month
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         count = 0
         
         for entry in self.refresh_history:

@@ -2,15 +2,19 @@ export interface Job {
   id: string
   prompt: string
   model: string
-  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
   priority: number
-  enable_web_search: boolean
+  enable_web_search?: boolean
   file_ids?: string[]
-  estimated_cost?: number
-  actual_cost?: number
-  created_at: string
-  updated_at: string
+  cost: number
+  tokens_used: number
+  submitted_at: string
+  started_at?: string
+  completed_at?: string
   provider_job_id?: string
+  last_error?: string
+  metadata?: Record<string, unknown>
+  result?: string
 }
 
 export interface Result {
@@ -50,7 +54,9 @@ export interface CostSummary {
   monthly: number
   monthly_limit: number
   total: number
-  avg_per_job: number
+  per_job_limit: number
+  avg_cost_per_job: number
+  completed_jobs: number
   total_jobs: number
 }
 

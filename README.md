@@ -1,11 +1,12 @@
 # Deepr
 
-![Tests](https://img.shields.io/badge/tests-3000%2B%20passing-green)
-![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Python](https://img.shields.io/badge/python-3.9+-blue)
+[![Tests](https://img.shields.io/badge/tests-3000%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr/actions)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](https://github.com/blisspixel/deepr/actions)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-2.7-orange)](ROADMAP.md)
 
-**The same deep research agents behind ChatGPT and Gemini — but scriptable.**
+**Deep research agents for automation — the same technology behind ChatGPT and Gemini, but scriptable.**
 
 ```bash
 deepr research "What are the security implications of AWS Bedrock vs Azure OpenAI for enterprise RAG?"
@@ -148,6 +149,25 @@ Claude Code:
 
 10 MCP tools, resource subscriptions, prompt templates, budget elicitation. See [mcp/README.md](mcp/README.md) for setup.
 
+### Web Dashboard
+
+A local research management interface for when you want a visual view of your research operations.
+
+```bash
+pip install -e ".[web]"
+python -m deepr.web.app
+# Open http://localhost:5000
+```
+
+**Features:**
+- **Dashboard** - Quick research submission, active jobs, spending summary
+- **Job Queue** - Monitor all jobs with real-time status updates, cancel running jobs
+- **Results Library** - Search and browse completed research, grid/list views
+- **Cost Analytics** - Daily/monthly spending trends, budget alerts, per-model breakdown
+- **Settings** - API keys, budget limits, default model preferences
+
+**For team deployment**, the dashboard can be containerized and deployed to cloud infrastructure. See [deploy/README.md](deploy/README.md) for AWS, Azure, and GCP templates. Authentication and multi-user features are on the roadmap.
+
 ### Multi-Provider Support
 
 Works across OpenAI, Google Gemini, xAI Grok, Anthropic Claude, and Azure OpenAI. OpenAI and Gemini have native async deep research APIs; Anthropic uses Extended Thinking + tool orchestration. Deepr automatically routes tasks to the best model for the job and retries on failures.
@@ -163,7 +183,7 @@ Works across OpenAI, Google Gemini, xAI Grok, Anthropic Claude, and Azure OpenAI
 
 **Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, OpenAI and Gemini providers, local SQLite storage. 3000+ tests.
 
-**Experimental:** MCP server (works, but MCP spec is still maturing), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
+**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (functional for local use), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -195,28 +215,60 @@ deepr costs timeline --days 14                      # Trends with anomaly detect
 
 | Guide | Description |
 |-------|-------------|
-| [QUICK_START](docs/QUICK_START.md) | Installation and first research job |
-| [FEATURES](docs/FEATURES.md) | Complete command reference |
-| [EXPERTS](docs/EXPERTS.md) | Domain expert system |
-| [MODELS](docs/MODELS.md) | Provider comparison and model selection |
-| [ARCHITECTURE](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
-| [ROADMAP](ROADMAP.md) | Development priorities |
-| [MCP](mcp/README.md) | MCP server setup and agent integration |
+| [Quick Start](docs/QUICK_START.md) | Installation and first research job |
+| [Features](docs/FEATURES.md) | Complete command reference |
+| [Experts](docs/EXPERTS.md) | Domain expert system |
+| [Models](docs/MODELS.md) | Provider comparison and model selection |
+| [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
+| [Examples](docs/EXAMPLES.md) | Real-world usage examples |
+| [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
+| [Deployment](deploy/README.md) | Cloud deployment (AWS, Azure, GCP) |
+| [Changelog](docs/CHANGELOG.md) | Release history and migration notes |
+| [Roadmap](ROADMAP.md) | Development priorities and future plans |
 
-**Note:** Model pricing changes frequently. Costs in this README are estimates as of February 2026. The model registry ([`deepr/providers/registry.py`](deepr/providers/registry.py)) is the single source of truth.
+> **Note:** Model pricing changes frequently. Costs in this README are estimates as of February 2026. The [model registry](deepr/providers/registry.py) is the source of truth for current pricing.
+
+## Requirements
+
+- Python 3.9+
+- API key for at least one provider (OpenAI, Gemini, Anthropic, Grok, or Azure)
+- Optional: Node.js 18+ for web dashboard development
 
 ## Security
 
-Input validation, SSRF protection, API key redaction, budget controls, optional Docker isolation. CI runs lint (ruff) and 3000+ unit tests on every push.
+- Input validation and sanitization on all user inputs
+- SSRF protection for web scraping operations
+- API key redaction in logs and error messages
+- Budget controls to prevent runaway costs
+- Optional Docker isolation for untrusted workloads
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for threat model and implementation details.
+CI runs ruff (lint + format) and 3000+ unit tests on every push. See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
-Report security issues: nick@pueo.io
+**Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
-## About
+## Contributing
 
-Built by **Nick Seal** ([nick@pueo.io](mailto:nick@pueo.io)). Started as a weekend experiment with OpenAI's deep research API and grew into a provider-agnostic system for automating research workflows.
+Contributions are welcome. High-impact areas:
 
-Feedback and contributions welcome at [GitHub Issues](https://github.com/blisspixel/deepr/issues).
+- **Provider integrations** — New providers or improvements to existing ones
+- **Cost optimization** — Better token estimation, caching strategies
+- **Expert system** — Knowledge synthesis, gap detection algorithms
+- **CLI UX** — Interactive mode, progress indicators, output formatting
 
-**[MIT License](LICENSE)** | **[GitHub](https://github.com/blisspixel/deepr)**
+Before submitting a PR:
+
+1. Run `ruff check . && ruff format .` to lint and format
+2. Run `pytest tests/` to verify tests pass
+3. Add tests for new functionality
+
+See [ROADMAP.md](ROADMAP.md) for planned work and priorities.
+
+## License
+
+[MIT License](LICENSE) — use freely, attribution appreciated.
+
+---
+
+Built by [Nick Seal](mailto:nick@pueo.io). Started as a weekend experiment with OpenAI's deep research API and grew into a provider-agnostic research automation platform.
+
+[GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)

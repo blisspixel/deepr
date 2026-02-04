@@ -13,12 +13,21 @@ Requirements: 5.1, 5.7 - Refactored god class using composition
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Security imports
 from deepr.utils.security import sanitize_name, validate_path
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
+
 
 # Composition imports
 from deepr.experts.temporal import TemporalState
@@ -62,8 +71,8 @@ class ExpertProfile:
     vector_store_id: str
     description: Optional[str] = None
     domain: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
 
     # Knowledge base metadata
     source_files: List[str] = field(default_factory=list)
@@ -188,7 +197,7 @@ class ExpertProfile:
             details: Optional additional details
         """
         self.activity_tracker.record_activity(activity_type, details)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         
         # Sync counters back to profile for serialization
         self.conversations = self.activity_tracker.conversations
@@ -392,7 +401,7 @@ class ExpertStore:
 
     def save(self, profile: ExpertProfile) -> None:
         """Save expert profile to disk."""
-        profile.updated_at = datetime.utcnow()
+        profile.updated_at = datetime.now(timezone.utc)
 
         expert_dir = self._get_expert_dir(profile.name)
         expert_dir.mkdir(parents=True, exist_ok=True)
@@ -472,7 +481,7 @@ class ExpertStore:
                 )
                 profile.source_files.append(str(file_path))
                 profile.total_documents += 1
-                profile.last_knowledge_refresh = datetime.utcnow()
+                profile.last_knowledge_refresh = datetime.now(timezone.utc)
                 results["uploaded"].append({"path": str(file_path), "file_id": file_obj.id})
             except Exception as e:
                 results["failed"].append({"path": str(file_path), "error": str(e)})
@@ -509,14 +518,14 @@ def get_expert_system_message(
     worldview_summary: Optional[str] = None
 ) -> str:
     """Generate expert system message with current date programmatically inserted."""
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    today_readable = datetime.utcnow().strftime("%B %d, %Y")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_readable = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
     cutoff_str = "UNKNOWN"
     days_old = "UNKNOWN"
     if knowledge_cutoff_date:
         cutoff_str = knowledge_cutoff_date.strftime("%Y-%m-%d")
-        days_old = (datetime.utcnow() - knowledge_cutoff_date).days
+        days_old = (datetime.now(timezone.utc) - knowledge_cutoff_date).days
 
     velocity_thresholds = {"slow": 180, "medium": 90, "fast": 30}
     threshold = velocity_thresholds.get(domain_velocity, 90)
