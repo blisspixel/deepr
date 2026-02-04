@@ -111,18 +111,18 @@ def history(days: int):
               help="Time period to include")
 def breakdown(by: str, period: str):
     """Show cost breakdown."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     dashboard = CostDashboard()
 
     period_labels = {"today": "Today", "week": "Last 7 Days", "month": "Last 30 Days", "all": "All Time"}
 
     if period == "today":
-        start_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     elif period == "week":
-        start_date = datetime.utcnow() - timedelta(days=7)
+        start_date = datetime.now(timezone.utc) - timedelta(days=7)
     elif period == "month":
-        start_date = datetime.utcnow() - timedelta(days=30)
+        start_date = datetime.now(timezone.utc) - timedelta(days=30)
     else:
         start_date = None
 
