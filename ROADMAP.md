@@ -16,7 +16,7 @@
 
 ## Current Status (v2.7)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 3000+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
+Multi-provider research automation with expert system, MCP integration, and observability. 3300+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -83,6 +83,7 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | 9.6 | Multi-Runtime Config Templates (OpenClaw, Claude Desktop, Cursor, VS Code) | v2.5 |
 | 5.4 | Gemini Deep Research Agent (Interactions API, File Search Stores, adaptive polling) | v2.6 |
 | 10.1 | Cloud Deployment Templates (AWS SAM, Azure Bicep, GCP Terraform) | v2.6 |
+| 7.2 | Interactive Mode (no-args menu, query history, model picker with costs) | v2.7 |
 
 ---
 
@@ -197,9 +198,9 @@ sam build && sam deploy --guided
 ### Priority 7: Modern CLI UX (remaining)
 
 #### 7.2 Interactive Mode
-- [ ] `deepr` with no args opens interactive menu (questionary/InquirerPy)
-- [ ] Query autocomplete from recent history
-- [ ] Provider/model picker with cost estimates
+- [x] `deepr` with no args opens interactive menu (Rich-based)
+- [x] Query autocomplete from recent history
+- [x] Provider/model picker with cost estimates
 
 #### 7.3 Real-Time Progress for Long Operations
 - [ ] Poll provider status API and show phase progress
@@ -348,14 +349,14 @@ Local research management interface for monitoring batch operations. CLI remains
 - [x] Single-sourced version string from `deepr/__init__.py`
 
 #### ExpertProfile Refactoring
-- [ ] Split `experts/profile.py` into `profile.py` (data) and `profile_manager.py` (operations)
-- [ ] Extract belief management to `experts/beliefs_manager.py`
+- [x] Split profile operations into composed managers (`budget_manager.py`, `activity_tracker.py`)
+- [x] Extract belief management to `experts/beliefs.py`
 - [ ] Add profile versioning for schema migrations
 
 #### Configuration Consolidation
-- [ ] Audit all config sources (`config.py`, `unified_config.py`, env vars, CLI flags)
-- [ ] Create single `Settings` class as source of truth
-- [ ] Deprecate duplicate config loading paths
+- [x] Audit all config sources (`config.py`, `unified_config.py`, env vars, CLI flags)
+- [x] Create single `Settings` class as source of truth (`core/settings.py`)
+- [x] Deprecate duplicate config loading paths (legacy `load_config()` wrapper added)
 
 #### Test Coverage
 - [ ] Add integration tests for provider fallback

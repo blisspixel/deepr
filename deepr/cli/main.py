@@ -14,9 +14,8 @@ Interactive Mode:
     deepr interactive
 """
 
+
 import click
-import asyncio
-from typing import Optional
 
 from deepr import __version__
 
@@ -33,7 +32,27 @@ def cli():
 
 
 # Import command groups
-from deepr.cli.commands import run, status, budget, cost, interactive, docs, vector, config, analytics, templates, migrate, jobs, semantic, doctor, diagnostics, mcp, help as help_cmd, costs, providers
+from deepr.cli.commands import (
+    analytics,
+    budget,
+    config,
+    cost,
+    costs,
+    diagnostics,
+    docs,
+    doctor,
+    interactive,
+    jobs,
+    mcp,
+    migrate,
+    providers,
+    run,
+    semantic,
+    status,
+    templates,
+    vector,
+)
+from deepr.cli.commands import help as help_cmd
 
 # Core commands - new structure
 cli.add_command(run.run)
@@ -79,8 +98,21 @@ cli.add_command(providers.providers)
 
 
 def main():
-    """Entry point for CLI."""
-    cli()
+    """Entry point for CLI.
+
+    When invoked with no arguments, launches interactive mode.
+    """
+    import sys
+
+    # If no arguments provided (just 'deepr'), launch interactive mode
+    if len(sys.argv) == 1:
+        # Import here to avoid circular imports
+        from deepr.cli.commands.interactive import interactive
+        ctx = cli.make_context('deepr', [])
+        with ctx:
+            interactive.invoke(ctx)
+    else:
+        cli()
 
 
 if __name__ == "__main__":
