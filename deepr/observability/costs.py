@@ -21,12 +21,17 @@ import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Module logger for debugging persistence and validation issues
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 # Configuration constants
 MAX_STORED_ENTRIES = 10000  # Maximum cost entries to persist
@@ -51,7 +56,7 @@ class CostEntry:
     operation: str
     provider: str
     cost: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     model: str = ""
     tokens_input: int = 0
     tokens_output: int = 0
@@ -84,7 +89,7 @@ class CostEntry:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CostEntry":
         return cls(
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.utcnow(),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
             operation=data["operation"],
             provider=data["provider"],
             model=data.get("model", ""),
@@ -113,7 +118,7 @@ class CostAlert:
     current_value: float
     limit: float
     period: str
-    triggered_at: datetime = field(default_factory=datetime.utcnow)
+    triggered_at: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -352,7 +357,7 @@ class CostAggregator:
             Total cost for the day
         """
         if target_date is None:
-            target_date = datetime.utcnow().date()
+            target_date = datetime.now(timezone.utc).date()
         
         return sum(e.cost for e in self._entries if e.date == target_date)
     
@@ -370,7 +375,7 @@ class CostAggregator:
         Returns:
             Total cost for the month
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if year is None:
             year = now.year
         if month is None:
@@ -754,7 +759,7 @@ class CostDashboard:
             List of newly triggered alerts
         """
         new_alerts = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         utc_today = now.date()
         
         # Check daily alerts
@@ -786,7 +791,7 @@ class CostDashboard:
         Returns:
             List of active alerts
         """
-        return self.alert_manager.get_active_alerts(datetime.utcnow())
+        return self.alert_manager.get_active_alerts(datetime.now(timezone.utc))
     
     def get_daily_history(self, days: int = 30) -> List[Dict[str, Any]]:
         """Get daily cost history.
@@ -798,7 +803,7 @@ class CostDashboard:
             List of daily summaries
         """
         history = []
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         
         for i in range(days):
             target_date = today - timedelta(days=i)
@@ -874,7 +879,7 @@ class CostDashboard:
         data = {
             "entries": [e.to_dict() for e in entries_to_save],
             "alerts": [a.to_dict() for a in self.alert_manager.triggered_alerts[-MAX_STORED_ALERTS:]],
-            "saved_at": datetime.utcnow().isoformat()
+            "saved_at": datetime.now(timezone.utc).isoformat()
         }
         
         # Atomic write: write to temp file, then rename
@@ -1007,7 +1012,7 @@ class BufferedCostDashboard(CostDashboard):
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval
         self._buffer: List[CostEntry] = []
-        self._last_flush: datetime = datetime.utcnow()
+        self._last_flush: datetime = datetime.now(timezone.utc)
         self._lock = threading.Lock()
         
         # Register shutdown handler to flush on application exit
@@ -1108,7 +1113,7 @@ class BufferedCostDashboard(CostDashboard):
             try:
                 self._save()
                 self._buffer.clear()
-                self._last_flush = datetime.utcnow()
+                self._last_flush = datetime.now(timezone.utc)
                 logger.debug(f"Flushed {buffer_count} cost entries to disk")
                 return True
             except Exception as e:
@@ -1122,7 +1127,7 @@ class BufferedCostDashboard(CostDashboard):
         Returns:
             Number of seconds since last flush
         """
-        return (datetime.utcnow() - self._last_flush).total_seconds()
+        return (datetime.now(timezone.utc) - self._last_flush).total_seconds()
     
     def _shutdown_flush(self):
         """Flush handler called on application shutdown.

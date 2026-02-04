@@ -26,8 +26,13 @@ Usage:
 
 import math
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 from collections import defaultdict
 
 
@@ -53,7 +58,7 @@ class EvaluationResult:
     
     # Overall
     quality_score: float       # Weighted combination
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
