@@ -25,7 +25,7 @@ async def run_dream_team(question: str, model: str = "o4-mini-deep-research", pe
     from deepr.queue import create_queue
     from deepr.queue.base import ResearchJob, JobStatus
     from deepr.config import load_config
-    from datetime import datetime
+    from datetime import datetime, timezone
     import uuid
     import os
 
@@ -101,8 +101,8 @@ Provide your analysis from this perspective."""
             model=model,
             provider=provider,
             status=JobStatus.PROCESSING,
-            submitted_at=datetime.utcnow(),
-            started_at=datetime.utcnow(),
+            submitted_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc),
             enable_web_search=True,
             metadata={"team_role": member['role'], "question": question}
         )
@@ -330,7 +330,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
             "context": context,
             "team": team,
             "tasks": tasks,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "status": "ready"
         }
 
@@ -351,7 +351,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         async def run_research():
             results = await executor.execute_batch(
                 tasks=tasks,
-                campaign_id=f"team-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                campaign_id=f"team-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
                 storage=storage
             )
             return results

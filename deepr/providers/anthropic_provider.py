@@ -200,7 +200,7 @@ class AnthropicProvider(DeepResearchProvider):
             )
 
             # Generate job ID (Anthropic doesn't return one)
-            job_id = f"anthropic-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+            job_id = f"anthropic-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
 
             # Store result internally
             # TODO: Integrate with storage system
@@ -343,7 +343,7 @@ Always show your work. Transparency builds trust."""
             "# Research Report",
             f"\n**Query:** {request.prompt}",
             f"\n**Model:** {self.model}",
-            f"\n**Date:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+            f"\n**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
             "\n---\n",
         ]
 

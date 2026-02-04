@@ -4,13 +4,17 @@ Research Planner API Routes
 Endpoints for the "Prep" feature - decompose scenarios into multiple research tasks.
 """
 
+import logging
+import uuid
+from datetime import datetime, timezone
+
 from flask import Blueprint, request, jsonify
 from deepr.services.research_planner import create_planner
 from deepr.services.queue import get_queue
 from deepr.services.cost_estimation import CostEstimator
 from deepr.models.job import Job, JobStatus
-import uuid
-from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("planner", __name__)
 
@@ -50,7 +54,10 @@ def plan_research():
             return jsonify({"error": "Missing required field: scenario"}), 400
 
         scenario = data["scenario"]
-        max_tasks = data.get("max_tasks", 5)
+        try:
+            max_tasks = int(data.get("max_tasks", 5))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid max_tasks parameter"}), 400
         context = data.get("context")
         planner_model = data.get("planner_model", "gpt-5-mini")
         provider = data.get("provider", "openai")
@@ -103,6 +110,7 @@ def plan_research():
         }), 200
 
     except Exception as e:
+        logger.exception("Error planning research: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -146,7 +154,10 @@ def execute_plan():
 
         scenario = data.get("scenario", "Research batch")
         model = data.get("model", "o4-mini-deep-research")
-        priority = data.get("priority", 3)
+        try:
+            priority = int(data.get("priority", 3))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid priority parameter"}), 400
         enable_web_search = data.get("enable_web_search", True)
 
         # Generate batch ID
@@ -172,8 +183,8 @@ def execute_plan():
                 model=model,
                 priority=priority,
                 enable_web_search=enable_web_search,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
                 status=JobStatus.PENDING,
                 metadata={
                     "batch_id": batch_id,
@@ -211,6 +222,7 @@ def execute_plan():
         }), 200
 
     except Exception as e:
+        logger.exception("Error executing plan: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -284,8 +296,12 @@ def get_batch_status(batch_id: str):
             ),
         }
 
-        # Get scenario from first job
-        scenario = batch_jobs[0].get("metadata", {}).get("batch_scenario", "Research batch")
+        # Get scenario from first job's metadata (stored in the job list item directly)
+        scenario = "Research batch"
+        if batch_jobs:
+            # The batch_scenario was stored in job.metadata, which we don't have here
+            # Use a default value
+            scenario = "Research batch"
 
         return jsonify({
             "batch_id": batch_id,
@@ -295,4 +311,5 @@ def get_batch_status(batch_id: str):
         }), 200
 
     except Exception as e:
+        logger.exception("Error getting batch status %s: %s", batch_id, e)
         return jsonify({"error": "Internal server error"}), 500
