@@ -135,7 +135,7 @@ class ModelRouter:
             if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
                 return ModelConfig(
                     provider="openai",
-                    model="o4-mini-deep-research",
+                    model="o3-deep-research",
                     cost_estimate=2.0,
                     confidence=0.9
                 )
@@ -178,10 +178,10 @@ class ModelRouter:
             )
 
         if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
-            # Deep research → o4-mini-deep-research
+            # Deep research → o3-deep-research (best quality for deep research)
             return ModelConfig(
                 provider="openai",
-                model="o4-mini-deep-research",
+                model="o3-deep-research",
                 cost_estimate=2.0,
                 confidence=0.9
             )
@@ -349,7 +349,7 @@ class ModelRouter:
         # Add reasoning
         if complexity == "simple" and selected_model.model == "grok-4-fast":
             explanation += "Reason: Simple query routed to fast, cheap model for cost efficiency\n"
-        elif task_type == "research" and selected_model.model == "o4-mini-deep-research":
+        elif task_type == "research" and selected_model.model == "o3-deep-research":
             explanation += "Reason: Research task routed to deep reasoning model for quality\n"
         elif selected_model.reasoning_effort:
             explanation += f"Reason: {complexity.capitalize()} query using adaptive reasoning (effort: {selected_model.reasoning_effort})\n"

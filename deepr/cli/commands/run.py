@@ -194,7 +194,7 @@ def run():
 
 @run.command()
 @click.argument("query")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model to use")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]), help="Research provider (openai, azure, gemini, grok)")
 @click.option("--no-web", is_flag=True, help="Disable web search")
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
@@ -237,7 +237,7 @@ def focus(
 
 @run.command()
 @click.argument("query")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model to use")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]), help="Research provider (openai, azure, gemini, grok)")
 @click.option("--no-web", is_flag=True, help="Disable web search")
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
@@ -934,7 +934,7 @@ def _extract_response_content(response) -> str:
 
 @run.command()
 @click.argument("scenario")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model")
 @click.option("--lead", default="gpt-5", help="Lead planner model")
 @click.option("--phases", "-p", type=int, default=3, help="Number of phases")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
@@ -960,7 +960,7 @@ def project(
 
 @run.command()
 @click.argument("scenario")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model")
 @click.option("--lead", default="gpt-5", help="Lead planner model")
 @click.option("--phases", "-p", type=int, default=3, help="Number of phases")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
@@ -1106,7 +1106,7 @@ async def _run_campaign(
 
 @run.command()
 @click.argument("question")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model")
 @click.option("--perspectives", "-p", type=int, default=6, help="Number of perspectives")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def team(
@@ -1174,7 +1174,7 @@ async def _run_team(
 
 @run.command()
 @click.argument("topic")
-@click.option("--model", "-m", default="o4-mini-deep-research", help="Research model to use")
+@click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]), help="Research provider")
 @click.option("--upload", "-u", multiple=True, help="Upload existing documentation for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
@@ -1228,7 +1228,7 @@ well-structured documentation that is clear, accurate, and useful. Include:
 # Aliases
 @click.command(name="r")
 @click.argument("query")
-@click.option("--model", "-m", default="o4-mini-deep-research")
+@click.option("--model", "-m", default="o3-deep-research")
 @click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]))
 @click.option("--no-web", is_flag=True)
 @click.option("--no-code", is_flag=True)

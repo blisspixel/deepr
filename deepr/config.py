@@ -45,14 +45,14 @@ class ProviderConfig(BaseModel):
     # Dual Provider Configuration
     default_provider: str = Field(default="xai", description="Default provider for general operations")
     deep_research_provider: str = Field(default="openai", description="Provider for deep research operations")
-    deep_research_model: str = Field(default="o4-mini-deep-research", description="Model for deep research")
+    deep_research_model: str = Field(default="o3-deep-research", description="Model for deep research")
 
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
     TASK_MODEL_MAP: Dict[str, tuple] = {
         "quick_lookup": ("xai", "grok-4-fast"),           # Fast, cheap fact checks
         "fact_check": ("xai", "grok-4-fast"),             # Fact verification
-        "deep_research": ("openai", "o4-mini-deep-research"),  # Deep research
+        "deep_research": ("openai", "o3-deep-research"),  # Deep research (BEST model)
         "synthesis": ("openai", "gpt-5"),                 # Knowledge synthesis
         "chat": ("openai", "gpt-5"),                      # Expert chat
         "planning": ("openai", "gpt-5"),                  # Research planning
@@ -97,7 +97,7 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_deep_research_model(cls, v: Any) -> str:
         """Load deep research model from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
 
     @model_validator(mode="after")
     def validate_api_keys(self) -> "ProviderConfig":
