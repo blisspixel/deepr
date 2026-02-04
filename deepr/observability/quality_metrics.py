@@ -56,11 +56,11 @@ class EvaluationResult:
     is_correct: bool           # Whether answer was correct
     brier_score: float         # (confidence - correct)^2
 
-    # Novelty metrics (for information gain tracking)
-    novelty_score: float = 0.0  # How novel/unique this response is (0-1)
-
     # Overall
     quality_score: float       # Weighted combination
+
+    # Fields with defaults must come after required fields
+    novelty_score: float = 0.0  # How novel/unique this response is (0-1)
     timestamp: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
