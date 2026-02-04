@@ -56,6 +56,10 @@ def check_budget_approval(estimated_cost: float) -> bool:
 
     # Mode 1: Confirm every job (budget = 0)
     if monthly_limit == 0:
+        # QoL: Auto-approve small jobs under $1 even in cautious mode
+        # This reduces friction for typical research jobs
+        if estimated_cost < 1.0:
+            return True
         return False
 
     # Mode 2: Unlimited (budget = -1)
