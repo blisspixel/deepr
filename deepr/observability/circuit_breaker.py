@@ -30,7 +30,7 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -40,6 +40,11 @@ from deepr.core.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 class CircuitState(Enum):
@@ -78,7 +83,7 @@ class CircuitBreaker:
     state: CircuitState = CircuitState.CLOSED
     failure_count: int = 0
     last_failure_time: Optional[datetime] = None
-    last_state_change: datetime = field(default_factory=datetime.utcnow)
+    last_state_change: datetime = field(default_factory=_utc_now)
     failure_threshold: int = CIRCUIT_BREAKER_FAILURE_THRESHOLD
     recovery_timeout: int = CIRCUIT_BREAKER_RECOVERY_TIMEOUT
     
@@ -114,7 +119,7 @@ class CircuitBreaker:
         if self.state != CircuitState.OPEN:
             return None
         
-        elapsed = (datetime.utcnow() - self.last_state_change).total_seconds()
+        elapsed = (datetime.now(timezone.utc)() - self.last_state_change).total_seconds()
         remaining = self.recovery_timeout - elapsed
         return max(0, int(remaining))
     
@@ -145,7 +150,7 @@ class CircuitBreaker:
             - CLOSED -> OPEN: If failure_count >= failure_threshold
         """
         self.failure_count += 1
-        self.last_failure_time = datetime.utcnow()
+        self.last_failure_time = datetime.now(timezone.utc)()
         
         if self.state == CircuitState.HALF_OPEN:
             # Recovery failed - reopen the circuit
@@ -171,7 +176,7 @@ class CircuitBreaker:
         if self.state != CircuitState.OPEN:
             return
         
-        elapsed = (datetime.utcnow() - self.last_state_change).total_seconds()
+        elapsed = (datetime.now(timezone.utc)() - self.last_state_change).total_seconds()
         if elapsed >= self.recovery_timeout:
             self._transition_to(CircuitState.HALF_OPEN)
             logger.info(
@@ -187,7 +192,7 @@ class CircuitBreaker:
         """
         old_state = self.state
         self.state = new_state
-        self.last_state_change = datetime.utcnow()
+        self.last_state_change = datetime.now(timezone.utc)()
         
         # Reset failure count when closing circuit
         if new_state == CircuitState.CLOSED:

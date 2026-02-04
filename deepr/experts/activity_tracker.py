@@ -7,7 +7,7 @@ Requirements: 5.3 - Extract activity recording logic
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 
@@ -44,7 +44,7 @@ class ActivityTracker:
             activity_type: Type of activity (chat, research, learning, etc.)
             details: Optional additional details
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         self.last_activity = now
         
         # Update counters based on activity type

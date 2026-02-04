@@ -7,7 +7,7 @@ to retrieve from the vector store.
 import os
 import json
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from openai import AsyncOpenAI
 import asyncio
@@ -307,7 +307,7 @@ Budget remaining: ${budget_remaining:.2f}
         # Log reasoning trace
         self.reasoning_trace.append({
             "step": "tot_reasoning",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "query": query[:100],
             "phase": state.phase.value,
             "hypotheses_count": len(state.hypotheses),
@@ -350,7 +350,7 @@ Budget remaining: ${budget_remaining:.2f}
             # Log retrieval mode
             self.reasoning_trace.append({
                 "step": "retrieval_routing",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "query": query[:100],
                 "use_graph": use_graph
             })
@@ -370,7 +370,7 @@ Budget remaining: ${budget_remaining:.2f}
                     self.lazy_graph_rag.log_sufficiency(query, sufficiency)
                     self.reasoning_trace.append({
                         "step": "retrieval_sufficiency",
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "coverage": sufficiency.coverage,
                         "redundancy": sufficiency.redundancy,
                         "overall_score": sufficiency.overall_score,
@@ -424,7 +424,7 @@ Budget remaining: ${budget_remaining:.2f}
                     # Log cache update
                     self.reasoning_trace.append({
                         "step": "embedding_cache_update",
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "documents_added": added,
                         "total_cached": len(cache.index)
                     })
@@ -711,7 +711,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.research_jobs.append(job_id)
             self.pending_research[job_id] = {
                 "query": query,
-                "started_at": datetime.utcnow(),
+                "started_at": datetime.now(timezone.utc),
                 "estimated_cost": estimated_cost
             }
 
@@ -777,7 +777,7 @@ Budget remaining: ${budget_remaining:.2f}
             documents_dir.mkdir(parents=True, exist_ok=True)
 
             # Create filename with timestamp
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             safe_query = "".join(c for c in query[:50] if c.isalnum() or c in (' ', '-', '_')).strip()
             safe_query = safe_query.replace(' ', '_').lower()
             filename = f"research_{timestamp}_{safe_query}.md"
@@ -786,7 +786,7 @@ Budget remaining: ${budget_remaining:.2f}
             # Create markdown document with metadata
             content = f"""# Research: {query}
 
-**Date**: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")}
+**Date**: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
 **Mode**: {mode}
 **Expert**: {self.expert.name}
 
@@ -933,7 +933,7 @@ Budget remaining: ${budget_remaining:.2f}
             # Log to reasoning trace
             self.reasoning_trace.append({
                 "step": "continuous_learning_synthesis",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "trigger": f"research_count={self.research_count}, threshold={self.synthesis_threshold}",
                 "documents_processed": len(new_documents),
                 "beliefs_before": existing_belief_count,
@@ -958,7 +958,7 @@ Budget remaining: ${budget_remaining:.2f}
             # Don't crash chat on synthesis failure
             self.reasoning_trace.append({
                 "step": "continuous_learning_synthesis_error",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": str(e)
             })
             return {
@@ -1107,7 +1107,7 @@ Budget remaining: ${budget_remaining:.2f}
             if self.enable_router:
                 self.reasoning_trace.append({
                     "step": "model_routing",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "query": user_message[:100],  # First 100 chars
                     "selected_provider": selected_model.provider,
                     "selected_model": selected_model.model,
@@ -1194,7 +1194,7 @@ Budget remaining: ${budget_remaining:.2f}
                         # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "search_knowledge_base",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                             "query": query,
                             "reasoning": reasoning,  # Model's explanation of WHY it's searching
                             "results_count": len(search_results),
@@ -1264,7 +1264,7 @@ Budget remaining: ${budget_remaining:.2f}
                         # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "standard_research",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                             "query": query,
                             "reasoning": reasoning,  # Model's explanation of WHY it needs web search
                             "mode": "standard_research",
@@ -1319,7 +1319,7 @@ Budget remaining: ${budget_remaining:.2f}
                         # Log reasoning trace with model's explanation
                         self.reasoning_trace.append({
                             "step": "deep_research",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                             "query": query,
                             "reasoning": reasoning,  # Model's explanation of WHY it needs expensive deep research
                             "mode": "deep_research"
@@ -1494,7 +1494,7 @@ Budget remaining: ${budget_remaining:.2f}
         import uuid
 
         if not session_id:
-            session_id = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+            session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Get conversations directory
         store = ExpertStore()
@@ -1507,8 +1507,8 @@ Budget remaining: ${budget_remaining:.2f}
         conversation_data = {
             "session_id": session_id,
             "expert_name": self.expert.name,
-            "started_at": self.messages[0].get("timestamp", datetime.utcnow().isoformat()) if self.messages else datetime.utcnow().isoformat(),
-            "ended_at": datetime.utcnow().isoformat(),
+            "started_at": self.messages[0].get("timestamp", datetime.now(timezone.utc).isoformat()) if self.messages else datetime.now(timezone.utc).isoformat(),
+            "ended_at": datetime.now(timezone.utc).isoformat(),
             "messages": self.messages,
             "summary": self.get_session_summary(),
             "research_jobs": self.research_jobs,
