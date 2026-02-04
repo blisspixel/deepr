@@ -1,6 +1,6 @@
 # Deepr
 
-[![Tests](https://img.shields.io/badge/tests-3000%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr/actions)
+[![Tests](https://img.shields.io/badge/tests-3300%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr/actions)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](https://github.com/blisspixel/deepr/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -181,7 +181,7 @@ Works across OpenAI, Google Gemini, xAI Grok, Anthropic Claude, and Azure OpenAI
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, OpenAI and Gemini providers, local SQLite storage. 3000+ tests.
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, OpenAI and Gemini providers, local SQLite storage. 3300+ tests.
 
 **Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (functional for local use), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
@@ -242,7 +242,7 @@ deepr costs timeline --days 14                      # Trends with anomaly detect
 - Budget controls to prevent runaway costs
 - Optional Docker isolation for untrusted workloads
 
-CI runs ruff (lint + format) and 3000+ unit tests on every push. See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
+CI runs ruff (lint + format) and 3300+ unit tests on every push. See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
 **Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
