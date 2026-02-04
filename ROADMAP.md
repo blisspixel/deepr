@@ -131,9 +131,10 @@ sam build && sam deploy --guided
 - [x] Add token counts to spans (input, output via set_tokens())
 
 #### 4.4 Decision Logs in Natural Language
-- [ ] Extend ThoughtStream to generate human-readable decision summaries
-- [ ] Add `--why` flag for inline model/provider/budget reasoning
-- [ ] Store decision logs alongside reports in `reports/{job_id}/decisions.md`
+- [x] Extend ThoughtStream to generate human-readable decision summaries (`generate_decision_summary()`)
+- [x] Add concise summary method for CLI output (`get_why_summary()`)
+- [x] Store decision logs alongside reports (`save_decision_log()` method)
+- [ ] Wire `--why` flag to CLI commands (currently use `--explain`)
 
 #### 4.5 Research Quality Metrics
 - [ ] Entropy-based stopping criteria (detect when searches yield diminishing returns)

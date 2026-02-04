@@ -531,7 +531,7 @@ class ThoughtStream:
     
     def get_public_trace(self) -> List[Dict[str, Any]]:
         """Get redacted thought trace safe for sharing.
-        
+
         Returns:
             List of thought dictionaries with private_payload removed
         """
@@ -541,3 +541,150 @@ class ThoughtStream:
             entry.pop("private_payload", None)
             trace.append(entry)
         return trace
+
+    def generate_decision_summary(self) -> str:
+        """Generate a human-readable summary of decisions and reasoning.
+
+        Creates a natural language narrative of the decision-making process
+        suitable for display with --why flag or storing as decision.md.
+
+        Returns:
+            Markdown-formatted decision summary
+        """
+        if not self.thoughts:
+            return "No decisions recorded for this session."
+
+        lines = [
+            f"# Decision Log: {self.expert_name}",
+            f"",
+            f"*Session: {self.thoughts[0].timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}*",
+            "",
+        ]
+
+        # Group thoughts by phase
+        current_phase = None
+        decisions = []
+        evidence_used = []
+        tools_called = []
+
+        for thought in self.thoughts:
+            phase = thought.metadata.get("phase")
+
+            # Track phase changes
+            if phase and phase != current_phase:
+                if current_phase:
+                    lines.append("")
+                current_phase = phase
+                lines.append(f"## {phase.title()} Phase")
+                lines.append("")
+
+            # Summarize based on type
+            if thought.thought_type == ThoughtType.PLAN_STEP:
+                lines.append(f"- {thought.public_text}")
+
+            elif thought.thought_type == ThoughtType.SEARCH:
+                tools_called.append(("search", thought.public_text))
+                lines.append(f"- 🔍 {thought.public_text}")
+
+            elif thought.thought_type == ThoughtType.TOOL_CALL:
+                tool_name = thought.private_payload.get("tool", "unknown") if thought.private_payload else "tool"
+                tools_called.append((tool_name, thought.public_text))
+                lines.append(f"- 🔧 {thought.public_text}")
+
+            elif thought.thought_type == ThoughtType.EVIDENCE_FOUND:
+                if thought.evidence_refs:
+                    evidence_used.extend(thought.evidence_refs)
+                conf_str = f" ({thought.confidence:.0%})" if thought.confidence else ""
+                lines.append(f"- 📄 {thought.public_text}{conf_str}")
+
+            elif thought.thought_type == ThoughtType.DECISION:
+                decisions.append(thought)
+                conf_str = f" (confidence: {thought.confidence:.0%})" if thought.confidence else ""
+                lines.append(f"")
+                lines.append(f"**Decision:** {thought.public_text}{conf_str}")
+                if thought.evidence_refs:
+                    lines.append(f"  - Based on: {', '.join(thought.evidence_refs)}")
+                lines.append("")
+
+            elif thought.thought_type == ThoughtType.ERROR:
+                lines.append(f"- ❌ {thought.public_text}")
+
+        # Add summary section
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## Summary",
+            "",
+        ])
+
+        if decisions:
+            lines.append(f"**Total Decisions:** {len(decisions)}")
+            avg_conf = sum(d.confidence for d in decisions if d.confidence) / max(len([d for d in decisions if d.confidence]), 1)
+            if avg_conf > 0:
+                lines.append(f"**Average Confidence:** {avg_conf:.0%}")
+
+        if tools_called:
+            lines.append(f"**Tools Used:** {len(tools_called)}")
+            tool_counts = {}
+            for tool_name, _ in tools_called:
+                tool_counts[tool_name] = tool_counts.get(tool_name, 0) + 1
+            for tool, count in sorted(tool_counts.items(), key=lambda x: -x[1]):
+                lines.append(f"  - {tool}: {count}x")
+
+        if evidence_used:
+            unique_evidence = list(set(evidence_used))
+            lines.append(f"**Evidence Sources:** {len(unique_evidence)}")
+            for source in unique_evidence[:5]:  # Show max 5
+                lines.append(f"  - {source}")
+            if len(unique_evidence) > 5:
+                lines.append(f"  - ... and {len(unique_evidence) - 5} more")
+
+        return "\n".join(lines)
+
+    def save_decision_log(self, path: Path) -> None:
+        """Save decision log as markdown file.
+
+        Args:
+            path: Path to save the decision log (e.g., reports/{job_id}/decisions.md)
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        summary = self.generate_decision_summary()
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(summary)
+
+    def get_why_summary(self) -> str:
+        """Get a concise one-line summary for --why flag output.
+
+        Returns:
+            Single line explaining key decisions
+        """
+        decisions = [t for t in self.thoughts if t.thought_type == ThoughtType.DECISION]
+
+        if not decisions:
+            return "No explicit decisions recorded."
+
+        # Get the most recent/important decision
+        last_decision = decisions[-1]
+        conf_str = f" ({last_decision.confidence:.0%})" if last_decision.confidence else ""
+
+        parts = [f"Decision: {last_decision.public_text}{conf_str}"]
+
+        # Add tool usage summary
+        tools = [t for t in self.thoughts if t.thought_type == ThoughtType.TOOL_CALL]
+        if tools:
+            tool_names = set()
+            for t in tools:
+                if t.private_payload and "tool" in t.private_payload:
+                    tool_names.add(t.private_payload["tool"])
+            if tool_names:
+                parts.append(f"Tools: {', '.join(sorted(tool_names))}")
+
+        # Add evidence count
+        evidence = [t for t in self.thoughts if t.thought_type == ThoughtType.EVIDENCE_FOUND]
+        if evidence:
+            parts.append(f"Evidence: {len(evidence)} sources")
+
+        return " | ".join(parts)
