@@ -1,18 +1,20 @@
-# Deepr Development Roadmap
+# Deepr Roadmap
 
-> **Note**: Model and pricing information current as of February 2026. AI evolves rapidly - verify at provider websites.
+> Development priorities and planned features. Model pricing current as of February 2026.
 
 ## Quick Links
 
-- [Model Selection Guide](docs/MODELS.md) - Provider comparison, costs, when to use what
-- [Expert System Guide](docs/EXPERTS.md) - Creating and using domain experts
-- [Vision & Future](docs/VISION.md) - Aspirational features (v3.0+)
-- [Architecture](docs/ARCHITECTURE.md) - Technical details, security, observability
-- [Changelog](docs/CHANGELOG.md) - Detailed release history
+| Document | Description |
+|----------|-------------|
+| [Models](docs/MODELS.md) | Provider comparison, costs, model selection |
+| [Experts](docs/EXPERTS.md) | Creating and using domain experts |
+| [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
+| [Changelog](docs/CHANGELOG.md) | Release history with migration notes |
+| [Vision](docs/VISION.md) | Long-term direction (v3.0+) |
 
 ---
 
-## Current Status (v2.6)
+## Current Status (v2.7)
 
 Multi-provider research automation with expert system, MCP integration, and observability. 3000+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
 
@@ -31,6 +33,7 @@ These features are well-tested and used regularly:
 
 These features work but APIs or behavior may change:
 
+- **Web dashboard**: Local research management UI - job queue, results library, cost analytics
 - **MCP server**: Functional with 10 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
@@ -45,6 +48,7 @@ These features work but APIs or behavior may change:
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis
 - MCP server with 10 tools, persistence, security, multi-runtime configs
+- Web dashboard (job queue, results library, cost analytics, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
 - Auto-fallback on provider failures with `--no-fallback` override
@@ -233,6 +237,43 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ---
 
+### Web Dashboard
+
+Local research management interface for monitoring batch operations. CLI remains primary for scripting/automation; dashboard provides visibility when running many concurrent jobs.
+
+**What exists:** React + TypeScript frontend with Flask backend. Dashboard, job queue, results library, cost analytics, settings. Light/dark mode. 22 API endpoints.
+
+#### Completed
+- [x] Job submission and queue monitoring with real-time status
+- [x] Results library with search, sort, grid/list views
+- [x] Cost analytics with daily/monthly trends, budget alerts
+- [x] Settings page (API keys, limits, defaults)
+- [x] Modern UI with light/dark mode toggle
+- [x] Full API coverage (jobs, costs, results, config)
+
+#### Core Improvements
+- [ ] Report viewer with full markdown rendering and syntax highlighting
+- [ ] Expert management UI (list, create, chat with domain experts)
+- [ ] Job detail page with live progress updates (WebSocket)
+- [ ] Export results (PDF, DOCX in addition to Markdown)
+- [ ] Tags and folders for organizing research by project
+
+#### Team Deployment
+- [ ] Authentication (JWT or OAuth)
+- [ ] Team workspaces with shared research libraries
+- [ ] Role-based access (admin, researcher, viewer)
+- [ ] Per-user API key management
+- [ ] Audit log (who ran what, when)
+
+#### Advanced Features
+- [ ] Scheduled/recurring research (cron-like)
+- [ ] Webhooks for external integrations (Slack, email)
+- [ ] Comparison view (side-by-side research results)
+- [ ] Research templates (save and reuse prompts)
+- [ ] Bulk operations UI (batch submit, bulk cancel, bulk export)
+
+---
+
 ## Code Quality
 
 #### Completed
@@ -264,29 +305,58 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 Recommended sequence for remaining work:
 
+**CLI & Core:**
 1. **7.2 Interactive Mode** - High user value
 2. **6.1 Context Discovery** - New feature, moderate effort
 3. **4.2 Auto-Generated Metadata** - Observability depth
 4. **7.3 Real-Time Progress** - Depends on API capabilities
 5. **5.1 Provider Benchmarking** - Data-driven routing
-6. **9.3 MCP Client Mode** - Design done, connections not yet built
-7. **7.4 TUI Dashboard** - Stretch goal
-8. **9.7 Future MCP Directions** - Stretch goals
+
+**Web Dashboard:**
+6. **Report Viewer** - Markdown rendering, syntax highlighting
+7. **Expert Management UI** - Expose CLI expert features to web
+8. **WebSocket Progress** - Real-time job updates
+
+**Infrastructure:**
+9. **9.3 MCP Client Mode** - Design done, connections not yet built
+10. **Authentication** - Required for team deployment
+11. **7.4 TUI Dashboard** - Stretch goal
 
 ---
 
 ## Non-Goals
 
-Not building:
-- Chat interface (use ChatGPT, Copilot, Claude, Gemini, Grok, etc.)
-- Real-time responses (deep research takes minutes by design)
-- Sub-$1 research (comprehensive research costs money)
-- Mobile apps
-- Features that might not work reliably
+Explicitly out of scope:
+
+- **Chat interface** — Use ChatGPT, Claude, Gemini, etc. for conversational AI
+- **Real-time responses** — Deep research takes minutes by design; this is a feature, not a bug
+- **Sub-$1 research** — Comprehensive research requires substantial compute
+- **Mobile apps** — CLI and web dashboard cover the use cases
+- **Unreliable features** — Nothing ships until it works consistently
 
 ## Contributing
 
-High-value areas: context chaining logic, synthesis prompts, cost optimization, provider integrations, CLI UX. Most impactful work is on the intelligence layer, not infrastructure.
+We welcome contributions. Here's where help is most valuable:
+
+| Area | Examples | Impact |
+|------|----------|--------|
+| **Provider integrations** | New providers, API updates, error handling | High |
+| **Cost optimization** | Token estimation, caching, batch strategies | High |
+| **Expert system** | Knowledge synthesis, gap detection, learning | High |
+| **CLI UX** | Interactive mode, progress, output formatting | Medium |
+| **Web dashboard** | React components, API endpoints, real-time updates | Medium |
+| **Documentation** | Examples, tutorials, API docs | Medium |
+| **Testing** | Integration tests, edge cases, provider mocks | Medium |
+
+**Before contributing:**
+
+1. Check [open issues](https://github.com/blisspixel/deepr/issues) for existing work
+2. For large changes, open an issue first to discuss approach
+3. Run `ruff check . && ruff format .` before committing
+4. Add tests for new functionality
+5. Update documentation if adding features
+
+Most impactful work is on the intelligence layer (prompts, synthesis, expert learning) rather than infrastructure.
 
 ## Version History
 
@@ -296,11 +366,14 @@ High-value areas: context chaining logic, synthesis prompts, cost optimization, 
 | v2.2 | Semantic commands | Complete |
 | v2.3 | Expert system | Complete |
 | v2.4-2.5 | MCP integration, agentic experts | Complete |
-| v2.6 | Observability, fallback, cost dashboard | In Progress |
-| v2.7 | Modern CLI UX | Planned |
-| v2.8 | Provider routing | Planned |
+| v2.6 | Observability, fallback, cost dashboard | Complete |
+| v2.7 | Web dashboard, modern CLI UX | In Progress |
+| v2.8 | Provider routing, context discovery | Planned |
+| v2.9 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement | Future |
 
-See [docs/MODELS.md](docs/MODELS.md) for model selection, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details and budget protection, and [docs/VISION.md](docs/VISION.md) for long-term direction.
+---
 
-**[MIT License](LICENSE)** | **[GitHub](https://github.com/blisspixel/deepr)**
+**Questions?** Open a [GitHub Discussion](https://github.com/blisspixel/deepr/discussions) or check the [documentation](docs/).
+
+[MIT License](LICENSE) · [GitHub](https://github.com/blisspixel/deepr)

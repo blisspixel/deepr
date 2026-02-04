@@ -25,7 +25,7 @@ import math
 import os
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,6 +33,11 @@ from deepr.observability.circuit_breaker import CircuitBreakerRegistry, CircuitS
 
 # Module logger for debugging persistence and validation issues
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 # Configuration constants
 ROLLING_WINDOW_SIZE = 20  # Number of recent samples for rolling averages
@@ -143,7 +148,7 @@ class ProviderMetrics:
         self.success_count += 1
         self.total_latency_ms += latency_ms
         self.total_cost += cost
-        self.last_success = datetime.utcnow()
+        self.last_success = datetime.now(timezone.utc)
         
         # Update rolling averages (keep last ROLLING_WINDOW_SIZE entries)
         self.rolling_latencies.append(latency_ms)
@@ -160,7 +165,7 @@ class ProviderMetrics:
             error: Error message
         """
         self.failure_count += 1
-        self.last_failure = datetime.utcnow()
+        self.last_failure = datetime.now(timezone.utc)
         self.last_error = error
     
     def is_healthy(self, min_success_rate: float = 0.8, max_age_hours: int = 24) -> bool:
@@ -184,7 +189,7 @@ class ProviderMetrics:
         if self.last_failure and self.last_success:
             if self.last_failure > self.last_success:
                 # Last request failed
-                hours_since = (datetime.utcnow() - self.last_failure).total_seconds() / 3600
+                hours_since = (datetime.now(timezone.utc) - self.last_failure).total_seconds() / 3600
                 if hours_since < 1:  # Recent failure
                     return False
         
@@ -241,7 +246,7 @@ class FallbackEvent:
     fallback_model: str
     reason: str
     success: bool
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -596,7 +601,7 @@ class AutonomousProviderRouter:
         
         # Penalty for recent failures
         if metrics.last_failure:
-            hours_since = (datetime.utcnow() - metrics.last_failure).total_seconds() / 3600
+            hours_since = (datetime.now(timezone.utc) - metrics.last_failure).total_seconds() / 3600
             if hours_since < 1:
                 score *= 0.5
             elif hours_since < 6:
@@ -618,7 +623,7 @@ class AutonomousProviderRouter:
             "fallback_events": [
                 e.to_dict() for e in self.fallback_events[-MAX_STORED_FALLBACK_EVENTS:]
             ],
-            "saved_at": datetime.utcnow().isoformat()
+            "saved_at": datetime.now(timezone.utc).isoformat()
         }
         
         # Atomic write: write to temp file, then rename
