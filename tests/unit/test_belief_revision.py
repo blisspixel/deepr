@@ -13,7 +13,7 @@ import pytest
 import asyncio
 import tempfile
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Set
 
@@ -124,7 +124,7 @@ class TestConfidenceDecay:
             decay_rate=0.01
         )
         # Simulate 30 days old
-        belief.updated_at = datetime.utcnow() - timedelta(days=30)
+        belief.updated_at = datetime.now(timezone.utc) - timedelta(days=30)
         
         current = belief.get_current_confidence()
         expected = 0.9 * math.exp(-0.01 * 30)
@@ -138,8 +138,8 @@ class TestConfidenceDecay:
         fast_decay = Belief(claim="Fast", confidence=0.9, decay_rate=0.1)
         
         # Simulate 30 days old
-        slow_decay.updated_at = datetime.utcnow() - timedelta(days=30)
-        fast_decay.updated_at = datetime.utcnow() - timedelta(days=30)
+        slow_decay.updated_at = datetime.now(timezone.utc) - timedelta(days=30)
+        fast_decay.updated_at = datetime.now(timezone.utc) - timedelta(days=30)
         
         slow_current = slow_decay.get_current_confidence()
         fast_current = fast_decay.get_current_confidence()
@@ -149,7 +149,7 @@ class TestConfidenceDecay:
     def test_is_stale_threshold(self):
         """Test is_stale with different thresholds."""
         belief = Belief(claim="Test", confidence=0.5, decay_rate=0.01)
-        belief.updated_at = datetime.utcnow() - timedelta(days=100)
+        belief.updated_at = datetime.now(timezone.utc) - timedelta(days=100)
         
         current = belief.get_current_confidence()
         
@@ -329,7 +329,7 @@ class TestBeliefStore:
         
         # Add stale belief (old and low confidence after decay)
         stale = Belief(claim="Stale", confidence=0.4, domain="test", decay_rate=0.1)
-        stale.updated_at = datetime.utcnow() - timedelta(days=100)
+        stale.updated_at = datetime.now(timezone.utc) - timedelta(days=100)
         store.add_belief(stale)
         
         stale_beliefs = store.get_stale_beliefs(threshold=0.3)
@@ -677,7 +677,7 @@ class TestSharedBeliefStore:
         
         # Add stale belief
         stale = Belief(claim="Stale", confidence=0.2, domain="test", decay_rate=0.5)
-        stale.updated_at = datetime.utcnow() - timedelta(days=365)
+        stale.updated_at = datetime.now(timezone.utc) - timedelta(days=365)
         store.domain_stores["test"] = store.domain_stores.get("test", {})
         store.domain_stores["test"][stale.id] = stale
         
@@ -775,7 +775,7 @@ class TestBeliefProperties:
         current1 = belief.get_current_confidence()
         
         # Age the belief
-        belief.updated_at = datetime.utcnow() - timedelta(days=days_old)
+        belief.updated_at = datetime.now(timezone.utc) - timedelta(days=days_old)
         current2 = belief.get_current_confidence()
         
         # Older belief should have same or lower confidence
@@ -1264,7 +1264,7 @@ class TestDecayMathProperties:
             confidence=confidence,
             decay_rate=decay_rate
         )
-        belief.updated_at = datetime.utcnow() - timedelta(days=days)
+        belief.updated_at = datetime.now(timezone.utc) - timedelta(days=days)
         
         current = belief.get_current_confidence()
         expected = confidence * math.exp(-decay_rate * days)
@@ -1289,7 +1289,7 @@ class TestDecayMathProperties:
             confidence=confidence,
             decay_rate=decay_rate
         )
-        belief.updated_at = datetime.utcnow() - timedelta(days=half_life_days)
+        belief.updated_at = datetime.now(timezone.utc) - timedelta(days=half_life_days)
         
         current = belief.get_current_confidence()
         expected_half = confidence / 2
