@@ -4,13 +4,14 @@ AWS Fargate worker for Deepr research jobs.
 Polls SQS for jobs, executes research, stores results in S3.
 """
 
+import asyncio
 import json
+import logging
 import os
 import sys
-import logging
-import asyncio
-import boto3
 from datetime import datetime, timezone
+
+import boto3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,18 +86,35 @@ def save_result(job_id: str, content: str):
 async def execute_research(job: dict) -> tuple[str, float, int]:
     """Execute research job using Deepr providers."""
     # Import here after secrets are loaded
-    from deepr.providers.openai_provider import OpenAIProvider
     from deepr.providers.base import ResearchRequest, ToolConfig
+    from deepr.providers.openai_provider import OpenAIProvider
 
     job_id = job['id']
     prompt = job['prompt']
-    model = job.get('model', 'o4-mini-deep-research')
     enable_web_search = job.get('enable_web_search', True)
 
-    logger.info(f"Executing research job {job_id} with model {model}")
+    # Check for auto-routed jobs with routing decision
+    if job.get('auto_routed') and job.get('routing_decision'):
+        routing = job['routing_decision']
+        provider_name = routing.get('provider', 'openai')
+        model = routing.get('model', 'o4-mini-deep-research')
+        logger.info(f"Auto-routed job {job_id}: {provider_name}/{model} (complexity: {routing.get('complexity')})")
+    else:
+        model = job.get('model', 'o4-mini-deep-research')
+        provider_name = job.get('provider', 'openai')
 
-    # Initialize provider
-    provider = OpenAIProvider()
+    logger.info(f"Executing research job {job_id} with {provider_name}/{model}")
+
+    # Initialize provider based on routing decision
+    if provider_name == 'xai':
+        from deepr.providers.xai_provider import XAIProvider
+        provider = XAIProvider()
+    elif provider_name == 'gemini':
+        from deepr.providers.gemini_provider import GeminiProvider
+        provider = GeminiProvider()
+    else:
+        # Default to OpenAI for openai/azure
+        provider = OpenAIProvider()
 
     # Create request
     request = ResearchRequest(

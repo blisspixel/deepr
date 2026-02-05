@@ -32,7 +32,7 @@ class TestProviderMetrics:
     def test_initial_state(self):
         """New metrics should have zero counts and default success rate."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         assert metrics.provider == "openai"
         assert metrics.model == "gpt-4o"
         assert metrics.success_count == 0
@@ -51,9 +51,9 @@ class TestProviderMetrics:
     def test_record_success(self):
         """Recording success should update counts and averages."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         metrics.record_success(latency_ms=1500.0, cost=0.05)
-        
+
         assert metrics.success_count == 1
         assert metrics.failure_count == 0
         assert metrics.total_requests == 1
@@ -67,10 +67,10 @@ class TestProviderMetrics:
     def test_record_multiple_successes(self):
         """Multiple successes should compute correct averages."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         metrics.record_success(latency_ms=1000.0, cost=0.04)
         metrics.record_success(latency_ms=2000.0, cost=0.06)
-        
+
         assert metrics.success_count == 2
         assert metrics.avg_latency_ms == 1500.0  # (1000 + 2000) / 2
         assert metrics.avg_cost == 0.05  # (0.04 + 0.06) / 2
@@ -78,9 +78,9 @@ class TestProviderMetrics:
     def test_record_failure(self):
         """Recording failure should update failure count and error."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         metrics.record_failure(error="Rate limit exceeded")
-        
+
         assert metrics.success_count == 0
         assert metrics.failure_count == 1
         assert metrics.total_requests == 1
@@ -91,13 +91,13 @@ class TestProviderMetrics:
     def test_success_rate_calculation(self):
         """Success rate should be calculated correctly."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         # 3 successes, 1 failure = 75% success rate
         metrics.record_success(latency_ms=1000.0, cost=0.05)
         metrics.record_success(latency_ms=1000.0, cost=0.05)
         metrics.record_success(latency_ms=1000.0, cost=0.05)
         metrics.record_failure(error="Timeout")
-        
+
         assert metrics.success_count == 3
         assert metrics.failure_count == 1
         assert metrics.total_requests == 4
@@ -106,11 +106,11 @@ class TestProviderMetrics:
     def test_rolling_average_window(self):
         """Rolling averages should keep only last 20 entries."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         # Record 25 successes
         for i in range(25):
             metrics.record_success(latency_ms=float(i * 100), cost=float(i) * 0.01)
-        
+
         # Should only keep last 20
         assert len(metrics.rolling_latencies) == 20
         assert len(metrics.rolling_costs) == 20
@@ -120,21 +120,21 @@ class TestProviderMetrics:
     def test_rolling_avg_latency(self):
         """Rolling average latency should use recent values."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         metrics.record_success(latency_ms=1000.0, cost=0.05)
         metrics.record_success(latency_ms=2000.0, cost=0.05)
         metrics.record_success(latency_ms=3000.0, cost=0.05)
-        
+
         assert metrics.rolling_avg_latency == 2000.0  # (1000 + 2000 + 3000) / 3
 
     def test_rolling_avg_latency_empty(self):
         """Rolling average should fall back to overall average when empty."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         # Manually set totals without rolling data
         metrics.success_count = 5
         metrics.total_latency_ms = 5000.0
-        
+
         assert metrics.rolling_avg_latency == 1000.0  # Falls back to avg_latency_ms
 
     def test_is_healthy_new_provider(self):
@@ -145,16 +145,16 @@ class TestProviderMetrics:
     def test_is_healthy_good_success_rate(self):
         """Providers with good success rate should be healthy."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         for _ in range(10):
             metrics.record_success(latency_ms=1000.0, cost=0.05)
-        
+
         assert metrics.is_healthy() is True
 
     def test_is_healthy_low_success_rate(self):
         """Providers with low success rate should be unhealthy."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         # 2 successes, 4 failures = 33% success rate (below 80% threshold)
         metrics.record_success(latency_ms=1000.0, cost=0.05)
         metrics.record_success(latency_ms=1000.0, cost=0.05)
@@ -162,22 +162,22 @@ class TestProviderMetrics:
         metrics.record_failure(error="Error 2")
         metrics.record_failure(error="Error 3")
         metrics.record_failure(error="Error 4")
-        
+
         assert metrics.is_healthy(min_success_rate=0.8) is False
 
     def test_is_healthy_recent_failure(self):
         """Provider with very recent failure should be unhealthy."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         # Record success first
         metrics.record_success(latency_ms=1000.0, cost=0.05)
-        
+
         # Manually set last_success to be older than the failure we're about to record
         metrics.last_success = utc_now() - timedelta(minutes=5)
-        
+
         # Now record failure (will have current timestamp)
         metrics.record_failure(error="Recent error")
-        
+
         # Last failure is more recent than last success
         assert metrics.last_failure > metrics.last_success
         assert metrics.is_healthy() is False
@@ -185,18 +185,18 @@ class TestProviderMetrics:
     def test_is_healthy_only_failures(self):
         """Provider with only failures should be unhealthy."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
-        
+
         metrics.record_failure(error="Error")
-        
+
         assert metrics.is_healthy() is False
 
     def test_to_dict_serialization(self):
         """Metrics should serialize to dictionary correctly."""
         metrics = ProviderMetrics(provider="openai", model="gpt-4o")
         metrics.record_success(latency_ms=1500.0, cost=0.05)
-        
+
         data = metrics.to_dict()
-        
+
         assert data["provider"] == "openai"
         assert data["model"] == "gpt-4o"
         assert data["success_count"] == 1
@@ -221,9 +221,9 @@ class TestProviderMetrics:
             "rolling_latencies": [1000.0, 1500.0],
             "rolling_costs": [0.04, 0.06],
         }
-        
+
         metrics = ProviderMetrics.from_dict(data)
-        
+
         assert metrics.provider == "anthropic"
         assert metrics.model == "claude-3-5-sonnet"
         assert metrics.success_count == 10
@@ -245,7 +245,7 @@ class TestFallbackEvent:
             reason="Rate limit exceeded",
             success=True,
         )
-        
+
         assert event.original_provider == "openai"
         assert event.original_model == "gpt-4o"
         assert event.fallback_provider == "anthropic"
@@ -264,9 +264,9 @@ class TestFallbackEvent:
             reason="Timeout",
             success=False,
         )
-        
+
         data = event.to_dict()
-        
+
         assert data["original_provider"] == "openai"
         assert data["original_model"] == "gpt-4o"
         assert data["fallback_provider"] == "anthropic"
@@ -288,7 +288,7 @@ class TestAutonomousProviderRouter:
     def test_initialization(self, temp_storage):
         """Router should initialize with empty metrics."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         assert len(router.metrics) == 0
         assert len(router.fallback_events) == 0
         assert router.fallback_chain == router.DEFAULT_FALLBACK_CHAIN
@@ -300,13 +300,13 @@ class TestAutonomousProviderRouter:
             storage_path=temp_storage,
             fallback_chain=custom_chain,
         )
-        
+
         assert router.fallback_chain == custom_chain
 
     def test_record_success(self, temp_storage):
         """Recording success should create and update metrics."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result(
             provider="openai",
             model="gpt-4o",
@@ -314,7 +314,7 @@ class TestAutonomousProviderRouter:
             latency_ms=1500.0,
             cost=0.05,
         )
-        
+
         key = ("openai", "gpt-4o")
         assert key in router.metrics
         assert router.metrics[key].success_count == 1
@@ -323,14 +323,14 @@ class TestAutonomousProviderRouter:
     def test_record_failure(self, temp_storage):
         """Recording failure should update metrics."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result(
             provider="openai",
             model="gpt-4o",
             success=False,
             error="Rate limit exceeded",
         )
-        
+
         key = ("openai", "gpt-4o")
         assert key in router.metrics
         assert router.metrics[key].failure_count == 1
@@ -339,9 +339,9 @@ class TestAutonomousProviderRouter:
     def test_select_provider_default(self, temp_storage):
         """Select provider should return from fallback chain for new router."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         provider, model = router.select_provider()
-        
+
         # Should return first from fallback chain or task preferences
         assert provider is not None
         assert model is not None
@@ -349,11 +349,11 @@ class TestAutonomousProviderRouter:
     def test_select_provider_with_task_type(self, temp_storage):
         """Select provider should consider task type preferences."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Research task should prefer research-optimized models
         provider, model = router.select_provider(task_type="research")
         assert provider is not None
-        
+
         # Quick task should prefer fast models
         provider, model = router.select_provider(task_type="quick")
         assert provider is not None
@@ -361,23 +361,23 @@ class TestAutonomousProviderRouter:
     def test_select_provider_excludes_specified(self, temp_storage):
         """Select provider should exclude specified providers."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Exclude all but one option
         exclude = [
             ("openai", "gpt-4o"),
             ("openai", "gpt-4o-mini"),
             ("anthropic", "claude-3-5-sonnet-20241022"),
         ]
-        
+
         provider, model = router.select_provider(exclude=exclude)
-        
+
         # Should not return excluded providers
         assert (provider, model) not in exclude
 
     def test_select_provider_prefers_healthy(self, temp_storage):
         """Select provider should prefer healthy providers."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Make one provider unhealthy
         for _ in range(10):
             router.record_result(
@@ -386,7 +386,7 @@ class TestAutonomousProviderRouter:
                 success=False,
                 error="Repeated failures",
             )
-        
+
         # Make another provider healthy
         for _ in range(10):
             router.record_result(
@@ -396,9 +396,9 @@ class TestAutonomousProviderRouter:
                 latency_ms=1000.0,
                 cost=0.05,
             )
-        
+
         provider, model = router.select_provider()
-        
+
         # Should prefer the healthy provider
         # (exact result depends on scoring, but unhealthy should be penalized)
         assert provider is not None
@@ -406,13 +406,13 @@ class TestAutonomousProviderRouter:
     def test_get_fallback_returns_next_healthy(self, temp_storage):
         """Get fallback should return next healthy provider in chain."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         fallback = router.get_fallback(
             failed_provider="openai",
             failed_model="gpt-4o",
             reason="Rate limit",
         )
-        
+
         assert fallback is not None
         assert fallback != ("openai", "gpt-4o")
         # Should record fallback event
@@ -421,7 +421,7 @@ class TestAutonomousProviderRouter:
     def test_get_fallback_skips_unhealthy(self, temp_storage):
         """Get fallback should skip unhealthy providers."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Make first fallback option unhealthy
         first_fallback = router.fallback_chain[1]  # Skip the failed one
         for _ in range(10):
@@ -431,13 +431,13 @@ class TestAutonomousProviderRouter:
                 success=False,
                 error="Unhealthy",
             )
-        
+
         fallback = router.get_fallback(
             failed_provider=router.fallback_chain[0][0],
             failed_model=router.fallback_chain[0][1],
             reason="Error",
         )
-        
+
         # Should skip the unhealthy one
         if fallback is not None:
             assert fallback != first_fallback or router.metrics[first_fallback].is_healthy()
@@ -449,7 +449,7 @@ class TestAutonomousProviderRouter:
             storage_path=temp_storage,
             fallback_chain=[("openai", "gpt-4o")],
         )
-        
+
         # Make the only option unhealthy
         for _ in range(10):
             router.record_result(
@@ -458,34 +458,34 @@ class TestAutonomousProviderRouter:
                 success=False,
                 error="Unhealthy",
             )
-        
-        fallback = router.get_fallback(
+
+        router.get_fallback(
             failed_provider="openai",
             failed_model="gpt-4o",
             reason="Error",
         )
-        
+
         # May return None or the unhealthy option depending on implementation
         # The key is it doesn't crash
 
     def test_get_status(self, temp_storage):
         """Get status should return comprehensive status info."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Record some activity
         router.record_result("openai", "gpt-4o", True, 1000.0, 0.05)
         router.record_result("openai", "gpt-4o", True, 1500.0, 0.06)
         router.record_result("anthropic", "claude-3-5-sonnet", False, error="Error")
-        
+
         status = router.get_status()
-        
+
         assert "providers" in status
         assert "healthy_count" in status
         assert "unhealthy_count" in status
         assert "total_requests" in status
         assert "total_cost" in status
         assert "recent_fallbacks" in status
-        
+
         assert status["total_requests"] == 3
         assert status["total_cost"] == 0.11  # 0.05 + 0.06
 
@@ -495,10 +495,10 @@ class TestAutonomousProviderRouter:
         router1 = AutonomousProviderRouter(storage_path=temp_storage)
         router1.record_result("openai", "gpt-4o", True, 1500.0, 0.05)
         router1.record_result("openai", "gpt-4o", False, error="Test error")
-        
+
         # Create new router that loads from same path
         router2 = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         key = ("openai", "gpt-4o")
         assert key in router2.metrics
         assert router2.metrics[key].success_count == 1
@@ -507,15 +507,15 @@ class TestAutonomousProviderRouter:
     def test_exact_tuple_matching(self, temp_storage):
         """Router should use exact (provider, model) matching, not substrings."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Record for specific model
         router.record_result("openai", "gpt-4o", True, 1000.0, 0.05)
         router.record_result("openai", "gpt-4o-mini", True, 500.0, 0.01)
-        
+
         # Should have separate entries
         assert ("openai", "gpt-4o") in router.metrics
         assert ("openai", "gpt-4o-mini") in router.metrics
-        
+
         # Metrics should be independent
         assert router.metrics[("openai", "gpt-4o")].success_count == 1
         assert router.metrics[("openai", "gpt-4o-mini")].success_count == 1
@@ -523,15 +523,15 @@ class TestAutonomousProviderRouter:
     def test_scoring_prefers_cost_when_requested(self, temp_storage):
         """Scoring should weight cost more heavily when prefer_cost=True."""
         router = AutonomousProviderRouter(storage_path=temp_storage, min_samples=1)
-        
+
         # Expensive but fast provider
         for _ in range(5):
             router.record_result("openai", "gpt-4o", True, 500.0, 0.10)
-        
+
         # Cheap but slower provider
         for _ in range(5):
             router.record_result("openai", "gpt-4o-mini", True, 1000.0, 0.01)
-        
+
         # When preferring cost, should lean toward cheaper option
         provider, model = router.select_provider(prefer_cost=True)
         # The exact result depends on scoring weights, but the test ensures
@@ -541,15 +541,15 @@ class TestAutonomousProviderRouter:
     def test_scoring_prefers_speed_when_requested(self, temp_storage):
         """Scoring should weight latency more heavily when prefer_speed=True."""
         router = AutonomousProviderRouter(storage_path=temp_storage, min_samples=1)
-        
+
         # Fast but expensive provider
         for _ in range(5):
             router.record_result("openai", "gpt-4o", True, 500.0, 0.10)
-        
+
         # Slow but cheap provider
         for _ in range(5):
             router.record_result("openai", "gpt-4o-mini", True, 2000.0, 0.01)
-        
+
         # When preferring speed, should lean toward faster option
         provider, model = router.select_provider(prefer_speed=True)
         assert provider is not None
@@ -570,7 +570,7 @@ class TestProviderRouterEdgeCases:
         temp_storage.parent.mkdir(parents=True, exist_ok=True)
         with open(temp_storage, "w") as f:
             f.write("not valid json {{{")
-        
+
         # Should not crash, just start fresh
         router = AutonomousProviderRouter(storage_path=temp_storage)
         assert len(router.metrics) == 0
@@ -590,7 +590,7 @@ class TestProviderRouterEdgeCases:
         }
         with open(temp_storage, "w") as f:
             json.dump(data, f)
-        
+
         # Should load with defaults for missing fields
         router = AutonomousProviderRouter(storage_path=temp_storage)
         key = ("openai", "gpt-4o")
@@ -600,9 +600,9 @@ class TestProviderRouterEdgeCases:
     def test_zero_latency_and_cost(self, temp_storage):
         """Router should handle zero latency and cost values."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", True, 0.0, 0.0)
-        
+
         key = ("openai", "gpt-4o")
         assert router.metrics[key].avg_latency_ms == 0.0
         assert router.metrics[key].avg_cost == 0.0
@@ -610,28 +610,28 @@ class TestProviderRouterEdgeCases:
     def test_very_high_latency(self, temp_storage):
         """Router should handle very high latency values."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # 5 minute latency
         router.record_result("openai", "gpt-4o", True, 300000.0, 0.05)
-        
+
         key = ("openai", "gpt-4o")
         assert router.metrics[key].avg_latency_ms == 300000.0
 
     def test_empty_error_message(self, temp_storage):
         """Router should handle empty error messages."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", False, error="")
-        
+
         key = ("openai", "gpt-4o")
         assert router.metrics[key].last_error == ""
 
     def test_negative_latency_clamped(self, temp_storage):
         """Negative latency should be clamped to zero."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", True, latency_ms=-100.0, cost=0.05)
-        
+
         key = ("openai", "gpt-4o")
         # Negative latency should be clamped to 0
         assert router.metrics[key].avg_latency_ms == 0.0
@@ -640,9 +640,9 @@ class TestProviderRouterEdgeCases:
     def test_negative_cost_clamped(self, temp_storage):
         """Negative cost should be clamped to zero."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", True, latency_ms=1000.0, cost=-0.10)
-        
+
         key = ("openai", "gpt-4o")
         # Negative cost should be clamped to 0
         assert router.metrics[key].avg_cost == 0.0
@@ -651,9 +651,9 @@ class TestProviderRouterEdgeCases:
     def test_nan_latency_handled(self, temp_storage):
         """NaN latency should be clamped to zero, not corrupt metrics."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", True, latency_ms=float('nan'), cost=0.05)
-        
+
         key = ("openai", "gpt-4o")
         # NaN should be clamped to 0
         assert router.metrics[key].avg_latency_ms == 0.0
@@ -662,9 +662,9 @@ class TestProviderRouterEdgeCases:
     def test_infinity_latency_handled(self, temp_storage):
         """Infinity latency should be clamped to zero."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", True, latency_ms=float('inf'), cost=0.05)
-        
+
         key = ("openai", "gpt-4o")
         # Infinity should be clamped to 0
         assert router.metrics[key].avg_latency_ms == 0.0
@@ -673,9 +673,9 @@ class TestProviderRouterEdgeCases:
     def test_negative_infinity_latency_handled(self, temp_storage):
         """Negative infinity latency should be clamped to zero."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         router.record_result("openai", "gpt-4o", True, latency_ms=float('-inf'), cost=0.05)
-        
+
         key = ("openai", "gpt-4o")
         # Negative infinity should be clamped to 0
         assert router.metrics[key].avg_latency_ms == 0.0
@@ -683,14 +683,14 @@ class TestProviderRouterEdgeCases:
     def test_unicode_error_messages(self, temp_storage):
         """Router should handle Unicode characters in error messages."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         # Error message with various Unicode characters
         unicode_error = "Error: 日本語 emoji 🚀 special chars äöü"
         router.record_result("openai", "gpt-4o", False, error=unicode_error)
-        
+
         key = ("openai", "gpt-4o")
         assert router.metrics[key].last_error == unicode_error
-        
+
         # Verify persistence works with Unicode
         router2 = AutonomousProviderRouter(storage_path=temp_storage)
         assert router2.metrics[key].last_error == unicode_error
@@ -698,12 +698,245 @@ class TestProviderRouterEdgeCases:
     def test_very_long_provider_name(self, temp_storage):
         """Router should handle very long provider/model names."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
-        
+
         long_provider = "a" * 1000
         long_model = "b" * 1000
-        
+
         router.record_result(long_provider, long_model, True, 1000.0, 0.05)
-        
+
         key = (long_provider, long_model)
         assert key in router.metrics
         assert router.metrics[key].success_count == 1
+
+
+class TestTaskTypeTracking:
+    """Tests for task type success rate tracking."""
+
+    @pytest.fixture
+    def temp_storage(self):
+        """Create temporary storage path for tests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir) / "metrics.json"
+
+    def test_record_success_with_task_type(self, temp_storage):
+        """Recording success with task_type should track per-task stats."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        metrics.record_success(latency_ms=1000.0, cost=0.05, task_type="research")
+        metrics.record_success(latency_ms=1000.0, cost=0.05, task_type="research")
+        metrics.record_success(latency_ms=500.0, cost=0.02, task_type="chat")
+
+        # Should track per task type
+        assert "research" in metrics.task_type_stats
+        assert "chat" in metrics.task_type_stats
+        assert metrics.task_type_stats["research"]["success"] == 2
+        assert metrics.task_type_stats["chat"]["success"] == 1
+
+    def test_record_failure_with_task_type(self, temp_storage):
+        """Recording failure with task_type should track per-task stats."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        metrics.record_success(latency_ms=1000.0, cost=0.05, task_type="research")
+        metrics.record_failure(error="Rate limit", task_type="research")
+
+        assert metrics.task_type_stats["research"]["success"] == 1
+        assert metrics.task_type_stats["research"]["failure"] == 1
+
+    def test_get_task_type_success_rate(self, temp_storage):
+        """Should calculate success rate per task type."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        # 3 successes, 1 failure for research
+        for _ in range(3):
+            metrics.record_success(latency_ms=1000.0, cost=0.05, task_type="research")
+        metrics.record_failure(error="Error", task_type="research")
+
+        # 100% success for chat
+        metrics.record_success(latency_ms=500.0, cost=0.02, task_type="chat")
+
+        assert metrics.get_task_type_success_rate("research") == 0.75
+        assert metrics.get_task_type_success_rate("chat") == 1.0
+        # Unknown task type returns 1.0 (optimistic)
+        assert metrics.get_task_type_success_rate("unknown") == 1.0
+
+    def test_get_all_task_type_stats(self, temp_storage):
+        """Should return all task type statistics."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        metrics.record_success(latency_ms=1000.0, cost=0.05, task_type="research")
+        metrics.record_failure(error="Error", task_type="research")
+        metrics.record_success(latency_ms=500.0, cost=0.02, task_type="chat")
+
+        stats = metrics.get_all_task_type_stats()
+
+        assert "research" in stats
+        assert "chat" in stats
+        assert stats["research"]["success_count"] == 1
+        assert stats["research"]["failure_count"] == 1
+        assert stats["research"]["total"] == 2
+        assert stats["research"]["success_rate"] == 0.5
+        assert stats["chat"]["success_rate"] == 1.0
+
+    def test_task_type_stats_serialization(self, temp_storage):
+        """Task type stats should serialize and deserialize correctly."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        metrics.record_success(latency_ms=1000.0, cost=0.05, task_type="research")
+        metrics.record_failure(error="Error", task_type="chat")
+
+        # Serialize
+        data = metrics.to_dict()
+
+        # Deserialize
+        loaded = ProviderMetrics.from_dict(data)
+
+        assert loaded.task_type_stats == metrics.task_type_stats
+        assert loaded.get_task_type_success_rate("research") == 1.0
+        assert loaded.get_task_type_success_rate("chat") == 0.0
+
+    def test_router_record_result_with_task_type(self, temp_storage):
+        """Router should pass task_type to metrics."""
+        router = AutonomousProviderRouter(storage_path=temp_storage)
+
+        router.record_result(
+            provider="openai",
+            model="gpt-4o",
+            success=True,
+            latency_ms=1000.0,
+            cost=0.05,
+            task_type="research"
+        )
+
+        key = ("openai", "gpt-4o")
+        assert "research" in router.metrics[key].task_type_stats
+
+
+class TestLatencyPercentiles:
+    """Tests for latency percentile calculations."""
+
+    def test_percentile_empty_list(self):
+        """Empty list should return 0."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        assert metrics.latency_p50 == 0.0
+        assert metrics.latency_p95 == 0.0
+        assert metrics.latency_p99 == 0.0
+
+    def test_percentile_single_value(self):
+        """Single value should return that value for all percentiles."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+        metrics.record_success(latency_ms=1000.0, cost=0.05)
+
+        assert metrics.latency_p50 == 1000.0
+        assert metrics.latency_p95 == 1000.0
+        assert metrics.latency_p99 == 1000.0
+
+    def test_percentile_multiple_values(self):
+        """Multiple values should calculate correct percentiles."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        # Add values 100, 200, 300, ..., 2000 (20 values)
+        for i in range(1, 21):
+            metrics.record_success(latency_ms=i * 100.0, cost=0.05)
+
+        # P50 should be around 1050 (middle of 100-2000)
+        assert 1000 <= metrics.latency_p50 <= 1100
+
+        # P95 should be around 1950
+        assert 1800 <= metrics.latency_p95 <= 2000
+
+        # P99 should be close to 2000
+        assert 1900 <= metrics.latency_p99 <= 2000
+
+    def test_get_latency_percentiles(self):
+        """Should return all percentiles in a dictionary."""
+        metrics = ProviderMetrics(provider="openai", model="gpt-4o")
+
+        for i in range(1, 11):
+            metrics.record_success(latency_ms=i * 100.0, cost=0.05)
+
+        percentiles = metrics.get_latency_percentiles()
+
+        assert "p50" in percentiles
+        assert "p95" in percentiles
+        assert "p99" in percentiles
+        assert "avg" in percentiles
+
+
+class TestBenchmarkData:
+    """Tests for benchmark data generation."""
+
+    @pytest.fixture
+    def temp_storage(self):
+        """Create temporary storage path for tests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir) / "metrics.json"
+
+    def test_get_benchmark_data_empty(self, temp_storage):
+        """Empty router should return empty benchmarks."""
+        router = AutonomousProviderRouter(storage_path=temp_storage)
+
+        data = router.get_benchmark_data()
+
+        assert data["benchmarks"] == []
+        assert data["summary"]["total_providers"] == 0
+
+    def test_get_benchmark_data_with_metrics(self, temp_storage):
+        """Should return benchmark data for recorded providers."""
+        router = AutonomousProviderRouter(storage_path=temp_storage)
+
+        # Record some metrics
+        for _ in range(5):
+            router.record_result(
+                "openai", "gpt-4o", True,
+                latency_ms=1000.0, cost=0.05, task_type="research"
+            )
+        router.record_result("openai", "gpt-4o", False, error="Error", task_type="research")
+
+        data = router.get_benchmark_data()
+
+        assert len(data["benchmarks"]) == 1
+        benchmark = data["benchmarks"][0]
+
+        assert benchmark["provider"] == "openai"
+        assert benchmark["model"] == "gpt-4o"
+        assert benchmark["total_requests"] == 6
+        assert 0.8 <= benchmark["success_rate"] <= 0.84  # 5/6
+        assert "latency" in benchmark
+        assert "p50_ms" in benchmark["latency"]
+        assert "p95_ms" in benchmark["latency"]
+        assert "p99_ms" in benchmark["latency"]
+        assert "task_types" in benchmark
+        assert "research" in benchmark["task_types"]
+
+    def test_get_benchmark_data_summary(self, temp_storage):
+        """Should include summary statistics."""
+        router = AutonomousProviderRouter(storage_path=temp_storage)
+
+        # Add two providers
+        router.record_result("openai", "gpt-4o", True, 1000.0, 0.05)
+        router.record_result("xai", "grok-4", True, 800.0, 0.03)
+
+        data = router.get_benchmark_data()
+
+        assert data["summary"]["total_providers"] == 2
+        assert data["summary"]["total_requests"] == 2
+        assert data["summary"]["total_cost_usd"] == 0.08
+        assert "generated_at" in data
+
+    def test_get_benchmark_data_sorted_by_success_rate(self, temp_storage):
+        """Benchmarks should be sorted by success rate (descending)."""
+        router = AutonomousProviderRouter(storage_path=temp_storage)
+
+        # Provider with 50% success rate
+        router.record_result("openai", "gpt-4o", True, 1000.0, 0.05)
+        router.record_result("openai", "gpt-4o", False, error="Error")
+
+        # Provider with 100% success rate
+        router.record_result("xai", "grok-4", True, 800.0, 0.03)
+
+        data = router.get_benchmark_data()
+
+        # xai should be first (100% success rate)
+        assert data["benchmarks"][0]["provider"] == "xai"
+        assert data["benchmarks"][1]["provider"] == "openai"

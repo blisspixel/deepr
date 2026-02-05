@@ -14,9 +14,9 @@
 
 ---
 
-## Current Status (v2.7)
+## Current Status (v2.8)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 3300+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
+Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -26,6 +26,7 @@ These features are well-tested and used regularly:
 - **Cost controls**: Budget limits, cost tracking, `costs show/timeline/breakdown`
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
+- **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
 - **Provider support**: OpenAI (GPT-5.2, o3/o4-mini-deep-research), Gemini (2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
@@ -33,7 +34,7 @@ These features are well-tested and used regularly:
 
 These features work but APIs or behavior may change:
 
-- **Web dashboard**: Local research management UI - job queue, results library, cost analytics
+- **Web dashboard**: Local research management UI - 10 pages with expert management, trace explorer, cost intelligence, real-time progress
 - **MCP server**: Functional with 10 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
@@ -48,10 +49,12 @@ These features work but APIs or behavior may change:
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis
 - MCP server with 10 tools, persistence, security, multi-runtime configs
-- Web dashboard (job queue, results library, cost analytics, settings)
+- Web dashboard (10 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, trace explorer, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
 - Auto-fallback on provider failures with `--no-fallback` override
+- **Auto mode** (`--auto`) for smart query routing based on complexity (10-20x cost savings)
+- **Batch processing** (`--auto --batch queries.txt`) with per-query optimal routing
 - Cost dashboard (`costs timeline`, `costs breakdown --period`, `costs expert`)
 - Multi-layer budget protection with pause/resume
 - Docker deployment option
@@ -59,6 +62,8 @@ These features work but APIs or behavior may change:
 - GitHub Actions CI (lint + unit tests on push/PR)
 - Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
 - Coverage configuration with 60% minimum threshold
+- Context discovery with semantic search (`deepr search`, `--context` flag)
+- Distributed tracing with MetadataEmitter, spans, cost attribution
 
 ---
 
@@ -84,6 +89,15 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | 5.4 | Gemini Deep Research Agent (Interactions API, File Search Stores, adaptive polling) | v2.6 |
 | 10.1 | Cloud Deployment Templates (AWS SAM, Azure Bicep, GCP Terraform) | v2.6 |
 | 7.2 | Interactive Mode (no-args menu, query history, model picker with costs) | v2.7 |
+| 6.1 | Context Discovery (report indexing, semantic search, `deepr search` command) | v2.7 |
+| 6.2 | Notify-Only Context Discovery (automatic related research detection on submit) | v2.7 |
+| 6.3 | Explicit Context Reuse (`--context <id>` flag, stale warnings) | v2.7 |
+| 5.1 | Real-Time Benchmarking (latency percentiles, task type success rates, `providers benchmark --history`) | v2.8 |
+| 5.3 | Continuous Optimization (exploration/exploitation, auto-disable failing providers) | v2.8 |
+| 6.4 | Temporal Knowledge Tracking (timestamps, context chaining, hypothesis evolution) | v2.8 |
+| 6.5 | Dynamic Context Management (pruning, token budgets, findings storage) | v2.8 |
+| 7.3 | Real-Time Progress (phase tracking, progress bar, partial results streaming) | v2.8 |
+| 5.5 | Auto Mode: Smart Query Routing (`--auto`, `--batch`, `--dry-run`, complexity-based routing) | v2.8 |
 
 ---
 
@@ -134,7 +148,7 @@ sam build && sam deploy --guided
 - [x] Extend ThoughtStream to generate human-readable decision summaries (`generate_decision_summary()`)
 - [x] Add concise summary method for CLI output (`get_why_summary()`)
 - [x] Store decision logs alongside reports (`save_decision_log()` method)
-- [ ] Wire `--why` flag to CLI commands (currently use `--explain`)
+- [x] Wire `--why` flag to CLI commands (alias for `--explain`)
 
 #### 4.5 Research Quality Metrics
 - [x] Entropy-based stopping criteria (`EntropyStoppingCriteria` in `observability/stopping_criteria.py`)
@@ -149,50 +163,64 @@ sam build && sam deploy --guided
 **What exists:** AutonomousProviderRouter with scoring, fallback, circuit breakers. Auto-fallback wired into CLI.
 
 #### 5.1 Real-Time Performance Benchmarking
-- [ ] Add latency percentiles (p50, p95, p99) to ProviderMetrics with sliding window
-- [ ] Track success rate by task type (research, chat, synthesis, planning)
-- [ ] Add `deepr providers benchmark` command with `--quick` option
-- [ ] Store benchmark history for trend analysis and degradation alerts
+- [x] Add latency percentiles (p50, p95, p99) to ProviderMetrics with sliding window
+- [x] Track success rate by task type (research, chat, synthesis, planning)
+- [x] Add `deepr providers benchmark` command with `--quick` and `--history` options
+- [x] Store benchmark history for trend analysis (`get_benchmark_data()` method)
 
 #### 5.3 Continuous Optimization
-- [ ] Exploration vs exploitation (90/10 default, configurable)
-- [ ] A/B testing mode: same query on multiple providers
-- [ ] `deepr providers status` command (health, circuit breaker state)
-- [ ] Auto-disable failing providers (>50% failure rate, 1hr cooldown)
+- [x] Exploration vs exploitation (10% default, configurable via `exploration_rate`)
+- [ ] A/B testing mode: same query on multiple providers (stretch goal)
+- [x] `deepr providers status` command (health, circuit breaker state, auto-disabled)
+- [x] Auto-disable failing providers (>50% failure rate, 1hr cooldown)
+
+#### 5.5 Auto Mode: Smart Query Routing
+- [x] `AutoModeRouter` combining `ModelRouter` query analysis with `AutonomousProviderRouter` metrics (`routing/auto_mode.py`)
+- [x] `--auto` flag on `deepr research` for complexity-based routing (simple/moderate/complex)
+- [x] `--batch` flag for processing multiple queries from `.txt` or `.json` files (`services/batch_auto.py`)
+- [x] `--dry-run` flag to preview routing decisions and cost estimates without executing
+- [x] `--prefer-cost` and `--prefer-speed` optimization flags
+- [x] API key awareness: checks `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY` before routing to a provider
+- [x] Tiered deep research models: simple → grok-4-fast ($0.01), moderate → o4-mini-deep-research ($0.10), complex → o3-deep-research ($0.50)
+- [x] Budget-aware routing (downgrades through o3 → o4-mini → gpt-5.2 → grok-4-fast)
+- [x] Auto-routed jobs in queue schema (`auto_routed`, `routing_decision`, `batch_id` fields)
+- [x] AWS worker respects `routing_decision` for provider/model selection
+- [x] 44 unit tests covering routing logic, API key awareness, batch parsing, dry-run execution
 
 ---
 
 ### Priority 6: Context Discovery
 
-**What exists:** Reports stored with metadata, ContextBuilder service.
+**What exists:** Reports stored with metadata, ContextBuilder service, ContextIndex with embeddings.
 
 #### 6.1 Detect Related Prior Research
-- [ ] Index report metadata in SQLite with embeddings
-- [ ] Semantic similarity search (cosine, threshold > 0.7)
-- [ ] `deepr search "topic"` command with keyword + semantic results
-- [ ] Similarity scores and date sorting
+- [x] Index report metadata in SQLite with embeddings
+- [x] Semantic similarity search (cosine, threshold > 0.7)
+- [x] `deepr search "topic"` command with keyword + semantic results
+- [x] Similarity scores and date sorting
 
 #### 6.2 Notify-Only (Never Auto-Inject)
-- [ ] "Related research found" message before starting research
-- [ ] Actionable hint: "Use --context <id> to include previous findings"
-- [ ] `--ignore-related` flag to skip check
+- [x] "Related research found" message before starting research
+- [x] Actionable hint: "Use --context <id> to include previous findings"
+- [x] `--no-context-discovery` flag to skip check
 
 #### 6.3 Explicit Reuse with Warnings
-- [ ] `--context <report-id>` flag to include previous research
-- [ ] Stale context warnings (>30 days)
-- [ ] Cost savings estimate and context lineage tracking
+- [x] `--context <report-id>` flag to include previous research
+- [x] Stale context warnings (>30 days)
+- [x] Cost savings estimate when using `--context`
+- [x] Context lineage tracking (`--lineage` flag in trace command, tree visualization)
 
 #### 6.4 Temporal Knowledge Tracking
-- [ ] Track *when* findings were discovered (not just what)
-- [ ] Context chaining: output of phase N becomes structured input for phase N+1
-- [ ] Research timeline visualization (`--timeline` for multi-phase research)
-- [ ] Hypothesis evolution tracking (how understanding changed during research)
+- [x] Track *when* findings were discovered (`TemporalKnowledgeTracker` with timestamps)
+- [x] Context chaining: output of phase N becomes structured input for phase N+1 (`ContextChainer`)
+- [x] Research timeline visualization (`--timeline`, `--temporal` flags in trace command)
+- [x] Hypothesis evolution tracking (`Hypothesis`, `HypothesisEvolution` in temporal_tracker.py)
 
 #### 6.5 Dynamic Context Management
-- [ ] Context pruning for long research sessions (summarize older findings)
-- [ ] Token budget allocation across research phases
-- [ ] Offload intermediate findings to persistent storage
-- [ ] Context window utilization metrics in `--explain` output
+- [x] Context pruning for long research sessions (`ContextPruner` in services/context_pruner.py)
+- [x] Token budget allocation across research phases (`TokenBudgetAllocator` in services/token_budget.py)
+- [x] Offload intermediate findings to persistent storage (`FindingsStore` in storage/findings_store.py)
+- [x] Context window utilization metrics in `--explain` output (`--show-budget` flag in trace command)
 
 ---
 
@@ -204,9 +232,9 @@ sam build && sam deploy --guided
 - [x] Provider/model picker with cost estimates
 
 #### 7.3 Real-Time Progress for Long Operations
-- [ ] Poll provider status API and show phase progress
-- [ ] Stream partial results when API supports it
-- [ ] Progress bar for multi-phase operations
+- [x] Poll provider status API and show phase progress (`ResearchProgressTracker` in cli/realtime_progress.py)
+- [x] Stream partial results when API supports it (`show_partial` option in tracker)
+- [x] Progress bar for multi-phase operations (`--progress` flag in `deepr research wait`)
 
 #### 7.4 TUI Dashboard (Stretch)
 - [ ] `deepr ui` opens Textual-based terminal UI
@@ -214,14 +242,14 @@ sam build && sam deploy --guided
 - [ ] Keyboard navigation, split pane layout
 
 #### 7.5 Command Consolidation
-- [ ] Remove deprecated aliases (`run single`, `run campaign`)
-- [ ] Consolidate to core commands: `research`, `jobs`, `expert`, `config`
+- [x] Remove deprecated aliases (`run single`, `run campaign`)
+- [x] Consolidate to core commands: `research`, `jobs`, `expert`, `config`
 - [ ] Update documentation to match
 
 #### 7.6 Output Improvements (remaining)
 - [ ] Consistent key-value formatting across all commands
-- [ ] Truncate long outputs with "use --full to see all"
-- [ ] Hyperlinks to reports in supported terminals
+- [x] Truncate long outputs with "use --full to see all" (`print_truncated()` in colors.py)
+- [x] Hyperlinks to reports in supported terminals (`make_hyperlink()`, `print_report_link()` in colors.py)
 
 ---
 
@@ -306,20 +334,28 @@ Defense-in-depth for autonomous research operations, especially when using agent
 
 Local research management interface for monitoring batch operations. CLI remains primary for scripting/automation; dashboard provides visibility when running many concurrent jobs.
 
-**What exists:** React + TypeScript frontend with Flask backend. Dashboard, job queue, results library, cost analytics, settings. Light/dark mode. 22 API endpoints.
+**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask backend. 10 pages with code-split routing, Radix UI component library, Recharts charts, WebSocket real-time updates. Light/dark/system theme. 22 API endpoints.
 
 #### Completed
 - [x] Job submission and queue monitoring with real-time status
 - [x] Results library with search, sort, grid/list views
 - [x] Cost analytics with daily/monthly trends, budget alerts
 - [x] Settings page (API keys, limits, defaults)
-- [x] Modern UI with light/dark mode toggle
+- [x] Modern UI with light/dark/system mode toggle
 - [x] Full API coverage (jobs, costs, results, config)
+- [x] Frontend overhaul: Radix UI (shadcn/ui pattern) component library, Recharts, Zustand state, React Query
+- [x] Code-split lazy loading for all 10 routes (React.lazy + Suspense)
+- [x] Report viewer with markdown rendering, citation sidebar, export dropdown
+- [x] Expert management UI (list experts, view stats, chat, knowledge gaps, learning history)
+- [x] Research live page with WebSocket real-time progress updates
+- [x] Trace explorer for inspecting execution spans, timing, and cost attribution
+- [x] Overview dashboard with activity feed, system health, spending summary
+- [x] Research studio with mode selector, model picker, web search toggle
+- [x] Cost intelligence page with per-model breakdown, budget sliders, anomaly detection
+- [x] Command palette (Ctrl+K) for quick navigation
+- [x] Toast notifications for user feedback (Sonner)
 
 #### Core Improvements
-- [ ] Report viewer with full markdown rendering and syntax highlighting
-- [ ] Expert management UI (list, create, chat with domain experts)
-- [ ] Job detail page with live progress updates (WebSocket)
 - [ ] Export results (PDF, DOCX in addition to Markdown)
 - [ ] Tags and folders for organizing research by project
 
@@ -368,32 +404,96 @@ Local research management interface for monitoring batch operations. CLI remains
 
 ## Build Order
 
-Recommended sequence for remaining work:
+Recommended sequence for remaining work (updated 2026-02-04):
 
-**CLI & Core:**
-1. **7.2 Interactive Mode** - High user value
-2. **6.1 Context Discovery** - New feature, moderate effort
-3. **4.2 Auto-Generated Metadata** - Observability depth
-4. **4.5 Research Quality Metrics** - Entropy-based stopping, quality scores
-5. **6.4-6.5 Temporal Knowledge & Context Management** - Long research sessions
-6. **7.3 Real-Time Progress** - Depends on API capabilities
-7. **5.1 Provider Benchmarking** - Data-driven routing
+### Phase 1: Polish & Quick Wins
+*Low effort, immediate value, cleans up loose ends*
 
-**MCP & Execution:**
-8. **MCP Client Mode** - Design done, connections not yet built
-9. **Async Task Handling** - Progress monitoring, parallel dispatch
-10. **Enhanced Elicitation** - Human-in-the-loop for blocked operations
-11. **Execution Security** - Permission boundaries, isolation (for agentic mode)
+| Item | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 4.4 | Wire `--why` flag to CLI (alias for `--explain`) | Small | Done |
+| 6.3 | Cost savings estimate when using `--context` | Small | Done |
+| 7.5 | Command consolidation (remove `run single`, `run campaign`) | Small | Done |
+| 7.6 | Output improvements (truncation, hyperlinks) | Small | Done |
+| Tests | Integration tests, 80% coverage target | Medium | In Progress |
 
-**Web Dashboard:**
-12. **Report Viewer** - Markdown rendering, syntax highlighting
-13. **Expert Management UI** - Expose CLI expert features to web
-14. **WebSocket Progress** - Real-time job updates
+### Phase 2: Provider Intelligence
+*Data-driven routing, reliability metrics, cost optimization*
 
-**Team Features:**
-15. **Authentication** - Required for team deployment
-16. **Skill System Enhancements** - Conversion, meta-skills, marketplace
-17. **7.4 TUI Dashboard** - Stretch goal
+| Item | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 5.1 | Real-time benchmarking (latency percentiles, success rates) | Medium | Done |
+| 5.3 | Continuous optimization (exploration/exploitation, auto-disable) | Medium | Done |
+| 5.5 | Auto mode: smart query routing (`--auto`, `--batch`, `--dry-run`) | Medium | Done |
+| - | `deepr providers status` and `deepr providers benchmark` | Small | Done |
+| - | `deepr providers list` - show available models | Small | Done |
+
+### Phase 3: Advanced Context
+*Builds on completed 6.1-6.3, for long research sessions*
+
+| Item | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 6.4 | Temporal knowledge tracking (when findings discovered) | Medium | Done |
+| 6.5 | Dynamic context management (pruning, token budgets) | Medium | Done |
+| - | Context lineage tracking and visualization | Medium | Done |
+
+### Phase 4: Real-Time Progress
+*Better UX for long-running operations*
+
+| Item | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 7.3 | Poll provider status API, show phase progress | Medium | Done |
+| - | Stream partial results when supported | Medium | Done |
+| - | WebSocket updates for web dashboard | Medium | Done |
+
+### Phase 5: MCP Client Mode
+*Deepr as tool consumer, not just provider*
+
+| Item | Description | Effort |
+|------|-------------|--------|
+| - | Implement MCP client connections (Stdio, SSE) | Large |
+| - | Brave Search and Puppeteer adapters | Medium |
+| - | Async task handling with progress monitoring | Large |
+| - | Enhanced elicitation (human-in-the-loop) | Medium |
+
+### Phase 6: Web Dashboard
+*Improve the visual interface*
+
+| Item | Description | Effort | Status |
+|------|-------------|--------|--------|
+| - | Report viewer with markdown rendering | Medium | Done |
+| - | Expert management UI | Medium | Done |
+| - | Trace explorer | Medium | Done |
+| - | Cost intelligence with charts | Medium | Done |
+| - | Tags and folders for organizing research | Medium | Pending |
+| - | Export results (PDF, DOCX) | Medium | Pending |
+
+### Phase 7: Team Features
+*Multi-user deployment*
+
+| Item | Description | Effort |
+|------|-------------|--------|
+| - | Authentication (JWT/OAuth) | Large |
+| - | Team workspaces with shared libraries | Large |
+| - | Role-based access and audit log | Medium |
+
+### Phase 8: Security Hardening
+*For production agentic deployments*
+
+| Item | Description | Effort |
+|------|-------------|--------|
+| - | Permission boundaries (read-only default) | Medium |
+| - | Execution isolation (sandboxed parsing) | Large |
+| - | Cryptographic verification (stretch) | Large |
+
+### Stretch Goals
+*Nice to have, lower priority*
+
+- 7.4 TUI Dashboard (Textual-based)
+- 8.x NVIDIA NIM Provider
+- Skill marketplace and meta-skills
+- Multi-agent swarm support
+- Remote MCP (SSE, edge deployment)
 
 ---
 
@@ -403,7 +503,7 @@ Explicitly out of scope:
 
 - **Chat interface** — Use ChatGPT, Claude, Gemini, etc. for conversational AI
 - **Real-time responses** — Deep research takes minutes by design; this is a feature, not a bug
-- **Sub-$1 research** — Comprehensive research requires substantial compute
+- **Sub-$1 comprehensive research** — Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
 - **Mobile apps** — CLI and web dashboard cover the use cases
 - **Unreliable features** — Nothing ships until it works consistently
 
@@ -413,17 +513,16 @@ We welcome contributions. Here's where help is most valuable:
 
 | Area | Examples | Impact |
 |------|----------|--------|
-| **Context management** | Temporal tracking, context pruning, phase chaining | High |
-| **Research quality** | Entropy metrics, stopping criteria, quality scoring | High |
-| **MCP client mode** | Async tasks, progress handling, elicitation flows | High |
-| **Provider integrations** | New providers, API updates, error handling | High |
-| **Cost optimization** | Token estimation, caching, batch strategies | High |
+| **Provider intelligence** | Benchmarking, latency tracking, auto mode routing | High |
+| **Advanced context** | Temporal tracking, context pruning, lineage | High |
+| **MCP client mode** | Client connections, async tasks, elicitation | High |
+| **Real-time progress** | Provider polling, WebSocket updates, streaming | High |
 | **Expert system** | Knowledge synthesis, gap detection, learning | High |
-| **Execution security** | Sandboxing, verification, permission boundaries | Medium |
-| **CLI UX** | Interactive mode, progress, output formatting | Medium |
-| **Web dashboard** | React components, API endpoints, real-time updates | Medium |
+| **Testing** | Integration tests, provider mocks, 80% coverage | High |
+| **Web dashboard** | Report viewer, expert UI, real-time updates | Medium |
+| **CLI polish** | Output formatting, command consolidation | Medium |
+| **Security** | Permission boundaries, sandboxing, isolation | Medium |
 | **Documentation** | Examples, tutorials, API docs | Medium |
-| **Testing** | Integration tests, edge cases, provider mocks | Medium |
 
 **Before contributing:**
 
@@ -444,10 +543,11 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.3 | Expert system | Complete |
 | v2.4-2.5 | MCP integration, agentic experts | Complete |
 | v2.6 | Observability, fallback, cost dashboard | Complete |
-| v2.7 | Web dashboard, modern CLI UX | In Progress |
-| v2.8 | Provider routing, context discovery | Planned |
-| v2.9 | Team features (auth, workspaces) | Planned |
-| v3.0+ | Self-improvement | Future |
+| v2.7 | Context discovery, interactive mode, tracing | Complete |
+| v2.8 | Provider intelligence, advanced context | In Progress |
+| v2.9 | MCP client mode, real-time progress | Planned |
+| v2.10 | Team features (auth, workspaces) | Planned |
+| v3.0+ | Self-improvement, autonomous learning | Future |
 
 ---
 
