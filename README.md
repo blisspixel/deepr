@@ -297,6 +297,14 @@ See [ROADMAP.md](ROADMAP.md) for planned work and priorities.
 
 ---
 
-Built by [Nick Seal](mailto:nick@pueo.io). Started as a weekend experiment with OpenAI's deep research API and grew into a provider-agnostic research automation platform.
+## A Note on This Project
+
+Deepr is a nights-and-weekends passion project by [Nick Seal](mailto:nick@pueo.io). It started as a weekend experiment with OpenAI's deep research API and grew from there.
+
+I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. At minimum, building Deepr is a way to learn the space deeply and explore what's possible. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
+
+This is not a commercial product. There's no company behind it, no SLA, and no guarantees. It's maintained in my spare time because I find the problem space fascinating. If you find it useful, that's great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions) — I'm happy to help when I can.
+
+Use at your own risk, especially around cost controls and API spending. The budget guardrails are well-tested (3600+ tests), but you're ultimately responsible for your own API keys and usage.
 
 [GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)
