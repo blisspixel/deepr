@@ -416,6 +416,8 @@ Recommended sequence for remaining work (updated 2026-02-04):
 | 7.5 | Command consolidation (remove `run single`, `run campaign`) | Small | Done |
 | 7.6 | Output improvements (truncation, hyperlinks) | Small | Done |
 | Tests | Integration tests, 80% coverage target | Medium | In Progress |
+| - | README demo GIF (CLI research query + web dashboard) | Small | Pending |
+| - | Architecture diagram in README (Mermaid) | Small | Done |
 
 ### Phase 2: Provider Intelligence
 *Data-driven routing, reliability metrics, cost optimization*
