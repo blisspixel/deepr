@@ -5,6 +5,106 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-02-04
+
+### Added
+
+**Provider Intelligence (5.1, 5.3)**
+- Latency percentiles (p50, p95, p99) in `ProviderMetrics` for performance analysis
+- Success rate tracking by task type (research, chat, synthesis, planning)
+- `deepr providers benchmark --history` command to view historical benchmark data
+- `deepr providers benchmark --json` for machine-readable output
+- Exploration vs exploitation in provider routing (10% exploration rate, configurable)
+- Auto-disable failing providers (>50% failure rate, 1hr cooldown)
+- `deepr providers status` shows auto-disabled providers with cooldown info
+
+**Advanced Context (6.4, 6.5)**
+- Temporal knowledge tracking wired into `ResearchOrchestrator`
+- `--temporal` flag in `deepr research trace` shows findings/hypothesis timeline
+- `--lineage` flag in `deepr research trace` shows context flow visualization (tree view)
+- Context chaining via `ContextChainer` for phase-to-phase handoff
+- Temporal data export in trace files
+
+**Web Dashboard Overhaul**
+- Rebuilt frontend with React 18, Vite, Tailwind CSS 3.4, and Radix UI (shadcn/ui pattern) component library
+- 10 pages with code-split lazy loading via React.lazy and Suspense
+- New pages: Overview (activity feed, system health), Research Studio (mode selector, model picker), Research Live (WebSocket progress), Result Detail (markdown viewer, citation sidebar, export), Expert Hub (list, stats, knowledge gaps), Expert Profile (chat, gaps, history), Cost Intelligence (charts, budget sliders, anomaly detection), Trace Explorer (execution spans, timing, cost)
+- WebSocket integration for real-time job status updates (Socket.io client connected in AppShell)
+- Command palette (Ctrl+K) for quick navigation across all pages
+- Light/dark/system theme support via Zustand store
+- Toast notifications via Sonner for all user-facing actions
+- Recharts for cost trends, model breakdown, and utilization charts
+- Fixed: division by zero in cost utilization calculations
+- Fixed: unsafe URL parsing in citation display
+- Fixed: budget sliders firing mutations on every pixel drag (debounced)
+- Fixed: expert profile "Research this" button was not wired
+- Fixed: research studio mode selector was ignored in submit payload
+- Fixed: citation sidebar invisible on mobile viewports
+- Removed dead code: unused type files, legacy pages, stale constants, unused components
+
+**Real-Time Progress (7.3)**
+- `ResearchProgressTracker` for live progress updates during research
+- `--progress` flag in `deepr research wait` shows phase tracking with progress bar
+- Phase detection (queued → initializing → searching → analyzing → synthesizing → finalizing)
+- Partial results streaming when provider supports it
+- Customizable poll intervals via `--poll-interval`
+
+**Output Improvements (7.6)**
+- `print_truncated()` utility for long output with "use --full to see all"
+- `make_hyperlink()` and `print_report_link()` for clickable links in supported terminals
+
+### Changed
+
+- `ProviderMetrics.record_success()` and `record_failure()` now accept optional `task_type` parameter
+- `AutonomousProviderRouter.record_result()` now accepts optional `task_type` parameter
+- `AutonomousProviderRouter.select_provider()` now filters auto-disabled providers and adds exploration
+- `get_status()` includes latency percentiles and task type stats per provider
+- Enhanced providers CLI with historical data display and JSON export
+- `MetadataEmitter.save_trace()` now includes temporal knowledge data when tracker is set
+- Removed deprecated `run single` and `run campaign` commands (use `research` instead)
+
+---
+
+## [2.7.0] - 2026-02-04
+
+### Added
+
+**Context Discovery (6.1-6.3)**
+- `deepr search query "topic"` command with semantic + keyword search across prior research
+- `deepr search index` to index reports with embeddings (text-embedding-3-small)
+- `deepr search stats` to view index statistics
+- Automatic related research detection on `deepr research submit`
+- `--context <job-id>` flag to include prior research as context
+- `--no-context-discovery` flag to skip automatic detection
+- Stale context warnings (>30 days old)
+- Context truncation for token budget management
+- Job ID prefix matching (can use `--context abc123` instead of full UUID)
+
+**Observability Improvements (4.2, 4.4, 4.5)**
+- Instrumented `core/research.py` with spans for submit, completion, cancel operations
+- Instrumented `experts/chat.py` with spans for tool calls and message handling
+- Cost attribution per span with token counts
+- ThoughtStream decision summary generation (`generate_decision_summary()`, `get_why_summary()`)
+- Research quality metrics: `EntropyStoppingCriteria`, `InformationGainTracker`, `QualityMetrics`
+- Temporal knowledge tracking with `TemporalKnowledgeTracker`
+
+**Code Quality**
+- Configuration consolidation: single `Settings` class in `core/settings.py`
+- ExpertProfile refactoring with composed managers (`budget_manager.py`, `activity_tracker.py`)
+- 300+ new tests (3600+ total)
+
+### Changed
+
+- Interactive mode (`deepr` with no args) now shows model picker with cost estimates
+- Improved test stability with faster hypothesis strategies
+
+### Fixed
+
+- Flaky hypothesis test `test_episode_tags_preserved` (42+ second generation time)
+- Windows console Unicode encoding for ThoughtStream summaries
+
+---
+
 ## [2.6.0] - 2026-02-03
 
 ### Added
