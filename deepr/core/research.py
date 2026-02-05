@@ -6,6 +6,8 @@ workflow including:
 - Document upload and vector store management
 - Job completion processing and report generation
 - Resource cleanup
+- Temporal knowledge tracking (6.4)
+- Context chaining between phases (6.4)
 
 Instrumented with distributed tracing for observability (4.2 Auto-Generated Metadata).
 """
@@ -18,12 +20,14 @@ from pathlib import Path
 from ..providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
 from ..storage.base import StorageBackend
 from ..formatting.converters import ReportConverter
-from ..utils.prompt_security import PromptSanitizer, SanitizationResult
+from ..utils.prompt_security import PromptSanitizer
 from .documents import DocumentManager
 from .reports import ReportGenerator
 
 # Observability infrastructure
 from ..observability.metadata import MetadataEmitter
+from ..observability.temporal_tracker import TemporalKnowledgeTracker, FindingType
+from ..services.context_chainer import ContextChainer
 
 # Cost estimates sourced from the model registry (single source of truth).
 # get_cost_estimate() looks up cost_per_query from providers/registry.py.
@@ -59,6 +63,7 @@ class ResearchOrchestrator:
         report_generator: ReportGenerator,
         system_message: Optional[str] = None,
         emitter: Optional[MetadataEmitter] = None,
+        enable_temporal_tracking: bool = True,
     ):
         """
         Initialize research orchestrator.
@@ -70,6 +75,7 @@ class ResearchOrchestrator:
             report_generator: Report generation instance
             system_message: Custom system message (optional)
             emitter: Optional MetadataEmitter for span tracking
+            enable_temporal_tracking: Enable temporal knowledge tracking (default True)
         """
         self.provider = provider
         self.storage = storage
@@ -79,6 +85,11 @@ class ResearchOrchestrator:
 
         # Observability: MetadataEmitter for span tracking
         self._emitter = emitter or MetadataEmitter()
+
+        # Temporal knowledge tracking (6.4)
+        self._enable_temporal = enable_temporal_tracking
+        self._temporal_trackers: Dict[str, TemporalKnowledgeTracker] = {}
+        self._context_chainer = ContextChainer()
 
         # Track active vector stores for cleanup
         self.active_vector_stores: Dict[str, str] = {}  # job_id -> vector_store_id
@@ -216,6 +227,13 @@ class ResearchOrchestrator:
             # Generate job ID
             job_id = str(uuid.uuid4())
             op.set_attribute("job_id", job_id)
+
+            # Initialize temporal tracking for this job (6.4)
+            if self._enable_temporal:
+                tracker = TemporalKnowledgeTracker(job_id=job_id)
+                self._temporal_trackers[job_id] = tracker
+                self._emitter.set_temporal_tracker(tracker)
+                op.add_event("temporal_tracking_enabled", {"job_id": job_id})
 
             # Prepare metadata
             job_metadata = metadata or {}
@@ -387,6 +405,21 @@ class ResearchOrchestrator:
             # Track content size
             op.set_attribute("raw_text_length", len(raw_text))
 
+            # Extract findings for temporal tracking (6.4)
+            if self._enable_temporal and job_id in self._temporal_trackers:
+                tracker = self._temporal_trackers[job_id]
+                structured = self._context_chainer.structure_phase_output(
+                    raw_output=raw_text,
+                    phase=1,  # Single-phase research
+                    tracker=tracker
+                )
+                op.add_event("temporal_findings_extracted", {
+                    "finding_count": len(structured.key_findings),
+                    "entity_count": len(structured.entities),
+                    "open_questions": len(structured.open_questions)
+                })
+                self._emitter.set_temporal_tracker(tracker)
+
             # Extract metadata for title generation
             title = response.metadata.get("report_title", "Research Report") if response.metadata else "Research Report"
             op.set_attribute("report_title", title)
@@ -512,3 +545,104 @@ class ResearchOrchestrator:
             path: Path to save the trace
         """
         self._emitter.save_trace(path)
+
+    def get_temporal_tracker(self, job_id: str) -> Optional[TemporalKnowledgeTracker]:
+        """Get the temporal tracker for a specific job.
+
+        Args:
+            job_id: Job identifier
+
+        Returns:
+            TemporalKnowledgeTracker or None if not found/disabled
+        """
+        return self._temporal_trackers.get(job_id)
+
+    def record_finding(
+        self,
+        job_id: str,
+        text: str,
+        phase: int = 1,
+        confidence: float = 0.5,
+        source: Optional[str] = None,
+        finding_type: FindingType = FindingType.FACT,
+    ):
+        """Record a finding for temporal tracking.
+
+        Args:
+            job_id: Job identifier
+            text: Finding text
+            phase: Phase number (default 1)
+            confidence: Confidence score (0-1)
+            source: Source URL or reference
+            finding_type: Type of finding
+        """
+        if job_id in self._temporal_trackers:
+            self._temporal_trackers[job_id].record_finding(
+                text=text,
+                phase=phase,
+                confidence=confidence,
+                source=source,
+                finding_type=finding_type,
+            )
+
+    def build_phase_context(
+        self,
+        job_id: str,
+        current_phase: int,
+        max_tokens: Optional[int] = None,
+        focus_query: Optional[str] = None,
+    ) -> str:
+        """Build structured context from prior phases for context chaining.
+
+        Args:
+            job_id: Job identifier
+            current_phase: Current phase number
+            max_tokens: Maximum tokens for context
+            focus_query: Optional query to focus context on
+
+        Returns:
+            Formatted context string for the next phase
+        """
+        tracker = self._temporal_trackers.get(job_id)
+        if not tracker:
+            return ""
+
+        # Get findings organized by phase
+        prior_phases = []
+        for phase_num in range(1, current_phase):
+            phase_findings = tracker.get_timeline(phase=phase_num)
+            if phase_findings:
+                from ..services.context_chainer import StructuredPhaseOutput, ExtractedFinding
+
+                # Convert temporal findings to structured output
+                key_findings = [
+                    ExtractedFinding(
+                        text=f.text,
+                        confidence=f.confidence,
+                        finding_type=f.finding_type,
+                        source=f.source,
+                        importance=f.confidence,  # Use confidence as proxy for importance
+                    )
+                    for f in phase_findings
+                ]
+
+                structured = StructuredPhaseOutput(
+                    phase=phase_num,
+                    key_findings=key_findings,
+                    summary=f"Phase {phase_num} findings",
+                    entities=[],  # Could extract from metadata
+                    open_questions=[],
+                    contradictions=[],
+                    confidence_avg=sum(f.confidence for f in phase_findings) / len(phase_findings) if phase_findings else 0.5,
+                )
+                prior_phases.append(structured)
+
+        if not prior_phases:
+            return ""
+
+        return self._context_chainer.build_structured_context(
+            prior_phases=prior_phases,
+            current_phase=current_phase,
+            max_tokens=max_tokens,
+            focus_query=focus_query,
+        )

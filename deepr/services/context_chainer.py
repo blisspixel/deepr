@@ -33,7 +33,6 @@ import hashlib
 
 from deepr.observability.temporal_tracker import (
     TemporalKnowledgeTracker,
-    TemporalFinding,
     FindingType,
 )
 from deepr.core.constants import MAX_CONTEXT_TOKENS

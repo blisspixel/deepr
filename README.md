@@ -1,10 +1,10 @@
 # Deepr
 
-[![Tests](https://img.shields.io/badge/tests-3300%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr/actions)
+[![Tests](https://img.shields.io/badge/tests-3600%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr/actions)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](https://github.com/blisspixel/deepr/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.7-orange)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-2.8-orange)](ROADMAP.md)
 
 **Deep research agents for automation — the same technology behind ChatGPT and Gemini, but scriptable.**
 
@@ -83,6 +83,22 @@ deepr team "Should we build an internal ML platform or use AWS SageMaker?"
 
 # Vendor analysis
 deepr make strategy "Migrate from Snowflake to Databricks" --perspective cost
+
+# Auto mode — smart routing for cost-effective research
+deepr research --auto "What is Python?"                      # Simple → grok-4-fast ($0.01)
+deepr research --auto "Analyze Tesla's competitive position" # Complex → o3-deep-research ($0.50)
+
+# Batch mode — process many queries cost-effectively
+deepr research --auto --batch queries.txt                    # Route each query optimally
+deepr research --auto --batch queries.txt --dry-run          # Preview routing without executing
+
+# Real-time progress tracking
+deepr research wait abc123 --progress  # Live phase tracking with progress bar
+
+# Research observability
+deepr research trace abc123 --timeline   # Reasoning evolution
+deepr research trace abc123 --temporal   # Knowledge discovery timeline
+deepr research trace abc123 --lineage    # Context flow visualization
 ```
 
 ### Domain Experts (The Interesting Part)
@@ -151,7 +167,7 @@ Claude Code:
 
 ### Web Dashboard
 
-A local research management interface for when you want a visual view of your research operations.
+A local research management interface for when you want a visual view of your research operations. Built with React, TypeScript, and Tailwind CSS.
 
 ```bash
 pip install -e ".[web]"
@@ -159,12 +175,19 @@ python -m deepr.web.app
 # Open http://localhost:5000
 ```
 
-**Features:**
-- **Dashboard** - Quick research submission, active jobs, spending summary
-- **Job Queue** - Monitor all jobs with real-time status updates, cancel running jobs
-- **Results Library** - Search and browse completed research, grid/list views
-- **Cost Analytics** - Daily/monthly spending trends, budget alerts, per-model breakdown
-- **Settings** - API keys, budget limits, default model preferences
+**Pages:**
+- **Overview** - Active jobs, recent activity feed, spending summary, system health
+- **Research Studio** - Submit research with mode selection, model picker, and web search toggle
+- **Research Live** - Real-time progress tracking for running jobs via WebSocket
+- **Results Library** - Search, filter, and browse completed research with grid/list views
+- **Result Detail** - Full markdown report viewer with citation sidebar and export options
+- **Expert Hub** - List and manage domain experts, view knowledge gaps and stats
+- **Expert Profile** - Chat with experts, browse knowledge gaps, view learning history
+- **Cost Intelligence** - Spending trends, per-model breakdown, budget controls with charts
+- **Trace Explorer** - Inspect research execution spans, timing, cost attribution
+- **Settings** - Theme, API keys, budget limits, default model preferences
+
+The frontend uses code-split routing for fast initial loads, WebSocket for real-time job updates, and light/dark/system theme support. The UI is built on Radix UI primitives with Recharts for data visualization.
 
 **For team deployment**, the dashboard can be containerized and deployed to cloud infrastructure. See [deploy/README.md](deploy/README.md) for AWS, Azure, and GCP templates. Authentication and multi-user features are on the roadmap.
 
@@ -181,9 +204,9 @@ Works across OpenAI, Google Gemini, xAI Grok, Anthropic Claude, and Azure OpenAI
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, OpenAI and Gemini providers, local SQLite storage. 3300+ tests.
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI and Gemini providers, local SQLite storage. 3600+ tests.
 
-**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (functional for local use), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
+**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (functional for local use, recently overhauled), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -195,21 +218,26 @@ Research costs real money ($1-$20 per run depending on depth). Deepr has multi-l
 - Pre-submission cost estimates
 - Pause/resume at budget boundaries
 - Cost tracking and anomaly detection
+- **Auto mode** — Smart routing cuts costs 10-20x for simple queries
 
 ```bash
 deepr budget set 5                                  # Set $5 limit
 deepr cost estimate "Your prompt"                   # Estimate before running
 deepr costs show                                    # See what you've spent
 deepr costs timeline --days 14                      # Trends with anomaly detection
+deepr research --auto --batch queries.txt --dry-run # Preview costs before executing
 ```
 
 | Depth | Estimated Cost | Output |
 |-------|---------------|--------|
+| Auto mode (simple) | $0.01-$0.02 | Fast answer via grok-4-fast or gpt-5.2 |
+| Auto mode (moderate) | $0.10 | o4-mini-deep-research |
+| Auto mode (complex) | $0.10-$0.50 | o4-mini or o3-deep-research |
 | Quick insight | $1-$2 | Focused summary with citations |
 | Comprehensive | $2-$5 | Detailed structured report |
 | Multi-phase | $5-$15 | Context-linked analysis |
 
-**Tip:** Start with small budgets and use pre-paid API credits with auto-reload OFF.
+**Tip:** Use `--auto` for batch operations. Process 20+ queries for $1-2 instead of $20-40. Start with `--dry-run` to preview routing decisions. Routing adapts to which API keys you have configured.
 
 ## Documentation
 
@@ -242,7 +270,7 @@ deepr costs timeline --days 14                      # Trends with anomaly detect
 - Budget controls to prevent runaway costs
 - Optional Docker isolation for untrusted workloads
 
-CI runs ruff (lint + format) and 3300+ unit tests on every push. See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
+CI runs ruff (lint + format) and 3600+ unit tests on every push. See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
 **Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
