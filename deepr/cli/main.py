@@ -31,8 +31,8 @@ def cli():
     pass
 
 
-# Import command groups
-from deepr.cli.commands import (
+# Import command groups (after cli group to avoid circular imports)
+from deepr.cli.commands import (  # noqa: E402
     analytics,
     budget,
     config,
@@ -47,12 +47,13 @@ from deepr.cli.commands import (
     migrate,
     providers,
     run,
+    search,
     semantic,
     status,
     templates,
     vector,
 )
-from deepr.cli.commands import help as help_cmd
+from deepr.cli.commands import help as help_cmd  # noqa: E402
 
 # Core commands - new structure
 cli.add_command(run.run)
@@ -95,6 +96,7 @@ cli.add_command(mcp.mcp)
 cli.add_command(help_cmd.help)
 cli.add_command(costs.costs)
 cli.add_command(providers.providers)
+cli.add_command(search.search)
 
 
 def main():

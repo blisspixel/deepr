@@ -2,9 +2,9 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 def _utc_now() -> datetime:
@@ -62,6 +62,11 @@ class ResearchJob:
     tags: List[str] = field(default_factory=list)
     callback_url: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    # Auto-mode routing (when --auto flag is used)
+    auto_routed: bool = False
+    routing_decision: Optional[Dict[str, Any]] = None  # Serialized AutoModeDecision
+    batch_id: Optional[str] = None  # For batch processing
 
 
 class QueueBackend(ABC):
