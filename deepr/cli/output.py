@@ -17,7 +17,6 @@ Usage:
 
 import json
 import os
-import sys
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -31,52 +30,50 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 class OutputMode(Enum):
     """Output verbosity modes for CLI."""
-    MINIMAL = "minimal"   # Default: single success line
-    VERBOSE = "verbose"   # Detailed output (current behavior)
-    JSON = "json"         # Machine-readable JSON
-    QUIET = "quiet"       # No output except errors
+
+    MINIMAL = "minimal"  # Default: single success line
+    VERBOSE = "verbose"  # Detailed output (current behavior)
+    JSON = "json"  # Machine-readable JSON
+    QUIET = "quiet"  # No output except errors
 
 
 class OutputModeConflictError(click.UsageError):
     """Raised when conflicting output mode flags are provided."""
+
     pass
 
 
 @dataclass
 class OutputContext:
     """Context for a CLI operation's output.
-    
+
     Attributes:
         mode: The output verbosity mode
         start_time: When the operation started (set automatically)
         job_id: Optional job identifier for the operation
     """
+
     mode: OutputMode = OutputMode.MINIMAL
     start_time: Optional[float] = field(default=None)
     job_id: Optional[str] = None
-    
+
     def __post_init__(self):
         """Set start_time if not provided."""
         if self.start_time is None:
             self.start_time = time.time()
-    
+
     @classmethod
-    def from_flags(
-        cls,
-        verbose: bool = False,
-        json_output: bool = False,
-        quiet: bool = False
-    ) -> "OutputContext":
+    def from_flags(cls, verbose: bool = False, json_output: bool = False, quiet: bool = False) -> "OutputContext":
         """Create context from CLI flags, validating mutual exclusivity.
-        
+
         Args:
             verbose: Whether --verbose flag was provided
             json_output: Whether --json flag was provided
             quiet: Whether --quiet flag was provided
-            
+
         Returns:
             OutputContext with appropriate mode
-            
+
         Raises:
             OutputModeConflictError: If conflicting flags are provided
         """
@@ -88,12 +85,10 @@ class OutputContext:
             flags_set.append("--json")
         if quiet:
             flags_set.append("--quiet")
-        
+
         if len(flags_set) > 1:
-            raise OutputModeConflictError(
-                f"Cannot use {flags_set[0]} with {flags_set[1]}. Choose one output mode."
-            )
-        
+            raise OutputModeConflictError(f"Cannot use {flags_set[0]} with {flags_set[1]}. Choose one output mode.")
+
         # Determine mode
         if verbose:
             mode = OutputMode.VERBOSE
@@ -107,14 +102,14 @@ class OutputContext:
                 mode = OutputMode.VERBOSE
             else:
                 mode = OutputMode.MINIMAL
-        
+
         return cls(mode=mode)
 
 
 @dataclass
 class OperationResult:
     """Result of a CLI operation.
-    
+
     Attributes:
         success: Whether the operation succeeded
         duration_seconds: How long the operation took
@@ -124,6 +119,7 @@ class OperationResult:
         error: Error message (if failed)
         error_code: Error code for programmatic handling (if failed)
     """
+
     success: bool
     duration_seconds: float
     cost_usd: float
@@ -131,10 +127,10 @@ class OperationResult:
     job_id: Optional[str] = None
     error: Optional[str] = None
     error_code: Optional[str] = None
-    
+
     def to_json(self) -> str:
         """Serialize result to JSON string.
-        
+
         Returns:
             JSON string with all relevant fields
         """
@@ -144,30 +140,30 @@ class OperationResult:
                 "duration_seconds": self.duration_seconds,
                 "cost_usd": self.cost_usd,
                 "report_path": self.report_path or "",
-                "job_id": self.job_id or ""
+                "job_id": self.job_id or "",
             }
         else:
             data = {
                 "status": "error",
                 "error": self.error or "Unknown error",
-                "error_code": self.error_code or "UNKNOWN"
+                "error_code": self.error_code or "UNKNOWN",
             }
-        
+
         return json.dumps(data, ensure_ascii=False)
 
 
 def format_duration(seconds: float) -> str:
     """Format duration as human-readable string.
-    
+
     Args:
         seconds: Duration in seconds (0 to 86400)
-        
+
     Returns:
         Formatted string:
         - "{seconds}s" for durations < 60 seconds
         - "{minutes}m {seconds}s" for durations 60-3599 seconds
         - "{hours}h {minutes}m" for durations >= 3600 seconds
-        
+
     Examples:
         >>> format_duration(45.7)
         '46s'
@@ -178,7 +174,7 @@ def format_duration(seconds: float) -> str:
     """
     # Round to nearest second
     total_seconds = round(seconds)
-    
+
     if total_seconds < 60:
         return f"{total_seconds}s"
     elif total_seconds < 3600:
@@ -193,49 +189,49 @@ def format_duration(seconds: float) -> str:
 
 def parse_duration(formatted: str) -> float:
     """Parse formatted duration back to seconds.
-    
+
     Args:
         formatted: Duration string like "2m 15s", "45s", or "1h 30m"
-        
+
     Returns:
         Duration in seconds
-        
+
     Raises:
         ValueError: If format is not recognized
     """
     formatted = formatted.strip()
     total = 0.0
-    
+
     # Handle hours
     if "h" in formatted:
         parts = formatted.split("h")
         total += float(parts[0].strip()) * 3600
         formatted = parts[1].strip() if len(parts) > 1 else ""
-    
+
     # Handle minutes
     if "m" in formatted:
         parts = formatted.split("m")
         total += float(parts[0].strip()) * 60
         formatted = parts[1].strip() if len(parts) > 1 else ""
-    
+
     # Handle seconds
     if "s" in formatted:
         parts = formatted.split("s")
         total += float(parts[0].strip())
-    
+
     return total
 
 
 def format_cost(cost_usd: float) -> str:
     """Format cost as dollar string.
-    
+
     Args:
         cost_usd: Cost in USD (0.00 to 10000.00)
-        
+
     Returns:
         Formatted string with dollar sign and exactly two decimal places.
         Uses period as decimal separator regardless of locale.
-        
+
     Examples:
         >>> format_cost(0.42)
         '$0.42'
@@ -250,13 +246,13 @@ def format_cost(cost_usd: float) -> str:
 
 def parse_cost(formatted: str) -> float:
     """Parse formatted cost back to float.
-    
+
     Args:
         formatted: Cost string like "$0.42"
-        
+
     Returns:
         Cost in USD
-        
+
     Raises:
         ValueError: If format is not recognized
     """
@@ -265,29 +261,75 @@ def parse_cost(formatted: str) -> float:
     return float(cleaned)
 
 
+def truncate_with_hint(
+    text: str,
+    max_lines: int = 10,
+    max_chars: int = 2000,
+    hint_flag: str = "--verbose",
+) -> tuple[str, bool]:
+    """Truncate long text with a hint to see full output.
+
+    Args:
+        text: Text to potentially truncate
+        max_lines: Maximum lines before truncation
+        max_chars: Maximum characters before truncation
+        hint_flag: CLI flag to suggest for full output
+
+    Returns:
+        Tuple of (possibly truncated text, was_truncated bool)
+
+    Examples:
+        >>> text, truncated = truncate_with_hint(long_text, max_lines=5)
+        >>> if truncated:
+        ...     print(f"\\n[dim]Output truncated. Use {hint_flag} to see all.[/dim]")
+    """
+    lines = text.split("\n")
+    was_truncated = False
+
+    # Check line count
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        was_truncated = True
+
+    result = "\n".join(lines)
+
+    # Check character count
+    if len(result) > max_chars:
+        result = result[:max_chars]
+        # Try to end at a word boundary
+        last_space = result.rfind(" ", max_chars - 100, max_chars)
+        if last_space > max_chars - 100:
+            result = result[:last_space]
+        was_truncated = True
+
+    if was_truncated:
+        result = result.rstrip() + f"\n...\n[dim]Output truncated. Use {hint_flag} to see full output.[/dim]"
+
+    return result, was_truncated
+
 
 class OutputFormatter:
     """Unified output formatter respecting output mode.
-    
+
     Handles all CLI output based on the configured mode:
     - MINIMAL: Single success/error line
     - VERBOSE: Detailed progress and results
     - JSON: Machine-readable JSON output
     - QUIET: No stdout, errors to stderr only
-    
+
     Usage:
         context = OutputContext.from_flags(verbose=False, json_output=False, quiet=False)
         formatter = OutputFormatter(context)
-        
+
         formatter.start_operation("Processing files...")
         # do work
         result = OperationResult(success=True, duration_seconds=135.5, cost_usd=0.42, ...)
         formatter.complete(result)
     """
-    
+
     def __init__(self, context: OutputContext):
         """Initialize formatter with output context.
-        
+
         Args:
             context: OutputContext specifying the output mode
         """
@@ -296,10 +338,10 @@ class OutputFormatter:
         self._stderr_console = Console(stderr=True)
         self._progress: Optional[Progress] = None
         self._progress_task = None
-    
+
     def start_operation(self, description: str) -> None:
         """Begin an operation with appropriate feedback.
-        
+
         Args:
             description: Description of the operation starting
         """
@@ -310,7 +352,7 @@ class OutputFormatter:
                 TextColumn("[progress.description]{task.description}"),
                 TimeElapsedColumn(),
                 console=self._console,
-                transient=True
+                transient=True,
             )
             self._progress.start()
             self._progress_task = self._progress.add_task(description, total=None)
@@ -320,24 +362,24 @@ class OutputFormatter:
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 console=self._console,
-                transient=True
+                transient=True,
             )
             self._progress.start()
             self._progress_task = self._progress.add_task(description, total=None)
         # JSON and QUIET modes show nothing during operation
-    
+
     def progress(self, message: str) -> None:
         """Show progress message (verbose mode only).
-        
+
         Args:
             message: Progress message to display
         """
         if self.context.mode == OutputMode.VERBOSE:
             self._console.print(f"[dim]{message}[/dim]")
-    
+
     def complete(self, result: OperationResult) -> None:
         """Show completion with result.
-        
+
         Args:
             result: The operation result to display
         """
@@ -345,7 +387,7 @@ class OutputFormatter:
         if self._progress:
             self._progress.stop()
             self._progress = None
-        
+
         if self.context.mode == OutputMode.JSON:
             self._complete_json(result)
         elif self.context.mode == OutputMode.QUIET:
@@ -354,7 +396,7 @@ class OutputFormatter:
             self._complete_verbose(result)
         else:  # MINIMAL
             self._complete_minimal(result)
-    
+
     def _complete_minimal(self, result: OperationResult) -> None:
         """Output minimal format result."""
         if result.success:
@@ -364,14 +406,10 @@ class OutputFormatter:
             # Ensure path ends with / for directories
             if path and not path.endswith("/"):
                 path = path + "/"
-            self._console.print(
-                f"[green]OK[/green] Research complete ({duration}, {cost}) -> {path}"
-            )
+            self._console.print(f"[green]OK[/green] Research complete ({duration}, {cost}) -> {path}")
         else:
-            self._console.print(
-                f"[red]ERROR[/red] Research failed: {result.error or 'Unknown error'}"
-            )
-    
+            self._console.print(f"[red]ERROR[/red] Research failed: {result.error or 'Unknown error'}")
+
     def _complete_verbose(self, result: OperationResult) -> None:
         """Output verbose format result."""
         if result.success:
@@ -393,20 +431,20 @@ class OutputFormatter:
             if result.error_code:
                 self._console.print(f"  Code: {result.error_code}")
             self._console.print()
-    
+
     def _complete_json(self, result: OperationResult) -> None:
         """Output JSON format result."""
         # JSON mode outputs only the JSON, nothing else
         print(result.to_json())
-    
+
     def _complete_quiet(self, result: OperationResult) -> None:
         """Output quiet format result (errors to stderr only)."""
         if not result.success:
             self._stderr_console.print(result.error or "Unknown error")
-    
+
     def error(self, message: str, code: Optional[str] = None) -> None:
         """Show error message.
-        
+
         Args:
             message: Error message to display
             code: Optional error code
@@ -415,14 +453,14 @@ class OutputFormatter:
         if self._progress:
             self._progress.stop()
             self._progress = None
-        
+
         if self.context.mode == OutputMode.JSON:
             result = OperationResult(
                 success=False,
                 duration_seconds=time.time() - (self.context.start_time or time.time()),
                 cost_usd=0.0,
                 error=message,
-                error_code=code
+                error_code=code,
             )
             print(result.to_json())
         elif self.context.mode == OutputMode.QUIET:
@@ -437,10 +475,10 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 def output_options(f: F) -> F:
     """Decorator to add output mode options to a Click command.
-    
+
     Adds --verbose/-v, --json, and --quiet/-q flags to the command.
     Validates mutual exclusivity and creates OutputContext.
-    
+
     Usage:
         @click.command()
         @output_options
@@ -448,32 +486,17 @@ def output_options(f: F) -> F:
             formatter = OutputFormatter(output_context)
             ...
     """
-    @click.option(
-        "--verbose", "-v",
-        is_flag=True,
-        help="Show detailed output"
-    )
-    @click.option(
-        "--json", "json_output",
-        is_flag=True,
-        help="Output as JSON for scripting"
-    )
-    @click.option(
-        "--quiet", "-q",
-        is_flag=True,
-        help="Suppress all output except errors"
-    )
+
+    @click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+    @click.option("--json", "json_output", is_flag=True, help="Output as JSON for scripting")
+    @click.option("--quiet", "-q", is_flag=True, help="Suppress all output except errors")
     @wraps(f)
     def wrapper(*args, verbose: bool, json_output: bool, quiet: bool, **kwargs):
         try:
-            output_context = OutputContext.from_flags(
-                verbose=verbose,
-                json_output=json_output,
-                quiet=quiet
-            )
+            output_context = OutputContext.from_flags(verbose=verbose, json_output=json_output, quiet=quiet)
         except OutputModeConflictError as e:
             raise click.UsageError(str(e))
-        
+
         return f(*args, output_context=output_context, **kwargs)
-    
+
     return wrapper  # type: ignore

@@ -19,18 +19,21 @@ Usage:
 """
 
 import json
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
+
+from deepr.observability.traces import TraceContext, Span, SpanStatus, get_or_create_trace
+
+if TYPE_CHECKING:
+    from deepr.observability.temporal_tracker import TemporalKnowledgeTracker
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
     return datetime.now(timezone.utc)
-from typing import Optional, Dict, Any, List
-from contextlib import contextmanager
-
-from deepr.observability.traces import TraceContext, Span, SpanStatus, get_or_create_trace
 
 
 @dataclass
@@ -171,28 +174,47 @@ class OperationContext:
 
 class MetadataEmitter:
     """Emitter for structured task metadata with span tracking.
-    
+
     Provides:
     - Lightweight span tracking (start_span, end_span)
     - Parent-child relationship tracking
     - Cost attribution per span
     - Timeline generation
+    - Temporal knowledge tracking
     - Trace persistence
-    
+
     Attributes:
         trace_context: The underlying trace context
         tasks: List of task metadata
+        temporal_tracker: Optional tracker for findings/hypotheses
     """
-    
+
     def __init__(self, trace_context: Optional[TraceContext] = None):
         """Initialize MetadataEmitter.
-        
+
         Args:
             trace_context: Optional existing trace context
         """
         self.trace_context = trace_context or get_or_create_trace()
         self.tasks: List[TaskMetadata] = []
         self._active_operations: Dict[str, OperationContext] = {}
+        self._temporal_tracker: Optional["TemporalKnowledgeTracker"] = None
+
+    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker"):
+        """Set the temporal knowledge tracker for findings/hypothesis tracking.
+
+        Args:
+            tracker: TemporalKnowledgeTracker instance
+        """
+        self._temporal_tracker = tracker
+
+    def get_temporal_tracker(self) -> Optional["TemporalKnowledgeTracker"]:
+        """Get the temporal knowledge tracker if set.
+
+        Returns:
+            TemporalKnowledgeTracker or None
+        """
+        return self._temporal_tracker
     
     def start_task(
         self,
@@ -344,12 +366,12 @@ class MetadataEmitter:
     
     def save_trace(self, path: Path):
         """Save the complete trace to a JSON file.
-        
+
         Args:
             path: Path to save to
         """
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         trace_data = {
             "trace_id": self.trace_context.trace_id,
             "tasks": [t.to_dict() for t in self.tasks],
@@ -360,26 +382,30 @@ class MetadataEmitter:
             "context_lineage": self.get_context_lineage(),
             "exported_at": datetime.now(timezone.utc).isoformat()
         }
-        
+
+        # Include temporal knowledge data if tracker is set
+        if self._temporal_tracker:
+            trace_data["temporal"] = self._temporal_tracker.export_for_job_manager()
+
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(trace_data, f, indent=2)
     
     @classmethod
     def load_trace(cls, path: Path) -> "MetadataEmitter":
         """Load a trace from a JSON file.
-        
+
         Args:
             path: Path to load from
-            
+
         Returns:
             MetadataEmitter instance
         """
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
         # Load trace context
         trace_context = TraceContext(trace_id=data.get("trace_id"))
-        
+
         # Load spans
         for span_data in data.get("spans", []):
             span = Span(
@@ -395,10 +421,10 @@ class MetadataEmitter:
                 cost=span_data.get("cost", 0.0)
             )
             trace_context.spans.append(span)
-        
+
         # Create emitter
         emitter = cls(trace_context)
-        
+
         # Load tasks
         for task_data in data.get("tasks", []):
             task = TaskMetadata(
@@ -418,5 +444,23 @@ class MetadataEmitter:
                 parent_task_id=task_data.get("parent_task_id")
             )
             emitter.tasks.append(task)
-        
+
+        # Note: temporal data is stored in trace but not reconstructed into a tracker
+        # The raw data is available via load_trace_raw() for --temporal flag display
+
         return emitter
+
+    @staticmethod
+    def load_trace_raw(path: Path) -> Dict[str, Any]:
+        """Load raw trace data from a JSON file.
+
+        Use this when you need access to all trace data including temporal tracking.
+
+        Args:
+            path: Path to load from
+
+        Returns:
+            Raw trace data dictionary
+        """
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)

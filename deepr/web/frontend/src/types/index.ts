@@ -94,6 +94,7 @@ export interface SystemStatus {
 export interface JobSubmitRequest {
   prompt: string
   model?: string
+  mode?: string
   priority?: number
   enable_web_search?: boolean
   file_ids?: string[]
@@ -103,4 +104,85 @@ export interface JobSubmitRequest {
 export interface ApiError {
   error: string
   message?: string
+}
+
+export type ResearchMode = 'research' | 'check' | 'learn' | 'team' | 'docs'
+
+export interface Expert {
+  name: string
+  description: string
+  document_count: number
+  finding_count: number
+  gap_count: number
+  total_cost: number
+  last_active: string
+  created_at: string
+}
+
+export interface ExpertChat {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+export interface KnowledgeGap {
+  id: string
+  topic: string
+  description: string
+  priority: 'high' | 'medium' | 'low'
+  created_at: string
+}
+
+export interface TraceSpan {
+  id: string
+  name: string
+  parent_id?: string
+  start_time: number
+  end_time: number
+  duration_ms: number
+  status: 'completed' | 'failed' | 'running'
+  cost: number
+  tokens: number
+  model?: string
+  metadata?: Record<string, unknown>
+  children?: TraceSpan[]
+}
+
+export interface TraceData {
+  job_id: string
+  root_span: TraceSpan
+  total_duration_ms: number
+  total_cost: number
+  total_tokens: number
+}
+
+export interface TemporalFinding {
+  timestamp: number
+  type: 'fact' | 'hypothesis' | 'contradiction'
+  content: string
+  confidence: number
+  confidence_change?: 'up' | 'down'
+}
+
+export interface ActivityItem {
+  id: string
+  type: 'job_completed' | 'job_started' | 'job_failed' | 'cost_warning' | 'expert_learned'
+  message: string
+  timestamp: string
+  metadata?: Record<string, unknown>
+}
+
+export interface CostBreakdown {
+  model: string
+  cost: number
+  percentage: number
+  job_count: number
+}
+
+export interface CostAnomaly {
+  date: string
+  amount: number
+  expected: number
+  deviation: number
+  message: string
 }

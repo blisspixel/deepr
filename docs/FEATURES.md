@@ -1,19 +1,70 @@
 # Deepr Features Guide
 
-Complete guide to all Deepr features as of v2.6
+Complete guide to all Deepr features as of v2.8
 
 ## Table of Contents
 
+- [Web Dashboard](#web-dashboard)
 - [Semantic Commands](#semantic-commands)
+- [Context Discovery](#context-discovery)
 - [Research Operations](#research-operations)
+- [Real-Time Progress](#real-time-progress)
+- [Research Observability](#research-observability)
 - [Expert System](#expert-system)
+- [Provider Intelligence](#provider-intelligence)
 - [Vector Store Management](#vector-store-management)
-- [Campaign Management](#campaign-management)
 - [Cost Management](#cost-management)
 - [Queue Operations](#queue-operations)
 - [Configuration](#configuration)
 - [Analytics](#analytics)
 - [Export and Integration](#export-and-integration)
+
+## Web Dashboard
+
+A local web interface for managing research operations visually. Built with React, TypeScript, Vite, and Tailwind CSS.
+
+### Starting the Dashboard
+
+```bash
+pip install -e ".[web]"
+python -m deepr.web.app
+# Open http://localhost:5000
+```
+
+### Pages
+
+**Overview** - Landing page with active jobs, recent activity feed, spending summary, and system health status.
+
+**Research Studio** - Submit new research with mode selection (research, check, learn, team, docs), model picker, priority, and web search toggle. Supports pre-filled prompts via URL query parameter.
+
+**Research Live** - Real-time progress tracking for running jobs. Uses WebSocket for live status updates without polling.
+
+**Results Library** - Browse and search completed research. Grid and list views with sorting and filtering by status.
+
+**Result Detail** - Full markdown report viewer with a citation sidebar showing source URLs and snippets. Export dropdown for downloading results.
+
+**Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Navigate to individual expert profiles.
+
+**Expert Profile** - Three tabs: Chat (ask questions, get answers from the expert's knowledge), Knowledge Gaps (view gaps with priority, click to research), and History (learning timeline with costs).
+
+**Cost Intelligence** - Spending trends over configurable time ranges, per-model cost breakdown with charts, budget limit controls with sliders, and anomaly detection.
+
+**Trace Explorer** - Inspect research execution traces. View span hierarchy with timing, cost attribution, token counts, and model info for each operation.
+
+**Settings** - Theme selection (light/dark/system), default model, web search toggle, and budget limit configuration.
+
+### Keyboard Shortcuts
+
+- **Ctrl+K** - Open command palette for quick navigation to any page
+- Theme cycles through light, dark, and system modes via the header button
+
+### Technical Details
+
+- Code-split routing: each page loads independently via React.lazy
+- Real-time updates: WebSocket (Socket.io) connection managed in the app shell
+- State management: Zustand for UI state, React Query for server data
+- Component library: Radix UI primitives (shadcn/ui pattern) with Tailwind CSS
+- Charts: Recharts for cost trends, model breakdown, and utilization
 
 ## Semantic Commands
 
@@ -97,6 +148,60 @@ deepr team "Should we build vs buy our data platform?"
 deepr team "Technology decision" --perspectives 8
 ```
 
+## Context Discovery
+
+Find and reuse prior research to avoid redundant work and build on existing knowledge.
+
+### Search Prior Research
+
+```bash
+# Search for related prior research using semantic + keyword matching
+deepr search query "kubernetes deployment patterns"
+
+# More results with lower threshold
+deepr search query "AWS security" --top 10 --threshold 0.6
+
+# JSON output for scripting
+deepr search query "machine learning" --json
+```
+
+### Index Reports
+
+```bash
+# Index new reports for search
+deepr search index
+
+# Force re-index all reports
+deepr search index --force
+
+# View index statistics
+deepr search stats
+
+# Clear the index
+deepr search clear
+```
+
+### Use Prior Research as Context
+
+When submitting new research, Deepr automatically detects related prior research:
+
+```bash
+# Automatic detection (shown before confirmation)
+deepr research submit "kubernetes best practices"
+# Output: "Related prior research found (2): ..."
+
+# Skip automatic detection
+deepr research submit "k8s" --no-context-discovery
+
+# Explicitly include prior research as context
+deepr research submit "update k8s findings" --context abc123
+
+# Use with -y to skip confirmation
+deepr research submit "follow-up research" --context abc123 -y
+```
+
+**Stale Context Warnings:** When using `--context`, Deepr warns if the prior research is older than 30 days. Use `-y` to skip the confirmation.
+
 ## Research Operations
 
 ### Single Research Jobs
@@ -177,6 +282,108 @@ deepr prep execute
 # Autonomous workflow
 deepr prep auto "Research goal" --rounds 3
 ```
+
+## Real-Time Progress
+
+Track long-running research operations with live progress updates.
+
+### Progress Tracking
+
+```bash
+# Wait for job with real-time progress display
+deepr research wait abc123 --progress
+
+# With custom poll interval (default 5s)
+deepr research wait abc123 --progress --poll-interval 10
+
+# Simple wait without progress UI
+deepr research wait abc123 --timeout 600
+```
+
+**Progress phases:** queued → initializing → searching → analyzing → synthesizing → finalizing → completed
+
+The progress display shows:
+- Current phase with completion indicators
+- Progress bar with percentage estimate
+- Elapsed time
+- Partial results preview (when available)
+
+## Research Observability
+
+Understand how research was conducted with trace inspection tools.
+
+### Trace Commands
+
+```bash
+# View research path explanation
+deepr research trace abc123 --explain
+
+# Show reasoning evolution timeline
+deepr research trace abc123 --timeline
+
+# Show temporal knowledge timeline (findings & hypotheses)
+deepr research trace abc123 --temporal
+
+# Show context lineage (which sources informed which tasks)
+deepr research trace abc123 --lineage
+
+# Show token budget utilization
+deepr research trace abc123 --show-budget
+
+# Export complete audit trail
+deepr research trace abc123 --full-trace -o trace.json
+```
+
+### Understanding Traces
+
+**--explain:** Shows task hierarchy with model, cost, and context sources per operation
+
+**--timeline:** Rich table showing offset, task type, status, duration, and cost
+
+**--temporal:** Findings discovered over time with confidence scores and hypothesis evolution
+
+**--lineage:** Tree visualization of context flow (which documents/findings informed each task)
+
+**--show-budget:** Token usage breakdown by phase with budget utilization percentage
+
+## Provider Intelligence
+
+Monitor and optimize provider performance.
+
+### Provider Status
+
+```bash
+# View all providers with health, circuit breaker state, auto-disabled status
+deepr providers status
+
+# List available providers and models
+deepr providers list
+```
+
+### Benchmarking
+
+```bash
+# Run quick benchmark (single request per provider)
+deepr providers benchmark --quick
+
+# Full benchmark with latency percentiles
+deepr providers benchmark
+
+# View historical benchmark data
+deepr providers benchmark --history
+
+# JSON output for scripting
+deepr providers benchmark --json
+```
+
+### Auto-Disable & Exploration
+
+Deepr automatically:
+- **Disables failing providers:** >50% failure rate triggers 1hr cooldown
+- **Explores alternatives:** 10% of requests try non-primary providers to discover better options
+- **Records metrics:** Latency percentiles (p50, p95, p99) and success rates by task type
+
+View disabled providers with `deepr providers status`.
 
 ## Expert System
 

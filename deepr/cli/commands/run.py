@@ -1,25 +1,29 @@
 """Run research jobs with modern CLI interface."""
 
-import click
 import asyncio
 import os
 import time
-from pathlib import Path
-from typing import Optional, List
-from deepr.queue.local_queue import SQLiteQueue
-from deepr.queue.base import ResearchJob, JobStatus
-from deepr.cli.commands.budget import check_budget_approval
-from deepr.cli.colors import console, print_success, print_error, print_warning
-from deepr.cli.output import (
-    OutputContext, OutputMode, OutputFormatter, OperationResult, output_options,
-    format_duration, format_cost,
-)
-from datetime import datetime
-import json
 import uuid
-
-
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
+
+import click
+
+from deepr.cli.colors import console, print_warning
+from deepr.cli.commands.budget import check_budget_approval
+from deepr.cli.output import (
+    OperationResult,
+    OutputContext,
+    OutputFormatter,
+    OutputMode,
+    format_cost,
+    format_duration,
+    output_options,
+)
+from deepr.queue.base import JobStatus, ResearchJob
+from deepr.queue.local_queue import SQLiteQueue
 
 MAX_FALLBACK_ATTEMPTS = 3
 
@@ -32,11 +36,13 @@ def _classify_provider_error(exc: Exception, provider: str) -> None:
     can make smart decisions based on error type.
     """
     from deepr.core.errors import (
-        ProviderError as CoreProviderError,
-        ProviderTimeoutError,
-        ProviderRateLimitError,
         ProviderAuthError,
+        ProviderRateLimitError,
+        ProviderTimeoutError,
         ProviderUnavailableError,
+    )
+    from deepr.core.errors import (
+        ProviderError as CoreProviderError,
     )
 
     # Already a core error — re-raise as-is
@@ -60,6 +66,7 @@ def _classify_provider_error(exc: Exception, provider: str) -> None:
 @dataclass
 class TraceFlags:
     """Flags for trace visibility after research completion."""
+
     explain: bool = False
     timeline: bool = False
     full_trace: bool = False
@@ -77,14 +84,16 @@ def _show_trace_explain(emitter) -> None:
     task_count = len(emitter.tasks)
 
     console.print()
-    console.print(Panel(
-        f"[bold]Research Path[/bold]\n\n"
-        f"Trace ID: {emitter.trace_context.trace_id}\n"
-        f"Tasks: {task_count}\n"
-        f"Total Cost: {format_cost(total_cost)}",
-        title="Explain",
-        border_style="dim",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Research Path[/bold]\n\n"
+            f"Trace ID: {emitter.trace_context.trace_id}\n"
+            f"Tasks: {task_count}\n"
+            f"Total Cost: {format_cost(total_cost)}",
+            title="Explain",
+            border_style="dim",
+        )
+    )
 
     for task in emitter.tasks:
         indent = "  " if task.parent_task_id else ""
@@ -107,7 +116,7 @@ def _show_trace_explain(emitter) -> None:
                 fallback_events.append(event.get("attributes", {}))
 
     if fallback_events:
-        console.print(f"\n[bold]Fallback Events[/bold]")
+        console.print("\n[bold]Fallback Events[/bold]")
         for attrs in fallback_events:
             console.print(
                 f"  [yellow]![/] {attrs.get('from_provider')}/{attrs.get('from_model')} "
@@ -136,6 +145,7 @@ def _show_trace_timeline(emitter) -> None:
     first_start = None
     for entry in timeline_data:
         from datetime import datetime as _dt
+
         try:
             start = _dt.fromisoformat(entry["start_time"])
             if first_start is None:
@@ -161,7 +171,7 @@ def _show_trace_timeline(emitter) -> None:
 
     breakdown = emitter.get_cost_breakdown()
     if any(v > 0 for v in breakdown.values()):
-        console.print(f"\n[dim]Cost by type:[/dim]")
+        console.print("\n[dim]Cost by type:[/dim]")
         for task_type, cost in sorted(breakdown.items(), key=lambda x: x[1], reverse=True):
             if cost > 0:
                 console.print(f"  {task_type}: {format_cost(cost)}")
@@ -195,13 +205,19 @@ def run():
 @run.command()
 @click.argument("query")
 @click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
-@click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]), help="Research provider (openai, azure, gemini, grok)")
+@click.option(
+    "--provider",
+    "-p",
+    default="openai",
+    type=click.Choice(["openai", "azure", "gemini", "grok"]),
+    help="Research provider (openai, azure, gemini, grok)",
+)
 @click.option("--no-web", is_flag=True, help="Disable web search")
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
-@click.option("--explain", is_flag=True, help="Show decision reasoning after completion")
+@click.option("--explain", "--why", is_flag=True, help="Show decision reasoning after completion")
 @click.option("--timeline", is_flag=True, help="Show phase timeline after completion")
 @click.option("--full-trace", is_flag=True, help="Export full trace to data/traces/")
 @click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
@@ -232,36 +248,21 @@ def focus(
         deepr run focus "AI trends" --explain --timeline
     """
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, trace_flags=trace_flags, no_fallback=no_fallback))
-
-
-@run.command()
-@click.argument("query")
-@click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
-@click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]), help="Research provider (openai, azure, gemini, grok)")
-@click.option("--no-web", is_flag=True, help="Disable web search")
-@click.option("--no-code", is_flag=True, help="Disable code interpreter")
-@click.option("--upload", "-u", multiple=True, help="Upload files for context")
-@click.option("--limit", "-l", type=float, help="Cost limit in dollars")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
-@click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
-@output_options
-def single(
-    query: str,
-    model: str,
-    provider: str,
-    no_web: bool,
-    no_code: bool,
-    upload: tuple,
-    limit: Optional[float],
-    yes: bool,
-    no_fallback: bool,
-    output_context: OutputContext,
-):
-    """[DEPRECATED: Use 'deepr run focus'] Run a single research job."""
-    if output_context.mode == OutputMode.VERBOSE:
-        click.echo("[DEPRECATION] 'deepr run single' is deprecated. Use 'deepr run focus' instead.\n")
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback))
+    asyncio.run(
+        _run_single(
+            query,
+            model,
+            provider,
+            no_web,
+            no_code,
+            upload,
+            limit,
+            yes,
+            output_context,
+            trace_flags=trace_flags,
+            no_fallback=no_fallback,
+        )
+    )
 
 
 async def _run_single(
@@ -304,20 +305,20 @@ async def _run_single(
         user_specified_provider: True when user explicitly passed --provider
     """
     # Import refactored modules
-    from deepr.cli.commands.provider_factory import (
-        get_api_key, create_provider_instance, get_tool_name,
-        supports_background_jobs, supports_vector_stores
-    )
     from deepr.cli.commands.file_handler import handle_file_uploads
-    from deepr.observability.metadata import MetadataEmitter
-    from deepr.observability.provider_router import AutonomousProviderRouter
+    from deepr.cli.commands.provider_factory import (
+        supports_vector_stores,
+    )
+    from deepr.core.errors import (
+        ProviderAuthError,
+        ProviderRateLimitError,
+        ProviderTimeoutError,
+    )
     from deepr.core.errors import (
         ProviderError as CoreProviderError,
-        ProviderTimeoutError,
-        ProviderRateLimitError,
-        ProviderAuthError,
-        ProviderUnavailableError,
     )
+    from deepr.observability.metadata import MetadataEmitter
+    from deepr.observability.provider_router import AutonomousProviderRouter
 
     if trace_flags is None:
         trace_flags = TraceFlags()
@@ -347,13 +348,17 @@ async def _run_single(
 
     # Initialize trace emitter
     emitter = MetadataEmitter()
-    op = emitter.start_task("research_job", prompt=query, attributes={
-        "provider": provider,
-        "model": model,
-        "web_search": not no_web,
-        "code_interpreter": not no_code,
-        "router_selected": not user_specified_provider,
-    })
+    op = emitter.start_task(
+        "research_job",
+        prompt=query,
+        attributes={
+            "provider": provider,
+            "model": model,
+            "web_search": not no_web,
+            "code_interpreter": not no_code,
+            "router_selected": not user_specified_provider,
+        },
+    )
     op.set_model(model, provider)
 
     # Estimate cost and show header
@@ -373,15 +378,17 @@ async def _run_single(
     vector_store_id = None
     if upload:
         from deepr.config import load_config
+
         config = load_config()
 
-        upload_op = emitter.start_task("file_upload", attributes={
-            "file_count": len(upload),
-        })
-
-        upload_result = await handle_file_uploads(
-            provider, upload, formatter, config
+        upload_op = emitter.start_task(
+            "file_upload",
+            attributes={
+                "file_count": len(upload),
+            },
         )
+
+        upload_result = await handle_file_uploads(provider, upload, formatter, config)
 
         # Report errors in verbose mode
         if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
@@ -398,8 +405,7 @@ async def _run_single(
 
     # Create and enqueue job
     job_id, job = await _create_and_enqueue_job(
-        query, model, provider, no_web, no_code,
-        document_ids, vector_store_id, limit, upload
+        query, model, provider, no_web, no_code, document_ids, vector_store_id, limit, upload
     )
     op.set_attribute("job_id", job_id)
     formatter.progress("Submitting research job...")
@@ -420,22 +426,32 @@ async def _run_single(
                 effective_vector_store_id = None
                 if output_context.mode == OutputMode.VERBOSE:
                     print_warning(
-                        f"{current_provider} does not support file search; "
-                        f"proceeding without uploaded file context"
+                        f"{current_provider} does not support file search; proceeding without uploaded file context"
                     )
 
             submit_start = time.time()
             await _submit_to_provider(
-                job_id, query, current_model, current_provider, no_web, no_code,
-                document_ids, effective_vector_store_id, output_context,
-                formatter, start_time, emitter
+                job_id,
+                query,
+                current_model,
+                current_provider,
+                no_web,
+                no_code,
+                document_ids,
+                effective_vector_store_id,
+                output_context,
+                formatter,
+                start_time,
+                emitter,
             )
 
             # Success — record metrics
             submit_latency = (time.time() - submit_start) * 1000
             try:
                 router.record_result(
-                    current_provider, current_model, success=True,
+                    current_provider,
+                    current_model,
+                    success=True,
                     latency_ms=submit_latency,
                 )
             except Exception:
@@ -499,7 +515,7 @@ async def _run_single(
                 cost_usd=0.0,
                 job_id=job_id,
                 error=f"Provider {current_provider}/{current_model} failed: {last_error}",
-                error_code="PROVIDER_ERROR"
+                error_code="PROVIDER_ERROR",
             )
             formatter.complete(result)
             emitter.fail_task(op, str(last_error))
@@ -526,7 +542,7 @@ async def _run_single(
                 cost_usd=0.0,
                 job_id=job_id,
                 error=f"All providers failed. Last error: {last_error}",
-                error_code="ALL_PROVIDERS_FAILED"
+                error_code="ALL_PROVIDERS_FAILED",
             )
             formatter.complete(result)
             emitter.fail_task(op, "all_providers_failed")
@@ -535,14 +551,17 @@ async def _run_single(
         fallback_provider, fallback_model = fallback
 
         # Emit fallback event to trace
-        op.add_event("fallback_triggered", {
-            "from_provider": current_provider,
-            "from_model": current_model,
-            "to_provider": fallback_provider,
-            "to_model": fallback_model,
-            "reason": str(last_error),
-            "attempt": fallback_count + 1,
-        })
+        op.add_event(
+            "fallback_triggered",
+            {
+                "from_provider": current_provider,
+                "from_model": current_model,
+                "to_provider": fallback_provider,
+                "to_model": fallback_model,
+                "reason": str(last_error),
+                "attempt": fallback_count + 1,
+            },
+        )
 
         if output_context.mode == OutputMode.VERBOSE:
             console.print(
@@ -561,7 +580,7 @@ async def _run_single(
             cost_usd=0.0,
             job_id=job_id,
             error=f"Exhausted all fallback attempts. Last error: {last_error}",
-            error_code="FALLBACK_EXHAUSTED"
+            error_code="FALLBACK_EXHAUSTED",
         )
         formatter.complete(result)
         emitter.fail_task(op, "fallback_exhausted")
@@ -593,12 +612,7 @@ async def _run_single(
 
 
 def _show_research_header(
-    output_context: OutputContext,
-    query: str,
-    provider: str,
-    model: str,
-    estimated_cost: float,
-    upload: tuple
+    output_context: OutputContext, query: str, provider: str, model: str, estimated_cost: float, upload: tuple
 ) -> None:
     """Display research header in verbose mode."""
     if output_context.mode == OutputMode.VERBOSE:
@@ -618,12 +632,12 @@ def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContex
     """Check budget approval. Returns True if approved, False if cancelled."""
     if yes or check_budget_approval(estimated_cost):
         return True
-    
+
     if output_context.mode == OutputMode.VERBOSE:
         if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
             click.echo("Cancelled.")
             return False
-    
+
     return True
 
 
@@ -636,7 +650,7 @@ async def _create_and_enqueue_job(
     document_ids: List[str],
     vector_store_id: Optional[str],
     limit: Optional[float],
-    upload: tuple
+    upload: tuple,
 ) -> tuple:
     """Create research job and add to queue. Returns (job_id, job)."""
     # Prepare job metadata for cleanup tracking
@@ -682,11 +696,12 @@ async def _submit_to_provider(
 ) -> None:
     """Submit job to provider API and handle response."""
     from deepr.cli.commands.provider_factory import (
-        create_provider_instance, get_tool_name,
-        supports_background_jobs, supports_vector_stores
+        create_provider_instance,
+        supports_background_jobs,
+        supports_vector_stores,
     )
-    from deepr.providers.base import ResearchRequest, ToolConfig
     from deepr.config import load_config
+    from deepr.providers.base import ResearchRequest
 
     config = load_config()
     queue = SQLiteQueue()
@@ -694,19 +709,22 @@ async def _submit_to_provider(
     # Start provider submission span
     submit_op = None
     if emitter:
-        submit_op = emitter.start_task("provider_submit", attributes={
-            "provider": provider,
-            "model": model,
-            "job_id": job_id,
-        })
+        submit_op = emitter.start_task(
+            "provider_submit",
+            attributes={
+                "provider": provider,
+                "model": model,
+                "job_id": job_id,
+            },
+        )
         submit_op.set_model(model, provider)
 
     try:
         provider_instance = create_provider_instance(provider, config)
-        
+
         # Build tools list using provider factory
         tools = _build_tools_list(provider, no_web, no_code, vector_store_id)
-        
+
         # Validate tools for deep research models
         if supports_vector_stores(provider) and "deep-research" in model and not tools:
             _handle_missing_tools_error(job_id, model, formatter, start_time)
@@ -721,7 +739,7 @@ async def _submit_to_provider(
             background=supports_background_jobs(provider),
             document_ids=document_ids if document_ids else None,
         )
-        
+
         provider_job_id = await provider_instance.submit_research(request)
         if submit_op:
             submit_op.set_attribute("provider_job_id", provider_job_id)
@@ -730,14 +748,21 @@ async def _submit_to_provider(
         if supports_background_jobs(provider):
             if submit_op:
                 emitter.complete_task(submit_op)
-            await _handle_background_job(
-                job_id, provider_job_id, output_context, queue
-            )
+            await _handle_background_job(job_id, provider_job_id, output_context, queue)
         else:
             await _handle_immediate_job(
-                job_id, provider_job_id, query, model, provider_instance,
-                output_context, formatter, start_time, config, queue,
-                emitter, submit_op,
+                job_id,
+                provider_job_id,
+                query,
+                model,
+                provider_instance,
+                output_context,
+                formatter,
+                start_time,
+                config,
+                queue,
+                emitter,
+                submit_op,
             )
 
     except Exception as e:
@@ -747,39 +772,26 @@ async def _submit_to_provider(
         _classify_provider_error(e, provider)
 
 
-def _build_tools_list(
-    provider: str,
-    no_web: bool,
-    no_code: bool,
-    vector_store_id: Optional[str]
-) -> List:
+def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_id: Optional[str]) -> List:
     """Build provider-specific tools list."""
     from deepr.cli.commands.provider_factory import get_tool_name, supports_vector_stores
     from deepr.providers.base import ToolConfig
-    
+
     tools = []
     if not no_web:
         tool_name = get_tool_name(provider, "web_search")
         tools.append(ToolConfig(type=tool_name))
     if not no_code:
         tools.append(ToolConfig(type="code_interpreter"))
-    
+
     # Add file_search tool when vector store is available
     if vector_store_id and supports_vector_stores(provider):
-        tools.append(ToolConfig(
-            type="file_search",
-            vector_store_ids=[vector_store_id]
-        ))
-    
+        tools.append(ToolConfig(type="file_search", vector_store_ids=[vector_store_id]))
+
     return tools
 
 
-def _handle_missing_tools_error(
-    job_id: str,
-    model: str,
-    formatter: OutputFormatter,
-    start_time: float
-) -> None:
+def _handle_missing_tools_error(job_id: str, model: str, formatter: OutputFormatter, start_time: float) -> None:
     """Handle error when deep research model has no tools."""
     duration = time.time() - start_time
     result = OperationResult(
@@ -788,37 +800,27 @@ def _handle_missing_tools_error(
         cost_usd=0.0,
         job_id=job_id,
         error=f"{model} requires at least one tool (web search, code interpreter, or file upload)",
-        error_code="MISSING_TOOLS"
+        error_code="MISSING_TOOLS",
     )
     formatter.complete(result)
 
 
 async def _handle_background_job(
-    job_id: str,
-    provider_job_id: str,
-    output_context: OutputContext,
-    queue: SQLiteQueue
+    job_id: str, provider_job_id: str, output_context: OutputContext, queue: SQLiteQueue
 ) -> None:
     """Handle OpenAI/Azure background job submission."""
-    await queue.update_status(
-        job_id=job_id,
-        status=JobStatus.PROCESSING,
-        provider_job_id=provider_job_id
-    )
-    
+    await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
+
     if output_context.mode == OutputMode.VERBOSE:
         click.echo(f"\nJob submitted: {job_id[:12]}")
         click.echo(f"Provider job ID: {provider_job_id}")
         click.echo(f"\nCheck status: deepr status {job_id[:12]}")
         click.echo(f"View results: deepr get {job_id[:12]}")
-        click.echo(f"List all jobs: deepr list")
+        click.echo("List all jobs: deepr list")
     elif output_context.mode == OutputMode.JSON:
         import json as json_module
-        print(json_module.dumps({
-            "status": "pending",
-            "job_id": job_id,
-            "provider_job_id": provider_job_id
-        }))
+
+        print(json_module.dumps({"status": "pending", "job_id": job_id, "provider_job_id": provider_job_id}))
 
 
 async def _handle_immediate_job(
@@ -843,17 +845,15 @@ async def _handle_immediate_job(
         content = _extract_response_content(response)
 
         from deepr.storage import create_storage
-        storage = create_storage(
-            config.get("storage", "local"),
-            base_path=config.get("results_dir", "data/reports")
-        )
+
+        storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
 
         # Compute cost for report metadata
         actual_cost_meta = response.usage.cost if response.usage and response.usage.cost else 0.0
         report_metadata = await storage.save_report(
             job_id=job_id,
             filename="report.md",
-            content=content.encode('utf-8'),
+            content=content.encode("utf-8"),
             content_type="text/markdown",
             metadata={
                 "prompt": query,
@@ -862,7 +862,7 @@ async def _handle_immediate_job(
                 "provider_job_id": provider_job_id,
                 "total_cost": actual_cost_meta,
                 "cost_by_model": {model: actual_cost_meta},
-            }
+            },
         )
 
         # Update queue
@@ -873,7 +873,7 @@ async def _handle_immediate_job(
                 job_id,
                 report_paths={"markdown": report_metadata.url},
                 cost=response.usage.cost,
-                tokens_used=response.usage.total_tokens
+                tokens_used=response.usage.total_tokens,
             )
 
         # Record cost/tokens in trace
@@ -894,28 +894,21 @@ async def _handle_immediate_job(
             duration_seconds=duration,
             cost_usd=actual_cost,
             report_path=str(report_metadata.url),
-            job_id=job_id
+            job_id=job_id,
         )
         formatter.complete(result)
     else:
         # Still processing
         if submit_op and emitter:
             emitter.complete_task(submit_op)
-        await queue.update_status(
-            job_id=job_id,
-            status=JobStatus.PROCESSING,
-            provider_job_id=provider_job_id
-        )
+        await queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id)
         if output_context.mode == OutputMode.VERBOSE:
             click.echo(f"\nJob submitted: {job_id[:12]}")
             click.echo(f"Provider job ID: {provider_job_id}")
         elif output_context.mode == OutputMode.JSON:
             import json as json_module
-            print(json_module.dumps({
-                "status": "pending",
-                "job_id": job_id,
-                "provider_job_id": provider_job_id
-            }))
+
+            print(json_module.dumps({"status": "pending", "job_id": job_id, "provider_job_id": provider_job_id}))
 
 
 def _extract_response_content(response) -> str:
@@ -923,10 +916,10 @@ def _extract_response_content(response) -> str:
     content = ""
     if response.output:
         for block in response.output:
-            if block.get('type') == 'message':
-                for item in block.get('content', []):
-                    if item.get('type') in ['output_text', 'text']:
-                        text = item.get('text', '')
+            if block.get("type") == "message":
+                for item in block.get("content", []):
+                    if item.get("type") in ["output_text", "text"]:
+                        text = item.get("text", "")
                         if text:
                             content += text + "\n"
     return content
@@ -958,33 +951,6 @@ def project(
     asyncio.run(_run_campaign(scenario, model, lead, phases, yes))
 
 
-@run.command()
-@click.argument("scenario")
-@click.option("--model", "-m", default="o3-deep-research", help="Research model")
-@click.option("--lead", default="gpt-5", help="Lead planner model")
-@click.option("--phases", "-p", type=int, default=3, help="Number of phases")
-@click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
-def campaign(
-    scenario: str,
-    model: str,
-    lead: str,
-    phases: int,
-    yes: bool,
-):
-    """[DEPRECATED: Use 'deepr run project'] Run a multi-phase research campaign.
-
-    The lead model plans the research, then executes multiple phases
-    with context chaining between them.
-
-    Examples:
-        deepr run campaign "Ford EV strategy for 2026"
-        deepr run campaign "Market entry analysis" --phases 4
-        deepr run campaign "Competitive landscape" -m o3-deep-research
-    """
-    click.echo("[DEPRECATION] 'deepr run campaign' is deprecated. Use 'deepr run project' instead.\n")
-    asyncio.run(_run_campaign(scenario, model, lead, phases, yes))
-
-
 async def _run_campaign(
     scenario: str,
     model: str,
@@ -993,9 +959,9 @@ async def _run_campaign(
     yes: bool,
 ):
     """Execute campaign."""
-    click.echo("\n" + "="*70)
+    click.echo("\n" + "=" * 70)
     click.echo("  DEEPR - Multi-Phase Campaign")
-    click.echo("="*70 + "\n")
+    click.echo("=" * 70 + "\n")
 
     # Estimate cost (phases * per-job cost)
     per_job_cost = estimate_cost(model, enable_web_search=True)
@@ -1015,34 +981,26 @@ async def _run_campaign(
             return
 
     click.echo("Planning campaign phases...")
-    click.echo("\nNOTE: This command is deprecated. Please use 'deepr prep plan' and 'deepr prep execute' for better control.\n")
+    click.echo(
+        "\nNOTE: This command is deprecated. Please use 'deepr prep plan' and 'deepr prep execute' for better control.\n"
+    )
 
     # Import prep functionality - use the working implementation
     from deepr.services.research_planner import ResearchPlanner
-    from deepr.cli.commands.prep import _execute_plan_sync
 
     # Generate plan using lead model (planner for planning, model for execution)
     planner_svc = ResearchPlanner(model=lead)
-    tasks = planner_svc.plan_research(
-        scenario=scenario,
-        max_tasks=phases,
-        context=None
-    )
+    tasks = planner_svc.plan_research(scenario=scenario, max_tasks=phases, context=None)
 
     # Add task IDs and model info
     for i, task in enumerate(tasks, 1):
-        task['id'] = i
-        task['model'] = model
-        task['approved'] = True  # Auto-approve for deprecated command
+        task["id"] = i
+        task["model"] = model
+        task["approved"] = True  # Auto-approve for deprecated command
 
-    plan = {
-        "scenario": scenario,
-        "tasks": tasks,
-        "model": model,
-        "metadata": {"planner": lead}
-    }
+    plan = {"scenario": scenario, "tasks": tasks, "model": model, "metadata": {"planner": lead}}
 
-    click.echo(f"\nCampaign plan generated:")
+    click.echo("\nCampaign plan generated:")
     click.echo(f"  Tasks: {len(plan['tasks'])}")
     click.echo()
 
@@ -1050,14 +1008,14 @@ async def _run_campaign(
     click.echo("Executing campaign phases...")
 
     # Import the async executor instead of the sync wrapper
-    from deepr.services.batch_executor import BatchExecutor
-    from deepr.storage import create_storage
-    from deepr.queue import create_queue
+    import time
+
     from deepr.config import load_config
     from deepr.providers import create_provider
+    from deepr.queue import create_queue
+    from deepr.services.batch_executor import BatchExecutor
     from deepr.services.context_builder import ContextBuilder
-    import time
-    import os
+    from deepr.storage import create_storage
 
     config = load_config()
 
@@ -1083,25 +1041,17 @@ async def _run_campaign(
     # Initialize services
     queue = create_queue("local")
     provider_instance = create_provider(provider_name, api_key=api_key)
-    storage = create_storage(
-        config.get("storage", "local"),
-        base_path=config.get("results_dir", "data/reports")
-    )
+    storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
     context_builder = ContextBuilder(api_key=config.get("api_key"))
 
-    executor = BatchExecutor(
-        queue=queue,
-        provider=provider_instance,
-        storage=storage,
-        context_builder=context_builder
-    )
+    executor = BatchExecutor(queue=queue, provider=provider_instance, storage=storage, context_builder=context_builder)
 
     campaign_id = f"campaign-{int(time.time())}"
     results = await executor.execute_campaign(tasks, campaign_id)
 
-    click.echo(f"\nCampaign completed!")
+    click.echo("\nCampaign completed!")
     click.echo(f"Results: {len(results.get('tasks', {}))} tasks finished")
-    click.echo(f"\nFor better control, use: deepr prep plan / deepr prep execute")
+    click.echo("\nFor better control, use: deepr prep plan / deepr prep execute")
 
 
 @run.command()
@@ -1135,9 +1085,9 @@ async def _run_team(
     yes: bool,
 ):
     """Execute team research."""
-    click.echo("\n" + "="*70)
+    click.echo("\n" + "=" * 70)
     click.echo("  DEEPR - Dream Team Research")
-    click.echo("="*70 + "\n")
+    click.echo("=" * 70 + "\n")
 
     # Estimate cost
     per_job_cost = estimate_cost(model, enable_web_search=True)
@@ -1159,7 +1109,6 @@ async def _run_team(
 
     # Import team functionality
     from deepr.cli.commands.team import run_dream_team
-    import os
 
     # Determine provider based on model
     is_deep_research = "deep-research" in model.lower()
@@ -1175,7 +1124,13 @@ async def _run_team(
 @run.command()
 @click.argument("topic")
 @click.option("--model", "-m", default="o3-deep-research", help="Research model to use")
-@click.option("--provider", "-p", default="openai", type=click.Choice(["openai", "azure", "gemini", "grok"]), help="Research provider")
+@click.option(
+    "--provider",
+    "-p",
+    default="openai",
+    type=click.Choice(["openai", "azure", "gemini", "grok"]),
+    help="Research provider",
+)
 @click.option("--upload", "-u", multiple=True, help="Upload existing documentation for context")
 @click.option("--limit", "-l", type=float, help="Cost limit in dollars")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
@@ -1201,28 +1156,25 @@ def docs(
         deepr run docs "Database schema design" --upload existing_docs.md
         deepr run docs "Deployment guide for Kubernetes"
     """
-    # Use the single research flow with documentation-optimized system message
-    system_message = """You are a technical documentation expert. Your goal is to create comprehensive,
-well-structured documentation that is clear, accurate, and useful. Include:
-- Clear explanations of concepts
-- Practical examples and code samples
-- Common pitfalls and troubleshooting tips
-- References and additional resources
-- Well-organized structure with headings and sections"""
+    # NOTE: Documentation-specific system message could be passed through _run_single
+    # but for now we use a docs-optimized prompt prefix instead.
+    # TODO: Add system_message parameter to _run_single for customization
 
     # Call _run_single with docs-specific parameters
-    asyncio.run(_run_single(
-        query=f"Create comprehensive documentation for: {topic}",
-        model=model,
-        provider=provider,
-        no_web=False,  # Enable web search for docs research
-        no_code=False,  # Enable code interpreter for examples
-        upload=upload,
-        limit=limit,
-        yes=yes,
-        output_context=output_context,
-        no_fallback=no_fallback,
-    ))
+    asyncio.run(
+        _run_single(
+            query=f"Create comprehensive documentation for: {topic}",
+            model=model,
+            provider=provider,
+            no_web=False,  # Enable web search for docs research
+            no_code=False,  # Enable code interpreter for examples
+            upload=upload,
+            limit=limit,
+            yes=yes,
+            output_context=output_context,
+            no_fallback=no_fallback,
+        )
+    )
 
 
 # Aliases
@@ -1239,7 +1191,11 @@ well-structured documentation that is clear, accurate, and useful. Include:
 @output_options
 def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, no_fallback, output_context):
     """Quick alias for 'deepr run focus' - run a focused research job."""
-    asyncio.run(_run_single(query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback))
+    asyncio.run(
+        _run_single(
+            query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback
+        )
+    )
 
 
 if __name__ == "__main__":

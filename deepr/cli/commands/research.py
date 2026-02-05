@@ -1,18 +1,24 @@
 # research.py
 """Research commands - submit and manage individual research jobs."""
+
 import os
+
 import click
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
+
 # from deepr.services.cost_estimation import CostEstimator  # TODO: implement or remove
 
 # -------------------------------
 # Helpers
 # -------------------------------
 
+
 def _ensure_parent_dir(path: str) -> None:
     parent = os.path.dirname(os.path.abspath(path))
     if parent and not os.path.exists(parent):
         os.makedirs(parent, exist_ok=True)
+
 
 async def _resolve_job_id(queue, maybe_prefix: str):
     """Allow users to pass a short prefix (first 8 chars). Falls back to exact match."""
@@ -27,53 +33,77 @@ async def _resolve_job_id(queue, maybe_prefix: str):
             return j.id
     return None
 
+
 @click.group()
 def research():
     """Submit and manage research jobs."""
     pass
 
+
 @research.command()
 @click.argument("prompt")
 @click.option(
-    "--provider", "-P",
+    "--provider",
+    "-P",
     default=None,
     type=click.Choice(["openai", "azure", "gemini", "grok"]),
     help="Research provider (default: from config or 'openai')",
 )
 @click.option(
-    "--model", "-m",
+    "--model",
+    "-m",
     default="o4-mini-deep-research",
     type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
     help="Deep research model (o4-mini faster/cheaper, o3 more comprehensive)",
 )
-@click.option("--priority", "-p", default=3, type=click.IntRange(1, 5),
-              help="Priority (1=high, 5=low)")
-@click.option("--web-search/--no-web-search", default=True,
-              help="Enable web search (default: enabled)")
-@click.option("--cost-limit", type=float, default=None,
-              help="Override max cost for this job (USD)")
+@click.option("--priority", "-p", default=3, type=click.IntRange(1, 5), help="Priority (1=high, 5=low)")
+@click.option("--web-search/--no-web-search", default=True, help="Enable web search (default: enabled)")
+@click.option("--cost-limit", type=float, default=None, help="Override max cost for this job (USD)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.option("--auto-select", is_flag=True, help="Use autonomous provider router for selection")
-@click.option("--entropy-threshold", type=float, default=None,
-              help="Entropy threshold for stopping (0.0-1.0, lower = stop earlier)")
-@click.option("--token-budget", type=int, default=None,
-              help="Token budget for context management")
-@click.option("--research-mode", type=click.Choice(["read_only", "standard", "extended", "unrestricted"]),
-              default="standard", help="Research mode controlling tool access")
-def submit(prompt: str, provider: str, model: str, priority: int, web_search: bool,
-           cost_limit: float, yes: bool, auto_select: bool, entropy_threshold: float,
-           token_budget: int, research_mode: str):
+@click.option(
+    "--entropy-threshold",
+    type=float,
+    default=None,
+    help="Entropy threshold for stopping (0.0-1.0, lower = stop earlier)",
+)
+@click.option("--token-budget", type=int, default=None, help="Token budget for context management")
+@click.option(
+    "--research-mode",
+    type=click.Choice(["read_only", "standard", "extended", "unrestricted"]),
+    default="standard",
+    help="Research mode controlling tool access",
+)
+@click.option("--context", "context_job_id", default=None, help="Use prior research as context (job ID or prefix)")
+@click.option("--no-context-discovery", is_flag=True, help="Disable automatic related research detection")
+def submit(
+    prompt: str,
+    provider: str,
+    model: str,
+    priority: int,
+    web_search: bool,
+    cost_limit: float,
+    yes: bool,
+    auto_select: bool,
+    entropy_threshold: float,
+    token_budget: int,
+    research_mode: str,
+    context_job_id: str,
+    no_context_discovery: bool,
+):
     """Submit a deep research job."""
     print_section_header("Submit Deep Research Job")
 
     # Resolve provider from config if not specified
     from deepr.config import load_config
+
     config = load_config()
-    
+
     # Use autonomous provider router if requested or no provider specified
     if auto_select or (provider is None and model is None):
         try:
             from deepr.observability.provider_router import AutonomousProviderRouter
+
             router = AutonomousProviderRouter()
             resolved_provider, resolved_model = router.select_provider(task_type="research")
             # Only use router selection if user didn't specify
@@ -84,7 +114,7 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
             console.print(f"[dim]Provider router selected: {resolved_provider}/{resolved_model}[/dim]")
         except Exception:
             pass  # Fall back to config
-    
+
     resolved_provider = provider or config.get("provider", "openai")
 
     click.echo("\nConfiguration:")
@@ -99,6 +129,71 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
         click.echo(f"   Token Budget: {token_budget:,}")
     click.echo(f"   Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
 
+    # Context discovery (6.1, 6.2, 6.3)
+    context_content = None
+    related_found = []
+
+    # Handle explicit context (6.3)
+    if context_job_id:
+        from deepr.services.context_index import ContextIndex
+
+        index = ContextIndex()
+        context_result = index.get_report_by_job_id(context_job_id)
+
+        if not context_result:
+            print_error(f"Context not found: {context_job_id}")
+            console.print("[dim]Run 'deepr search index' to index reports first[/dim]")
+            raise click.Abort()
+
+        # Check for stale context
+        if index.check_stale_context(context_job_id, max_age_days=30):
+            print_warning("Context is >30 days old. Findings may be outdated.")
+            if not yes and not click.confirm("Use this context anyway?"):
+                print_warning("Cancelled")
+                return
+
+        context_content = index.get_report_content(context_job_id)
+        if context_content:
+            console.print("\n[cyan]Using context from prior research:[/cyan]")
+            console.print(f"   {context_result.prompt[:60]}{'...' if len(context_result.prompt) > 60 else ''}")
+            console.print(f"   [dim]{context_result.created_at.strftime('%Y-%m-%d')} | {context_result.model}[/dim]")
+
+            # Show cost savings estimate
+            from deepr.providers.registry import get_cost_estimate
+
+            prior_cost = get_cost_estimate(context_result.model or model)
+            console.print(f"   [green]Estimated savings: ${prior_cost:.2f} by reusing prior research[/green]")
+
+    # Automatic context discovery (6.1, 6.2)
+    elif not no_context_discovery:
+        try:
+            import asyncio
+
+            from deepr.services.context_index import ContextIndex
+
+            index = ContextIndex()
+            stats = index.get_stats()
+
+            if stats["indexed_reports"] > 0:
+                related_found = asyncio.run(index.find_related(prompt, top_k=3, threshold=0.75))
+
+                if related_found:
+                    console.print(f"\n[cyan]Related prior research found ({len(related_found)}):[/cyan]")
+                    for i, result in enumerate(related_found, 1):
+                        score_color = "green" if result.similarity >= 0.85 else "yellow"
+                        console.print(
+                            f"   {i}. [{score_color}]{result.similarity:.0%}[/{score_color}] {result.prompt[:50]}..."
+                        )
+                        console.print(
+                            f"      [dim]{result.job_id[:8]} | {result.created_at.strftime('%Y-%m-%d')}[/dim]"
+                        )
+
+                    console.print(f"\n[dim]Use --context {related_found[0].job_id[:8]} to include as context[/dim]")
+
+        except Exception as e:
+            # Don't fail on context discovery errors
+            console.print(f"[dim]Context discovery skipped: {e}[/dim]")
+
     if not yes and not click.confirm("\nSubmit deep research job?"):
         print_warning("Cancelled")
         return
@@ -109,25 +204,26 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
         import asyncio
         import uuid
         from datetime import datetime
-        from deepr.queue import create_queue
-        from deepr.queue.base import ResearchJob, JobStatus
-        from deepr.providers import create_provider
-        from deepr.providers.base import ResearchRequest, ToolConfig
-        
+
         # Initialize metadata emitter for tracing
         from deepr.observability.metadata import MetadataEmitter
+        from deepr.providers import create_provider
+        from deepr.providers.base import ResearchRequest, ToolConfig
+        from deepr.queue import create_queue
+        from deepr.queue.base import JobStatus, ResearchJob
+
         emitter = MetadataEmitter()
-        op = emitter.start_task("research_submit", prompt=prompt, attributes={
-            "provider": resolved_provider,
-            "model": model,
-            "web_search": web_search
-        })
+        op = emitter.start_task(
+            "research_submit",
+            prompt=prompt,
+            attributes={"provider": resolved_provider, "model": model, "web_search": web_search},
+        )
 
         db_path = config.get("queue_db_path", "queue/research_queue.db")
         _ensure_parent_dir(db_path)
 
         queue = create_queue("local", db_path=db_path)
-        
+
         # Get provider-specific API key
         if resolved_provider == "gemini":
             api_key = config.get("gemini_api_key")
@@ -137,7 +233,7 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
             api_key = config.get("azure_api_key")
         else:  # openai
             api_key = config.get("api_key")
-        
+
         provider_instance = create_provider(resolved_provider, api_key=api_key)
 
         job_id = str(uuid.uuid4())
@@ -150,6 +246,10 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
             job_metadata["entropy_threshold"] = entropy_threshold
         if token_budget is not None:
             job_metadata["token_budget"] = token_budget
+        if context_job_id:
+            job_metadata["context_from_job"] = context_job_id
+        if related_found:
+            job_metadata["related_research_detected"] = [r.job_id for r in related_found[:3]]
 
         job = ResearchJob(
             id=job_id,
@@ -166,15 +266,26 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
 
         async def submit_job():
             await queue.enqueue(job)
-            
+
             # Use provider-specific tool names
             tools = []
             if web_search:
                 tool_name = "web_search" if resolved_provider in ["grok", "xai"] else "web_search_preview"
                 tools.append(ToolConfig(type=tool_name))
-            
+
+            # Build the prompt with optional context (6.3)
+            research_prompt = prompt
+            if context_content:
+                research_prompt = (
+                    f"## Prior Research Context\n\n"
+                    f"The following prior research may be relevant. Use it as background "
+                    f"but verify and update any findings:\n\n"
+                    f"---\n{context_content}\n---\n\n"
+                    f"## New Research Query\n\n{prompt}"
+                )
+
             request = ResearchRequest(
-                prompt=prompt,
+                prompt=research_prompt,
                 model=model,
                 system_message=(
                     "You are a helpful AI research assistant. Provide comprehensive, "
@@ -194,9 +305,10 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
         op.set_attribute("job_id", job_id)
         op.set_attribute("provider_job_id", provider_job_id)
         emitter.complete_task(op)
-        
+
         # Save trace for later analysis
         from pathlib import Path
+
         trace_path = Path(f"data/traces/submit_{job_id[:8]}.json")
         emitter.save_trace(trace_path)
 
@@ -216,6 +328,7 @@ def submit(prompt: str, provider: str, model: str, priority: int, web_search: bo
         print_error(f"Error: {e}")
         raise click.Abort()
 
+
 @research.command()
 @click.argument("job_id")
 def status(job_id: str):
@@ -224,9 +337,10 @@ def status(job_id: str):
 
     try:
         import asyncio
+
+        from deepr.config import load_config
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
-        from deepr.config import load_config
 
         config = load_config()
         db_path = config.get("queue_db_path", "queue/research_queue.db")
@@ -250,13 +364,13 @@ def status(job_id: str):
         console.print(f"   Model: {job.model}")
         console.print(f"   Priority: {job.priority}")
         console.print(f"   Submitted: {job.submitted_at}")
-        if getattr(job, 'started_at', None):
+        if getattr(job, "started_at", None):
             console.print(f"   Started: {job.started_at}")
-        if getattr(job, 'completed_at', None):
+        if getattr(job, "completed_at", None):
             console.print(f"   Completed: {job.completed_at}")
-        if getattr(job, 'cost', None) is not None:
+        if getattr(job, "cost", None) is not None:
             console.print(f"   Cost: ${job.cost:.4f}")
-        if getattr(job, 'tokens_used', None):
+        if getattr(job, "tokens_used", None):
             console.print(f"   Tokens: {job.tokens_used:,}")
 
         console.print("\nPrompt:")
@@ -266,12 +380,13 @@ def status(job_id: str):
             console.print(f"\nView result: deepr research result {job.id[:8]}")
         elif job.status is JobStatus.PROCESSING:
             console.print("\nJob is still processing...")
-        elif job.status is JobStatus.FAILED and getattr(job, 'last_error', None):
+        elif job.status is JobStatus.FAILED and getattr(job, "last_error", None):
             console.print(f"\nError: {job.last_error}")
 
     except Exception as e:
         print_error(f"Error: {e}")
         raise click.Abort()
+
 
 @research.command()
 @click.argument("job_id")
@@ -281,10 +396,11 @@ def result(job_id: str):
 
     try:
         import asyncio
+
+        from deepr.config import load_config
+        from deepr.providers import create_provider
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
-        from deepr.providers import create_provider
-        from deepr.config import load_config
 
         config = load_config()
         db_path = config.get("queue_db_path", "queue/research_queue.db")
@@ -330,20 +446,25 @@ def result(job_id: str):
                             console.print(f"\n\nCitations ({len(anns)}):")
                             for i, ann in enumerate(anns, 1):
                                 console.print(f"   [{i}] {ann.get('title', 'Untitled')}")
-                                if ann.get('url'):
+                                if ann.get("url"):
                                     console.print(f"       {ann['url']}")
 
         if getattr(response, "usage", None):
             u = response.usage
             console.print("\n\nUsage:")
-            if hasattr(u, "input_tokens"):  console.print(f"   Input tokens: {u.input_tokens:,}")
-            if hasattr(u, "output_tokens"): console.print(f"   Output tokens: {u.output_tokens:,}")
-            if hasattr(u, "total_tokens"):  console.print(f"   Total tokens: {u.total_tokens:,}")
-            if hasattr(u, "cost"):          console.print(f"   Cost: ${u.cost:.4f}")
+            if hasattr(u, "input_tokens"):
+                console.print(f"   Input tokens: {u.input_tokens:,}")
+            if hasattr(u, "output_tokens"):
+                console.print(f"   Output tokens: {u.output_tokens:,}")
+            if hasattr(u, "total_tokens"):
+                console.print(f"   Total tokens: {u.total_tokens:,}")
+            if hasattr(u, "cost"):
+                console.print(f"   Cost: ${u.cost:.4f}")
 
     except Exception as e:
         print_error(f"Error: {e}")
         raise click.Abort()
+
 
 @research.command()
 @click.argument("job_id")
@@ -354,10 +475,11 @@ def cancel(job_id: str, yes: bool):
 
     try:
         import asyncio
+
+        from deepr.config import load_config
+        from deepr.providers import create_provider
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
-        from deepr.providers import create_provider
-        from deepr.config import load_config
 
         config = load_config()
         db_path = config.get("queue_db_path", "queue/research_queue.db")
@@ -406,6 +528,7 @@ def cancel(job_id: str, yes: bool):
             await queue.update_status(job_id=job.id, status=JobStatus.FAILED, error="Cancelled by user")
 
         import asyncio as _asyncio
+
         _asyncio.run(do_cancel())
         print_success("Job cancelled successfully!")
 
@@ -413,17 +536,24 @@ def cancel(job_id: str, yes: bool):
         print_error(f"Error: {e}")
         raise click.Abort()
 
+
 @research.command()
 @click.argument("job_id")
 @click.option("--timeout", "-t", default=300, help="Timeout in seconds (default: 300)")
-def wait(job_id: str, timeout: int):
-    """Wait for a job to complete and show result."""
+@click.option("--progress", "-p", is_flag=True, help="Show real-time progress with phase tracking")
+@click.option("--poll-interval", default=5, help="Poll interval in seconds (default: 5)")
+def wait(job_id: str, timeout: int, progress: bool, poll_interval: int):
+    """Wait for a job to complete and show result.
+
+    Use --progress for real-time phase tracking with progress bar.
+    """
     import asyncio
     import time
+
+    from deepr.config import load_config
+    from deepr.providers import create_provider
     from deepr.queue import create_queue
     from deepr.queue.base import JobStatus
-    from deepr.providers import create_provider
-    from deepr.config import load_config
 
     print_section_header(f"Waiting for Job: {job_id[:8]}...")
 
@@ -435,44 +565,81 @@ def wait(job_id: str, timeout: int):
         provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
 
         start_time = time.time()
-        check_interval = 10
 
-        async def wait_for_completion():
+        async def get_job_info():
             full_id = await _resolve_job_id(queue, job_id)
             if not full_id:
-                return None, "Job not found"
-            while True:
-                elapsed = time.time() - start_time
-                if elapsed > timeout:
-                    return None, "Timeout"
-                job = await queue.get_job(full_id)
-                if not job:
-                    return None, "Job not found"
-                if job.status is JobStatus.COMPLETED:
-                    if job.provider_job_id:
-                        resp = await provider.get_status(job.provider_job_id)
-                        return job, resp
-                    return job, None
-                if job.status is JobStatus.FAILED:
-                    return job, "Job failed"
-                click.echo(f"  [{int(elapsed)}s] Status: {job.status.name}...")
-                await asyncio.sleep(check_interval)
+                return None, None
+            job = await queue.get_job(full_id)
+            return full_id, job
 
-        job, response = asyncio.run(wait_for_completion())
+        full_id, job = asyncio.run(get_job_info())
         if not job:
-            print_error(response)
+            print_error(f"Job not found: {job_id}")
             raise click.Abort()
-        if response == "Job failed":
-            print_error("Job failed")
+
+        # Use real-time progress tracker if requested and we have a provider job ID
+        if progress and job.provider_job_id:
+            from deepr.cli.realtime_progress import ResearchProgressTracker
+
+            async def track_with_progress():
+                tracker = ResearchProgressTracker(provider)
+                try:
+                    response = await tracker.track_job(
+                        job_id=job.provider_job_id,
+                        poll_interval=poll_interval,
+                        timeout=timeout,
+                        show_partial=True,
+                    )
+                    return job, response
+                except TimeoutError:
+                    return job, "Timeout"
+                except Exception as e:
+                    return job, f"Error: {e}"
+
+            job, response = asyncio.run(track_with_progress())
+        else:
+            # Fallback to simple polling
+            check_interval = poll_interval
+
+            async def wait_for_completion():
+                while True:
+                    elapsed = time.time() - start_time
+                    if elapsed > timeout:
+                        return job, "Timeout"
+                    updated_job = await queue.get_job(full_id)
+                    if not updated_job:
+                        return None, "Job not found"
+                    if updated_job.status is JobStatus.COMPLETED:
+                        if updated_job.provider_job_id:
+                            resp = await provider.get_status(updated_job.provider_job_id)
+                            return updated_job, resp
+                        return updated_job, None
+                    if updated_job.status is JobStatus.FAILED:
+                        return updated_job, "Job failed"
+                    click.echo(f"  [{int(elapsed)}s] Status: {updated_job.status.name}...")
+                    await asyncio.sleep(check_interval)
+
+            job, response = asyncio.run(wait_for_completion())
+
+        if not job:
+            print_error(response if isinstance(response, str) else "Job not found")
+            raise click.Abort()
+        if response == "Timeout":
+            print_error(f"Timeout after {timeout}s")
+            raise click.Abort()
+        if response == "Job failed" or (isinstance(response, str) and response.startswith("Error:")):
+            print_error(response if isinstance(response, str) else "Job failed")
             # Record failure with provider router
             try:
                 from deepr.observability.provider_router import AutonomousProviderRouter
+
                 router = AutonomousProviderRouter()
                 router.record_result(
-                    provider=getattr(job, 'provider', 'openai'),
+                    provider=getattr(job, "provider", "openai"),
                     model=job.model,
                     success=False,
-                    error=getattr(job, 'last_error', 'Unknown error')
+                    error=getattr(job, "last_error", "Unknown error"),
                 )
             except Exception:
                 pass
@@ -484,23 +651,24 @@ def wait(job_id: str, timeout: int):
             raise click.Abort()
 
         print_success("Job completed!")
-        
+
         # Record result with provider router for metrics
         try:
             from deepr.observability.provider_router import AutonomousProviderRouter
+
             router = AutonomousProviderRouter()
             elapsed_ms = (time.time() - start_time) * 1000
-            cost = getattr(getattr(response, 'usage', None), 'cost', 0.0) if response else 0.0
+            cost = getattr(getattr(response, "usage", None), "cost", 0.0) if response else 0.0
             router.record_result(
-                provider=getattr(job, 'provider', 'openai'),
+                provider=getattr(job, "provider", "openai"),
                 model=job.model,
                 success=True,
                 latency_ms=elapsed_ms,
-                cost=cost
+                cost=cost,
             )
         except Exception:
             pass  # Don't fail on metrics recording
-        
+
         console.print()
         if getattr(response, "output", None):
             for block in response.output:
@@ -520,25 +688,28 @@ def wait(job_id: str, timeout: int):
 
 @research.command()
 @click.argument("job_id")
-@click.option("--explain", is_flag=True, help="Show research path reasoning")
+@click.option("--explain", "--why", is_flag=True, help="Show research path reasoning")
 @click.option("--timeline", is_flag=True, help="Show reasoning evolution timeline")
 @click.option("--temporal", is_flag=True, help="Show temporal knowledge timeline with findings/hypotheses")
+@click.option("--lineage", is_flag=True, help="Show context lineage (which sources informed which tasks)")
 @click.option("--full-trace", is_flag=True, help="Export complete audit trail")
 @click.option("--output", "-o", type=click.Path(), help="Output file for full trace export")
 @click.option("--show-budget", is_flag=True, help="Show token budget utilization")
-def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, full_trace: bool, output: str, show_budget: bool):
+def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, lineage: bool, full_trace: bool, output: str, show_budget: bool):
     """View trace information for a research job.
 
     Examples:
         deepr research trace abc123 --explain
         deepr research trace abc123 --timeline
         deepr research trace abc123 --temporal
+        deepr research trace abc123 --lineage
         deepr research trace abc123 --full-trace -o trace.json
         deepr research trace abc123 --show-budget
     """
     from pathlib import Path
-    from rich.table import Table
+
     from rich.panel import Panel
+    from rich.table import Table
 
     print_section_header(f"Trace: {job_id[:8]}...")
 
@@ -555,24 +726,29 @@ def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, full_trace
 
     try:
         from deepr.observability.metadata import MetadataEmitter
+
         emitter = MetadataEmitter.load_trace(trace_path)
 
         if explain:
             # Show research path reasoning
-            console.print(Panel(
-                f"[bold]Research Path Explanation[/bold]\n\n"
-                f"Trace ID: {emitter.trace_context.trace_id}\n"
-                f"Total Tasks: {len(emitter.tasks)}\n"
-                f"Total Cost: ${emitter.get_total_cost():.4f}",
-                title="Research Path"
-            ))
+            console.print(
+                Panel(
+                    f"[bold]Research Path Explanation[/bold]\n\n"
+                    f"Trace ID: {emitter.trace_context.trace_id}\n"
+                    f"Total Tasks: {len(emitter.tasks)}\n"
+                    f"Total Cost: ${emitter.get_total_cost():.4f}",
+                    title="Research Path",
+                )
+            )
 
             # Show task hierarchy
             console.print("\n[bold]Task Hierarchy:[/bold]")
             for task in emitter.tasks:
                 indent = "  " if task.parent_task_id else ""
                 status_icon = "✓" if task.status == "completed" else "✗" if task.status == "failed" else "○"
-                console.print(f"{indent}[{'green' if task.status == 'completed' else 'red'}]{status_icon}[/] {task.task_type}")
+                console.print(
+                    f"{indent}[{'green' if task.status == 'completed' else 'red'}]{status_icon}[/] {task.task_type}"
+                )
                 if task.model:
                     console.print(f"{indent}   Model: {task.model}")
                 if task.cost > 0:
@@ -598,11 +774,7 @@ def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, full_trace
                 cost = f"${entry['cost']:.4f}" if entry.get("cost", 0) > 0 else "-"
 
                 table.add_row(
-                    start,
-                    entry["task_type"],
-                    f"[{status_color}]{entry['status']}[/{status_color}]",
-                    duration,
-                    cost
+                    start, entry["task_type"], f"[{status_color}]{entry['status']}[/{status_color}]", duration, cost
                 )
 
             console.print(table)
@@ -618,6 +790,10 @@ def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, full_trace
             # Show temporal knowledge timeline
             _render_temporal_timeline(job_id, trace_path)
 
+        if lineage:
+            # Show context lineage visualization
+            _render_context_lineage(emitter)
+
         if show_budget:
             # Show token budget utilization
             _render_budget_utilization(emitter)
@@ -627,19 +803,23 @@ def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, full_trace
             output_path = Path(output) if output else Path(f"trace_{job_id[:8]}_export.json")
             emitter.save_trace(output_path)
             print_success(f"Full trace exported to {output_path}")
-            console.print(f"\n[dim]Contains {len(emitter.tasks)} tasks and {len(emitter.trace_context.spans)} spans[/dim]")
+            console.print(
+                f"\n[dim]Contains {len(emitter.tasks)} tasks and {len(emitter.trace_context.spans)} spans[/dim]"
+            )
 
-        if not (explain or timeline or temporal or full_trace or show_budget):
+        if not (explain or timeline or temporal or lineage or full_trace or show_budget):
             # Default: show summary
-            console.print(Panel(
-                f"[bold]Trace Summary[/bold]\n\n"
-                f"Trace ID: {emitter.trace_context.trace_id}\n"
-                f"Tasks: {len(emitter.tasks)}\n"
-                f"Spans: {len(emitter.trace_context.spans)}\n"
-                f"Total Cost: ${emitter.get_total_cost():.4f}\n\n"
-                f"Use --explain, --timeline, --temporal, --show-budget, or --full-trace for details",
-                title="Trace Info"
-            ))
+            console.print(
+                Panel(
+                    f"[bold]Trace Summary[/bold]\n\n"
+                    f"Trace ID: {emitter.trace_context.trace_id}\n"
+                    f"Tasks: {len(emitter.tasks)}\n"
+                    f"Spans: {len(emitter.trace_context.spans)}\n"
+                    f"Total Cost: ${emitter.get_total_cost():.4f}\n\n"
+                    f"Use --explain, --timeline, --temporal, --lineage, --show-budget, or --full-trace for details",
+                    title="Trace Info",
+                )
+            )
 
     except Exception as e:
         print_error(f"Error loading trace: {e}")
@@ -653,13 +833,13 @@ def _render_temporal_timeline(job_id: str, trace_path):
         job_id: Job identifier
         trace_path: Path to trace file
     """
-    from rich.table import Table
-    from rich.panel import Panel
     import json
+
+    from rich.table import Table
 
     try:
         # Try to load temporal data from trace
-        with open(trace_path, 'r') as f:
+        with open(trace_path, "r") as f:
             trace_data = json.load(f)
 
         temporal_data = trace_data.get("temporal", {})
@@ -700,13 +880,7 @@ def _render_temporal_timeline(job_id: str, trace_path):
                 }
                 color = type_colors.get(ftype, "white")
 
-                table.add_row(
-                    time_str,
-                    phase,
-                    f"[{color}]{ftype}[/{color}]",
-                    text,
-                    conf
-                )
+                table.add_row(time_str, phase, f"[{color}]{ftype}[/{color}]", text, conf)
 
             console.print(table)
 
@@ -736,8 +910,6 @@ def _render_budget_utilization(emitter):
     Args:
         emitter: MetadataEmitter with trace data
     """
-    from rich.table import Table
-    from rich.progress import Progress, BarColumn, TextColumn
 
     console.print("\n[bold]Token Budget Utilization:[/bold]\n")
 
@@ -756,6 +928,7 @@ def _render_budget_utilization(emitter):
 
     # Show budget bar
     from deepr.core.constants import TOKEN_BUDGET_DEFAULT
+
     budget = TOKEN_BUDGET_DEFAULT
 
     used_pct = min(total_tokens / budget * 100, 100)
@@ -773,3 +946,67 @@ def _render_budget_utilization(emitter):
         for phase, tokens in sorted(phase_tokens.items()):
             pct = tokens / max(total_tokens, 1) * 100
             console.print(f"  Phase {phase}: {tokens:,} tokens ({pct:.1f}%)")
+
+
+def _render_context_lineage(emitter):
+    """Render context lineage visualization.
+
+    Shows which sources informed which tasks, visualizing the flow
+    of information through the research process.
+
+    Args:
+        emitter: MetadataEmitter with trace data
+    """
+    from rich.tree import Tree
+
+    lineage = emitter.get_context_lineage()
+
+    if not lineage:
+        console.print("[dim]No context lineage data found.[/dim]")
+        console.print("[dim]Context sources are recorded when research uses prior findings or documents.[/dim]")
+        return
+
+    console.print("\n[bold]Context Lineage:[/bold]")
+    console.print("[dim]Shows which sources informed each task[/dim]\n")
+
+    # Build a tree visualization
+    tree = Tree("[bold cyan]Research Flow[/bold cyan]")
+
+    # Group tasks by their relationship
+    task_map = {task.task_id: task for task in emitter.tasks}
+
+    for task_id, sources in lineage.items():
+        task = task_map.get(task_id)
+        if not task:
+            continue
+
+        task_label = f"[cyan]{task.task_type}[/cyan]"
+        if task.model:
+            task_label += f" [dim]({task.model})[/dim]"
+
+        task_branch = tree.add(task_label)
+
+        # Add sources as leaves
+        for source in sources:
+            # Truncate long source names
+            display_source = source if len(source) <= 60 else source[:57] + "..."
+
+            # Color code by source type
+            if source.startswith("http"):
+                source_style = "blue"
+            elif source.endswith((".pdf", ".doc", ".docx", ".txt")):
+                source_style = "green"
+            elif source.startswith("report:") or source.startswith("finding:"):
+                source_style = "yellow"
+            else:
+                source_style = "white"
+
+            task_branch.add(f"[{source_style}]← {display_source}[/{source_style}]")
+
+    console.print(tree)
+
+    # Summary stats
+    total_sources = sum(len(s) for s in lineage.values())
+    unique_sources = len(set(s for sources in lineage.values() for s in sources))
+
+    console.print(f"\n[dim]Tasks with context: {len(lineage)} | Total references: {total_sources} | Unique sources: {unique_sources}[/dim]")

@@ -70,6 +70,14 @@ def index():
     return render_template('index.html')
 
 
+def _safe_int(value, default: int = 0) -> int:
+    """Safely parse an integer from query params."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def _parse_time_range(time_range: str, default_days: int = 30) -> int:
     """Parse time range string like '30d' to integer days.
 
@@ -94,8 +102,8 @@ def _parse_time_range(time_range: str, default_days: int = 30) -> int:
 def get_jobs():
     """Get all jobs with pagination."""
     try:
-        limit = int(request.args.get('limit', 100))
-        offset = int(request.args.get('offset', 0))
+        limit = _safe_int(request.args.get('limit', 100), 100)
+        offset = _safe_int(request.args.get('offset', 0), 0)
         status_filter = request.args.get('status', None)
 
         if status_filter and status_filter != 'all':
@@ -241,11 +249,11 @@ def submit_job():
         estimated_cost = None
         if cost_estimator:
             try:
-                estimate = cost_estimator.estimate(prompt, model)
+                estimate = cost_estimator.estimate_cost(prompt, model)
                 estimated_cost = {
-                    'min_cost': estimate.get('min_cost', 0),
-                    'max_cost': estimate.get('max_cost', 0),
-                    'expected_cost': estimate.get('expected_cost', 0),
+                    'min_cost': estimate.min_cost,
+                    'max_cost': estimate.max_cost,
+                    'expected_cost': estimate.expected_cost,
                 }
             except Exception as e:
                 logger.warning(f"Cost estimation failed: {e}")
@@ -318,6 +326,8 @@ def batch_submit():
     """Submit multiple jobs at once."""
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
         jobs_data = data.get('jobs', [])
 
         if not jobs_data:
@@ -325,11 +335,14 @@ def batch_submit():
 
         results = []
         for job_input in jobs_data:
+            prompt = job_input.get('prompt', '').strip()
+            if not prompt:
+                continue  # Skip empty prompts
             job_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
             job = ResearchJob(
                 id=job_id,
-                prompt=job_input.get('prompt', ''),
+                prompt=prompt,
                 model=job_input.get('model', 'o4-mini-deep-research'),
                 priority=job_input.get('priority', 3),
                 enable_web_search=job_input.get('enable_web_search', True),
@@ -352,6 +365,8 @@ def bulk_cancel():
     """Cancel multiple jobs at once."""
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
         job_ids = data.get('job_ids', [])
 
         cancelled = []
@@ -445,7 +460,7 @@ def get_cost_summary():
 def get_cost_trends():
     """Get daily spending trends."""
     try:
-        days = int(request.args.get('days', 30))
+        days = _safe_int(request.args.get('days', 30), 30)
         all_jobs = run_async(queue.list_jobs(limit=10000))
 
         now = datetime.now(timezone.utc)
@@ -529,7 +544,7 @@ def get_cost_history():
     try:
         time_range = request.args.get('time_range', '30d')
         days = _parse_time_range(time_range, 30)
-        limit = int(request.args.get('limit', 100))
+        limit = _safe_int(request.args.get('limit', 100), 100)
 
         all_jobs = run_async(queue.list_jobs(limit=10000))
         now = datetime.now(timezone.utc)
@@ -574,36 +589,47 @@ def estimate_cost():
             return jsonify({'error': 'Prompt required'}), 400
 
         # Use estimator if available, otherwise use defaults
+        est_min, est_max, est_expected = 1.0, 5.0, 2.0
         if cost_estimator:
             try:
-                estimate = cost_estimator.estimate(prompt, model)
+                estimate = cost_estimator.estimate_cost(prompt, model)
+                est_min = estimate.min_cost
+                est_max = estimate.max_cost
+                est_expected = estimate.expected_cost
             except Exception as e:
                 logger.warning(f"Cost estimation failed: {e}")
-                estimate = {'min_cost': 1.0, 'max_cost': 5.0, 'expected_cost': 2.0}
         else:
             # Default estimates based on model
             if 'o3' in model:
-                estimate = {'min_cost': 2.0, 'max_cost': 15.0, 'expected_cost': 5.0}
-            else:
-                estimate = {'min_cost': 1.0, 'max_cost': 5.0, 'expected_cost': 2.0}
+                est_min, est_max, est_expected = 2.0, 15.0, 5.0
 
-        # Check against limits
+        # Check against limits using actual DB spending (not stale in-memory counter)
         allowed = True
         reason = None
         if cost_controller:
-            expected = estimate.get('expected_cost', 0)
-            if expected > cost_controller.max_cost_per_job:
+            if est_expected > cost_controller.max_cost_per_job:
                 allowed = False
                 reason = f"Exceeds per-job limit of ${cost_controller.max_cost_per_job}"
-            elif cost_controller.daily_spending + expected > cost_controller.max_daily_cost:
-                allowed = False
-                reason = f"Would exceed daily limit of ${cost_controller.max_daily_cost}"
+            else:
+                try:
+                    all_jobs = run_async(queue.list_jobs(limit=10000))
+                    now = datetime.now(timezone.utc)
+                    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    daily_actual = sum(
+                        (j.cost or 0) for j in all_jobs
+                        if j.completed_at and j.completed_at >= today_start
+                    )
+                    if daily_actual + est_expected > cost_controller.max_daily_cost:
+                        allowed = False
+                        reason = f"Would exceed daily limit of ${cost_controller.max_daily_cost}"
+                except Exception:
+                    pass  # If we can't check, allow it
 
         return jsonify({
             'estimate': {
-                'min_cost': round(estimate.get('min_cost', 1.0), 2),
-                'max_cost': round(estimate.get('max_cost', 5.0), 2),
-                'expected_cost': round(estimate.get('expected_cost', 2.0), 2),
+                'min_cost': round(est_min, 2),
+                'max_cost': round(est_max, 2),
+                'expected_cost': round(est_expected, 2),
             },
             'allowed': allowed,
             'reason': reason
@@ -666,8 +692,8 @@ def list_results():
     try:
         search = request.args.get('search', '')
         sort_by = request.args.get('sort_by', 'date')
-        limit = int(request.args.get('limit', 50))
-        offset = int(request.args.get('offset', 0))
+        limit = _safe_int(request.args.get('limit', 50), 50)
+        offset = _safe_int(request.args.get('offset', 0), 0)
 
         # Get completed jobs
         all_jobs = run_async(queue.list_jobs(limit=1000))
@@ -816,7 +842,7 @@ def search_results():
     """Search results by query."""
     try:
         query = request.args.get('q', '')
-        limit = int(request.args.get('limit', 20))
+        limit = _safe_int(request.args.get('limit', 20), 20)
 
         if not query:
             return jsonify({'results': [], 'total': 0})
@@ -871,7 +897,7 @@ def get_config():
             'monthly_limit': cost_controller.max_monthly_cost if cost_controller else 1000.0,
             'has_api_key': bool(os.getenv('OPENAI_API_KEY')),
         }
-        return jsonify(config)
+        return jsonify({'config': config})
 
     except Exception as e:
         logger.error(f"Error getting config: {e}")
@@ -883,6 +909,8 @@ def update_config():
     """Update configuration."""
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
 
         # Update allowed fields
         allowed = ['default_model', 'default_priority', 'enable_web_search']
@@ -897,10 +925,254 @@ def update_config():
             if 'monthly_limit' in data:
                 cost_controller.max_monthly_cost = float(data['monthly_limit'])
 
-        return jsonify({'success': True, 'config': _config})
+        return jsonify({'config': _config})
 
     except Exception as e:
         logger.error(f"Error updating config: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# EXPERTS API ENDPOINTS
+# =============================================================================
+
+@app.route('/api/experts', methods=['GET'])
+def list_experts():
+    """List all domain experts."""
+    try:
+        from deepr.experts.profile import ExpertProfile
+        experts_dir = config_path / 'experts'
+        experts = []
+        if experts_dir.exists():
+            for profile_dir in experts_dir.iterdir():
+                if profile_dir.is_dir():
+                    try:
+                        profile = ExpertProfile.load(str(profile_dir))
+                        experts.append({
+                            'name': profile.name,
+                            'description': getattr(profile, 'description', ''),
+                            'document_count': len(getattr(profile, 'documents', [])),
+                            'finding_count': len(getattr(profile, 'findings', [])),
+                            'gap_count': len(getattr(profile, 'knowledge_gaps', [])),
+                            'total_cost': getattr(profile, 'total_cost', 0),
+                            'last_active': getattr(profile, 'last_active', ''),
+                            'created_at': getattr(profile, 'created_at', ''),
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to load expert {profile_dir.name}: {e}")
+        return jsonify({'experts': experts})
+    except ImportError:
+        return jsonify({'experts': []})
+    except Exception as e:
+        logger.error(f"Error listing experts: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/experts/<name>', methods=['GET'])
+def get_expert(name):
+    """Get expert details."""
+    try:
+        from deepr.experts.profile import ExpertProfile
+        from urllib.parse import unquote
+        decoded_name = unquote(name)
+        experts_dir = config_path / 'experts'
+        # Find by name
+        for profile_dir in experts_dir.iterdir():
+            if profile_dir.is_dir():
+                try:
+                    profile = ExpertProfile.load(str(profile_dir))
+                    if profile.name == decoded_name:
+                        return jsonify({'expert': {
+                            'name': profile.name,
+                            'description': getattr(profile, 'description', ''),
+                            'document_count': len(getattr(profile, 'documents', [])),
+                            'finding_count': len(getattr(profile, 'findings', [])),
+                            'gap_count': len(getattr(profile, 'knowledge_gaps', [])),
+                            'total_cost': getattr(profile, 'total_cost', 0),
+                            'last_active': getattr(profile, 'last_active', ''),
+                            'created_at': getattr(profile, 'created_at', ''),
+                        }})
+                except Exception:
+                    continue
+        return jsonify({'error': 'Expert not found'}), 404
+    except ImportError:
+        return jsonify({'error': 'Expert system not available'}), 404
+    except Exception as e:
+        logger.error(f"Error getting expert {name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/experts/<name>/chat', methods=['POST'])
+def chat_with_expert(name):
+    """Chat with a domain expert."""
+    try:
+        data = request.json
+        if not data or not data.get('message'):
+            return jsonify({'error': 'Message required'}), 400
+        # Stub - expert chat requires the full expert system
+        return jsonify({'response': {
+            'role': 'assistant',
+            'content': 'Expert chat requires the full expert system. Use: deepr expert chat "' + name + '"',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }})
+    except Exception as e:
+        logger.error(f"Error chatting with expert {name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/experts/<name>/gaps', methods=['GET'])
+def get_expert_gaps(name):
+    """Get knowledge gaps for an expert."""
+    try:
+        from deepr.experts.profile import ExpertProfile
+        from urllib.parse import unquote
+        decoded_name = unquote(name)
+        experts_dir = config_path / 'experts'
+        for profile_dir in experts_dir.iterdir():
+            if profile_dir.is_dir():
+                try:
+                    profile = ExpertProfile.load(str(profile_dir))
+                    if profile.name == decoded_name:
+                        gaps = []
+                        for gap in getattr(profile, 'knowledge_gaps', []):
+                            gaps.append({
+                                'id': getattr(gap, 'id', str(uuid.uuid4())),
+                                'topic': getattr(gap, 'topic', ''),
+                                'description': getattr(gap, 'description', ''),
+                                'priority': getattr(gap, 'priority', 'medium'),
+                                'created_at': getattr(gap, 'created_at', ''),
+                            })
+                        return jsonify({'gaps': gaps})
+                except Exception:
+                    continue
+        return jsonify({'gaps': []})
+    except ImportError:
+        return jsonify({'gaps': []})
+    except Exception as e:
+        logger.error(f"Error getting gaps for expert {name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/experts/<name>/history', methods=['GET'])
+def get_expert_history(name):
+    """Get learning history for an expert."""
+    try:
+        return jsonify({'events': []})
+    except Exception as e:
+        logger.error(f"Error getting history for expert {name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# TRACES API ENDPOINTS
+# =============================================================================
+
+@app.route('/api/traces/<job_id>', methods=['GET'])
+def get_trace(job_id):
+    """Get trace data for a job."""
+    try:
+        trace_path = Path('data/traces') / f'{job_id}_trace.json'
+        if trace_path.exists():
+            import json
+            with open(trace_path) as f:
+                trace_data = json.load(f)
+            return jsonify({'trace': trace_data})
+        return jsonify({'trace': None})
+    except Exception as e:
+        logger.error(f"Error getting trace {job_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/traces/<job_id>/temporal', methods=['GET'])
+def get_trace_temporal(job_id):
+    """Get temporal findings for a trace."""
+    try:
+        trace_path = Path('data/traces') / f'{job_id}_trace.json'
+        if trace_path.exists():
+            import json
+            with open(trace_path) as f:
+                trace_data = json.load(f)
+            findings = trace_data.get('temporal_findings', [])
+            return jsonify({'findings': findings})
+        return jsonify({'findings': []})
+    except Exception as e:
+        logger.error(f"Error getting temporal data for {job_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# ACTIVITY API ENDPOINT
+# =============================================================================
+
+@app.route('/api/activity', methods=['GET'])
+def get_activity():
+    """Get recent activity items."""
+    try:
+        limit = _safe_int(request.args.get('limit', 20), 20)
+        all_jobs = run_async(queue.list_jobs(limit=limit * 2))
+
+        # Sort by most recent first
+        all_jobs.sort(key=lambda j: j.submitted_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+
+        items = []
+        for job in all_jobs[:limit]:
+            if job.status == JobStatus.COMPLETED:
+                item_type = 'job_completed'
+                message = f'Research completed: {job.prompt[:60]}'
+            elif job.status == JobStatus.PROCESSING:
+                item_type = 'job_started'
+                message = f'Research started: {job.prompt[:60]}'
+            elif job.status == JobStatus.FAILED:
+                item_type = 'job_failed'
+                message = f'Research failed: {job.prompt[:60]}'
+            else:
+                continue
+
+            items.append({
+                'id': job.id,
+                'type': item_type,
+                'message': message,
+                'timestamp': (job.completed_at or job.submitted_at).isoformat() if (job.completed_at or job.submitted_at) else None,
+                'metadata': {'model': job.model, 'cost': job.cost or 0},
+            })
+
+        return jsonify({'items': items})
+
+    except Exception as e:
+        logger.error(f"Error getting activity: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# CONFIG TEST CONNECTION
+# =============================================================================
+
+@app.route('/api/config/test-connection', methods=['POST'])
+def test_connection():
+    """Test provider API connection."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        provider_name = data.get('provider', 'openai')
+
+        if provider_name == 'openai':
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                return jsonify({'success': False, 'message': 'OPENAI_API_KEY not set'}), 200
+            try:
+                # Quick connectivity test
+                import openai
+                client = openai.OpenAI(api_key=api_key)
+                client.models.list()
+                return jsonify({'success': True, 'message': 'Connection successful'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+        else:
+            return jsonify({'success': False, 'message': f'Provider {provider_name} test not implemented'})
+
+    except Exception as e:
+        logger.error(f"Error testing connection: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -917,7 +1189,7 @@ def health_check():
 
         return jsonify({
             'status': 'healthy',
-            'version': '2.6.0',
+            'version': '2.8.0',
             'provider': 'openai',
             'queue': 'sqlite',
             'storage': 'local',

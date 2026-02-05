@@ -8,14 +8,14 @@ import os
 import sys
 from typing import Optional
 
-from rich.console import Console
-from rich.theme import Theme
-from rich.table import Table
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
-from rich.markdown import Markdown
-from rich.box import ASCII
 import click
+from rich.box import ASCII
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+from rich.theme import Theme
 
 
 def _detect_unicode_support() -> bool:
@@ -27,12 +27,12 @@ def _detect_unicode_support() -> bool:
     # Check for explicit override
     if os.environ.get("DEEPR_FORCE_ASCII"):
         return False
-    
+
     if sys.platform == "win32":
         # Windows Terminal and modern terminals support Unicode
         # Legacy cmd.exe does not
         return bool(os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"))
-    
+
     # Unix-like systems generally support Unicode
     encoding = getattr(sys.stdout, 'encoding', '') or ''
     return encoding.lower() in ("utf-8", "utf8", "")
@@ -162,18 +162,18 @@ def print_result(message: str, duration_seconds: Optional[float] = None, cost_us
     Example output: Research complete (12.3s, $0.0234)
     """
     color = "success" if success else "error"
-    
+
     parts = [f"[{color}]{message}[/{color}]"]
-    
+
     meta_parts = []
     if duration_seconds is not None:
         meta_parts.append(_format_duration(duration_seconds))
     if cost_usd is not None:
         meta_parts.append(f"${cost_usd:.4f}")
-    
+
     if meta_parts:
         parts.append(f"[dim]({', '.join(meta_parts)})[/dim]")
-    
+
     console.print(" ".join(parts))
 
 
@@ -230,21 +230,21 @@ def truncate_text(text: str, max_width: int = 80) -> str:
     """
     if len(text) <= max_width:
         return text
-    
+
     ellipsis = get_symbol("ellipsis")
     ellipsis_len = len(ellipsis)
-    
+
     # Calculate available space for text (excluding ellipsis)
     available = max_width - ellipsis_len
     if available <= 0:
         return ellipsis[:max_width]
-    
+
     # Find last space before available space
     truncate_at = text.rfind(" ", 0, available)
     if truncate_at == -1 or truncate_at < available // 2:
         # No good word boundary, just truncate
         truncate_at = available
-    
+
     return text[:truncate_at].rstrip() + ellipsis
 
 
@@ -260,17 +260,17 @@ def truncate_path(path: str, max_width: int = 60) -> str:
     """
     if len(path) <= max_width:
         return path
-    
+
     ellipsis = get_symbol("ellipsis")
-    
+
     # Normalize path separators
     parts = path.replace("\\", "/").split("/")
     filename = parts[-1]
-    
+
     if len(filename) >= max_width - 3:
         # Filename itself is too long
         return ellipsis + filename[-(max_width - 1):]
-    
+
     # Keep first dir and filename, truncate middle
     if len(parts) > 2:
         return f"{parts[0]}/{ellipsis}/{filename}"
@@ -426,22 +426,131 @@ def print_list_item(text: str, indent: int = 0):
 
 def print_error_with_suggestion(summary: str, details: str = None, suggestion: str = None):
     """Print formatted error message with optional details and suggestion.
-    
+
     Args:
         summary: Error summary (one line)
         details: Optional detailed error message
         suggestion: Optional "Try:" suggestion
-        
+
     Example output:
         Error: Expert not found: Python Expert
           No expert with that name exists
           Try: deepr expert list
     """
     console.print(f"[error]Error: {summary}[/error]")
-    
+
     if details:
         for line in details.split("\n"):
             console.print(f"  [dim]{line}[/dim]")
-    
+
     if suggestion:
         console.print(f"  [cyan]Try:[/cyan] {suggestion}")
+
+
+def _supports_hyperlinks() -> bool:
+    """Check if terminal supports OSC 8 hyperlinks.
+
+    Returns True for modern terminals (iTerm2, Windows Terminal, Konsole, etc.)
+    """
+    # Check for explicit override
+    if os.environ.get("DEEPR_NO_HYPERLINKS"):
+        return False
+
+    # Windows Terminal supports hyperlinks
+    if os.environ.get("WT_SESSION"):
+        return True
+
+    # iTerm2 supports hyperlinks
+    if os.environ.get("ITERM_SESSION_ID"):
+        return True
+
+    # Check TERM_PROGRAM for known supporting terminals
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    if term_program in ("iterm.app", "hyper", "vscode", "wezterm"):
+        return True
+
+    # Check for VTE-based terminals (GNOME Terminal, etc.)
+    if os.environ.get("VTE_VERSION"):
+        return True
+
+    return False
+
+
+def make_hyperlink(url: str, text: Optional[str] = None) -> str:
+    """Create a clickable hyperlink for supported terminals.
+
+    Uses OSC 8 escape sequences for terminal hyperlinks.
+    Falls back to plain text in unsupported terminals.
+
+    Args:
+        url: The URL or file path to link to
+        text: Display text (defaults to URL)
+
+    Returns:
+        String with OSC 8 hyperlink or plain text
+    """
+    display_text = text or url
+
+    if not _supports_hyperlinks():
+        return display_text
+
+    # OSC 8 hyperlink format: \033]8;;URL\033\\TEXT\033]8;;\033\\
+    return f"\033]8;;{url}\033\\{display_text}\033]8;;\033\\"
+
+
+def print_report_link(report_path: str, label: Optional[str] = None):
+    """Print a clickable link to a report file.
+
+    Args:
+        report_path: Path to the report file or directory
+        label: Optional label (defaults to path)
+    """
+    from pathlib import Path
+
+    path = Path(report_path)
+    display = label or str(path)
+
+    # Convert to file:// URL for hyperlink
+    try:
+        file_url = path.resolve().as_uri()
+        link = make_hyperlink(file_url, display)
+        console.print(f"[dim]Report:[/dim] {link}")
+    except Exception:
+        console.print(f"[dim]Report:[/dim] {display}")
+
+
+def print_truncated(
+    lines: list,
+    max_lines: int = 10,
+    flag_name: str = "--full",
+    show_count: bool = True
+):
+    """Print lines with truncation and hint to see more.
+
+    Args:
+        lines: List of lines to print
+        max_lines: Maximum lines to show before truncating
+        flag_name: Flag name to suggest for full output
+        show_count: Show count of hidden lines
+
+    Example output:
+        line 1
+        line 2
+        ...
+        [dim](+15 more, use --full to see all)[/dim]
+    """
+    if len(lines) <= max_lines:
+        for line in lines:
+            console.print(line)
+        return
+
+    # Print first max_lines
+    for line in lines[:max_lines]:
+        console.print(line)
+
+    # Print truncation hint
+    hidden = len(lines) - max_lines
+    if show_count:
+        console.print(f"[dim](+{hidden} more, use {flag_name} to see all)[/dim]")
+    else:
+        console.print(f"[dim](use {flag_name} to see all)[/dim]")
