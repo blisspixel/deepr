@@ -2,16 +2,15 @@
 
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
 
-import pytest
-from hypothesis import given, settings, strategies as st, assume, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 from deepr.observability.provider_router import (
+    ROLLING_WINDOW_SIZE,
     AutonomousProviderRouter,
     FallbackEvent,
     ProviderMetrics,
-    ROLLING_WINDOW_SIZE,
 )
 
 providers = st.sampled_from(["openai", "anthropic", "xai", "google", "azure", "local"])
@@ -50,7 +49,7 @@ class TestProviderMetricsProperties:
 
     @given(providers, models, success_records())
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_success_rate_bounded(self, provider: str, model: str, records: List[Tuple[float, float]]):
+    def test_success_rate_bounded(self, provider: str, model: str, records: list[tuple[float, float]]):
         """Property: success rate is always between 0 and 1."""
         metrics = ProviderMetrics(provider=provider, model=model)
         for latency, cost in records:
@@ -59,7 +58,9 @@ class TestProviderMetricsProperties:
 
     @given(providers, models, success_records())
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_total_requests_equals_success_plus_failure(self, provider: str, model: str, records: List[Tuple[float, float]]):
+    def test_total_requests_equals_success_plus_failure(
+        self, provider: str, model: str, records: list[tuple[float, float]]
+    ):
         """Property: total_requests = success_count + failure_count."""
         metrics = ProviderMetrics(provider=provider, model=model)
         for latency, cost in records:
@@ -82,7 +83,7 @@ class TestProviderMetricsProperties:
 
     @given(providers, models, success_records(count=10))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_avg_latency_accurate(self, provider: str, model: str, records: List[Tuple[float, float]]):
+    def test_avg_latency_accurate(self, provider: str, model: str, records: list[tuple[float, float]]):
         """Property: avg_latency equals total_latency / success_count."""
         assume(len(records) > 0)
         metrics = ProviderMetrics(provider=provider, model=model)
@@ -94,7 +95,7 @@ class TestProviderMetricsProperties:
 
     @given(providers, models, success_records(count=10))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_avg_cost_accurate(self, provider: str, model: str, records: List[Tuple[float, float]]):
+    def test_avg_cost_accurate(self, provider: str, model: str, records: list[tuple[float, float]]):
         """Property: avg_cost equals total_cost / success_count."""
         assume(len(records) > 0)
         metrics = ProviderMetrics(provider=provider, model=model)
@@ -104,9 +105,13 @@ class TestProviderMetricsProperties:
             expected_avg = metrics.total_cost / metrics.success_count
             assert abs(metrics.avg_cost - expected_avg) < 1e-6
 
-    @given(providers, models, st.lists(st.tuples(latencies, costs), min_size=ROLLING_WINDOW_SIZE + 5, max_size=ROLLING_WINDOW_SIZE + 20))
+    @given(
+        providers,
+        models,
+        st.lists(st.tuples(latencies, costs), min_size=ROLLING_WINDOW_SIZE + 5, max_size=ROLLING_WINDOW_SIZE + 20),
+    )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_rolling_window_size_bounded(self, provider: str, model: str, records: List[Tuple[float, float]]):
+    def test_rolling_window_size_bounded(self, provider: str, model: str, records: list[tuple[float, float]]):
         """Property: rolling window never exceeds ROLLING_WINDOW_SIZE."""
         metrics = ProviderMetrics(provider=provider, model=model)
         for latency, cost in records:
@@ -116,7 +121,7 @@ class TestProviderMetricsProperties:
 
     @given(providers, models, success_records())
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_serialization_roundtrip(self, provider: str, model: str, records: List[Tuple[float, float]]):
+    def test_serialization_roundtrip(self, provider: str, model: str, records: list[tuple[float, float]]):
         """Property: to_dict/from_dict roundtrip preserves all fields."""
         metrics = ProviderMetrics(provider=provider, model=model)
         for latency, cost in records:
@@ -145,7 +150,7 @@ class TestAutonomousProviderRouterProperties:
 
     @given(st.lists(provider_model_pairs(), min_size=1, max_size=10, unique=True))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_select_provider_returns_valid_tuple(self, pairs: List[Tuple[str, str]]):
+    def test_select_provider_returns_valid_tuple(self, pairs: list[tuple[str, str]]):
         """Property: select_provider always returns a valid (provider, model) tuple."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "metrics.json"
@@ -158,9 +163,15 @@ class TestAutonomousProviderRouterProperties:
             assert isinstance(result[0], str)
             assert isinstance(result[1], str)
 
-    @given(st.lists(st.tuples(provider_model_pairs(), st.floats(min_value=0.5, max_value=1.0, allow_nan=False)), min_size=2, max_size=5))
+    @given(
+        st.lists(
+            st.tuples(provider_model_pairs(), st.floats(min_value=0.5, max_value=1.0, allow_nan=False)),
+            min_size=2,
+            max_size=5,
+        )
+    )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_best_provider_selected(self, provider_scores: List[Tuple[Tuple[str, str], float]]):
+    def test_best_provider_selected(self, provider_scores: list[tuple[tuple[str, str], float]]):
         """Property: provider with highest success rate is preferred."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "metrics.json"
@@ -183,7 +194,7 @@ class TestAutonomousProviderRouterProperties:
 
     @given(provider_model_pairs(), st.lists(st.tuples(latencies, costs), min_size=1, max_size=20))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_metrics_persist_across_instances(self, pair: Tuple[str, str], records: List[Tuple[float, float]]):
+    def test_metrics_persist_across_instances(self, pair: tuple[str, str], records: list[tuple[float, float]]):
         """Property: metrics persist correctly across router instances."""
         provider, model = pair
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -200,7 +211,7 @@ class TestAutonomousProviderRouterProperties:
 
     @given(provider_model_pairs(), errors)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_fallback_excludes_failed_provider(self, pair: Tuple[str, str], error: str):
+    def test_fallback_excludes_failed_provider(self, pair: tuple[str, str], error: str):
         """Property: fallback never returns the failed provider."""
         provider, model = pair
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -212,7 +223,7 @@ class TestAutonomousProviderRouterProperties:
 
     @given(st.lists(provider_model_pairs(), min_size=1, max_size=5, unique=True))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_exclude_list_respected(self, pairs: List[Tuple[str, str]]):
+    def test_exclude_list_respected(self, pairs: list[tuple[str, str]]):
         """Property: excluded providers are never selected."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "metrics.json"
@@ -226,7 +237,7 @@ class TestAutonomousProviderRouterProperties:
 
     @given(provider_model_pairs(), st.integers(min_value=1, max_value=20), st.integers(min_value=0, max_value=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_success_rate_calculation_correct(self, pair: Tuple[str, str], successes: int, failures: int):
+    def test_success_rate_calculation_correct(self, pair: tuple[str, str], successes: int, failures: int):
         """Property: success rate is calculated correctly."""
         provider, model = pair
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -255,7 +266,7 @@ class TestAutonomousProviderRouterProperties:
 
     @given(provider_model_pairs())
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_key_is_exact_tuple(self, pair: Tuple[str, str]):
+    def test_key_is_exact_tuple(self, pair: tuple[str, str]):
         """Property: metrics are keyed by exact (provider, model) tuple."""
         provider, model = pair
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -272,7 +283,9 @@ class TestFallbackEventProperties:
 
     @given(providers, models, providers, models, errors, st.booleans())
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_fallback_event_serialization(self, orig_provider: str, orig_model: str, fb_provider: str, fb_model: str, reason: str, success: bool):
+    def test_fallback_event_serialization(
+        self, orig_provider: str, orig_model: str, fb_provider: str, fb_model: str, reason: str, success: bool
+    ):
         """Property: FallbackEvent serializes all fields correctly."""
         event = FallbackEvent(
             original_provider=orig_provider,
@@ -280,7 +293,7 @@ class TestFallbackEventProperties:
             fallback_provider=fb_provider,
             fallback_model=fb_model,
             reason=reason,
-            success=success
+            success=success,
         )
         data = event.to_dict()
         assert data["original_provider"] == orig_provider
@@ -297,7 +310,7 @@ class TestRouterStatusProperties:
 
     @given(st.lists(provider_model_pairs(), min_size=0, max_size=10, unique=True))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_status_counts_consistent(self, pairs: List[Tuple[str, str]]):
+    def test_status_counts_consistent(self, pairs: list[tuple[str, str]]):
         """Property: healthy + unhealthy counts equal total providers."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "metrics.json"
@@ -310,7 +323,7 @@ class TestRouterStatusProperties:
 
     @given(st.lists(st.tuples(provider_model_pairs(), costs), min_size=1, max_size=20))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_total_cost_accurate(self, records: List[Tuple[Tuple[str, str], float]]):
+    def test_total_cost_accurate(self, records: list[tuple[tuple[str, str], float]]):
         """Property: total_cost in status equals sum of all recorded costs."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "metrics.json"
@@ -324,7 +337,7 @@ class TestRouterStatusProperties:
 
     @given(st.lists(provider_model_pairs(), min_size=1, max_size=10, unique=True))
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_total_requests_accurate(self, pairs: List[Tuple[str, str]]):
+    def test_total_requests_accurate(self, pairs: list[tuple[str, str]]):
         """Property: total_requests in status equals sum of all requests."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "metrics.json"

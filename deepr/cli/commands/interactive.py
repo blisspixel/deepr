@@ -4,7 +4,7 @@ Provides an interactive menu when deepr is invoked with no arguments.
 Uses Rich for beautiful terminal UI with panels, tables, and styled prompts.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 import click
 from rich import box
@@ -23,7 +23,7 @@ from deepr.cli.colors import (
 )
 
 
-def _get_recent_prompts(limit: int = 5) -> List[str]:
+def _get_recent_prompts(limit: int = 5) -> list[str]:
     """Get recent research prompts from job history."""
     try:
         from deepr.queue import SQLiteQueue
@@ -43,7 +43,7 @@ def _get_recent_prompts(limit: int = 5) -> List[str]:
         return []
 
 
-def _get_available_models() -> List[Dict[str, Any]]:
+def _get_available_models() -> list[dict[str, Any]]:
     """Get available models with cost estimates."""
     return [
         {

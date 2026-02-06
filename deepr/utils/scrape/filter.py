@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,11 @@ class LinkFilter:
 
     def filter_links(
         self,
-        links: List[Dict[str, str]],
+        links: list[dict[str, str]],
         purpose: str,
         company_name: Optional[str] = None,
         max_links: int = 20,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Filter links using LLM to identify most relevant.
 
@@ -71,7 +71,7 @@ class LinkFilter:
 
     def _create_filter_prompt(
         self,
-        links: List[Dict[str, str]],
+        links: list[dict[str, str]],
         purpose: str,
         company_name: Optional[str] = None,
     ) -> str:
@@ -150,7 +150,7 @@ JSON array of scores:"""
 
         return prompt
 
-    def _get_llm_scores(self, prompt: str) -> List[int]:
+    def _get_llm_scores(self, prompt: str) -> list[int]:
         """
         Get scores from LLM.
 
@@ -186,9 +186,9 @@ JSON array of scores:"""
 
     def _score_links(
         self,
-        links: List[Dict[str, str]],
-        scores: List[int],
-    ) -> List[Dict[str, str]]:
+        links: list[dict[str, str]],
+        scores: list[int],
+    ) -> list[dict[str, str]]:
         """
         Apply scores to links and sort by relevance.
 
@@ -216,10 +216,10 @@ JSON array of scores:"""
 
     def _heuristic_filter(
         self,
-        links: List[Dict[str, str]],
+        links: list[dict[str, str]],
         purpose: str,
         max_links: int,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Fallback heuristic filtering when LLM fails.
 
@@ -355,7 +355,7 @@ class SmartCrawler:
         base_url: str,
         purpose: str = "company research",
         company_name: Optional[str] = None,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Crawl a website intelligently.
 

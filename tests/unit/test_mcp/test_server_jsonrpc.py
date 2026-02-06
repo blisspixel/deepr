@@ -10,8 +10,8 @@ Validates the full JSON-RPC method dispatch including:
 - Legacy method name compatibility
 """
 
-import sys
 import json
+import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,35 +20,35 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from deepr.mcp.server import (
+    _LEGACY_METHOD_MAP,
     DeeprMCPServer,
     ToolError,
-    _make_error,
+    _build_tools_list,
     _handle_initialize,
-    _handle_tools_list,
-    _handle_tools_call,
+    _handle_prompts_get,
+    _handle_prompts_list,
     _handle_resources_list,
     _handle_resources_read,
     _handle_resources_subscribe,
     _handle_resources_unsubscribe,
-    _handle_prompts_list,
-    _handle_prompts_get,
-    _build_tools_list,
-    _LEGACY_METHOD_MAP,
+    _handle_tools_call,
+    _handle_tools_list,
+    _make_error,
 )
-from deepr.mcp.state.job_manager import JobPhase
-
 
 # ------------------------------------------------------------------ #
 # Fixtures
 # ------------------------------------------------------------------ #
 
+
 @pytest.fixture
 def mock_server():
     """Create a DeeprMCPServer with mocked external dependencies."""
-    with patch("deepr.mcp.server.ExpertStore"), \
-         patch("deepr.mcp.server.load_config", return_value={}), \
-         patch("deepr.mcp.server.get_resource_handler") as mock_rh:
-
+    with (
+        patch("deepr.mcp.server.ExpertStore"),
+        patch("deepr.mcp.server.load_config", return_value={}),
+        patch("deepr.mcp.server.get_resource_handler") as mock_rh,
+    ):
         # Set up a real-ish resource handler mock
         handler = MagicMock()
         handler.jobs = MagicMock()
@@ -74,6 +74,7 @@ def mock_server():
 # ------------------------------------------------------------------ #
 # ToolError and _make_error
 # ------------------------------------------------------------------ #
+
 
 class TestToolError:
     """Test structured error dataclass."""
@@ -107,8 +108,8 @@ class TestToolError:
 # initialize
 # ------------------------------------------------------------------ #
 
-class TestInitialize:
 
+class TestInitialize:
     @pytest.mark.asyncio
     async def test_initialize_returns_capabilities(self, mock_server):
         result = await _handle_initialize(mock_server, {})
@@ -129,8 +130,8 @@ class TestInitialize:
 # tools/list
 # ------------------------------------------------------------------ #
 
-class TestToolsList:
 
+class TestToolsList:
     @pytest.mark.asyncio
     async def test_tools_list_gateway_mode(self, mock_server):
         """Default: only return gateway tool for context efficiency."""
@@ -153,22 +154,18 @@ class TestToolsList:
 # tools/call
 # ------------------------------------------------------------------ #
 
-class TestToolsCall:
 
+class TestToolsCall:
     @pytest.mark.asyncio
     async def test_call_unknown_tool(self, mock_server):
-        result = await _handle_tools_call(
-            mock_server, {"name": "nonexistent_tool", "arguments": {}}
-        )
+        result = await _handle_tools_call(mock_server, {"name": "nonexistent_tool", "arguments": {}})
         assert result["isError"] is True
         data = json.loads(result["content"][0]["text"])
         assert data["error_code"] == "TOOL_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_call_deepr_status(self, mock_server):
-        result = await _handle_tools_call(
-            mock_server, {"name": "deepr_status", "arguments": {}}
-        )
+        result = await _handle_tools_call(mock_server, {"name": "deepr_status", "arguments": {}})
         assert result["isError"] is False
         data = json.loads(result["content"][0]["text"])
         assert data["status"] == "healthy"
@@ -211,9 +208,7 @@ class TestToolsCall:
                 "stats": {"documents": 0, "conversations": 0},
             }
         ]
-        result = await _handle_tools_call(
-            mock_server, {"name": "deepr_list_experts", "arguments": {}}
-        )
+        result = await _handle_tools_call(mock_server, {"name": "deepr_list_experts", "arguments": {}})
         assert result["isError"] is False
         data = json.loads(result["content"][0]["text"])
         assert isinstance(data, list)
@@ -222,9 +217,7 @@ class TestToolsCall:
     @pytest.mark.asyncio
     async def test_call_tool_result_format(self, mock_server):
         """All tool results should follow the MCP content format."""
-        result = await _handle_tools_call(
-            mock_server, {"name": "deepr_status", "arguments": {}}
-        )
+        result = await _handle_tools_call(mock_server, {"name": "deepr_status", "arguments": {}})
         assert "content" in result
         assert isinstance(result["content"], list)
         assert result["content"][0]["type"] == "text"
@@ -236,8 +229,8 @@ class TestToolsCall:
 # resources/list and resources/read
 # ------------------------------------------------------------------ #
 
-class TestResources:
 
+class TestResources:
     @pytest.mark.asyncio
     async def test_resources_list(self, mock_server):
         mock_server.resource_handler.list_resources.return_value = [
@@ -251,9 +244,7 @@ class TestResources:
 
     @pytest.mark.asyncio
     async def test_resources_read_success(self, mock_server):
-        result = await _handle_resources_read(
-            mock_server, {"uri": "deepr://campaigns/test/status"}
-        )
+        result = await _handle_resources_read(mock_server, {"uri": "deepr://campaigns/test/status"})
         assert "contents" in result
         assert result["contents"][0]["uri"] == "deepr://campaigns/test/status"
         # Data should be JSON string
@@ -261,12 +252,8 @@ class TestResources:
 
     @pytest.mark.asyncio
     async def test_resources_read_failure(self, mock_server):
-        mock_server.resource_handler.read_resource.return_value = MagicMock(
-            success=False, data=None, error="Not found"
-        )
-        result = await _handle_resources_read(
-            mock_server, {"uri": "deepr://campaigns/fake/status"}
-        )
+        mock_server.resource_handler.read_resource.return_value = MagicMock(success=False, data=None, error="Not found")
+        result = await _handle_resources_read(mock_server, {"uri": "deepr://campaigns/fake/status"})
         text = json.loads(result["contents"][0]["text"])
         assert "error" in text
 
@@ -275,16 +262,14 @@ class TestResources:
 # resources/subscribe and resources/unsubscribe
 # ------------------------------------------------------------------ #
 
-class TestSubscriptions:
 
+class TestSubscriptions:
     @pytest.mark.asyncio
     async def test_resources_subscribe(self, mock_server):
         mock_server.resource_handler.handle_subscribe = AsyncMock(
             return_value={"subscription_id": "sub_1", "uri": "deepr://campaigns/t/status"}
         )
-        result = await _handle_resources_subscribe(
-            mock_server, {"uri": "deepr://campaigns/t/status"}
-        )
+        result = await _handle_resources_subscribe(mock_server, {"uri": "deepr://campaigns/t/status"})
         assert result["subscription_id"] == "sub_1"
 
     @pytest.mark.asyncio
@@ -292,9 +277,7 @@ class TestSubscriptions:
         mock_server.resource_handler.handle_unsubscribe = AsyncMock(
             return_value={"success": True, "subscription_id": "sub_1"}
         )
-        result = await _handle_resources_unsubscribe(
-            mock_server, {"subscription_id": "sub_1"}
-        )
+        result = await _handle_resources_unsubscribe(mock_server, {"subscription_id": "sub_1"})
         assert result["success"] is True
 
 
@@ -302,8 +285,8 @@ class TestSubscriptions:
 # prompts/list and prompts/get
 # ------------------------------------------------------------------ #
 
-class TestPrompts:
 
+class TestPrompts:
     @pytest.mark.asyncio
     async def test_prompts_list(self, mock_server):
         result = await _handle_prompts_list(mock_server, {})
@@ -322,16 +305,12 @@ class TestPrompts:
                 if arg.get("required"):
                     args[arg["name"]] = "test_value"
 
-            result = await _handle_prompts_get(
-                mock_server, {"name": name, "arguments": args}
-            )
+            result = await _handle_prompts_get(mock_server, {"name": name, "arguments": args})
             assert "description" in result or "error" in result
 
     @pytest.mark.asyncio
     async def test_prompts_get_nonexistent(self, mock_server):
-        result = await _handle_prompts_get(
-            mock_server, {"name": "nonexistent_prompt", "arguments": {}}
-        )
+        result = await _handle_prompts_get(mock_server, {"name": "nonexistent_prompt", "arguments": {}})
         assert "error" in result
 
 
@@ -339,8 +318,8 @@ class TestPrompts:
 # Legacy method mapping
 # ------------------------------------------------------------------ #
 
-class TestLegacyMethods:
 
+class TestLegacyMethods:
     def test_legacy_map_exists(self):
         assert "list_experts" in _LEGACY_METHOD_MAP
         assert "get_expert_info" in _LEGACY_METHOD_MAP
@@ -360,8 +339,8 @@ class TestLegacyMethods:
 # _build_tools_list
 # ------------------------------------------------------------------ #
 
-class TestBuildToolsList:
 
+class TestBuildToolsList:
     def test_gateway_mode_returns_gateway(self, mock_server):
         tools = _build_tools_list(mock_server, use_gateway=True)
         assert len(tools) >= 1

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
 # Current schema versions for each data type
 CURRENT_VERSIONS = {
@@ -40,7 +40,7 @@ CURRENT_VERSIONS = {
 }
 
 # Migration registry: (schema_type, from_version, to_version) -> migration_function
-_migrations: Dict[Tuple[str, str, str], Callable[[Dict], Dict]] = {}
+_migrations: dict[tuple[str, str, str], Callable[[dict], dict]] = {}
 
 
 @dataclass
@@ -52,7 +52,7 @@ class SchemaVersion:
     created_at: str
     migrated_from: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "schema_type": self.schema_type,
             "version": self.version,
@@ -61,7 +61,7 @@ class SchemaVersion:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SchemaVersion":
+    def from_dict(cls, data: dict[str, Any]) -> "SchemaVersion":
         return cls(
             schema_type=data.get("schema_type", "unknown"),
             version=data.get("version", "0.0.0"),
@@ -70,7 +70,7 @@ class SchemaVersion:
         )
 
 
-def add_schema_version(data: Dict[str, Any], schema_type: str, version: Optional[str] = None) -> Dict[str, Any]:
+def add_schema_version(data: dict[str, Any], schema_type: str, version: Optional[str] = None) -> dict[str, Any]:
     """Add schema version metadata to data.
 
     Args:
@@ -95,7 +95,7 @@ def add_schema_version(data: Dict[str, Any], schema_type: str, version: Optional
     return versioned
 
 
-def get_schema_version(data: Dict[str, Any]) -> Optional[SchemaVersion]:
+def get_schema_version(data: dict[str, Any]) -> Optional[SchemaVersion]:
     """Get schema version from data.
 
     Args:
@@ -111,7 +111,7 @@ def get_schema_version(data: Dict[str, Any]) -> Optional[SchemaVersion]:
     return SchemaVersion.from_dict(version_data)
 
 
-def get_version_string(data: Dict[str, Any]) -> str:
+def get_version_string(data: dict[str, Any]) -> str:
     """Get version string from data.
 
     Args:
@@ -124,7 +124,7 @@ def get_version_string(data: Dict[str, Any]) -> str:
     return version.version if version else "0.0.0"
 
 
-def needs_migration(data: Dict[str, Any], schema_type: str, target_version: Optional[str] = None) -> bool:
+def needs_migration(data: dict[str, Any], schema_type: str, target_version: Optional[str] = None) -> bool:
     """Check if data needs migration to target version.
 
     Args:
@@ -153,7 +153,7 @@ def _compare_versions(v1: str, v2: str) -> int:
         -1 if v1 < v2, 0 if equal, 1 if v1 > v2
     """
 
-    def parse(v: str) -> Tuple[int, ...]:
+    def parse(v: str) -> tuple[int, ...]:
         try:
             return tuple(int(x) for x in v.split("."))
         except (ValueError, AttributeError):
@@ -185,11 +185,11 @@ def register_migration(schema_type: str, from_version: str, to_version: str) -> 
         Decorator function
     """
 
-    def decorator(func: Callable[[Dict], Dict]) -> Callable[[Dict], Dict]:
+    def decorator(func: Callable[[dict], dict]) -> Callable[[dict], dict]:
         _migrations[(schema_type, from_version, to_version)] = func
 
         @wraps(func)
-        def wrapper(data: Dict) -> Dict:
+        def wrapper(data: dict) -> dict:
             return func(data)
 
         return wrapper
@@ -197,7 +197,7 @@ def register_migration(schema_type: str, from_version: str, to_version: str) -> 
     return decorator
 
 
-def get_migration_path(schema_type: str, from_version: str, to_version: str) -> List[Tuple[str, str]]:
+def get_migration_path(schema_type: str, from_version: str, to_version: str) -> list[tuple[str, str]]:
     """Find migration path from one version to another.
 
     Args:
@@ -230,12 +230,12 @@ def get_migration_path(schema_type: str, from_version: str, to_version: str) -> 
         for f, t in available:
             if f == current and t not in visited:
                 visited.add(t)
-                queue.append((t, path + [(f, t)]))
+                queue.append((t, [*path, (f, t)]))
 
     return []  # No path found
 
 
-def migrate(data: Dict[str, Any], schema_type: str, target_version: Optional[str] = None) -> Dict[str, Any]:
+def migrate(data: dict[str, Any], schema_type: str, target_version: Optional[str] = None) -> dict[str, Any]:
     """Migrate data to target version.
 
     Args:
@@ -290,7 +290,7 @@ def migrate(data: Dict[str, Any], schema_type: str, target_version: Optional[str
     return result
 
 
-def ensure_versioned(data: Dict[str, Any], schema_type: str, default_version: str = "1.0.0") -> Dict[str, Any]:
+def ensure_versioned(data: dict[str, Any], schema_type: str, default_version: str = "1.0.0") -> dict[str, Any]:
     """Ensure data has schema version, adding if missing.
 
     Args:
@@ -310,7 +310,7 @@ def ensure_versioned(data: Dict[str, Any], schema_type: str, default_version: st
 
 
 @register_migration("worldview", "1.0.0", "2.0.0")
-def migrate_worldview_v1_to_v2(data: Dict[str, Any]) -> Dict[str, Any]:
+def migrate_worldview_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
     """Example migration: worldview v1 to v2.
 
     This is a placeholder showing the migration pattern.
@@ -332,7 +332,7 @@ def migrate_worldview_v1_to_v2(data: Dict[str, Any]) -> Dict[str, Any]:
 # Utility functions for file operations
 
 
-def save_versioned_json(data: Dict[str, Any], path: Path, schema_type: str, version: Optional[str] = None):
+def save_versioned_json(data: dict[str, Any], path: Path, schema_type: str, version: Optional[str] = None):
     """Save data as versioned JSON.
 
     Args:
@@ -348,7 +348,7 @@ def save_versioned_json(data: Dict[str, Any], path: Path, schema_type: str, vers
         json.dump(versioned, f, indent=2, ensure_ascii=False)
 
 
-def load_versioned_json(path: Path, schema_type: str, auto_migrate: bool = True) -> Dict[str, Any]:
+def load_versioned_json(path: Path, schema_type: str, auto_migrate: bool = True) -> dict[str, Any]:
     """Load versioned JSON with optional auto-migration.
 
     Args:
@@ -359,7 +359,7 @@ def load_versioned_json(path: Path, schema_type: str, auto_migrate: bool = True)
     Returns:
         Loaded (and optionally migrated) data
     """
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     # Ensure versioned

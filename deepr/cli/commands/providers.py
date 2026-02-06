@@ -348,7 +348,7 @@ def benchmark(quick: bool, target_provider: Optional[str], iterations: int, hist
             latencies = []
             errors = 0
 
-            for i in range(iterations):
+            for _i in range(iterations):
                 start = time.time()
                 try:
                     # Use synchronous client for simplicity
@@ -472,7 +472,7 @@ def list():
     table.add_column("Cost/Query", justify="right", style="yellow")
     table.add_column("Latency", justify="right")
 
-    for key, cap in sorted(MODEL_CAPABILITIES.items()):
+    for _key, cap in sorted(MODEL_CAPABILITIES.items()):
         specializations = ", ".join(cap.specializations[:2]) if cap.specializations else "-"
         table.add_row(
             cap.provider,

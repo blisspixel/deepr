@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -33,7 +33,7 @@ class StorageBackend(ABC):
 
     @abstractmethod
     async def save_report(
-        self, job_id: str, filename: str, content: bytes, content_type: str, metadata: Optional[Dict[str, Any]] = None
+        self, job_id: str, filename: str, content: bytes, content_type: str, metadata: Optional[dict[str, Any]] = None
     ) -> ReportMetadata:
         """
         Save a report to storage.
@@ -71,7 +71,7 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def list_reports(self, job_id: Optional[str] = None) -> List[ReportMetadata]:
+    async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
         """
         List available reports.
 

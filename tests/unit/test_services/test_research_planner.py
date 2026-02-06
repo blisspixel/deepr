@@ -1,8 +1,10 @@
 """Tests for research planner service."""
 
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from tests.unit.test_services.conftest import make_responses_response
 
 
@@ -19,6 +21,7 @@ class TestResearchPlanner:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import ResearchPlanner
+
                     return ResearchPlanner()
 
     def test_init_valid_models(self, mock_openai_env):
@@ -27,6 +30,7 @@ class TestResearchPlanner:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import ResearchPlanner
+
                     for model in ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]:
                         p = ResearchPlanner(model=model)
                         assert p.model == model
@@ -37,6 +41,7 @@ class TestResearchPlanner:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import ResearchPlanner
+
                     with pytest.raises(ValueError, match="Invalid model"):
                         ResearchPlanner(model="gpt-4")
 
@@ -46,6 +51,7 @@ class TestResearchPlanner:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider", return_value="token"):
                     from deepr.services.research_planner import ResearchPlanner
+
                     ResearchPlanner(use_azure=True, azure_endpoint="https://myendpoint.openai.azure.com")
                     call_kwargs = mock_cls.call_args[1]
                     assert "myendpoint" in call_kwargs["base_url"]
@@ -99,7 +105,7 @@ class TestResearchPlanner:
         mock_client.responses.create.return_value = make_responses_response(json.dumps(tasks))
         planner.plan_research("Scenario", context="Extra context here")
         call_kwargs = mock_client.responses.create.call_args[1]
-        user_msg = [m for m in call_kwargs["input"] if m["role"] == "user"][0]
+        user_msg = next(m for m in call_kwargs["input"] if m["role"] == "user")
         assert "Extra context here" in user_msg["content"]
 
     def test_plan_research_json_in_code_block(self, planner, mock_client):
@@ -144,6 +150,7 @@ class TestResearchPlannerFallback:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import ResearchPlanner
+
                     return ResearchPlanner()
 
     def test_fallback_returns_tasks(self, planner):
@@ -176,6 +183,7 @@ class TestCreatePlanner:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import create_planner
+
                     p = create_planner(provider="openai")
                     assert p.use_azure is False
 
@@ -185,5 +193,6 @@ class TestCreatePlanner:
             with patch("deepr.services.research_planner.DefaultAzureCredential"):
                 with patch("deepr.services.research_planner.get_bearer_token_provider"):
                     from deepr.services.research_planner import create_planner
+
                     p = create_planner(provider="azure", azure_endpoint="https://test.openai.azure.com")
                     assert p.use_azure is True

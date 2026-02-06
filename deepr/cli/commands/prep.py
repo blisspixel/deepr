@@ -272,7 +272,7 @@ def review():
 
         plan_file = plan_files[0]
 
-        with open(plan_file, "r") as f:
+        with open(plan_file) as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -374,7 +374,7 @@ def execute(yes: bool):
 
         plan_file = plan_files[0]
 
-        with open(plan_file, "r") as f:
+        with open(plan_file) as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -581,7 +581,7 @@ def pause(plan_id: Optional[str]):
             plan_file = plan_files[0]
 
         # Load plan data
-        with open(plan_file, "r") as f:
+        with open(plan_file) as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -656,7 +656,7 @@ def resume(plan_id: Optional[str]):
             # Find first paused plan
             plan_file = None
             for pf in plan_files:
-                with open(pf, "r") as f:
+                with open(pf) as f:
                     pd = json.load(f)
                 if pd.get("status") == "paused":
                     plan_file = pf
@@ -668,7 +668,7 @@ def resume(plan_id: Optional[str]):
                 raise click.Abort()
 
         # Load plan data
-        with open(plan_file, "r") as f:
+        with open(plan_file) as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -742,7 +742,7 @@ def continue_research(topics: int, yes: bool):
             raise click.Abort()
 
         plan_file = plan_files[0]
-        with open(plan_file, "r") as f:
+        with open(plan_file) as f:
             plan = json.load(f)
 
         scenario = plan.get("scenario", "Unknown")
@@ -768,7 +768,7 @@ def continue_research(topics: int, yes: bool):
                 campaign_json = json.loads(campaign_data.decode("utf-8"))
 
                 # Extract completed task results
-                for task_id, task_info in campaign_json.get("tasks", {}).items():
+                for _task_id, task_info in campaign_json.get("tasks", {}).items():
                     if task_info.get("status") == "completed":
                         job_id = task_info.get("job_id")
                         try:
@@ -998,7 +998,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         raise click.Abort()
 
 
-def _execute_plan_sync(plan_data: dict, provider_name: str = None) -> dict:
+def _execute_plan_sync(plan_data: dict, provider_name: Optional[str] = None) -> dict:
     """Execute plan synchronously and wait for completion. Returns results.
 
     Args:
@@ -1072,7 +1072,7 @@ def _load_completed_results() -> list:
     if not plan_path.exists():
         return results
 
-    with open(plan_path, "r") as f:
+    with open(plan_path) as f:
         plan_data = json.load(f)
 
     # Load results from all completed phases

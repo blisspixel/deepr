@@ -20,7 +20,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from rich.console import Console
 from rich.live import Live
@@ -79,7 +79,7 @@ class ProgressState:
 
     job_id: str
     current_phase: ResearchPhase
-    phase_history: List[PhaseUpdate] = field(default_factory=list)
+    phase_history: list[PhaseUpdate] = field(default_factory=list)
     partial_output: Optional[str] = None
     estimated_completion_pct: float = 0.0
     elapsed_seconds: float = 0.0
@@ -87,7 +87,7 @@ class ProgressState:
     last_status: Optional[str] = None
     error: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "job_id": self.job_id,
             "current_phase": self.current_phase.value,
@@ -141,7 +141,7 @@ class ResearchProgressTracker:
         """
         self.provider = provider
         self.console = console or Console()
-        self._callbacks: List[Callable[[ProgressState], None]] = []
+        self._callbacks: list[Callable[[ProgressState], None]] = []
 
     def add_callback(self, callback: Callable[[ProgressState], None]):
         """Add a callback for progress updates.
@@ -414,7 +414,7 @@ class ResearchProgressTracker:
 
         # Phase indicator
         phase_text = Text()
-        for i, phase in enumerate(PHASE_ORDER[:-1]):  # Exclude COMPLETED
+        for _i, phase in enumerate(PHASE_ORDER[:-1]):  # Exclude COMPLETED
             if phase == state.current_phase:
                 phase_text.append(f"● {phase.value} ", style="bold green")
             elif PHASE_ORDER.index(phase) < PHASE_ORDER.index(state.current_phase):

@@ -19,19 +19,20 @@ Cost Estimate: ~$5-10 per full test run
 Run explicitly with: pytest -m "research_modes"
 """
 
-import pytest
 import asyncio
 import os
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from deepr.providers.openai_provider import OpenAIProvider
+from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.gemini_provider import GeminiProvider
 from deepr.providers.grok_provider import GrokProvider
-from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.openai_provider import OpenAIProvider
 
 
 def validate_research_output(response, mode_name, min_length=500):
@@ -43,17 +44,17 @@ def validate_research_output(response, mode_name, min_length=500):
     # Extract text content
     text_content = ""
     for block in response.output:
-        if block.get('type') == 'message':
-            for item in block.get('content', []):
-                if item.get('type') in ['output_text', 'text']:
-                    text_content += item.get('text', '')
+        if block.get("type") == "message":
+            for item in block.get("content", []):
+                if item.get("type") in ["output_text", "text"]:
+                    text_content += item.get("text", "")
 
-    assert len(text_content) >= min_length, \
+    assert len(text_content) >= min_length, (
         f"{mode_name}: Output too short ({len(text_content)} chars, expected >={min_length})"
+    )
 
     # Check for citations (research should have sources)
-    has_citations = any(marker in text_content.lower()
-                       for marker in ['source', 'http', 'www', 'citation', 'reference'])
+    has_citations = any(marker in text_content.lower() for marker in ["source", "http", "www", "citation", "reference"])
 
     # Validate usage stats
     assert response.usage is not None, f"{mode_name}: No usage stats"
@@ -67,6 +68,7 @@ def validate_research_output(response, mode_name, min_length=500):
 # ==============================================================================
 # OpenAI Tests (Full Coverage - All 4 Modes)
 # ==============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -92,7 +94,7 @@ async def test_openai_focus_mode_self_improvement():
         model="o4-mini-deep-research",
         system_message="You are a Python development expert. Provide actionable advice with examples.",
         tools=[ToolConfig(type="web_search_preview")],
-        background=True
+        background=True,
     )
 
     job_id = await provider.submit_research(request)
@@ -113,9 +115,7 @@ async def test_openai_focus_mode_self_improvement():
         print(f"  [{elapsed}s] Status: {response.status}")
 
         if response.status == "completed":
-            text_content, has_citations = validate_research_output(
-                response, "Focus Mode", min_length=500
-            )
+            text_content, has_citations = validate_research_output(response, "Focus Mode", min_length=500)
 
             print(f"  Output: {len(text_content)} chars")
             print(f"  Cost: ${response.usage.cost:.4f}")
@@ -171,7 +171,7 @@ async def test_openai_docs_mode_api_research():
         Emphasize current state, recent changes, and code examples.
         Include pricing and limits. Cite authoritative sources.""",
         tools=[ToolConfig(type="web_search_preview")],
-        background=True
+        background=True,
     )
 
     job_id = await provider.submit_research(request)
@@ -190,19 +190,15 @@ async def test_openai_docs_mode_api_research():
         print(f"  [{elapsed}s] Status: {response.status}")
 
         if response.status == "completed":
-            text_content, has_citations = validate_research_output(
-                response, "Docs Mode", min_length=1000
-            )
+            text_content, has_citations = validate_research_output(response, "Docs Mode", min_length=1000)
 
             print(f"  Output: {len(text_content)} chars")
             print(f"  Cost: ${response.usage.cost:.4f}")
             print(f"  Has citations: {has_citations}")
 
             # Check for technical content indicators
-            has_code_examples = any(marker in text_content
-                                   for marker in ['```', 'python', 'json', 'curl'])
-            has_pricing = any(word in text_content.lower()
-                            for word in ['price', 'cost', '$', 'limit', 'quota'])
+            has_code_examples = any(marker in text_content for marker in ["```", "python", "json", "curl"])
+            has_pricing = any(word in text_content.lower() for word in ["price", "cost", "$", "limit", "quota"])
 
             assert has_code_examples, "Docs mode should include code examples"
             assert has_pricing, "Docs mode should include pricing info"
@@ -263,7 +259,7 @@ async def test_openai_project_mode_multi_phase():
         system_message="""You are a software testing expert.
         Break this into phases, research each thoroughly, then synthesize recommendations.""",
         tools=[ToolConfig(type="web_search_preview")],
-        background=True
+        background=True,
     )
 
     job_id = await provider.submit_research(request)
@@ -282,16 +278,13 @@ async def test_openai_project_mode_multi_phase():
         print(f"  [{elapsed}s] Status: {response.status}")
 
         if response.status == "completed":
-            text_content, has_citations = validate_research_output(
-                response, "Project Mode", min_length=2000
-            )
+            text_content, has_citations = validate_research_output(response, "Project Mode", min_length=2000)
 
             print(f"  Output: {len(text_content)} chars")
             print(f"  Cost: ${response.usage.cost:.4f}")
 
             # Project mode should show multi-phase structure
-            has_phases = any(marker in text_content.lower()
-                           for marker in ['phase', 'step', 'stage', 'round'])
+            has_phases = any(marker in text_content.lower() for marker in ["phase", "step", "stage", "round"])
 
             assert has_phases, "Project mode should show phased approach"
             assert has_citations, "Project mode should have extensive citations"
@@ -352,7 +345,7 @@ async def test_openai_team_mode_diverse_perspectives():
         Each member researches independently to prevent groupthink.
         Synthesize their findings into a balanced recommendation.""",
         tools=[ToolConfig(type="web_search_preview")],
-        background=True
+        background=True,
     )
 
     job_id = await provider.submit_research(request)
@@ -371,17 +364,16 @@ async def test_openai_team_mode_diverse_perspectives():
         print(f"  [{elapsed}s] Status: {response.status}")
 
         if response.status == "completed":
-            text_content, has_citations = validate_research_output(
-                response, "Team Mode", min_length=3000
-            )
+            text_content, has_citations = validate_research_output(response, "Team Mode", min_length=3000)
 
             print(f"  Output: {len(text_content)} chars")
             print(f"  Cost: ${response.usage.cost:.4f}")
 
             # Team mode should show multiple perspectives
-            has_team_structure = any(marker in text_content.lower()
-                                    for marker in ['team member', 'perspective',
-                                                  'analyst', 'expert', 'synthesis'])
+            has_team_structure = any(
+                marker in text_content.lower()
+                for marker in ["team member", "perspective", "analyst", "expert", "synthesis"]
+            )
 
             assert has_team_structure, "Team mode should show team structure"
             assert has_citations, "Team mode should have extensive citations"
@@ -406,6 +398,7 @@ async def test_openai_team_mode_diverse_perspectives():
 # ==============================================================================
 # Gemini Tests (Limited - Focus + Docs Only)
 # ==============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -437,9 +430,7 @@ async def test_gemini_focus_mode_capability_check():
     response = await provider.get_status(job_id)
 
     if response.status == "completed":
-        text_content, has_citations = validate_research_output(
-            response, "Gemini Focus", min_length=300
-        )
+        text_content, has_citations = validate_research_output(response, "Gemini Focus", min_length=300)
 
         print(f"  Output: {len(text_content)} chars")
         print(f"  Cost: ${response.usage.cost:.4f}")
@@ -486,9 +477,7 @@ async def test_gemini_docs_mode_api_documentation():
     response = await provider.get_status(job_id)
 
     if response.status == "completed":
-        text_content, has_citations = validate_research_output(
-            response, "Gemini Docs", min_length=500
-        )
+        text_content, has_citations = validate_research_output(response, "Gemini Docs", min_length=500)
 
         print(f"  Output: {len(text_content)} chars")
         print(f"  Cost: ${response.usage.cost:.4f}")
@@ -510,6 +499,7 @@ async def test_gemini_docs_mode_api_documentation():
 # ==============================================================================
 # Grok Tests (Minimal - Focus Only)
 # ==============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -540,9 +530,7 @@ async def test_grok_focus_mode_basic():
     response = await provider.get_status(job_id)
 
     if response.status == "completed":
-        text_content, has_citations = validate_research_output(
-            response, "Grok Focus", min_length=200
-        )
+        text_content, has_citations = validate_research_output(response, "Grok Focus", min_length=200)
 
         print(f"  Output: {len(text_content)} chars")
         print(f"  Cost: ${response.usage.cost:.4f}")
@@ -556,6 +544,7 @@ async def test_grok_focus_mode_basic():
 # ==============================================================================
 # Comparative Tests
 # ==============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -583,7 +572,7 @@ async def test_provider_comparison_same_query():
             model="o4-mini-deep-research",
             system_message="You are a Python testing expert.",
             tools=[ToolConfig(type="web_search_preview")],
-            background=True
+            background=True,
         )
 
         job_id = await provider.submit_research(request)
@@ -597,7 +586,7 @@ async def test_provider_comparison_same_query():
                 results["openai"] = {
                     "output_length": len(str(response.output)),
                     "cost": response.usage.cost,
-                    "tokens": response.usage.total_tokens
+                    "tokens": response.usage.total_tokens,
                 }
                 print(f"  OpenAI: {results['openai']}")
                 break
@@ -619,7 +608,7 @@ async def test_provider_comparison_same_query():
             results["gemini"] = {
                 "output_length": len(str(response.output)),
                 "cost": response.usage.cost,
-                "tokens": response.usage.total_tokens
+                "tokens": response.usage.total_tokens,
             }
             print(f"  Gemini: {results['gemini']}")
 
@@ -640,7 +629,7 @@ async def test_provider_comparison_same_query():
             results["grok"] = {
                 "output_length": len(str(response.output)),
                 "cost": response.usage.cost,
-                "tokens": response.usage.total_tokens
+                "tokens": response.usage.total_tokens,
             }
             print(f"  Grok: {results['grok']}")
 

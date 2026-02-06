@@ -28,7 +28,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -47,13 +47,13 @@ DEFAULT_MAX_AGE = 300
 class SignedInstruction:
     """A signed instruction for MCP tool calls."""
 
-    instruction: Dict[str, Any]
+    instruction: dict[str, Any]
     signature: str
     timestamp: str
     nonce: str
     version: str = "1"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "instruction": self.instruction,
             "signature": self.signature,
@@ -63,7 +63,7 @@ class SignedInstruction:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SignedInstruction":
+    def from_dict(cls, data: dict[str, Any]) -> "SignedInstruction":
         return cls(
             instruction=data["instruction"],
             signature=data["signature"],
@@ -110,7 +110,7 @@ class InstructionSigner:
 
     def sign(
         self,
-        instruction: Dict[str, Any],
+        instruction: dict[str, Any],
     ) -> SignedInstruction:
         """Sign an instruction.
 
@@ -274,7 +274,7 @@ class InstructionSigner:
 
     def _canonicalize(
         self,
-        instruction: Dict[str, Any],
+        instruction: dict[str, Any],
         timestamp: str,
         nonce: str,
     ) -> str:
@@ -348,7 +348,7 @@ class InstructionSigner:
 # Convenience functions
 
 
-def sign_instruction(instruction: Dict[str, Any]) -> SignedInstruction:
+def sign_instruction(instruction: dict[str, Any]) -> SignedInstruction:
     """Sign an instruction using default signer.
 
     Args:

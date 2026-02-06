@@ -30,10 +30,11 @@ Usage:
 """
 
 import asyncio
+from collections.abc import Awaitable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from deepr.core.constants import MAX_CONCURRENT_TASKS
 
@@ -65,10 +66,10 @@ class DispatchedTask:
     error: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    depends_on: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    depends_on: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "status": self.status.value,
@@ -92,13 +93,13 @@ class DispatchedTask:
 class DispatchResult:
     """Result of a dispatch operation."""
 
-    tasks: Dict[str, DispatchedTask]
+    tasks: dict[str, DispatchedTask]
     total_duration_ms: float
     success_count: int
     failure_count: int
     cancelled_count: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tasks": {k: v.to_dict() for k, v in self.tasks.items()},
             "total_duration_ms": self.total_duration_ms,
@@ -149,12 +150,12 @@ class AsyncTaskDispatcher:
         """
         self.max_concurrent = max_concurrent or MAX_CONCURRENT_TASKS
         self._semaphore = asyncio.Semaphore(self.max_concurrent)
-        self._active_tasks: Dict[str, DispatchedTask] = {}
+        self._active_tasks: dict[str, DispatchedTask] = {}
         self._cancel_event = asyncio.Event()
 
     async def dispatch(
         self,
-        tasks: List[Dict[str, Any]],
+        tasks: list[dict[str, Any]],
         on_progress: Optional[ProgressCallback] = None,
         timeout: Optional[float] = None,
     ) -> DispatchResult:
@@ -252,8 +253,8 @@ class AsyncTaskDispatcher:
 
     async def dispatch_with_dependencies(
         self,
-        tasks: List[Dict[str, Any]],
-        dependencies: Dict[str, List[str]],
+        tasks: list[dict[str, Any]],
+        dependencies: dict[str, list[str]],
         on_progress: Optional[ProgressCallback] = None,
         timeout: Optional[float] = None,
     ) -> DispatchResult:
@@ -274,7 +275,7 @@ class AsyncTaskDispatcher:
         self._cancel_event.clear()
 
         # Create DispatchedTask objects
-        dispatched: Dict[str, DispatchedTask] = {}
+        dispatched: dict[str, DispatchedTask] = {}
         for task_spec in tasks:
             task_id = task_spec["id"]
             task = DispatchedTask(
@@ -289,7 +290,7 @@ class AsyncTaskDispatcher:
 
         # Track completed tasks
         completed_tasks: set = set()
-        completion_events: Dict[str, asyncio.Event] = {task_id: asyncio.Event() for task_id in dispatched}
+        completion_events: dict[str, asyncio.Event] = {task_id: asyncio.Event() for task_id in dispatched}
 
         async def wait_for_dependencies(task: DispatchedTask):
             """Wait for all dependencies to complete."""
@@ -397,7 +398,7 @@ class AsyncTaskDispatcher:
             if task.status in {DispatchStatus.RUNNING, DispatchStatus.PENDING, DispatchStatus.BLOCKED}:
                 task.status = DispatchStatus.CANCELLED
 
-    def get_active_tasks(self) -> List[DispatchedTask]:
+    def get_active_tasks(self) -> list[DispatchedTask]:
         """Get all currently active tasks."""
         return list(self._active_tasks.values())
 

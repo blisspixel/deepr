@@ -1,16 +1,13 @@
 """Tests for application configuration (deepr/config.py)."""
 
-import os
-import pytest
-from unittest.mock import patch
 from deepr.config import (
+    AppConfig,
+    DatabaseConfig,
+    ExpertConfig,
     ProviderConfig,
+    ResearchConfig,
     StorageConfig,
     WebhookConfig,
-    ResearchConfig,
-    ExpertConfig,
-    DatabaseConfig,
-    AppConfig,
     load_config,
 )
 
@@ -85,8 +82,16 @@ class TestProviderConfig:
     def test_task_model_map_completeness(self):
         """All expected task types present in TASK_MODEL_MAP."""
         pc = ProviderConfig()
-        expected = {"quick_lookup", "fact_check", "deep_research", "synthesis",
-                    "chat", "planning", "documentation", "strategy"}
+        expected = {
+            "quick_lookup",
+            "fact_check",
+            "deep_research",
+            "synthesis",
+            "chat",
+            "planning",
+            "documentation",
+            "strategy",
+        }
         assert expected == set(pc.TASK_MODEL_MAP.keys())
 
 
@@ -271,11 +276,13 @@ class TestAppConfigToEnvFile:
 
     def test_to_env_file_azure(self, tmp_path):
         """Generates .env with Azure configuration."""
-        ac = AppConfig(provider=ProviderConfig(
-            type="azure",
-            azure_api_key="az-key",
-            azure_endpoint="https://my.openai.azure.com/",
-        ))
+        ac = AppConfig(
+            provider=ProviderConfig(
+                type="azure",
+                azure_api_key="az-key",
+                azure_endpoint="https://my.openai.azure.com/",
+            )
+        )
         env_path = str(tmp_path / ".env.example")
         ac.to_env_file(env_path)
         content = (tmp_path / ".env.example").read_text()
@@ -296,8 +303,16 @@ class TestLoadConfig:
         """Result contains required keys."""
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         result = load_config()
-        for key in ["provider", "api_key", "queue", "storage", "results_dir",
-                     "max_cost_per_job", "max_daily_cost", "max_monthly_cost"]:
+        for key in [
+            "provider",
+            "api_key",
+            "queue",
+            "storage",
+            "results_dir",
+            "max_cost_per_job",
+            "max_daily_cost",
+            "max_monthly_cost",
+        ]:
             assert key in result
 
     def test_cost_limits_from_env(self, monkeypatch):

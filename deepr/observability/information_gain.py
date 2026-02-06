@@ -24,7 +24,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -51,7 +51,7 @@ class InformationGainMetrics:
 
     timestamp: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "phase": self.phase,
             "gain_score": self.gain_score,
@@ -71,12 +71,12 @@ class InformationGainMetrics:
 class PriorContext:
     """Context from previous phases."""
 
-    known_facts: List[str] = field(default_factory=list)
-    known_entities: Set[str] = field(default_factory=set)
-    known_topics: Set[str] = field(default_factory=set)
-    content_hashes: Set[str] = field(default_factory=set)
+    known_facts: list[str] = field(default_factory=list)
+    known_entities: set[str] = field(default_factory=set)
+    known_topics: set[str] = field(default_factory=set)
+    content_hashes: set[str] = field(default_factory=set)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "known_facts_count": len(self.known_facts),
             "known_entities": list(self.known_entities),
@@ -98,15 +98,15 @@ class InformationGainTracker:
 
     def __init__(self):
         """Initialize the tracker."""
-        self.phases: List[InformationGainMetrics] = []
+        self.phases: list[InformationGainMetrics] = []
         self.cumulative_context = PriorContext()
-        self._phase_findings: Dict[int, List[str]] = {}
+        self._phase_findings: dict[int, list[str]] = {}
 
     def record_phase_findings(
         self,
         phase: int,
-        findings: List[str],
-        prior_context: Optional[Dict[str, Any]] = None,
+        findings: list[str],
+        prior_context: Optional[dict[str, Any]] = None,
     ) -> InformationGainMetrics:
         """Record findings from a phase and calculate information gain.
 
@@ -282,7 +282,7 @@ class InformationGainTracker:
             span.set_attribute("info_gain.latest_score", latest.gain_score)
             span.set_attribute("info_gain.latest_novelty", latest.novelty_rate)
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get a summary of information gain tracking.
 
         Returns:
@@ -305,7 +305,7 @@ class InformationGainTracker:
         self.cumulative_context = PriorContext()
         self._phase_findings.clear()
 
-    def _update_context_from_dict(self, context: Dict[str, Any]):
+    def _update_context_from_dict(self, context: dict[str, Any]):
         """Update cumulative context from a dictionary.
 
         Args:
@@ -318,7 +318,7 @@ class InformationGainTracker:
         if "known_topics" in context:
             self.cumulative_context.known_topics.update(context["known_topics"])
 
-    def _extract_entities(self, text: str) -> Set[str]:
+    def _extract_entities(self, text: str) -> set[str]:
         """Extract named entities from text.
 
         Simple heuristic: capitalized multi-word phrases.
@@ -342,7 +342,7 @@ class InformationGainTracker:
 
         return entities
 
-    def _extract_topics(self, text: str) -> Set[str]:
+    def _extract_topics(self, text: str) -> set[str]:
         """Extract key topics from text.
 
         Args:
@@ -448,7 +448,7 @@ class InformationGainTracker:
         topics = {w for w in words if len(w) > 4 and w not in stopwords}
         return topics
 
-    def _calculate_topic_diversity(self, findings: List[str]) -> float:
+    def _calculate_topic_diversity(self, findings: list[str]) -> float:
         """Calculate topic diversity using entropy.
 
         Args:
@@ -461,7 +461,7 @@ class InformationGainTracker:
             return 0.0
 
         # Collect all topics
-        all_topics: List[str] = []
+        all_topics: list[str] = []
         for finding in findings:
             all_topics.extend(self._extract_topics(finding))
 

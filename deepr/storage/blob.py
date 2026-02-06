@@ -2,7 +2,7 @@
 
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from azure.core.exceptions import AzureError, ResourceNotFoundError
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
@@ -72,7 +72,7 @@ class AzureBlobStorage(StorageBackend):
         filename: str,
         content: bytes,
         content_type: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> ReportMetadata:
         """Save report to Azure Blob Storage."""
         try:
@@ -107,7 +107,7 @@ class AzureBlobStorage(StorageBackend):
 
         except AzureError as e:
             raise StorageError(
-                message=f"Failed to save report to blob storage: {str(e)}",
+                message=f"Failed to save report to blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
             )
@@ -134,12 +134,12 @@ class AzureBlobStorage(StorageBackend):
             )
         except AzureError as e:
             raise StorageError(
-                message=f"Failed to retrieve report from blob storage: {str(e)}",
+                message=f"Failed to retrieve report from blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
             )
 
-    async def list_reports(self, job_id: Optional[str] = None) -> List[ReportMetadata]:
+    async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
         """List reports in Azure Blob Storage."""
         try:
             await self._ensure_container()
@@ -174,7 +174,7 @@ class AzureBlobStorage(StorageBackend):
 
         except AzureError as e:
             raise StorageError(
-                message=f"Failed to list reports in blob storage: {str(e)}",
+                message=f"Failed to list reports in blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
             )
@@ -204,7 +204,7 @@ class AzureBlobStorage(StorageBackend):
             return False
         except AzureError as e:
             raise StorageError(
-                message=f"Failed to delete report from blob storage: {str(e)}",
+                message=f"Failed to delete report from blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
             )
@@ -258,7 +258,7 @@ class AzureBlobStorage(StorageBackend):
 
         except AzureError as e:
             raise StorageError(
-                message=f"Failed to generate report URL: {str(e)}",
+                message=f"Failed to generate report URL: {e!s}",
                 storage_type="blob",
                 original_error=e,
             )
@@ -281,7 +281,7 @@ class AzureBlobStorage(StorageBackend):
 
         except AzureError as e:
             raise StorageError(
-                message=f"Failed to cleanup old reports: {str(e)}",
+                message=f"Failed to cleanup old reports: {e!s}",
                 storage_type="blob",
                 original_error=e,
             )

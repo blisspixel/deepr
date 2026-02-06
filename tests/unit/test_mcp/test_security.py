@@ -20,49 +20,57 @@ from deepr.mcp.security.network import (
     is_internal_ip,
 )
 from deepr.mcp.security.sampling import (
+    SamplingReason,
     SamplingRequest,
     SamplingResponse,
-    SamplingReason,
     create_captcha_request,
-    create_paywall_request,
     create_confirmation_request,
+    create_paywall_request,
 )
-
 
 # ------------------------------------------------------------------ #
 # is_internal_ip
 # ------------------------------------------------------------------ #
 
-class TestIsInternalIP:
 
-    @pytest.mark.parametrize("ip", [
-        "127.0.0.1",
-        "127.0.0.2",
-        "10.0.0.1",
-        "10.255.255.255",
-        "172.16.0.1",
-        "172.31.255.255",
-        "192.168.0.1",
-        "192.168.1.100",
-        "169.254.1.1",
-    ])
+class TestIsInternalIP:
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "127.0.0.1",
+            "127.0.0.2",
+            "10.0.0.1",
+            "10.255.255.255",
+            "172.16.0.1",
+            "172.31.255.255",
+            "192.168.0.1",
+            "192.168.1.100",
+            "169.254.1.1",
+        ],
+    )
     def test_blocks_internal_ipv4(self, ip):
         assert is_internal_ip(ip) is True
 
-    @pytest.mark.parametrize("ip", [
-        "8.8.8.8",
-        "1.1.1.1",
-        "104.18.32.7",
-        "13.107.42.14",
-    ])
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "8.8.8.8",
+            "1.1.1.1",
+            "104.18.32.7",
+            "13.107.42.14",
+        ],
+    )
     def test_allows_public_ipv4(self, ip):
         assert is_internal_ip(ip) is False
 
-    @pytest.mark.parametrize("ip", [
-        "::1",
-        "fc00::1",
-        "fe80::1",
-    ])
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "::1",
+            "fc00::1",
+            "fe80::1",
+        ],
+    )
     def test_blocks_internal_ipv6(self, ip):
         assert is_internal_ip(ip) is True
 
@@ -71,13 +79,12 @@ class TestIsInternalIP:
         assert is_internal_ip("not_an_ip") is True
 
 
-
 # ------------------------------------------------------------------ #
 # SSRFProtector
 # ------------------------------------------------------------------ #
 
-class TestSSRFProtector:
 
+class TestSSRFProtector:
     def test_allows_public_url(self):
         protector = SSRFProtector()
         with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
@@ -132,8 +139,8 @@ class TestSSRFProtector:
 # SSRFProtector: domain allowlist
 # ------------------------------------------------------------------ #
 
-class TestDomainAllowlist:
 
+class TestDomainAllowlist:
     def test_allows_listed_domain(self):
         protector = SSRFProtector(allowed_domains=["api.openai.com"])
         with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
@@ -146,9 +153,7 @@ class TestDomainAllowlist:
             protector.validate_url("https://evil.com/steal")
 
     def test_multiple_allowed_domains(self):
-        protector = SSRFProtector(
-            allowed_domains=["api.openai.com", "api.x.ai", "api.google.com"]
-        )
+        protector = SSRFProtector(allowed_domains=["api.openai.com", "api.x.ai", "api.google.com"])
         with patch("deepr.mcp.security.network.resolve_all_ips", return_value=["8.8.8.8"]):
             protector.validate_url("https://api.openai.com/v1")
             protector.validate_url("https://api.x.ai/v1")
@@ -164,8 +169,8 @@ class TestDomainAllowlist:
 # SSRFProtector: validate_ip
 # ------------------------------------------------------------------ #
 
-class TestValidateIP:
 
+class TestValidateIP:
     def test_allows_public_ip(self):
         protector = SSRFProtector()
         assert protector.validate_ip("8.8.8.8") == "8.8.8.8"
@@ -185,8 +190,8 @@ class TestValidateIP:
 # Sampling primitives
 # ------------------------------------------------------------------ #
 
-class TestSamplingRequest:
 
+class TestSamplingRequest:
     def test_to_mcp_params(self):
         req = SamplingRequest(
             reason=SamplingReason.CAPTCHA,
@@ -208,7 +213,6 @@ class TestSamplingRequest:
 
 
 class TestSamplingResponse:
-
     def test_from_mcp_result(self):
         result = {
             "content": {"type": "text", "text": "yes"},
@@ -235,7 +239,6 @@ class TestSamplingResponse:
 
 
 class TestSamplingFactories:
-
     def test_create_captcha_request(self):
         req = create_captcha_request("https://example.com", "Image CAPTCHA")
         assert req.reason == SamplingReason.CAPTCHA

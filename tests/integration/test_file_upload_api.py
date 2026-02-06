@@ -13,16 +13,16 @@ IMPORTANT: These tests make REAL API calls and COST MONEY.
 Run explicitly with: pytest -m "requires_api and file_upload"
 """
 
-import pytest
 import asyncio
 import os
-from pathlib import Path
+
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from deepr.providers.openai_provider import OpenAIProvider
 from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.openai_provider import OpenAIProvider
 
 
 @pytest.fixture
@@ -68,10 +68,7 @@ async def test_openai_file_upload_basic(test_file):
     assert file_id.startswith("file-") or file_id.startswith("file_")  # OpenAI uses file- format
 
     # Create vector store
-    vector_store = await provider.create_vector_store(
-        file_ids=[file_id],
-        name="test_vector_store"
-    )
+    vector_store = await provider.create_vector_store(file_ids=[file_id], name="test_vector_store")
     assert vector_store is not None
     assert vector_store.id.startswith("vs-") or vector_store.id.startswith("vs_")  # Handle both formats
 
@@ -100,10 +97,7 @@ async def test_openai_research_with_file_upload(test_file):
 
     # Upload file
     file_id = await provider.upload_document(str(test_file))
-    vector_store = await provider.create_vector_store(
-        file_ids=[file_id],
-        name="test_research_vector_store"
-    )
+    vector_store = await provider.create_vector_store(file_ids=[file_id], name="test_research_vector_store")
 
     # Create research request with file_search tool
     # This is the configuration that previously failed
@@ -116,7 +110,7 @@ async def test_openai_research_with_file_upload(test_file):
             ToolConfig(type="web_search_preview"),
             ToolConfig(type="code_interpreter"),
         ],
-        background=True
+        background=True,
     )
 
     # This should NOT raise BadRequestError about unknown/missing container parameters
@@ -145,10 +139,10 @@ async def test_openai_research_with_file_upload(test_file):
             # Check that response contains content
             has_content = False
             for block in response.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
-                        if item.get('type') in ['output_text', 'text']:
-                            text = item.get('text', '')
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
+                        if item.get("type") in ["output_text", "text"]:
+                            text = item.get("text", "")
                             if text and len(text) > 0:
                                 has_content = True
                                 print(f"Response preview: {text[:200]}...")
@@ -192,7 +186,7 @@ async def test_openai_tool_parameter_validation():
         model="o4-mini-deep-research",
         system_message="You are a calculator.",
         tools=[ToolConfig(type="web_search_preview")],
-        background=True
+        background=True,
     )
 
     # This should NOT raise: Unknown parameter: 'tools[0].container'
@@ -207,9 +201,9 @@ async def test_openai_tool_parameter_validation():
         system_message="You are a calculator. Use code to calculate.",
         tools=[
             ToolConfig(type="web_search_preview"),  # Required by deep research
-            ToolConfig(type="code_interpreter")      # Has container
+            ToolConfig(type="code_interpreter"),  # Has container
         ],
-        background=True
+        background=True,
     )
 
     # This should NOT raise: Missing required parameter: 'tools[0].container'
@@ -224,9 +218,9 @@ async def test_openai_tool_parameter_validation():
         system_message="You are a helpful assistant.",
         tools=[
             ToolConfig(type="web_search_preview"),  # NO container
-            ToolConfig(type="code_interpreter"),     # HAS container
+            ToolConfig(type="code_interpreter"),  # HAS container
         ],
-        background=True
+        background=True,
     )
 
     # This should NOT raise any parameter errors
@@ -281,8 +275,7 @@ This is a test project for validating file upload with multiple files.
 
     # Create vector store with both files
     vector_store = await provider.create_vector_store(
-        file_ids=[file_id_1, file_id_2],
-        name="test_multi_file_vector_store"
+        file_ids=[file_id_1, file_id_2], name="test_multi_file_vector_store"
     )
 
     # Create research request (exact configuration that failed)
@@ -295,7 +288,7 @@ This is a test project for validating file upload with multiple files.
             ToolConfig(type="web_search_preview"),
             ToolConfig(type="code_interpreter"),
         ],
-        background=True
+        background=True,
     )
 
     # This is where the 4 failures occurred - should now succeed

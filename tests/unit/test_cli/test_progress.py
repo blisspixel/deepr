@@ -8,15 +8,14 @@ Tests cover:
 """
 
 import time
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from deepr.cli.progress import (
     ProgressFeedback,
-    with_progress,
     complete,
     error,
     status,
+    with_progress,
 )
 
 

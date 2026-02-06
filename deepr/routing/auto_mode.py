@@ -13,7 +13,7 @@ This enables processing 20+ queries for $1-2 instead of $20-40.
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional
+from typing import Literal, Optional
 
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
@@ -41,7 +41,7 @@ class AutoModeDecision:
     confidence: float
     reasoning: str
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
         return {
             "provider": self.provider,
@@ -54,7 +54,7 @@ class AutoModeDecision:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "AutoModeDecision":
+    def from_dict(cls, data: dict) -> "AutoModeDecision":
         """Create from dictionary."""
         return cls(
             provider=data["provider"],
@@ -77,8 +77,8 @@ class BatchRoutingResult:
         total_cost_estimate: Total estimated cost for all queries
     """
 
-    decisions: List[AutoModeDecision]
-    summary: Dict[str, Dict]
+    decisions: list[AutoModeDecision]
+    summary: dict[str, dict]
     total_cost_estimate: float
 
 
@@ -218,7 +218,7 @@ class AutoModeRouter:
 
     def route_batch(
         self,
-        queries: List[str],
+        queries: list[str],
         budget_total: Optional[float] = None,
         prefer_cost: bool = False,
     ) -> BatchRoutingResult:
@@ -543,7 +543,7 @@ class AutoModeRouter:
             "Last resort fallback to gpt-5.2 (all providers may be unhealthy)",
         )
 
-    def _build_summary(self, decisions: List[AutoModeDecision]) -> Dict[str, Dict]:
+    def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, dict]:
         """Build summary statistics from routing decisions.
 
         Returns:

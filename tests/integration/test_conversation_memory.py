@@ -4,10 +4,11 @@ These tests require a real expert profile with knowledge graph data on disk.
 They call start_chat_session which eagerly loads the full knowledge graph,
 so they must NOT be in the unit test suite.
 """
-import pytest
-import asyncio
+
 import json
-from pathlib import Path
+
+import pytest
+
 from deepr.experts.chat import start_chat_session
 from deepr.experts.profile import ExpertStore
 
@@ -18,11 +19,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.requires_api]
 async def test_save_conversation():
     """Test that conversations are saved to disk."""
     # Start session
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0,
-        agentic=False
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=1.0, agentic=False)
 
     # Send a message
     await session.send_message("What is agentic AI?")
@@ -41,7 +38,7 @@ async def test_save_conversation():
     assert conversation_file.exists()
 
     # Load and verify content
-    with open(conversation_file, 'r', encoding='utf-8') as f:
+    with open(conversation_file, encoding="utf-8") as f:
         data = json.load(f)
 
     assert data["session_id"] == session_id
@@ -57,11 +54,7 @@ async def test_save_conversation():
 @pytest.mark.asyncio
 async def test_conversation_structure():
     """Test conversation data structure."""
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=0.5,
-        agentic=True
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=0.5, agentic=True)
 
     await session.send_message("Test question")
     session_id = session.save_conversation()
@@ -71,7 +64,7 @@ async def test_conversation_structure():
     conversations_dir = store.get_conversations_dir("Agentic Digital Consciousness")
     conversation_file = conversations_dir / f"{session_id}.json"
 
-    with open(conversation_file, 'r', encoding='utf-8') as f:
+    with open(conversation_file, encoding="utf-8") as f:
         data = json.load(f)
 
     # Check structure
@@ -94,18 +87,12 @@ async def test_conversation_structure():
 @pytest.mark.asyncio
 async def test_multiple_conversations():
     """Test saving multiple conversations."""
-    session1 = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0
-    )
+    session1 = await start_chat_session("Agentic Digital Consciousness", budget=1.0)
 
     await session1.send_message("First question")
     session_id1 = session1.save_conversation()
 
-    session2 = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0
-    )
+    session2 = await start_chat_session("Agentic Digital Consciousness", budget=1.0)
 
     await session2.send_message("Second question")
     session_id2 = session2.save_conversation()

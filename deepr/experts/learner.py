@@ -7,7 +7,7 @@ and integrating findings into expert knowledge bases.
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
@@ -23,8 +23,8 @@ class LearningProgress:
     """Track progress of autonomous learning."""
 
     curriculum: LearningCurriculum
-    completed_topics: List[str]
-    failed_topics: List[str]
+    completed_topics: list[str]
+    failed_topics: list[str]
     total_cost: float
     started_at: datetime
     completed_at: Optional[datetime] = None
@@ -272,11 +272,11 @@ class AutonomousLearner:
     async def _submit_research_jobs(
         self,
         expert: ExpertProfile,
-        topics: List[LearningTopic],
+        topics: list[LearningTopic],
         progress: LearningProgress,
         session,  # SessionCostTracker
         callback: Optional[Callable] = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Submit research jobs without waiting for completion.
 
         Returns list of job IDs for later polling.
@@ -360,7 +360,7 @@ class AutonomousLearner:
         return job_ids
 
     def _save_learning_progress(
-        self, expert: ExpertProfile, progress: LearningProgress, remaining_topics: List[LearningTopic]
+        self, expert: ExpertProfile, progress: LearningProgress, remaining_topics: list[LearningTopic]
     ):
         """Save learning progress for later resume.
 
@@ -418,7 +418,7 @@ class AutonomousLearner:
         if not progress_file.exists():
             return None
 
-        with open(progress_file, "r", encoding="utf-8") as f:
+        with open(progress_file, encoding="utf-8") as f:
             return json.load(f)
 
     def clear_learning_progress(self, expert_name: str):
@@ -592,7 +592,7 @@ class AutonomousLearner:
                         Path(temp_file).unlink()
 
             except Exception as e:
-                self._log_progress(f"  [ERROR] {str(e)}", callback=callback)
+                self._log_progress(f"  [ERROR] {e!s}", callback=callback)
                 failed += 1
 
         # Update expert metadata
@@ -655,7 +655,7 @@ class AutonomousLearner:
                 return None
 
         except Exception as e:
-            self._log_progress(f"  [ERROR] Scraping error: {str(e)}", callback=callback)
+            self._log_progress(f"  [ERROR] Scraping error: {e!s}", callback=callback)
             return None
 
     async def _fetch_paper(self, source, callback: Optional[Callable] = None) -> Optional[str]:
@@ -706,7 +706,7 @@ class AutonomousLearner:
                     return text
 
         except Exception as e:
-            self._log_progress(f"  [ERROR] Fetch error: {str(e)}", callback=callback)
+            self._log_progress(f"  [ERROR] Fetch error: {e!s}", callback=callback)
             return None
 
     async def _submit_single_job(
@@ -742,7 +742,7 @@ class AutonomousLearner:
     async def _execute_phase(
         self,
         expert: ExpertProfile,
-        topics: List[LearningTopic],
+        topics: list[LearningTopic],
         progress: LearningProgress,
         budget_limit: float,
         callback: Optional[Callable],
@@ -814,7 +814,7 @@ class AutonomousLearner:
     async def _poll_and_integrate_reports(
         self,
         expert: ExpertProfile,
-        job_ids: List[str],
+        job_ids: list[str],
         session,  # SessionCostTracker
         callback: Optional[Callable] = None,
     ):
@@ -909,7 +909,7 @@ class AutonomousLearner:
         if completed:
             await self._integrate_reports(expert, list(completed), callback)
 
-    async def _integrate_reports(self, expert: ExpertProfile, job_ids: List[str], callback: Optional[Callable] = None):
+    async def _integrate_reports(self, expert: ExpertProfile, job_ids: list[str], callback: Optional[Callable] = None):
         """Download reports and upload to expert's vector store."""
         import tempfile
         from pathlib import Path
@@ -959,7 +959,7 @@ class AutonomousLearner:
                 self._log_progress(f"  [OK] Uploaded as {filename} (file_id: {file_id[:20]}...)", callback=callback)
 
             except Exception as e:
-                self._log_progress(f"  [ERROR] {str(e)}", callback=callback)
+                self._log_progress(f"  [ERROR] {e!s}", callback=callback)
             finally:
                 # Clean up temp file
                 if temp_file and Path(temp_file).exists():
@@ -1058,7 +1058,7 @@ class AutonomousLearner:
         except Exception as e:
             self._log_progress(
                 "",
-                f"  [WARNING] Synthesis error: {str(e)}",
+                f"  [WARNING] Synthesis error: {e!s}",
                 "  Expert will function but without synthesized worldview",
                 "",
                 callback=callback,
@@ -1080,7 +1080,7 @@ class AutonomousLearner:
         )
 
     async def _simulate_phase_execution(
-        self, topics: List[LearningTopic], progress: LearningProgress, budget_limit: float, callback: Optional[Callable]
+        self, topics: list[LearningTopic], progress: LearningProgress, budget_limit: float, callback: Optional[Callable]
     ):
         """Simulate phase execution for dry runs."""
 
