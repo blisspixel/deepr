@@ -14,11 +14,12 @@ Example:
     4. Research competitor landscape
 """
 
-import os
 import logging
-from typing import List, Dict, Optional
-from openai import OpenAI
+import os
+from typing import Dict, List, Optional
+
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,7 @@ class ResearchPlanner:
         # Validate model is GPT-5 family only
         valid_models = ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]
         if model not in valid_models:
-            raise ValueError(
-                f"Invalid model: {model}. Must be one of {valid_models}. "
-                "NO OLD MODELS ALLOWED."
-            )
+            raise ValueError(f"Invalid model: {model}. Must be one of {valid_models}. NO OLD MODELS ALLOWED.")
 
         self.model = model
         self.use_azure = use_azure
@@ -58,8 +56,7 @@ class ResearchPlanner:
         if use_azure and azure_endpoint:
             # Azure with Entra ID
             token_provider = get_bearer_token_provider(
-                DefaultAzureCredential(),
-                "https://cognitiveservices.azure.com/.default"
+                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
             )
             self.client = OpenAI(
                 base_url=f"{azure_endpoint}/openai/v1/",
@@ -173,22 +170,19 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
         try:
             response = self.client.responses.create(
                 model=self.model,
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
                 # Note: GPT-5 reasoning models don't support temperature parameter
             )
 
             # Extract the response text
-            response_text = response.output_text if hasattr(response, 'output_text') else ""
+            response_text = response.output_text if hasattr(response, "output_text") else ""
 
             # If output is a list, get text from first message
-            if not response_text and hasattr(response, 'output') and response.output:
+            if not response_text and hasattr(response, "output") and response.output:
                 for item in response.output:
-                    if hasattr(item, 'type') and item.type == 'message':
+                    if hasattr(item, "type") and item.type == "message":
                         for content in item.content:
-                            if hasattr(content, 'type') and content.type == 'output_text':
+                            if hasattr(content, "type") and content.type == "output_text":
                                 response_text = content.text
                                 break
 
@@ -211,10 +205,12 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
             validated_tasks = []
             for task in tasks[:max_tasks]:  # Ensure we don't exceed max_tasks
                 if isinstance(task, dict) and "title" in task and "prompt" in task:
-                    validated_tasks.append({
-                        "title": str(task["title"])[:100],  # Cap title length
-                        "prompt": str(task["prompt"])[:1000],  # Cap prompt length
-                    })
+                    validated_tasks.append(
+                        {
+                            "title": str(task["title"])[:100],  # Cap title length
+                            "prompt": str(task["prompt"])[:1000],  # Cap prompt length
+                        }
+                    )
 
             if not validated_tasks:
                 raise ValueError("No valid tasks in response")
@@ -231,30 +227,27 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
         Fallback plan if GPT-5 call fails.
         Generates generic but useful research tasks.
         """
-        # Extract potential entities from scenario
-        words = scenario.split()
-
         # Basic research angles
         tasks = [
             {
                 "title": "Background and Overview Research",
-                "prompt": f"Research comprehensive background information about: {scenario}. Include recent news, key developments, and current status."
+                "prompt": f"Research comprehensive background information about: {scenario}. Include recent news, key developments, and current status.",
             },
             {
                 "title": "Industry Context and Trends",
-                "prompt": f"Research industry trends, market dynamics, and broader context related to: {scenario}."
+                "prompt": f"Research industry trends, market dynamics, and broader context related to: {scenario}.",
             },
             {
                 "title": "Technical Deep Dive",
-                "prompt": f"Research technical specifications, implementation details, and technical considerations for: {scenario}."
+                "prompt": f"Research technical specifications, implementation details, and technical considerations for: {scenario}.",
             },
             {
                 "title": "Competitive Landscape",
-                "prompt": f"Research competitors, alternatives, and comparative analysis relevant to: {scenario}."
+                "prompt": f"Research competitors, alternatives, and comparative analysis relevant to: {scenario}.",
             },
             {
                 "title": "Use Cases and Applications",
-                "prompt": f"Research real-world use cases, applications, and practical examples related to: {scenario}."
+                "prompt": f"Research real-world use cases, applications, and practical examples related to: {scenario}.",
             },
         ]
 

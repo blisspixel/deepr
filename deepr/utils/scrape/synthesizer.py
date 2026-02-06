@@ -1,8 +1,8 @@
 """Content synthesis from scraped data."""
 
 import logging
-from typing import Dict, List, Optional
 from datetime import datetime
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class ContentSynthesizer:
         for url, content in scraped_data.items():
             combined.append(f"Source: {url}\n")
             combined.append(content)
-            combined.append("\n" + "="*80 + "\n")
+            combined.append("\n" + "=" * 80 + "\n")
 
         return "\n".join(combined)
 
@@ -348,5 +348,5 @@ class ProvenanceTracker:
         if not sources:
             return fact
 
-        citations = ", ".join(f"[{i+1}]" for i in range(len(sources)))
+        citations = ", ".join(f"[{i + 1}]" for i in range(len(sources)))
         return f"{fact} {citations}"

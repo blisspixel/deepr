@@ -18,13 +18,13 @@ Usage:
     print(f"Information gain: {metrics.gain_score:.2f}")
 """
 
-import math
 import hashlib
+import math
+import re
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Set
-from collections import Counter
-import re
+from typing import Any, Dict, List, Optional, Set
 
 
 def _utc_now() -> datetime:
@@ -35,6 +35,7 @@ def _utc_now() -> datetime:
 @dataclass
 class InformationGainMetrics:
     """Metrics from information gain analysis."""
+
     phase: int
     gain_score: float  # 0.0 to 1.0
     novelty_rate: float  # Percentage of new information
@@ -69,6 +70,7 @@ class InformationGainMetrics:
 @dataclass
 class PriorContext:
     """Context from previous phases."""
+
     known_facts: List[str] = field(default_factory=list)
     known_entities: Set[str] = field(default_factory=set)
     known_topics: Set[str] = field(default_factory=set)
@@ -166,14 +168,9 @@ class InformationGainTracker:
         redundancy_rate = 1.0 - novelty_rate
 
         # Coverage expansion: how many new entities/topics
-        prior_knowledge_size = (
-            len(self.cumulative_context.known_entities) +
-            len(self.cumulative_context.known_topics)
-        )
+        prior_knowledge_size = len(self.cumulative_context.known_entities) + len(self.cumulative_context.known_topics)
         new_knowledge = len(new_entities) + len(new_topics)
-        coverage_expansion = (
-            new_knowledge / max(prior_knowledge_size + new_knowledge, 1)
-        )
+        coverage_expansion = new_knowledge / max(prior_knowledge_size + new_knowledge, 1)
 
         # Topic diversity using entropy
         topic_diversity = self._calculate_topic_diversity(findings)
@@ -239,9 +236,9 @@ class InformationGainTracker:
 
         recent = [p.gain_score for p in self.phases[-3:]]
 
-        if all(recent[i] < recent[i+1] for i in range(len(recent)-1)):
+        if all(recent[i] < recent[i + 1] for i in range(len(recent) - 1)):
             return "increasing"
-        elif all(recent[i] > recent[i+1] for i in range(len(recent)-1)):
+        elif all(recent[i] > recent[i + 1] for i in range(len(recent) - 1)):
             return "decreasing"
         else:
             return "stable"
@@ -335,12 +332,12 @@ class InformationGainTracker:
         entities = set()
 
         # Find capitalized words/phrases
-        pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b'
+        pattern = r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b"
         matches = re.findall(pattern, text)
 
         for match in matches:
             # Filter common words
-            if len(match) > 3 and match.lower() not in {'the', 'this', 'that', 'with'}:
+            if len(match) > 3 and match.lower() not in {"the", "this", "that", "with"}:
                 entities.add(match)
 
         return entities
@@ -356,23 +353,96 @@ class InformationGainTracker:
         """
         # Simple tokenization and filtering
         text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r"[^\w\s]", " ", text)
         words = text.split()
 
         # Filter to substantive words
         stopwords = {
-            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
-            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-            'could', 'should', 'may', 'might', 'must', 'shall',
-            'this', 'that', 'these', 'those', 'it', 'its',
-            'and', 'or', 'but', 'if', 'then', 'else', 'when', 'where',
-            'which', 'who', 'whom', 'whose', 'what', 'how', 'why',
-            'for', 'from', 'with', 'without', 'about', 'between',
-            'into', 'through', 'during', 'before', 'after', 'above',
-            'below', 'to', 'of', 'in', 'on', 'by', 'at', 'as',
-            'not', 'no', 'yes', 'also', 'only', 'just', 'more', 'most',
-            'very', 'such', 'some', 'any', 'all', 'each', 'every',
-            'both', 'few', 'many', 'much', 'other', 'another',
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "its",
+            "and",
+            "or",
+            "but",
+            "if",
+            "then",
+            "else",
+            "when",
+            "where",
+            "which",
+            "who",
+            "whom",
+            "whose",
+            "what",
+            "how",
+            "why",
+            "for",
+            "from",
+            "with",
+            "without",
+            "about",
+            "between",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "to",
+            "of",
+            "in",
+            "on",
+            "by",
+            "at",
+            "as",
+            "not",
+            "no",
+            "yes",
+            "also",
+            "only",
+            "just",
+            "more",
+            "most",
+            "very",
+            "such",
+            "some",
+            "any",
+            "all",
+            "each",
+            "every",
+            "both",
+            "few",
+            "many",
+            "much",
+            "other",
+            "another",
         }
 
         topics = {w for w in words if len(w) > 4 and w not in stopwords}
@@ -429,9 +499,5 @@ class InformationGainTracker:
             Combined gain score (0.0 to 1.0)
         """
         # Weighted combination
-        score = (
-            novelty_rate * 0.4 +
-            coverage_expansion * 0.35 +
-            topic_diversity * 0.25
-        )
+        score = novelty_rate * 0.4 + coverage_expansion * 0.35 + topic_diversity * 0.25
         return min(1.0, max(0.0, score))

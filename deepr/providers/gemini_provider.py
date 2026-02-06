@@ -9,28 +9,30 @@ This provider supports two modes:
    synthesis, and other non-research tasks.
 """
 
-import os
-import json
 import asyncio
 import logging
-from typing import Optional, List, Dict, Any
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError as GenaiAPIError
+
 from .base import (
     DeepResearchProvider,
+    ProviderError,
     ResearchRequest,
     ResearchResponse,
     UsageStats,
     VectorStore,
-    ProviderError,
 )
-from datetime import datetime, timezone
 
 # Suppress experimental API warning for Interactions API
 # The SDK emits a one-time warning; we acknowledge the API may change.
 try:
     import google.genai.client as _genai_client
+
     _genai_client._interactions_experimental_warned = True
 except (ImportError, AttributeError):
     pass
@@ -89,6 +91,7 @@ class GeminiProvider(DeepResearchProvider):
 
         # Pricing per 1M tokens -- sourced from registry, with local fallbacks
         from .registry import get_token_pricing
+
         self.pricing = {
             "gemini-2.5-pro": get_token_pricing("gemini-3-pro"),  # gemini-2.5-pro shares tier
             "gemini-2.5-flash": get_token_pricing("gemini-2.5-flash"),
@@ -138,31 +141,19 @@ class GeminiProvider(DeepResearchProvider):
             ThinkingConfig or None
         """
         if "2.5-pro" in model:
-            return types.ThinkingConfig(
-                thinking_budget=-1,
-                include_thoughts=True
-            )
+            return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
 
         if "2.5-flash" in model and "lite" not in model:
             if complexity == "easy":
                 return types.ThinkingConfig(thinking_budget=0)
             elif complexity == "hard":
-                return types.ThinkingConfig(
-                    thinking_budget=24576,
-                    include_thoughts=True
-                )
+                return types.ThinkingConfig(thinking_budget=24576, include_thoughts=True)
             else:
-                return types.ThinkingConfig(
-                    thinking_budget=-1,
-                    include_thoughts=True
-                )
+                return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
 
         if "flash-lite" in model:
             if complexity == "hard":
-                return types.ThinkingConfig(
-                    thinking_budget=8192,
-                    include_thoughts=True
-                )
+                return types.ThinkingConfig(thinking_budget=8192, include_thoughts=True)
 
         return None
 
@@ -211,10 +202,7 @@ class GeminiProvider(DeepResearchProvider):
                 file_ids=request.document_ids,
             )
             if file_store_name:
-                tools.append({
-                    "type": "file_search",
-                    "file_search_store_names": [file_store_name]
-                })
+                tools.append({"type": "file_search", "file_search_store_names": [file_store_name]})
 
         for attempt in range(max_retries):
             try:
@@ -243,10 +231,8 @@ class GeminiProvider(DeepResearchProvider):
 
             except GenaiAPIError as e:
                 if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2 ** attempt)
-                    logger.warning(
-                        f"Gemini deep research error (attempt {attempt + 1}/{max_retries}): {e}"
-                    )
+                    wait_time = retry_delay * (2**attempt)
+                    logger.warning(f"Gemini deep research error (attempt {attempt + 1}/{max_retries}): {e}")
                     await asyncio.sleep(wait_time)
                     continue
                 else:
@@ -259,10 +245,7 @@ class GeminiProvider(DeepResearchProvider):
                         original_error=e,
                     )
 
-        raise ProviderError(
-            message="Failed to start deep research after all retries",
-            provider="gemini"
-        )
+        raise ProviderError(message="Failed to start deep research after all retries", provider="gemini")
 
     async def _submit_regular_research(self, request: ResearchRequest) -> str:
         """Submit regular (non-deep-research) job using generate_content."""
@@ -274,7 +257,7 @@ class GeminiProvider(DeepResearchProvider):
             "status": "queued",
             "request": request,
             "created_at": datetime.now(timezone.utc),
-            "model": self.get_model_name(request.model)
+            "model": self.get_model_name(request.model),
         }
 
         await self._execute_regular_research(job_id)
@@ -297,7 +280,9 @@ class GeminiProvider(DeepResearchProvider):
                 prompt_length = len(request.prompt)
                 if prompt_length < 200:
                     complexity = "easy"
-                elif prompt_length > 1000 or "analyze" in request.prompt.lower() or "research" in request.prompt.lower():
+                elif (
+                    prompt_length > 1000 or "analyze" in request.prompt.lower() or "research" in request.prompt.lower()
+                ):
                     complexity = "hard"
                 else:
                     complexity = "medium"
@@ -314,10 +299,7 @@ class GeminiProvider(DeepResearchProvider):
                 if request.temperature is not None:
                     config_params["temperature"] = request.temperature
 
-                enable_search = any(
-                    tool.type in ("web_search_preview", "google_search")
-                    for tool in request.tools
-                )
+                enable_search = any(tool.type in ("web_search_preview", "google_search") for tool in request.tools)
                 if enable_search:
                     config_params["tools"] = [{"google_search": {}}]
 
@@ -344,9 +326,7 @@ class GeminiProvider(DeepResearchProvider):
                         model=model, contents=contents, config=config
                     )
                 else:
-                    response_stream = self.client.models.generate_content_stream(
-                        model=model, contents=contents
-                    )
+                    response_stream = self.client.models.generate_content_stream(model=model, contents=contents)
 
                 for chunk in response_stream:
                     if hasattr(chunk, "candidates") and chunk.candidates:
@@ -366,32 +346,30 @@ class GeminiProvider(DeepResearchProvider):
                 input_tokens = len(request.prompt) // 4
                 output_tokens = len(full_response) // 4
 
-                job_data.update({
-                    "status": "completed",
-                    "completed_at": datetime.now(timezone.utc),
-                    "output": full_response,
-                    "thoughts": thoughts_summary,
-                    "usage": {
-                        "input_tokens": int(input_tokens),
-                        "output_tokens": int(output_tokens),
-                        "total_tokens": int(input_tokens + output_tokens),
+                job_data.update(
+                    {
+                        "status": "completed",
+                        "completed_at": datetime.now(timezone.utc),
+                        "output": full_response,
+                        "thoughts": thoughts_summary,
+                        "usage": {
+                            "input_tokens": int(input_tokens),
+                            "output_tokens": int(output_tokens),
+                            "total_tokens": int(input_tokens + output_tokens),
+                        },
                     }
-                })
+                )
 
                 return
 
             except GenaiAPIError as e:
                 if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2 ** attempt)
+                    wait_time = retry_delay * (2**attempt)
                     logger.warning(f"Gemini error (attempt {attempt + 1}/{max_retries}): {e}")
                     await asyncio.sleep(wait_time)
                     continue
                 else:
-                    job_data.update({
-                        "status": "failed",
-                        "error": str(e),
-                        "completed_at": datetime.now(timezone.utc)
-                    })
+                    job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(timezone.utc)})
                     return
 
     # =========================================================================
@@ -408,10 +386,7 @@ class GeminiProvider(DeepResearchProvider):
         if job_id in self.jobs:
             return self._get_regular_job_status(job_id)
 
-        raise ProviderError(
-            message=f"Job {job_id} not found",
-            provider="gemini"
-        )
+        raise ProviderError(message=f"Job {job_id} not found", provider="gemini")
 
     async def _get_deep_research_status(self, interaction_id: str) -> ResearchResponse:
         """Poll the Interactions API for deep research job status."""
@@ -430,13 +405,15 @@ class GeminiProvider(DeepResearchProvider):
                 citations = self._extract_interaction_citations(interaction)
                 search_count = self._extract_search_query_count(interaction)
 
-                job_data.update({
-                    "status": "completed",
-                    "completed_at": datetime.now(timezone.utc),
-                    "output": content,
-                    "citations": citations,
-                    "search_queries_count": search_count,
-                })
+                job_data.update(
+                    {
+                        "status": "completed",
+                        "completed_at": datetime.now(timezone.utc),
+                        "output": content,
+                        "citations": citations,
+                        "search_queries_count": search_count,
+                    }
+                )
 
                 # Cleanup file search store
                 file_store = job_data.get("file_store_name")
@@ -445,11 +422,13 @@ class GeminiProvider(DeepResearchProvider):
 
             elif interaction.status == "failed":
                 error_msg = getattr(interaction, "error", "Deep research failed")
-                job_data.update({
-                    "status": "failed",
-                    "error": str(error_msg),
-                    "completed_at": datetime.now(timezone.utc),
-                })
+                job_data.update(
+                    {
+                        "status": "failed",
+                        "error": str(error_msg),
+                        "completed_at": datetime.now(timezone.utc),
+                    }
+                )
 
                 file_store = job_data.get("file_store_name")
                 if file_store:
@@ -475,13 +454,7 @@ class GeminiProvider(DeepResearchProvider):
 
         output = None
         if "output" in job_data:
-            output = [{
-                "type": "message",
-                "content": [{
-                    "type": "output_text",
-                    "text": job_data["output"]
-                }]
-            }]
+            output = [{"type": "message", "content": [{"type": "output_text", "text": job_data["output"]}]}]
 
         return ResearchResponse(
             id=interaction_id,
@@ -508,27 +481,16 @@ class GeminiProvider(DeepResearchProvider):
                 total_tokens=usage_data.get("total_tokens", 0),
                 reasoning_tokens=0,
                 cost=self._calculate_cost(
-                    usage_data.get("input_tokens", 0),
-                    usage_data.get("output_tokens", 0),
-                    job_data["model"]
-                )
+                    usage_data.get("input_tokens", 0), usage_data.get("output_tokens", 0), job_data["model"]
+                ),
             )
 
         output = None
         if "output" in job_data:
-            output = [{
-                "type": "message",
-                "content": [{
-                    "type": "output_text",
-                    "text": job_data["output"]
-                }]
-            }]
+            output = [{"type": "message", "content": [{"type": "output_text", "text": job_data["output"]}]}]
 
             if "thoughts" in job_data and job_data["thoughts"]:
-                output[0]["content"].insert(0, {
-                    "type": "reasoning",
-                    "text": job_data["thoughts"]
-                })
+                output[0]["content"].insert(0, {"type": "reasoning", "text": job_data["thoughts"]})
 
         return ResearchResponse(
             id=job_id,
@@ -539,7 +501,7 @@ class GeminiProvider(DeepResearchProvider):
             output=output,
             usage=usage,
             metadata=job_data.get("request").metadata if "request" in job_data else None,
-            error=job_data.get("error")
+            error=job_data.get("error"),
         )
 
     # =========================================================================
@@ -593,9 +555,7 @@ class GeminiProvider(DeepResearchProvider):
     # Deep Research — File Search Store support
     # =========================================================================
 
-    async def _create_file_search_store(
-        self, name: str, file_ids: List[str]
-    ) -> Optional[str]:
+    async def _create_file_search_store(self, name: str, file_ids: List[str]) -> Optional[str]:
         """
         Create a File Search Store for deep research grounding.
 
@@ -612,9 +572,7 @@ class GeminiProvider(DeepResearchProvider):
         try:
             # Run synchronous SDK calls in thread pool to avoid blocking event loop
             def _create_store():
-                store = self.client.file_search_stores.create(
-                    config={"display_name": name}
-                )
+                store = self.client.file_search_stores.create(config={"display_name": name})
                 store_name = store.name
 
                 for file_id in file_ids:
@@ -644,9 +602,7 @@ class GeminiProvider(DeepResearchProvider):
             # Run synchronous SDK calls in thread pool to avoid blocking event loop
             def _cleanup_store():
                 # Delete documents first
-                docs = self.client.file_search_stores.documents.list(
-                    file_search_store_name=store_name
-                )
+                docs = self.client.file_search_stores.documents.list(file_search_store_name=store_name)
                 for doc in docs:
                     self.client.file_search_stores.documents.delete(name=doc.name)
 
@@ -680,7 +636,9 @@ class GeminiProvider(DeepResearchProvider):
 
         try:
             import httpx
+
             from deepr.utils.security import is_safe_url
+
             async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
                 response = await client.head(url)
                 final_url = str(response.url)
@@ -750,33 +708,26 @@ class GeminiProvider(DeepResearchProvider):
         Files stored for 48 hours, up to 50MB per file.
         """
         try:
-            import pathlib
             import mimetypes
+            import pathlib
 
             path = pathlib.Path(file_path)
 
             mime_type, _ = mimetypes.guess_type(str(file_path))
 
-            if file_path.endswith('.md') or file_path.endswith('.markdown'):
+            if file_path.endswith(".md") or file_path.endswith(".markdown"):
                 mime_type = "text/markdown"
-            elif file_path.endswith('.txt'):
+            elif file_path.endswith(".txt"):
                 mime_type = "text/plain"
             elif not mime_type:
                 mime_type = "text/plain"
 
-            file_obj = self.client.files.upload(
-                file=path,
-                config={"mime_type": mime_type}
-            )
+            file_obj = self.client.files.upload(file=path, config={"mime_type": mime_type})
 
             return file_obj.name
 
         except (OSError, GenaiAPIError) as e:
-            raise ProviderError(
-                message=f"Failed to upload document: {str(e)}",
-                provider="gemini",
-                original_error=e
-            )
+            raise ProviderError(message=f"Failed to upload document: {str(e)}", provider="gemini", original_error=e)
 
     async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
         """
@@ -787,6 +738,7 @@ class GeminiProvider(DeepResearchProvider):
         compatibility with the base class interface.
         """
         import uuid
+
         vs_id = f"gemini-vs-{uuid.uuid4().hex[:16]}"
 
         if not hasattr(self, "vector_stores"):
@@ -796,14 +748,12 @@ class GeminiProvider(DeepResearchProvider):
             "id": vs_id,
             "name": name,
             "file_ids": file_ids,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": datetime.now(timezone.utc),
         }
 
         return VectorStore(id=vs_id, name=name, file_ids=file_ids)
 
-    async def wait_for_vector_store(
-        self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0
-    ) -> bool:
+    async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Wait for vector store ingestion. Gemini processes files immediately."""
         if not hasattr(self, "vector_stores"):
             return False
@@ -827,11 +777,7 @@ class GeminiProvider(DeepResearchProvider):
 
         stores = []
         for vs_data in list(self.vector_stores.values())[:limit]:
-            stores.append(VectorStore(
-                id=vs_data["id"],
-                name=vs_data["name"],
-                file_ids=vs_data["file_ids"]
-            ))
+            stores.append(VectorStore(id=vs_data["id"], name=vs_data["name"], file_ids=vs_data["file_ids"]))
 
         return stores
 

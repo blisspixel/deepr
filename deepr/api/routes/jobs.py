@@ -2,13 +2,13 @@
 
 import asyncio
 import logging
-from flask import Blueprint, request, jsonify
-from typing import Optional
 
-from ...queue import create_queue
-from ...queue.base import ResearchJob, JobStatus
-from ...core.costs import CostEstimator, CostController
+from flask import Blueprint, jsonify, request
+
 from ...config import load_config
+from ...core.costs import CostController, CostEstimator
+from ...queue import create_queue
+from ...queue.base import ResearchJob
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +105,12 @@ def submit_job():
         queue = get_queue()
         asyncio.run(queue.enqueue(job))
 
-        return jsonify({
-            "job": job.to_dict(),
-            "estimated_cost": estimate.to_dict(),
-        }), 201
+        return jsonify(
+            {
+                "job": job.to_dict(),
+                "estimated_cost": estimate.to_dict(),
+            }
+        ), 201
 
     except Exception as e:
         logger.exception("Error submitting job: %s", e)
@@ -139,12 +141,14 @@ def list_jobs():
         queue = get_queue()
         jobs = asyncio.run(queue.list_jobs(status=status, limit=limit, offset=offset))
 
-        return jsonify({
-            "jobs": [job.to_dict() for job in jobs],
-            "limit": limit,
-            "offset": offset,
-            "total": len(jobs),
-        }), 200
+        return jsonify(
+            {
+                "jobs": [job.to_dict() for job in jobs],
+                "limit": limit,
+                "offset": offset,
+                "total": len(jobs),
+            }
+        ), 200
 
     except Exception as e:
         logger.exception("Error listing jobs: %s", e)
@@ -289,13 +293,15 @@ def submit_batch():
             except Exception as e:
                 errors.append({"index": i, "error": str(e)})
 
-        return jsonify({
-            "created": created_jobs,
-            "errors": errors,
-            "total": len(jobs_data),
-            "successful": len(created_jobs),
-            "failed": len(errors),
-        }), 201
+        return jsonify(
+            {
+                "created": created_jobs,
+                "errors": errors,
+                "total": len(jobs_data),
+                "successful": len(created_jobs),
+                "failed": len(errors),
+            }
+        ), 201
 
     except Exception as e:
         logger.exception("Error submitting batch jobs: %s", e)

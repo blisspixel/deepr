@@ -2,9 +2,12 @@
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Dict, Optional
+
 from docx import Document
+
 from .normalize import normalize_markdown
 from .style import apply_styles_to_doc, format_paragraph
 
@@ -23,9 +26,7 @@ class ReportConverter:
         """
         self.generate_pdf = generate_pdf
 
-    async def convert_to_docx(
-        self, markdown_text: str, title: str, output_path: Optional[str] = None
-    ) -> bytes:
+    async def convert_to_docx(self, markdown_text: str, title: str, output_path: Optional[str] = None) -> bytes:
         """
         Convert markdown to DOCX format.
 
@@ -98,9 +99,7 @@ class ReportConverter:
             logger.warning("PDF conversion failed: %s", e)
             return None
 
-    async def generate_all_formats(
-        self, text: str, title: str, strip_citations: bool = True
-    ) -> Dict[str, bytes]:
+    async def generate_all_formats(self, text: str, title: str, strip_citations: bool = True) -> Dict[str, bytes]:
         """
         Generate all report formats from text.
 
@@ -113,7 +112,6 @@ class ReportConverter:
             Dictionary mapping format names to content bytes
         """
         import json
-        import re
 
         formats = {}
 

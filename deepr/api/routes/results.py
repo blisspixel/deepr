@@ -2,11 +2,12 @@
 
 import asyncio
 import logging
-from flask import Blueprint, request, jsonify, send_file
 from pathlib import Path
 
-from ...storage import create_storage
+from flask import Blueprint, jsonify, request, send_file
+
 from ...config import load_config
+from ...storage import create_storage
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,6 @@ def list_results():
         200: List of results
     """
     try:
-        search = request.args.get("search")
-        tags = request.args.get("tags", "").split(",") if request.args.get("tags") else []
         try:
             limit = min(int(request.args.get("limit", 50)), 100)
             offset = int(request.args.get("offset", 0))
@@ -51,19 +50,16 @@ def list_results():
         storage = get_storage()
 
         # List all result files
-        results = asyncio.run(storage.list_results(
-            limit=limit,
-            offset=offset,
-            sort=sort,
-            order=order
-        ))
+        results = asyncio.run(storage.list_results(limit=limit, offset=offset, sort=sort, order=order))
 
-        return jsonify({
-            "results": results,
-            "limit": limit,
-            "offset": offset,
-            "total": len(results),
-        }), 200
+        return jsonify(
+            {
+                "results": results,
+                "limit": limit,
+                "offset": offset,
+                "total": len(results),
+            }
+        ), 200
 
     except Exception as e:
         logger.exception("Error listing results: %s", e)
@@ -129,10 +125,10 @@ def download_result(job_id: str, format: str):
             file_path,
             mimetype=mimetypes.get(format, "application/octet-stream"),
             as_attachment=True,
-            download_name=f"research_{job_id}.{format}"
+            download_name=f"research_{job_id}.{format}",
         )
 
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -154,19 +150,18 @@ def search_results():
         if not query:
             return jsonify({"error": "Search query (q) is required"}), 400
 
-        limit = min(int(request.args.get("limit", 20)), 50)
-
-        storage = get_storage()
         # Full-text search not yet implemented; use deepr search CLI instead
         results = []
 
-        return jsonify({
-            "query": query,
-            "results": results,
-            "total": len(results),
-        }), 200
+        return jsonify(
+            {
+                "query": query,
+                "results": results,
+                "total": len(results),
+            }
+        ), 200
 
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -199,7 +194,7 @@ def add_tags(job_id: str):
 
         return jsonify({"message": "Tags added successfully", "tags": tags}), 200
 
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -221,5 +216,5 @@ def remove_tag(job_id: str, tag: str):
 
         return jsonify({"message": "Tag removed successfully"}), 200
 
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "Internal server error"}), 500

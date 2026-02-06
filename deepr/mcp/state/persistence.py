@@ -13,8 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from .job_manager import JobState, JobPhase, JobPlan, JobBeliefs
-
+from .job_manager import JobBeliefs, JobPhase, JobPlan, JobState
 
 # Default database path (relative to project root)
 DEFAULT_DB_PATH = Path("data/mcp_jobs.db")
@@ -127,22 +126,16 @@ class JobPersistence:
 
     def load_job(self, job_id: str) -> Optional[tuple[JobState, Optional[JobPlan], Optional[JobBeliefs]]]:
         """Load a job and its related data."""
-        row = self._conn.execute(
-            "SELECT * FROM jobs WHERE job_id = ?", (job_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
         if not row:
             return None
 
         state = self._row_to_state(row)
 
-        plan_row = self._conn.execute(
-            "SELECT * FROM job_plans WHERE job_id = ?", (job_id,)
-        ).fetchone()
+        plan_row = self._conn.execute("SELECT * FROM job_plans WHERE job_id = ?", (job_id,)).fetchone()
         plan = self._row_to_plan(plan_row) if plan_row else None
 
-        beliefs_row = self._conn.execute(
-            "SELECT * FROM job_beliefs WHERE job_id = ?", (job_id,)
-        ).fetchone()
+        beliefs_row = self._conn.execute("SELECT * FROM job_beliefs WHERE job_id = ?", (job_id,)).fetchone()
         beliefs = self._row_to_beliefs(beliefs_row) if beliefs_row else None
 
         return state, plan, beliefs
@@ -155,16 +148,12 @@ class JobPersistence:
                 (phase,),
             ).fetchall()
         else:
-            rows = self._conn.execute(
-                "SELECT * FROM jobs ORDER BY updated_at DESC"
-            ).fetchall()
+            rows = self._conn.execute("SELECT * FROM jobs ORDER BY updated_at DESC").fetchall()
         return [self._row_to_state(r) for r in rows]
 
     def delete_job(self, job_id: str) -> bool:
         """Delete a job and its related data (cascades)."""
-        cursor = self._conn.execute(
-            "DELETE FROM jobs WHERE job_id = ?", (job_id,)
-        )
+        cursor = self._conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
         self._conn.commit()
         return cursor.rowcount > 0
 
@@ -195,8 +184,7 @@ class JobPersistence:
     @staticmethod
     def _row_to_state(row: tuple) -> JobState:
         """Convert a database row to a JobState."""
-        (job_id, phase, progress, cost_so_far, estimated_remaining,
-         error, started_at, updated_at, metadata_json) = row
+        (job_id, phase, progress, cost_so_far, estimated_remaining, error, started_at, updated_at, metadata_json) = row
         return JobState(
             job_id=job_id,
             phase=JobPhase(phase),

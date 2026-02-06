@@ -1,12 +1,12 @@
 """Diagnostics commands for expert self-awareness and knowledge tracking."""
 
-import click
-from pathlib import Path
 from datetime import datetime
-from deepr.experts.profile import ExpertStore
+
+import click
+
+from deepr.cli.colors import console, print_header, print_key_value, print_section_header
 from deepr.experts.metacognition import MetaCognitionTracker
 from deepr.experts.temporal_knowledge import TemporalKnowledgeTracker
-from deepr.cli.colors import print_header, print_section_header, print_key_value, console
 
 
 @click.group(name="diagnostics")
@@ -32,20 +32,20 @@ def show_metacognition(expert_name: str):
         print_header(f"Meta-Cognitive Awareness: {expert_name}")
 
         # Overall stats
-        print_key_value("Knowledge Gaps Tracked", str(stats['total_knowledge_gaps']))
+        print_key_value("Knowledge Gaps Tracked", str(stats["total_knowledge_gaps"]))
         console.print(f"  [dim]-[/dim] Researched: {stats['researched_gaps']}")
         console.print(f"  [dim]-[/dim] Learned: {stats['learned_gaps']}")
         console.print(f"  [dim]-[/dim] Learning Rate: {stats['learning_rate']:.1%}")
-        print_key_value("Domains Tracked", str(stats['domains_tracked']))
+        print_key_value("Domains Tracked", str(stats["domains_tracked"]))
         console.print(f"  [dim]-[/dim] High Confidence: {stats['high_confidence_domains']}")
         console.print(f"  [dim]-[/dim] Low Confidence: {stats['low_confidence_domains']}")
         console.print(f"  [dim]-[/dim] Average Confidence: {stats['average_confidence']:.1%}")
-        print_key_value("Uncertainty Events", str(stats['total_uncertainty_events']))
+        print_key_value("Uncertainty Events", str(stats["total_uncertainty_events"]))
 
         # Show knowledge gaps that need research
         suggestions = meta.suggest_proactive_research(threshold_times_asked=2)
         if suggestions:
-            print_section_header(f"Suggested Proactive Research (asked 2+ times)")
+            print_section_header("Suggested Proactive Research (asked 2+ times)")
             for topic in suggestions[:5]:
                 console.print(f"  [dim]-[/dim] {topic}")
 
@@ -87,15 +87,15 @@ def show_temporal(expert_name: str, topic: str = None):
         print_header(f"Temporal Knowledge: {expert_name}")
 
         # Overall stats
-        print_key_value("Topics Tracked", str(stats['total_topics']))
-        print_key_value("Total Facts", str(stats['total_facts']))
+        print_key_value("Topics Tracked", str(stats["total_topics"]))
+        print_key_value("Total Facts", str(stats["total_facts"]))
         console.print(f"  [dim]-[/dim] Current: {stats['current_facts']}")
         console.print(f"  [dim]-[/dim] Superseded: {stats['superseded_facts']}")
-        print_key_value("Contradictions Resolved", str(stats['contradictions_resolved']))
+        print_key_value("Contradictions Resolved", str(stats["contradictions_resolved"]))
         console.print("\n[dim]Knowledge Age:[/dim]")
         console.print(f"  [dim]-[/dim] Average: {stats['average_fact_age_days']:.0f} days")
         console.print(f"  [dim]-[/dim] Oldest: {stats['oldest_fact_age_days']:.0f} days")
-        print_key_value("Stale Topics", str(stats['stale_topics']))
+        print_key_value("Stale Topics", str(stats["stale_topics"]))
 
         # Show specific topic timeline
         if topic:
@@ -104,11 +104,11 @@ def show_temporal(expert_name: str, topic: str = None):
             timeline = temporal.get_knowledge_timeline(topic)
             if timeline:
                 for event in timeline:
-                    date_str = datetime.fromisoformat(event['date']).strftime("%Y-%m-%d")
-                    status = "CURRENT" if event['current'] else "SUPERSEDED"
+                    date_str = datetime.fromisoformat(event["date"]).strftime("%Y-%m-%d")
+                    status = "CURRENT" if event["current"] else "SUPERSEDED"
                     console.print(f"{date_str} [{status}] (age: {event['age_days']}d, conf: {event['confidence']:.1%})")
                     console.print(f"  {event['fact'][:200]}...")
-                    if 'superseded_by' in event:
+                    if "superseded_by" in event:
                         console.print(f"  [dim]Superseded by:[/dim] {event['superseded_by']}")
                     console.print()
             else:
@@ -136,6 +136,7 @@ def show_all_diagnostics(expert_name: str):
         deepr diagnostics all "AWS Expert"
     """
     import click.core
+
     ctx = click.get_current_context()
 
     # Call both diagnostic commands

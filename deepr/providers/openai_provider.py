@@ -1,22 +1,25 @@
 """OpenAI provider implementation for Deep Research."""
 
-import os
 import asyncio
 import logging
-from typing import Optional, List
+import os
+from typing import List, Optional
+
 import openai
 
 logger = logging.getLogger(__name__)
+from datetime import datetime, timezone
+
 from openai import AsyncOpenAI
+
 from .base import (
     DeepResearchProvider,
+    ProviderError,
     ResearchRequest,
     ResearchResponse,
     UsageStats,
     VectorStore,
-    ProviderError,
 )
-from datetime import datetime, timezone
 
 
 class OpenAIProvider(DeepResearchProvider):
@@ -42,9 +45,7 @@ class OpenAIProvider(DeepResearchProvider):
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
 
-        self.client = AsyncOpenAI(
-            api_key=self.api_key, base_url=base_url, organization=organization
-        )
+        self.client = AsyncOpenAI(api_key=self.api_key, base_url=base_url, organization=organization)
 
         # Default model mappings (can be overridden)
         self.model_mappings = model_mappings or {
@@ -61,7 +62,8 @@ class OpenAIProvider(DeepResearchProvider):
     async def submit_research(self, request: ResearchRequest) -> str:
         """Submit research job to OpenAI with retry logic."""
         import asyncio
-        from openai import RateLimitError, APIConnectionError, APITimeoutError
+
+        from openai import APIConnectionError, APITimeoutError, RateLimitError
 
         max_retries = 3
         retry_delay = 1  # seconds
@@ -141,7 +143,7 @@ class OpenAIProvider(DeepResearchProvider):
                 # Retryable errors
                 if attempt < max_retries - 1:
                     # Exponential backoff
-                    wait_time = retry_delay * (2 ** attempt)
+                    wait_time = retry_delay * (2**attempt)
                     logger.warning("Provider error (attempt %d/%d): %s", attempt + 1, max_retries, e)
                     logger.warning("Retrying in %ss...", wait_time)
                     await asyncio.sleep(wait_time)
@@ -168,10 +170,7 @@ class OpenAIProvider(DeepResearchProvider):
                 )
 
         # If we exhausted all retries
-        raise ProviderError(
-            message="Failed to submit research after all retries",
-            provider="openai"
-        )
+        raise ProviderError(message="Failed to submit research after all retries", provider="openai")
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """Get research job status from OpenAI."""
@@ -199,10 +198,7 @@ class OpenAIProvider(DeepResearchProvider):
                 output = [
                     {
                         "type": block.type,
-                        "content": [
-                            {"type": item.type, "text": getattr(item, "text", "")}
-                            for item in block.content
-                        ]
+                        "content": [{"type": item.type, "text": getattr(item, "text", "")} for item in block.content]
                         if hasattr(block, "content") and block.content
                         else [],
                     }
@@ -231,9 +227,7 @@ class OpenAIProvider(DeepResearchProvider):
             )
 
         except openai.OpenAIError as e:
-            raise ProviderError(
-                message=f"Failed to get status: {str(e)}", provider="openai", original_error=e
-            )
+            raise ProviderError(message=f"Failed to get status: {str(e)}", provider="openai", original_error=e)
 
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel OpenAI research job."""
@@ -241,9 +235,7 @@ class OpenAIProvider(DeepResearchProvider):
             await self.client.responses.cancel(job_id)
             return True
         except openai.OpenAIError as e:
-            raise ProviderError(
-                message=f"Failed to cancel job: {str(e)}", provider="openai", original_error=e
-            )
+            raise ProviderError(message=f"Failed to cancel job: {str(e)}", provider="openai", original_error=e)
 
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload document to OpenAI."""
@@ -266,9 +258,7 @@ class OpenAIProvider(DeepResearchProvider):
 
             # Attach files
             for file_id in file_ids:
-                await self.client.vector_stores.files.create(
-                    vector_store_id=vs.id, file_id=file_id
-                )
+                await self.client.vector_stores.files.create(vector_store_id=vs.id, file_id=file_id)
 
             return VectorStore(id=vs.id, name=name, file_ids=file_ids)
 
@@ -279,9 +269,7 @@ class OpenAIProvider(DeepResearchProvider):
                 original_error=e,
             )
 
-    async def wait_for_vector_store(
-        self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0
-    ) -> bool:
+    async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Wait for OpenAI vector store ingestion."""
         try:
             start_time = asyncio.get_event_loop().time()
@@ -290,19 +278,13 @@ class OpenAIProvider(DeepResearchProvider):
                 # Check timeout
                 elapsed = asyncio.get_event_loop().time() - start_time
                 if elapsed > timeout:
-                    raise TimeoutError(
-                        f"Vector store ingestion timeout after {timeout} seconds"
-                    )
+                    raise TimeoutError(f"Vector store ingestion timeout after {timeout} seconds")
 
                 # Get file statuses
-                listing = await self.client.vector_stores.files.list(
-                    vector_store_id=vector_store_id
-                )
+                listing = await self.client.vector_stores.files.list(vector_store_id=vector_store_id)
 
                 # Check if all files are completed
-                all_completed = all(
-                    getattr(item, "status", "completed") == "completed" for item in listing.data
-                )
+                all_completed = all(getattr(item, "status", "completed") == "completed" for item in listing.data)
 
                 if all_completed:
                     return True
@@ -327,18 +309,10 @@ class OpenAIProvider(DeepResearchProvider):
 
             for vs in response.data:
                 # Get file IDs for this vector store
-                files_response = await self.client.vector_stores.files.list(
-                    vector_store_id=vs.id
-                )
+                files_response = await self.client.vector_stores.files.list(vector_store_id=vs.id)
                 file_ids = [f.id for f in files_response.data]
 
-                vector_stores.append(
-                    VectorStore(
-                        id=vs.id,
-                        name=vs.name,
-                        file_ids=file_ids
-                    )
-                )
+                vector_stores.append(VectorStore(id=vs.id, name=vs.name, file_ids=file_ids))
 
             return vector_stores
 

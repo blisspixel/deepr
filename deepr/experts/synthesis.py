@@ -14,17 +14,17 @@ with confidence levels and evidence chains. Future work: temporal reasoning,
 contradiction detection, belief revision, and richer knowledge graphs.
 """
 
+import json
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
 from datetime import datetime, timezone
 from pathlib import Path
-import json
+from typing import Dict, List, Optional
 
 
 @dataclass
 class Belief:
     """A belief held by the expert with confidence and evidence.
-    
+
     A belief is more than a fact - it's a position the expert holds
     based on synthesized evidence, with explicit confidence and the
     ability to be revised when contradicting evidence appears.
@@ -44,13 +44,13 @@ class Belief:
             "confidence": self.confidence,
             "evidence": self.evidence,
             "formed_at": self.formed_at.isoformat(),
-            "last_updated": self.last_updated.isoformat()
+            "last_updated": self.last_updated.isoformat(),
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'Belief':
-        data['formed_at'] = datetime.fromisoformat(data['formed_at'])
-        data['last_updated'] = datetime.fromisoformat(data['last_updated'])
+    def from_dict(cls, data: Dict) -> "Belief":
+        data["formed_at"] = datetime.fromisoformat(data["formed_at"])
+        data["last_updated"] = datetime.fromisoformat(data["last_updated"])
         return cls(**data)
 
 
@@ -68,19 +68,19 @@ class KnowledgeGap:
             "topic": self.topic,
             "questions": self.questions,
             "priority": self.priority,
-            "identified_at": self.identified_at.isoformat()
+            "identified_at": self.identified_at.isoformat(),
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'KnowledgeGap':
-        data['identified_at'] = datetime.fromisoformat(data['identified_at'])
+    def from_dict(cls, data: Dict) -> "KnowledgeGap":
+        data["identified_at"] = datetime.fromisoformat(data["identified_at"])
         return cls(**data)
 
 
 @dataclass
 class Worldview:
     """Expert's synthesized understanding of their domain.
-    
+
     A worldview is the expert's coherent mental model - not just facts,
     but how they relate, what's important, what's uncertain, and what
     questions remain open. This enables experts to reason and advise
@@ -101,26 +101,26 @@ class Worldview:
             "beliefs": [b.to_dict() for b in self.beliefs],
             "knowledge_gaps": [g.to_dict() for g in self.knowledge_gaps],
             "last_synthesis": self.last_synthesis.isoformat() if self.last_synthesis else None,
-            "synthesis_count": self.synthesis_count
+            "synthesis_count": self.synthesis_count,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'Worldview':
-        data['beliefs'] = [Belief.from_dict(b) for b in data.get('beliefs', [])]
-        data['knowledge_gaps'] = [KnowledgeGap.from_dict(g) for g in data.get('knowledge_gaps', [])]
-        if data.get('last_synthesis'):
-            data['last_synthesis'] = datetime.fromisoformat(data['last_synthesis'])
+    def from_dict(cls, data: Dict) -> "Worldview":
+        data["beliefs"] = [Belief.from_dict(b) for b in data.get("beliefs", [])]
+        data["knowledge_gaps"] = [KnowledgeGap.from_dict(g) for g in data.get("knowledge_gaps", [])]
+        if data.get("last_synthesis"):
+            data["last_synthesis"] = datetime.fromisoformat(data["last_synthesis"])
         return cls(**data)
 
     def save(self, path: Path):
         """Save worldview to JSON file."""
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def load(cls, path: Path) -> 'Worldview':
+    def load(cls, path: Path) -> "Worldview":
         """Load worldview from JSON file."""
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return cls.from_dict(data)
 
@@ -137,7 +137,7 @@ class KnowledgeSynthesizer:
         expert_name: str,
         domain: str,
         new_documents: List[Dict[str, str]],
-        existing_worldview: Optional[Worldview] = None
+        existing_worldview: Optional[Worldview] = None,
     ) -> Dict[str, any]:
         """Expert actively processes new knowledge and updates worldview.
 
@@ -153,29 +153,18 @@ class KnowledgeSynthesizer:
         # Read document contents
         doc_contents = []
         for doc in new_documents:
-            path = Path(doc['path'])
-            if 'content' in doc:
-                doc_contents.append({
-                    'filename': path.name,
-                    'content': doc['content']
-                })
+            path = Path(doc["path"])
+            if "content" in doc:
+                doc_contents.append({"filename": path.name, "content": doc["content"]})
             elif path.exists():
-                with open(path, 'r', encoding='utf-8') as f:
-                    doc_contents.append({
-                        'filename': path.name,
-                        'content': f.read()
-                    })
+                with open(path, "r", encoding="utf-8") as f:
+                    doc_contents.append({"filename": path.name, "content": f.read()})
 
         if not doc_contents:
-            return {
-                "success": False,
-                "error": "No documents to synthesize"
-            }
+            return {"success": False, "error": "No documents to synthesize"}
 
         # Build synthesis prompt
-        synthesis_prompt = self._build_synthesis_prompt(
-            expert_name, domain, doc_contents, existing_worldview
-        )
+        synthesis_prompt = self._build_synthesis_prompt(expert_name, domain, doc_contents, existing_worldview)
 
         # GPT-5 synthesizes knowledge
         response = await self.client.chat.completions.create(
@@ -183,28 +172,21 @@ class KnowledgeSynthesizer:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are helping an expert develop deep understanding and meta-awareness. Analyze documents and form coherent beliefs with evidence."
+                    "content": "You are helping an expert develop deep understanding and meta-awareness. Analyze documents and form coherent beliefs with evidence.",
                 },
-                {
-                    "role": "user",
-                    "content": synthesis_prompt
-                }
-            ]
+                {"role": "user", "content": synthesis_prompt},
+            ],
             # Note: GPT-5 only supports default temperature (1.0)
         )
 
         reflection_text = response.choices[0].message.content
 
         # Parse structured beliefs from reflection
-        beliefs, gaps = await self._extract_structured_knowledge(
-            reflection_text, doc_contents, expert_name
-        )
+        beliefs, gaps = await self._extract_structured_knowledge(reflection_text, doc_contents, expert_name)
 
         # Update or create worldview
         if existing_worldview:
-            worldview = self._update_worldview(
-                existing_worldview, beliefs, gaps
-            )
+            worldview = self._update_worldview(existing_worldview, beliefs, gaps)
         else:
             worldview = Worldview(
                 expert_name=expert_name,
@@ -212,7 +194,7 @@ class KnowledgeSynthesizer:
                 beliefs=beliefs,
                 knowledge_gaps=gaps,
                 last_synthesis=datetime.now(timezone.utc),
-                synthesis_count=1
+                synthesis_count=1,
             )
 
         return {
@@ -221,15 +203,11 @@ class KnowledgeSynthesizer:
             "reflection": reflection_text,
             "documents_processed": len(doc_contents),
             "beliefs_formed": len(beliefs),
-            "gaps_identified": len(gaps)
+            "gaps_identified": len(gaps),
         }
 
     def _build_synthesis_prompt(
-        self,
-        expert_name: str,
-        domain: str,
-        documents: List[Dict],
-        existing_worldview: Optional[Worldview]
+        self, expert_name: str, domain: str, documents: List[Dict], existing_worldview: Optional[Worldview]
     ) -> str:
         """Build prompt for knowledge synthesis."""
 
@@ -245,8 +223,8 @@ class KnowledgeSynthesizer:
         for i, doc in enumerate(documents, 1):
             docs_text += f"### Document {i}: {doc['filename']}\n\n"
             # First 2000 chars of each doc
-            content = doc['content'][:2000]
-            if len(doc['content']) > 2000:
+            content = doc["content"][:2000]
+            if len(doc["content"]) > 2000:
                 content += "\n\n[...document continues...]"
             docs_text += content + "\n\n---\n\n"
 
@@ -298,10 +276,7 @@ Be specific, cite evidence, and show genuine intellectual engagement.
         return prompt
 
     async def _extract_structured_knowledge(
-        self,
-        reflection_text: str,
-        documents: List[Dict],
-        expert_name: str
+        self, reflection_text: str, documents: List[Dict], expert_name: str
     ) -> tuple[List[Belief], List[KnowledgeGap]]:
         """Extract structured beliefs and gaps from reflection text."""
 
@@ -336,15 +311,9 @@ Output ONLY the JSON, no other text.
         response = await self.client.chat.completions.create(
             model="gpt-5",
             messages=[
-                {
-                    "role": "system",
-                    "content": "You extract structured data from text. Output only valid JSON."
-                },
-                {
-                    "role": "user",
-                    "content": parse_prompt
-                }
-            ]
+                {"role": "system", "content": "You extract structured data from text. Output only valid JSON."},
+                {"role": "user", "content": parse_prompt},
+            ],
             # Note: GPT-5 only supports default temperature (1.0)
         )
 
@@ -353,25 +322,29 @@ Output ONLY the JSON, no other text.
 
             # Convert to Belief objects
             beliefs = []
-            for b in parsed.get('beliefs', []):
-                beliefs.append(Belief(
-                    topic=b['topic'],
-                    statement=b['statement'],
-                    confidence=b['confidence'],
-                    evidence=b.get('evidence', [doc['filename'] for doc in documents]),
-                    formed_at=datetime.now(timezone.utc),
-                    last_updated=datetime.now(timezone.utc)
-                ))
+            for b in parsed.get("beliefs", []):
+                beliefs.append(
+                    Belief(
+                        topic=b["topic"],
+                        statement=b["statement"],
+                        confidence=b["confidence"],
+                        evidence=b.get("evidence", [doc["filename"] for doc in documents]),
+                        formed_at=datetime.now(timezone.utc),
+                        last_updated=datetime.now(timezone.utc),
+                    )
+                )
 
             # Convert to KnowledgeGap objects
             gaps = []
-            for g in parsed.get('knowledge_gaps', []):
-                gaps.append(KnowledgeGap(
-                    topic=g['topic'],
-                    questions=g['questions'],
-                    priority=g.get('priority', 3),
-                    identified_at=datetime.now(timezone.utc)
-                ))
+            for g in parsed.get("knowledge_gaps", []):
+                gaps.append(
+                    KnowledgeGap(
+                        topic=g["topic"],
+                        questions=g["questions"],
+                        priority=g.get("priority", 3),
+                        identified_at=datetime.now(timezone.utc),
+                    )
+                )
 
             return beliefs, gaps
 
@@ -380,10 +353,7 @@ Output ONLY the JSON, no other text.
             return [], []
 
     def _update_worldview(
-        self,
-        existing: Worldview,
-        new_beliefs: List[Belief],
-        new_gaps: List[KnowledgeGap]
+        self, existing: Worldview, new_beliefs: List[Belief], new_gaps: List[KnowledgeGap]
     ) -> Worldview:
         """Update existing worldview with new knowledge."""
 
@@ -411,17 +381,13 @@ Output ONLY the JSON, no other text.
 
         return existing
 
-    async def generate_worldview_document(
-        self,
-        worldview: Worldview,
-        reflection: str
-    ) -> str:
+    async def generate_worldview_document(self, worldview: Worldview, reflection: str) -> str:
         """Generate a markdown document representing expert's worldview."""
 
         doc = f"""# Worldview: {worldview.expert_name}
 
 **Domain**: {worldview.domain}
-**Last Updated**: {worldview.last_synthesis.strftime('%Y-%m-%d %H:%M:%S UTC') if worldview.last_synthesis else 'Never'}
+**Last Updated**: {worldview.last_synthesis.strftime("%Y-%m-%d %H:%M:%S UTC") if worldview.last_synthesis else "Never"}
 **Synthesis Count**: {worldview.synthesis_count}
 
 ---

@@ -35,9 +35,9 @@ import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from deepr.core.constants import TASK_CHECKPOINT_INTERVAL, TASK_DEFAULT_TIMEOUT
 
@@ -53,6 +53,7 @@ DEFAULT_DB_PATH = Path("data/durable_tasks.db")
 
 class TaskStatus(Enum):
     """Status of a durable task."""
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"  # Disconnected but recoverable
@@ -64,6 +65,7 @@ class TaskStatus(Enum):
 @dataclass
 class TaskCheckpoint:
     """A checkpoint for task recovery."""
+
     checkpoint_id: str
     task_id: str
     data: Dict[str, Any]
@@ -81,6 +83,7 @@ class TaskCheckpoint:
 @dataclass
 class DurableTask:
     """A task that survives disconnections."""
+
     id: str
     job_id: str
     description: str
@@ -111,8 +114,19 @@ class DurableTask:
     @classmethod
     def from_row(cls, row: tuple) -> "DurableTask":
         """Create from database row."""
-        (id, job_id, description, status, progress, created_at,
-         updated_at, checkpoint_json, error, metadata_json, timeout) = row
+        (
+            id,
+            job_id,
+            description,
+            status,
+            progress,
+            created_at,
+            updated_at,
+            checkpoint_json,
+            error,
+            metadata_json,
+            timeout,
+        ) = row
 
         return cls(
             id=id,
@@ -264,7 +278,7 @@ class TaskDurabilityManager:
                 json.dumps(task.checkpoint) if task.checkpoint else None,
                 json.dumps(task.metadata),
                 task.timeout_seconds,
-            )
+            ),
         )
 
         # Save initial checkpoint if provided
@@ -319,7 +333,7 @@ class TaskDurabilityManager:
                 task.updated_at.isoformat(),
                 json.dumps(task.checkpoint) if task.checkpoint else None,
                 task_id,
-            )
+            ),
         )
         self._conn.commit()
 
@@ -348,7 +362,7 @@ class TaskDurabilityManager:
             """UPDATE durable_tasks
                SET status = ?, updated_at = ?
                WHERE id = ?""",
-            (task.status.value, task.updated_at.isoformat(), task_id)
+            (task.status.value, task.updated_at.isoformat(), task_id),
         )
         self._conn.commit()
 
@@ -377,7 +391,7 @@ class TaskDurabilityManager:
             """UPDATE durable_tasks
                SET status = ?, updated_at = ?
                WHERE id = ?""",
-            (task.status.value, task.updated_at.isoformat(), task_id)
+            (task.status.value, task.updated_at.isoformat(), task_id),
         )
         self._conn.commit()
 
@@ -442,7 +456,7 @@ class TaskDurabilityManager:
                 task.updated_at.isoformat(),
                 json.dumps(task.checkpoint) if task.checkpoint else None,
                 task_id,
-            )
+            ),
         )
         self._conn.commit()
 
@@ -471,7 +485,7 @@ class TaskDurabilityManager:
             """UPDATE durable_tasks
                SET status = ?, updated_at = ?
                WHERE id = ?""",
-            (task.status.value, task.updated_at.isoformat(), task_id)
+            (task.status.value, task.updated_at.isoformat(), task_id),
         )
         self._conn.commit()
 
@@ -490,7 +504,7 @@ class TaskDurabilityManager:
             """SELECT id, job_id, description, status, progress, created_at,
                       updated_at, checkpoint_json, error, metadata_json, timeout_seconds
                FROM durable_tasks WHERE id = ?""",
-            (task_id,)
+            (task_id,),
         ).fetchone()
 
         if not row:
@@ -513,7 +527,7 @@ class TaskDurabilityManager:
                FROM durable_tasks
                WHERE job_id = ? AND status IN ('paused', 'running')
                ORDER BY created_at""",
-            (job_id,)
+            (job_id,),
         ).fetchall()
 
         return [DurableTask.from_row(row) for row in rows]
@@ -539,7 +553,7 @@ class TaskDurabilityManager:
                    FROM durable_tasks
                    WHERE job_id = ? AND status = ?
                    ORDER BY created_at""",
-                (job_id, status.value)
+                (job_id, status.value),
             ).fetchall()
         else:
             rows = self._conn.execute(
@@ -548,7 +562,7 @@ class TaskDurabilityManager:
                    FROM durable_tasks
                    WHERE job_id = ?
                    ORDER BY created_at""",
-                (job_id,)
+                (job_id,),
             ).fetchall()
 
         return [DurableTask.from_row(row) for row in rows]
@@ -573,17 +587,19 @@ class TaskDurabilityManager:
                WHERE task_id = ?
                ORDER BY timestamp DESC
                LIMIT ?""",
-            (task_id, limit)
+            (task_id, limit),
         ).fetchall()
 
         checkpoints = []
         for id, task_id, data_json, timestamp in rows:
-            checkpoints.append(TaskCheckpoint(
-                checkpoint_id=id,
-                task_id=task_id,
-                data=json.loads(data_json),
-                timestamp=datetime.fromisoformat(timestamp),
-            ))
+            checkpoints.append(
+                TaskCheckpoint(
+                    checkpoint_id=id,
+                    task_id=task_id,
+                    data=json.loads(data_json),
+                    timestamp=datetime.fromisoformat(timestamp),
+                )
+            )
 
         return checkpoints
 
@@ -609,13 +625,13 @@ class TaskDurabilityManager:
                 """DELETE FROM durable_tasks
                    WHERE updated_at < datetime(?, '-' || ? || ' days')
                      AND status IN ('completed', 'failed', 'cancelled')""",
-                (cutoff_str, days)
+                (cutoff_str, days),
             )
         else:
             cursor = self._conn.execute(
                 """DELETE FROM durable_tasks
                    WHERE updated_at < datetime(?, '-' || ? || ' days')""",
-                (cutoff_str, days)
+                (cutoff_str, days),
             )
 
         self._conn.commit()
@@ -678,7 +694,7 @@ class TaskDurabilityManager:
                 checkpoint.task_id,
                 json.dumps(checkpoint.data),
                 checkpoint.timestamp.isoformat(),
-            )
+            ),
         )
 
         return checkpoint

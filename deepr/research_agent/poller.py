@@ -4,14 +4,12 @@ import asyncio
 import logging
 import re
 from datetime import datetime
-from typing import Optional
 
-from ..queue import create_queue
-from ..storage import create_storage
-from ..providers import create_provider
 from ..config import load_config
 from ..core.costs import CostController
-
+from ..providers import create_provider
+from ..queue import create_queue
+from ..storage import create_storage
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +17,31 @@ logger = logging.getLogger(__name__)
 def _generate_report_filename(query: str) -> str:
     """Generate a human-readable filename from the research query."""
     slug = query.lower().strip()
-    filler_words = ['the', 'a', 'an', 'for', 'and', 'or', 'of', 'to', 'in', 'on', 'with', 'latest', 'best', 'create', 'comprehensive', 'documentation']
+    filler_words = [
+        "the",
+        "a",
+        "an",
+        "for",
+        "and",
+        "or",
+        "of",
+        "to",
+        "in",
+        "on",
+        "with",
+        "latest",
+        "best",
+        "create",
+        "comprehensive",
+        "documentation",
+    ]
     words = slug.split()
     words = [w for w in words if w not in filler_words]
-    slug = ' '.join(words)
-    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-    slug = re.sub(r'\s+', '-', slug.strip())
-    slug = re.sub(r'-+', '-', slug)
-    slug = slug[:50].rstrip('-')
+    slug = " ".join(words)
+    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+    slug = re.sub(r"\s+", "-", slug.strip())
+    slug = re.sub(r"-+", "-", slug)
+    slug = slug[:50].rstrip("-")
     if len(slug) < 5:
         slug = f"research-{datetime.now().strftime('%Y%m%d-%H%M')}"
     return f"{slug}.md"
@@ -43,7 +58,7 @@ class JobPoller:
     def __init__(
         self,
         poll_interval: int = 30,
-        socketio = None,
+        socketio=None,
     ):
         """
         Initialize job poller.
@@ -61,19 +76,12 @@ class JobPoller:
 
         # Initialize components
         self.queue = create_queue(
-            config.get("queue", "local"),
-            db_path=config.get("queue_db_path", "queue/research_queue.db")
+            config.get("queue", "local"), db_path=config.get("queue_db_path", "queue/research_queue.db")
         )
 
-        self.storage = create_storage(
-            config.get("storage", "local"),
-            base_path=config.get("results_dir", "results")
-        )
+        self.storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "results"))
 
-        self.provider = create_provider(
-            config.get("provider", "openai"),
-            api_key=config.get("api_key")
-        )
+        self.provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
 
         self.cost_controller = CostController(
             max_cost_per_job=float(config.get("max_cost_per_job", 5.0)),
@@ -162,18 +170,15 @@ class JobPoller:
             content = ""
             if response.output:
                 for block in response.output:
-                    if block.get('type') == 'message':
-                        for item in block.get('content', []):
-                            text = item.get('text', '')
+                    if block.get("type") == "message":
+                        for item in block.get("content", []):
+                            text = item.get("text", "")
                             if text:
                                 content += text + "\n"
 
             # Save to storage
             await self.storage.save_report(
-                job_id=job.id,
-                filename=report_filename,
-                content=content.encode('utf-8'),
-                content_type="text/markdown"
+                job_id=job.id, filename=report_filename, content=content.encode("utf-8"), content_type="text/markdown"
             )
 
             # Extract cost and tokens
@@ -182,10 +187,7 @@ class JobPoller:
 
             # Update queue with results
             await self.queue.update_results(
-                job_id=job.id,
-                report_paths={"markdown": report_filename},
-                cost=cost,
-                tokens_used=tokens
+                job_id=job.id, report_paths={"markdown": report_filename}, cost=cost, tokens_used=tokens
             )
 
             # Mark as completed
@@ -205,11 +207,7 @@ class JobPoller:
             logger.error(f"Job {job.id} failed: {error}")
 
             # Update queue with failure status
-            await self.queue.update_status(
-                job_id=job.id,
-                status=JobStatus.FAILED,
-                error=error
-            )
+            await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
 
         except Exception as e:
             logger.error(f"Error handling failure for job {job.id}: {e}")
@@ -232,10 +230,7 @@ async def run_poller(poll_interval: int = 30):
 
 if __name__ == "__main__":
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Run poller
     asyncio.run(run_poller())

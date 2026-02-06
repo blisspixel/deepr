@@ -5,8 +5,8 @@ Provides web search, document access, and MCP integration for AI agents.
 """
 
 from .base import Tool, ToolExecutor, ToolResult
-from .web_search import WebSearchTool
 from .registry import ToolRegistry
+from .web_search import WebSearchTool
 
 __all__ = [
     "Tool",

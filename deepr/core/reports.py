@@ -1,8 +1,9 @@
 """Report generation and formatting."""
 
-from typing import Dict, Optional, List
-from ..providers.base import ResearchResponse
+from typing import Dict, List, Optional
+
 from ..formatting.converters import ReportConverter
+from ..providers.base import ResearchResponse
 
 
 class ReportGenerator:
@@ -75,15 +76,9 @@ class ReportGenerator:
         )
 
         # Filter to requested formats
-        return {
-            fmt: content
-            for fmt, content in all_formats.items()
-            if fmt in requested_formats
-        }
+        return {fmt: content for fmt, content in all_formats.items() if fmt in requested_formats}
 
-    async def generate_single_format(
-        self, text: str, title: str, format_type: str
-    ) -> bytes:
+    async def generate_single_format(self, text: str, title: str, format_type: str) -> bytes:
         """
         Generate a single report format.
 

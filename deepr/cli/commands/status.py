@@ -1,14 +1,16 @@
 """Job status and management commands."""
 
-import click
 import asyncio
 import json
-from typing import Optional
-from deepr.queue.local_queue import SQLiteQueue
-from deepr.queue.base import JobStatus
 from pathlib import Path
-from deepr.cli.colors import print_deprecation, console
-from deepr.cli.output import OutputContext, OutputMode, OutputFormatter, output_options, format_duration, format_cost
+from typing import Optional
+
+import click
+
+from deepr.cli.colors import console, print_deprecation
+from deepr.cli.output import OutputContext, OutputMode, format_cost, format_duration, output_options
+from deepr.queue.base import JobStatus
+from deepr.queue.local_queue import SQLiteQueue
 
 
 @click.command()
@@ -28,7 +30,7 @@ def status(job_id: str, output_context: OutputContext):
 
 async def _show_status(job_id: str, output_context: Optional[OutputContext] = None):
     """Display job status.
-    
+
     Args:
         job_id: Job identifier
         output_context: Output formatting context (optional for backward compatibility)
@@ -36,7 +38,7 @@ async def _show_status(job_id: str, output_context: Optional[OutputContext] = No
     # Create default output context if not provided (backward compatibility)
     if output_context is None:
         output_context = OutputContext(mode=OutputMode.VERBOSE)
-    
+
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
 
@@ -60,15 +62,15 @@ async def _show_status(job_id: str, output_context: Optional[OutputContext] = No
             "cost": job.cost,
             "tokens_used": job.tokens_used,
             "error": job.last_error,
-            "report_paths": job.report_paths or {}
+            "report_paths": job.report_paths or {},
         }
         print(json.dumps(job_data))
         return
-    
+
     # Quiet mode - no output for status queries
     if output_context.mode == OutputMode.QUIET:
         return
-    
+
     # Minimal mode - single line summary
     if output_context.mode == OutputMode.MINIMAL:
         status_str = job.status.value.upper()
@@ -77,9 +79,9 @@ async def _show_status(job_id: str, output_context: Optional[OutputContext] = No
         return
 
     # Verbose mode - full details
-    click.echo("\n" + "="*70)
+    click.echo("\n" + "=" * 70)
     click.echo("  Job Status")
-    click.echo("="*70 + "\n")
+    click.echo("=" * 70 + "\n")
 
     click.echo(f"ID: {job.id}")
     click.echo(f"Status: {job.status.value.upper()}")
@@ -106,7 +108,7 @@ async def _show_status(job_id: str, output_context: Optional[OutputContext] = No
         click.echo(f"\nError: {job.last_error}")
 
     if job.report_paths:
-        click.echo(f"\nReports:")
+        click.echo("\nReports:")
         for format_type, path in job.report_paths.items():
             click.echo(f"  {format_type}: {path}")
 
@@ -130,7 +132,7 @@ def get(job_id: str, output_context: OutputContext):
 
 async def _get_results(job_id: str, output_context: Optional[OutputContext] = None):
     """Display job results - checks provider if not completed locally.
-    
+
     Args:
         job_id: Job identifier
         output_context: Output formatting context (optional for backward compatibility)
@@ -138,7 +140,7 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
     # Create default output context if not provided (backward compatibility)
     if output_context is None:
         output_context = OutputContext(mode=OutputMode.VERBOSE)
-    
+
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
 
@@ -153,11 +155,11 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
     if job.status != JobStatus.COMPLETED and job.provider_job_id:
         if output_context.mode == OutputMode.VERBOSE:
             click.echo(f"Job status: {job.status.value}")
-            click.echo(f"Checking provider for results...")
+            click.echo("Checking provider for results...")
 
         try:
-            from deepr.providers import create_provider
             from deepr.config import load_config
+            from deepr.providers import create_provider
             from deepr.storage import create_storage
 
             config = load_config()
@@ -179,45 +181,42 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
 
             if response.status == "completed":
                 if output_context.mode == OutputMode.VERBOSE:
-                    click.echo(f"Found completed results at provider! Downloading...")
+                    click.echo("Found completed results at provider! Downloading...")
 
                 # Extract content
                 content = ""
                 if response.output:
                     for block in response.output:
-                        if block.get('type') == 'message':
-                            for item in block.get('content', []):
-                                if item.get('type') in ['output_text', 'text']:
-                                    text = item.get('text', '')
+                        if block.get("type") == "message":
+                            for item in block.get("content", []):
+                                if item.get("type") in ["output_text", "text"]:
+                                    text = item.get("text", "")
                                     if text:
                                         content += text + "\n"
 
                 # Save to storage
                 storage = create_storage(
-                    config.get("storage", "local"),
-                    base_path=config.get("results_dir", "data/reports")
+                    config.get("storage", "local"), base_path=config.get("results_dir", "data/reports")
                 )
 
                 report_metadata = await storage.save_report(
                     job_id=job.id,
                     filename="report.md",
-                    content=content.encode('utf-8'),
+                    content=content.encode("utf-8"),
                     content_type="text/markdown",
                     metadata={
                         "prompt": job.prompt,
                         "model": job.model,
                         "status": "completed",
                         "provider_job_id": job.provider_job_id,
-                    }
+                    },
                 )
 
                 # Update queue status
                 await queue.update_status(job.id, JobStatus.COMPLETED)
                 if response.usage and response.usage.cost:
                     await queue.update_results(
-                        job.id,
-                        report_paths={"markdown": report_metadata.url},
-                        cost=response.usage.cost
+                        job.id, report_paths={"markdown": report_metadata.url}, cost=response.usage.cost
                     )
 
                 # Update job object
@@ -227,7 +226,7 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
                     job.cost = response.usage.cost
 
                 if output_context.mode == OutputMode.VERBOSE:
-                    click.echo(f"Results downloaded successfully!")
+                    click.echo("Results downloaded successfully!")
 
             elif response.status == "failed":
                 error_msg = response.error.message if response.error else "Unknown error"
@@ -266,7 +265,7 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
     report_path = None
     content = None
     content_size = 0
-    
+
     if job.report_paths and "markdown" in job.report_paths:
         report_path = Path(job.report_paths["markdown"])
         if report_path.exists():
@@ -282,15 +281,15 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
             "model": job.model,
             "cost": job.cost or 0.0,
             "report_path": str(report_path) if report_path else None,
-            "content_size": content_size
+            "content_size": content_size,
         }
         print(json.dumps(result_data))
         return
-    
+
     # Quiet mode - no output
     if output_context.mode == OutputMode.QUIET:
         return
-    
+
     # Minimal mode - single line summary
     if output_context.mode == OutputMode.MINIMAL:
         cost_str = f"${job.cost:.4f}" if job.cost else "$0.00"
@@ -299,9 +298,9 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
         return
 
     # Verbose mode - full details
-    click.echo("\n" + "="*70)
+    click.echo("\n" + "=" * 70)
     click.echo("  Research Results")
-    click.echo("="*70 + "\n")
+    click.echo("=" * 70 + "\n")
 
     click.echo(f"Query: {job.prompt}")
     click.echo(f"Model: {job.model}")
@@ -315,19 +314,19 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
 
         # Show preview for large reports
         if content_size > 5000:
-            click.echo("="*70)
+            click.echo("=" * 70)
             click.echo("Report Preview (first 2000 characters):")
-            click.echo("="*70)
+            click.echo("=" * 70)
             click.echo(content[:2000])
             click.echo()
             click.echo(f"... ({content_size - 2000:,} more characters)")
             click.echo()
             click.echo(f"Full report: {report_path}")
-            click.echo("="*70)
+            click.echo("=" * 70)
         else:
-            click.echo("="*70)
+            click.echo("=" * 70)
             click.echo(content)
-            click.echo("="*70)
+            click.echo("=" * 70)
     elif report_path:
         click.echo(f"Report file not found: {report_path}")
     else:
@@ -356,15 +355,12 @@ def list_jobs(status_filter: str, limit: int, output_context: OutputContext):
 async def _refresh_job_statuses(queue, jobs):
     """Refresh job statuses from provider API."""
     try:
-        from deepr.providers import create_provider
         from deepr.config import load_config
+        from deepr.providers import create_provider
         from deepr.storage import create_storage
 
         config = load_config()
-        storage = create_storage(
-            config.get("storage", "local"),
-            base_path=config.get("results_dir", "data/reports")
-        )
+        storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
 
         for job in jobs:
             try:
@@ -386,10 +382,10 @@ async def _refresh_job_statuses(queue, jobs):
                     content = ""
                     if response.output:
                         for block in response.output:
-                            if block.get('type') == 'message':
-                                for item in block.get('content', []):
-                                    if item.get('type') in ['output_text', 'text']:
-                                        text = item.get('text', '')
+                            if block.get("type") == "message":
+                                for item in block.get("content", []):
+                                    if item.get("type") in ["output_text", "text"]:
+                                        text = item.get("text", "")
                                         if text:
                                             content += text + "\n"
 
@@ -397,23 +393,21 @@ async def _refresh_job_statuses(queue, jobs):
                     report_metadata = await storage.save_report(
                         job_id=job.id,
                         filename="report.md",
-                        content=content.encode('utf-8'),
+                        content=content.encode("utf-8"),
                         content_type="text/markdown",
                         metadata={
                             "prompt": job.prompt,
                             "model": job.model,
                             "status": "completed",
                             "provider_job_id": job.provider_job_id,
-                        }
+                        },
                     )
 
                     # Update queue
                     await queue.update_status(job.id, JobStatus.COMPLETED)
                     if response.usage and response.usage.cost:
                         await queue.update_results(
-                            job.id,
-                            report_paths={"markdown": report_metadata.url},
-                            cost=response.usage.cost
+                            job.id, report_paths={"markdown": report_metadata.url}, cost=response.usage.cost
                         )
 
                 elif response.status == "failed":
@@ -422,18 +416,18 @@ async def _refresh_job_statuses(queue, jobs):
 
                 # If still queued/processing, leave it (no update needed)
 
-            except Exception as e:
+            except Exception:
                 # Silently skip jobs that fail to refresh
                 pass
 
-    except Exception as e:
+    except Exception:
         # If provider init fails, silently skip refresh
         pass
 
 
 async def _list_jobs(status_filter: str, limit: int, output_context: Optional[OutputContext] = None):
     """List jobs with automatic status refresh for stale jobs.
-    
+
     Args:
         status_filter: Filter by job status
         limit: Maximum number of jobs to return
@@ -442,7 +436,7 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
     # Create default output context if not provided (backward compatibility)
     if output_context is None:
         output_context = OutputContext(mode=OutputMode.VERBOSE)
-    
+
     queue = SQLiteQueue()
 
     # Parse status filter
@@ -463,9 +457,11 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
     # Refresh stale jobs (>30 minutes old and not completed/failed) - only in verbose mode
     if output_context.mode == OutputMode.VERBOSE:
         from datetime import datetime, timedelta
+
         stale_threshold = datetime.utcnow() - timedelta(minutes=30)
         stale_jobs = [
-            job for job in jobs
+            job
+            for job in jobs
             if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]
             and job.submitted_at < stale_threshold
             and job.provider_job_id  # Only if we have a provider job ID
@@ -482,18 +478,20 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
     if output_context.mode == OutputMode.JSON:
         jobs_data = []
         for job in jobs:
-            jobs_data.append({
-                "id": job.id,
-                "status": job.status.value,
-                "model": job.model,
-                "prompt": job.prompt[:100] + "..." if len(job.prompt) > 100 else job.prompt,
-                "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
-                "cost": job.cost,
-                "error": job.last_error
-            })
+            jobs_data.append(
+                {
+                    "id": job.id,
+                    "status": job.status.value,
+                    "model": job.model,
+                    "prompt": job.prompt[:100] + "..." if len(job.prompt) > 100 else job.prompt,
+                    "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
+                    "cost": job.cost,
+                    "error": job.last_error,
+                }
+            )
         print(json.dumps({"status": "success", "count": len(jobs), "jobs": jobs_data}))
         return
-    
+
     # Quiet mode - no output
     if output_context.mode == OutputMode.QUIET:
         return
@@ -513,9 +511,9 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
         return
 
     # Verbose mode - full details
-    click.echo("\n" + "="*70)
+    click.echo("\n" + "=" * 70)
     click.echo("  Job Queue")
-    click.echo("="*70 + "\n")
+    click.echo("=" * 70 + "\n")
 
     click.echo(f"Found {len(jobs)} job(s)\n")
 
@@ -545,8 +543,8 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
 
         click.echo()
 
-    click.echo(f"View details: deepr status <job-id>")
-    click.echo(f"Get results: deepr get <job-id>")
+    click.echo("View details: deepr status <job-id>")
+    click.echo("Get results: deepr get <job-id>")
 
 
 @click.command()
@@ -566,7 +564,7 @@ def cancel(job_id: str, output_context: OutputContext):
 
 async def _cancel_job(job_id: str, output_context: Optional[OutputContext] = None):
     """Cancel job.
-    
+
     Args:
         job_id: Job identifier
         output_context: Output formatting context (optional for backward compatibility)
@@ -574,7 +572,7 @@ async def _cancel_job(job_id: str, output_context: Optional[OutputContext] = Non
     # Create default output context if not provided (backward compatibility)
     if output_context is None:
         output_context = OutputContext(mode=OutputMode.VERBOSE)
-    
+
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
 

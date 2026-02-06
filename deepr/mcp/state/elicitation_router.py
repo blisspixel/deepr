@@ -19,8 +19,8 @@ Usage:
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Callable, Awaitable
 from enum import Enum
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 
 def _utc_now() -> datetime:
@@ -30,6 +30,7 @@ def _utc_now() -> datetime:
 
 class ElicitationTarget(Enum):
     """Target for elicitation requests."""
+
     AUTO = "auto"  # Automatically detect best target
     CLI = "cli"  # Command line interface
     WEB = "web"  # Web dashboard
@@ -40,6 +41,7 @@ class ElicitationTarget(Enum):
 @dataclass
 class ElicitationRequest:
     """A request for user input."""
+
     id: str
     message: str
     schema: Dict[str, Any]
@@ -63,6 +65,7 @@ class ElicitationRequest:
 @dataclass
 class ElicitationResponse:
     """Response from user elicitation."""
+
     request_id: str
     response: Dict[str, Any]
     target: ElicitationTarget
@@ -316,6 +319,7 @@ def create_cli_handler(
     Returns:
         ElicitationHandler function
     """
+
     async def handler(request: ElicitationRequest) -> Optional[Dict[str, Any]]:
         # Display message
         print(f"\n{request.message}\n")

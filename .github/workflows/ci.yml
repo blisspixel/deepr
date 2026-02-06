@@ -33,5 +33,8 @@ jobs:
       - name: Lint
         run: ruff check deepr/
 
+      - name: Format check
+        run: ruff format --check deepr/
+
       - name: Unit tests with coverage
         run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing --cov-fail-under=60

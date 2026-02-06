@@ -1,4 +1,5 @@
 """Utility to retrieve completed research reports for an expert."""
+
 import asyncio
 import sys
 from pathlib import Path
@@ -6,13 +7,13 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from deepr.experts.profile import ExpertStore
-from deepr.providers.openai_provider import OpenAIProvider
-from deepr.core.research import ResearchOrchestrator
-from deepr.storage.local import LocalStorage
+from deepr.cli.colors import console, print_error, print_key_value, print_section_header, print_success
 from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
-from deepr.cli.colors import console, print_section_header, print_key_value, print_success, print_error
+from deepr.core.research import ResearchOrchestrator
+from deepr.experts.profile import ExpertStore
+from deepr.providers.openai_provider import OpenAIProvider
+from deepr.storage.local import LocalStorage
 
 
 async def retrieve_reports(expert_name: str):
@@ -36,10 +37,7 @@ async def retrieve_reports(expert_name: str):
     doc_manager = DocumentManager()
     report_gen = ReportGenerator()
     orchestrator = ResearchOrchestrator(
-        provider=provider,
-        storage=storage,
-        document_manager=doc_manager,
-        report_generator=report_gen
+        provider=provider, storage=storage, document_manager=doc_manager, report_generator=report_gen
     )
 
     total_cost = 0.0
@@ -55,9 +53,7 @@ async def retrieve_reports(expert_name: str):
             if response.status == "completed":
                 # Save report
                 await orchestrator.process_completion(
-                    job_id=job_id,
-                    append_references=True,
-                    output_formats=["md", "txt"]
+                    job_id=job_id, append_references=True, output_formats=["md", "txt"]
                 )
 
                 if response.usage:

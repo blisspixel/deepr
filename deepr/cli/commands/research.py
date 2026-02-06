@@ -695,7 +695,16 @@ def wait(job_id: str, timeout: int, progress: bool, poll_interval: int):
 @click.option("--full-trace", is_flag=True, help="Export complete audit trail")
 @click.option("--output", "-o", type=click.Path(), help="Output file for full trace export")
 @click.option("--show-budget", is_flag=True, help="Show token budget utilization")
-def trace(job_id: str, explain: bool, timeline: bool, temporal: bool, lineage: bool, full_trace: bool, output: str, show_budget: bool):
+def trace(
+    job_id: str,
+    explain: bool,
+    timeline: bool,
+    temporal: bool,
+    lineage: bool,
+    full_trace: bool,
+    output: str,
+    show_budget: bool,
+):
     """View trace information for a research job.
 
     Examples:
@@ -1009,4 +1018,6 @@ def _render_context_lineage(emitter):
     total_sources = sum(len(s) for s in lineage.values())
     unique_sources = len(set(s for sources in lineage.values() for s in sources))
 
-    console.print(f"\n[dim]Tasks with context: {len(lineage)} | Total references: {total_sources} | Unique sources: {unique_sources}[/dim]")
+    console.print(
+        f"\n[dim]Tasks with context: {len(lineage)} | Total references: {total_sources} | Unique sources: {unique_sources}[/dim]"
+    )
