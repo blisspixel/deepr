@@ -113,6 +113,24 @@ Experts choose appropriate research depth:
 | `standard_research` | $0.01-0.05 | 30-60s | Moderate complexity |
 | `deep_research` | $0.10-0.30 | 5-20 min | Complex topics |
 
+## Preview a Curriculum
+
+Before creating an expert with `--learn`, preview what it would research:
+
+```bash
+# See the full research plan (no expert created, no cost)
+deepr expert plan "Azure Architect"
+
+# Budget-constrained plan
+deepr expert plan "Cloud Security" --budget 10
+
+# JSON output for scripting
+deepr expert plan "Kubernetes" --json
+
+# Just the prompts
+deepr expert plan "FastAPI" -q
+```
+
 ## Managing Experts
 
 ```bash

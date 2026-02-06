@@ -352,6 +352,140 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
     click.echo(f"\nUsage: deepr chat expert \"{profile.name}\"")
 
 
+@expert.command(name="plan")
+@click.argument("domain")
+@click.option("--budget", type=float, default=None, help="Budget limit for the plan")
+@click.option("--topics", type=int, default=15, help="Total number of topics")
+@click.option("--no-discovery", is_flag=True, default=False, help="Skip source discovery phase (faster, cheaper)")
+@click.option("--json", "output_json", is_flag=True, help="Output as JSON")
+@click.option("--csv", "output_csv", is_flag=True, help="Output as CSV")
+@click.option("--quiet", "-q", is_flag=True, help="Output prompts only, one per line")
+def plan_curriculum(domain: str, budget: Optional[float], topics: int,
+                    no_discovery: bool, output_json: bool, output_csv: bool, quiet: bool):
+    """Generate a research curriculum for any topic — without creating an expert.
+
+    Shows what deepr would research, how much it would cost, and the prompts
+    it would use. Great for previewing before committing to --learn.
+
+    EXAMPLES:
+      # Pretty table output
+      deepr expert plan "Python 3.13 migration"
+
+      # JSON for scripting
+      deepr expert plan "Cloud Architecture" --json
+
+      # CSV for spreadsheets
+      deepr expert plan "Kubernetes security" --csv
+
+      # Just the prompts, one per line
+      deepr expert plan "FastAPI" -q
+
+      # Budget-constrained plan
+      deepr expert plan "Azure AI" --budget 10
+
+      # Skip source discovery (faster, cheaper)
+      deepr expert plan "React hooks" --no-discovery
+    """
+    import json as json_mod
+
+    async def generate():
+        from deepr.experts.curriculum import CurriculumGenerator
+        from deepr.config import AppConfig
+
+        config = AppConfig.from_env()
+        generator = CurriculumGenerator(config)
+
+        return await generator.generate_curriculum(
+            expert_name=domain,
+            domain=domain,
+            initial_documents=[],
+            target_topics=topics,
+            budget_limit=budget,
+            enable_discovery=not no_discovery,
+        )
+
+    # Generate curriculum
+    if not quiet and not output_json and not output_csv:
+        console.print(f"[dim]Generating research plan for:[/dim] [bold]{domain}[/bold]")
+        if budget:
+            console.print(f"[dim]Budget:[/dim] ${budget:.2f}")
+        console.print()
+
+    try:
+        curriculum = asyncio.run(generate())
+    except Exception as e:
+        print_error(f"Failed to generate curriculum: {e}")
+        return
+
+    if not curriculum or not curriculum.topics:
+        print_error("No topics generated")
+        return
+
+    # --- JSON output ---
+    if output_json:
+        click.echo(json_mod.dumps(curriculum.to_dict(), indent=2))
+        return
+
+    # --- CSV output ---
+    if output_csv:
+        import csv
+        import io
+
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["title", "type", "mode", "prompt", "cost", "priority", "dependencies"])
+        for t in curriculum.topics:
+            writer.writerow([
+                t.title,
+                t.research_type,
+                t.research_mode,
+                t.research_prompt,
+                f"{t.estimated_cost:.4f}",
+                t.priority,
+                ";".join(t.dependencies) if t.dependencies else "",
+            ])
+        click.echo(buf.getvalue().rstrip())
+        return
+
+    # --- Quiet output (prompts only) ---
+    if quiet:
+        for t in curriculum.topics:
+            click.echo(t.research_prompt)
+        return
+
+    # --- Default: Rich table ---
+    print_header(f"Research Plan: {domain}")
+
+    # Group topics by research_type
+    groups: dict[str, list] = {}
+    for t in curriculum.topics:
+        groups.setdefault(t.research_type, []).append(t)
+
+    topic_num = 0
+    for group_name, group_topics in groups.items():
+        group_cost = sum(t.estimated_cost for t in group_topics)
+        console.print(f"\n[bold cyan]{group_name.replace('-', ' ').title()}[/bold cyan]  ({len(group_topics)} topics, ~${group_cost:.2f})")
+
+        for t in group_topics:
+            topic_num += 1
+            prompt_preview = t.research_prompt[:60] + "..." if len(t.research_prompt) > 60 else t.research_prompt
+            console.print(
+                f"  {topic_num:>2}. [bold]{t.title:<40}[/bold]  "
+                f"${t.estimated_cost:<8.3f}"
+                f"[dim]{prompt_preview}[/dim]"
+            )
+
+    # Summary footer
+    total_hours = curriculum.total_estimated_minutes / 60
+    console.print(
+        f"\n[bold]Total:[/bold] {len(curriculum.topics)} topics "
+        f"· ~${curriculum.total_estimated_cost:.2f} "
+        f"· ~{total_hours:.1f} hours"
+    )
+    console.print(f"\n[dim]To create an expert with this curriculum:[/dim]")
+    console.print(f'  deepr expert make "{domain}" --learn --budget {curriculum.total_estimated_cost:.2f}')
+
+
 @expert.command(name="list")
 def list_experts():
     """List all available experts.

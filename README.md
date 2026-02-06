@@ -1,7 +1,6 @@
 # Deepr
 
-[![Tests](https://img.shields.io/badge/tests-3600%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr/actions)
-[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](https://github.com/blisspixel/deepr/actions)
+[![Tests](https://img.shields.io/badge/tests-3600%2B%20passing-brightgreen)](https://github.com/blisspixel/deepr)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-2.8-orange)](ROADMAP.md)
@@ -75,31 +74,15 @@ graph TB
     Observe -.->|"tracks"| Providers
 ```
 
-## What You Can Do
-
-- **Give your AI agents real research capabilities** — Claude Code, Cursor, VS Code can call deep research mid-task. Not hallucinations — actual research with citations. Agents can query experts, trigger research to fill knowledge gaps, and continue with accurate information.
-- **Build institutional knowledge that doesn't walk out the door** — Create experts from your architecture docs, runbooks, and post-mortems. They learn, improve, and stay when people leave.
-- **Weekly competitive intelligence** — Schedule research on competitor announcements, market trends, or regulatory changes. Wake up Monday with a digest.
-- **Due diligence at scale** — Researching an acquisition target? Run 30 queries overnight covering their tech stack, patents, key hires, and market position.
-- **Switch providers without changing code** — Same interface across OpenAI, Gemini, Grok, and Anthropic
-
 ## Why Deepr?
 
-| If you need... | Use |
-|----------------|-----|
-| Occasional research | ChatGPT or Gemini web UI |
-| Automated research on a schedule | **Deepr** |
-| AI agents that can research and learn mid-task | **Deepr** (MCP + Skills) |
-| Institutional knowledge that learns and persists | **Deepr** |
-| Due diligence or competitive intel at scale | **Deepr** |
+Deepr wraps the same underlying APIs (OpenAI's o3/o4-mini-deep-research, Gemini's Deep Research Agent) and adds what they're missing:
 
-Deepr wraps the same underlying APIs (OpenAI's o3/o4-mini-deep-research, Gemini's Deep Research Agent) and adds:
-
-- **Automation** — Run from scripts, cron jobs, CI pipelines. No browser required.
-- **Domain experts** — Build persistent experts from your documents that answer questions, recognize knowledge gaps, and research autonomously to fill them.
-- **MCP integration** — Your AI agents (Claude Desktop, Cursor, VS Code, Zed) can invoke deep research as a tool.
-- **Multi-provider** — Same interface across OpenAI, Gemini, Grok, and Anthropic. Auto-fallback on failures.
-- **Cost controls** — Per-job budgets, daily limits, cost tracking. Never get surprised by a bill.
+- **Automation** — Run from scripts, cron jobs, CI pipelines. No browser required. Schedule competitive intel weekly. Run 30 due diligence queries overnight.
+- **Domain experts** — Build persistent experts from your docs that recognize knowledge gaps and research autonomously to fill them. Institutional knowledge that learns, improves, and doesn't quit.
+- **MCP integration** — Your AI agents (Claude Code, Cursor, VS Code, Zed) can call deep research mid-task. Not hallucinations — actual research with citations.
+- **Multi-provider** — Same interface across OpenAI, Gemini, Grok, and Anthropic. Auto-fallback on failures. Switch providers without changing code.
+- **Cost controls** — Per-job budgets, daily limits, cost tracking. Auto-mode routes simple queries to $0.01 models instead of $2 ones.
 - **Local storage** — Reports saved as markdown files you own. No vendor lock-in.
 
 ## Quick Start
@@ -130,37 +113,18 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for a guided setup.
 Submit research queries that use the same deep research agents as ChatGPT and Gemini. They search the web, synthesize sources, and produce structured reports with citations. Results saved locally as markdown.
 
 ```bash
-# Architecture decisions
-deepr research "Kubernetes vs ECS Fargate for multi-tenant SaaS: cost, complexity, and scaling tradeoffs"
+deepr research "Kubernetes vs ECS Fargate for multi-tenant SaaS: tradeoffs"  # Deep research
+deepr check "Does SOC 2 Type II require encryption at rest for all PII?"     # Compliance
+deepr learn "Service mesh options for hybrid cloud" --phases 3               # Multi-phase
+deepr team "Build internal ML platform or use SageMaker?"                    # Strategy
 
-# Compliance research
-deepr check "Does SOC 2 Type II require encryption at rest for all PII?"
-
-# Technology evaluation
-deepr learn "Service mesh options for hybrid cloud" --phases 3
-
-# Strategic decisions
-deepr team "Should we build an internal ML platform or use AWS SageMaker?"
-
-# Vendor analysis
-deepr make strategy "Migrate from Snowflake to Databricks" --perspective cost
-
-# Auto mode — smart routing for cost-effective research
-deepr research --auto "What is Python?"                      # Simple → grok-4-fast ($0.01)
-deepr research --auto "Analyze Tesla's competitive position" # Complex → o3-deep-research ($0.50)
-
-# Batch mode — process many queries cost-effectively
-deepr research --auto --batch queries.txt                    # Route each query optimally
-deepr research --auto --batch queries.txt --dry-run          # Preview routing without executing
-
-# Real-time progress tracking
-deepr research wait abc123 --progress  # Live phase tracking with progress bar
-
-# Research observability
-deepr research trace abc123 --timeline   # Reasoning evolution
-deepr research trace abc123 --temporal   # Knowledge discovery timeline
-deepr research trace abc123 --lineage    # Context flow visualization
+# Auto mode — routes by complexity (10-20x cost savings)
+deepr research --auto "What is Python?"                      # → grok-4-fast ($0.01)
+deepr research --auto "Analyze Tesla's competitive position" # → o3-deep-research ($0.50)
+deepr research --auto --batch queries.txt --dry-run          # Preview routing for batch
 ```
+
+See [docs/FEATURES.md](docs/FEATURES.md) for the full command reference including progress tracking, tracing, and observability.
 
 ### Domain Experts (The Interesting Part)
 
@@ -185,6 +149,9 @@ deepr expert chat "Platform Team Expert" --agentic --budget 5
 
 # Proactively fill knowledge gaps (e.g., new AWS services)
 deepr expert fill-gaps "Platform Team Expert" --budget 5 --top 3
+
+# Preview what an expert would learn (no cost, no expert created)
+deepr expert plan "Cloud Architecture" --budget 10
 
 # Export for the whole team
 deepr expert export "Platform Team Expert" --output ./team-experts/
@@ -345,7 +312,7 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 - Budget controls to prevent runaway costs
 - Optional Docker isolation for untrusted workloads
 
-CI runs ruff (lint + format) and 3600+ unit tests on every push. See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
+3600+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
 **Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
