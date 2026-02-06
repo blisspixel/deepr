@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from deepr.branding import print_section_header
+from deepr.cli.colors import print_header
 
 
 def get_budget_file():
@@ -116,7 +116,7 @@ def set(amount: float):
         deepr budget set 0       # Confirm every job
         deepr budget set -1      # Unlimited (never confirm)
     """
-    print_section_header("Budget Configuration")
+    print_header("Budget Configuration")
 
     config = load_budget_config()
     config["monthly_limit"] = amount
@@ -135,7 +135,7 @@ def set(amount: float):
 @budget.command()
 def status():
     """Show current budget status."""
-    print_section_header("Budget Status")
+    print_header("Budget Status")
 
     config = load_budget_config()
     monthly_limit = config.get("monthly_limit", 0)
@@ -173,7 +173,7 @@ def status():
 @click.option("--limit", "-n", default=10, help="Number of recent transactions to show")
 def history(limit: int):
     """Show spending history."""
-    print_section_header("Spending History")
+    print_header("Spending History")
 
     config = load_budget_config()
     history = config.get("history", [])
@@ -205,7 +205,7 @@ def safety():
     from deepr.cli.colors import console, print_key_value
     from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
 
-    print_section_header("Cost Safety Status")
+    print_header("Cost Safety Status")
 
     manager = get_cost_safety_manager()
     summary = manager.get_spending_summary()

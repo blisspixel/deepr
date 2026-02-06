@@ -37,8 +37,4 @@ jobs:
         run: ruff format --check deepr/
 
       - name: Unit tests with coverage
-        env:
-          OPENAI_API_KEY: sk-test-dummy-key-for-ci
-          XAI_API_KEY: xai-test-dummy-key-for-ci
-          GEMINI_API_KEY: gemini-test-dummy-key-for-ci
         run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing --cov-fail-under=60
