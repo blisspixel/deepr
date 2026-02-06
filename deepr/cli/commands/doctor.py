@@ -1,11 +1,12 @@
 """Diagnostics command for troubleshooting Deepr configuration."""
 
+import asyncio
 import os
 import tempfile
 from pathlib import Path
+from typing import Dict, List
+
 import click
-import asyncio
-from typing import Dict, List, Tuple
 
 from deepr.config import load_config
 
@@ -93,6 +94,7 @@ async def check_provider_connectivity(config) -> List[DiagnosticCheck]:
         check = DiagnosticCheck("OpenAI API Connection", "Connectivity")
         try:
             from openai import AsyncOpenAI
+
             client = AsyncOpenAI(api_key=openai_key)
             # Simple test: list models
             models = await client.models.list()
@@ -110,6 +112,7 @@ async def check_provider_connectivity(config) -> List[DiagnosticCheck]:
         check = DiagnosticCheck("Gemini API Connection", "Connectivity")
         try:
             import google.generativeai as genai
+
             genai.configure(api_key=gemini_key)
             # Simple test: list models
             models = genai.list_models()
@@ -128,10 +131,8 @@ async def check_provider_connectivity(config) -> List[DiagnosticCheck]:
         check = DiagnosticCheck("xAI Grok Connection", "Connectivity")
         try:
             from openai import AsyncOpenAI
-            client = AsyncOpenAI(
-                api_key=xai_key,
-                base_url="https://api.x.ai/v1"
-            )
+
+            client = AsyncOpenAI(api_key=xai_key, base_url="https://api.x.ai/v1")
             # Simple test: list models
             models = await client.models.list()
             check.passed = True
@@ -149,11 +150,8 @@ async def check_provider_connectivity(config) -> List[DiagnosticCheck]:
         check = DiagnosticCheck("Azure OpenAI Connection", "Connectivity")
         try:
             from openai import AsyncAzureOpenAI
-            client = AsyncAzureOpenAI(
-                api_key=azure_key,
-                azure_endpoint=azure_endpoint,
-                api_version="2024-10-21"
-            )
+
+            client = AsyncAzureOpenAI(api_key=azure_key, azure_endpoint=azure_endpoint, api_version="2024-10-21")
             # Azure doesn't support models.list() easily, so just mark as configured
             check.passed = True
             check.message = "Configured (connectivity test skipped)"
@@ -239,6 +237,7 @@ async def check_database(config) -> List[DiagnosticCheck]:
     check = DiagnosticCheck("Job Database", "Database")
     try:
         import sqlite3
+
         # Use queue_db_path from config, or default
         db_path = Path(config.get("queue_db_path", "queue/research_queue.db"))
         check.details.append(f"Path: {db_path}")
@@ -267,7 +266,7 @@ async def check_database(config) -> List[DiagnosticCheck]:
 
 def print_checks(checks: List[DiagnosticCheck]):
     """Print diagnostic checks in a formatted way."""
-    from deepr.cli.colors import print_header, get_symbol, console
+    from deepr.cli.colors import console, get_symbol
 
     # Group by category
     categories: Dict[str, List[DiagnosticCheck]] = {}

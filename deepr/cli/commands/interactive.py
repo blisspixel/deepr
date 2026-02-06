@@ -82,8 +82,7 @@ def _print_welcome():
     console.print()
     console.print(
         Panel(
-            "[bold cyan]Deepr[/bold cyan] [dim]v2.7[/dim]\n"
-            "[dim]Deep research automation platform[/dim]",
+            "[bold cyan]Deepr[/bold cyan] [dim]v2.7[/dim]\n[dim]Deep research automation platform[/dim]",
             box=ROUNDED,
             border_style="cyan",
             padding=(0, 2),
@@ -187,18 +186,14 @@ def _research_menu():
     console.print(table)
     console.print()
 
-    model_choice = click.prompt(
-        click.style("Model", fg="cyan"), type=int, default=1
-    )
+    model_choice = click.prompt(click.style("Model", fg="cyan"), type=int, default=1)
     if 1 <= model_choice <= len(models):
         model = models[model_choice - 1]["name"]
     else:
         model = "o4-mini-deep-research"
 
     # Web search option
-    web_search = click.confirm(
-        click.style("Enable web search?", fg="cyan"), default=True
-    )
+    web_search = click.confirm(click.style("Enable web search?", fg="cyan"), default=True)
 
     # Cost estimate
     console.print()
@@ -206,9 +201,7 @@ def _research_menu():
 
     from deepr.core.costs import CostEstimator
 
-    estimate = CostEstimator.estimate_cost(
-        prompt=prompt, model=model, enable_web_search=web_search
-    )
+    estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=web_search)
 
     console.print()
     console.print(
@@ -232,9 +225,7 @@ def _research_menu():
     _submit_research_job(prompt, model, web_search, estimate.expected_cost)
 
 
-def _submit_research_job(
-    prompt: str, model: str, web_search: bool, estimated_cost: float
-):
+def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_cost: float):
     """Submit a research job to the queue."""
     import uuid
     from datetime import datetime, timezone
@@ -333,7 +324,7 @@ def _chat_with_expert():
     expert_name = click.prompt(click.style("Expert name", fg="cyan"))
     console.print()
     console.print(f"[dim]Starting chat with '{expert_name}'...[/dim]")
-    console.print(f"[dim]Run: deepr expert chat \"{expert_name}\"[/dim]")
+    console.print(f'[dim]Run: deepr expert chat "{expert_name}"[/dim]')
 
 
 def _create_expert():

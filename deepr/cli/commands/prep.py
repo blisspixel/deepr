@@ -1,8 +1,18 @@
 """Prep commands - plan and execute multi-angle research."""
 
-import click
 from typing import Optional
-from deepr.cli.colors import print_header, print_section_header, print_success, print_error, print_warning, print_key_value, console
+
+import click
+
+from deepr.cli.colors import (
+    console,
+    print_error,
+    print_header,
+    print_key_value,
+    print_section_header,
+    print_success,
+    print_warning,
+)
 
 
 @click.group()
@@ -13,23 +23,51 @@ def prep():
 
 @prep.command()
 @click.argument("scenario")
-@click.option("--topics", "-n", default=5, type=click.IntRange(1, 10),
-              help="Number of research topics (default: 5, range: 1-10)")
-@click.option("--context", "-c", default=None,
-              help="Additional context for planning")
-@click.option("--planner", "-p", default="gpt-5",
-              type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-              help="Reasoning model for planning (default: gpt-5)")
-@click.option("--model", "-m", default="o3-deep-research",
-              type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-              help="Deep research model (default: o3-deep-research for quality)")
-@click.option("--check-docs", is_flag=True,
-              help="[EXPERIMENTAL] Check existing docs. WARNING: May give false confidence - shallow doc != comprehensive research")
-@click.option("--review-before-execute", is_flag=True,
-              help="Require manual approval before executing the plan (human-in-the-loop)")
-@click.option("--level", "-l", default=3, type=click.IntRange(1, 4),
-              help="Agentic level: 1=single task, 2=multi-step, 3=orchestrated team (default), 4=adaptive with self-correction")
-def plan(scenario: str, topics: int, context: Optional[str], planner: str, model: str, check_docs: bool, review_before_execute: bool, level: int):
+@click.option(
+    "--topics", "-n", default=5, type=click.IntRange(1, 10), help="Number of research topics (default: 5, range: 1-10)"
+)
+@click.option("--context", "-c", default=None, help="Additional context for planning")
+@click.option(
+    "--planner",
+    "-p",
+    default="gpt-5",
+    type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
+    help="Reasoning model for planning (default: gpt-5)",
+)
+@click.option(
+    "--model",
+    "-m",
+    default="o3-deep-research",
+    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
+    help="Deep research model (default: o3-deep-research for quality)",
+)
+@click.option(
+    "--check-docs",
+    is_flag=True,
+    help="[EXPERIMENTAL] Check existing docs. WARNING: May give false confidence - shallow doc != comprehensive research",
+)
+@click.option(
+    "--review-before-execute",
+    is_flag=True,
+    help="Require manual approval before executing the plan (human-in-the-loop)",
+)
+@click.option(
+    "--level",
+    "-l",
+    default=3,
+    type=click.IntRange(1, 4),
+    help="Agentic level: 1=single task, 2=multi-step, 3=orchestrated team (default), 4=adaptive with self-correction",
+)
+def plan(
+    scenario: str,
+    topics: int,
+    context: Optional[str],
+    planner: str,
+    model: str,
+    check_docs: bool,
+    review_before_execute: bool,
+    level: int,
+):
     """
     Generate multi-phase research plan with dependencies.
 
@@ -53,7 +91,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
         1: "Level 1: Single task execution",
         2: "Level 2: Multi-step reasoning",
         3: "Level 3: Orchestrated team (Multi-Agent System)",
-        4: "Level 4: Adaptive with self-correction"
+        4: "Level 4: Adaptive with self-correction",
     }
 
     click.echo(f"\nAgentic Level: {level_descriptions.get(level, 'Unknown')}")
@@ -61,12 +99,13 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
     if context:
         click.echo(f"Context: {context}")
     click.echo(f"\nUsing {planner} to generate {topics} research topics...")
-    click.echo(f"Planning cost: ~$0.01 (does NOT execute research yet)")
+    click.echo("Planning cost: ~$0.01 (does NOT execute research yet)")
 
     try:
         import json
-        from pathlib import Path
         from datetime import datetime, timezone
+        from pathlib import Path
+
         from deepr.services.research_planner import ResearchPlanner
 
         # Check existing docs if requested
@@ -100,28 +139,24 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             # Generate enhanced context for planner
             enhanced_context = reviewer.generate_enhanced_plan_context(
                 scenario=scenario,
-                doc_analysis=doc_analysis,
+                doc_analysis=doc_review,
             )
 
-            click.echo(f"\nDoc review cost: ~$0.01")
+            click.echo("\nDoc review cost: ~$0.01")
 
         # Create planner
         planner_svc = ResearchPlanner(model=planner)
 
         # Generate plan
-        tasks = planner_svc.plan_research(
-            scenario=scenario,
-            max_tasks=topics,
-            context=enhanced_context
-        )
+        tasks = planner_svc.plan_research(scenario=scenario, max_tasks=topics, context=enhanced_context)
 
         # Group by phase
         phases = {}
         for i, task in enumerate(tasks, 1):
-            task['id'] = i
+            task["id"] = i
             # If review-before-execute, tasks start unapproved
-            task['approved'] = not review_before_execute
-            phase = task.get('phase', 1)
+            task["approved"] = not review_before_execute
+            phase = task.get("phase", 1)
             if phase not in phases:
                 phases[phase] = []
             phases[phase].append(task)
@@ -147,17 +182,17 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             click.echo()
 
             for task in phase_tasks:
-                deps = task.get('depends_on', [])
+                deps = task.get("depends_on", [])
                 deps_str = f" [needs: {','.join(map(str, deps))}]" if deps else ""
 
-                task_type = task.get('type', 'analysis')
+                task_type = task.get("type", "analysis")
                 type_label = f" ({task_type})" if task_type else ""
 
                 click.echo(f"  {task['id']}. {task['title']}{type_label}{deps_str}")
                 click.echo(f"     {task['prompt'][:80]}...")
 
                 # Adjust cost estimate based on type
-                est_cost = avg_cost * 0.7 if task_type == 'documentation' else avg_cost
+                est_cost = avg_cost * 0.7 if task_type == "documentation" else avg_cost
                 click.echo(f"     Est: ~${est_cost:.2f}, Time: 5-15 min")
                 click.echo()
                 total_cost += est_cost
@@ -183,7 +218,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
             "tasks": tasks,
             "phases": len(phases),
             "requires_review": review_before_execute,
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         with open(plan_file, "w") as f:
@@ -206,6 +241,7 @@ def plan(scenario: str, topics: int, context: Optional[str], planner: str, model
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -249,36 +285,36 @@ def review():
         # Review each task
         approved_count = 0
         for task in tasks:
-            task_id = task['id']
-            phase = task.get('phase', 1)
-            deps = task.get('depends_on', [])
+            task_id = task["id"]
+            phase = task.get("phase", 1)
+            deps = task.get("depends_on", [])
 
             print_section_header(f"Task {task_id}: {task['title']}")
             print_key_value("Phase", str(phase))
             if deps:
-                print_key_value("Depends on", ', '.join(map(str, deps)))
+                print_key_value("Depends on", ", ".join(map(str, deps)))
             console.print(f"\n[dim]Prompt:[/dim] {task['prompt']}")
             console.print()
 
             # Get user decision
             choice = click.prompt(
                 "Action? (a)pprove, (r)eject, (s)kip to end",
-                type=click.Choice(['a', 'r', 's'], case_sensitive=False),
-                default='a'
+                type=click.Choice(["a", "r", "s"], case_sensitive=False),
+                default="a",
             )
 
-            if choice == 'a':
-                task['approved'] = True
+            if choice == "a":
+                task["approved"] = True
                 approved_count += 1
                 print_success("Approved")
-            elif choice == 'r':
-                task['approved'] = False
+            elif choice == "r":
+                task["approved"] = False
                 print_error("Rejected")
-            elif choice == 's':
+            elif choice == "s":
                 # Keep remaining tasks as approved
-                for remaining in tasks[tasks.index(task):]:
-                    if 'approved' not in remaining:
-                        remaining['approved'] = True
+                for remaining in tasks[tasks.index(task) :]:
+                    if "approved" not in remaining:
+                        remaining["approved"] = True
                         approved_count += 1
                 break
 
@@ -294,13 +330,13 @@ def review():
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @prep.command()
-@click.option("--yes", "-y", is_flag=True,
-              help="Skip confirmation")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def execute(yes: bool):
     """
     Execute the last generated research plan with context chaining.
@@ -317,15 +353,16 @@ def execute(yes: bool):
     print_section_header("Execute Research Campaign")
 
     try:
-        import json
         import asyncio
+        import json
         from pathlib import Path
+
         from deepr.config import load_config
-        from deepr.queue.local_queue import SQLiteQueue
-        from deepr.storage.local import LocalStorage
         from deepr.providers.openai_provider import OpenAIProvider
-        from deepr.services.context_builder import ContextBuilder
+        from deepr.queue.local_queue import SQLiteQueue
         from deepr.services.batch_executor import BatchExecutor
+        from deepr.services.context_builder import ContextBuilder
+        from deepr.storage.local import LocalStorage
 
         # Load last plan
         plan_dir = Path(".deepr/plans")
@@ -351,7 +388,7 @@ def execute(yes: bool):
             raise click.Abort()
 
         # Filter to approved tasks only
-        tasks = [t for t in all_tasks if t.get('approved', True)]
+        tasks = [t for t in all_tasks if t.get("approved", True)]
 
         if not tasks:
             print_error("No approved tasks. Run 'deepr prep review' first.")
@@ -393,6 +430,7 @@ def execute(yes: bool):
 
         # Generate campaign ID
         import uuid
+
         campaign_id = f"campaign-{uuid.uuid4().hex[:12]}"
 
         print_success(f"Starting campaign: {campaign_id}")
@@ -425,6 +463,7 @@ def execute(yes: bool):
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -448,8 +487,7 @@ def status(batch_id: str):
         # Get all jobs in batch
         all_jobs = queue.list_jobs(limit=1000)
         batch_jobs = [
-            j for j in all_jobs
-            if hasattr(j, "metadata") and j.metadata and j.metadata.get("batch_id") == batch_id
+            j for j in all_jobs if hasattr(j, "metadata") and j.metadata and j.metadata.get("batch_id") == batch_id
         ]
 
         if not batch_jobs:
@@ -464,14 +502,11 @@ def status(batch_id: str):
         completed = sum(1 for j in batch_jobs if j.status.value == "completed")
         failed = sum(1 for j in batch_jobs if j.status.value == "failed")
 
-        total_cost = sum(
-            getattr(j, 'actual_cost', None) or getattr(j, 'estimated_cost', 0)
-            for j in batch_jobs
-        )
+        total_cost = sum(getattr(j, "actual_cost", None) or getattr(j, "estimated_cost", 0) for j in batch_jobs)
 
         # Display
         click.echo(f"\nScenario: {scenario}")
-        click.echo(f"\nProgress:")
+        click.echo("\nProgress:")
         click.echo(f"   Total: {total} tasks")
         click.echo(f"   Pending: {pending}")
         click.echo(f"   In Progress: {in_progress}")
@@ -484,13 +519,13 @@ def status(batch_id: str):
 
         # Show tasks
         if batch_jobs:
-            click.echo(f"\nTasks:")
+            click.echo("\nTasks:")
             for job in batch_jobs:
                 status_labels = {
                     "pending": "PENDING    ",
                     "in_progress": "IN_PROGRESS",
                     "completed": "COMPLETED  ",
-                    "failed": "FAILED     "
+                    "failed": "FAILED     ",
                 }
                 label = status_labels.get(job.status.value, "UNKNOWN    ")
 
@@ -498,7 +533,7 @@ def status(batch_id: str):
                 click.echo(f"   {label} | {title}")
 
         if completed > 0:
-            click.echo(f"\nView results: deepr research result <job-id>")
+            click.echo("\nView results: deepr research result <job-id>")
 
     except Exception as e:
         print_error(f"Error: {e}")
@@ -522,8 +557,8 @@ def pause(plan_id: Optional[str]):
 
     try:
         import json
-        from pathlib import Path
         from datetime import datetime, timezone
+        from pathlib import Path
 
         # Load plan
         plan_dir = Path(".deepr/plans")
@@ -568,13 +603,14 @@ def pause(plan_id: Optional[str]):
 
         print_success(f"Campaign paused: {scenario}")
         console.print(f"Plan file: {plan_file.stem}")
-        console.print(f"\nNext steps:")
+        console.print("\nNext steps:")
         console.print(f"  deepr prep resume {plan_file.stem}    # Resume execution")
         console.print(f"  deepr prep edit-plan {plan_file.stem}  # Edit before resuming (planned)")
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -595,8 +631,8 @@ def resume(plan_id: Optional[str]):
 
     try:
         import json
-        from pathlib import Path
         from datetime import datetime, timezone
+        from pathlib import Path
 
         # Load plan
         plan_dir = Path(".deepr/plans")
@@ -660,15 +696,14 @@ def resume(plan_id: Optional[str]):
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @prep.command()
-@click.option("--topics", "-n", default=5, type=click.IntRange(1, 10),
-              help="Number of research tasks for next phase")
-@click.option("--yes", "-y", is_flag=True,
-              help="Auto-execute without confirmation")
+@click.option("--topics", "-n", default=5, type=click.IntRange(1, 10), help="Number of research tasks for next phase")
+@click.option("--yes", "-y", is_flag=True, help="Auto-execute without confirmation")
 def continue_research(topics: int, yes: bool):
     """
     Continue research campaign by planning next phase based on completed results.
@@ -689,13 +724,14 @@ def continue_research(topics: int, yes: bool):
     print_section_header("Continue Research Campaign")
 
     try:
-        import json
         import asyncio
+        import json
         from pathlib import Path
+
         from deepr.config import load_config
-        from deepr.storage.local import LocalStorage
         from deepr.queue.local_queue import SQLiteQueue
         from deepr.services.research_reviewer import ResearchReviewer
+        from deepr.storage.local import LocalStorage
 
         # Load last campaign
         plan_dir = Path(".deepr/plans")
@@ -745,15 +781,14 @@ def continue_research(topics: int, yes: bool):
                                     report_filename = stored_path.split("/")[-1] if "/" in stored_path else stored_path
                             except Exception:
                                 pass
-                            
+
                             result_data = asyncio.run(storage.get_report(job_id, report_filename))
-                            completed_results.append({
-                                "title": task_info.get("title"),
-                                "result": result_data.decode("utf-8")
-                            })
+                            completed_results.append(
+                                {"title": task_info.get("title"), "result": result_data.decode("utf-8")}
+                            )
                         except (OSError, UnicodeDecodeError, KeyError):
                             pass
-            except (OSError, KeyError, ValueError) as e:
+            except (OSError, KeyError, ValueError):
                 print_error("Could not load previous campaign results")
                 raise click.Abort()
 
@@ -767,10 +802,7 @@ def continue_research(topics: int, yes: bool):
         # Review with GPT-5
         reviewer = ResearchReviewer(model="gpt-5")
         review_result = reviewer.review_and_plan_next(
-            scenario=scenario,
-            completed_results=completed_results,
-            current_phase=current_phase,
-            max_tasks=topics
+            scenario=scenario, completed_results=completed_results, current_phase=current_phase, max_tasks=topics
         )
 
         # Display review
@@ -799,7 +831,7 @@ def continue_research(topics: int, yes: bool):
                 "phase": review_result["phase"],
                 "title": task["title"],
                 "prompt": task["prompt"],
-                "type": "synthesis" if review_result.get("status") == "ready_for_synthesis" else "analysis"
+                "type": "synthesis" if review_result.get("status") == "ready_for_synthesis" else "analysis",
             }
             for i, task in enumerate(next_tasks, 1)
         ]
@@ -818,8 +850,9 @@ def continue_research(topics: int, yes: bool):
         # Execute
         print_success(f"Executing Phase {review_result['phase']}...")
         from click.testing import CliRunner
+
         runner = CliRunner()
-        result = runner.invoke(execute, ['--yes'])
+        result = runner.invoke(execute, ["--yes"])
         if result.exit_code != 0:
             print_error("Execution failed")
             raise click.Abort()
@@ -827,16 +860,15 @@ def continue_research(topics: int, yes: bool):
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @prep.command()
 @click.argument("scenario")
-@click.option("--rounds", "-r", default=3, type=click.IntRange(2, 5),
-              help="Number of research rounds (2-5)")
-@click.option("--topics-per-round", "-n", default=4,
-              help="Tasks per round")
+@click.option("--rounds", "-r", default=3, type=click.IntRange(2, 5), help="Number of research rounds (2-5)")
+@click.option("--topics-per-round", "-n", default=4, help="Tasks per round")
 def auto(scenario: str, rounds: int, topics_per_round: int):
     """
     Fully autonomous multi-round research.
@@ -866,8 +898,9 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
     try:
         import json
-        from pathlib import Path
         from datetime import datetime
+        from pathlib import Path
+
         from deepr.services.research_planner import ResearchPlanner
         from deepr.services.research_reviewer import ResearchReviewer
 
@@ -877,11 +910,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         # Generate initial plan
         console.print(f"Using GPT-5 to generate {topics_per_round} research topics...")
         planner_service = ResearchPlanner(model="gpt-5")
-        tasks = planner_service.plan_research(
-            scenario=scenario,
-            max_tasks=topics_per_round,
-            context=None
-        )
+        tasks = planner_service.plan_research(scenario=scenario, max_tasks=topics_per_round, context=None)
 
         # Add IDs and phases to tasks
         for i, task in enumerate(tasks, start=1):
@@ -892,11 +921,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             "scenario": scenario,
             "created_at": datetime.now().isoformat(),
             "tasks": tasks,
-            "metadata": {
-                "model": "gpt-5",
-                "total_tasks": len(tasks),
-                "planner_type": "openai"
-            }
+            "metadata": {"model": "gpt-5", "total_tasks": len(tasks), "planner_type": "openai"},
         }
 
         # Save plan
@@ -929,7 +954,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
                 scenario=plan_data["scenario"],
                 completed_results=completed_results,
                 current_phase=round_num - 1,
-                max_tasks=topics_per_round
+                max_tasks=topics_per_round,
             )
 
             # Update plan with next phase tasks
@@ -952,11 +977,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
 
             # Execute this phase
             console.print(f"\nSubmitting {len(new_tasks)} research tasks to queue...")
-            phase_plan = {
-                "scenario": plan_data["scenario"],
-                "tasks": new_tasks,
-                "metadata": plan_data["metadata"]
-            }
+            phase_plan = {"scenario": plan_data["scenario"], "tasks": new_tasks, "metadata": plan_data["metadata"]}
             phase_results = _execute_plan_sync(phase_plan)
 
             # Save results
@@ -972,6 +993,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -984,15 +1006,15 @@ def _execute_plan_sync(plan_data: dict, provider_name: str = None) -> dict:
         provider_name: Provider to use (defaults to model-based routing)
     """
     import asyncio
-    import time
     import os
-    from deepr.queue.local_queue import SQLiteQueue
+    import time
+
+    from deepr.config import load_config
     from deepr.providers import create_provider
-    from deepr.storage.local import LocalStorage
+    from deepr.queue.local_queue import SQLiteQueue
     from deepr.services.batch_executor import BatchExecutor
     from deepr.services.context_builder import ContextBuilder
-    from deepr.queue.base import JobStatus
-    from deepr.config import load_config
+    from deepr.storage.local import LocalStorage
 
     # Load config for API keys
     config = load_config()
@@ -1025,12 +1047,7 @@ def _execute_plan_sync(plan_data: dict, provider_name: str = None) -> dict:
     storage = LocalStorage()
     context_builder = ContextBuilder(api_key=config.get("api_key"))  # Context builder uses OpenAI for summarization
 
-    executor = BatchExecutor(
-        queue=queue,
-        provider=provider,
-        storage=storage,
-        context_builder=context_builder
-    )
+    executor = BatchExecutor(queue=queue, provider=provider, storage=storage, context_builder=context_builder)
 
     # Get campaign ID from first task or generate one
     campaign_id = f"campaign-{int(time.time())}"
@@ -1065,11 +1082,13 @@ def _load_completed_results() -> list:
             # phase_results is a dict like {1: {...}, 2: {...}, ...}
             for task_id, result_data in phase_results.items():
                 if result_data.get("status") == "completed":
-                    results.append({
-                        "task_id": task_id,
-                        "title": result_data.get("title", ""),
-                        "result": result_data.get("result", ""),
-                        "cost": result_data.get("cost", 0.0),
-                    })
+                    results.append(
+                        {
+                            "task_id": task_id,
+                            "title": result_data.get("title", ""),
+                            "result": result_data.get("result", ""),
+                            "cost": result_data.get("cost", 0.0),
+                        }
+                    )
 
     return results

@@ -9,13 +9,13 @@ Provides metrics tracking for evaluating agent performance:
 """
 
 from .metrics import (
+    MetricsTracker,
     TrajectoryMetrics,
     TrajectoryStep,
-    MetricsTracker,
-    calculate_efficiency,
     calculate_citation_accuracy,
-    detect_hallucinations,
     calculate_context_economy,
+    calculate_efficiency,
+    detect_hallucinations,
 )
 
 __all__ = [

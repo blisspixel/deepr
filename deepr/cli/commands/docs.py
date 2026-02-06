@@ -1,8 +1,8 @@
 """Docs commands - analyze documentation gaps and queue research."""
 
 import click
-from typing import Optional
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
 @click.group()
@@ -14,16 +14,22 @@ def docs():
 @click.command()
 @click.argument("docs_path")
 @click.argument("scenario")
-@click.option("--topics", "-n", default=6, type=click.IntRange(1, 10),
-              help="Maximum research tasks to generate (1-10)")
-@click.option("--planner", "-p", default="gpt-5-mini",
-              type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
-              help="GPT-5 model for analysis and planning")
-@click.option("--model", "-m", default="o4-mini-deep-research",
-              type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-              help="Deep research model for execution")
-@click.option("--execute", "-e", is_flag=True,
-              help="Automatically execute without review")
+@click.option("--topics", "-n", default=6, type=click.IntRange(1, 10), help="Maximum research tasks to generate (1-10)")
+@click.option(
+    "--planner",
+    "-p",
+    default="gpt-5-mini",
+    type=click.Choice(["gpt-5", "gpt-5-mini", "gpt-5-nano"]),
+    help="GPT-5 model for analysis and planning",
+)
+@click.option(
+    "--model",
+    "-m",
+    default="o4-mini-deep-research",
+    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
+    help="Deep research model for execution",
+)
+@click.option("--execute", "-e", is_flag=True, help="Automatically execute without review")
 def analyze(docs_path: str, scenario: str, topics: int, planner: str, model: str, execute: bool):
     """
     Analyze documentation gaps and queue research to fill them.
@@ -39,39 +45,36 @@ def analyze(docs_path: str, scenario: str, topics: int, planner: str, model: str
         deepr docs analyze "./my-docs" "React best practices 2025" --execute
         deepr docs analyze "C:/project/docs" "AI safety guidelines" -n 8
     """
-    print_section_header(f"Documentation Gap Analysis")
+    print_section_header("Documentation Gap Analysis")
 
     import asyncio
-    asyncio.run(_analyze_and_queue(
-        docs_path=docs_path,
-        scenario=scenario,
-        max_topics=topics,
-        planner_model=planner,
-        research_model=model,
-        auto_execute=execute
-    ))
+
+    asyncio.run(
+        _analyze_and_queue(
+            docs_path=docs_path,
+            scenario=scenario,
+            max_topics=topics,
+            planner_model=planner,
+            research_model=model,
+            auto_execute=execute,
+        )
+    )
 
 
 async def _analyze_and_queue(
-    docs_path: str,
-    scenario: str,
-    max_topics: int,
-    planner_model: str,
-    research_model: str,
-    auto_execute: bool
+    docs_path: str, scenario: str, max_topics: int, planner_model: str, research_model: str, auto_execute: bool
 ):
     """Execute the agentic documentation analysis workflow."""
     import os
-    import json
+    import uuid
     from pathlib import Path
+
+    from deepr.providers.base import ResearchRequest, ToolConfig
+    from deepr.providers.openai_provider import OpenAIProvider
+    from deepr.queue.base import JobStatus, ResearchJob
+    from deepr.queue.local_queue import SQLiteQueue
     from deepr.services.doc_reviewer import DocReviewer
     from deepr.services.research_planner import ResearchPlanner
-    from deepr.queue.local_queue import SQLiteQueue
-    from deepr.storage.local import LocalStorage
-    from deepr.providers.openai_provider import OpenAIProvider
-    from deepr.providers.base import ResearchRequest, ToolConfig
-    from deepr.queue.base import ResearchJob, JobStatus
-    import uuid
 
     try:
         # Validate path
@@ -88,18 +91,15 @@ async def _analyze_and_queue(
         console.print("Step 1: Analyzing existing documentation...")
         reviewer = DocReviewer(model=planner_model)
 
-        analysis = reviewer.check_existing_docs(
-            scenario=scenario,
-            docs_dir=str(docs_dir)
-        )
+        analysis = reviewer.check_existing_docs(scenario=scenario, docs_dir=str(docs_dir))
 
-        relevant = analysis.get('relevant_docs', [])
-        gaps = analysis.get('gaps', [])
+        relevant = analysis.get("relevant_docs", [])
+        gaps = analysis.get("gaps", [])
 
         if relevant:
             print_success(f"Found {len(relevant)} relevant docs")
             for doc in relevant[:5]:
-                quality = doc.get('quality', 'unknown')
+                quality = doc.get("quality", "unknown")
                 console.print(f"  - {Path(doc['path']).name} ({quality})")
             if len(relevant) > 5:
                 console.print(f"  ... and {len(relevant) - 5} more")
@@ -112,16 +112,12 @@ async def _analyze_and_queue(
                 console.print(f"  ... and {len(gaps) - 3} more")
 
         # Step 2: Generate research plan with GPT-5
-        console.print(f"\nStep 2: Generating research plan...")
+        console.print("\nStep 2: Generating research plan...")
 
         context = reviewer.generate_enhanced_plan_context(scenario, analysis)
 
         planner = ResearchPlanner(model=planner_model)
-        tasks = planner.plan_research(
-            scenario=scenario,
-            max_tasks=max_topics,
-            context=context
-        )
+        tasks = planner.plan_research(scenario=scenario, max_tasks=max_topics, context=context)
 
         if not tasks:
             print_error("No research tasks generated")
@@ -131,14 +127,14 @@ async def _analyze_and_queue(
         console.print()
 
         for i, task in enumerate(tasks, 1):
-            task_type = task.get('type', 'analysis')
+            task_type = task.get("type", "analysis")
             console.print(f"{i}. {task['title']} ({task_type})")
             console.print(f"   {task['prompt'][:80]}...")
             console.print()
 
         # Calculate cost estimate
-        avg_cost = 0.5 if 'mini' in research_model else 5.0
-        doc_count = sum(1 for t in tasks if t.get('type') == 'documentation')
+        avg_cost = 0.5 if "mini" in research_model else 5.0
+        doc_count = sum(1 for t in tasks if t.get("type") == "documentation")
         analysis_count = len(tasks) - doc_count
 
         est_cost = (doc_count * avg_cost * 0.7) + (analysis_count * avg_cost)
@@ -153,49 +149,48 @@ async def _analyze_and_queue(
                 return
 
         # Step 4: Submit jobs
-        console.print(f"\nStep 3: Submitting research jobs...")
+        console.print("\nStep 3: Submitting research jobs...")
 
         # Initialize services
-        config_path = Path('.deepr')
+        config_path = Path(".deepr")
         config_path.mkdir(exist_ok=True)
 
-        queue = SQLiteQueue(str(config_path / 'queue.db'))
-        storage = LocalStorage(str(config_path / 'storage'))
-        provider = OpenAIProvider(api_key=os.getenv('OPENAI_API_KEY'))
+        queue = SQLiteQueue(str(config_path / "queue.db"))
+        provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
 
         job_ids = []
 
         for i, task in enumerate(tasks, 1):
             # Use task-specific model if specified, otherwise use default
-            task_model = task.get('model', research_model)
-            task_type = task.get('type', 'analysis')
+            task_model = task.get("model", research_model)
+            task_type = task.get("type", "analysis")
 
             # Create job
             job_id = str(uuid.uuid4())
             job = ResearchJob(
                 id=job_id,
-                prompt=task['prompt'],
+                prompt=task["prompt"],
                 model=task_model,
                 enable_web_search=True,
                 status=JobStatus.QUEUED,
                 metadata={
-                    'title': task['title'],
-                    'type': task_type,
-                    'model': task_model,
-                    'scenario': scenario,
-                    'docs_path': str(docs_dir),
-                    'batch_id': f'docs_analysis_{uuid.uuid4().hex[:8]}'
-                }
+                    "title": task["title"],
+                    "type": task_type,
+                    "model": task_model,
+                    "scenario": scenario,
+                    "docs_path": str(docs_dir),
+                    "batch_id": f"docs_analysis_{uuid.uuid4().hex[:8]}",
+                },
             )
 
             await queue.enqueue(job)
 
             # Submit to provider
             request = ResearchRequest(
-                prompt=task['prompt'],
+                prompt=task["prompt"],
                 model=task_model,
-                system_message='You are a technical documentation expert. Research and document best practices, implementation patterns, and practical guidance.',
-                tools=[ToolConfig(type='web_search_preview')],
+                system_message="You are a technical documentation expert. Research and document best practices, implementation patterns, and practical guidance.",
+                tools=[ToolConfig(type="web_search_preview")],
                 background=True,
             )
 
@@ -213,15 +208,16 @@ async def _analyze_and_queue(
             console.print(f"  [{i}/{len(tasks)}] {task['title']} ({model_label}, {task_type})")
 
         print_success(f"Submitted {len(job_ids)} research jobs!")
-        console.print(f"\nMonitor with:")
-        console.print(f"  deepr queue list")
-        console.print(f"  deepr queue stats")
-        console.print(f"\nView results when complete:")
-        console.print(f"  deepr research result <job-id>")
+        console.print("\nMonitor with:")
+        console.print("  deepr queue list")
+        console.print("  deepr queue stats")
+        console.print("\nView results when complete:")
+        console.print("  deepr research result <job-id>")
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 

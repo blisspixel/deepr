@@ -30,8 +30,8 @@ Usage:
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 def _utc_now() -> datetime:
@@ -41,6 +41,7 @@ def _utc_now() -> datetime:
 
 class FindingType(Enum):
     """Types of research findings."""
+
     FACT = "fact"
     OBSERVATION = "observation"
     INFERENCE = "inference"
@@ -51,6 +52,7 @@ class FindingType(Enum):
 
 class EvolutionType(Enum):
     """Types of hypothesis evolution."""
+
     CREATED = "created"
     STRENGTHENED = "strengthened"
     WEAKENED = "weakened"
@@ -63,6 +65,7 @@ class EvolutionType(Enum):
 @dataclass
 class TemporalFinding:
     """A timestamped research finding."""
+
     id: str
     text: str
     phase: int
@@ -107,6 +110,7 @@ class TemporalFinding:
 @dataclass
 class HypothesisState:
     """State of a hypothesis at a point in time."""
+
     text: str
     confidence: float
     supporting_findings: List[str]
@@ -126,6 +130,7 @@ class HypothesisState:
 @dataclass
 class HypothesisEvolution:
     """Record of how a hypothesis has evolved."""
+
     hypothesis_id: str
     evolution_type: EvolutionType
     old_state: Optional[HypothesisState]
@@ -149,6 +154,7 @@ class HypothesisEvolution:
 @dataclass
 class Hypothesis:
     """A research hypothesis with its evolution history."""
+
     id: str
     current_state: HypothesisState
     evolution_history: List[HypothesisEvolution] = field(default_factory=list)
@@ -445,14 +451,17 @@ class TemporalKnowledgeTracker:
         Returns:
             Summary dictionary
         """
-        return self.phase_summaries.get(phase, {
-            "phase": phase,
-            "finding_count": 0,
-            "avg_confidence": 0.0,
-            "finding_types": {},
-            "hypotheses_created": 0,
-            "hypotheses_modified": 0,
-        })
+        return self.phase_summaries.get(
+            phase,
+            {
+                "phase": phase,
+                "finding_count": 0,
+                "avg_confidence": 0.0,
+                "finding_types": {},
+                "hypotheses_created": 0,
+                "hypotheses_modified": 0,
+            },
+        )
 
     def get_confidence_trend(self, hypothesis_id: str) -> List[Dict[str, Any]]:
         """Get confidence trend for a hypothesis over time.
@@ -470,11 +479,13 @@ class TemporalKnowledgeTracker:
         trend = []
 
         for evolution in hypothesis.evolution_history:
-            trend.append({
-                "timestamp": evolution.new_state.timestamp.isoformat(),
-                "confidence": evolution.new_state.confidence,
-                "evolution_type": evolution.evolution_type.value,
-            })
+            trend.append(
+                {
+                    "timestamp": evolution.new_state.timestamp.isoformat(),
+                    "confidence": evolution.new_state.confidence,
+                    "evolution_type": evolution.evolution_type.value,
+                }
+            )
 
         return trend
 
@@ -490,8 +501,7 @@ class TemporalKnowledgeTracker:
             "hypotheses": {h_id: h.to_dict() for h_id, h in self.hypotheses.items()},
             "phase_summaries": self.phase_summaries,
             "total_findings": len(self.findings),
-            "active_hypotheses": len([h for h in self.hypotheses.values()
-                                      if h.current_state.confidence > 0.0]),
+            "active_hypotheses": len([h for h in self.hypotheses.values() if h.current_state.confidence > 0.0]),
         }
 
     def _check_for_contradictions(self, new_finding: TemporalFinding):

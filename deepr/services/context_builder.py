@@ -12,13 +12,13 @@ Based on research findings (docs/research and documentation/context_chaining_bes
 Includes token budget management and intelligent context pruning.
 """
 
-from typing import Dict, List, Optional, Tuple
-from openai import OpenAI
 import os
+from typing import Dict, Optional
 
-from deepr.core.constants import MAX_CONTEXT_TOKENS, TOKEN_BUDGET_DEFAULT
-from deepr.services.context_pruner import ContextPruner, ContextItem, PruningDecision
-from deepr.services.token_budget import TokenBudgetAllocator, BudgetPlan
+from openai import OpenAI
+
+from deepr.core.constants import MAX_CONTEXT_TOKENS
+from deepr.services.context_pruner import ContextItem, ContextPruner, PruningDecision
 
 
 class ContextBuilder:
@@ -158,10 +158,7 @@ Summary (bullet list, ~{target_words} words):"""
 
                 # Rebuild mapping
                 pruned_ids = {item.id for item in pruned_items}
-                context_items = [
-                    (dep_id, item) for dep_id, item in context_items
-                    if item.id in pruned_ids
-                ]
+                context_items = [(dep_id, item) for dep_id, item in context_items if item.id in pruned_ids]
 
         # Build context from (possibly pruned) items
         context_parts = [
@@ -250,9 +247,7 @@ Summary (bullet list, ~{target_words} words):"""
 
         context_parts.append("---")
         context_parts.append("")
-        context_parts.append(
-            "Based on all the above research, create a comprehensive synthesis:"
-        )
+        context_parts.append("Based on all the above research, create a comprehensive synthesis:")
         context_parts.append("")
 
         return "\n".join(context_parts)

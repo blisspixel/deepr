@@ -11,7 +11,8 @@ Workflow:
 """
 
 import os
-from typing import List, Dict, Optional
+from typing import Dict, List
+
 from openai import OpenAI
 
 
@@ -106,14 +107,12 @@ Return ONLY valid JSON, no other text."""
 
         response = self.client.responses.create(
             model=self.model,
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            input=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         )
 
         # Parse response
         import json
+
         response_text = self._extract_response_text(response)
 
         try:
@@ -130,9 +129,9 @@ Return ONLY valid JSON, no other text."""
                     {
                         "title": "Final synthesis",
                         "prompt": f"Synthesize all previous research to answer: {scenario}",
-                        "rationale": "Final integration of findings"
+                        "rationale": "Final integration of findings",
                     }
-                ]
+                ],
             }
 
     def _summarize_completed_research(self, completed_results: List[Dict]) -> str:
@@ -155,14 +154,14 @@ Return ONLY valid JSON, no other text."""
     def _extract_response_text(self, response) -> str:
         """Extract text from GPT-5 response object."""
         # Try different response formats
-        if hasattr(response, 'output_text'):
+        if hasattr(response, "output_text"):
             return response.output_text
 
-        if hasattr(response, 'output') and response.output:
+        if hasattr(response, "output") and response.output:
             for item in response.output:
-                if hasattr(item, 'type') and item.type == 'message':
+                if hasattr(item, "type") and item.type == "message":
                     for content in item.content:
-                        if hasattr(content, 'type') and content.type == 'output_text':
+                        if hasattr(content, "type") and content.type == "output_text":
                             return content.text
 
         # Fallback

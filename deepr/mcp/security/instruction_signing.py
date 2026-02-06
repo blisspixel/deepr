@@ -20,15 +20,15 @@ Usage:
         print("Instruction has expired")
 """
 
-import os
-import json
-import hmac
-import hashlib
 import base64
+import hashlib
+import hmac
+import json
+import os
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 def _utc_now() -> datetime:
@@ -46,6 +46,7 @@ DEFAULT_MAX_AGE = 300
 @dataclass
 class SignedInstruction:
     """A signed instruction for MCP tool calls."""
+
     instruction: Dict[str, Any]
     signature: str
     timestamp: str
@@ -100,7 +101,7 @@ class InstructionSigner:
             max_age_seconds: Default max age for instructions
         """
         self._key = key or os.environ.get(SIGNING_KEY_ENV) or self._generate_key()
-        self._key_bytes = self._key.encode('utf-8')
+        self._key_bytes = self._key.encode("utf-8")
         self.max_age_seconds = max_age_seconds
 
         # Track used nonces to prevent replay attacks
@@ -288,7 +289,7 @@ class InstructionSigner:
             Canonical string
         """
         # Sort keys for consistent representation
-        canonical_instruction = json.dumps(instruction, sort_keys=True, separators=(',', ':'))
+        canonical_instruction = json.dumps(instruction, sort_keys=True, separators=(",", ":"))
 
         return f"{canonical_instruction}|{timestamp}|{nonce}"
 
@@ -303,11 +304,11 @@ class InstructionSigner:
         """
         signature = hmac.new(
             self._key_bytes,
-            data.encode('utf-8'),
+            data.encode("utf-8"),
             hashlib.sha256,
         ).digest()
 
-        return base64.b64encode(signature).decode('utf-8')
+        return base64.b64encode(signature).decode("utf-8")
 
     def _generate_nonce(self) -> str:
         """Generate a unique nonce.
@@ -337,7 +338,7 @@ class InstructionSigner:
         if len(self._used_nonces) > self._nonce_cleanup_threshold:
             # Keep most recent half
             nonces_list = list(self._used_nonces)
-            self._used_nonces = set(nonces_list[len(nonces_list)//2:])
+            self._used_nonces = set(nonces_list[len(nonces_list) // 2 :])
 
     def clear_nonce_cache(self):
         """Clear the nonce tracking cache."""
@@ -345,6 +346,7 @@ class InstructionSigner:
 
 
 # Convenience functions
+
 
 def sign_instruction(instruction: Dict[str, Any]) -> SignedInstruction:
     """Sign an instruction using default signer.

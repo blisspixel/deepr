@@ -14,22 +14,22 @@ to detect diminishing returns and optimize research efficiency.
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 import json
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
-from deepr.queue.base import QueueBackend, JobStatus, ResearchJob
-from deepr.providers.base import DeepResearchProvider
-from deepr.storage.base import StorageBackend
-from deepr.services.context_builder import ContextBuilder
+from deepr.observability.information_gain import InformationGainTracker
 from deepr.observability.stopping_criteria import (
     EntropyStoppingCriteria,
     Finding,
     PhaseContext,
     StoppingDecision,
 )
-from deepr.observability.information_gain import InformationGainTracker
+from deepr.providers.base import DeepResearchProvider
+from deepr.queue.base import JobStatus, QueueBackend, ResearchJob
+from deepr.services.context_builder import ContextBuilder
+from deepr.storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +64,7 @@ class BatchExecutor:
         self.context_builder = context_builder
 
         # Initialize stopping criteria and information gain tracking
-        self.stopping_criteria = EntropyStoppingCriteria(
-            entropy_threshold=entropy_threshold
-        )
+        self.stopping_criteria = EntropyStoppingCriteria(entropy_threshold=entropy_threshold)
         self.info_gain_tracker = InformationGainTracker()
 
     async def execute_campaign(
@@ -92,7 +90,6 @@ class BatchExecutor:
 
         # Group tasks by phase
         phases = self._group_by_phase(tasks)
-        max_phase = max(phases.keys())
 
         # Track completed tasks and results
         completed_tasks = {}
@@ -162,9 +159,7 @@ class BatchExecutor:
 
         # Save campaign results
         campaign_results["completed_at"] = datetime.now().isoformat()
-        campaign_results["total_cost"] = sum(
-            t.get("cost", 0.0) for t in campaign_results["tasks"].values()
-        )
+        campaign_results["total_cost"] = sum(t.get("cost", 0.0) for t in campaign_results["tasks"].values())
 
         # Add quality metrics summary
         campaign_results["quality_metrics"] = {
@@ -293,12 +288,14 @@ class BatchExecutor:
 
             for para in paragraphs[:20]:  # Limit to avoid huge finding lists
                 if len(para) > 50:  # Skip very short paragraphs
-                    findings.append(Finding(
-                        text=para,
-                        phase=phase_num,
-                        confidence=0.7,  # Default confidence
-                        source=result.get("title", f"task_{task_id}"),
-                    ))
+                    findings.append(
+                        Finding(
+                            text=para,
+                            phase=phase_num,
+                            confidence=0.7,  # Default confidence
+                            source=result.get("title", f"task_{task_id}"),
+                        )
+                    )
 
         return findings
 
@@ -310,8 +307,8 @@ class BatchExecutor:
         metadata: Dict,
     ) -> str:
         """Submit a single task to the queue."""
+
         from deepr.providers.base import ResearchRequest, ToolConfig
-        import uuid
 
         # Generate unique job ID for this task
         job_id = f"{campaign_id}-task-{task_id}"
@@ -395,7 +392,9 @@ class BatchExecutor:
                 elif job.status == JobStatus.COMPLETED:
                     # Retrieve result - use stored filename from job.report_paths
                     try:
-                        report_filename = job.report_paths.get("markdown", "report.md") if job.report_paths else "report.md"
+                        report_filename = (
+                            job.report_paths.get("markdown", "report.md") if job.report_paths else "report.md"
+                        )
                         result_data = await self.storage.get_report(
                             job_id=job_id,
                             filename=report_filename,
@@ -419,7 +418,7 @@ class BatchExecutor:
                             "job_id": job_id,
                             "status": "failed",
                             "result": f"Error retrieving report: {e}",
-                            "cost": job.cost if hasattr(job, 'cost') else 0.0,
+                            "cost": job.cost if hasattr(job, "cost") else 0.0,
                         }
 
                         pending.remove(task_id)
@@ -461,7 +460,7 @@ class BatchExecutor:
                 "type": "campaign",
                 "task_count": len(results.get("tasks", {})),
                 "total_cost": results.get("total_cost", 0.0),
-            }
+            },
         )
 
         # Also create a summary report

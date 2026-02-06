@@ -10,16 +10,14 @@ Uses rich library for modern 2026 CLI design:
 import os
 import re
 import sys
-from typing import Optional, Callable, AsyncIterator
 from enum import Enum
+from typing import AsyncIterator, Optional
 
 from rich.console import Console
+from rich.live import Live
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.spinner import Spinner
-from rich.live import Live
-from rich.text import Text
-from rich.markdown import Markdown
-
 
 # Create console with proper encoding for Windows
 if sys.platform == "win32":
@@ -31,9 +29,10 @@ else:
 
 class QueryComplexity(Enum):
     """Query complexity levels for adaptive intelligence."""
-    SIMPLE = "simple"      # Greetings, thanks, simple acknowledgments
+
+    SIMPLE = "simple"  # Greetings, thanks, simple acknowledgments
     MODERATE = "moderate"  # Factual questions, clarifications
-    COMPLEX = "complex"    # Multi-part, requires reasoning, strategic
+    COMPLEX = "complex"  # Multi-part, requires reasoning, strategic
 
 
 def classify_query_complexity(query: str) -> QueryComplexity:
@@ -53,9 +52,20 @@ def classify_query_complexity(query: str) -> QueryComplexity:
 
     # Simple: greetings, acknowledgments, single-word responses
     simple_patterns = [
-        r'^hi$', r'^hello$', r'^hey$', r'^thanks?$', r'^thank you$',
-        r'^ok$', r'^okay$', r'^yes$', r'^no$', r'^bye$', r'^goodbye$',
-        r'^help$', r'^quit$', r'^exit$'
+        r"^hi$",
+        r"^hello$",
+        r"^hey$",
+        r"^thanks?$",
+        r"^thank you$",
+        r"^ok$",
+        r"^okay$",
+        r"^yes$",
+        r"^no$",
+        r"^bye$",
+        r"^goodbye$",
+        r"^help$",
+        r"^quit$",
+        r"^exit$",
     ]
 
     if any(re.match(pattern, query_lower) for pattern in simple_patterns):
@@ -63,14 +73,24 @@ def classify_query_complexity(query: str) -> QueryComplexity:
 
     # Complex: long queries, multiple questions, strategic keywords
     complex_indicators = [
-        'how would you', 'what do you believe', 'compare', 'design',
-        'architecture', 'strategy', 'why', 'explain', 'analyze',
-        'multiple', 'several', 'both', 'pros and cons'
+        "how would you",
+        "what do you believe",
+        "compare",
+        "design",
+        "architecture",
+        "strategy",
+        "why",
+        "explain",
+        "analyze",
+        "multiple",
+        "several",
+        "both",
+        "pros and cons",
     ]
 
     # Check length and complexity indicators
     word_count = len(query.split())
-    has_multiple_sentences = query.count('.') > 1 or query.count('?') > 1
+    has_multiple_sentences = query.count(".") > 1 or query.count("?") > 1
     has_complex_keywords = any(indicator in query_lower for indicator in complex_indicators)
 
     if word_count > 15 or has_multiple_sentences or has_complex_keywords:
@@ -106,12 +126,7 @@ Domain: {domain}
 
 Commands: [cyan]/help[/cyan] [cyan]/status[/cyan] [cyan]/quit[/cyan]"""
 
-    panel = Panel(
-        content,
-        title=f"[bold cyan]{expert_name}[/bold cyan]",
-        border_style="cyan",
-        padding=(1, 2)
-    )
+    panel = Panel(content, title=f"[bold cyan]{expert_name}[/bold cyan]", border_style="cyan", padding=(1, 2))
 
     console.print()
     console.print(panel)
@@ -139,7 +154,9 @@ def print_thinking(action: str, with_spinner: bool = True):
         # Use modern spinner - "dots" works well on Windows Terminal and most modern terminals
         # Fall back to "line" only on legacy cmd.exe
         spinner_type = "dots" if os.environ.get("WT_SESSION") or sys.platform != "win32" else "line"
-        return Live(Spinner(spinner_type, text=f"[cyan]◆[/cyan] [dim]{action}[/dim]"), console=console, refresh_per_second=8)
+        return Live(
+            Spinner(spinner_type, text=f"[cyan]◆[/cyan] [dim]{action}[/dim]"), console=console, refresh_per_second=8
+        )
     else:
         console.print(f"[dim]| {action}[/dim]")
 
@@ -223,12 +240,7 @@ def print_error(error_message: str):
     console.print()
 
 
-def print_session_summary(
-    messages_count: int,
-    cost: float,
-    research_jobs: int,
-    model: str
-):
+def print_session_summary(messages_count: int, cost: float, research_jobs: int, model: str):
     """Print session summary with statistics.
 
     Args:
@@ -239,7 +251,7 @@ def print_session_summary(
     """
     console.print()
     print_divider()
-    console.print(f"[bold]Session Summary[/bold]")
+    console.print("[bold]Session Summary[/bold]")
     console.print(f"Messages: {messages_count}")
     console.print(f"Cost: ${cost:.4f}")
     if research_jobs > 0:
@@ -275,7 +287,7 @@ def print_status(
     daily_spent: float = 0.0,
     daily_limit: float = 0.0,
     monthly_spent: float = 0.0,
-    monthly_limit: float = 0.0
+    monthly_limit: float = 0.0,
 ):
     """Print current session status with cost safety info.
 
@@ -293,25 +305,29 @@ def print_status(
         monthly_limit: Monthly spending limit
     """
     console.print()
-    console.print(f"[bold]Chat Session Status[/bold]")
+    console.print("[bold]Chat Session Status[/bold]")
     console.print(f"Expert: {expert_name}")
     console.print(f"Messages: {messages_count}")
     console.print(f"Session cost: ${cost:.4f}" + (f" / ${budget:.2f}" if budget else " (no limit)"))
     console.print(f"Research jobs: {research_jobs}")
     console.print(f"Model: {model}")
     console.print(f"Knowledge base: {documents} documents")
-    
+
     # Show daily/monthly spending if available
     if daily_limit > 0:
         daily_pct = (daily_spent / daily_limit * 100) if daily_limit > 0 else 0
         daily_color = "green" if daily_pct < 50 else "yellow" if daily_pct < 80 else "red"
-        console.print(f"Daily spending: [{daily_color}]${daily_spent:.2f}[/{daily_color}] / ${daily_limit:.2f} ({daily_pct:.0f}%)")
-    
+        console.print(
+            f"Daily spending: [{daily_color}]${daily_spent:.2f}[/{daily_color}] / ${daily_limit:.2f} ({daily_pct:.0f}%)"
+        )
+
     if monthly_limit > 0:
         monthly_pct = (monthly_spent / monthly_limit * 100) if monthly_limit > 0 else 0
         monthly_color = "green" if monthly_pct < 50 else "yellow" if monthly_pct < 80 else "red"
-        console.print(f"Monthly spending: [{monthly_color}]${monthly_spent:.2f}[/{monthly_color}] / ${monthly_limit:.2f} ({monthly_pct:.0f}%)")
-    
+        console.print(
+            f"Monthly spending: [{monthly_color}]${monthly_spent:.2f}[/{monthly_color}] / ${monthly_limit:.2f} ({monthly_pct:.0f}%)"
+        )
+
     console.print()
 
 
@@ -339,22 +355,22 @@ def print_trace(reasoning_trace: list):
             console.print(f"   Query: {step.get('query', 'N/A')}")
             console.print(f"   Selected: {step.get('selected_provider', 'N/A')}/{step.get('selected_model', 'N/A')}")
             console.print(f"   Confidence: {step.get('confidence', 0.0):.2f}")
-            if step.get('reasoning_effort'):
+            if step.get("reasoning_effort"):
                 console.print(f"   Reasoning effort: {step.get('reasoning_effort')}")
 
         elif step_type == "search_knowledge_base":
             console.print(f"   Query: {step.get('query', 'N/A')}")
-            reasoning = step.get('reasoning')
+            reasoning = step.get("reasoning")
             if reasoning:
                 console.print(f"   [cyan]Reasoning:[/cyan] {reasoning}")
             console.print(f"   Results: {step.get('results_count', 0)} documents")
-            sources = step.get('sources', [])
+            sources = step.get("sources", [])
             if sources:
                 console.print(f"   Sources: {', '.join(sources[:3])}")
 
         elif step_type in ["quick_lookup", "standard_research", "deep_research"]:
             console.print(f"   Query: {step.get('query', 'N/A')}")
-            reasoning = step.get('reasoning')
+            reasoning = step.get("reasoning")
             if reasoning:
                 console.print(f"   [cyan]Reasoning:[/cyan] {reasoning}")
             console.print(f"   Cost: ${step.get('cost', 0.0):.4f}")

@@ -1,7 +1,8 @@
 """Cost commands - estimate and track costs."""
 
 import click
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header
 
 
 @click.group()
@@ -12,11 +13,14 @@ def cost():
 
 @cost.command()
 @click.argument("prompt")
-@click.option("--model", "-m", default="o4-mini-deep-research",
-              type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-              help="Research model")
-@click.option("--web-search/--no-web-search", default=True,
-              help="Enable web search")
+@click.option(
+    "--model",
+    "-m",
+    default="o4-mini-deep-research",
+    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
+    help="Research model",
+)
+@click.option("--web-search/--no-web-search", default=True, help="Enable web search")
 def estimate(prompt: str, model: str, web_search: bool):
     """
     Estimate cost for a research prompt.
@@ -30,18 +34,14 @@ def estimate(prompt: str, model: str, web_search: bool):
     try:
         from deepr.services.cost_estimation import CostEstimator
 
-        estimate = CostEstimator.estimate_cost(
-            prompt=prompt,
-            model=model,
-            enable_web_search=web_search
-        )
+        estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=web_search)
 
-        console.print(f"\nCost Estimate:")
+        console.print("\nCost Estimate:")
         console.print(f"   Expected: ${estimate.expected_cost:.2f}")
         console.print(f"   Min: ${estimate.min_cost:.2f}")
         console.print(f"   Max: ${estimate.max_cost:.2f}")
 
-        console.print(f"\nConfiguration:")
+        console.print("\nConfiguration:")
         console.print(f"   Model: {model}")
         console.print(f"   Web Search: {'enabled' if web_search else 'disabled'}")
         console.print(f"   Prompt length: {len(prompt)} chars")
@@ -52,10 +52,13 @@ def estimate(prompt: str, model: str, web_search: bool):
 
 
 @cost.command()
-@click.option("--period", "-p",
-              type=click.Choice(["today", "week", "month", "all"]),
-              default="all",
-              help="Time period for summary")
+@click.option(
+    "--period",
+    "-p",
+    type=click.Choice(["today", "week", "month", "all"]),
+    default="all",
+    help="Time period for summary",
+)
 def summary(period: str):
     """
     Show cost summary and budget status.
@@ -69,9 +72,10 @@ def summary(period: str):
 
     try:
         import asyncio
-        from deepr.queue import create_queue
-        from deepr.config import load_config
         from datetime import datetime, timedelta
+
+        from deepr.config import load_config
+        from deepr.queue import create_queue
 
         config = load_config()
         queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
@@ -94,10 +98,7 @@ def summary(period: str):
 
         filtered_jobs = all_jobs
         if cutoff:
-            filtered_jobs = [
-                j for j in all_jobs
-                if j.submitted_at and j.submitted_at >= cutoff
-            ]
+            filtered_jobs = [j for j in all_jobs if j.submitted_at and j.submitted_at >= cutoff]
 
         if not filtered_jobs:
             click.echo(f"\nNo jobs found for period: {period}")
@@ -113,7 +114,7 @@ def summary(period: str):
         by_model = {}
 
         for job in filtered_jobs:
-            cost = getattr(job, 'cost', None) or getattr(job, 'estimated_cost', 0)
+            cost = getattr(job, "cost", None) or getattr(job, "estimated_cost", 0)
             total_cost += cost
 
             # Track by model
@@ -141,14 +142,14 @@ def summary(period: str):
             click.echo(f"   Failed: ${failed_cost:.2f}")
 
         if completed_jobs > 0:
-            click.echo(f"\nStatistics:")
+            click.echo("\nStatistics:")
             click.echo(f"   Total Jobs: {len(filtered_jobs)}")
             click.echo(f"   Completed: {completed_jobs}")
             click.echo(f"   Average per job: ${avg_cost:.2f}")
 
         # Show breakdown by model
         if by_model:
-            click.echo(f"\nBy Model:")
+            click.echo("\nBy Model:")
             for model, data in sorted(by_model.items(), key=lambda x: x[1]["cost"], reverse=True):
                 click.echo(f"   {model}: ${data['cost']:.2f} ({data['count']} jobs)")
 
@@ -158,11 +159,11 @@ def summary(period: str):
 
         if period == "month":
             pct = (total_cost / max_per_month) * 100
-            click.echo(f"\nMonthly Budget:")
+            click.echo("\nMonthly Budget:")
             click.echo(f"   Used: ${total_cost:.2f} / ${max_per_month:.2f} ({pct:.1f}%)")
         elif period == "today":
             pct = (total_cost / max_per_day) * 100
-            console.print(f"\nDaily Budget:")
+            console.print("\nDaily Budget:")
             console.print(f"   Used: ${total_cost:.2f} / ${max_per_day:.2f} ({pct:.1f}%)")
 
     except Exception as e:

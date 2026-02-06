@@ -480,15 +480,13 @@ class AutonomousProviderRouter:
         if metrics.success_rate < (1 - self.AUTO_DISABLE_FAILURE_RATE):
             # Check if in cooldown period
             if metrics.last_failure:
-                hours_since_failure = (
-                    datetime.now(timezone.utc) - metrics.last_failure
-                ).total_seconds() / 3600
+                hours_since_failure = (datetime.now(timezone.utc) - metrics.last_failure).total_seconds() / 3600
 
                 if hours_since_failure < self.AUTO_DISABLE_COOLDOWN_HOURS:
                     return (
                         True,
-                        f"Auto-disabled: {metrics.success_rate*100:.0f}% success rate "
-                        f"({hours_since_failure*60:.0f}min cooldown remaining)",
+                        f"Auto-disabled: {metrics.success_rate * 100:.0f}% success rate "
+                        f"({hours_since_failure * 60:.0f}min cooldown remaining)",
                     )
 
         return (False, None)
@@ -504,11 +502,13 @@ class AutonomousProviderRouter:
             provider, model = key
             is_disabled, reason = self.is_auto_disabled(provider, model)
             if is_disabled:
-                disabled.append({
-                    "provider": provider,
-                    "model": model,
-                    "reason": reason,
-                })
+                disabled.append(
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "reason": reason,
+                    }
+                )
         return disabled
 
     def record_result(

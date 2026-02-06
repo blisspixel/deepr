@@ -1,10 +1,11 @@
 """Configuration management for Deepr."""
 
 import os
-from typing import Optional, Literal, Dict, Any
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from pathlib import Path
+from typing import Any, Dict, Literal, Optional
+
 from dotenv import load_dotenv
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Load .env file
 load_dotenv()
@@ -15,26 +16,18 @@ class ProviderConfig(BaseModel):
 
     model_config = ConfigDict(validate_default=True)
 
-    type: Literal["openai", "azure"] = Field(
-        default="openai", description="Provider type: openai or azure"
-    )
+    type: Literal["openai", "azure"] = Field(default="openai", description="Provider type: openai or azure")
 
     # OpenAI Configuration
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
     openai_base_url: Optional[str] = Field(default=None, description="Custom OpenAI base URL")
-    openai_organization: Optional[str] = Field(
-        default=None, description="OpenAI organization ID"
-    )
+    openai_organization: Optional[str] = Field(default=None, description="OpenAI organization ID")
 
     # Azure Configuration
     azure_api_key: Optional[str] = Field(default=None, description="Azure OpenAI API key")
     azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint URL")
-    azure_api_version: str = Field(
-        default="2024-10-01-preview", description="Azure OpenAI API version"
-    )
-    azure_use_managed_identity: bool = Field(
-        default=False, description="Use Azure Managed Identity for authentication"
-    )
+    azure_api_version: str = Field(default="2024-10-01-preview", description="Azure OpenAI API version")
+    azure_use_managed_identity: bool = Field(default=False, description="Use Azure Managed Identity for authentication")
 
     # Model/Deployment Mappings
     default_model: str = Field(default="grok-4-fast", description="Default model to use")
@@ -50,23 +43,23 @@ class ProviderConfig(BaseModel):
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
     TASK_MODEL_MAP: Dict[str, tuple] = {
-        "quick_lookup": ("xai", "grok-4-fast"),           # Fast, cheap fact checks
-        "fact_check": ("xai", "grok-4-fast"),             # Fact verification
+        "quick_lookup": ("xai", "grok-4-fast"),  # Fast, cheap fact checks
+        "fact_check": ("xai", "grok-4-fast"),  # Fact verification
         "deep_research": ("openai", "o3-deep-research"),  # Deep research (BEST model)
-        "synthesis": ("openai", "gpt-5"),                 # Knowledge synthesis
-        "chat": ("openai", "gpt-5"),                      # Expert chat
-        "planning": ("openai", "gpt-5"),                  # Research planning
-        "documentation": ("openai", "gpt-5"),             # Doc generation
-        "strategy": ("openai", "gpt-5.2"),                # Strategic analysis
+        "synthesis": ("openai", "gpt-5"),  # Knowledge synthesis
+        "chat": ("openai", "gpt-5"),  # Expert chat
+        "planning": ("openai", "gpt-5"),  # Research planning
+        "documentation": ("openai", "gpt-5"),  # Doc generation
+        "strategy": ("openai", "gpt-5.2"),  # Strategic analysis
     }
 
     def get_model_for_task(self, task_type: str) -> tuple:
         """Get optimal (provider, model) for a task type.
-        
+
         Args:
-            task_type: One of quick_lookup, fact_check, deep_research, 
+            task_type: One of quick_lookup, fact_check, deep_research,
                       synthesis, chat, planning, documentation, strategy
-                      
+
         Returns:
             Tuple of (provider, model) for the task
         """
@@ -91,13 +84,19 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_deep_research_provider(cls, v: Any) -> str:
         """Load deep research provider from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+        return (
+            os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
+        )
 
     @field_validator("deep_research_model", mode="before")
     @classmethod
     def validate_deep_research_model(cls, v: Any) -> str:
         """Load deep research model from environment."""
-        return os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v) if v else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
+        return (
+            os.getenv("DEEPR_DEEP_RESEARCH_MODEL", v)
+            if v
+            else os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
+        )
 
     @model_validator(mode="after")
     def validate_api_keys(self) -> "ProviderConfig":
@@ -117,24 +116,18 @@ class StorageConfig(BaseModel):
 
     model_config = ConfigDict(validate_default=True)
 
-    type: Literal["local", "blob"] = Field(
-        default="local", description="Storage type: local or blob"
-    )
+    type: Literal["local", "blob"] = Field(default="local", description="Storage type: local or blob")
 
     # Local Storage Configuration
     local_path: str = Field(default="data/reports", description="Local storage directory path")
 
     # Azure Blob Storage Configuration
-    azure_connection_string: Optional[str] = Field(
-        default=None, description="Azure Storage connection string"
-    )
+    azure_connection_string: Optional[str] = Field(default=None, description="Azure Storage connection string")
     azure_account_url: Optional[str] = Field(
         default=None, description="Azure Storage account URL (for managed identity)"
     )
     azure_container: str = Field(default="reports", description="Azure Blob container name")
-    azure_use_managed_identity: bool = Field(
-        default=False, description="Use Azure Managed Identity for storage"
-    )
+    azure_use_managed_identity: bool = Field(default=False, description="Use Azure Managed Identity for storage")
 
     @model_validator(mode="after")
     def validate_azure_storage(self) -> "StorageConfig":
@@ -155,24 +148,18 @@ class WebhookConfig(BaseModel):
     host: str = Field(default="0.0.0.0", description="Webhook server host")
 
     # Ngrok Configuration (for local development)
-    use_ngrok: bool = Field(
-        default=True, description="Use ngrok tunnel for local development"
-    )
+    use_ngrok: bool = Field(default=True, description="Use ngrok tunnel for local development")
     ngrok_path: str = Field(default="ngrok", description="Path to ngrok executable")
 
     # Cloud Configuration
-    public_url: Optional[str] = Field(
-        default=None, description="Public webhook URL (for cloud deployment)"
-    )
+    public_url: Optional[str] = Field(default=None, description="Public webhook URL (for cloud deployment)")
 
 
 class ResearchConfig(BaseModel):
     """Configuration for research behavior."""
 
     # System Message
-    system_message_file: str = Field(
-        default="system_message.json", description="Path to system message configuration"
-    )
+    system_message_file: str = Field(default="system_message.json", description="Path to system message configuration")
 
     # Output Configuration
     output_formats: list = Field(
@@ -180,12 +167,8 @@ class ResearchConfig(BaseModel):
         description="Output formats to generate (txt, md, json, docx, pdf)",
     )
     generate_pdf: bool = Field(default=False, description="Generate PDF output")
-    append_references: bool = Field(
-        default=False, description="Append extracted references to reports"
-    )
-    strip_inline_citations: bool = Field(
-        default=True, description="Remove inline citations from output"
-    )
+    append_references: bool = Field(default=False, description="Append extracted references to reports")
+    strip_inline_citations: bool = Field(default=True, description="Remove inline citations from output")
 
     # Job Management
     max_wait_time: int = Field(default=1800, description="Maximum wait time for jobs (seconds)")
@@ -209,8 +192,12 @@ class ExpertConfig(BaseModel):
     quick_research_topics: int = Field(default=10, description="Number of quick research (focus) topics")
 
     # Cost Estimates (averages based on actual model costs)
-    deep_research_cost: float = Field(default=1.0, description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research)")
-    quick_research_cost: float = Field(default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4-fast)")
+    deep_research_cost: float = Field(
+        default=1.0, description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research)"
+    )
+    quick_research_cost: float = Field(
+        default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4-fast)"
+    )
 
     # Synthesis
     auto_synthesis: bool = Field(default=True, description="Automatically synthesize knowledge after learning")
@@ -253,9 +240,7 @@ class ExpertConfig(BaseModel):
 class DatabaseConfig(BaseModel):
     """Configuration for job metadata database."""
 
-    type: Literal["jsonl", "sqlite", "cosmosdb"] = Field(
-        default="jsonl", description="Database type"
-    )
+    type: Literal["jsonl", "sqlite", "cosmosdb"] = Field(default="jsonl", description="Database type")
 
     # JSONL Configuration
     jsonl_path: str = Field(default="data/logs/job_log.jsonl", description="Path to JSONL log file")
@@ -274,9 +259,7 @@ class AppConfig(BaseModel):
     """Main application configuration."""
 
     # Environment
-    environment: Literal["local", "cloud"] = Field(
-        default="local", description="Deployment environment"
-    )
+    environment: Literal["local", "cloud"] = Field(default="local", description="Deployment environment")
 
     # Component Configurations
     provider: ProviderConfig = Field(default_factory=ProviderConfig)
@@ -312,14 +295,11 @@ class AppConfig(BaseModel):
             azure_api_key=os.getenv("AZURE_OPENAI_KEY"),
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             azure_api_version=os.getenv("AZURE_API_VERSION", "2024-10-01-preview"),
-            azure_use_managed_identity=os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower()
-            == "true",
+            azure_use_managed_identity=os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true",
             default_model=os.getenv("DEEPR_DEFAULT_MODEL", "o3-deep-research"),
             model_mappings={
                 "o3-deep-research": os.getenv("AZURE_DEPLOYMENT_O3", "o3-deep-research"),
-                "o4-mini-deep-research": os.getenv(
-                    "AZURE_DEPLOYMENT_O4_MINI", "o4-mini-deep-research"
-                ),
+                "o4-mini-deep-research": os.getenv("AZURE_DEPLOYMENT_O4_MINI", "o4-mini-deep-research"),
             },
         )
 
@@ -332,8 +312,7 @@ class AppConfig(BaseModel):
             azure_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
             azure_account_url=os.getenv("AZURE_STORAGE_ACCOUNT_URL"),
             azure_container=os.getenv("AZURE_STORAGE_CONTAINER", "reports"),
-            azure_use_managed_identity=os.getenv("AZURE_STORAGE_USE_MANAGED_IDENTITY", "false").lower()
-            == "true",
+            azure_use_managed_identity=os.getenv("AZURE_STORAGE_USE_MANAGED_IDENTITY", "false").lower() == "true",
         )
 
         # Determine environment
@@ -452,7 +431,9 @@ def load_config() -> Dict:
 
     return {
         "provider": config.provider.type,
-        "api_key": config.provider.openai_api_key if config.provider.type == "openai" else config.provider.azure_api_key,
+        "api_key": config.provider.openai_api_key
+        if config.provider.type == "openai"
+        else config.provider.azure_api_key,
         "azure_endpoint": config.provider.azure_endpoint,
         "queue": "local",  # Default to local queue
         "queue_db_path": "queue/research_queue.db",

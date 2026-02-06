@@ -93,24 +93,18 @@ class SSRFProtector:
 
         # Check domain allowlist
         if self._allowed_domains and hostname not in self._allowed_domains:
-            raise ValueError(
-                f"SSRF blocked: domain '{hostname}' not in allowlist"
-            )
+            raise ValueError(f"SSRF blocked: domain '{hostname}' not in allowlist")
 
         # Resolve all IPs (IPv4 + IPv6) and check each
         ip_strings = resolve_all_ips(hostname)
 
         if not ip_strings:
             # DNS resolution failed -- block conservatively
-            raise ValueError(
-                f"SSRF blocked: DNS resolution failed for '{hostname}'"
-            )
+            raise ValueError(f"SSRF blocked: DNS resolution failed for '{hostname}'")
 
         for ip_str in ip_strings:
             if is_internal_ip(ip_str):
-                raise ValueError(
-                    f"SSRF blocked: '{hostname}' resolves to internal IP {ip_str}"
-                )
+                raise ValueError(f"SSRF blocked: '{hostname}' resolves to internal IP {ip_str}")
 
         if self._audit_log:
             logger.debug("URL validated: %s -> %s", hostname, ip_strings)

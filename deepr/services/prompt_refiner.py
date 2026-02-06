@@ -10,6 +10,7 @@ Automatically refines user research queries to follow best practices:
 
 import os
 from datetime import datetime
+
 from openai import OpenAI
 
 
@@ -84,15 +85,13 @@ Key considerations:
 
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             response_format={"type": "json_object"},
             # Note: GPT-5 models only support temperature=1 (default)
         )
 
         import json
+
         result = json.loads(response.choices[0].message.content)
         result["original_prompt"] = prompt
 

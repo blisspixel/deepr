@@ -1,19 +1,22 @@
 """Azure OpenAI provider implementation for Deep Research."""
 
-import os
 import asyncio
-from typing import Optional, List, Dict
-from openai import AsyncAzureOpenAI, APIError as OpenAIAPIError
+import os
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
 from azure.identity.aio import DefaultAzureCredential
+from openai import APIError as OpenAIAPIError
+from openai import AsyncAzureOpenAI
+
 from .base import (
     DeepResearchProvider,
+    ProviderError,
     ResearchRequest,
     ResearchResponse,
     UsageStats,
     VectorStore,
-    ProviderError,
 )
-from datetime import datetime, timezone
 
 
 class AzureProvider(DeepResearchProvider):
@@ -50,7 +53,6 @@ class AzureProvider(DeepResearchProvider):
             # Store credential as instance variable to prevent garbage collection
             self._credential = DefaultAzureCredential()
             # Note: token provider setup for async client
-            from azure.core.credentials import AccessToken
 
             async def get_token():
                 token = await self._credential.get_token("https://cognitiveservices.azure.com/.default")
@@ -157,10 +159,7 @@ class AzureProvider(DeepResearchProvider):
                 output = [
                     {
                         "type": block.type,
-                        "content": [
-                            {"type": item.type, "text": getattr(item, "text", "")}
-                            for item in block.content
-                        ]
+                        "content": [{"type": item.type, "text": getattr(item, "text", "")} for item in block.content]
                         if hasattr(block, "content")
                         else [],
                     }
@@ -228,9 +227,7 @@ class AzureProvider(DeepResearchProvider):
 
             # Attach files
             for file_id in file_ids:
-                await self.client.vector_stores.files.create(
-                    vector_store_id=vs.id, file_id=file_id
-                )
+                await self.client.vector_stores.files.create(vector_store_id=vs.id, file_id=file_id)
 
             return VectorStore(id=vs.id, name=name, file_ids=file_ids)
 
@@ -241,9 +238,7 @@ class AzureProvider(DeepResearchProvider):
                 original_error=e,
             )
 
-    async def wait_for_vector_store(
-        self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0
-    ) -> bool:
+    async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Wait for Azure OpenAI vector store ingestion."""
         try:
             start_time = asyncio.get_event_loop().time()
@@ -252,19 +247,13 @@ class AzureProvider(DeepResearchProvider):
                 # Check timeout
                 elapsed = asyncio.get_event_loop().time() - start_time
                 if elapsed > timeout:
-                    raise TimeoutError(
-                        f"Vector store ingestion timeout after {timeout} seconds"
-                    )
+                    raise TimeoutError(f"Vector store ingestion timeout after {timeout} seconds")
 
                 # Get file statuses
-                listing = await self.client.vector_stores.files.list(
-                    vector_store_id=vector_store_id
-                )
+                listing = await self.client.vector_stores.files.list(vector_store_id=vector_store_id)
 
                 # Check if all files are completed
-                all_completed = all(
-                    getattr(item, "status", "completed") == "completed" for item in listing.data
-                )
+                all_completed = all(getattr(item, "status", "completed") == "completed" for item in listing.data)
 
                 if all_completed:
                     return True

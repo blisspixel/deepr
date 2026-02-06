@@ -1,9 +1,11 @@
 """Budget management commands."""
 
-import click
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import click
+
 from deepr.branding import print_section_header
 
 
@@ -22,10 +24,10 @@ def load_budget_config():
             "monthly_limit": 0,  # 0 = confirm every job
             "current_month": datetime.now().strftime("%Y-%m"),
             "monthly_spending": 0.0,
-            "history": []
+            "history": [],
         }
 
-    with open(budget_file, 'r') as f:
+    with open(budget_file, "r") as f:
         config = json.load(f)
 
     # Reset if new month
@@ -40,7 +42,7 @@ def load_budget_config():
 def save_budget_config(config):
     """Save budget configuration."""
     budget_file = get_budget_file()
-    with open(budget_file, 'w') as f:
+    with open(budget_file, "w") as f:
         json.dump(config, f, indent=2)
 
 
@@ -87,12 +89,9 @@ def record_spending(cost: float, job_id: str, description: str):
     if "history" not in config:
         config["history"] = []
 
-    config["history"].append({
-        "timestamp": datetime.now().isoformat(),
-        "cost": cost,
-        "job_id": job_id,
-        "description": description
-    })
+    config["history"].append(
+        {"timestamp": datetime.now().isoformat(), "cost": cost, "job_id": job_id, "description": description}
+    )
 
     # Keep last 100 entries
     config["history"] = config["history"][-100:]
@@ -199,18 +198,18 @@ def history(limit: int):
 @budget.command()
 def safety():
     """Show cost safety status and limits.
-    
+
     Displays the defensive cost controls that prevent runaway spending
     from autonomous expert operations.
     """
     from deepr.cli.colors import console, print_key_value
-    from deepr.experts.cost_safety import get_cost_safety_manager, CostSafetyManager
-    
+    from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
+
     print_section_header("Cost Safety Status")
-    
+
     manager = get_cost_safety_manager()
     summary = manager.get_spending_summary()
-    
+
     # Daily spending
     console.print("[bold]Daily Spending[/bold]")
     daily = summary["daily"]
@@ -219,7 +218,7 @@ def safety():
     print_key_value("Remaining", f"${daily['remaining']:.2f}")
     console.print(f"  [dim]Usage:[/dim] [{percent_color}]{daily['percent_used']:.0f}%[/{percent_color}]")
     console.print()
-    
+
     # Monthly spending
     console.print("[bold]Monthly Spending[/bold]")
     monthly = summary["monthly"]
@@ -228,7 +227,7 @@ def safety():
     print_key_value("Remaining", f"${monthly['remaining']:.2f}")
     console.print(f"  [dim]Usage:[/dim] [{percent_color}]{monthly['percent_used']:.0f}%[/{percent_color}]")
     console.print()
-    
+
     # Limits
     console.print("[bold]Configured Limits[/bold]")
     limits = summary["limits"]
@@ -236,16 +235,16 @@ def safety():
     print_key_value("Daily", f"${limits['daily']:.2f}")
     print_key_value("Monthly", f"${limits['monthly']:.2f}")
     console.print()
-    
+
     # Hard limits (cannot be overridden)
     console.print("[bold]Hard Safety Limits[/bold] [dim](cannot be overridden)[/dim]")
     print_key_value("Max Per Operation", f"${CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:.2f}")
     print_key_value("Max Daily", f"${CostSafetyManager.ABSOLUTE_MAX_DAILY:.2f}")
     print_key_value("Max Monthly", f"${CostSafetyManager.ABSOLUTE_MAX_MONTHLY:.2f}")
     console.print()
-    
+
     # Active sessions
     if summary["active_sessions"] > 0:
         console.print(f"[bold]Active Sessions:[/bold] {summary['active_sessions']}")
-    
+
     console.print("[dim]These limits protect against runaway costs from autonomous agents.[/dim]")

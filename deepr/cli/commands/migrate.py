@@ -1,11 +1,11 @@
 """Migration utilities for organizing legacy reports."""
 
-import click
-import json
 import shutil
 from pathlib import Path
-from datetime import datetime
-from deepr.cli.colors import console, print_success, print_error
+
+import click
+
+from deepr.cli.colors import print_error, print_success
 
 
 @click.group()
@@ -15,8 +15,8 @@ def migrate():
 
 
 @migrate.command()
-@click.option('--dry-run', is_flag=True, help='Show what would be done without making changes')
-@click.option('--reports-dir', default='data/reports', help='Reports directory to migrate')
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+@click.option("--reports-dir", default="data/reports", help="Reports directory to migrate")
 def organize(dry_run: bool, reports_dir: str):
     """
     Organize legacy reports into human-readable format.
@@ -37,16 +37,16 @@ def organize(dry_run: bool, reports_dir: str):
 
     # Find legacy flat files (*.md directly in reports/)
     for item in reports_path.iterdir():
-        if item.is_file() and item.suffix == '.md':
+        if item.is_file() and item.suffix == ".md":
             legacy_files.append(item)
 
     # Find legacy UUID-only directories (no timestamp prefix)
     for item in reports_path.iterdir():
-        if item.is_dir() and item.name != 'campaigns':
+        if item.is_dir() and item.name != "campaigns":
             # Check if it's a UUID-only format (no timestamp)
-            if not item.name[0].isdigit() or '_' not in item.name:
+            if not item.name[0].isdigit() or "_" not in item.name:
                 # Skip if it's already a campaign
-                if not item.name.startswith('campaign-'):
+                if not item.name.startswith("campaign-"):
                     legacy_dirs.append(item)
 
     total = len(legacy_files) + len(legacy_dirs)
@@ -93,7 +93,7 @@ def organize(dry_run: bool, reports_dir: str):
 
 
 @migrate.command()
-@click.option('--reports-dir', default='data/reports', help='Reports directory')
+@click.option("--reports-dir", default="data/reports", help="Reports directory")
 def stats(reports_dir: str):
     """Show statistics about report organization."""
     reports_path = Path(reports_dir)
@@ -109,16 +109,16 @@ def stats(reports_dir: str):
     campaigns = 0
 
     for item in reports_path.iterdir():
-        if item.is_file() and item.suffix == '.md':
+        if item.is_file() and item.suffix == ".md":
             legacy_flat += 1
         elif item.is_dir():
-            if item.name == 'campaigns':
+            if item.name == "campaigns":
                 # Count campaign subdirectories
                 if item.exists():
                     campaigns = len([d for d in item.iterdir() if d.is_dir()])
-            elif item.name == '_legacy_archive':
+            elif item.name == "_legacy_archive":
                 continue  # Skip archive folder
-            elif item.name[0].isdigit() and '_' in item.name:
+            elif item.name[0].isdigit() and "_" in item.name:
                 organized += 1
             else:
                 legacy_dirs += 1
@@ -136,8 +136,8 @@ def stats(reports_dir: str):
         click.echo(f"\nOrganization: {organized_pct:.1f}% of reports use new format")
 
     if legacy_dirs > 0 or legacy_flat > 0:
-        click.echo(f"\n[!] Run 'deepr migrate organize' to clean up legacy reports")
+        click.echo("\n[!] Run 'deepr migrate organize' to clean up legacy reports")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     migrate()

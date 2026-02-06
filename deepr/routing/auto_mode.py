@@ -150,9 +150,7 @@ class AutoModeRouter:
         self._provider_router = provider_router or AutonomousProviderRouter()
 
         # Cache which providers have API keys configured
-        self._available_providers = {
-            p for p in _PROVIDER_KEY_ENV if _has_api_key(p)
-        }
+        self._available_providers = {p for p in _PROVIDER_KEY_ENV if _has_api_key(p)}
 
     def _is_provider_usable(self, provider: str) -> bool:
         """Check if a provider has an API key and a healthy circuit.
@@ -206,9 +204,7 @@ class AutoModeRouter:
 
         # Check provider health from autonomous router
         if not self._provider_router.is_circuit_available(provider, model):
-            provider, model, cost_estimate, reasoning = self._get_fallback(
-                complexity, task_type, budget
-            )
+            provider, model, cost_estimate, reasoning = self._get_fallback(complexity, task_type, budget)
 
         return AutoModeDecision(
             provider=provider,
@@ -321,17 +317,23 @@ class AutoModeRouter:
             provider = self._pick_provider("xai", "openai", "gemini")
             if provider == "xai":
                 return (
-                    "xai", "grok-4-fast", 0.01,
+                    "xai",
+                    "grok-4-fast",
+                    0.01,
                     "Simple factual query → grok-4-fast ($0.01)",
                 )
             # Fallback: openai gpt-5.2 is still cheap for simple queries
             if provider == "openai":
                 return (
-                    "openai", "gpt-5.2", 0.02,
+                    "openai",
+                    "gpt-5.2",
+                    0.02,
                     "Simple factual query → gpt-5.2 ($0.02, XAI_API_KEY not set)",
                 )
             return (
-                "gemini", "gemini-2.5-flash", 0.02,
+                "gemini",
+                "gemini-2.5-flash",
+                0.02,
                 "Simple factual query → gemini-2.5-flash ($0.02, XAI/OpenAI keys not set)",
             )
 
@@ -340,16 +342,22 @@ class AutoModeRouter:
             provider = self._pick_provider("openai", "xai", "gemini")
             if provider == "openai":
                 return (
-                    "openai", "gpt-5.2", 0.02,
+                    "openai",
+                    "gpt-5.2",
+                    0.02,
                     "Simple query → gpt-5.2 ($0.02)",
                 )
             if provider == "xai":
                 return (
-                    "xai", "grok-4-fast", 0.01,
+                    "xai",
+                    "grok-4-fast",
+                    0.01,
                     "Simple query → grok-4-fast ($0.01, OPENAI_API_KEY not set)",
                 )
             return (
-                "gemini", "gemini-2.5-flash", 0.02,
+                "gemini",
+                "gemini-2.5-flash",
+                0.02,
                 "Simple query → gemini-2.5-flash ($0.02, OpenAI/XAI keys not set)",
             )
 
@@ -359,7 +367,9 @@ class AutoModeRouter:
                 provider = self._pick_provider("xai", "gemini", "openai")
                 if provider == "xai":
                     return (
-                        "xai", "grok-4-fast", 0.01,
+                        "xai",
+                        "grok-4-fast",
+                        0.01,
                         "Moderate query downgraded → grok-4-fast due to budget ($0.01)",
                     )
                 return (
@@ -372,16 +382,22 @@ class AutoModeRouter:
             provider = self._pick_provider("openai", "gemini", "xai")
             if provider == "openai":
                 return (
-                    "openai", "o4-mini-deep-research", 0.10,
+                    "openai",
+                    "o4-mini-deep-research",
+                    0.10,
                     "Moderate query → o4-mini-deep-research ($0.10)",
                 )
             if provider == "gemini":
                 return (
-                    "gemini", "gemini-3-pro", 0.15,
+                    "gemini",
+                    "gemini-3-pro",
+                    0.15,
                     "Moderate query → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
                 )
             return (
-                "xai", "grok-4-fast", 0.01,
+                "xai",
+                "grok-4-fast",
+                0.01,
                 "Moderate query → grok-4-fast ($0.01, OpenAI/Gemini keys not set)",
             )
 
@@ -391,14 +407,18 @@ class AutoModeRouter:
                 # Budget too low for o3, try o4-mini-deep-research
                 if budget >= 0.10 and self._is_provider_usable("openai"):
                     return (
-                        "openai", "o4-mini-deep-research", 0.10,
+                        "openai",
+                        "o4-mini-deep-research",
+                        0.10,
                         "Complex research budget-limited → o4-mini-deep-research ($0.10)",
                     )
                 # Further downgrade
                 provider = self._pick_provider("openai", "gemini", "xai")
                 if provider == "openai":
                     return (
-                        "openai", "gpt-5.2", 0.02,
+                        "openai",
+                        "gpt-5.2",
+                        0.02,
                         "Complex research budget-limited → gpt-5.2 ($0.02)",
                     )
                 return (
@@ -411,11 +431,15 @@ class AutoModeRouter:
             provider = self._pick_provider("openai", "gemini")
             if provider == "openai":
                 return (
-                    "openai", "o3-deep-research", 0.50,
+                    "openai",
+                    "o3-deep-research",
+                    0.50,
                     "Complex research → o3-deep-research ($0.50)",
                 )
             return (
-                "gemini", "gemini-3-pro", 0.15,
+                "gemini",
+                "gemini-3-pro",
+                0.15,
                 "Complex research → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
             )
 
@@ -425,7 +449,9 @@ class AutoModeRouter:
                 provider = self._pick_provider("openai", "xai", "gemini")
                 if provider == "openai":
                     return (
-                        "openai", "gpt-5.2", 0.02,
+                        "openai",
+                        "gpt-5.2",
+                        0.02,
                         "Complex analysis budget-limited → gpt-5.2 ($0.02)",
                     )
                 return (
@@ -438,16 +464,22 @@ class AutoModeRouter:
             provider = self._pick_provider("openai", "gemini", "xai")
             if provider == "openai":
                 return (
-                    "openai", "o4-mini-deep-research", 0.10,
+                    "openai",
+                    "o4-mini-deep-research",
+                    0.10,
                     "Complex analysis → o4-mini-deep-research ($0.10)",
                 )
             if provider == "gemini":
                 return (
-                    "gemini", "gemini-3-pro", 0.15,
+                    "gemini",
+                    "gemini-3-pro",
+                    0.15,
                     "Complex analysis → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
                 )
             return (
-                "xai", "grok-4-fast", 0.01,
+                "xai",
+                "grok-4-fast",
+                0.01,
                 "Complex analysis → grok-4-fast ($0.01, only XAI_API_KEY available)",
             )
 
@@ -554,7 +586,7 @@ class AutoModeRouter:
         explanation = f"""
 Query Analysis
 ──────────────
-Query: {query[:80]}{'...' if len(query) > 80 else ''}
+Query: {query[:80]}{"..." if len(query) > 80 else ""}
 Complexity: {complexity}
 Task Type: {task_type}
 

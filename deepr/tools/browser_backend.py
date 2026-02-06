@@ -10,12 +10,13 @@ See docs/mcp-client-architecture.md for the full design.
 """
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable, Optional
+from typing import Optional, Protocol, runtime_checkable
 
 
 @dataclass
 class PageContent:
     """Content fetched from a web page."""
+
     url: str
     title: str
     text: str
@@ -65,6 +66,7 @@ class BuiltinBrowserBackend:
         """Fetch page using built-in scraper."""
         try:
             from deepr.utils.scrape import scrape_url
+
             result = await scrape_url(url)
             return PageContent(
                 url=url,
@@ -99,9 +101,7 @@ class MCPBrowserBackend:
         return self._server_name
 
     async def fetch_page(self, url: str) -> PageContent:
-        raise NotImplementedError(
-            f"MCP browser backend '{self._server_name}' not yet implemented."
-        )
+        raise NotImplementedError(f"MCP browser backend '{self._server_name}' not yet implemented.")
 
     async def health_check(self) -> bool:
         return False

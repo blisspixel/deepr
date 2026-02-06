@@ -10,10 +10,10 @@ Usage:
         CIRCUIT_BREAKER_FAILURE_THRESHOLD,
         load_config
     )
-    
+
     # Load config with environment overrides
     load_config()
-    
+
     # Use constants
     if confidence >= CONFIDENCE_THRESHOLD:
         ...
@@ -33,7 +33,6 @@ Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
 """
 
 import os
-from typing import Any
 
 from deepr.core.errors import InvalidConfigError
 
@@ -150,23 +149,24 @@ MAX_STORED_FALLBACK_EVENTS: int = 100
 # Helper Functions for Environment Variable Loading
 # =============================================================================
 
+
 def _get_env_int(key: str, default: int) -> int:
     """Get integer from environment variable with validation.
-    
+
     Args:
         key: Environment variable name
         default: Default value if not set
-        
+
     Returns:
         Integer value from environment or default
-        
+
     Raises:
         InvalidConfigError: If value is not a valid non-negative integer
     """
     value = os.getenv(key)
     if value is None:
         return default
-    
+
     try:
         result = int(value)
         if result < 0:
@@ -178,21 +178,21 @@ def _get_env_int(key: str, default: int) -> int:
 
 def _get_env_float(key: str, default: float) -> float:
     """Get float from environment variable with validation.
-    
+
     Args:
         key: Environment variable name
         default: Default value if not set
-        
+
     Returns:
         Float value from environment or default
-        
+
     Raises:
         InvalidConfigError: If value is not a valid non-negative number
     """
     value = os.getenv(key)
     if value is None:
         return default
-    
+
     try:
         result = float(value)
         if result < 0:
@@ -204,11 +204,11 @@ def _get_env_float(key: str, default: float) -> float:
 
 def _get_env_str(key: str, default: str) -> str:
     """Get string from environment variable.
-    
+
     Args:
         key: Environment variable name
         default: Default value if not set
-        
+
     Returns:
         String value from environment or default
     """
@@ -276,9 +276,7 @@ def load_config() -> None:
 
     # Token budget settings
     TOKEN_BUDGET_DEFAULT = _get_env_int("DEEPR_TOKEN_BUDGET_DEFAULT", 50000)
-    TOKEN_BUDGET_SYNTHESIS_RESERVE_PCT = _get_env_float(
-        "DEEPR_TOKEN_BUDGET_SYNTHESIS_RESERVE_PCT", 0.20
-    )
+    TOKEN_BUDGET_SYNTHESIS_RESERVE_PCT = _get_env_float("DEEPR_TOKEN_BUDGET_SYNTHESIS_RESERVE_PCT", 0.20)
     MAX_CONTEXT_TOKENS = _get_env_int("DEEPR_MAX_CONTEXT_TOKENS", 8000)
 
     # Task durability settings
@@ -295,12 +293,8 @@ def load_config() -> None:
     HEALTH_DECAY_FACTOR = _get_env_float("DEEPR_HEALTH_DECAY_FACTOR", 0.95)
 
     # Circuit breaker settings
-    CIRCUIT_BREAKER_FAILURE_THRESHOLD = _get_env_int(
-        "DEEPR_CIRCUIT_BREAKER_FAILURE_THRESHOLD", 5
-    )
-    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = _get_env_int(
-        "DEEPR_CIRCUIT_BREAKER_RECOVERY_TIMEOUT", 60
-    )
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD = _get_env_int("DEEPR_CIRCUIT_BREAKER_FAILURE_THRESHOLD", 5)
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = _get_env_int("DEEPR_CIRCUIT_BREAKER_RECOVERY_TIMEOUT", 60)
 
     # Cost tracking settings
     COST_BUFFER_SIZE = _get_env_int("DEEPR_COST_BUFFER_SIZE", 10)

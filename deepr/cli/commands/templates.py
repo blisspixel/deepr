@@ -1,7 +1,8 @@
 """Templates commands - save and reuse research prompts."""
 
 import click
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
 @click.group()
@@ -27,8 +28,8 @@ def save(name: str, prompt: str, model: str, description: str):
 
     try:
         import json
-        from pathlib import Path
         from datetime import datetime
+        from pathlib import Path
 
         # Create templates directory
         templates_dir = Path(".deepr/templates")
@@ -41,12 +42,12 @@ def save(name: str, prompt: str, model: str, description: str):
             "model": model,
             "description": description,
             "created_at": datetime.utcnow().isoformat(),
-            "usage_count": 0
+            "usage_count": 0,
         }
 
         # Save
         template_file = templates_dir / f"{name}.json"
-        with open(template_file, 'w') as f:
+        with open(template_file, "w") as f:
             json.dump(template, f, indent=2)
 
         print_success(f"Template saved: {name}")
@@ -55,7 +56,7 @@ def save(name: str, prompt: str, model: str, description: str):
         if "{" in prompt:
             placeholders = [p.split("}")[0] for p in prompt.split("{")[1:]]
             console.print(f"\nPlaceholders: {', '.join(placeholders)}")
-            console.print(f"\nUsage:")
+            console.print("\nUsage:")
             example_values = " ".join([f"--{p} VALUE" for p in placeholders])
             console.print(f"  deepr templates use {name} {example_values}")
 
@@ -80,14 +81,14 @@ def list():
 
         templates_dir = Path(".deepr/templates")
         if not templates_dir.exists():
-            click.echo(f"\nNo templates found")
-            click.echo(f"\nCreate one: deepr templates save <name> \"<prompt>\"")
+            click.echo("\nNo templates found")
+            click.echo('\nCreate one: deepr templates save <name> "<prompt>"')
             return
 
         template_files = list(templates_dir.glob("*.json"))
 
         if not template_files:
-            click.echo(f"\nNo templates found")
+            click.echo("\nNo templates found")
             return
 
         click.echo(f"\nFound {len(template_files)} template(s):\n")
@@ -97,14 +98,14 @@ def list():
                 template = json.load(f)
 
             click.echo(f"  {template['name']}")
-            if template.get('description'):
+            if template.get("description"):
                 click.echo(f"    Description: {template['description']}")
-            if template.get('model'):
+            if template.get("model"):
                 click.echo(f"    Model: {template['model']}")
             click.echo(f"    Used: {template.get('usage_count', 0)} times")
 
             # Show placeholders
-            prompt = template['prompt']
+            prompt = template["prompt"]
             if "{" in prompt:
                 placeholders = [p.split("}")[0] for p in prompt.split("{")[1:]]
                 click.echo(f"    Placeholders: {', '.join(placeholders)}")
@@ -135,7 +136,7 @@ def show(name: str):
 
         if not template_file.exists():
             print_error(f"Template not found: {name}")
-            console.print(f"\nAvailable templates:")
+            console.print("\nAvailable templates:")
             templates_dir = Path(".deepr/templates")
             if templates_dir.exists():
                 for tf in sorted(templates_dir.glob("*.json")):
@@ -146,19 +147,19 @@ def show(name: str):
             template = json.load(f)
 
         console.print(f"\nName: {template['name']}")
-        if template.get('description'):
+        if template.get("description"):
             console.print(f"Description: {template['description']}")
-        if template.get('model'):
+        if template.get("model"):
             console.print(f"Default Model: {template['model']}")
         console.print(f"Created: {template.get('created_at', 'Unknown')}")
         console.print(f"Usage Count: {template.get('usage_count', 0)}")
 
-        console.print(f"\nPrompt:")
+        console.print("\nPrompt:")
         console.print(f"  {template['prompt']}")
 
-        if "{" in template['prompt']:
-            placeholders = [p.split("}")[0] for p in template['prompt'].split("{")[1:]]
-            console.print(f"\nPlaceholders:")
+        if "{" in template["prompt"]:
+            placeholders = [p.split("}")[0] for p in template["prompt"].split("{")[1:]]
+            console.print("\nPlaceholders:")
             for p in placeholders:
                 console.print(f"  - {p}")
 
@@ -249,7 +250,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
                 i += 1
 
         # Fill template
-        prompt = template['prompt']
+        prompt = template["prompt"]
         missing = []
         for match in [p.split("}")[0] for p in prompt.split("{")[1:]]:
             if match not in placeholders:
@@ -257,7 +258,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
 
         if missing:
             print_error(f"Missing placeholder values: {', '.join(missing)}")
-            console.print(f"\nUsage:")
+            console.print("\nUsage:")
             example = " ".join([f"--{p} VALUE" for p in missing])
             console.print(f"  deepr templates use {name} {example}")
             raise click.Abort()
@@ -267,32 +268,30 @@ def use(name: str, values: tuple, yes: bool, model: str):
         for key, value in placeholders.items():
             filled_prompt = filled_prompt.replace(f"{{{key}}}", value)
 
-        console.print(f"\nFilled prompt:")
+        console.print("\nFilled prompt:")
         console.print(f"  {filled_prompt[:200]}{'...' if len(filled_prompt) > 200 else ''}")
 
         # Use template model if not overridden
-        use_model = model or template.get('model', 'o4-mini-deep-research')
+        use_model = model or template.get("model", "o4-mini-deep-research")
 
         if not yes:
-            if not click.confirm(f"\nSubmit research with this prompt?"):
+            if not click.confirm("\nSubmit research with this prompt?"):
                 print_warning("Cancelled")
                 return
 
         # Update usage count
-        template['usage_count'] = template.get('usage_count', 0) + 1
-        with open(template_file, 'w') as f:
+        template["usage_count"] = template.get("usage_count", 0) + 1
+        with open(template_file, "w") as f:
             json.dump(template, f, indent=2)
 
         # Submit research
         print_success("Submitting research...")
 
         from subprocess import run
-        result = run([
-            "python", "-m", "deepr.cli.main",
-            "research", "submit", filled_prompt,
-            "--model", use_model,
-            "--yes"
-        ])
+
+        result = run(
+            ["python", "-m", "deepr.cli.main", "research", "submit", filled_prompt, "--model", use_model, "--yes"]
+        )
 
         if result.returncode != 0:
             print_error("Research submission failed")

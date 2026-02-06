@@ -223,4 +223,5 @@ class QueueBackend(ABC):
 
 class QueueError(Exception):
     """Base exception for queue operations."""
+
     pass

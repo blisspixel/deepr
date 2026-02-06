@@ -1,8 +1,8 @@
 """Queue management for research job orchestration."""
 
-from .base import QueueBackend, ResearchJob, JobStatus
-from .local_queue import SQLiteQueue
 from .azure_queue import ServiceBusQueue
+from .base import JobStatus, QueueBackend, ResearchJob
+from .local_queue import SQLiteQueue
 
 __all__ = ["QueueBackend", "ResearchJob", "JobStatus", "SQLiteQueue", "ServiceBusQueue"]
 

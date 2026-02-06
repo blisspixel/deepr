@@ -16,12 +16,12 @@ Usage:
     )
 """
 
-import re
 import math
+import re
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Tuple
-from collections import Counter
+from typing import Any, Dict, List, Tuple
 
 
 def _utc_now() -> datetime:
@@ -32,6 +32,7 @@ def _utc_now() -> datetime:
 @dataclass
 class ContextItem:
     """A single item of context to potentially include."""
+
     id: str
     text: str
     source: str
@@ -62,6 +63,7 @@ class ContextItem:
 @dataclass
 class PruningDecision:
     """Record of pruning decisions made."""
+
     original_count: int
     pruned_count: int
     original_tokens: int
@@ -251,9 +253,9 @@ class ContextPruner:
 
         # Weighted combination
         score = (
-            self.recency_weight * recency_score +
-            self.relevance_weight * relevance_score +
-            self.importance_weight * importance_score
+            self.recency_weight * recency_score
+            + self.relevance_weight * relevance_score
+            + self.importance_weight * importance_score
         )
 
         return min(1.0, max(0.0, score))
@@ -328,7 +330,7 @@ class ContextPruner:
             List of tokens
         """
         text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r"[^\w\s]", " ", text)
         tokens = [t for t in text.split() if len(t) > 2]
         return tokens
 

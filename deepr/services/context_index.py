@@ -154,11 +154,13 @@ class ContextIndex:
                 with open(metadata_path, encoding="utf-8") as f:
                     metadata = json.load(f)
 
-                reports.append({
-                    "metadata": metadata,
-                    "path": report_dir,
-                    "metadata_path": metadata_path,
-                })
+                reports.append(
+                    {
+                        "metadata": metadata,
+                        "path": report_dir,
+                        "metadata_path": metadata_path,
+                    }
+                )
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("Failed to read metadata from %s: %s", metadata_path, e)
 
@@ -234,10 +236,7 @@ class ContextIndex:
             # Generate embedding
             try:
                 embed_text = f"{prompt}\n\n{summary}"[:8000]
-                response = await client.embeddings.create(
-                    model="text-embedding-3-small",
-                    input=embed_text
-                )
+                response = await client.embeddings.create(model="text-embedding-3-small", input=embed_text)
                 embedding = np.array(response.data[0].embedding)
                 embedding_idx = len(new_embeddings)
                 if self.embeddings is not None:
@@ -249,27 +248,33 @@ class ContextIndex:
 
             # Insert into database
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO reports
                     (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    report_id,
-                    job_id,
-                    prompt,
-                    model,
-                    created_at,
-                    str(report_path),
-                    summary,
-                    embedding_idx,
-                    datetime.now(timezone.utc).isoformat(),
-                ))
+                """,
+                    (
+                        report_id,
+                        job_id,
+                        prompt,
+                        model,
+                        created_at,
+                        str(report_path),
+                        summary,
+                        embedding_idx,
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
 
                 # Update FTS index
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO reports_fts (report_id, prompt, summary)
                     VALUES (?, ?, ?)
-                """, (report_id, prompt, summary))
+                """,
+                    (report_id, prompt, summary),
+                )
 
                 indexed_count += 1
             except sqlite3.Error as e:
@@ -324,17 +329,13 @@ class ContextIndex:
                     results[r.report_id] = r
                 else:
                     # Boost score for results matching both
-                    results[r.report_id].similarity = min(
-                        1.0, results[r.report_id].similarity + 0.1
-                    )
+                    results[r.report_id].similarity = min(1.0, results[r.report_id].similarity + 0.1)
 
         # Sort by similarity and limit
         sorted_results = sorted(results.values(), key=lambda x: x.similarity, reverse=True)
         return sorted_results[:top_k]
 
-    async def _semantic_search(
-        self, query: str, top_k: int, threshold: float
-    ) -> List[SearchResult]:
+    async def _semantic_search(self, query: str, top_k: int, threshold: float) -> List[SearchResult]:
         """Perform semantic similarity search."""
         from openai import AsyncOpenAI
 
@@ -344,10 +345,7 @@ class ContextIndex:
         # Embed query
         try:
             client = AsyncOpenAI()
-            response = await client.embeddings.create(
-                model="text-embedding-3-small",
-                input=query
-            )
+            response = await client.embeddings.create(model="text-embedding-3-small", input=query)
             query_embedding = np.array(response.data[0].embedding)
         except Exception as e:
             logger.error("Failed to embed query: %s", e)
@@ -375,23 +373,23 @@ class ContextIndex:
                 continue
 
             # Find report with this embedding index
-            cursor.execute(
-                "SELECT * FROM reports WHERE embedding_idx = ?", (int(idx),)
-            )
+            cursor.execute("SELECT * FROM reports WHERE embedding_idx = ?", (int(idx),))
             row = cursor.fetchone()
             if not row:
                 continue
 
-            results.append(SearchResult(
-                report_id=row["report_id"],
-                job_id=row["job_id"],
-                prompt=row["prompt"],
-                created_at=datetime.fromisoformat(row["created_at"]),
-                similarity=similarity,
-                report_path=Path(row["report_path"]),
-                model=row["model"],
-                summary=row["summary"],
-            ))
+            results.append(
+                SearchResult(
+                    report_id=row["report_id"],
+                    job_id=row["job_id"],
+                    prompt=row["prompt"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    similarity=similarity,
+                    report_path=Path(row["report_path"]),
+                    model=row["model"],
+                    summary=row["summary"],
+                )
+            )
 
         conn.close()
         return results
@@ -404,37 +402,45 @@ class ContextIndex:
 
         # FTS5 search
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT r.*, bm25(reports_fts) as rank
                 FROM reports_fts fts
                 JOIN reports r ON fts.report_id = r.report_id
                 WHERE reports_fts MATCH ?
                 ORDER BY rank
                 LIMIT ?
-            """, (query, top_k))
+            """,
+                (query, top_k),
+            )
             rows = cursor.fetchall()
         except sqlite3.Error:
             # Fallback to LIKE search if FTS fails
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM reports
                 WHERE prompt LIKE ? OR summary LIKE ?
                 ORDER BY created_at DESC
                 LIMIT ?
-            """, (f"%{query}%", f"%{query}%", top_k))
+            """,
+                (f"%{query}%", f"%{query}%", top_k),
+            )
             rows = cursor.fetchall()
 
         results = []
         for row in rows:
-            results.append(SearchResult(
-                report_id=row["report_id"],
-                job_id=row["job_id"],
-                prompt=row["prompt"],
-                created_at=datetime.fromisoformat(row["created_at"]),
-                similarity=0.5,  # Fixed score for keyword matches
-                report_path=Path(row["report_path"]),
-                model=row["model"],
-                summary=row["summary"],
-            ))
+            results.append(
+                SearchResult(
+                    report_id=row["report_id"],
+                    job_id=row["job_id"],
+                    prompt=row["prompt"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    similarity=0.5,  # Fixed score for keyword matches
+                    report_path=Path(row["report_path"]),
+                    model=row["model"],
+                    summary=row["summary"],
+                )
+            )
 
         conn.close()
         return results
@@ -539,10 +545,7 @@ class ContextIndex:
         cursor = conn.cursor()
 
         # Try exact match first, then prefix match
-        cursor.execute(
-            "SELECT * FROM reports WHERE job_id = ? OR job_id LIKE ?",
-            (job_id, f"{job_id}%")
-        )
+        cursor.execute("SELECT * FROM reports WHERE job_id = ? OR job_id LIKE ?", (job_id, f"{job_id}%"))
         row = cursor.fetchone()
         conn.close()
 

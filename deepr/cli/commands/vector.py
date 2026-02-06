@@ -1,8 +1,8 @@
 """Vector store commands - manage persistent vector stores for file uploads."""
 
 import click
-from typing import Optional
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
 @click.group()
@@ -19,8 +19,9 @@ def vector():
 
 @vector.command()
 @click.option("--name", "-n", required=True, help="Name for the vector store")
-@click.option("--files", "-f", multiple=True, type=click.Path(exists=True), required=True,
-              help="Files to upload and index")
+@click.option(
+    "--files", "-f", multiple=True, type=click.Path(exists=True), required=True, help="Files to upload and index"
+)
 def create(name: str, files: tuple):
     """
     Create a persistent vector store from files.
@@ -37,6 +38,7 @@ def create(name: str, files: tuple):
     try:
         import asyncio
         import os
+
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -64,7 +66,7 @@ def create(name: str, files: tuple):
             vector_store = await provider.create_vector_store(name, file_ids)
 
             # Wait for indexing
-            console.print(f"\n   Indexing files (this may take a minute)...")
+            console.print("\n   Indexing files (this may take a minute)...")
             success = await provider.wait_for_vector_store(vector_store.id, timeout=900)
 
             if success:
@@ -72,18 +74,19 @@ def create(name: str, files: tuple):
                 console.print(f"\nVector Store ID: {vector_store.id}")
                 console.print(f"Name: {name}")
                 console.print(f"Files: {len(file_ids)}")
-                console.print(f"\nUsage:")
+                console.print("\nUsage:")
                 console.print(f'  deepr research submit "prompt" --vector-store {vector_store.id} --yes')
                 return vector_store.id
             else:
                 print_error("Indexing timed out")
                 raise click.Abort()
 
-        vector_store_id = asyncio.run(create_store())
+        asyncio.run(create_store())
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -104,6 +107,7 @@ def list(limit: int):
 
     try:
         import asyncio
+
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -117,8 +121,8 @@ def list(limit: int):
         stores = asyncio.run(list_stores())
 
         if not stores:
-            click.echo(f"\nNo vector stores found.")
-            click.echo(f"\nCreate one with: deepr vector create --name <name> --files <files>")
+            click.echo("\nNo vector stores found.")
+            click.echo("\nCreate one with: deepr vector create --name <name> --files <files>")
             return
 
         click.echo(f"\nFound {len(stores)} vector store(s):\n")
@@ -130,12 +134,13 @@ def list(limit: int):
             click.echo(f"    Files: {file_count}")
             click.echo()
 
-        console.print(f"Usage:")
-        console.print(f'  deepr research submit "prompt" --vector-store <id> --yes')
+        console.print("Usage:")
+        console.print('  deepr research submit "prompt" --vector-store <id> --yes')
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -154,10 +159,11 @@ def delete(vector_store_id: str, yes: bool):
         deepr vector delete vs_abc123
         deepr vector delete vs_abc123 --yes
     """
-    print_section_header(f"Delete Vector Store")
+    print_section_header("Delete Vector Store")
 
     try:
         import asyncio
+
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -167,9 +173,9 @@ def delete(vector_store_id: str, yes: bool):
         # Confirmation
         if not yes:
             console.print(f"\nVector Store ID: {vector_store_id}")
-            console.print(f"\nThis will permanently delete the vector store.")
-            console.print(f"Original files will not be affected.")
-            if not click.confirm(f"\nDelete vector store?"):
+            console.print("\nThis will permanently delete the vector store.")
+            console.print("Original files will not be affected.")
+            if not click.confirm("\nDelete vector store?"):
                 print_warning("Cancelled")
                 return
 
@@ -188,6 +194,7 @@ def delete(vector_store_id: str, yes: bool):
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -211,6 +218,7 @@ def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
     try:
         import asyncio
         import fnmatch
+
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -264,7 +272,7 @@ def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
             deleted = 0
             failed = 0
 
-            console.print(f"\nDeleting...")
+            console.print("\nDeleting...")
             for store in to_delete:
                 try:
                     success = await provider.delete_vector_store(store.id)
@@ -284,11 +292,12 @@ def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
 
             return deleted
 
-        deleted = asyncio.run(cleanup_stores())
+        asyncio.run(cleanup_stores())
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -304,10 +313,11 @@ def info(vector_store_id: str):
     Example:
         deepr vector info vs_abc123
     """
-    print_section_header(f"Vector Store Info")
+    print_section_header("Vector Store Info")
 
     try:
         import asyncio
+
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -335,15 +345,16 @@ def info(vector_store_id: str):
         console.print(f"Files: {len(store.file_ids)}")
 
         if store.file_ids:
-            console.print(f"\nFile IDs:")
+            console.print("\nFile IDs:")
             for file_id in store.file_ids:
                 console.print(f"  - {file_id}")
 
-        console.print(f"\nUsage:")
+        console.print("\nUsage:")
         console.print(f'  deepr research submit "prompt" --vector-store {store.id} --yes')
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()

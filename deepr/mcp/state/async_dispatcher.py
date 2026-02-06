@@ -32,8 +32,8 @@ Usage:
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Callable, Awaitable, Coroutine
 from enum import Enum
+from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional
 
 from deepr.core.constants import MAX_CONCURRENT_TASKS
 
@@ -45,6 +45,7 @@ def _utc_now() -> datetime:
 
 class DispatchStatus(Enum):
     """Status of a dispatched task."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -56,6 +57,7 @@ class DispatchStatus(Enum):
 @dataclass
 class DispatchedTask:
     """A task being dispatched."""
+
     id: str
     coro: Optional[Coroutine] = None
     status: DispatchStatus = DispatchStatus.PENDING
@@ -89,6 +91,7 @@ class DispatchedTask:
 @dataclass
 class DispatchResult:
     """Result of a dispatch operation."""
+
     tasks: Dict[str, DispatchedTask]
     total_duration_ms: float
     success_count: int
@@ -231,18 +234,9 @@ class AsyncTaskDispatcher:
         end_time = _utc_now()
         total_duration = (end_time - start_time).total_seconds() * 1000
 
-        success_count = sum(
-            1 for t in dispatched.values()
-            if t.status == DispatchStatus.COMPLETED
-        )
-        failure_count = sum(
-            1 for t in dispatched.values()
-            if t.status == DispatchStatus.FAILED
-        )
-        cancelled_count = sum(
-            1 for t in dispatched.values()
-            if t.status == DispatchStatus.CANCELLED
-        )
+        success_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.COMPLETED)
+        failure_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.FAILED)
+        cancelled_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.CANCELLED)
 
         # Clean up
         for task_id in dispatched:
@@ -295,9 +289,7 @@ class AsyncTaskDispatcher:
 
         # Track completed tasks
         completed_tasks: set = set()
-        completion_events: Dict[str, asyncio.Event] = {
-            task_id: asyncio.Event() for task_id in dispatched
-        }
+        completion_events: Dict[str, asyncio.Event] = {task_id: asyncio.Event() for task_id in dispatched}
 
         async def wait_for_dependencies(task: DispatchedTask):
             """Wait for all dependencies to complete."""
@@ -382,18 +374,9 @@ class AsyncTaskDispatcher:
         end_time = _utc_now()
         total_duration = (end_time - start_time).total_seconds() * 1000
 
-        success_count = sum(
-            1 for t in dispatched.values()
-            if t.status == DispatchStatus.COMPLETED
-        )
-        failure_count = sum(
-            1 for t in dispatched.values()
-            if t.status == DispatchStatus.FAILED
-        )
-        cancelled_count = sum(
-            1 for t in dispatched.values()
-            if t.status == DispatchStatus.CANCELLED
-        )
+        success_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.COMPLETED)
+        failure_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.FAILED)
+        cancelled_count = sum(1 for t in dispatched.values() if t.status == DispatchStatus.CANCELLED)
 
         # Clean up
         for task_id in dispatched:

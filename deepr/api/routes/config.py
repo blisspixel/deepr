@@ -1,11 +1,12 @@
 """Configuration management API routes."""
 
 import logging
-from flask import Blueprint, request, jsonify
 
+from flask import Blueprint, jsonify, request
+
+from ... import __version__
 from ...config import load_config
 from ...providers import create_provider
-from ... import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -108,21 +109,25 @@ def test_connection():
 
         # Try to create provider and test connection
         try:
-            provider = create_provider(provider_type, api_key=api_key)
+            create_provider(provider_type, api_key=api_key)
             # Verifies provider can be instantiated with given credentials
 
-            return jsonify({
-                "status": "success",
-                "message": "Connection successful",
-                "provider": provider_type,
-            }), 200
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Connection successful",
+                    "provider": provider_type,
+                }
+            ), 200
 
         except Exception as e:
-            return jsonify({
-                "status": "error",
-                "message": f"Connection failed: {str(e)}",
-                "provider": provider_type,
-            }), 400
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"Connection failed: {str(e)}",
+                    "provider": provider_type,
+                }
+            ), 400
 
     except Exception as e:
         logger.exception("Error testing connection: %s", e)
@@ -142,16 +147,18 @@ def get_status():
 
         # Get queue stats
         from ...queue import create_queue
+
         queue = create_queue(
-            config.get("queue", "local"),
-            db_path=config.get("queue_db_path", "queue/research_queue.db")
+            config.get("queue", "local"), db_path=config.get("queue_db_path", "queue/research_queue.db")
         )
 
         import asyncio
+
         stats = asyncio.run(queue.get_queue_stats())
 
         # Get cost controller
         from ...core.costs import CostController
+
         try:
             max_cost_per_job = float(config.get("max_cost_per_job", 10.0))
             max_daily_cost = float(config.get("max_daily_cost", 100.0))

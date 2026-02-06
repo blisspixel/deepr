@@ -19,26 +19,27 @@ Comparison to OpenAI:
 - Anthropic: Submit prompt with tools → manage multi-turn workflow ourselves
 """
 
-import os
 import json
-from typing import List, Dict, Any, Optional
+import os
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 try:
     from anthropic import Anthropic, AnthropicError
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 from deepr.providers.base import (
     DeepResearchProvider,
+    ProviderError,
     ResearchRequest,
     ResearchResponse,
     UsageStats,
     VectorStore,
-    ProviderError,
 )
-from deepr.tools import ToolRegistry, ToolExecutor
+from deepr.tools import ToolRegistry
 
 
 class AnthropicProvider(DeepResearchProvider):
@@ -50,27 +51,27 @@ class AnthropicProvider(DeepResearchProvider):
     """
 
     SUPPORTED_MODELS = [
-        "claude-opus-4-5",      # Latest flagship - $5/$25 per MTok
-        "claude-opus-4-1",      # Legacy - $15/$75 per MTok
-        "claude-opus-4",        # Legacy - $15/$75 per MTok
-        "claude-sonnet-4-5",    # Best value for research - $3/$15 per MTok
-        "claude-sonnet-4",      # Previous gen - $3/$15 per MTok
-        "claude-sonnet-3-7",    # Legacy - $3/$15 per MTok
-        "claude-haiku-4-5",     # Fast/cheap - $1/$5 per MTok (no Extended Thinking)
+        "claude-opus-4-5",  # Latest flagship - $5/$25 per MTok
+        "claude-opus-4-1",  # Legacy - $15/$75 per MTok
+        "claude-opus-4",  # Legacy - $15/$75 per MTok
+        "claude-sonnet-4-5",  # Best value for research - $3/$15 per MTok
+        "claude-sonnet-4",  # Previous gen - $3/$15 per MTok
+        "claude-sonnet-3-7",  # Legacy - $3/$15 per MTok
+        "claude-haiku-4-5",  # Fast/cheap - $1/$5 per MTok (no Extended Thinking)
     ]
 
     # Recommended models by use case
     RECOMMENDED_MODELS = {
-        "research": "claude-opus-4-5",      # Best reasoning for deep research (~$0.80/query)
-        "balanced": "claude-sonnet-4-5",    # Good quality, lower cost (~$0.48/query)
-        "fast": "claude-haiku-4-5",         # Quick answers, cheapest (no Extended Thinking)
+        "research": "claude-opus-4-5",  # Best reasoning for deep research (~$0.80/query)
+        "balanced": "claude-sonnet-4-5",  # Good quality, lower cost (~$0.48/query)
+        "fast": "claude-haiku-4-5",  # Quick answers, cheapest (no Extended Thinking)
     }
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         model: str = "claude-opus-4-5",  # Default to Opus for research quality
-        thinking_budget: int = 32000,    # Higher budget for Opus research tasks
+        thinking_budget: int = 32000,  # Higher budget for Opus research tasks
         web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
     ):
         """
@@ -81,16 +82,14 @@ class AnthropicProvider(DeepResearchProvider):
             model: Claude model (default: claude-opus-4-5 for best research quality)
             thinking_budget: Token budget for Extended Thinking (default 32K for research)
             web_search_backend: Web search backend (brave, tavily, duckduckgo, auto)
-        
+
         Model recommendations:
             - Research tasks: claude-opus-4-5 (~$0.80/query) - best reasoning
             - Balanced: claude-sonnet-4-5 (~$0.48/query) - good quality, lower cost
             - Fast/cheap: claude-haiku-4-5 - no Extended Thinking support
         """
         if not ANTHROPIC_AVAILABLE:
-            raise ImportError(
-                "Anthropic SDK not installed. Run: pip install anthropic"
-            )
+            raise ImportError("Anthropic SDK not installed. Run: pip install anthropic")
 
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
@@ -101,10 +100,7 @@ class AnthropicProvider(DeepResearchProvider):
         self.client = Anthropic(api_key=self.api_key, timeout=1200.0)  # 20 min timeout
 
         # Initialize tool executor
-        self.tool_executor = ToolRegistry.create_executor(
-            web_search=True,
-            backend=web_search_backend
-        )
+        self.tool_executor = ToolRegistry.create_executor(web_search=True, backend=web_search_backend)
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """
@@ -127,7 +123,7 @@ class AnthropicProvider(DeepResearchProvider):
 
             # Get tool definitions if web search enabled
             tools = None
-            if hasattr(request, 'web_search_enabled') and request.web_search_enabled:
+            if hasattr(request, "web_search_enabled") and request.web_search_enabled:
                 tools = self.tool_executor.get_tool_definitions(format="anthropic")
 
             # Execute research with Extended Thinking (multi-turn for tool calls)
@@ -142,10 +138,7 @@ class AnthropicProvider(DeepResearchProvider):
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=self.thinking_budget + 16000,  # Must be > thinking budget
-                    thinking={
-                        "type": "enabled",
-                        "budget_tokens": self.thinking_budget
-                    },
+                    thinking={"type": "enabled", "budget_tokens": self.thinking_budget},
                     system=system_prompt,
                     messages=messages,
                     tools=tools,
@@ -163,40 +156,34 @@ class AnthropicProvider(DeepResearchProvider):
                     elif block.type == "tool_use":
                         has_tool_use = True
                         # Execute tool
-                        tool_result = await self.tool_executor.execute(
-                            block.name,
-                            **block.input
+                        tool_result = await self.tool_executor.execute(block.name, **block.input)
+                        tool_calls_made.append(
+                            {"tool": block.name, "input": block.input, "success": tool_result.success}
                         )
-                        tool_calls_made.append({
-                            "tool": block.name,
-                            "input": block.input,
-                            "success": tool_result.success
-                        })
 
                         # Collect tool result for next message
-                        tool_results_to_send.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(tool_result.data) if tool_result.success else tool_result.error
-                        })
+                        tool_results_to_send.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps(tool_result.data) if tool_result.success else tool_result.error,
+                            }
+                        )
 
                 # If we made tool calls, add assistant message + tool results
                 if has_tool_use:
                     messages.append({"role": "assistant", "content": response.content})
-                    messages.append({
-                        "role": "user",
-                        "content": tool_results_to_send
-                    })
+                    messages.append({"role": "user", "content": tool_results_to_send})
                 else:
                     # No tool use, we're done
                     break
 
             # Format report with thinking trace (for transparency)
-            report = self._format_research_report(
+            self._format_research_report(
                 thinking="\n\n".join(thinking_content),
                 findings="\n\n".join(response_content),
                 tool_calls=tool_calls_made,
-                request=request
+                request=request,
             )
 
             # Generate job ID (Anthropic doesn't return one)
@@ -225,12 +212,7 @@ class AnthropicProvider(DeepResearchProvider):
             id=job_id,
             status="completed",
             output=None,  # Synchronous - no stored output
-            usage=UsageStats(
-                input_tokens=0,
-                output_tokens=0,
-                reasoning_tokens=0,
-                cost=0.0
-            ),
+            usage=UsageStats(input_tokens=0, output_tokens=0, reasoning_tokens=0, cost=0.0),
             created_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
         )
@@ -250,9 +232,7 @@ class AnthropicProvider(DeepResearchProvider):
         Anthropic doesn't have persistent file storage like OpenAI.
         Documents must be embedded in message content directly.
         """
-        raise NotImplementedError(
-            "Anthropic doesn't support file uploads. Embed documents directly in prompts."
-        )
+        raise NotImplementedError("Anthropic doesn't support file uploads. Embed documents directly in prompts.")
 
     async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
         """
@@ -265,9 +245,7 @@ class AnthropicProvider(DeepResearchProvider):
             "Anthropic doesn't support vector stores. Use external solution (Pinecone, Weaviate, etc.)"
         )
 
-    async def wait_for_vector_store(
-        self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0
-    ) -> bool:
+    async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Not applicable for Anthropic."""
         raise NotImplementedError("Anthropic doesn't support vector stores")
 
@@ -325,10 +303,10 @@ Always show your work. Transparency builds trust."""
         """Build user message for research request."""
         parts = [f"Research Question: {request.prompt}"]
 
-        if hasattr(request, 'additional_instructions') and request.additional_instructions:
+        if hasattr(request, "additional_instructions") and request.additional_instructions:
             parts.append(f"\nAdditional Context:\n{request.additional_instructions}")
 
-        if hasattr(request, 'web_search_enabled') and request.web_search_enabled:
+        if hasattr(request, "web_search_enabled") and request.web_search_enabled:
             parts.append("\nYou have access to web_search tool. Use it to gather current information.")
 
         parts.append("\nProduce a comprehensive research report.")
@@ -336,11 +314,7 @@ Always show your work. Transparency builds trust."""
         return "\n".join(parts)
 
     def _format_research_report(
-        self,
-        thinking: str,
-        findings: str,
-        tool_calls: List[Dict[str, Any]],
-        request: ResearchRequest
+        self, thinking: str, findings: str, tool_calls: List[Dict[str, Any]], request: ResearchRequest
     ) -> str:
         """Format research report with thinking trace."""
         parts = [
@@ -379,22 +353,21 @@ Always show your work. Transparency builds trust."""
 ANTHROPIC_PRICING = {
     # Claude 4.5 series (latest)
     "claude-opus-4-5": {
-        "input": 5.00,   # per MTok - 66% cheaper than Opus 4!
+        "input": 5.00,  # per MTok - 66% cheaper than Opus 4!
         "output": 25.00,
         "thinking": 5.00,  # Extended Thinking charged at input rate
     },
     "claude-sonnet-4-5": {
-        "input": 3.00,   # per MTok (prompts ≤200K tokens)
+        "input": 3.00,  # per MTok (prompts ≤200K tokens)
         "output": 15.00,
         "thinking": 3.00,
         # Note: $6/$15 for prompts >200K tokens
     },
     "claude-haiku-4-5": {
-        "input": 1.00,   # per MTok
+        "input": 1.00,  # per MTok
         "output": 5.00,
         "thinking": None,  # Haiku doesn't support Extended Thinking
     },
-    
     # Claude 4 series (legacy but still available)
     "claude-opus-4-1": {
         "input": 15.00,
@@ -411,7 +384,6 @@ ANTHROPIC_PRICING = {
         "output": 15.00,
         "thinking": 3.00,
     },
-    
     # Claude 3.7 (legacy)
     "claude-sonnet-3-7": {
         "input": 3.00,
@@ -429,8 +401,8 @@ ANTHROPIC_TOOL_PRICING = {
 # Prompt caching pricing (for Opus 4.5)
 ANTHROPIC_CACHE_PRICING = {
     "claude-opus-4-5": {
-        "cache_write": 6.25,   # per MTok to write to cache
-        "cache_read": 0.50,    # per MTok to read from cache (90% savings!)
+        "cache_write": 6.25,  # per MTok to write to cache
+        "cache_read": 0.50,  # per MTok to read from cache (90% savings!)
     },
     "claude-sonnet-4-5": {
         "cache_write": 3.75,

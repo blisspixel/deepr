@@ -1,7 +1,8 @@
 """Analytics commands - track usage patterns and success metrics."""
 
 import click
-from deepr.cli.colors import console, print_section_header, print_success, print_error
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success
 
 
 @click.group()
@@ -11,10 +12,13 @@ def analytics():
 
 
 @analytics.command()
-@click.option("--period", "-p",
-              type=click.Choice(["today", "week", "month", "all"]),
-              default="week",
-              help="Time period for analysis")
+@click.option(
+    "--period",
+    "-p",
+    type=click.Choice(["today", "week", "month", "all"]),
+    default="week",
+    help="Time period for analysis",
+)
 def report(period: str):
     """
     Generate usage analytics report.
@@ -29,10 +33,11 @@ def report(period: str):
 
     try:
         import asyncio
-        from deepr.queue import create_queue
-        from deepr.config import load_config
-        from datetime import datetime, timedelta
         from collections import defaultdict
+        from datetime import datetime, timedelta
+
+        from deepr.config import load_config
+        from deepr.queue import create_queue
 
         config = load_config()
         queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
@@ -71,8 +76,8 @@ def report(period: str):
         failure_rate = (failed / total_jobs * 100) if total_jobs > 0 else 0
 
         # Cost analysis
-        total_cost = sum(getattr(j, 'cost', 0) or 0 for j in jobs)
-        completed_cost = sum(getattr(j, 'cost', 0) or 0 for j in jobs if j.status.value == "completed")
+        total_cost = sum(getattr(j, "cost", 0) or 0 for j in jobs)
+        completed_cost = sum(getattr(j, "cost", 0) or 0 for j in jobs if j.status.value == "completed")
 
         # Model usage
         by_model = defaultdict(lambda: {"count": 0, "completed": 0, "failed": 0, "cost": 0.0})
@@ -83,7 +88,7 @@ def report(period: str):
                 by_model[model]["completed"] += 1
             elif job.status.value == "failed":
                 by_model[model]["failed"] += 1
-            by_model[model]["cost"] += getattr(job, 'cost', 0) or 0
+            by_model[model]["cost"] += getattr(job, "cost", 0) or 0
 
         # Time analysis
         completion_times = []
@@ -139,14 +144,16 @@ def report(period: str):
 
         if failure_rate > 20:
             console.print(f"[warning]High failure rate detected ({failure_rate:.1f}%)[/warning]")
-            console.print(f"   [dim]Consider reviewing failed jobs for patterns[/dim]")
+            console.print("   [dim]Consider reviewing failed jobs for patterns[/dim]")
 
         if total_cost > config.get("max_cost_per_month", 1000.0) * 0.8:
-            console.print(f"[warning]Approaching monthly budget limit[/warning]")
+            console.print("[warning]Approaching monthly budget limit[/warning]")
             console.print(f"   Current: ${total_cost:.2f}")
             console.print(f"   Limit: ${config.get('max_cost_per_month', 1000.0):.2f}")
 
-        cheapest_model = min(by_model.items(), key=lambda x: x[1]["cost"] / x[1]["count"] if x[1]["count"] > 0 else float('inf'))
+        cheapest_model = min(
+            by_model.items(), key=lambda x: x[1]["cost"] / x[1]["count"] if x[1]["count"] > 0 else float("inf")
+        )
         if cheapest_model:
             console.print(f"\n[success]Most cost-effective model:[/success] {cheapest_model[0]}")
             avg_cost = cheapest_model[1]["cost"] / cheapest_model[1]["count"]
@@ -155,6 +162,7 @@ def report(period: str):
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -173,10 +181,11 @@ def trends():
 
     try:
         import asyncio
-        from deepr.queue import create_queue
-        from deepr.config import load_config
-        from datetime import datetime, timedelta
         from collections import defaultdict
+        from datetime import datetime, timedelta
+
+        from deepr.config import load_config
+        from deepr.queue import create_queue
 
         config = load_config()
         queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
@@ -197,24 +206,24 @@ def trends():
         for job in jobs:
             day = job.submitted_at.date()
             by_day[day]["count"] += 1
-            by_day[day]["cost"] += getattr(job, 'cost', 0) or 0
+            by_day[day]["cost"] += getattr(job, "cost", 0) or 0
             if job.status.value == "completed":
                 by_day[day]["completed"] += 1
 
         # Display
-        click.echo(f"\nLast 7 days:\n")
+        click.echo("\nLast 7 days:\n")
         click.echo(f"{'Date':<12} {'Jobs':<8} {'Completed':<12} {'Cost':<10}")
-        click.echo(f"{'-'*12} {'-'*8} {'-'*12} {'-'*10}")
+        click.echo(f"{'-' * 12} {'-' * 8} {'-' * 12} {'-' * 10}")
 
         for i in range(7):
-            day = (now - timedelta(days=6-i)).date()
+            day = (now - timedelta(days=6 - i)).date()
             stats = by_day.get(day, {"count": 0, "cost": 0.0, "completed": 0})
             click.echo(f"{day} {stats['count']:<8} {stats['completed']:<12} ${stats['cost']:<9.2f}")
 
         total_jobs = sum(s["count"] for s in by_day.values())
         total_cost = sum(s["cost"] for s in by_day.values())
 
-        click.echo(f"{'-'*12} {'-'*8} {'-'*12} {'-'*10}")
+        click.echo(f"{'-' * 12} {'-' * 8} {'-' * 12} {'-' * 10}")
         click.echo(f"{'Total':<12} {total_jobs:<8} {'':<12} ${total_cost:<9.2f}")
 
     except Exception as e:
@@ -236,9 +245,10 @@ def failures():
 
     try:
         import asyncio
-        from deepr.queue import create_queue
-        from deepr.config import load_config
         from collections import Counter
+
+        from deepr.config import load_config
+        from deepr.queue import create_queue
 
         config = load_config()
         queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
@@ -260,7 +270,7 @@ def failures():
         errors = []
         models = []
         for job in failed_jobs:
-            error = getattr(job, 'last_error', None) or "Unknown error"
+            error = getattr(job, "last_error", None) or "Unknown error"
             errors.append(error[:100])  # Truncate long errors
             models.append(job.model)
 
@@ -268,19 +278,19 @@ def failures():
         error_counts = Counter(errors)
         model_counts = Counter(models)
 
-        click.echo(f"Most Common Errors:\n")
+        click.echo("Most Common Errors:\n")
         for error, count in error_counts.most_common(5):
             click.echo(f"   [{count}x] {error}")
 
-        click.echo(f"\n\nAffected Models:\n")
+        click.echo("\n\nAffected Models:\n")
         for model, count in model_counts.most_common():
             click.echo(f"   {model}: {count} failure(s)")
 
-        click.echo(f"\n\nRecent Failures:\n")
+        click.echo("\n\nRecent Failures:\n")
         for job in sorted(failed_jobs, key=lambda j: j.submitted_at, reverse=True)[:5]:
             click.echo(f"   {job.id[:8]}... | {job.model}")
             click.echo(f"   {job.prompt[:60]}...")
-            error = getattr(job, 'last_error', 'Unknown')
+            error = getattr(job, "last_error", "Unknown")
             click.echo(f"   Error: {error[:80]}")
             click.echo()
 

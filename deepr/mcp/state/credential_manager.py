@@ -27,18 +27,17 @@ Usage:
     )
 """
 
+import hashlib
 import json
 import sqlite3
-import hashlib
-import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List, Callable, Awaitable
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from deepr.mcp.state.elicitation_router import ElicitationRequest, ElicitationHandler
+from deepr.mcp.state.elicitation_router import ElicitationHandler, ElicitationRequest
 
 
 def _utc_now() -> datetime:
@@ -55,6 +54,7 @@ ENCRYPTION_KEY_ENV = "DEEPR_CREDENTIAL_KEY"
 
 class CredentialType(Enum):
     """Types of credentials."""
+
     API_KEY = "api_key"
     SESSION_COOKIE = "session_cookie"
     BEARER_TOKEN = "bearer_token"
@@ -65,6 +65,7 @@ class CredentialType(Enum):
 @dataclass
 class GatedCredential:
     """A credential for accessing gated content."""
+
     id: str
     domain: str
     credential_type: CredentialType
@@ -109,8 +110,7 @@ class GatedCredential:
         decrypted_value: Optional[str] = None,
     ) -> "GatedCredential":
         """Create from database row."""
-        (id, domain, cred_type, value_hash, expires_at,
-         created_at, last_used_at, use_count, metadata_json) = row
+        (id, domain, cred_type, value_hash, expires_at, created_at, last_used_at, use_count, metadata_json) = row
 
         cred = cls(
             id=id,
@@ -227,7 +227,7 @@ class CredentialManager:
                 expires_at.isoformat() if expires_at else None,
                 now.isoformat(),
                 json.dumps(metadata),
-            )
+            ),
         )
         self._conn.commit()
 
@@ -269,7 +269,7 @@ class CredentialManager:
                           created_at, last_used_at, use_count, metadata_json
                    FROM credentials
                    WHERE domain = ? AND credential_type = ?""",
-                (domain, credential_type.value)
+                (domain, credential_type.value),
             ).fetchone()
         else:
             row = self._conn.execute(
@@ -279,7 +279,7 @@ class CredentialManager:
                    WHERE domain = ?
                    ORDER BY created_at DESC
                    LIMIT 1""",
-                (domain,)
+                (domain,),
             ).fetchone()
 
         if not row:
@@ -345,7 +345,7 @@ class CredentialManager:
             """UPDATE credentials
                SET last_used_at = ?, use_count = use_count + 1
                WHERE id = ?""",
-            (now.isoformat(), credential_id)
+            (now.isoformat(), credential_id),
         )
         self._conn.commit()
 
@@ -363,10 +363,7 @@ class CredentialManager:
         Returns:
             True if deleted, False if not found
         """
-        cursor = self._conn.execute(
-            "DELETE FROM credentials WHERE id = ?",
-            (credential_id,)
-        )
+        cursor = self._conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
         self._conn.commit()
 
         # Clear from cache
@@ -479,7 +476,7 @@ class CredentialManager:
         cursor = self._conn.execute(
             """DELETE FROM credentials
                WHERE expires_at IS NOT NULL AND expires_at < ?""",
-            (now,)
+            (now,),
         )
         self._conn.commit()
 

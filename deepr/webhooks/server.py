@@ -2,10 +2,11 @@
 
 import hashlib
 import hmac
-import os
-from flask import Flask, request, jsonify
-from typing import Callable
 import logging
+import os
+from typing import Callable
+
+from flask import Flask, jsonify, request
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +22,7 @@ def _verify_signature(payload: bytes, signature: str, secret: str) -> bool:
     Returns:
         True if signature is valid
     """
-    expected = hmac.new(
-        secret.encode("utf-8"), payload, hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(f"sha256={expected}", signature)
 
 
@@ -57,9 +56,7 @@ def create_webhook_server(
             # Verify signature if a secret is configured
             if webhook_secret:
                 signature = request.headers.get("X-Webhook-Signature", "")
-                if not signature or not _verify_signature(
-                    request.get_data(), signature, webhook_secret
-                ):
+                if not signature or not _verify_signature(request.get_data(), signature, webhook_secret):
                     logger.warning("Webhook signature verification failed")
                     return jsonify({"error": "Invalid signature"}), 403
 

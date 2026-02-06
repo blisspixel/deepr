@@ -6,10 +6,10 @@ experts to remember users and adapt responses.
 
 import json
 import logging
-from pathlib import Path
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
-from dataclasses import dataclass, field, asdict
+from pathlib import Path
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class UserInteraction:
     """Record of a single user interaction."""
+
     timestamp: datetime
     question: str
     topic: str
@@ -28,6 +29,7 @@ class UserInteraction:
 @dataclass
 class UserProfile:
     """Profile of a user interacting with experts."""
+
     user_id: str
     first_seen: datetime
     last_seen: datetime
@@ -76,7 +78,7 @@ class UserProfileTracker:
             "topic": interaction.topic,
             "expert_name": interaction.expert_name,
             "research_triggered": interaction.research_triggered,
-            "cost": interaction.cost
+            "cost": interaction.cost,
         }
 
     def _deserialize_interaction(self, data: Dict) -> UserInteraction:
@@ -87,7 +89,7 @@ class UserProfileTracker:
             topic=data["topic"],
             expert_name=data["expert_name"],
             research_triggered=data["research_triggered"],
-            cost=data["cost"]
+            cost=data["cost"],
         )
 
     def load_or_create(self, user_id: str) -> UserProfile:
@@ -104,7 +106,7 @@ class UserProfileTracker:
 
         if profile_path.exists():
             try:
-                with open(profile_path, 'r', encoding='utf-8') as f:
+                with open(profile_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
                 profile = UserProfile(
@@ -120,11 +122,9 @@ class UserProfileTracker:
                     preferred_detail_level=data.get("preferred_detail_level", "balanced"),
                     prefers_examples=data.get("prefers_examples", True),
                     prefers_comparisons=data.get("prefers_comparisons", False),
-                    recent_interactions=[
-                        self._deserialize_interaction(i) for i in data.get("recent_interactions", [])
-                    ],
+                    recent_interactions=[self._deserialize_interaction(i) for i in data.get("recent_interactions", [])],
                     total_cost=data.get("total_cost", 0.0),
-                    notes=data.get("notes", "")
+                    notes=data.get("notes", ""),
                 )
 
                 self.current_profile = profile
@@ -135,11 +135,7 @@ class UserProfileTracker:
 
         # Create new profile
         now = datetime.now(timezone.utc)
-        profile = UserProfile(
-            user_id=user_id,
-            first_seen=now,
-            last_seen=now
-        )
+        profile = UserProfile(user_id=user_id, first_seen=now, last_seen=now)
 
         self.current_profile = profile
         return profile
@@ -171,26 +167,20 @@ class UserProfileTracker:
                 "prefers_examples": profile.prefers_examples,
                 "prefers_comparisons": profile.prefers_comparisons,
                 "recent_interactions": [
-                    self._serialize_interaction(i) for i in profile.recent_interactions[-100:]  # Keep last 100
+                    self._serialize_interaction(i)
+                    for i in profile.recent_interactions[-100:]  # Keep last 100
                 ],
                 "total_cost": profile.total_cost,
-                "notes": profile.notes
+                "notes": profile.notes,
             }
 
-            with open(profile_path, 'w', encoding='utf-8') as f:
+            with open(profile_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error("Error saving user profile: %s", e)
 
-    def record_interaction(
-        self,
-        question: str,
-        topic: str,
-        expert_name: str,
-        research_triggered: bool,
-        cost: float
-    ):
+    def record_interaction(self, question: str, topic: str, expert_name: str, research_triggered: bool, cost: float):
         """Record a user interaction.
 
         Args:
@@ -222,7 +212,7 @@ class UserProfileTracker:
             topic=topic,
             expert_name=expert_name,
             research_triggered=research_triggered,
-            cost=cost
+            cost=cost,
         )
         profile.recent_interactions.append(interaction)
 
@@ -311,7 +301,7 @@ class UserProfileTracker:
         self,
         tech_stack: Optional[List[str]] = None,
         projects: Optional[List[str]] = None,
-        goals: Optional[List[str]] = None
+        goals: Optional[List[str]] = None,
     ):
         """Update user context information.
 
@@ -344,8 +334,4 @@ class UserProfileTracker:
         if not self.current_profile:
             return []
 
-        return sorted(
-            self.current_profile.topics_asked_about.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:limit]
+        return sorted(self.current_profile.topics_asked_about.items(), key=lambda x: x[1], reverse=True)[:limit]

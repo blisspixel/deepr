@@ -1,19 +1,15 @@
 """Local filesystem storage implementation."""
 
-import os
-import re
 import json
+import re
 import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone, timedelta
-from .base import StorageBackend, ReportMetadata, StorageError
-from deepr.utils.security import (
-    validate_path,
-    sanitize_name,
-    PathTraversalError,
-    InvalidInputError
-)
+from typing import Any, Dict, List, Optional
+
+from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
+
+from .base import ReportMetadata, StorageBackend, StorageError
 
 
 class LocalStorage(StorageBackend):
@@ -47,19 +43,13 @@ class LocalStorage(StorageBackend):
         """
         try:
             # Check for path traversal patterns
-            if '..' in job_id or '/' in job_id or '\\' in job_id:
-                raise PathTraversalError(
-                    f"Invalid job_id contains path traversal: {job_id}"
-                )
+            if ".." in job_id or "/" in job_id or "\\" in job_id:
+                raise PathTraversalError(f"Invalid job_id contains path traversal: {job_id}")
             # Validate format (alphanumeric, hyphens, underscores)
-            sanitized = sanitize_name(job_id, allowed_chars=r'a-zA-Z0-9_-')
+            sanitized = sanitize_name(job_id, allowed_chars=r"a-zA-Z0-9_-")
             return sanitized
         except (PathTraversalError, InvalidInputError) as e:
-            raise StorageError(
-                message=f"Invalid job_id: {str(e)}",
-                storage_type="local",
-                original_error=e
-            )
+            raise StorageError(message=f"Invalid job_id: {str(e)}", storage_type="local", original_error=e)
 
     def _validate_filename(self, filename: str) -> str:
         """Validate filename has no directory components.
@@ -73,11 +63,11 @@ class LocalStorage(StorageBackend):
         Raises:
             StorageError: If filename contains directory separators
         """
-        if '/' in filename or '\\' in filename or '..' in filename:
+        if "/" in filename or "\\" in filename or ".." in filename:
             raise StorageError(
                 message=f"Invalid filename contains path components: {filename}",
                 storage_type="local",
-                original_error=None
+                original_error=None,
             )
         return filename
 
@@ -103,25 +93,25 @@ class LocalStorage(StorageBackend):
         # Create slug from prompt (first 50 chars, cleaned)
         slug = prompt[:50].lower() if prompt else ""
         # Remove special characters, keep alphanumeric and spaces
-        slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
         # Replace spaces with hyphens
-        slug = re.sub(r'\s+', '-', slug.strip())
+        slug = re.sub(r"\s+", "-", slug.strip())
         # Remove multiple consecutive hyphens
-        slug = re.sub(r'-+', '-', slug)
+        slug = re.sub(r"-+", "-", slug)
         # Trim to reasonable length
-        slug = slug[:40].rstrip('-')
+        slug = slug[:40].rstrip("-")
 
         # If slug is empty, use a default
         if not slug:
             slug = "research"
 
         # Extract short ID (last 8 chars of UUID or campaign ID)
-        if job_id.startswith('campaign-'):
+        if job_id.startswith("campaign-"):
             # For campaign IDs like "campaign-86285e7bcd24" or "campaign-1759970251"
-            short_id = job_id.replace('campaign-', '')[:12]
+            short_id = job_id.replace("campaign-", "")[:12]
         else:
             # For UUIDs, take last segment
-            short_id = job_id.split('-')[-1][:8]
+            short_id = job_id.split("-")[-1][:8]
 
         return f"{timestamp}_{slug}_{short_id}"
 
@@ -148,7 +138,7 @@ class LocalStorage(StorageBackend):
         if validated_id.startswith(str(self.base_path)):
             job_dir = Path(validated_id)
         # Check campaigns folder first (for campaign-* IDs)
-        elif validated_id.startswith('campaign-'):
+        elif validated_id.startswith("campaign-"):
             job_dir = None
             # Look in campaigns folder for matching directory
             if self.campaigns_path.exists():
@@ -162,12 +152,12 @@ class LocalStorage(StorageBackend):
         else:
             # For regular UUIDs, search ALL possible locations before falling back
             # Check for human-readable directory containing job_id OR short_id
-            short_id = validated_id.split('-')[-1][:8] if '-' in validated_id else validated_id[:8]
+            short_id = validated_id.split("-")[-1][:8] if "-" in validated_id else validated_id[:8]
             job_dir = None
 
             if self.base_path.exists():
                 for dir_path in self.base_path.iterdir():
-                    if dir_path.is_dir() and dir_path.name != 'campaigns':
+                    if dir_path.is_dir() and dir_path.name != "campaigns":
                         # Match full job_id or short_id in directory name
                         if validated_id in dir_path.name or short_id in dir_path.name:
                             job_dir = dir_path
@@ -190,7 +180,7 @@ class LocalStorage(StorageBackend):
             raise StorageError(
                 message=f"Path escapes base directory: {job_id}",
                 storage_type="local",
-                original_error=PathTraversalError(f"Path escape: {job_dir}")
+                original_error=PathTraversalError(f"Path escape: {job_dir}"),
             )
 
         return job_dir
@@ -218,11 +208,7 @@ class LocalStorage(StorageBackend):
             resolved = full_path.resolve()
             resolved.relative_to(self.base_path.resolve())
         except ValueError:
-            raise StorageError(
-                message=f"Report path escapes base directory",
-                storage_type="local",
-                original_error=None
-            )
+            raise StorageError(message="Report path escapes base directory", storage_type="local", original_error=None)
 
         return full_path
 
@@ -241,9 +227,9 @@ class LocalStorage(StorageBackend):
             job_dir = self._get_job_dir(job_id)
 
             # If directory doesn't exist, create with readable name
-            if not job_dir.exists() and metadata and 'prompt' in metadata:
-                prompt = metadata['prompt']
-                is_campaign = job_id.startswith('campaign-')
+            if not job_dir.exists() and metadata and "prompt" in metadata:
+                prompt = metadata["prompt"]
+                is_campaign = job_id.startswith("campaign-")
                 readable_name = self._create_readable_dirname(job_id, prompt, is_campaign)
 
                 # Use campaigns subfolder for campaigns
@@ -268,7 +254,7 @@ class LocalStorage(StorageBackend):
                     "filename": filename,
                     "content_type": content_type,
                     "size_bytes": len(content),
-                    **metadata  # Include all additional metadata
+                    **metadata,  # Include all additional metadata
                 }
                 metadata_path.write_text(json.dumps(metadata_content, indent=2))
 
@@ -289,9 +275,7 @@ class LocalStorage(StorageBackend):
             )
 
         except OSError as e:
-            raise StorageError(
-                message=f"Failed to save report: {str(e)}", storage_type="local", original_error=e
-            )
+            raise StorageError(message=f"Failed to save report: {str(e)}", storage_type="local", original_error=e)
 
     async def get_report(self, job_id: str, filename: str) -> bytes:
         """Retrieve report from local filesystem."""
@@ -304,9 +288,7 @@ class LocalStorage(StorageBackend):
             return report_path.read_bytes()
 
         except FileNotFoundError as e:
-            raise StorageError(
-                message=str(e), storage_type="local", original_error=e
-            )
+            raise StorageError(message=str(e), storage_type="local", original_error=e)
         except OSError as e:
             raise StorageError(
                 message=f"Failed to retrieve report: {str(e)}",
@@ -356,9 +338,7 @@ class LocalStorage(StorageBackend):
                                         filename=report_path.name,
                                         format=format_ext,
                                         size_bytes=stat.st_size,
-                                        created_at=datetime.fromtimestamp(
-                                            stat.st_mtime, tz=timezone.utc
-                                        ),
+                                        created_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
                                         url=str(report_path),
                                         content_type=self.get_content_type(report_path.name),
                                     )

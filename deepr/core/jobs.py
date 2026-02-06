@@ -1,11 +1,10 @@
 """Job management and tracking."""
 
-import os
 import json
-from typing import List, Dict, Any, Optional
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -111,9 +110,7 @@ class JobManager:
 
         return None
 
-    async def list_jobs(
-        self, status: Optional[str] = None, limit: int = 100
-    ) -> List[JobRecord]:
+    async def list_jobs(self, status: Optional[str] = None, limit: int = 100) -> List[JobRecord]:
         """
         List job records.
 
@@ -188,9 +185,7 @@ class JobManager:
 
         return None
 
-    async def _list_jsonl_jobs(
-        self, status: Optional[str] = None, limit: int = 100
-    ) -> List[JobRecord]:
+    async def _list_jsonl_jobs(self, status: Optional[str] = None, limit: int = 100) -> List[JobRecord]:
         """List jobs from JSONL file."""
         if not self.log_path.exists():
             return []
@@ -207,9 +202,7 @@ class JobManager:
                     continue
 
         # Sort by timestamp (newest first)
-        jobs.sort(
-            key=lambda j: datetime.fromisoformat(j.timestamp), reverse=True
-        )
+        jobs.sort(key=lambda j: datetime.fromisoformat(j.timestamp), reverse=True)
 
         return jobs[:limit]
 

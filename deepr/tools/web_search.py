@@ -1,8 +1,8 @@
 """Web search tool implementation."""
 
 import os
-import json
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, Optional
+
 import requests
 
 from .base import Tool, ToolResult
@@ -43,24 +43,23 @@ class WebSearchTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Search the web for current information. Returns relevant search results with titles, URLs, and snippets."
+        return (
+            "Search the web for current information. Returns relevant search results with titles, URLs, and snippets."
+        )
 
     @property
     def parameters(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query"
-                },
+                "query": {"type": "string", "description": "Search query"},
                 "num_results": {
                     "type": "integer",
                     "description": "Number of results to return (default 5)",
-                    "default": 5
-                }
+                    "default": 5,
+                },
             },
-            "required": ["query"]
+            "required": ["query"],
         }
 
     async def execute(self, query: str, num_results: int = 5, **kwargs) -> ToolResult:
@@ -77,27 +76,21 @@ class WebSearchTool(Tool):
                     return await self._search_tavily(query, num_results)
                 elif backend == "duckduckgo":
                     return await self._search_duckduckgo(query, num_results)
-            except Exception as e:
+            except Exception:
                 # Try next backend
                 continue
 
         return ToolResult(
             success=False,
             data=None,
-            error="No working web search backend available. Set BRAVE_API_KEY or TAVILY_API_KEY."
+            error="No working web search backend available. Set BRAVE_API_KEY or TAVILY_API_KEY.",
         )
 
     async def _search_brave(self, query: str, num_results: int) -> ToolResult:
         """Search using Brave Search API."""
         url = "https://api.search.brave.com/res/v1/web/search"
-        headers = {
-            "Accept": "application/json",
-            "X-Subscription-Token": self.brave_api_key
-        }
-        params = {
-            "q": query,
-            "count": num_results
-        }
+        headers = {"Accept": "application/json", "X-Subscription-Token": self.brave_api_key}
+        params = {"q": query, "count": num_results}
 
         response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
@@ -106,26 +99,20 @@ class WebSearchTool(Tool):
         results = []
 
         for item in data.get("web", {}).get("results", [])[:num_results]:
-            results.append({
-                "title": item.get("title"),
-                "url": item.get("url"),
-                "snippet": item.get("description"),
-            })
+            results.append(
+                {
+                    "title": item.get("title"),
+                    "url": item.get("url"),
+                    "snippet": item.get("description"),
+                }
+            )
 
-        return ToolResult(
-            success=True,
-            data=results,
-            metadata={"backend": "brave", "query": query}
-        )
+        return ToolResult(success=True, data=results, metadata={"backend": "brave", "query": query})
 
     async def _search_tavily(self, query: str, num_results: int) -> ToolResult:
         """Search using Tavily API."""
         url = "https://api.tavily.com/search"
-        payload = {
-            "api_key": self.tavily_api_key,
-            "query": query,
-            "max_results": num_results
-        }
+        payload = {"api_key": self.tavily_api_key, "query": query, "max_results": num_results}
 
         response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
@@ -134,17 +121,15 @@ class WebSearchTool(Tool):
         results = []
 
         for item in data.get("results", [])[:num_results]:
-            results.append({
-                "title": item.get("title"),
-                "url": item.get("url"),
-                "snippet": item.get("content"),
-            })
+            results.append(
+                {
+                    "title": item.get("title"),
+                    "url": item.get("url"),
+                    "snippet": item.get("content"),
+                }
+            )
 
-        return ToolResult(
-            success=True,
-            data=results,
-            metadata={"backend": "tavily", "query": query}
-        )
+        return ToolResult(success=True, data=results, metadata={"backend": "tavily", "query": query})
 
     async def _search_duckduckgo(self, query: str, num_results: int) -> ToolResult:
         """
@@ -158,22 +143,18 @@ class WebSearchTool(Tool):
             with DDGS() as ddgs:
                 results = []
                 for r in ddgs.text(query, max_results=num_results):
-                    results.append({
-                        "title": r.get("title"),
-                        "url": r.get("href"),
-                        "snippet": r.get("body"),
-                    })
+                    results.append(
+                        {
+                            "title": r.get("title"),
+                            "url": r.get("href"),
+                            "snippet": r.get("body"),
+                        }
+                    )
 
-                return ToolResult(
-                    success=True,
-                    data=results,
-                    metadata={"backend": "duckduckgo", "query": query}
-                )
+                return ToolResult(success=True, data=results, metadata={"backend": "duckduckgo", "query": query})
         except ImportError:
             return ToolResult(
-                success=False,
-                data=None,
-                error="duckduckgo-search not installed. Run: pip install duckduckgo-search"
+                success=False, data=None, error="duckduckgo-search not installed. Run: pip install duckduckgo-search"
             )
 
 
@@ -196,21 +177,12 @@ class MCPWebSearchTool(Tool):
     def parameters(self) -> Dict[str, Any]:
         return {
             "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query"
-                }
-            },
-            "required": ["query"]
+            "properties": {"query": {"type": "string", "description": "Search query"}},
+            "required": ["query"],
         }
 
     async def execute(self, query: str, **kwargs) -> ToolResult:
         """Execute MCP web search."""
         # TODO: Integrate with MCP server
         # This would call Claude Code's WebFetch tool or similar
-        return ToolResult(
-            success=False,
-            data=None,
-            error="MCP integration not yet implemented"
-        )
+        return ToolResult(success=False, data=None, error="MCP integration not yet implemented")
