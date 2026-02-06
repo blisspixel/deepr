@@ -1,14 +1,15 @@
 """Job management commands - unified namespace for job operations."""
 
-import click
 import asyncio
-from deepr.queue.local_queue import SQLiteQueue
-from deepr.queue.base import JobStatus
 from pathlib import Path
+
+import click
+
 from deepr.cli.colors import (
-    console, print_header, print_success, print_error,
-    print_job_table, print_panel, print_markdown, print_status
+    console,
 )
+from deepr.queue.base import JobStatus
+from deepr.queue.local_queue import SQLiteQueue
 
 
 @click.group()
@@ -45,7 +46,7 @@ async def _show_status(job_id: str):
         # Calculate elapsed time
         if job.submitted_at:
             if isinstance(job.submitted_at, str):
-                submitted = datetime.fromisoformat(job.submitted_at.replace('Z', '+00:00'))
+                submitted = datetime.fromisoformat(job.submitted_at.replace("Z", "+00:00"))
             else:
                 submitted = job.submitted_at
 
@@ -57,12 +58,14 @@ async def _show_status(job_id: str):
                 click.echo(f"\n[!] Job running {elapsed_minutes:.0f} minutes - checking provider API...")
 
                 try:
-                    from deepr.providers import create_provider
                     from deepr.config import load_config
+                    from deepr.providers import create_provider
 
                     config = load_config()
                     # Use the job's provider, not the config default
-                    provider_name = job.provider if hasattr(job, 'provider') and job.provider else config.get("provider", "openai")
+                    provider_name = (
+                        job.provider if hasattr(job, "provider") and job.provider else config.get("provider", "openai")
+                    )
 
                     # Get provider-specific API key
                     if provider_name == "gemini":
@@ -81,35 +84,39 @@ async def _show_status(job_id: str):
                         console.print("[success]Provider reports: COMPLETED[/success] [dim](local DB was stale)[/dim]")
                         click.echo("Use 'deepr jobs get " + job_id + "' to retrieve results\n")
                     elif response.status in ["failed", "expired", "cancelled"]:
-                        console.print(f"[error]Provider reports: {response.status.upper()}[/error] [dim](local DB was stale)[/dim]")
-                        await queue.update_status(job_id, JobStatus.FAILED if response.status != "cancelled" else JobStatus.CANCELLED)
+                        console.print(
+                            f"[error]Provider reports: {response.status.upper()}[/error] [dim](local DB was stale)[/dim]"
+                        )
+                        await queue.update_status(
+                            job_id, JobStatus.FAILED if response.status != "cancelled" else JobStatus.CANCELLED
+                        )
                         job = await queue.get_job(job_id)
                     else:
                         console.print(f"[success]Provider confirms: still {response.status}[/success]")
                 except Exception as e:
                     click.echo(f"Warning: Could not verify with provider: {e}\n")
 
-    from deepr.cli.colors import print_section_header, print_key_value
-    
+    from deepr.cli.colors import print_key_value, print_section_header
+
     print_section_header("Job Status")
 
     print_key_value("ID", job.id)
     print_key_value("Status", job.status.value.upper())
     print_key_value("Model", job.model)
-    
+
     console.print()
     print_key_value("Prompt", job.prompt)
 
     console.print()
-    print_key_value("Submitted", job.submitted_at.strftime('%Y-%m-%d %H:%M:%S'))
+    print_key_value("Submitted", job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"))
 
     if job.started_at:
-        print_key_value("Started", job.started_at.strftime('%Y-%m-%d %H:%M:%S'))
+        print_key_value("Started", job.started_at.strftime("%Y-%m-%d %H:%M:%S"))
 
     if job.completed_at:
-        print_key_value("Completed", job.completed_at.strftime('%Y-%m-%d %H:%M:%S'))
+        print_key_value("Completed", job.completed_at.strftime("%Y-%m-%d %H:%M:%S"))
         duration = (job.completed_at - job.submitted_at).total_seconds()
-        print_key_value("Duration", f"{duration/60:.1f} minutes")
+        print_key_value("Duration", f"{duration / 60:.1f} minutes")
 
     if job.cost:
         console.print()
@@ -161,7 +168,7 @@ async def _get_results(job_id: str):
         # Calculate elapsed time
         if job.submitted_at:
             if isinstance(job.submitted_at, str):
-                submitted = datetime.fromisoformat(job.submitted_at.replace('Z', '+00:00'))
+                submitted = datetime.fromisoformat(job.submitted_at.replace("Z", "+00:00"))
             else:
                 submitted = job.submitted_at
 
@@ -171,19 +178,21 @@ async def _get_results(job_id: str):
 
             # Warn if job is taking unusually long
             if elapsed_minutes > 60:
-                click.echo(f"[!] Warning: Job has been running for over an hour")
-                click.echo(f"[!] This may indicate a stale status - checking provider...")
+                click.echo("[!] Warning: Job has been running for over an hour")
+                click.echo("[!] This may indicate a stale status - checking provider...")
 
-        click.echo(f"Checking provider for results...")
+        click.echo("Checking provider for results...")
 
         try:
-            from deepr.providers import create_provider
             from deepr.config import load_config
+            from deepr.providers import create_provider
             from deepr.storage import create_storage
 
             config = load_config()
             # Use the job's provider, not the config default
-            provider_name = job.provider if hasattr(job, 'provider') and job.provider else config.get("provider", "openai")
+            provider_name = (
+                job.provider if hasattr(job, "provider") and job.provider else config.get("provider", "openai")
+            )
 
             # Get provider-specific API key
             if provider_name == "gemini":
@@ -207,20 +216,17 @@ async def _get_results(job_id: str):
                 content = ""
                 if response.output:
                     for block in response.output:
-                        if block.get('type') == 'message':
-                            for item in block.get('content', []):
-                                if item.get('type') in ['output_text', 'text']:
-                                    text = item.get('text', '')
+                        if block.get("type") == "message":
+                            for item in block.get("content", []):
+                                if item.get("type") in ["output_text", "text"]:
+                                    text = item.get("text", "")
                                     if text:
                                         content += text + "\n"
 
                 # Save to storage
                 storage = create_storage("local")
                 report_metadata = await storage.save_report(
-                    job_id=job_id,
-                    filename="report.md",
-                    content=content.encode('utf-8'),
-                    content_type="text/markdown"
+                    job_id=job_id, filename="report.md", content=content.encode("utf-8"), content_type="text/markdown"
                 )
                 report_paths = {"markdown": report_metadata.url}
 
@@ -231,7 +237,7 @@ async def _get_results(job_id: str):
                         job_id,
                         report_paths=report_paths,
                         cost=response.usage.cost,
-                        tokens_used=response.usage.total_tokens if response.usage.total_tokens else 0
+                        tokens_used=response.usage.total_tokens if response.usage.total_tokens else 0,
                     )
 
                 job = await queue.get_job(job_id)
@@ -241,7 +247,9 @@ async def _get_results(job_id: str):
                 return
             elif response.status in ["expired", "cancelled"]:
                 console.print(f"[error]Job {response.status} at provider[/error]")
-                await queue.update_status(job_id, JobStatus.FAILED if response.status == "expired" else JobStatus.CANCELLED)
+                await queue.update_status(
+                    job_id, JobStatus.FAILED if response.status == "expired" else JobStatus.CANCELLED
+                )
                 return
             else:
                 console.print(f"[success]Confirmed with provider: Job still {response.status}[/success]")
@@ -255,7 +263,7 @@ async def _get_results(job_id: str):
     # Display results
     if job.status == JobStatus.COMPLETED:
         from deepr.cli.colors import print_section_header
-        
+
         print_section_header("Research Results")
 
         if job.report_paths and "markdown" in job.report_paths:
@@ -276,7 +284,12 @@ async def _get_results(job_id: str):
 
 
 @jobs.command(name="list")
-@click.option("--status", "-s", type=click.Choice(["queued", "processing", "completed", "failed", "cancelled"]), help="Filter by status")
+@click.option(
+    "--status",
+    "-s",
+    type=click.Choice(["queued", "processing", "completed", "failed", "cancelled"]),
+    help="Filter by status",
+)
 @click.option("--limit", "-n", type=int, default=20, help="Number of jobs to show (default: 20)")
 def list_jobs(status: str, limit: int):
     """List research jobs.
@@ -292,8 +305,8 @@ def list_jobs(status: str, limit: int):
 async def _refresh_job_statuses(queue, jobs):
     """Refresh job statuses from provider API."""
     try:
-        from deepr.providers import create_provider
         from deepr.config import load_config
+        from deepr.providers import create_provider
         from deepr.storage import create_storage
 
         config = load_config()
@@ -302,7 +315,9 @@ async def _refresh_job_statuses(queue, jobs):
         for job in jobs:
             try:
                 # Use the job's provider, not the config default
-                provider_name = job.provider if hasattr(job, 'provider') and job.provider else config.get("provider", "openai")
+                provider_name = (
+                    job.provider if hasattr(job, "provider") and job.provider else config.get("provider", "openai")
+                )
 
                 # Get provider-specific API key
                 if provider_name == "gemini":
@@ -322,10 +337,10 @@ async def _refresh_job_statuses(queue, jobs):
                     content = ""
                     if response.output:
                         for block in response.output:
-                            if block.get('type') == 'message':
-                                for item in block.get('content', []):
-                                    if item.get('type') in ['output_text', 'text']:
-                                        text = item.get('text', '')
+                            if block.get("type") == "message":
+                                for item in block.get("content", []):
+                                    if item.get("type") in ["output_text", "text"]:
+                                        text = item.get("text", "")
                                         if text:
                                             content += text + "\n"
 
@@ -333,23 +348,21 @@ async def _refresh_job_statuses(queue, jobs):
                     report_metadata = await storage.save_report(
                         job_id=job.id,
                         filename="report.md",
-                        content=content.encode('utf-8'),
+                        content=content.encode("utf-8"),
                         content_type="text/markdown",
                         metadata={
                             "prompt": job.prompt,
                             "model": job.model,
                             "status": "completed",
                             "provider_job_id": job.provider_job_id,
-                        }
+                        },
                     )
 
                     # Update queue
                     await queue.update_status(job.id, JobStatus.COMPLETED)
                     if response.usage and response.usage.cost:
                         await queue.update_results(
-                            job.id,
-                            report_paths={"markdown": report_metadata.url},
-                            cost=response.usage.cost
+                            job.id, report_paths={"markdown": report_metadata.url}, cost=response.usage.cost
                         )
 
                 elif response.status == "failed":
@@ -358,18 +371,18 @@ async def _refresh_job_statuses(queue, jobs):
 
                 # If still queued/processing, leave it (no update needed)
 
-            except Exception as e:
+            except Exception:
                 # Silently skip jobs that fail to refresh
                 pass
 
-    except Exception as e:
+    except Exception:
         # If provider init fails, silently skip refresh
         pass
 
 
 async def _list_jobs(status_filter: str, limit: int):
     """List jobs from queue with automatic status refresh for stale jobs."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     queue = SQLiteQueue()
     jobs = await queue.list_jobs(limit=limit)
@@ -382,7 +395,8 @@ async def _list_jobs(status_filter: str, limit: int):
     # Refresh stale jobs (>30 minutes old and not completed/failed)
     stale_threshold = datetime.utcnow() - timedelta(minutes=30)
     stale_jobs = [
-        job for job in jobs
+        job
+        for job in jobs
         if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]
         and job.submitted_at < stale_threshold
         and job.provider_job_id  # Only if we have a provider job ID
@@ -404,13 +418,14 @@ async def _list_jobs(status_filter: str, limit: int):
 
     # Group jobs by campaign/prefix
     from collections import defaultdict
+
     campaigns = defaultdict(list)
     standalone_jobs = []
 
     for job in jobs:
         # Extract campaign prefix (e.g., "team-abc123" -> "team")
-        if '-' in job.id:
-            parts = job.id.split('-', 1)
+        if "-" in job.id:
+            parts = job.id.split("-", 1)
             prefix = parts[0]
             # Group if multiple jobs share the same prefix and submitted around same time
             campaign_key = f"{prefix}-{job.submitted_at.strftime('%Y%m%d%H%M')}" if job.submitted_at else prefix
@@ -431,8 +446,10 @@ async def _list_jobs(status_filter: str, limit: int):
     click.echo()
 
     # Print campaigns first (grouped)
-    for campaign_key, campaign_jobs in sorted(actual_campaigns.items(), key=lambda x: x[1][0].submitted_at, reverse=True):
-        campaign_type = campaign_key.split('-')[0]
+    for campaign_key, campaign_jobs in sorted(
+        actual_campaigns.items(), key=lambda x: x[1][0].submitted_at, reverse=True
+    ):
+        campaign_type = campaign_key.split("-")[0]
 
         # Campaign header
         all_completed = all(j.status == JobStatus.COMPLETED for j in campaign_jobs)
@@ -449,7 +466,9 @@ async def _list_jobs(status_filter: str, limit: int):
             campaign_status = click.style("QUEUED", dim=True)
 
         total_cost = sum(j.cost for j in campaign_jobs if j.cost)
-        click.echo(click.style(f"{campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)")
+        click.echo(
+            click.style(f"{campaign_type.upper()} Campaign", fg="yellow", bold=True) + f" ({len(campaign_jobs)} jobs)"
+        )
 
         # Show first job's details as campaign representative
         first_job = campaign_jobs[0]
@@ -458,7 +477,7 @@ async def _list_jobs(status_filter: str, limit: int):
         click.echo(f"  {prompt}")
 
         if first_job.submitted_at:
-            time_display = click.style(first_job.submitted_at.strftime('%Y-%m-%d %H:%M:%S'), dim=True)
+            time_display = click.style(first_job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"), dim=True)
             click.echo(f"  Submitted: {time_display}")
 
         if total_cost > 0:
@@ -466,7 +485,7 @@ async def _list_jobs(status_filter: str, limit: int):
             click.echo(f"  Total Cost: {cost_display}")
 
         # Show individual jobs in campaign (indented)
-        click.echo(click.style(f"  Jobs:", dim=True))
+        click.echo(click.style("  Jobs:", dim=True))
         for job in campaign_jobs:
             if job.status == JobStatus.COMPLETED:
                 status_text = click.style("completed", fg="green")
@@ -508,7 +527,7 @@ async def _list_jobs(status_filter: str, limit: int):
             click.echo(f"  Cost: {cost_display}")
 
         if job.submitted_at:
-            time_display = click.style(job.submitted_at.strftime('%Y-%m-%d %H:%M:%S'), dim=True)
+            time_display = click.style(job.submitted_at.strftime("%Y-%m-%d %H:%M:%S"), dim=True)
             click.echo(f"  Submitted: {time_display}")
 
         click.echo()
@@ -542,8 +561,8 @@ async def _cancel_job(job_id: str):
     # Try to cancel with provider if it's processing
     if job.provider_job_id and job.status == JobStatus.PROCESSING:
         try:
-            from deepr.providers import create_provider
             from deepr.config import load_config
+            from deepr.providers import create_provider
 
             config = load_config()
             provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))

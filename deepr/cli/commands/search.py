@@ -82,11 +82,13 @@ async def _search_query(query: str, top: int, threshold: float, keyword_only: bo
     )
 
     if json_output:
-        console.print_json(data={
-            "query": query,
-            "results": [r.to_dict() for r in results],
-            "count": len(results),
-        })
+        console.print_json(
+            data={
+                "query": query,
+                "results": [r.to_dict() for r in results],
+                "count": len(results),
+            }
+        )
         return
 
     if not results:
@@ -107,7 +109,7 @@ async def _search_query(query: str, top: int, threshold: float, keyword_only: bo
         console.print()
 
     console.print("[dim]View a report: cat <path>/report.md[/dim]")
-    console.print("[dim]Use context: deepr research \"query\" --context <job-id>[/dim]")
+    console.print('[dim]Use context: deepr research "query" --context <job-id>[/dim]')
 
 
 @search.command("index")

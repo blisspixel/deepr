@@ -18,13 +18,13 @@ Usage:
     chain = verifier.get_verification_chain("job123")
 """
 
-import json
 import hashlib
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 def _utc_now() -> datetime:
@@ -39,6 +39,7 @@ DEFAULT_DB_PATH = Path("data/output_verification.db")
 @dataclass
 class VerifiedOutput:
     """A verified tool output with hash."""
+
     id: str
     job_id: Optional[str]
     tool_name: str
@@ -63,8 +64,7 @@ class VerifiedOutput:
     @classmethod
     def from_row(cls, row: tuple) -> "VerifiedOutput":
         """Create from database row."""
-        (id, job_id, tool_name, content_hash, timestamp,
-         is_verified, verification_error, metadata_json) = row
+        (id, job_id, tool_name, content_hash, timestamp, is_verified, verification_error, metadata_json) = row
 
         return cls(
             id=id,
@@ -81,6 +81,7 @@ class VerifiedOutput:
 @dataclass
 class VerificationChainEntry:
     """An entry in the verification chain."""
+
     output_id: str
     previous_hash: Optional[str]
     content_hash: str
@@ -181,6 +182,7 @@ class OutputVerifier:
             VerifiedOutput with hash
         """
         import secrets
+
         now = _utc_now()
         content_hash = self._hash_content(content)
 
@@ -210,7 +212,7 @@ class OutputVerifier:
                 output.timestamp.isoformat(),
                 1,
                 json.dumps(output.metadata),
-            )
+            ),
         )
 
         # Add to chain if job_id provided
@@ -239,7 +241,7 @@ class OutputVerifier:
             """SELECT id, job_id, tool_name, content_hash, timestamp,
                       is_verified, verification_error, metadata_json
                FROM verified_outputs WHERE id = ?""",
-            (output_id,)
+            (output_id,),
         ).fetchone()
 
         if not row:
@@ -267,7 +269,7 @@ class OutputVerifier:
                 """UPDATE verified_outputs
                    SET is_verified = 0, verification_error = ?
                    WHERE id = ?""",
-                (output.verification_error, output_id)
+                (output.verification_error, output_id),
             )
             self._conn.commit()
 
@@ -290,20 +292,22 @@ class OutputVerifier:
                FROM verification_chain
                WHERE job_id = ?
                ORDER BY sequence""",
-            (job_id,)
+            (job_id,),
         ).fetchall()
 
         entries = []
         for row in rows:
             output_id, previous_hash, content_hash, chain_hash, sequence, timestamp = row
-            entries.append(VerificationChainEntry(
-                output_id=output_id,
-                previous_hash=previous_hash,
-                content_hash=content_hash,
-                chain_hash=chain_hash,
-                sequence=sequence,
-                timestamp=datetime.fromisoformat(timestamp),
-            ))
+            entries.append(
+                VerificationChainEntry(
+                    output_id=output_id,
+                    previous_hash=previous_hash,
+                    content_hash=content_hash,
+                    chain_hash=chain_hash,
+                    sequence=sequence,
+                    timestamp=datetime.fromisoformat(timestamp),
+                )
+            )
 
         return entries
 
@@ -335,7 +339,7 @@ class OutputVerifier:
                 if entry.previous_hash is not None:
                     return {
                         "valid": False,
-                        "error": f"First chain entry has unexpected previous_hash",
+                        "error": "First chain entry has unexpected previous_hash",
                         "entry_sequence": entry.sequence,
                     }
             else:
@@ -382,7 +386,7 @@ class OutputVerifier:
             """SELECT id, job_id, tool_name, content_hash, timestamp,
                       is_verified, verification_error, metadata_json
                FROM verified_outputs WHERE id = ?""",
-            (output_id,)
+            (output_id,),
         ).fetchone()
 
         if not row:
@@ -408,7 +412,7 @@ class OutputVerifier:
                FROM verified_outputs
                WHERE job_id = ?
                ORDER BY timestamp""",
-            (job_id,)
+            (job_id,),
         ).fetchall()
 
         return [VerifiedOutput.from_row(row) for row in rows]
@@ -429,7 +433,7 @@ class OutputVerifier:
             row = self._conn.execute(
                 """SELECT COUNT(*), SUM(CASE WHEN is_verified = 1 THEN 1 ELSE 0 END)
                    FROM verified_outputs WHERE job_id = ?""",
-                (job_id,)
+                (job_id,),
             ).fetchone()
         else:
             row = self._conn.execute(
@@ -459,11 +463,11 @@ class OutputVerifier:
         """
         # Serialize to JSON with consistent formatting
         if isinstance(content, (dict, list)):
-            content_str = json.dumps(content, sort_keys=True, separators=(',', ':'))
+            content_str = json.dumps(content, sort_keys=True, separators=(",", ":"))
         else:
             content_str = str(content)
 
-        return hashlib.sha256(content_str.encode('utf-8')).hexdigest()
+        return hashlib.sha256(content_str.encode("utf-8")).hexdigest()
 
     def _compute_chain_hash(
         self,
@@ -480,7 +484,7 @@ class OutputVerifier:
             Chain hash
         """
         data = f"{content_hash}|{previous_hash or 'genesis'}"
-        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
     def _add_to_chain(self, output: VerifiedOutput):
         """Add output to verification chain.
@@ -496,10 +500,7 @@ class OutputVerifier:
         previous_hash = self._chain_heads.get(job_id)
 
         # Get next sequence number
-        row = self._conn.execute(
-            "SELECT MAX(sequence) FROM verification_chain WHERE job_id = ?",
-            (job_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT MAX(sequence) FROM verification_chain WHERE job_id = ?", (job_id,)).fetchone()
         sequence = (row[0] or 0) + 1
 
         # Compute chain hash
@@ -518,7 +519,7 @@ class OutputVerifier:
                 chain_hash,
                 sequence,
                 output.timestamp.isoformat(),
-            )
+            ),
         )
 
         # Update chain head

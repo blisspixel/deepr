@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -59,7 +59,7 @@ class Tool(ABC):
                 "name": self.name,
                 "description": self.description,
                 "parameters": self.parameters,
-            }
+            },
         }
 
     def to_anthropic_tool(self) -> Dict[str, Any]:
@@ -91,20 +91,12 @@ class ToolExecutor:
     async def execute(self, tool_name: str, **kwargs) -> ToolResult:
         """Execute a tool by name."""
         if tool_name not in self.tools:
-            return ToolResult(
-                success=False,
-                data=None,
-                error=f"Tool '{tool_name}' not found"
-            )
+            return ToolResult(success=False, data=None, error=f"Tool '{tool_name}' not found")
 
         try:
             return await self.tools[tool_name].execute(**kwargs)
         except Exception as e:
-            return ToolResult(
-                success=False,
-                data=None,
-                error=f"Tool execution failed: {e}"
-            )
+            return ToolResult(success=False, data=None, error=f"Tool execution failed: {e}")
 
     def get_tool_definitions(self, format: str = "openai") -> List[Dict[str, Any]]:
         """

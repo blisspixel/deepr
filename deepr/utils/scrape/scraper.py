@@ -1,14 +1,14 @@
 """High-level scraping API for easy use."""
 
-import logging
-from typing import Dict, Optional
-from pathlib import Path
 import json
+import logging
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional
 
 from .config import ScrapeConfig
-from .fetcher import ContentFetcher
 from .extractor import ContentExtractor, LinkExtractor, PageDeduplicator
+from .fetcher import ContentFetcher
 from .filter import LinkFilter, SmartCrawler
 from .synthesizer import ContentSynthesizer
 
@@ -132,7 +132,7 @@ def scrape_website(
         save_path = Path(save_to)
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(save_path, 'w', encoding='utf-8') as f:
+        with open(save_path, "w", encoding="utf-8") as f:
             # Don't save full HTML, just insights and metadata
             save_data = {
                 "url": results["url"],
@@ -227,7 +227,7 @@ def scrape_for_documentation(
     """
     config = ScrapeConfig(
         max_pages=50,  # Docs sites often have many pages
-        max_depth=3,   # Deeper for nested docs
+        max_depth=3,  # Deeper for nested docs
     )
 
     save_to = None

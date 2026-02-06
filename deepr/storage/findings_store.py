@@ -24,16 +24,16 @@ Usage:
     )
 """
 
-import json
-import sqlite3
 import hashlib
+import json
+import math
 import re
+import sqlite3
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
 from pathlib import Path
-from collections import Counter
-import math
+from typing import Any, Dict, List, Optional
 
 
 def _utc_now() -> datetime:
@@ -48,6 +48,7 @@ DEFAULT_DB_PATH = Path("data/findings.db")
 @dataclass
 class StoredFinding:
     """A finding stored in persistent storage."""
+
     id: str
     job_id: str
     phase: int
@@ -67,7 +68,7 @@ class StoredFinding:
     def _tokenize(text: str) -> List[str]:
         """Tokenize text for search."""
         text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r"[^\w\s]", " ", text)
         return [t for t in text.split() if len(t) > 2]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -86,8 +87,7 @@ class StoredFinding:
     @classmethod
     def from_row(cls, row: tuple) -> "StoredFinding":
         """Create from database row."""
-        (id, job_id, phase, text, confidence, source,
-         finding_type, timestamp_str, metadata_json) = row
+        (id, job_id, phase, text, confidence, source, finding_type, timestamp_str, metadata_json) = row
 
         return cls(
             id=id,
@@ -164,9 +164,7 @@ class FindingsStore:
 
     def _load_index(self):
         """Load token index from database."""
-        rows = self._conn.execute(
-            "SELECT finding_id, token, count FROM finding_tokens"
-        ).fetchall()
+        rows = self._conn.execute("SELECT finding_id, token, count FROM finding_tokens").fetchall()
 
         for finding_id, token, count in rows:
             if token not in self._token_index:
@@ -233,7 +231,7 @@ class FindingsStore:
                 finding.finding_type,
                 finding.timestamp.isoformat(),
                 json.dumps(finding.metadata),
-            )
+            ),
         )
 
         # Store tokens for search
@@ -243,7 +241,7 @@ class FindingsStore:
                 """INSERT OR REPLACE INTO finding_tokens
                    (finding_id, token, count)
                    VALUES (?, ?, ?)""",
-                (finding.id, token, count)
+                (finding.id, token, count),
             )
 
             # Update in-memory index
@@ -295,9 +293,7 @@ class FindingsStore:
         total_docs = len(self._doc_lengths)
 
         for finding_id in candidates:
-            score = self._calculate_relevance_score(
-                finding_id, query_tokens, total_docs
-            )
+            score = self._calculate_relevance_score(finding_id, query_tokens, total_docs)
             scored.append((finding_id, score))
 
         # Sort by score
@@ -332,7 +328,7 @@ class FindingsStore:
                FROM findings
                WHERE job_id = ? AND phase = ?
                ORDER BY timestamp""",
-            (job_id, phase)
+            (job_id, phase),
         ).fetchall()
 
         return [StoredFinding.from_row(row) for row in rows]
@@ -355,7 +351,7 @@ class FindingsStore:
                FROM findings
                WHERE job_id = ?
                ORDER BY phase, timestamp""",
-            (job_id,)
+            (job_id,),
         ).fetchall()
 
         return [StoredFinding.from_row(row) for row in rows]
@@ -373,19 +369,13 @@ class FindingsStore:
             Number of findings deleted
         """
         # Get finding IDs for cleanup
-        rows = self._conn.execute(
-            "SELECT id FROM findings WHERE job_id = ?",
-            (job_id,)
-        ).fetchall()
+        rows = self._conn.execute("SELECT id FROM findings WHERE job_id = ?", (job_id,)).fetchall()
 
         finding_ids = [row[0] for row in rows]
 
         # Delete tokens
         for finding_id in finding_ids:
-            self._conn.execute(
-                "DELETE FROM finding_tokens WHERE finding_id = ?",
-                (finding_id,)
-            )
+            self._conn.execute("DELETE FROM finding_tokens WHERE finding_id = ?", (finding_id,))
 
             # Clean up in-memory index
             for token_findings in self._token_index.values():
@@ -393,10 +383,7 @@ class FindingsStore:
             self._doc_lengths.pop(finding_id, None)
 
         # Delete findings
-        cursor = self._conn.execute(
-            "DELETE FROM findings WHERE job_id = ?",
-            (job_id,)
-        )
+        cursor = self._conn.execute("DELETE FROM findings WHERE job_id = ?", (job_id,))
         self._conn.commit()
 
         return cursor.rowcount
@@ -414,7 +401,7 @@ class FindingsStore:
             row = self._conn.execute(
                 """SELECT COUNT(*), AVG(confidence), COUNT(DISTINCT phase)
                    FROM findings WHERE job_id = ?""",
-                (job_id,)
+                (job_id,),
             ).fetchone()
         else:
             row = self._conn.execute(
@@ -457,14 +444,10 @@ class FindingsStore:
         # Filter to job and phase
         if phase is not None:
             rows = self._conn.execute(
-                "SELECT id FROM findings WHERE job_id = ? AND phase = ?",
-                (job_id, phase)
+                "SELECT id FROM findings WHERE job_id = ? AND phase = ?", (job_id, phase)
             ).fetchall()
         else:
-            rows = self._conn.execute(
-                "SELECT id FROM findings WHERE job_id = ?",
-                (job_id,)
-            ).fetchall()
+            rows = self._conn.execute("SELECT id FROM findings WHERE job_id = ?", (job_id,)).fetchall()
 
         valid_ids = {row[0] for row in rows}
         return candidates & valid_ids
@@ -520,7 +503,7 @@ class FindingsStore:
             """SELECT id, job_id, phase, text, confidence, source,
                       finding_type, timestamp, metadata_json
                FROM findings WHERE id = ?""",
-            (finding_id,)
+            (finding_id,),
         ).fetchone()
 
         if not row:

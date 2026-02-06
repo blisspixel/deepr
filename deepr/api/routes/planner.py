@@ -8,11 +8,12 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from flask import Blueprint, request, jsonify
-from deepr.services.research_planner import create_planner
-from deepr.services.queue import get_queue
-from deepr.services.cost_estimation import CostEstimator
+from flask import Blueprint, jsonify, request
+
 from deepr.models.job import Job, JobStatus
+from deepr.services.cost_estimation import CostEstimator
+from deepr.services.queue import get_queue
+from deepr.services.research_planner import create_planner
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +67,7 @@ def plan_research():
         # Validate planner model is GPT-5 family
         valid_models = ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat"]
         if planner_model not in valid_models:
-            return jsonify({
-                "error": f"Invalid planner model. Must be one of: {', '.join(valid_models)}"
-            }), 400
+            return jsonify({"error": f"Invalid planner model. Must be one of: {', '.join(valid_models)}"}), 400
 
         # Create planner
         planner = create_planner(
@@ -102,12 +101,14 @@ def plan_research():
             total_cost += estimate.expected_cost
             plan_with_costs.append(task)
 
-        return jsonify({
-            "plan": plan_with_costs,
-            "total_estimated_cost": total_cost,
-            "planner_model": planner_model,
-            "research_model": research_model,
-        }), 200
+        return jsonify(
+            {
+                "plan": plan_with_costs,
+                "total_estimated_cost": total_cost,
+                "planner_model": planner_model,
+                "research_model": research_model,
+            }
+        ), 200
 
     except Exception as e:
         logger.exception("Error planning research: %s", e)
@@ -205,21 +206,25 @@ def execute_plan():
             # Enqueue
             queue.enqueue(job)
 
-            jobs.append({
-                "id": job_id,
-                "title": title,
-                "prompt": prompt,
-                "status": "pending",
-                "estimated_cost": estimate.expected_cost,
-            })
+            jobs.append(
+                {
+                    "id": job_id,
+                    "title": title,
+                    "prompt": prompt,
+                    "status": "pending",
+                    "estimated_cost": estimate.expected_cost,
+                }
+            )
 
-        return jsonify({
-            "batch_id": batch_id,
-            "scenario": scenario,
-            "jobs": jobs,
-            "total_jobs": len(jobs),
-            "total_estimated_cost": total_cost,
-        }), 200
+        return jsonify(
+            {
+                "batch_id": batch_id,
+                "scenario": scenario,
+                "jobs": jobs,
+                "total_jobs": len(jobs),
+                "total_estimated_cost": total_cost,
+            }
+        ), 200
 
     except Exception as e:
         logger.exception("Error executing plan: %s", e)
@@ -264,21 +269,19 @@ def get_batch_status(batch_id: str):
 
         batch_jobs = []
         for job in all_jobs:
-            if (
-                hasattr(job, "metadata")
-                and job.metadata
-                and job.metadata.get("batch_id") == batch_id
-            ):
-                batch_jobs.append({
-                    "id": job.id,
-                    "title": job.metadata.get("task_title", "Research task"),
-                    "prompt": job.prompt,
-                    "status": job.status.value,
-                    "estimated_cost": getattr(job, "estimated_cost", None),
-                    "actual_cost": getattr(job, "actual_cost", None),
-                    "created_at": job.created_at.isoformat() if job.created_at else None,
-                    "updated_at": job.updated_at.isoformat() if job.updated_at else None,
-                })
+            if hasattr(job, "metadata") and job.metadata and job.metadata.get("batch_id") == batch_id:
+                batch_jobs.append(
+                    {
+                        "id": job.id,
+                        "title": job.metadata.get("task_title", "Research task"),
+                        "prompt": job.prompt,
+                        "status": job.status.value,
+                        "estimated_cost": getattr(job, "estimated_cost", None),
+                        "actual_cost": getattr(job, "actual_cost", None),
+                        "created_at": job.created_at.isoformat() if job.created_at else None,
+                        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+                    }
+                )
 
         if not batch_jobs:
             return jsonify({"error": "Batch not found"}), 404
@@ -290,10 +293,7 @@ def get_batch_status(batch_id: str):
             "in_progress": sum(1 for j in batch_jobs if j["status"] == "in_progress"),
             "completed": sum(1 for j in batch_jobs if j["status"] == "completed"),
             "failed": sum(1 for j in batch_jobs if j["status"] == "failed"),
-            "total_cost": sum(
-                j.get("actual_cost") or j.get("estimated_cost") or 0.0
-                for j in batch_jobs
-            ),
+            "total_cost": sum(j.get("actual_cost") or j.get("estimated_cost") or 0.0 for j in batch_jobs),
         }
 
         # Get scenario from first job's metadata (stored in the job list item directly)
@@ -303,12 +303,14 @@ def get_batch_status(batch_id: str):
             # Use a default value
             scenario = "Research batch"
 
-        return jsonify({
-            "batch_id": batch_id,
-            "scenario": scenario,
-            "jobs": batch_jobs,
-            "summary": summary,
-        }), 200
+        return jsonify(
+            {
+                "batch_id": batch_id,
+                "scenario": scenario,
+                "jobs": batch_jobs,
+                "summary": summary,
+            }
+        ), 200
 
     except Exception as e:
         logger.exception("Error getting batch status %s: %s", batch_id, e)

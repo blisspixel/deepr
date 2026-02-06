@@ -1,7 +1,8 @@
 """Azure Service Bus queue backend (planned for cloud deployment)."""
 
-from typing import Optional, List, Dict, Any
-from .base import QueueBackend, ResearchJob, JobStatus, QueueError
+from typing import Any, Dict, List, Optional
+
+from .base import JobStatus, QueueBackend, ResearchJob
 
 
 class ServiceBusQueue(QueueBackend):
@@ -13,10 +14,7 @@ class ServiceBusQueue(QueueBackend):
     """
 
     def __init__(self, connection_string: str, queue_name: str = "research-requests"):
-        raise NotImplementedError(
-            "Azure Service Bus queue not implemented yet. "
-            "Use SQLiteQueue for local development."
-        )
+        raise NotImplementedError("Azure Service Bus queue not implemented yet. Use SQLiteQueue for local development.")
 
     async def enqueue(self, job: ResearchJob) -> str:
         raise NotImplementedError()

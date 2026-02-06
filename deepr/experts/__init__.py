@@ -9,16 +9,16 @@ Provides:
 - TemporalState: Activity timestamp tracking
 """
 
-from .embedding_cache import EmbeddingCache
-from .profile import ExpertProfile
-from .profile_store import ExpertStore, PROFILE_SCHEMA_VERSION, migrate_profile_data
-from .chat import ExpertChatSession, start_chat_session
-from .synthesis import KnowledgeSynthesizer, Worldview, Belief, KnowledgeGap
-from .budget_manager import BudgetManager
 from .activity_tracker import ActivityTracker
+from .budget_manager import BudgetManager
+from .chat import ExpertChatSession, start_chat_session
+from .embedding_cache import EmbeddingCache
 from .freshness import FreshnessChecker, FreshnessLevel, FreshnessStatus
-from .temporal import TemporalState
+from .profile import ExpertProfile
+from .profile_store import PROFILE_SCHEMA_VERSION, ExpertStore, migrate_profile_data
 from .serializer import ProfileSerializer
+from .synthesis import Belief, KnowledgeGap, KnowledgeSynthesizer, Worldview
+from .temporal import TemporalState
 
 __all__ = [
     # Core profile

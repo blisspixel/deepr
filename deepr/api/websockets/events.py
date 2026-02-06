@@ -1,7 +1,8 @@
 """Socket.IO event handlers."""
 
-from flask_socketio import emit, join_room, leave_room
 import logging
+
+from flask_socketio import emit, join_room, leave_room
 
 logger = logging.getLogger(__name__)
 
@@ -12,13 +13,13 @@ def register_socketio_events(socketio):
     @socketio.on("connect")
     def handle_connect():
         """Handle client connection."""
-        logger.info(f"Client connected")
+        logger.info("Client connected")
         emit("connected", {"message": "Connected to Deepr API"})
 
     @socketio.on("disconnect")
     def handle_disconnect():
         """Handle client disconnection."""
-        logger.info(f"Client disconnected")
+        logger.info("Client disconnected")
 
     @socketio.on("subscribe_jobs")
     def handle_subscribe_jobs(data):

@@ -2,9 +2,9 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -175,9 +175,7 @@ class StorageBackend(ABC):
 class StorageError(Exception):
     """Base exception for storage-related errors."""
 
-    def __init__(
-        self, message: str, storage_type: str, original_error: Optional[Exception] = None
-    ):
+    def __init__(self, message: str, storage_type: str, original_error: Optional[Exception] = None):
         self.message = message
         self.storage_type = storage_type
         self.original_error = original_error

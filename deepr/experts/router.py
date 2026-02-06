@@ -7,14 +7,15 @@ while maintaining quality. Routes simple queries to fast/cheap models and comple
 reasoning to deep research models.
 """
 
-from dataclasses import dataclass
-from typing import Optional, Literal
 import re
+from dataclasses import dataclass
+from typing import Literal, Optional
 
 
 @dataclass
 class ModelConfig:
     """Configuration for a selected model."""
+
     provider: str
     model: str
     cost_estimate: float
@@ -27,77 +28,78 @@ class ModelRouter:
 
     # Complexity indicators (weighted scoring)
     COMPLEXITY_INDICATORS = {
-        'simple': {
-            'patterns': [
-                r'\b(what|when|where|who)\b.*\?$',  # Simple WH questions ending with ?
-                r'\b(is|are|was|were)\b\s+\w+',  # Simple is/are questions
-                r'\b(yes|no|true|false)\b',  # Binary questions
-                r'\b(hello|hi|hey|thanks|thank you)\b',  # Greetings
-                r'\b(version|latest|current)\b',  # Version queries
-                r'\b(define|definition|meaning)\b',  # Simple definitions
-                r'\b(when did|when was|what is|what are)\b',  # Simple factual questions
+        "simple": {
+            "patterns": [
+                r"\b(what|when|where|who)\b.*\?$",  # Simple WH questions ending with ?
+                r"\b(is|are|was|were)\b\s+\w+",  # Simple is/are questions
+                r"\b(yes|no|true|false)\b",  # Binary questions
+                r"\b(hello|hi|hey|thanks|thank you)\b",  # Greetings
+                r"\b(version|latest|current)\b",  # Version queries
+                r"\b(define|definition|meaning)\b",  # Simple definitions
+                r"\b(when did|when was|what is|what are)\b",  # Simple factual questions
             ],
-            'weight': 2.0  # Increased weight to prioritize simple classification
+            "weight": 2.0,  # Increased weight to prioritize simple classification
         },
-        'moderate': {
-            'patterns': [
-                r'\b(how)\b',  # How questions (not when/what/where)
-                r'\b(compare|difference|versus|vs)\b',  # Comparisons
-                r'\b(explain|describe)\b',  # Explanations
-                r'\b(best practice|recommendation)\b',  # Best practices
-                r'\b(should|would|could)\b',  # Advisory questions
+        "moderate": {
+            "patterns": [
+                r"\b(how)\b",  # How questions (not when/what/where)
+                r"\b(compare|difference|versus|vs)\b",  # Comparisons
+                r"\b(explain|describe)\b",  # Explanations
+                r"\b(best practice|recommendation)\b",  # Best practices
+                r"\b(should|would|could)\b",  # Advisory questions
             ],
-            'weight': 1.5  # Reduced weight
+            "weight": 1.5,  # Reduced weight
         },
-        'complex': {
-            'patterns': [
-                r'\b(analyze|evaluate|assess)\b',  # Analysis
-                r'\b(design|architect|implement)\b',  # Design work
-                r'\b(strategy|strategic|roadmap)\b',  # Strategic planning
-                r'\b(optimize|improve|enhance)\b',  # Optimization
-                r'\b(trade-off|tradeoff|pros and cons)\b',  # Trade-off analysis
-                r'\b(multi-step|multiple|several)\b.*\b(step|phase|stage)\b',  # Multi-step
-                r'\b(considering|given|taking into account)\b',  # Contextual reasoning
+        "complex": {
+            "patterns": [
+                r"\b(analyze|evaluate|assess)\b",  # Analysis
+                r"\b(design|architect|implement)\b",  # Design work
+                r"\b(strategy|strategic|roadmap)\b",  # Strategic planning
+                r"\b(optimize|improve|enhance)\b",  # Optimization
+                r"\b(trade-off|tradeoff|pros and cons)\b",  # Trade-off analysis
+                r"\b(multi-step|multiple|several)\b.*\b(step|phase|stage)\b",  # Multi-step
+                r"\b(considering|given|taking into account)\b",  # Contextual reasoning
             ],
-            'weight': 3.0
-        }
+            "weight": 3.0,
+        },
     }
 
     # Task type detection
     TASK_TYPES = {
-        'factual': [
-            r'\b(what|when|where|who)\b',
-            r'\b(list|enumerate|tell me about)\b',
-            r'\b(version|date|time|name)\b',
+        "factual": [
+            r"\b(what|when|where|who)\b",
+            r"\b(list|enumerate|tell me about)\b",
+            r"\b(version|date|time|name)\b",
         ],
-        'reasoning': [
-            r'\b(why|how)\b',
-            r'\b(explain|understand|reasoning)\b',
-            r'\b(analyze|evaluate|assess)\b',
-            r'\b(should|would|could|recommend)\b',
+        "reasoning": [
+            r"\b(why|how)\b",
+            r"\b(explain|understand|reasoning)\b",
+            r"\b(analyze|evaluate|assess)\b",
+            r"\b(should|would|could|recommend)\b",
         ],
-        'research': [
-            r'\b(research|investigate|find out)\b',
-            r'\b(comprehensive|detailed|in-depth)\b',
-            r'\b(latest|current|recent|new)\b.*\b(trend|development|news)\b',
-            r'\b(compare.*and.*and)\b',  # Multiple comparisons
+        "research": [
+            r"\b(research|investigate|find out)\b",
+            r"\b(comprehensive|detailed|in-depth)\b",
+            r"\b(latest|current|recent|new)\b.*\b(trend|development|news)\b",
+            r"\b(compare.*and.*and)\b",  # Multiple comparisons
         ],
-        'coding': [
-            r'\b(code|implement|function|class|api)\b',
-            r'\b(debug|error|bug|fix)\b',
-            r'\b(python|javascript|typescript|java|go|rust)\b',
+        "coding": [
+            r"\b(code|implement|function|class|api)\b",
+            r"\b(debug|error|bug|fix)\b",
+            r"\b(python|javascript|typescript|java|go|rust)\b",
         ],
-        'document_analysis': [
-            r'\b(document|pdf|file|attachment)\b',
-            r'\b(summarize|extract|parse)\b',
-            r'\b(read|review|analyze).*\b(document|file|pdf)\b',
-        ]
+        "document_analysis": [
+            r"\b(document|pdf|file|attachment)\b",
+            r"\b(summarize|extract|parse)\b",
+            r"\b(read|review|analyze).*\b(document|file|pdf)\b",
+        ],
     }
 
     def __init__(self):
         """Initialize the model router with capability registry."""
         # Import registry lazily to avoid circular imports
         from deepr.providers.registry import MODEL_CAPABILITIES
+
         self.capabilities = MODEL_CAPABILITIES
 
     def select_model(
@@ -106,7 +108,7 @@ class ModelRouter:
         context_size: int = 0,
         budget_remaining: Optional[float] = None,
         current_model: str = "gpt-5",
-        provider_constraint: Optional[str] = None
+        provider_constraint: Optional[str] = None,
     ) -> ModelConfig:
         """Select the optimal model for a query.
 
@@ -133,12 +135,7 @@ class ModelRouter:
         if provider_constraint == "openai":
             # Constrained to OpenAI only (vector store compatibility)
             if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
-                return ModelConfig(
-                    provider="openai",
-                    model="o3-deep-research",
-                    cost_estimate=2.0,
-                    confidence=0.9
-                )
+                return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
 
             if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.01):
                 return ModelConfig(
@@ -146,7 +143,7 @@ class ModelRouter:
                     model="gpt-5.2",
                     cost_estimate=0.01,  # ~5K tokens @ $1.75/$14 per 1M
                     reasoning_effort="high",
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
             if complexity == "moderate" or task_type == "reasoning":
@@ -155,7 +152,7 @@ class ModelRouter:
                     model="gpt-5",
                     cost_estimate=0.005,  # ~2K tokens @ $1.25/$10 per 1M
                     reasoning_effort="medium",
-                    confidence=0.85
+                    confidence=0.85,
                 )
 
             # Simple queries - use GPT-5 with low reasoning effort for speed (1-3 seconds)
@@ -164,71 +161,39 @@ class ModelRouter:
                 model="gpt-5",
                 cost_estimate=0.001,  # ~500 tokens @ $1.25/$10 per 1M
                 reasoning_effort="low",
-                confidence=0.9  # High confidence for simple queries
+                confidence=0.9,  # High confidence for simple queries
             )
 
         # No provider constraint - use best model across all providers
         if complexity == "simple" and task_type == "factual":
             # Simple factual queries → fast cheap model
-            return ModelConfig(
-                provider="xai",
-                model="grok-4-fast",
-                cost_estimate=0.01,
-                confidence=0.95
-            )
+            return ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.95)
 
         if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
             # Deep research → o3-deep-research (best quality for deep research)
-            return ModelConfig(
-                provider="openai",
-                model="o3-deep-research",
-                cost_estimate=2.0,
-                confidence=0.9
-            )
+            return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
 
         if context_size > 100_000 and (budget_remaining is None or budget_remaining >= 0.15):
             # Large context → Gemini
-            return ModelConfig(
-                provider="gemini",
-                model="gemini-3-pro",
-                cost_estimate=0.15,
-                confidence=0.85
-            )
+            return ModelConfig(provider="gemini", model="gemini-3-pro", cost_estimate=0.15, confidence=0.85)
 
         if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.25):
             # Complex reasoning → GPT-5 with high reasoning effort
             return ModelConfig(
-                provider="openai",
-                model="gpt-5.2",
-                cost_estimate=0.30,
-                reasoning_effort="high",
-                confidence=0.9
+                provider="openai", model="gpt-5.2", cost_estimate=0.30, reasoning_effort="high", confidence=0.9
             )
 
         if complexity == "moderate":
             # Moderate complexity → GPT-5 with medium reasoning or Grok if budget tight
             if budget_remaining is not None and budget_remaining < 0.20:
-                return ModelConfig(
-                    provider="xai",
-                    model="grok-4-fast",
-                    cost_estimate=0.01,
-                    confidence=0.75
-                )
+                return ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.75)
             return ModelConfig(
-                provider="openai",
-                model="gpt-5",
-                cost_estimate=0.20,
-                reasoning_effort="medium",
-                confidence=0.85
+                provider="openai", model="gpt-5", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
             )
 
         # Default: Keep current model with adaptive reasoning
         return ModelConfig(
-            provider="openai",
-            model=current_model,
-            cost_estimate=0.20,
-            reasoning_effort="medium",
-            confidence=0.8
+            provider="openai", model=current_model, cost_estimate=0.20, reasoning_effort="medium", confidence=0.8
         )
 
     def _classify_complexity(self, query: str) -> Literal["simple", "moderate", "complex"]:
@@ -241,24 +206,24 @@ class ModelRouter:
             Complexity level: simple, moderate, or complex
         """
         query_lower = query.lower()
-        scores = {'simple': 0.0, 'moderate': 0.0, 'complex': 0.0}
+        scores = {"simple": 0.0, "moderate": 0.0, "complex": 0.0}
 
         for level, config in self.COMPLEXITY_INDICATORS.items():
-            for pattern in config['patterns']:
+            for pattern in config["patterns"]:
                 if re.search(pattern, query_lower, re.IGNORECASE):
-                    scores[level] += config['weight']
+                    scores[level] += config["weight"]
 
         # Additional heuristics
         word_count = len(query.split())
         if word_count < 5:
-            scores['simple'] += 2.0
+            scores["simple"] += 2.0
         elif word_count > 20:
-            scores['complex'] += 1.5
+            scores["complex"] += 1.5
 
         # Count question marks (multiple questions = more complex)
-        question_marks = query.count('?')
+        question_marks = query.count("?")
         if question_marks > 1:
-            scores['complex'] += 1.0
+            scores["complex"] += 1.0
 
         # Return highest scoring complexity level
         max_level = max(scores, key=scores.get)
@@ -293,7 +258,9 @@ class ModelRouter:
 
         return max_task
 
-    def _fallback_free_model(self, query: str, complexity: str, provider_constraint: Optional[str] = None) -> ModelConfig:
+    def _fallback_free_model(
+        self, query: str, complexity: str, provider_constraint: Optional[str] = None
+    ) -> ModelConfig:
         """Fallback to free/cheap model when budget exhausted.
 
         Args:
@@ -311,7 +278,7 @@ class ModelRouter:
                 model="gpt-5",
                 cost_estimate=0.001,  # Minimal cost for simple query
                 reasoning_effort="low",
-                confidence=0.6
+                confidence=0.6,
             )
 
         # Otherwise use grok-4-fast as cheapest option
@@ -319,14 +286,10 @@ class ModelRouter:
             provider="xai",
             model="grok-4-fast",
             cost_estimate=0.01,
-            confidence=0.6  # Lower confidence due to budget constraint
+            confidence=0.6,  # Lower confidence due to budget constraint
         )
 
-    def explain_routing_decision(
-        self,
-        query: str,
-        selected_model: ModelConfig
-    ) -> str:
+    def explain_routing_decision(self, query: str, selected_model: ModelConfig) -> str:
         """Generate human-readable explanation of routing decision.
 
         Useful for debugging and transparency (Phase 3b: Visible Thinking).

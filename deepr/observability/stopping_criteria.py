@@ -17,18 +17,18 @@ Usage:
         print(f"Consider pivoting to: {decision.pivot_suggestion}")
 """
 
+import hashlib
 import math
+import re
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Set
-from collections import Counter
-import re
-import hashlib
+from typing import Any, Dict, List, Optional, Set
 
 from deepr.core.constants import (
     ENTROPY_THRESHOLD,
-    MIN_INFORMATION_GAIN,
     ENTROPY_WINDOW_SIZE,
+    MIN_INFORMATION_GAIN,
     MIN_ITERATIONS_BEFORE_STOP,
 )
 
@@ -41,6 +41,7 @@ def _utc_now() -> datetime:
 @dataclass
 class Finding:
     """A single research finding."""
+
     text: str
     phase: int
     confidence: float = 0.5
@@ -59,7 +60,7 @@ class Finding:
     def _tokenize(text: str) -> List[str]:
         """Simple tokenization for entropy calculation."""
         text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r"[^\w\s]", " ", text)
         tokens = [t for t in text.split() if len(t) > 2]
         return tokens
 
@@ -67,6 +68,7 @@ class Finding:
 @dataclass
 class PhaseContext:
     """Context about the current research phase."""
+
     phase_num: int
     original_query: str
     current_focus: str
@@ -80,6 +82,7 @@ class PhaseContext:
 @dataclass
 class StoppingDecision:
     """Decision about whether to stop research."""
+
     should_stop: bool
     reason: str
     entropy: float
@@ -161,7 +164,7 @@ class EntropyStoppingCriteria:
             )
 
         # Calculate entropy of recent findings
-        recent = findings[-self.window_size:] if len(findings) > self.window_size else findings
+        recent = findings[-self.window_size :] if len(findings) > self.window_size else findings
         entropy = self.calculate_entropy(recent)
 
         # Calculate information gain
@@ -312,10 +315,7 @@ class EntropyStoppingCriteria:
 
         if len(emerging_topics) >= 2:
             # Calculate drift score
-            original_coverage = sum(
-                1 for t in query_tokens
-                if any(t in f.text.lower() for f in recent)
-            )
+            original_coverage = sum(1 for t in query_tokens if any(t in f.text.lower() for f in recent))
             drift_score = 1 - (original_coverage / max(len(query_tokens), 1))
 
             if drift_score > 0.5:
@@ -373,9 +373,9 @@ class EntropyStoppingCriteria:
             return "insufficient_data"
 
         recent = self._entropy_history[-3:]
-        if all(recent[i] > recent[i+1] for i in range(len(recent)-1)):
+        if all(recent[i] > recent[i + 1] for i in range(len(recent) - 1)):
             return "declining"
-        elif all(recent[i] < recent[i+1] for i in range(len(recent)-1)):
+        elif all(recent[i] < recent[i + 1] for i in range(len(recent) - 1)):
             return "increasing"
         else:
             return "stable"

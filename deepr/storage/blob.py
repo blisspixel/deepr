@@ -1,11 +1,13 @@
 """Azure Blob Storage implementation."""
 
 import os
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone, timedelta
-from azure.storage.blob.aio import BlobServiceClient, ContainerClient
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
 from azure.core.exceptions import AzureError, ResourceNotFoundError
-from .base import StorageBackend, ReportMetadata, StorageError
+from azure.storage.blob.aio import BlobServiceClient, ContainerClient
+
+from .base import ReportMetadata, StorageBackend, StorageError
 
 
 class AzureBlobStorage(StorageBackend):
@@ -36,9 +38,7 @@ class AzureBlobStorage(StorageBackend):
             if not account_url:
                 account_url = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
             if not account_url:
-                raise ValueError(
-                    "account_url or AZURE_STORAGE_ACCOUNT_URL required for managed identity"
-                )
+                raise ValueError("account_url or AZURE_STORAGE_ACCOUNT_URL required for managed identity")
 
             credential = DefaultAzureCredential()
             self.client = BlobServiceClient(account_url=account_url, credential=credential)
@@ -46,9 +46,7 @@ class AzureBlobStorage(StorageBackend):
             # Use connection string
             connection_string = connection_string or os.getenv("AZURE_STORAGE_CONNECTION_STRING")
             if not connection_string:
-                raise ValueError(
-                    "connection_string or AZURE_STORAGE_CONNECTION_STRING environment variable required"
-                )
+                raise ValueError("connection_string or AZURE_STORAGE_CONNECTION_STRING environment variable required")
 
             self.client = BlobServiceClient.from_connection_string(connection_string)
 
@@ -89,9 +87,7 @@ class AzureBlobStorage(StorageBackend):
             blob_metadata["filename"] = filename
 
             # Upload blob
-            await blob_client.upload_blob(
-                content, content_type=content_type, metadata=blob_metadata, overwrite=True
-            )
+            await blob_client.upload_blob(content, content_type=content_type, metadata=blob_metadata, overwrite=True)
 
             # Get blob properties
             props = await blob_client.get_blob_properties()
@@ -238,11 +234,11 @@ class AzureBlobStorage(StorageBackend):
             blob_client = self.container_client.get_blob_client(blob_name)
 
             # Generate SAS token for time-limited access
-            from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+            from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
             # Get account info
             account_name = self.client.account_name
-            account_key = self.client.credential.account_key if hasattr(self.client.credential, 'account_key') else None
+            account_key = self.client.credential.account_key if hasattr(self.client.credential, "account_key") else None
 
             if account_key:
                 # Generate SAS token

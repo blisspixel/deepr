@@ -14,7 +14,6 @@ Interactive Mode:
     deepr interactive
 """
 
-
 import click
 
 from deepr import __version__
@@ -110,7 +109,8 @@ def main():
     if len(sys.argv) == 1:
         # Import here to avoid circular imports
         from deepr.cli.commands.interactive import interactive
-        ctx = cli.make_context('deepr', [])
+
+        ctx = cli.make_context("deepr", [])
         with ctx:
             interactive.invoke(ctx)
     else:

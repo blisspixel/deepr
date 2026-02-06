@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 
 
 @dataclass
@@ -177,9 +177,7 @@ class DeepResearchProvider(ABC):
         pass
 
     @abstractmethod
-    async def wait_for_vector_store(
-        self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0
-    ) -> bool:
+    async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """
         Wait for vector store ingestion to complete.
 

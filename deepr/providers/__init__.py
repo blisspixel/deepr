@@ -1,11 +1,12 @@
 """Provider abstraction for multi-cloud Deep Research support."""
 
 from typing import Literal
-from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
-from .openai_provider import OpenAIProvider
+
 from .azure_provider import AzureProvider
+from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
 from .gemini_provider import GeminiProvider
 from .grok_provider import GrokProvider
+from .openai_provider import OpenAIProvider
 
 ProviderType = Literal["openai", "azure", "gemini", "xai"]
 
