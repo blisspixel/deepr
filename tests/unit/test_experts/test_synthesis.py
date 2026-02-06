@@ -4,19 +4,15 @@ Tests the expert consciousness system including beliefs, knowledge gaps,
 worldview management, and synthesis operations.
 """
 
-import pytest
-from datetime import datetime, timedelta
-from pathlib import Path
 import json
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
-from deepr.experts.synthesis import (
-    Belief,
-    KnowledgeGap,
-    Worldview,
-    KnowledgeSynthesizer
-)
+import pytest
+
+from deepr.experts.synthesis import Belief, KnowledgeGap, KnowledgeSynthesizer, Worldview
 
 
 class TestBelief:
@@ -31,7 +27,7 @@ class TestBelief:
             confidence=0.85,
             evidence=["python-release-notes.md", "benchmark-results.md"],
             formed_at=now,
-            last_updated=now
+            last_updated=now,
         )
         assert belief.topic == "Python Performance"
         assert belief.confidence == 0.85
@@ -46,7 +42,7 @@ class TestBelief:
             confidence=0.95,
             evidence=["testing-guide.md"],
             formed_at=now,
-            last_updated=now
+            last_updated=now,
         )
         data = belief.to_dict()
         assert data["topic"] == "Testing"
@@ -63,7 +59,7 @@ class TestBelief:
             "confidence": 0.75,
             "evidence": ["arch-doc.md"],
             "formed_at": now.isoformat(),
-            "last_updated": now.isoformat()
+            "last_updated": now.isoformat(),
         }
         belief = Belief.from_dict(data)
         assert belief.topic == "Architecture"
@@ -79,7 +75,7 @@ class TestBelief:
             confidence=0.99,
             evidence=["test.md"],
             formed_at=now,
-            last_updated=now
+            last_updated=now,
         )
         data = original.to_dict()
         restored = Belief.from_dict(data)
@@ -97,7 +93,7 @@ class TestBelief:
             confidence=0.0,
             evidence=[],
             formed_at=now,
-            last_updated=now
+            last_updated=now,
         )
         assert belief_zero.confidence == 0.0
 
@@ -108,7 +104,7 @@ class TestBelief:
             confidence=1.0,
             evidence=["proof.md"],
             formed_at=now,
-            last_updated=now
+            last_updated=now,
         )
         assert belief_full.confidence == 1.0
 
@@ -123,7 +119,7 @@ class TestKnowledgeGap:
             topic="Kubernetes Networking",
             questions=["How does CNI work?", "What are network policies?"],
             priority=4,
-            identified_at=now
+            identified_at=now,
         )
         assert gap.topic == "Kubernetes Networking"
         assert len(gap.questions) == 2
@@ -132,12 +128,7 @@ class TestKnowledgeGap:
     def test_knowledge_gap_to_dict(self):
         """Test knowledge gap serialization."""
         now = datetime.utcnow()
-        gap = KnowledgeGap(
-            topic="Security",
-            questions=["What is zero trust?"],
-            priority=5,
-            identified_at=now
-        )
+        gap = KnowledgeGap(topic="Security", questions=["What is zero trust?"], priority=5, identified_at=now)
         data = gap.to_dict()
         assert data["topic"] == "Security"
         assert data["priority"] == 5
@@ -150,7 +141,7 @@ class TestKnowledgeGap:
             "topic": "ML Ops",
             "questions": ["How to deploy models?", "What is model drift?"],
             "priority": 3,
-            "identified_at": now.isoformat()
+            "identified_at": now.isoformat(),
         }
         gap = KnowledgeGap.from_dict(data)
         assert gap.topic == "ML Ops"
@@ -162,10 +153,7 @@ class TestKnowledgeGap:
         now = datetime.utcnow()
         for priority in [1, 2, 3, 4, 5]:
             gap = KnowledgeGap(
-                topic=f"Priority {priority}",
-                questions=["Question?"],
-                priority=priority,
-                identified_at=now
+                topic=f"Priority {priority}", questions=["Question?"], priority=priority, identified_at=now
             )
             assert gap.priority == priority
 
@@ -175,10 +163,7 @@ class TestWorldview:
 
     def test_create_empty_worldview(self):
         """Test creating an empty worldview."""
-        worldview = Worldview(
-            expert_name="Test Expert",
-            domain="Testing"
-        )
+        worldview = Worldview(expert_name="Test Expert", domain="Testing")
         assert worldview.expert_name == "Test Expert"
         assert worldview.domain == "Testing"
         assert worldview.beliefs == []
@@ -195,27 +180,17 @@ class TestWorldview:
                 confidence=0.8,
                 evidence=["doc1.md"],
                 formed_at=now,
-                last_updated=now
+                last_updated=now,
             )
         ]
-        worldview = Worldview(
-            expert_name="Expert",
-            domain="Domain",
-            beliefs=beliefs,
-            synthesis_count=1
-        )
+        worldview = Worldview(expert_name="Expert", domain="Domain", beliefs=beliefs, synthesis_count=1)
         assert len(worldview.beliefs) == 1
         assert worldview.synthesis_count == 1
 
     def test_worldview_to_dict(self):
         """Test worldview serialization."""
         now = datetime.utcnow()
-        worldview = Worldview(
-            expert_name="Serialization Expert",
-            domain="Data",
-            last_synthesis=now,
-            synthesis_count=5
-        )
+        worldview = Worldview(expert_name="Serialization Expert", domain="Data", last_synthesis=now, synthesis_count=5)
         data = worldview.to_dict()
         assert data["expert_name"] == "Serialization Expert"
         assert data["synthesis_count"] == 5
@@ -230,7 +205,7 @@ class TestWorldview:
             "beliefs": [],
             "knowledge_gaps": [],
             "last_synthesis": now.isoformat(),
-            "synthesis_count": 3
+            "synthesis_count": 3,
         }
         worldview = Worldview.from_dict(data)
         assert worldview.expert_name == "Restored Expert"
@@ -250,14 +225,14 @@ class TestWorldview:
                     confidence=0.99,
                     evidence=["persistence.md"],
                     formed_at=now,
-                    last_updated=now
+                    last_updated=now,
                 )
             ],
             last_synthesis=now,
-            synthesis_count=1
+            synthesis_count=1,
         )
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             path = Path(f.name)
 
         try:
@@ -274,17 +249,10 @@ class TestWorldview:
         now = datetime.utcnow()
         gaps = [
             KnowledgeGap(
-                topic="Unknown Area",
-                questions=["What is this?", "How does it work?"],
-                priority=4,
-                identified_at=now
+                topic="Unknown Area", questions=["What is this?", "How does it work?"], priority=4, identified_at=now
             )
         ]
-        worldview = Worldview(
-            expert_name="Curious Expert",
-            domain="Learning",
-            knowledge_gaps=gaps
-        )
+        worldview = Worldview(expert_name="Curious Expert", domain="Learning", knowledge_gaps=gaps)
         assert len(worldview.knowledge_gaps) == 1
         assert worldview.knowledge_gaps[0].priority == 4
 
@@ -312,14 +280,9 @@ class TestKnowledgeSynthesizer:
 
     def test_build_synthesis_prompt_basic(self, synthesizer):
         """Test building synthesis prompt without existing worldview."""
-        documents = [
-            {"filename": "test.md", "content": "Test content here"}
-        ]
+        documents = [{"filename": "test.md", "content": "Test content here"}]
         prompt = synthesizer._build_synthesis_prompt(
-            expert_name="Test Expert",
-            domain="Testing",
-            documents=documents,
-            existing_worldview=None
+            expert_name="Test Expert", domain="Testing", documents=documents, existing_worldview=None
         )
         assert "Test Expert" in prompt
         assert "Testing" in prompt
@@ -340,16 +303,13 @@ class TestKnowledgeSynthesizer:
                     confidence=0.9,
                     evidence=["old.md"],
                     formed_at=now,
-                    last_updated=now
+                    last_updated=now,
                 )
-            ]
+            ],
         )
         documents = [{"filename": "new.md", "content": "New content"}]
         prompt = synthesizer._build_synthesis_prompt(
-            expert_name="Existing Expert",
-            domain="Domain",
-            documents=documents,
-            existing_worldview=worldview
+            expert_name="Existing Expert", domain="Domain", documents=documents, existing_worldview=worldview
         )
         assert "EXISTING BELIEFS" in prompt
         assert "I already know this" in prompt
@@ -359,22 +319,14 @@ class TestKnowledgeSynthesizer:
         long_content = "x" * 5000
         documents = [{"filename": "long.md", "content": long_content}]
         prompt = synthesizer._build_synthesis_prompt(
-            expert_name="Expert",
-            domain="Domain",
-            documents=documents,
-            existing_worldview=None
+            expert_name="Expert", domain="Domain", documents=documents, existing_worldview=None
         )
         assert "[...document continues...]" in prompt
 
     def test_update_worldview_adds_new_beliefs(self, synthesizer):
         """Test that new beliefs are added to worldview."""
         now = datetime.utcnow()
-        existing = Worldview(
-            expert_name="Expert",
-            domain="Domain",
-            beliefs=[],
-            synthesis_count=0
-        )
+        existing = Worldview(expert_name="Expert", domain="Domain", beliefs=[], synthesis_count=0)
         new_beliefs = [
             Belief(
                 topic="New Topic",
@@ -382,7 +334,7 @@ class TestKnowledgeSynthesizer:
                 confidence=0.8,
                 evidence=["new.md"],
                 formed_at=now,
-                last_updated=now
+                last_updated=now,
             )
         ]
         updated = synthesizer._update_worldview(existing, new_beliefs, [])
@@ -403,10 +355,10 @@ class TestKnowledgeSynthesizer:
                     confidence=0.5,
                     evidence=["old.md"],
                     formed_at=old_time,
-                    last_updated=old_time
+                    last_updated=old_time,
                 )
             ],
-            synthesis_count=1
+            synthesis_count=1,
         )
         new_beliefs = [
             Belief(
@@ -415,7 +367,7 @@ class TestKnowledgeSynthesizer:
                 confidence=0.9,
                 evidence=["new.md"],
                 formed_at=now,
-                last_updated=now
+                last_updated=now,
             )
         ]
         updated = synthesizer._update_worldview(existing, new_beliefs, [])
@@ -428,30 +380,15 @@ class TestKnowledgeSynthesizer:
     def test_update_worldview_adds_gaps(self, synthesizer):
         """Test that knowledge gaps are added."""
         now = datetime.utcnow()
-        existing = Worldview(
-            expert_name="Expert",
-            domain="Domain",
-            knowledge_gaps=[]
-        )
-        new_gaps = [
-            KnowledgeGap(
-                topic="Unknown",
-                questions=["What is this?"],
-                priority=3,
-                identified_at=now
-            )
-        ]
+        existing = Worldview(expert_name="Expert", domain="Domain", knowledge_gaps=[])
+        new_gaps = [KnowledgeGap(topic="Unknown", questions=["What is this?"], priority=3, identified_at=now)]
         updated = synthesizer._update_worldview(existing, [], new_gaps)
         assert len(updated.knowledge_gaps) == 1
 
     @pytest.mark.asyncio
     async def test_synthesize_no_documents(self, synthesizer):
         """Test synthesis with no documents returns error."""
-        result = await synthesizer.synthesize_new_knowledge(
-            expert_name="Expert",
-            domain="Domain",
-            new_documents=[]
-        )
+        result = await synthesizer.synthesize_new_knowledge(expert_name="Expert", domain="Domain", new_documents=[])
         assert result["success"] is False
         assert "No documents" in result["error"]
 
@@ -473,25 +410,23 @@ I believe testing is important (Confidence: 90%)
         # Second call for parsing
         parse_response = MagicMock()
         parse_response.choices = [MagicMock()]
-        parse_response.choices[0].message.content = json.dumps({
-            "beliefs": [
-                {
-                    "topic": "Testing",
-                    "statement": "Testing is important",
-                    "confidence": 0.9,
-                    "evidence": ["test.md"]
-                }
-            ],
-            "knowledge_gaps": []
-        })
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=[mock_response, parse_response]
+        parse_response.choices[0].message.content = json.dumps(
+            {
+                "beliefs": [
+                    {
+                        "topic": "Testing",
+                        "statement": "Testing is important",
+                        "confidence": 0.9,
+                        "evidence": ["test.md"],
+                    }
+                ],
+                "knowledge_gaps": [],
+            }
         )
+        mock_client.chat.completions.create = AsyncMock(side_effect=[mock_response, parse_response])
 
         result = await synthesizer.synthesize_new_knowledge(
-            expert_name="Test Expert",
-            domain="Testing",
-            new_documents=[{"path": "test.md", "content": "Test content"}]
+            expert_name="Test Expert", domain="Testing", new_documents=[{"path": "test.md", "content": "Test content"}]
         )
         assert result["success"] is True
         assert result["documents_processed"] == 1
@@ -511,23 +446,14 @@ I believe testing is important (Confidence: 90%)
                     confidence=0.95,
                     evidence=["docs.md"],
                     formed_at=now,
-                    last_updated=now
+                    last_updated=now,
                 )
             ],
-            knowledge_gaps=[
-                KnowledgeGap(
-                    topic="Unknown",
-                    questions=["What else?"],
-                    priority=3,
-                    identified_at=now
-                )
-            ],
+            knowledge_gaps=[KnowledgeGap(topic="Unknown", questions=["What else?"], priority=3, identified_at=now)],
             last_synthesis=now,
-            synthesis_count=1
+            synthesis_count=1,
         )
-        doc = await synthesizer.generate_worldview_document(
-            worldview, "Expert reflection text"
-        )
+        doc = await synthesizer.generate_worldview_document(worldview, "Expert reflection text")
         assert "# Worldview: Doc Expert" in doc
         assert "Documentation" in doc
         assert "Good docs matter" in doc
@@ -542,12 +468,7 @@ class TestSynthesisEdgeCases:
         """Test belief with no evidence."""
         now = datetime.utcnow()
         belief = Belief(
-            topic="Speculation",
-            statement="Just a guess",
-            confidence=0.1,
-            evidence=[],
-            formed_at=now,
-            last_updated=now
+            topic="Speculation", statement="Just a guess", confidence=0.1, evidence=[], formed_at=now, last_updated=now
         )
         data = belief.to_dict()
         assert data["evidence"] == []
@@ -555,21 +476,13 @@ class TestSynthesisEdgeCases:
     def test_knowledge_gap_empty_questions(self):
         """Test knowledge gap with no questions."""
         now = datetime.utcnow()
-        gap = KnowledgeGap(
-            topic="Vague Area",
-            questions=[],
-            priority=1,
-            identified_at=now
-        )
+        gap = KnowledgeGap(topic="Vague Area", questions=[], priority=1, identified_at=now)
         data = gap.to_dict()
         assert data["questions"] == []
 
     def test_worldview_no_synthesis_date(self):
         """Test worldview without synthesis date."""
-        worldview = Worldview(
-            expert_name="New Expert",
-            domain="New Domain"
-        )
+        worldview = Worldview(expert_name="New Expert", domain="New Domain")
         data = worldview.to_dict()
         assert data["last_synthesis"] is None
 
@@ -581,7 +494,7 @@ class TestSynthesisEdgeCases:
             "beliefs": [],
             "knowledge_gaps": [],
             "last_synthesis": None,
-            "synthesis_count": 0
+            "synthesis_count": 0,
         }
         worldview = Worldview.from_dict(data)
         assert worldview.last_synthesis is None

@@ -1,8 +1,9 @@
 """Tests for job poller worker."""
 
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone, timedelta
 
 
 class TestJobPoller:
@@ -24,15 +25,18 @@ class TestJobPoller:
 
     @pytest.fixture
     def poller(self, mock_config):
-        with patch("deepr.worker.poller.load_config", return_value=mock_config), \
-             patch("deepr.worker.poller.create_queue") as mock_cq, \
-             patch("deepr.worker.poller.create_storage") as mock_cs, \
-             patch("deepr.worker.poller.create_provider") as mock_cp, \
-             patch("deepr.worker.poller.CostController"):
+        with (
+            patch("deepr.worker.poller.load_config", return_value=mock_config),
+            patch("deepr.worker.poller.create_queue") as mock_cq,
+            patch("deepr.worker.poller.create_storage") as mock_cs,
+            patch("deepr.worker.poller.create_provider") as mock_cp,
+            patch("deepr.worker.poller.CostController"),
+        ):
             mock_cq.return_value = AsyncMock()
             mock_cs.return_value = AsyncMock()
             mock_cp.return_value = AsyncMock()
             from deepr.worker.poller import JobPoller
+
             p = JobPoller(poll_interval=5)
             return p
 

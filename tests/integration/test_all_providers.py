@@ -11,18 +11,19 @@ Note: These tests require API keys and will make real API calls.
 They are designed to be cheap (simple queries) but will incur small costs.
 """
 
-import pytest
 import asyncio
 import os
+
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from deepr.providers.openai_provider import OpenAIProvider
-from deepr.providers.gemini_provider import GeminiProvider
-from deepr.providers.grok_provider import GrokProvider
 from deepr.providers.azure_provider import AzureProvider
 from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.gemini_provider import GeminiProvider
+from deepr.providers.grok_provider import GrokProvider
+from deepr.providers.openai_provider import OpenAIProvider
 
 
 # Helper function to validate response structure
@@ -30,8 +31,7 @@ def validate_research_response(response, provider_name):
     """Validate that a research response has the expected structure."""
     assert response is not None, f"{provider_name}: Response should not be None"
     assert response.id is not None, f"{provider_name}: Response should have an ID"
-    assert response.status in ["completed", "in_progress", "failed"], \
-        f"{provider_name}: Status should be valid"
+    assert response.status in ["completed", "in_progress", "failed"], f"{provider_name}: Status should be valid"
 
     if response.status == "completed":
         assert response.output is not None, f"{provider_name}: Completed response should have output"
@@ -40,10 +40,10 @@ def validate_research_response(response, provider_name):
         # Check for content
         has_content = False
         for block in response.output:
-            if block.get('type') == 'message':
-                for item in block.get('content', []):
-                    if item.get('type') in ['output_text', 'text']:
-                        text = item.get('text', '')
+            if block.get("type") == "message":
+                for item in block.get("content", []):
+                    if item.get("type") in ["output_text", "text"]:
+                        text = item.get("text", "")
                         if text:
                             has_content = True
                             break
@@ -72,7 +72,7 @@ async def test_openai_provider_basic():
         model="o4-mini-deep-research",
         system_message="You are a helpful assistant.",
         tools=[ToolConfig(type="web_search_preview")],  # Deep research models require at least one tool
-        background=False
+        background=False,
     )
 
     job_id = await provider.submit_research(request)
@@ -115,7 +115,7 @@ async def test_gemini_provider_basic():
         model="gemini-2.5-flash",
         system_message="You are a helpful assistant.",
         tools=[],
-        background=False
+        background=False,
     )
 
     job_id = await provider.submit_research(request)
@@ -150,7 +150,7 @@ async def test_grok_provider_basic():
         model="grok-4-fast",
         system_message="You are a helpful assistant.",
         tools=[],
-        background=False
+        background=False,
     )
 
     job_id = await provider.submit_research(request)
@@ -185,7 +185,7 @@ async def test_azure_provider_basic():
         model="o4-mini-deep-research",
         system_message="You are a helpful assistant.",
         tools=[ToolConfig(type="web_search_preview")],  # Deep research models require at least one tool
-        background=False
+        background=False,
     )
 
     job_id = await provider.submit_research(request)
@@ -238,7 +238,7 @@ async def test_all_providers_cost_tracking():
             model=model,
             system_message="You are a helpful assistant.",
             tools=tools,
-            background=False
+            background=False,
         )
 
         job_id = await provider.submit_research(request)
@@ -285,7 +285,7 @@ async def test_provider_response_format_consistency():
             model=model,
             system_message="You are a helpful assistant.",
             tools=[],
-            background=False
+            background=False,
         )
 
         job_id = await provider.submit_research(request)
@@ -302,12 +302,12 @@ async def test_provider_response_format_consistency():
             found_text = False
             for block in response.output:
                 assert isinstance(block, dict), f"{provider_name}: Output blocks should be dicts"
-                assert 'type' in block, f"{provider_name}: Output blocks should have 'type'"
+                assert "type" in block, f"{provider_name}: Output blocks should have 'type'"
 
-                if block.get('type') == 'message':
-                    assert 'content' in block, f"{provider_name}: Message blocks should have 'content'"
-                    for item in block['content']:
-                        if item.get('type') in ['output_text', 'text']:
+                if block.get("type") == "message":
+                    assert "content" in block, f"{provider_name}: Message blocks should have 'content'"
+                    for item in block["content"]:
+                        if item.get("type") in ["output_text", "text"]:
                             found_text = True
 
             assert found_text, f"{provider_name}: Should have text output"
@@ -329,7 +329,7 @@ async def test_provider_error_handling():
         model="invalid-model-that-does-not-exist",
         system_message="You are a helpful assistant.",
         tools=[],
-        background=False
+        background=False,
     )
 
     # Gemini executes immediately, so job_id is returned even for invalid models

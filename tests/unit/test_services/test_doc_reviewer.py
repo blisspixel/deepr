@@ -1,9 +1,9 @@
 """Tests for doc reviewer service."""
 
-import json
-import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from tests.unit.test_services.conftest import make_chat_response
 
 
@@ -27,12 +27,14 @@ class TestDocReviewer:
     def reviewer(self, mock_client, temp_docs):
         with patch("deepr.services.doc_reviewer.OpenAI", return_value=mock_client):
             from deepr.services.doc_reviewer import DocReviewer
+
             return DocReviewer(api_key="test-key", docs_path=temp_docs)
 
     def test_init_with_api_key(self):
         """Direct API key accepted."""
         with patch("deepr.services.doc_reviewer.OpenAI"):
             from deepr.services.doc_reviewer import DocReviewer
+
             r = DocReviewer(api_key="direct-key")
             assert r.api_key == "direct-key"
 
@@ -41,6 +43,7 @@ class TestDocReviewer:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with patch("deepr.services.doc_reviewer.OpenAI"):
             from deepr.services.doc_reviewer import DocReviewer
+
             with pytest.raises(ValueError, match="OPENAI_API_KEY not found"):
                 DocReviewer()
 
@@ -66,6 +69,7 @@ class TestDocReviewer:
         """Empty directory returns empty list."""
         with patch("deepr.services.doc_reviewer.OpenAI", return_value=mock_client):
             from deepr.services.doc_reviewer import DocReviewer
+
             r = DocReviewer(api_key="test-key", docs_path=str(tmp_path))
             docs = r.scan_docs("*.txt")
             assert docs == []
@@ -76,6 +80,7 @@ class TestDocReviewer:
         (tmp_path / "data.txt").write_text("text content")
         with patch("deepr.services.doc_reviewer.OpenAI", return_value=mock_client):
             from deepr.services.doc_reviewer import DocReviewer
+
             r = DocReviewer(api_key="test-key", docs_path=str(tmp_path))
             md_docs = r.scan_docs("*.md")
             assert len(md_docs) == 1
@@ -85,6 +90,7 @@ class TestDocReviewer:
         """Returns gap when no docs exist."""
         with patch("deepr.services.doc_reviewer.OpenAI", return_value=mock_client):
             from deepr.services.doc_reviewer import DocReviewer
+
             r = DocReviewer(api_key="test-key", docs_path=str(tmp_path))
             result = r.review_docs("Market analysis")
             assert len(result["gaps"]) == 1
@@ -92,34 +98,40 @@ class TestDocReviewer:
 
     def test_review_docs_calls_llm(self, reviewer, mock_client):
         """review_docs calls chat.completions.create for evaluation."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "sufficient": [],
-            "needs_update": [],
-            "gaps": ["topic1"],
-            "recommendations": [],
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "sufficient": [],
+                "needs_update": [],
+                "gaps": ["topic1"],
+                "recommendations": [],
+            }
+        )
         reviewer.review_docs("Scenario")
         mock_client.chat.completions.create.assert_called_once()
 
     def test_review_docs_sorts_by_modified(self, reviewer, mock_client):
         """Most recent docs are reviewed first."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "sufficient": [],
-            "needs_update": [],
-            "gaps": [],
-            "recommendations": [],
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "sufficient": [],
+                "needs_update": [],
+                "gaps": [],
+                "recommendations": [],
+            }
+        )
         reviewer.review_docs("Scenario", max_docs_to_review=1)
         # Should not crash, limits to max_docs_to_review
 
     def test_review_docs_limits_count(self, reviewer, mock_client):
         """max_docs_to_review honored."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "sufficient": [],
-            "needs_update": [],
-            "gaps": [],
-            "recommendations": [],
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "sufficient": [],
+                "needs_update": [],
+                "gaps": [],
+                "recommendations": [],
+            }
+        )
         reviewer.review_docs("Scenario", max_docs_to_review=1)
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         user_msg = call_kwargs["messages"][1]["content"]
@@ -128,12 +140,14 @@ class TestDocReviewer:
 
     def test_review_docs_parses_response(self, reviewer, mock_client):
         """Returns structured dict from LLM response."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "sufficient": [{"path": "x.txt", "name": "x.txt", "reason": "Good"}],
-            "needs_update": [],
-            "gaps": ["Missing topic"],
-            "recommendations": [{"action": "research", "topic": "New", "reason": "Needed"}],
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "sufficient": [{"path": "x.txt", "name": "x.txt", "reason": "Good"}],
+                "needs_update": [],
+                "gaps": ["Missing topic"],
+                "recommendations": [{"action": "research", "topic": "New", "reason": "Needed"}],
+            }
+        )
         result = reviewer.review_docs("Scenario")
         assert len(result["sufficient"]) == 1
         assert len(result["gaps"]) == 1
@@ -146,6 +160,7 @@ class TestDocReviewerTaskGeneration:
     def reviewer(self, mock_openai_env):
         with patch("deepr.services.doc_reviewer.OpenAI"):
             from deepr.services.doc_reviewer import DocReviewer
+
             return DocReviewer()
 
     def test_reuse_action_skipped(self, reviewer):
@@ -156,26 +171,30 @@ class TestDocReviewerTaskGeneration:
 
     def test_update_action_creates_task(self, reviewer):
         """'update' action creates a task."""
-        review = {"recommendations": [
-            {"action": "update", "doc": "path/old.txt", "topic": "Update pricing", "reason": "Outdated"},
-        ]}
+        review = {
+            "recommendations": [
+                {"action": "update", "doc": "path/old.txt", "topic": "Update pricing", "reason": "Outdated"},
+            ]
+        }
         tasks = reviewer.generate_tasks_from_review(review)
         assert len(tasks) == 1
         assert "Update" in tasks[0]["title"]
 
     def test_research_action_creates_task(self, reviewer):
         """'research' action creates a new research task."""
-        review = {"recommendations": [
-            {"action": "research", "topic": "New market analysis", "reason": "Gap found"},
-        ]}
+        review = {
+            "recommendations": [
+                {"action": "research", "topic": "New market analysis", "reason": "Gap found"},
+            ]
+        }
         tasks = reviewer.generate_tasks_from_review(review)
         assert len(tasks) == 1
         assert tasks[0]["title"] == "New market analysis"
 
     def test_max_tasks_honored(self, reviewer):
         """max_tasks limits output."""
-        review = {"recommendations": [
-            {"action": "research", "topic": f"Topic {i}", "reason": "Need"} for i in range(10)
-        ]}
+        review = {
+            "recommendations": [{"action": "research", "topic": f"Topic {i}", "reason": "Need"} for i in range(10)]
+        }
         tasks = reviewer.generate_tasks_from_review(review, max_tasks=3)
         assert len(tasks) == 3

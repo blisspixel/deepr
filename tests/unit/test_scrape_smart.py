@@ -1,18 +1,18 @@
 """Test smart scraping with LLM-guided filtering."""
 
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from deepr.utils.scrape import scrape_website, ScrapeConfig
+from deepr.utils.scrape import ScrapeConfig, scrape_website
 
 
 def test_smart_scrape():
     """Test complete smart scraping workflow."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Smart Scraping Test (LLM-Guided)")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Use a simple config for testing
     config = ScrapeConfig(
@@ -41,15 +41,16 @@ def test_smart_scrape():
         print(f"[OK] Pages scraped: {results['pages_scraped']}")
         print(f"[OK] URLs: {results['scraped_urls']}")
 
-        assert results['success'] is True
-        assert results['pages_scraped'] >= 1
-        assert len(results['scraped_data']) >= 1
+        assert results["success"] is True
+        assert results["pages_scraped"] >= 1
+        assert len(results["scraped_data"]) >= 1
 
         print("\n[PASS] Smart scraping working\n")
 
     except Exception as e:
         print(f"\n[FAIL] Smart scrape failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -58,9 +59,9 @@ def test_smart_scrape():
 
 def test_link_filter_heuristic():
     """Test link filtering with heuristic fallback."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Link Filter Heuristic Test")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     from deepr.utils.scrape.filter import LinkFilter
 
@@ -90,7 +91,7 @@ def test_link_filter_heuristic():
     assert len(filtered) > 0
     assert len(filtered) < len(test_links)
 
-    urls = [link['url'] for link in filtered]
+    urls = [link["url"] for link in filtered]
     assert "https://example.com/login" not in urls
     assert "https://example.com/terms" not in urls
 
@@ -105,9 +106,9 @@ def test_link_filter_heuristic():
 
 def run_all_tests():
     """Run all smart scraping tests."""
-    print("="*70)
+    print("=" * 70)
     print("Testing Smart Scraping")
-    print("="*70)
+    print("=" * 70)
 
     try:
         if not test_link_filter_heuristic():
@@ -116,14 +117,15 @@ def run_all_tests():
         if not test_smart_scrape():
             return 1
 
-        print("="*70)
+        print("=" * 70)
         print("ALL SMART SCRAPING TESTS PASSED")
-        print("="*70)
+        print("=" * 70)
         return 0
 
     except Exception as e:
         print(f"\n[ERROR] {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

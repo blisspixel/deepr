@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from docx import Document
 
@@ -99,7 +99,7 @@ class ReportConverter:
             logger.warning("PDF conversion failed: %s", e)
             return None
 
-    async def generate_all_formats(self, text: str, title: str, strip_citations: bool = True) -> Dict[str, bytes]:
+    async def generate_all_formats(self, text: str, title: str, strip_citations: bool = True) -> dict[str, bytes]:
         """
         Generate all report formats from text.
 

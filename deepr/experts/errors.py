@@ -5,7 +5,7 @@ scenarios during curriculum generation, including API failures, validation
 errors, and domain validation issues.
 """
 
-from typing import List, Optional
+from typing import Optional
 
 
 class CurriculumGenerationError(Exception):
@@ -91,7 +91,7 @@ class InvalidCurriculumError(CurriculumGenerationError):
         issues: List of specific validation issues found
     """
 
-    def __init__(self, issues: List[str]):
+    def __init__(self, issues: list[str]):
         self.issues = issues
         issues_str = "\n  - ".join(issues)
         super().__init__(f"Invalid curriculum structure. Issues found:\n  - {issues_str}")

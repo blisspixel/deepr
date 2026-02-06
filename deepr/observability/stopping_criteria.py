@@ -23,7 +23,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 from deepr.core.constants import (
     ENTROPY_THRESHOLD,
@@ -47,7 +47,7 @@ class Finding:
     confidence: float = 0.5
     source: Optional[str] = None
     timestamp: datetime = field(default_factory=_utc_now)
-    tokens: List[str] = field(default_factory=list)
+    tokens: list[str] = field(default_factory=list)
     content_hash: str = ""
 
     def __post_init__(self):
@@ -57,7 +57,7 @@ class Finding:
             self.content_hash = hashlib.md5(self.text.encode()).hexdigest()[:12]
 
     @staticmethod
-    def _tokenize(text: str) -> List[str]:
+    def _tokenize(text: str) -> list[str]:
         """Simple tokenization for entropy calculation."""
         text = text.lower()
         text = re.sub(r"[^\w\s]", " ", text)
@@ -89,9 +89,9 @@ class StoppingDecision:
     information_gain: float
     pivot_suggestion: Optional[str] = None
     confidence: float = 0.5
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "should_stop": self.should_stop,
             "reason": self.reason,
@@ -137,12 +137,12 @@ class EntropyStoppingCriteria:
         self.min_iterations = min_iterations or MIN_ITERATIONS_BEFORE_STOP
 
         # Track history for trend analysis
-        self._entropy_history: List[float] = []
-        self._content_hashes: Set[str] = set()
+        self._entropy_history: list[float] = []
+        self._content_hashes: set[str] = set()
 
     def evaluate(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         phase_context: PhaseContext,
     ) -> StoppingDecision:
         """Evaluate whether to stop research.
@@ -238,7 +238,7 @@ class EntropyStoppingCriteria:
             metrics=metrics,
         )
 
-    def calculate_entropy(self, findings: List[Finding]) -> float:
+    def calculate_entropy(self, findings: list[Finding]) -> float:
         """Calculate Shannon entropy of findings.
 
         Higher entropy = more diverse/new information
@@ -280,7 +280,7 @@ class EntropyStoppingCriteria:
 
     def detect_auto_pivot(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         original_query: str,
     ) -> Optional[str]:
         """Detect if research has drifted and suggest pivot.
@@ -326,7 +326,7 @@ class EntropyStoppingCriteria:
 
     def _calculate_information_gain(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         context: PhaseContext,
     ) -> float:
         """Calculate information gain from new findings.
@@ -355,11 +355,11 @@ class EntropyStoppingCriteria:
 
         return min(1.0, max(0.0, info_gain))
 
-    def _count_unique(self, findings: List[Finding]) -> int:
+    def _count_unique(self, findings: list[Finding]) -> int:
         """Count unique findings by content hash."""
         return len({f.content_hash for f in findings})
 
-    def _calculate_duplicate_rate(self, findings: List[Finding]) -> float:
+    def _calculate_duplicate_rate(self, findings: list[Finding]) -> float:
         """Calculate rate of duplicate findings."""
         if not findings:
             return 0.0

@@ -1,10 +1,11 @@
 """Tests for provider router service."""
 
 import pytest
+
 from deepr.services.provider_router import (
+    PROVIDER_CAPABILITIES,
     ProviderCapability,
     ProviderRouter,
-    PROVIDER_CAPABILITIES,
     create_router_from_env,
 )
 

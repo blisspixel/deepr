@@ -13,7 +13,7 @@ and Deepr automatically uses the best provider for each task.
 """
 
 from dataclasses import dataclass
-from typing import List, Literal
+from typing import Literal
 
 
 @dataclass
@@ -80,7 +80,7 @@ class ProviderRouter:
     4. Select highest-scoring available provider
     """
 
-    def __init__(self, available_providers: List[str]):
+    def __init__(self, available_providers: list[str]):
         """
         Initialize router with available providers.
 

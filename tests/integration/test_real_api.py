@@ -8,18 +8,20 @@ Design principle: Tests validate functionality AND gather data to improve Deepr.
 Each test tracks actual cost, time, and quality to compare against estimates.
 """
 
-import pytest
+import asyncio
+import json
 import os
 import time
-import json
-import asyncio
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+from deepr.core.costs import CostEstimator
 from deepr.providers import create_provider
 from deepr.providers.base import ResearchRequest, ToolConfig
-from deepr.storage import create_storage
 from deepr.queue import create_queue
-from deepr.core.costs import CostEstimator
+from deepr.storage import create_storage
 
 
 def get_current_date():
@@ -62,7 +64,7 @@ def save_test_result(test_results_dir, test_name, result_data):
     filename = f"{test_name}_{timestamp}.json"
     result_path = test_results_dir / filename
 
-    with open(result_path, 'w') as f:
+    with open(result_path, "w") as f:
         json.dump(result_data, f, indent=2, default=str)
 
     print(f"\nTest results saved: {result_path}")
@@ -88,11 +90,7 @@ class TestSingleResearchJob:
 Include examples from successful tools (git, docker, kubectl) and key principles for intuitive command structure.
 Keep under 300 words."""
 
-        estimate = CostEstimator.estimate_cost(
-            prompt=prompt,
-            model="o4-mini-deep-research",
-            enable_web_search=True
-        )
+        estimate = CostEstimator.estimate_cost(prompt=prompt, model="o4-mini-deep-research", enable_web_search=True)
 
         # Submit research
         request = ResearchRequest(
@@ -100,7 +98,7 @@ Keep under 300 words."""
             model="o4-mini-deep-research",
             system_message="You are a developer tools expert. Provide actionable insights with examples.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "minimal_o4_mini"}
+            metadata={"test": "minimal_o4_mini"},
         )
 
         job_id = await provider.submit_research(request)
@@ -139,17 +137,17 @@ Keep under 300 words."""
         report_content = ""
         if status.output:
             for block in status.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
                         # OpenAI Deep Research uses 'output_text' not 'text'
-                        if item.get('type') in ['output_text', 'text']:
-                            report_content += item.get('text', '')
+                        if item.get("type") in ["output_text", "text"]:
+                            report_content += item.get("text", "")
 
         # Save to storage
         await storage.save_report(
             job_id=job_id,
             filename="report.md",
-            content=report_content.encode('utf-8'),
+            content=report_content.encode("utf-8"),
             content_type="text/markdown",
             metadata={
                 "prompt": prompt,
@@ -157,7 +155,7 @@ Keep under 300 words."""
                 "actual_cost": actual_cost,
                 "actual_time": actual_time,
                 "estimated_cost": estimate.expected_cost,
-            }
+            },
         )
 
         # Save test results for analysis
@@ -182,7 +180,7 @@ Keep under 300 words."""
         assert len(report_content) > 0, "Report should have content"
 
         # Print results
-        print(f"\n\nTest Results:")
+        print("\n\nTest Results:")
         print(f"  Job ID: {job_id}")
         print(f"  Estimated cost: ${estimate.expected_cost:.4f}")
         print(f"  Actual cost: ${actual_cost:.4f}")
@@ -205,18 +203,14 @@ Keep under 300 words."""
 Include: (1) Multi-agent orchestration patterns, (2) Context management strategies, (3) Quality assessment methods, (4) Cost optimization techniques.
 Cite specific tools, papers, or implementations where possible. Keep under 800 words."""
 
-        estimate = CostEstimator.estimate_cost(
-            prompt=prompt,
-            model="o4-mini-deep-research",
-            enable_web_search=True
-        )
+        estimate = CostEstimator.estimate_cost(prompt=prompt, model="o4-mini-deep-research", enable_web_search=True)
 
         request = ResearchRequest(
             prompt=prompt,
             model="o4-mini-deep-research",
             system_message="You are an AI research expert. Provide cutting-edge insights with citations.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "realistic_query"}
+            metadata={"test": "realistic_query"},
         )
 
         job_id = await provider.submit_research(request)
@@ -246,11 +240,11 @@ Cite specific tools, papers, or implementations where possible. Keep under 800 w
         report_content = ""
         if status.output:
             for block in status.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
                         # OpenAI Deep Research uses 'output_text' not 'text'
-                        if item.get('type') in ['output_text', 'text']:
-                            report_content += item.get('text', '')
+                        if item.get("type") in ["output_text", "text"]:
+                            report_content += item.get("text", "")
 
         # Analyze quality
         has_numbers = any(char.isdigit() for char in report_content)
@@ -279,11 +273,11 @@ Cite specific tools, papers, or implementations where possible. Keep under 800 w
         assert len(report_content) > 100, "Report too short"
         assert has_structure, "Report should have structured content"
 
-        print(f"\n\nTest Results:")
+        print("\n\nTest Results:")
         print(f"  Estimated cost: ${estimate.expected_cost:.4f}")
         print(f"  Actual cost: ${actual_cost:.4f}")
         print(f"  Cost accuracy: {result_data['cost_accuracy']:.2f}x")
-        print(f"  Time: {actual_time:.1f}s ({actual_time/60:.1f} min)")
+        print(f"  Time: {actual_time:.1f}s ({actual_time / 60:.1f} min)")
         print(f"  Report length: {len(report_content)} chars")
         print(f"  Quality indicators: numbers={has_numbers}, structure={has_structure}")
 
@@ -337,10 +331,8 @@ Provide specific, actionable recommendations."""
             prompt=prompt,
             model="o4-mini-deep-research",
             system_message="You are a product analyst. Provide constructive feedback.",
-            tools=[
-                ToolConfig(type="file_search", vector_store_ids=[vector_store.id])
-            ],
-            metadata={"test": "file_upload"}
+            tools=[ToolConfig(type="file_search", vector_store_ids=[vector_store.id])],
+            metadata={"test": "file_upload"},
         )
 
         job_id = await provider.submit_research(request)
@@ -370,11 +362,11 @@ Provide specific, actionable recommendations."""
         report_content = ""
         if status.output:
             for block in status.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
                         # OpenAI Deep Research uses 'output_text' not 'text'
-                        if item.get('type') in ['output_text', 'text']:
-                            report_content += item.get('text', '')
+                        if item.get("type") in ["output_text", "text"]:
+                            report_content += item.get("text", "")
 
         # Check if it used the file context
         used_context = "open source" in report_content.lower() or "usage-based" in report_content.lower()
@@ -399,7 +391,7 @@ Provide specific, actionable recommendations."""
         assert len(report_content) > 0
         assert used_context, "Report should reference uploaded file content"
 
-        print(f"\n\nTest Results:")
+        print("\n\nTest Results:")
         print(f"  File ID: {file_id}")
         print(f"  Actual cost: ${actual_cost:.4f}")
         print(f"  Time: {actual_time:.1f}s")
@@ -463,7 +455,7 @@ class TestPromptRefinement:
         assert len(refined) > len(vague_prompt), "Refined prompt should be longer"
         assert added_date or added_structure, "Should add date context or structure"
 
-        print(f"\n\nTest Results:")
+        print("\n\nTest Results:")
         print(f"  Original: {vague_prompt}")
         print(f"  Refined: {refined[:100]}...")
         print(f"  Time: {actual_time:.2f}s")
@@ -490,11 +482,7 @@ class TestCostTracking:
 
         for name, prompt, model in test_cases:
             # Estimate
-            estimate = CostEstimator.estimate_cost(
-                prompt=prompt,
-                model=model,
-                enable_web_search=True
-            )
+            estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=True)
 
             # Submit
             request = ResearchRequest(
@@ -502,7 +490,7 @@ class TestCostTracking:
                 model=model,
                 system_message="You are a helpful research assistant.",
                 tools=[ToolConfig(type="web_search_preview")],
-                metadata={"test": "cost_accuracy"}
+                metadata={"test": "cost_accuracy"},
             )
 
             job_id = await provider.submit_research(request)
@@ -523,15 +511,17 @@ class TestCostTracking:
 
             accuracy = actual_cost / estimate.expected_cost if estimate.expected_cost > 0 else 0
 
-            results.append({
-                "name": name,
-                "prompt": prompt,
-                "model": model,
-                "estimated": estimate.expected_cost,
-                "actual": actual_cost,
-                "accuracy_ratio": accuracy,
-                "status": status.status,
-            })
+            results.append(
+                {
+                    "name": name,
+                    "prompt": prompt,
+                    "model": model,
+                    "estimated": estimate.expected_cost,
+                    "actual": actual_cost,
+                    "accuracy_ratio": accuracy,
+                    "status": status.status,
+                }
+            )
 
         # Save results
         result_data = {
@@ -543,9 +533,11 @@ class TestCostTracking:
         save_test_result(test_results_dir, "cost_accuracy", result_data)
 
         # Print results
-        print(f"\n\nCost Estimation Accuracy:")
+        print("\n\nCost Estimation Accuracy:")
         for r in results:
-            print(f"  {r['name']}: estimated=${r['estimated']:.4f}, actual=${r['actual']:.4f}, ratio={r['accuracy_ratio']:.2f}x")
+            print(
+                f"  {r['name']}: estimated=${r['estimated']:.4f}, actual=${r['actual']:.4f}, ratio={r['accuracy_ratio']:.2f}x"
+            )
         print(f"  Average accuracy: {result_data['avg_accuracy']:.2f}x")
 
         # Check for failures (but don't fail test - API issues are transient)
@@ -580,7 +572,7 @@ Keep under 600 words with citations."""
             model="o4-mini-deep-research",
             system_message="You are a competitive intelligence researcher.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "campaign_phase_1", "campaign_id": "test-campaign"}
+            metadata={"test": "campaign_phase_1", "campaign_id": "test-campaign"},
         )
 
         job1_id = await provider.submit_research(request1)
@@ -605,10 +597,10 @@ Keep under 600 words with citations."""
         phase1_content = ""
         if status1.output:
             for block in status1.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
-                        if item.get('type') in ['output_text', 'text']:
-                            phase1_content += item.get('text', '')
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
+                        if item.get("type") in ["output_text", "text"]:
+                            phase1_content += item.get("text", "")
 
         # Phase 2: Strategic Analysis using Phase 1 context
         phase2_prompt = f"""Using the inventory from Phase 1 as context, analyze:
@@ -627,7 +619,7 @@ Provide specific, actionable insights. Keep under 500 words."""
             model="o4-mini-deep-research",
             system_message="You are a product strategy consultant.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "campaign_phase_2", "campaign_id": "test-campaign", "previous_phase": job1_id}
+            metadata={"test": "campaign_phase_2", "campaign_id": "test-campaign", "previous_phase": job1_id},
         )
 
         job2_id = await provider.submit_research(request2)
@@ -649,10 +641,10 @@ Provide specific, actionable insights. Keep under 500 words."""
         phase2_content = ""
         if status2.output:
             for block in status2.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
-                        if item.get('type') in ['output_text', 'text']:
-                            phase2_content += item.get('text', '')
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
+                        if item.get("type") in ["output_text", "text"]:
+                            phase2_content += item.get("text", "")
 
         # Calculate totals
         total_cost = (status1.usage.cost if status1.usage else 0) + (status2.usage.cost if status2.usage else 0)
@@ -684,11 +676,11 @@ Provide specific, actionable insights. Keep under 500 words."""
         assert len(phase2_content) > 50, "Phase 2 should have content"
         assert context_referenced, "Context chaining should work"
 
-        print(f"\n\nCampaign Test Results:")
+        print("\n\nCampaign Test Results:")
         print(f"  Phase 1 cost: ${status1.usage.cost if status1.usage else 0:.4f}")
         print(f"  Phase 2 cost: ${status2.usage.cost if status2.usage else 0:.4f}")
         print(f"  Total cost: ${total_cost:.4f}")
-        print(f"  Total time: {total_time/60:.1f} minutes")
+        print(f"  Total time: {total_time / 60:.1f} minutes")
         print(f"  Context chaining: {context_referenced}")
 
 
@@ -726,7 +718,7 @@ What new capabilities should we integrate? Keep under 500 words with current pri
             model="gemini-2.5-flash",
             system_message="You are an AI research analyst. Provide well-cited insights.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "gemini_flash_agentic"}
+            metadata={"test": "gemini_flash_agentic"},
         )
 
         job_id = await provider.submit_research(request)
@@ -795,7 +787,7 @@ What new capabilities should we integrate? Keep under 500 words with current pri
         assert actual_cost < 0.10, f"Cost should be low: ${actual_cost}"
         assert actual_time < 300, f"Should complete in <5min: {actual_time}s"
 
-        print(f"\n\nGemini Flash Test Results:")
+        print("\n\nGemini Flash Test Results:")
         print(f"  Cost: ${actual_cost:.4f}")
         print(f"  Time: {actual_time:.1f}s")
         print(f"  Tokens: {input_tokens} in, {output_tokens} out")
@@ -834,7 +826,7 @@ Provide specific recommendations with examples. Be thorough and analytical."""
             model="gemini-2.5-pro",
             system_message="You are a strategic technology analyst.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "gemini_pro_reasoning"}
+            metadata={"test": "gemini_pro_reasoning"},
         )
 
         job_id = await provider.submit_research(request)
@@ -889,9 +881,9 @@ Provide specific recommendations with examples. Be thorough and analytical."""
         assert is_thorough, "Pro should produce thorough analysis"
         assert actual_cost < 0.50, f"Cost should be reasonable: ${actual_cost}"
 
-        print(f"\n\nGemini Pro Test Results:")
+        print("\n\nGemini Pro Test Results:")
         print(f"  Cost: ${actual_cost:.4f}")
-        print(f"  Time: {actual_time/60:.1f} minutes")
+        print(f"  Time: {actual_time / 60:.1f} minutes")
         print(f"  Quality: comparison={has_comparison}, recommendations={has_recommendations}")
 
 
@@ -929,7 +921,7 @@ Include current pricing and any recent updates. Keep under 400 words."""
             model="grok-4-fast",
             system_message="You are a technology news analyst. Provide current, well-sourced information.",
             tools=[ToolConfig(type="web_search_preview")],
-            metadata={"test": "grok_fast_agentic"}
+            metadata={"test": "grok_fast_agentic"},
         )
 
         job_id = await provider.submit_research(request)
@@ -993,7 +985,7 @@ Include current pricing and any recent updates. Keep under 400 words."""
         assert actual_cost < 0.15, f"Cost should be low: ${actual_cost}"
         assert actual_time < 300, f"Should complete quickly: {actual_time}s"
 
-        print(f"\n\nGrok 4 Fast Test Results:")
+        print("\n\nGrok 4 Fast Test Results:")
         print(f"  Cost: ${actual_cost:.4f}")
         print(f"  Time: {actual_time:.1f}s")
         print(f"  Reasoning tokens: {reasoning_tokens}")
@@ -1036,7 +1028,7 @@ Cite official sources. Keep under 400 words with specific numbers."""
                 prompt=prompt,
                 model=model,
                 tools=[ToolConfig(type="web_search_preview")],
-                metadata={"test": f"grok_comparison_{model}"}
+                metadata={"test": f"grok_comparison_{model}"},
             )
 
             job_id = await provider.submit_research(request)
@@ -1079,7 +1071,7 @@ Cite official sources. Keep under 400 words with specific numbers."""
         }
         save_test_result(test_results_dir, "grok_comparison", result_data)
 
-        print(f"\n\nGrok Model Comparison:")
+        print("\n\nGrok Model Comparison:")
         for model, data in results.items():
             print(f"  {model}:")
             print(f"    Cost: ${data['cost']:.4f}")
@@ -1139,7 +1131,7 @@ Keep under 800 words."""
             system_message="You are a senior software engineer and product strategist.",
             tools=[ToolConfig(type="web_search_preview")],
             document_ids=[readme_id, roadmap_id],
-            metadata={"test": "deepr_docs_analysis"}
+            metadata={"test": "deepr_docs_analysis"},
         )
 
         job_id = await provider.submit_research(request)
@@ -1175,10 +1167,10 @@ Keep under 800 words."""
 
         # Save recommendations to file for review
         recommendations_file = test_results_dir / "deepr_improvement_recommendations.md"
-        with open(recommendations_file, 'w', encoding='utf-8') as f:
-            f.write(f"# Deepr Improvement Recommendations\n\n")
+        with open(recommendations_file, "w", encoding="utf-8") as f:
+            f.write("# Deepr Improvement Recommendations\n\n")
             f.write(f"Generated: {datetime.now().isoformat()}\n")
-            f.write(f"Model: gemini-2.5-flash\n")
+            f.write("Model: gemini-2.5-flash\n")
             f.write(f"Cost: ${actual_cost:.4f}\n")
             f.write(f"Time: {actual_time:.1f}s\n\n")
             f.write("---\n\n")
@@ -1209,7 +1201,7 @@ Keep under 800 words."""
         assert mentions_deepr, "Should reference Deepr"
         assert actual_cost < 0.20, f"Cost should be reasonable: ${actual_cost}"
 
-        print(f"\n\nDeepr Documentation Analysis:")
+        print("\n\nDeepr Documentation Analysis:")
         print(f"  Cost: ${actual_cost:.4f}")
         print(f"  Time: {actual_time:.1f}s")
         print(f"  Recommendations: {len(content)} chars")
@@ -1264,7 +1256,7 @@ Keep under 800 words."""
             system_message="You are a senior systems architect with expertise in AI platforms.",
             tools=[ToolConfig(type="web_search_preview")],
             document_ids=[readme_id, roadmap_id],
-            metadata={"test": "deepr_architecture_analysis"}
+            metadata={"test": "deepr_architecture_analysis"},
         )
 
         job_id = await provider.submit_research(request)
@@ -1300,12 +1292,12 @@ Keep under 800 words."""
 
         # Save to file
         analysis_file = test_results_dir / "deepr_architecture_analysis.md"
-        with open(analysis_file, 'w', encoding='utf-8') as f:
-            f.write(f"# Deepr Architecture Analysis\n\n")
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            f.write("# Deepr Architecture Analysis\n\n")
             f.write(f"Generated: {datetime.now().isoformat()}\n")
-            f.write(f"Model: o4-mini-deep-research\n")
+            f.write("Model: o4-mini-deep-research\n")
             f.write(f"Cost: ${actual_cost:.4f}\n")
-            f.write(f"Time: {actual_time/60:.1f} minutes\n\n")
+            f.write(f"Time: {actual_time / 60:.1f} minutes\n\n")
             f.write("---\n\n")
             f.write(content)
 
@@ -1321,8 +1313,8 @@ Keep under 800 words."""
         }
         save_test_result(test_results_dir, "deepr_architecture", result_data)
 
-        print(f"\n\nDeepr Architecture Analysis:")
+        print("\n\nDeepr Architecture Analysis:")
         print(f"  Cost: ${actual_cost:.4f}")
-        print(f"  Time: {actual_time/60:.1f} minutes")
+        print(f"  Time: {actual_time / 60:.1f} minutes")
         print(f"  Analysis: {len(content)} chars")
         print(f"  Saved to: {analysis_file}")

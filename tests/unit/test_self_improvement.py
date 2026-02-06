@@ -12,7 +12,6 @@ import asyncio
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -832,7 +831,7 @@ class TestConsolidationPropertyTests:
         )
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_deduplication_reduces_or_maintains_count(self, contents: List[str]):
+    def test_deduplication_reduces_or_maintains_count(self, contents: list[str]):
         """Property: Deduplication never increases entry count."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             consolidator = KnowledgeConsolidator(expert_name="test", storage_dir=Path(tmp_dir) / "knowledge")
@@ -856,7 +855,7 @@ class TestConsolidationPropertyTests:
         threshold=st.floats(min_value=0.5, max_value=0.99),
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_similarity_threshold_respected(self, contents: List[str], threshold: float):
+    def test_similarity_threshold_respected(self, contents: list[str], threshold: float):
         """Property: Entries below similarity threshold are kept."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             consolidator = KnowledgeConsolidator(
@@ -881,7 +880,7 @@ class TestConsolidationPropertyTests:
         archive_threshold=st.integers(min_value=30, max_value=180),
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
-    def test_archive_threshold_respected(self, age_days_list: List[int], archive_threshold: int):
+    def test_archive_threshold_respected(self, age_days_list: list[int], archive_threshold: int):
         """Property: Only entries older than threshold are archived."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             consolidator = KnowledgeConsolidator(

@@ -31,7 +31,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -73,11 +73,11 @@ class TemporalFinding:
     source: Optional[str]
     finding_type: FindingType
     timestamp: datetime
-    related_findings: List[str] = field(default_factory=list)
-    tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    related_findings: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.text,
@@ -92,7 +92,7 @@ class TemporalFinding:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TemporalFinding":
+    def from_dict(cls, data: dict[str, Any]) -> "TemporalFinding":
         return cls(
             id=data["id"],
             text=data["text"],
@@ -113,11 +113,11 @@ class HypothesisState:
 
     text: str
     confidence: float
-    supporting_findings: List[str]
-    contradicting_findings: List[str]
+    supporting_findings: list[str]
+    contradicting_findings: list[str]
     timestamp: datetime
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "text": self.text,
             "confidence": self.confidence,
@@ -139,7 +139,7 @@ class HypothesisEvolution:
     triggering_finding_id: Optional[str]
     timestamp: datetime
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "hypothesis_id": self.hypothesis_id,
             "evolution_type": self.evolution_type.value,
@@ -157,11 +157,11 @@ class Hypothesis:
 
     id: str
     current_state: HypothesisState
-    evolution_history: List[HypothesisEvolution] = field(default_factory=list)
+    evolution_history: list[HypothesisEvolution] = field(default_factory=list)
     created_at: datetime = field(default_factory=_utc_now)
     phase_created: int = 1
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "current_state": self.current_state.to_dict(),
@@ -192,10 +192,10 @@ class TemporalKnowledgeTracker:
             job_id: Optional job ID for correlation
         """
         self.job_id = job_id or str(uuid.uuid4())
-        self.findings: List[TemporalFinding] = []
-        self.hypotheses: Dict[str, Hypothesis] = {}
-        self.phase_summaries: Dict[int, Dict[str, Any]] = {}
-        self._finding_index: Dict[str, TemporalFinding] = {}
+        self.findings: list[TemporalFinding] = []
+        self.hypotheses: dict[str, Hypothesis] = {}
+        self.phase_summaries: dict[int, dict[str, Any]] = {}
+        self._finding_index: dict[str, TemporalFinding] = {}
 
     def record_finding(
         self,
@@ -204,9 +204,9 @@ class TemporalKnowledgeTracker:
         confidence: float = 0.5,
         source: Optional[str] = None,
         finding_type: FindingType = FindingType.FACT,
-        related_findings: Optional[List[str]] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        related_findings: Optional[list[str]] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> TemporalFinding:
         """Record a new finding.
 
@@ -252,7 +252,7 @@ class TemporalKnowledgeTracker:
         text: str,
         phase: int,
         confidence: float = 0.5,
-        supporting_findings: Optional[List[str]] = None,
+        supporting_findings: Optional[list[str]] = None,
     ) -> Hypothesis:
         """Create a new hypothesis.
 
@@ -304,8 +304,8 @@ class TemporalKnowledgeTracker:
         confidence: Optional[float] = None,
         evolution_type: Optional[EvolutionType] = None,
         triggering_finding_id: Optional[str] = None,
-        add_supporting: Optional[List[str]] = None,
-        add_contradicting: Optional[List[str]] = None,
+        add_supporting: Optional[list[str]] = None,
+        add_contradicting: Optional[list[str]] = None,
     ) -> HypothesisEvolution:
         """Update an existing hypothesis.
 
@@ -409,7 +409,7 @@ class TemporalKnowledgeTracker:
         self,
         phase: Optional[int] = None,
         finding_type: Optional[FindingType] = None,
-    ) -> List[TemporalFinding]:
+    ) -> list[TemporalFinding]:
         """Get findings timeline.
 
         Args:
@@ -429,7 +429,7 @@ class TemporalKnowledgeTracker:
 
         return sorted(findings, key=lambda f: f.timestamp)
 
-    def get_hypothesis_history(self, hypothesis_id: str) -> List[HypothesisEvolution]:
+    def get_hypothesis_history(self, hypothesis_id: str) -> list[HypothesisEvolution]:
         """Get evolution history for a hypothesis.
 
         Args:
@@ -442,7 +442,7 @@ class TemporalKnowledgeTracker:
             return []
         return self.hypotheses[hypothesis_id].evolution_history
 
-    def get_phase_summary(self, phase: int) -> Dict[str, Any]:
+    def get_phase_summary(self, phase: int) -> dict[str, Any]:
         """Get summary for a specific phase.
 
         Args:
@@ -463,7 +463,7 @@ class TemporalKnowledgeTracker:
             },
         )
 
-    def get_confidence_trend(self, hypothesis_id: str) -> List[Dict[str, Any]]:
+    def get_confidence_trend(self, hypothesis_id: str) -> list[dict[str, Any]]:
         """Get confidence trend for a hypothesis over time.
 
         Args:
@@ -489,7 +489,7 @@ class TemporalKnowledgeTracker:
 
         return trend
 
-    def export_for_job_manager(self) -> Dict[str, Any]:
+    def export_for_job_manager(self) -> dict[str, Any]:
         """Export temporal data for JobBeliefs integration.
 
         Returns:

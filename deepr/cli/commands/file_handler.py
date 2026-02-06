@@ -9,7 +9,7 @@ Requirements: 6.3 - Extract file handling logic
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from deepr.cli.output import OutputFormatter
 
@@ -18,10 +18,10 @@ from deepr.cli.output import OutputFormatter
 class FileUploadResult:
     """Result of file upload operation."""
 
-    resolved_files: List[Path]
-    uploaded_ids: List[str]
+    resolved_files: list[Path]
+    uploaded_ids: list[str]
     vector_store_id: Optional[str]
-    errors: List[str]
+    errors: list[str]
 
     @property
     def success(self) -> bool:
@@ -34,7 +34,7 @@ class FileUploadResult:
         return len(self.errors) > 0
 
 
-def resolve_file_patterns(patterns: tuple, formatter: Optional[OutputFormatter] = None) -> Tuple[List[Path], List[str]]:
+def resolve_file_patterns(patterns: tuple, formatter: Optional[OutputFormatter] = None) -> tuple[list[Path], list[str]]:
     """Resolve file patterns to actual file paths.
 
     Handles glob patterns, Windows paths, and spaces in filenames.
@@ -70,8 +70,8 @@ def resolve_file_patterns(patterns: tuple, formatter: Optional[OutputFormatter] 
 
 
 async def upload_files(
-    provider_instance, files: List[Path], formatter: Optional[OutputFormatter] = None
-) -> Tuple[List[str], List[str]]:
+    provider_instance, files: list[Path], formatter: Optional[OutputFormatter] = None
+) -> tuple[list[str], list[str]]:
     """Upload files to provider.
 
     Args:
@@ -104,8 +104,8 @@ async def upload_files(
 
 
 async def create_vector_store_for_files(
-    provider_instance, file_ids: List[str], formatter: Optional[OutputFormatter] = None, timeout: int = 300
-) -> Tuple[Optional[str], List[str]]:
+    provider_instance, file_ids: list[str], formatter: Optional[OutputFormatter] = None, timeout: int = 300
+) -> tuple[Optional[str], list[str]]:
     """Create vector store and wait for file processing.
 
     Args:

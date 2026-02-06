@@ -9,7 +9,7 @@ Requirements: 5.2 - Extract monthly budget tracking logic
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 
 @dataclass
@@ -31,7 +31,7 @@ class BudgetManager:
     monthly_spending: float = 0.0
     total_spending: float = 0.0
     reset_date: Optional[datetime] = None
-    refresh_history: List[Dict] = field(default_factory=list)
+    refresh_history: list[dict] = field(default_factory=list)
 
     # Maximum history entries to retain
     MAX_HISTORY_ENTRIES: int = field(default=100, repr=False)
@@ -93,7 +93,7 @@ class BudgetManager:
             return 0.0
         return (self.monthly_spending / self.monthly_budget) * 100
 
-    def can_spend(self, amount: float) -> Tuple[bool, str]:
+    def can_spend(self, amount: float) -> tuple[bool, str]:
         """Check if spending amount is within budget.
 
         Args:
@@ -145,7 +145,7 @@ class BudgetManager:
         if len(self.refresh_history) > self.MAX_HISTORY_ENTRIES:
             self.refresh_history = self.refresh_history[-self.MAX_HISTORY_ENTRIES :]
 
-    def get_status(self) -> Dict[str, any]:
+    def get_status(self) -> dict[str, Any]:
         """Get comprehensive budget status.
 
         Returns:
@@ -185,7 +185,7 @@ class BudgetManager:
 
         return count
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for serialization.
 
         Returns:
@@ -200,7 +200,7 @@ class BudgetManager:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "BudgetManager":
+    def from_dict(cls, data: dict) -> "BudgetManager":
         """Create from dictionary.
 
         Args:

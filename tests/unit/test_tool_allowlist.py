@@ -1,14 +1,12 @@
 """Unit tests for tool allowlist."""
 
-import pytest
-
 from deepr.mcp.security.tool_allowlist import (
-    ToolAllowlist,
     ResearchMode,
+    ToolAllowlist,
     ToolCategory,
     ToolConfig,
-    is_tool_allowed,
     get_allowed_tools,
+    is_tool_allowed,
 )
 
 

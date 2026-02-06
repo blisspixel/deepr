@@ -1,11 +1,10 @@
 """Unit tests for context pruner."""
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from deepr.services.context_pruner import (
-    ContextPruner,
     ContextItem,
+    ContextPruner,
     PruningDecision,
 )
 
@@ -18,10 +17,8 @@ class TestContextPruner:
         pruner = ContextPruner()
 
         items = [
-            ContextItem(id="1", text="Short item 1", source="test",
-                       timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="2", text="Short item 2", source="test",
-                       timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="1", text="Short item 1", source="test", timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="2", text="Short item 2", source="test", timestamp=datetime.now(timezone.utc), phase=1),
         ]
 
         kept, decision = pruner.prune(items, "test query", token_budget=10000)
@@ -35,12 +32,9 @@ class TestContextPruner:
 
         # Create items that exceed a small budget
         items = [
-            ContextItem(id="1", text="A" * 1000, source="test",
-                       timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="2", text="B" * 1000, source="test",
-                       timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="3", text="C" * 1000, source="test",
-                       timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="1", text="A" * 1000, source="test", timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="2", text="B" * 1000, source="test", timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="3", text="C" * 1000, source="test", timestamp=datetime.now(timezone.utc), phase=1),
         ]
 
         kept, decision = pruner.prune(items, "test query", token_budget=500)
@@ -53,12 +47,27 @@ class TestContextPruner:
         pruner = ContextPruner()
 
         items = [
-            ContextItem(id="1", text="Python testing best practices " * 50,
-                       source="test", timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="2", text="Weather forecast for tomorrow " * 50,
-                       source="test", timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="3", text="Unit testing with pytest " * 50,
-                       source="test", timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(
+                id="1",
+                text="Python testing best practices " * 50,
+                source="test",
+                timestamp=datetime.now(timezone.utc),
+                phase=1,
+            ),
+            ContextItem(
+                id="2",
+                text="Weather forecast for tomorrow " * 50,
+                source="test",
+                timestamp=datetime.now(timezone.utc),
+                phase=1,
+            ),
+            ContextItem(
+                id="3",
+                text="Unit testing with pytest " * 50,
+                source="test",
+                timestamp=datetime.now(timezone.utc),
+                phase=1,
+            ),
         ]
 
         kept, decision = pruner.prune(items, "Python testing", token_budget=600)
@@ -76,10 +85,8 @@ class TestContextPruner:
         new_time = datetime.now(timezone.utc)
 
         items = [
-            ContextItem(id="1", text="Old finding about X " * 50,
-                       source="test", timestamp=old_time, phase=1),
-            ContextItem(id="2", text="New finding about X " * 50,
-                       source="test", timestamp=new_time, phase=1),
+            ContextItem(id="1", text="Old finding about X " * 50, source="test", timestamp=old_time, phase=1),
+            ContextItem(id="2", text="New finding about X " * 50, source="test", timestamp=new_time, phase=1),
         ]
 
         kept, decision = pruner.prune(items, "finding about X", token_budget=300)
@@ -163,12 +170,9 @@ class TestDeduplication:
 
         now = datetime.now(timezone.utc)
         items = [
-            ContextItem(id="1", text="Duplicate content here",
-                       source="test", timestamp=now, phase=1),
-            ContextItem(id="2", text="Duplicate content here",
-                       source="test", timestamp=now, phase=1),
-            ContextItem(id="3", text="Unique content here",
-                       source="test", timestamp=now, phase=1),
+            ContextItem(id="1", text="Duplicate content here", source="test", timestamp=now, phase=1),
+            ContextItem(id="2", text="Duplicate content here", source="test", timestamp=now, phase=1),
+            ContextItem(id="3", text="Unique content here", source="test", timestamp=now, phase=1),
         ]
 
         kept, decision = pruner.prune(items, "test", token_budget=10000)
@@ -182,12 +186,19 @@ class TestDeduplication:
 
         now = datetime.now(timezone.utc)
         items = [
-            ContextItem(id="1", text="The quick brown fox jumps over the lazy dog",
-                       source="test", timestamp=now, phase=1),
-            ContextItem(id="2", text="The quick brown fox jumps over the lazy cat",
-                       source="test", timestamp=now, phase=1),
-            ContextItem(id="3", text="Something completely different about unrelated topics",
-                       source="test", timestamp=now, phase=1),
+            ContextItem(
+                id="1", text="The quick brown fox jumps over the lazy dog", source="test", timestamp=now, phase=1
+            ),
+            ContextItem(
+                id="2", text="The quick brown fox jumps over the lazy cat", source="test", timestamp=now, phase=1
+            ),
+            ContextItem(
+                id="3",
+                text="Something completely different about unrelated topics",
+                source="test",
+                timestamp=now,
+                phase=1,
+            ),
         ]
 
         kept, decision = pruner.prune(items, "test", token_budget=10000)
@@ -205,8 +216,7 @@ class TestPruningDecision:
 
         now = datetime.now(timezone.utc)
         items = [
-            ContextItem(id=str(i), text="Item " + str(i) + " " * 50,
-                       source="test", timestamp=now, phase=1)
+            ContextItem(id=str(i), text="Item " + str(i) + " " * 50, source="test", timestamp=now, phase=1)
             for i in range(10)
         ]
 
@@ -291,10 +301,7 @@ class TestEdgeCases:
         """Test pruning with zero budget."""
         pruner = ContextPruner()
 
-        items = [
-            ContextItem(id="1", text="Content",
-                       source="test", timestamp=datetime.now(timezone.utc), phase=1)
-        ]
+        items = [ContextItem(id="1", text="Content", source="test", timestamp=datetime.now(timezone.utc), phase=1)]
 
         kept, decision = pruner.prune(items, "query", token_budget=0)
 
@@ -306,11 +313,7 @@ class TestEdgeCases:
         pruner = ContextPruner()
 
         now = datetime.now(timezone.utc)
-        items = [
-            ContextItem(id=str(i), text=f"Item {i}",
-                       source="test", timestamp=now, phase=1)
-            for i in range(100)
-        ]
+        items = [ContextItem(id=str(i), text=f"Item {i}", source="test", timestamp=now, phase=1) for i in range(100)]
 
         kept, decision = pruner.prune(items, "query", token_budget=1000000)
 

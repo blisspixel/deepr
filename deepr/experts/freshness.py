@@ -12,7 +12,7 @@ Usage:
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 class FreshnessLevel(Enum):
@@ -42,7 +42,7 @@ class FreshnessStatus:
     threshold_days: int
     score: float
     recommendation: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
     def is_stale(self) -> bool:
         """Check if knowledge is stale.
@@ -60,7 +60,7 @@ class FreshnessStatus:
         """
         return self.level != FreshnessLevel.FRESH
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "level": self.level.value,
             "days_since_update": self.days_since_update,
@@ -98,7 +98,7 @@ class FreshnessChecker:
         self,
         domain: str = "general",
         velocity_days: Optional[int] = None,
-        custom_thresholds: Optional[Dict[str, int]] = None,
+        custom_thresholds: Optional[dict[str, int]] = None,
     ):
         """Initialize freshness checker.
 
@@ -115,7 +115,7 @@ class FreshnessChecker:
         self,
         last_learning: Optional[datetime] = None,
         last_activity: Optional[datetime] = None,
-        knowledge_sources: Optional[List[Dict[str, Any]]] = None,
+        knowledge_sources: Optional[list[dict[str, Any]]] = None,
     ) -> FreshnessStatus:
         """Check knowledge freshness.
 
@@ -173,7 +173,7 @@ class FreshnessChecker:
             details=details,
         )
 
-    def get_status(self, last_learning: Optional[datetime] = None) -> Dict[str, Any]:
+    def get_status(self, last_learning: Optional[datetime] = None) -> dict[str, Any]:
         """Get simple status dictionary.
 
         Args:
@@ -275,7 +275,7 @@ class FreshnessChecker:
 
         return f"Knowledge is critically outdated ({days_since} days). Urgent refresh recommended."
 
-    def _analyze_sources(self, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_sources(self, sources: list[dict[str, Any]]) -> dict[str, Any]:
         """Analyze freshness of knowledge sources.
 
         Args:

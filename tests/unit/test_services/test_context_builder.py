@@ -1,7 +1,9 @@
 """Tests for context builder service."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from tests.unit.test_services.conftest import make_chat_response
 
 
@@ -16,12 +18,14 @@ class TestContextBuilder:
     def builder(self, mock_client, mock_openai_env):
         with patch("deepr.services.context_builder.OpenAI", return_value=mock_client):
             from deepr.services.context_builder import ContextBuilder
+
             return ContextBuilder()
 
     def test_init_with_explicit_key(self):
         """api_key passed directly to OpenAI."""
         with patch("deepr.services.context_builder.OpenAI") as mock_cls:
             from deepr.services.context_builder import ContextBuilder
+
             ContextBuilder(api_key="explicit-key")
             mock_cls.assert_called_once_with(api_key="explicit-key")
 
@@ -29,6 +33,7 @@ class TestContextBuilder:
         """Falls back to OPENAI_API_KEY env var."""
         with patch("deepr.services.context_builder.OpenAI") as mock_cls:
             from deepr.services.context_builder import ContextBuilder
+
             ContextBuilder()
             call_kwargs = mock_cls.call_args
             assert call_kwargs[1]["api_key"] == "sk-test-key-not-real"

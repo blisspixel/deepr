@@ -3,30 +3,25 @@
 Requirements: 1.1 - Configuration Consolidation
 """
 
-import os
 import json
+import os
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from deepr.core.settings import (
+    TASK_MODEL_MAP,
+    BudgetSettings,
+    DatabaseType,
+    DomainVelocity,
+    ProviderSettings,
+    ProviderType,
+    ResearchMode,
     Settings,
+    StorageSettings,
+    StorageType,
     get_settings,
     load_config,
-    ProviderSettings,
-    StorageSettings,
-    BudgetSettings,
-    ResearchSettings,
-    ExpertSettings,
-    WebhookSettings,
-    SecuritySettings,
-    DatabaseSettings,
-    ProviderType,
-    StorageType,
-    DatabaseType,
-    ResearchMode,
-    DomainVelocity,
-    TASK_MODEL_MAP,
 )
 
 
@@ -55,11 +50,7 @@ class TestProviderSettings:
 
     def test_azure_is_configured_with_endpoint(self):
         """Test Azure provider requires endpoint."""
-        provider = ProviderSettings(
-            name="azure",
-            api_key="azure-key",
-            azure_endpoint="https://test.openai.azure.com"
-        )
+        provider = ProviderSettings(name="azure", api_key="azure-key", azure_endpoint="https://test.openai.azure.com")
         assert provider.is_configured() is True
 
     def test_azure_not_configured_without_endpoint(self):
@@ -70,9 +61,7 @@ class TestProviderSettings:
     def test_azure_managed_identity(self):
         """Test Azure with managed identity is configured."""
         provider = ProviderSettings(
-            name="azure",
-            azure_endpoint="https://test.openai.azure.com",
-            azure_use_managed_identity=True
+            name="azure", azure_endpoint="https://test.openai.azure.com", azure_use_managed_identity=True
         )
         assert provider.is_configured() is True
 
@@ -160,9 +149,7 @@ class TestSettings:
 
     def test_load_with_cli_overrides(self):
         """Test CLI overrides are applied."""
-        settings = Settings.load(
-            cli_overrides={"default_provider": "azure", "debug": True}
-        )
+        settings = Settings.load(cli_overrides={"default_provider": "azure", "debug": True})
         assert settings.default_provider == "azure"
         assert settings.debug is True
         assert settings._overrides["default_provider"] == "cli"
@@ -181,20 +168,14 @@ class TestSettings:
         assert "openai" in settings.providers
         assert settings.providers["openai"].api_key == "sk-test-key"
 
-    @patch.dict(os.environ, {
-        "XAI_API_KEY": "xai-test-key",
-        "DEEPR_DEFAULT_PROVIDER": "xai"
-    })
+    @patch.dict(os.environ, {"XAI_API_KEY": "xai-test-key", "DEEPR_DEFAULT_PROVIDER": "xai"})
     def test_xai_provider_from_env(self):
         """Test XAI provider loaded from environment."""
         settings = Settings.load(reset_singleton=True)
         assert "xai" in settings.providers
         assert settings.providers["xai"].api_key == "xai-test-key"
 
-    @patch.dict(os.environ, {
-        "AZURE_OPENAI_KEY": "azure-key",
-        "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com"
-    })
+    @patch.dict(os.environ, {"AZURE_OPENAI_KEY": "azure-key", "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com"})
     def test_azure_provider_from_env(self):
         """Test Azure provider loaded from environment."""
         settings = Settings.load(reset_singleton=True)
@@ -202,11 +183,9 @@ class TestSettings:
         assert settings.providers["azure"].api_key == "azure-key"
         assert settings.providers["azure"].azure_endpoint == "https://test.openai.azure.com"
 
-    @patch.dict(os.environ, {
-        "DEEPR_MAX_COST_PER_JOB": "10.0",
-        "DEEPR_DAILY_LIMIT": "50.0",
-        "DEEPR_MONTHLY_LIMIT": "500.0"
-    })
+    @patch.dict(
+        os.environ, {"DEEPR_MAX_COST_PER_JOB": "10.0", "DEEPR_DAILY_LIMIT": "50.0", "DEEPR_MONTHLY_LIMIT": "500.0"}
+    )
     def test_budget_settings_from_env(self):
         """Test budget settings loaded from environment."""
         settings = Settings.load(reset_singleton=True)
@@ -345,11 +324,11 @@ class TestConfigFile:
     def test_load_json_config(self, tmp_path):
         """Test loading JSON config file."""
         config_file = tmp_path / "config.json"
-        config_file.write_text(json.dumps({
-            "default_provider": "anthropic",
-            "default_model": "claude-3-opus",
-            "budget": {"daily_limit": 100.0}
-        }))
+        config_file.write_text(
+            json.dumps(
+                {"default_provider": "anthropic", "default_model": "claude-3-opus", "budget": {"daily_limit": 100.0}}
+            )
+        )
 
         settings = Settings.load(config_path=config_file)
         assert settings.default_provider == "anthropic"
@@ -380,15 +359,15 @@ budget:
         env_backup = os.environ.pop("OPENAI_API_KEY", None)
         try:
             config_file = tmp_path / "config.json"
-            config_file.write_text(json.dumps({
-                "providers": {
-                    "custom_provider": {
-                        "api_key": "sk-from-file",
-                        "default_model": "gpt-4",
-                        "rate_limit": 30
+            config_file.write_text(
+                json.dumps(
+                    {
+                        "providers": {
+                            "custom_provider": {"api_key": "sk-from-file", "default_model": "gpt-4", "rate_limit": 30}
+                        }
                     }
-                }
-            }))
+                )
+            )
 
             settings = Settings.load(config_path=config_file, reset_singleton=True)
             assert "custom_provider" in settings.providers
