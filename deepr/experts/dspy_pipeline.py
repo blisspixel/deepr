@@ -17,6 +17,7 @@ Usage:
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,8 @@ def _utc_now() -> datetime:
 
 
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # Check if DSPy is available
 try:
@@ -706,8 +709,8 @@ class DSPyOptimizer:
 
             with open(self.optimized_prompts_path, "w", encoding="utf-8") as f:
                 json.dump(prompts, f, indent=2, default=str)
-        except Exception:
-            pass  # Best effort save
+        except Exception as e:
+            logger.debug("Failed to save optimized module to %s: %s", self.optimized_prompts_path, e)
 
     def load_optimized_module(self, module: Any) -> Any:
         """Load optimized prompts into module.
@@ -727,8 +730,8 @@ class DSPyOptimizer:
 
             if hasattr(module, "load_state"):
                 module.load_state(prompts)
-        except Exception:
-            pass  # Best effort load
+        except Exception as e:
+            logger.debug("Failed to load optimized module from %s: %s", self.optimized_prompts_path, e)
 
         return module
 

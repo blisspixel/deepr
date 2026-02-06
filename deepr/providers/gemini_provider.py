@@ -647,7 +647,8 @@ class GeminiProvider(DeepResearchProvider):
                     logger.warning("SSRF: redirect resolved to blocked URL: %s", final_url)
                     return url
                 return final_url
-        except Exception:
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPError) as e:
+            logger.debug("Failed to resolve redirect for %s: %s", url, e)
             return url
 
     # =========================================================================

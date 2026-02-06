@@ -172,8 +172,8 @@ def _get_env_int(key: str, default: int) -> int:
         if result < 0:
             raise InvalidConfigError(key, value, "must be non-negative")
         return result
-    except ValueError:
-        raise InvalidConfigError(key, value, "must be an integer")
+    except ValueError as e:
+        raise InvalidConfigError(key, value, "must be an integer") from e
 
 
 def _get_env_float(key: str, default: float) -> float:
@@ -198,8 +198,8 @@ def _get_env_float(key: str, default: float) -> float:
         if result < 0:
             raise InvalidConfigError(key, value, "must be non-negative")
         return result
-    except ValueError:
-        raise InvalidConfigError(key, value, "must be a number")
+    except ValueError as e:
+        raise InvalidConfigError(key, value, "must be a number") from e
 
 
 def _get_env_str(key: str, default: str) -> str:

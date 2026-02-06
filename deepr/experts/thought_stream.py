@@ -16,6 +16,7 @@ Usage:
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,6 +31,8 @@ def _utc_now() -> datetime:
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from rich.console import Console
 from rich.panel import Panel
@@ -318,9 +321,8 @@ class ThoughtStream:
 
             with open(self.log_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry) + "\n")
-        except Exception:
-            # Don't fail on logging errors
-            pass
+        except Exception as e:
+            logger.debug("Failed to write thought log to %s: %s", self.log_path, e)
 
     def _display_thought(self, thought: Thought):
         """Display thought in terminal using Rich.

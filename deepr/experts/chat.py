@@ -151,9 +151,8 @@ class ExpertChatSession:
                 worldview_summary += f"  - Last synthesis: {worldview.last_synthesis.strftime('%Y-%m-%d') if worldview.last_synthesis else 'never'}\n"
                 worldview_summary += "\nIMPORTANT: Answer from YOUR beliefs and understanding, not just documents.\n"
 
-        except Exception:
-            # Worldview not available - expert will function without it
-            pass
+        except Exception as e:
+            logger.debug("Worldview not available for %s: %s", self.expert.name, e)
 
         base_message = f"""You are {self.expert.name}, a domain expert specialized in: {self.expert.domain or self.expert.description or "various topics"}.
 
@@ -427,7 +426,8 @@ Budget remaining: ${budget_remaining:.2f}
                     with open(filepath, encoding="utf-8") as f:
                         content = f.read()
                     documents.append({"filename": filepath.name, "content": content, "filepath": str(filepath)})
-                except Exception:
+                except Exception as e:
+                    logger.warning("Failed to read document %s: %s", filepath, e)
                     continue
 
             # Add any uncached documents to cache (only embeds new ones)
