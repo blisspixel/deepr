@@ -59,8 +59,11 @@ class TestAutoModeRouter:
     """Tests for AutoModeRouter."""
 
     @pytest.fixture
-    def router(self):
-        """Create a router instance for testing."""
+    def router(self, monkeypatch):
+        """Create a router instance with all providers available."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("XAI_API_KEY", "xai-test")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
         return AutoModeRouter()
 
     def test_simple_query_routes_cheap(self, router):
@@ -225,8 +228,11 @@ class TestAutoModeRouterBatch:
     """Tests for batch routing."""
 
     @pytest.fixture
-    def router(self):
-        """Create a router instance for testing."""
+    def router(self, monkeypatch):
+        """Create a router instance with all providers available."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("XAI_API_KEY", "xai-test")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
         return AutoModeRouter()
 
     def test_batch_routes_multiple(self, router):
@@ -296,8 +302,11 @@ class TestAutoModeRouterExplain:
     """Tests for routing explanation."""
 
     @pytest.fixture
-    def router(self):
-        """Create a router instance for testing."""
+    def router(self, monkeypatch):
+        """Create a router instance with all providers available."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("XAI_API_KEY", "xai-test")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
         return AutoModeRouter()
 
     def test_explain_routing(self, router):

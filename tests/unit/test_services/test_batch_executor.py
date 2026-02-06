@@ -6,7 +6,6 @@ from deepr.queue.base import JobStatus
 from deepr.services.batch_executor import BatchExecutor
 
 
-@pytest.mark.asyncio
 class TestBatchExecutor:
     """Test BatchExecutor campaign orchestration."""
 
@@ -70,6 +69,7 @@ class TestBatchExecutor:
         phases = executor._group_by_phase(tasks)
         assert 1 in phases
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_execute_campaign_single_phase(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """Single phase campaign completes."""
@@ -91,6 +91,7 @@ class TestBatchExecutor:
         assert 1 in result["phases"]
         assert result["total_cost"] >= 0
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_execute_campaign_multi_phase(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """Multi-phase campaign executes phases sequentially."""
@@ -112,6 +113,7 @@ class TestBatchExecutor:
         assert 1 in result["phases"]
         assert 2 in result["phases"]
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_execute_campaign_tracks_costs(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """total_cost is accumulated across tasks."""
@@ -132,6 +134,7 @@ class TestBatchExecutor:
         result = await executor.execute_campaign(tasks, "cost-test")
         assert result["total_cost"] == 4.00
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_execute_campaign_saves_results(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """storage.save_report is called for campaign results."""
@@ -150,6 +153,7 @@ class TestBatchExecutor:
         # save_report called twice: campaign_results.json + campaign_summary.md
         assert mock_storage.save_report.call_count == 2
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_execute_phase_builds_context(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """context_builder.build_phase_context is called for each task."""
@@ -167,6 +171,7 @@ class TestBatchExecutor:
         await executor._execute_phase(tasks, 1, {}, "campaign")
         mock_context_builder.build_phase_context.assert_called_once()
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_execute_phase_prepends_context(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
         """Non-empty context is prepended to prompt."""
@@ -187,18 +192,21 @@ class TestBatchExecutor:
         submit_call = mock_provider.submit_research.call_args[0][0]
         assert "CONTEXT_PREFIX" in submit_call.prompt
 
+    @pytest.mark.asyncio
     async def test_submit_task_enqueues_job(self, executor, mock_queue, mock_provider):
         """queue.enqueue is called."""
         mock_provider.submit_research.return_value = "provider-123"
         await executor._submit_task("Prompt", 1, "campaign-1", {"phase": 1, "title": "T"})
         mock_queue.enqueue.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_submit_task_submits_to_provider(self, executor, mock_queue, mock_provider):
         """provider.submit_research is called."""
         mock_provider.submit_research.return_value = "provider-123"
         await executor._submit_task("Prompt", 1, "campaign-1", {"phase": 1, "title": "T"})
         mock_provider.submit_research.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_submit_task_updates_status(self, executor, mock_queue, mock_provider):
         """queue.update_status is called with PROCESSING."""
         mock_provider.submit_research.return_value = "provider-123"
@@ -207,6 +215,7 @@ class TestBatchExecutor:
         call_kwargs = mock_queue.update_status.call_args[1]
         assert call_kwargs["status"] == JobStatus.PROCESSING
 
+    @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
     async def test_wait_for_completion_failed(self, mock_sleep, executor, mock_queue, mock_storage):
         """Failed job records failure."""
