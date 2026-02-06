@@ -1,13 +1,14 @@
 """Download and save all reports from an expert's research jobs."""
+
 import asyncio
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from deepr.core.reports import ReportGenerator
 from deepr.experts.profile import ExpertStore
 from deepr.providers.openai_provider import OpenAIProvider
-from deepr.core.reports import ReportGenerator
 
 
 async def download_reports(expert_name: str, output_dir: str = "expert_reports"):
@@ -45,13 +46,13 @@ async def download_reports(expert_name: str, output_dir: str = "expert_reports")
             raw_text = report_gen.extract_text_from_response(response)
 
             if not raw_text:
-                print(f"  [SKIP] No content found")
+                print("  [SKIP] No content found")
                 continue
 
             # Save to file
             filename = f"research_{job_id[:12]}.md"
             filepath = output_path / filename
-            filepath.write_text(raw_text, encoding='utf-8')
+            filepath.write_text(raw_text, encoding="utf-8")
 
             print(f"  [OK] Saved to {filepath}")
             print(f"       Size: {len(raw_text)} chars")

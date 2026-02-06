@@ -690,9 +690,10 @@ def _run_batch_research(
                     f"  {i}. [{decision.complexity}] {decision.provider}/{decision.model} "
                     f"(~${decision.cost_estimate:.2f})"
                 )
-                console.print(f"     {items[i-1].query[:60]}{'...' if len(items[i-1].query) > 60 else ''}")
+                console.print(f"     {items[i - 1].query[:60]}{'...' if len(items[i - 1].query) > 60 else ''}")
         elif output_context.mode == OutputMode.JSON:
             import json
+
             result = {
                 "dry_run": True,
                 "total_queries": len(routing.decisions),
@@ -735,6 +736,7 @@ def _run_batch_research(
         print_key_value("Actual Cost", f"${result.total_cost_actual:.2f}")
     elif output_context.mode == OutputMode.JSON:
         import json
+
         output = {
             "batch_id": result.batch_id,
             "success_count": result.success_count,
@@ -818,6 +820,7 @@ def _run_auto_research(
     if dry_run:
         if output_context.mode == OutputMode.JSON:
             import json
+
             console.print(json.dumps(decision.to_dict(), indent=2))
         return
 

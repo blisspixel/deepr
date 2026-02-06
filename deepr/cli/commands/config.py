@@ -1,7 +1,8 @@
 """Config commands - validate and manage configuration."""
 
 import click
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success
 
 
 @click.group()
@@ -13,6 +14,7 @@ def config():
 def _get_settings():
     """Get consolidated Settings instance."""
     from deepr.core.settings import get_settings
+
     return get_settings()
 
 
@@ -23,11 +25,13 @@ def _get_unified_config():
     """
     try:
         from deepr.core.unified_config import UnifiedConfig
+
         return UnifiedConfig.load()
     except Exception:
         # Fallback to AppConfig bridge
         from deepr.config import AppConfig
         from deepr.core.unified_config import UnifiedConfig
+
         app_config = AppConfig.from_env()
         return UnifiedConfig.from_app_config(app_config)
 
@@ -49,8 +53,8 @@ def validate():
     print_section_header("Configuration Validation")
 
     try:
-        import os
         import asyncio
+        import os
         from pathlib import Path
 
         # Use consolidated Settings
@@ -119,10 +123,8 @@ def validate():
             console.print("\nTesting API connectivity...")
             try:
                 from deepr.providers import create_provider
-                provider = create_provider(
-                    settings.default_provider,
-                    api_key=api_key
-                )
+
+                provider = create_provider(settings.default_provider, api_key=api_key)
 
                 # Simple API test - just check we can create the client
                 console.print("[success]Provider initialized successfully[/success]")
@@ -130,7 +132,7 @@ def validate():
                 # Try to list vector stores to verify connectivity
                 async def test_api():
                     try:
-                        stores = await provider.list_vector_stores(limit=1)
+                        await provider.list_vector_stores(limit=1)
                         return True
                     except Exception as e:
                         return str(e)
@@ -147,7 +149,7 @@ def validate():
                 console.print(f"[error]Provider initialization failed: {e}[/error]")
 
         # Summary
-        console.print(f"\n{'='*60}")
+        console.print(f"\n{'=' * 60}")
         if errors:
             print_error(f"Validation failed with {len(errors)} error(s):")
             for error in errors:
@@ -190,6 +192,7 @@ def show(unified: bool, legacy: bool):
         if legacy:
             # Legacy format for backward compatibility
             from deepr.config import load_config
+
             config = load_config()
 
             click.echo("\nProvider:")
@@ -266,7 +269,7 @@ def set(key: str, value: str):
         env_file.write_text("\n".join(new_lines) + "\n")
 
         print_success(f"Configuration updated: {key}={value}")
-        console.print(f"\nRestart any running services for changes to take effect")
+        console.print("\nRestart any running services for changes to take effect")
 
     except Exception as e:
         print_error(f"Error: {e}")

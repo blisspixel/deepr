@@ -19,13 +19,13 @@ Usage:
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Callable, List, Dict, Any
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, TaskProgressColumn
 from rich.table import Table
 from rich.text import Text
 
@@ -39,6 +39,7 @@ def _utc_now() -> datetime:
 
 class ResearchPhase(Enum):
     """Phases of a deep research operation."""
+
     QUEUED = "queued"
     INITIALIZING = "initializing"
     SEARCHING = "searching"
@@ -64,6 +65,7 @@ PHASE_ORDER = [
 @dataclass
 class PhaseUpdate:
     """Update for a research phase."""
+
     phase: ResearchPhase
     message: str
     timestamp: datetime = field(default_factory=_utc_now)
@@ -74,6 +76,7 @@ class PhaseUpdate:
 @dataclass
 class ProgressState:
     """Current state of research progress."""
+
     job_id: str
     current_phase: ResearchPhase
     phase_history: List[PhaseUpdate] = field(default_factory=list)
@@ -180,9 +183,7 @@ class ResearchProgressTracker:
         start_time = _utc_now()
 
         if not quiet:
-            await self._track_with_display(
-                state, poll_interval, timeout, show_partial, start_time
-            )
+            await self._track_with_display(state, poll_interval, timeout, show_partial, start_time)
         else:
             await self._track_quietly(state, poll_interval, timeout, start_time)
 
@@ -332,10 +333,12 @@ class ResearchProgressTracker:
             ResearchPhase.FAILED: "Research failed",
         }
 
-        state.phase_history.append(PhaseUpdate(
-            phase=new_phase,
-            message=messages.get(new_phase, f"Phase: {new_phase.value}"),
-        ))
+        state.phase_history.append(
+            PhaseUpdate(
+                phase=new_phase,
+                message=messages.get(new_phase, f"Phase: {new_phase.value}"),
+            )
+        )
         state.current_phase = new_phase
 
     def _estimate_progress(self, state: ProgressState) -> float:
@@ -364,8 +367,7 @@ class ResearchProgressTracker:
         # Add within-phase progress based on timing
         phase_time = self.PHASE_TIMING.get(state.current_phase, 30)
         time_in_phase = state.elapsed_seconds - sum(
-            self.PHASE_TIMING.get(PHASE_ORDER[i], 0)
-            for i in range(phase_index)
+            self.PHASE_TIMING.get(PHASE_ORDER[i], 0) for i in range(phase_index)
         )
         within_phase_progress = min(time_in_phase / phase_time, 0.95) * (100 / len(PHASE_ORDER))
 

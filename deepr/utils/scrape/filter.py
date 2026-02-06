@@ -1,8 +1,8 @@
 """LLM-guided link filtering for intelligent crawling."""
 
-import logging
-from typing import List, Dict, Optional
 import json
+import logging
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +80,8 @@ class LinkFilter:
         # Format links for prompt
         formatted_links = []
         for i, link in enumerate(links, 1):
-            text = link.get('text', '')[:100]
-            url = link['url']
+            text = link.get("text", "")[:100]
+            url = link["url"]
             formatted_links.append(f"{i}. {url}\n   Text: {text}")
 
         links_str = "\n".join(formatted_links)
@@ -170,9 +170,9 @@ JSON array of scores:"""
         try:
             # Extract JSON array from response
             # Handle cases where LLM adds explanation
-            if '[' in response_text:
-                json_start = response_text.index('[')
-                json_end = response_text.rindex(']') + 1
+            if "[" in response_text:
+                json_start = response_text.index("[")
+                json_end = response_text.rindex("]") + 1
                 json_str = response_text[json_start:json_end]
                 scores = json.loads(json_str)
                 return scores
@@ -203,14 +203,14 @@ JSON array of scores:"""
         scored = []
         for link, score in zip(links, scores):
             link_copy = link.copy()
-            link_copy['relevance_score'] = score
+            link_copy["relevance_score"] = score
             scored.append(link_copy)
 
         # Sort by score (highest first)
-        scored.sort(key=lambda x: x['relevance_score'], reverse=True)
+        scored.sort(key=lambda x: x["relevance_score"], reverse=True)
 
         # Filter out zero-scored links
-        scored = [link for link in scored if link['relevance_score'] > 0]
+        scored = [link for link in scored if link["relevance_score"] > 0]
 
         return scored
 
@@ -235,31 +235,69 @@ JSON array of scores:"""
 
         # Define high-value keywords per purpose
         if purpose == "company research":
-            high_value = ['about', 'products', 'solutions', 'services', 'customers',
-                         'pricing', 'team', 'company', 'mission', 'vision', 'news']
-            low_value = ['login', 'signup', 'support', 'help', 'contact', 'careers',
-                        'terms', 'privacy', 'legal', 'cookies']
+            high_value = [
+                "about",
+                "products",
+                "solutions",
+                "services",
+                "customers",
+                "pricing",
+                "team",
+                "company",
+                "mission",
+                "vision",
+                "news",
+            ]
+            low_value = [
+                "login",
+                "signup",
+                "support",
+                "help",
+                "contact",
+                "careers",
+                "terms",
+                "privacy",
+                "legal",
+                "cookies",
+            ]
 
         elif purpose == "documentation":
-            high_value = ['docs', 'documentation', 'guide', 'tutorial', 'api',
-                         'reference', 'getting-started', 'quickstart', 'examples']
-            low_value = ['blog', 'news', 'about', 'company', 'careers', 'legal']
+            high_value = [
+                "docs",
+                "documentation",
+                "guide",
+                "tutorial",
+                "api",
+                "reference",
+                "getting-started",
+                "quickstart",
+                "examples",
+            ]
+            low_value = ["blog", "news", "about", "company", "careers", "legal"]
 
         elif purpose == "competitive intel":
-            high_value = ['features', 'pricing', 'customers', 'integrations',
-                         'partners', 'news', 'press', 'case-studies']
-            low_value = ['careers', 'legal', 'support', 'help', 'contact']
+            high_value = [
+                "features",
+                "pricing",
+                "customers",
+                "integrations",
+                "partners",
+                "news",
+                "press",
+                "case-studies",
+            ]
+            low_value = ["careers", "legal", "support", "help", "contact"]
 
         else:
             # Generic filtering
-            high_value = ['about', 'products', 'services', 'docs']
-            low_value = ['login', 'signup', 'legal', 'terms', 'privacy']
+            high_value = ["about", "products", "services", "docs"]
+            low_value = ["login", "signup", "legal", "terms", "privacy"]
 
         # Score links by keywords
         scored = []
         for link in links:
-            url_lower = link['url'].lower()
-            text_lower = link.get('text', '').lower()
+            url_lower = link["url"].lower()
+            text_lower = link.get("text", "").lower()
 
             score = 0
 
@@ -274,12 +312,12 @@ JSON array of scores:"""
                     score -= 3
 
             link_copy = link.copy()
-            link_copy['relevance_score'] = max(0, score)
+            link_copy["relevance_score"] = max(0, score)
             scored.append(link_copy)
 
         # Sort and filter
-        scored.sort(key=lambda x: x['relevance_score'], reverse=True)
-        return [link for link in scored if link['relevance_score'] > 0][:max_links]
+        scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+        return [link for link in scored if link["relevance_score"] > 0][:max_links]
 
 
 class SmartCrawler:
@@ -374,10 +412,7 @@ class SmartCrawler:
 
             # Extract links for next level
             if depth < self.config.max_depth:
-                links = self.link_extractor.extract_links(
-                    fetch_result.html,
-                    internal_only=True
-                )
+                links = self.link_extractor.extract_links(fetch_result.html, internal_only=True)
 
                 if links:
                     # Filter with exclusions
@@ -394,7 +429,7 @@ class SmartCrawler:
 
                         # Add to queue
                         for link in filtered:
-                            queue.append((link['url'], depth + 1))
+                            queue.append((link["url"], depth + 1))
 
                         logger.info(f"Added {len(filtered)} links to queue from {url}")
 

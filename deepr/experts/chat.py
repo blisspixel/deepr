@@ -6,22 +6,25 @@ to retrieve from the vector store.
 Instrumented with distributed tracing for observability (4.2 Auto-Generated Metadata).
 """
 
-import os
 import json
-from typing import List, Dict, Optional, Any
+import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
-from openai import AsyncOpenAI
-import asyncio
+from typing import Any, Dict, List, Optional
 
-from deepr.experts.profile import ExpertProfile, ExpertStore
-from deepr.experts.metacognition import MetaCognitionTracker
-from deepr.experts.temporal_knowledge import TemporalKnowledgeTracker
-from deepr.experts.router import ModelRouter, ModelConfig
-from deepr.experts.thought_stream import ThoughtStream, ThoughtType
-from deepr.experts.reasoning_graph import ReasoningGraph, ReasoningState
-from deepr.experts.memory import HierarchicalMemory, Episode, ReasoningStep
+from openai import AsyncOpenAI
+
+logger = logging.getLogger(__name__)
+
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
+from deepr.experts.memory import Episode, HierarchicalMemory, ReasoningStep
+from deepr.experts.metacognition import MetaCognitionTracker
+from deepr.experts.profile import ExpertProfile, ExpertStore
+from deepr.experts.reasoning_graph import ReasoningGraph
+from deepr.experts.router import ModelConfig, ModelRouter
+from deepr.experts.temporal_knowledge import TemporalKnowledgeTracker
+from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 
 # Observability infrastructure
 from deepr.observability.metadata import MetadataEmitter
@@ -29,14 +32,22 @@ from deepr.observability.metadata import MetadataEmitter
 
 class ExpertChatSession:
     """Manages an interactive chat session with a domain expert using GPT-5 + tool calling.
-    
+
     Safety features:
     - Session budget tracking with alerts
     - Cost checks before expensive operations
     - Circuit breaker for repeated failures
     """
 
-    def __init__(self, expert: ExpertProfile, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True, verbose: bool = False, quiet: bool = False):
+    def __init__(
+        self,
+        expert: ExpertProfile,
+        budget: Optional[float] = None,
+        agentic: bool = False,
+        enable_router: bool = True,
+        verbose: bool = False,
+        quiet: bool = False,
+    ):
         self.expert = expert
         self.budget = budget or 10.0  # Default $10 budget if not specified
         self.agentic = agentic  # Enable research triggering
@@ -47,13 +58,9 @@ class ExpertChatSession:
 
         # Reasoning trace for transparency and auditability
         self.reasoning_trace: List[Dict[str, any]] = []
-        
+
         # ThoughtStream for visible thinking (structured decision records)
-        self.thought_stream = ThoughtStream(
-            expert_name=expert.name,
-            verbose=verbose,
-            quiet=quiet
-        )
+        self.thought_stream = ThoughtStream(expert_name=expert.name, verbose=verbose, quiet=quiet)
         self.verbose = verbose
         self.quiet = quiet
 
@@ -78,30 +85,29 @@ class ExpertChatSession:
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
         self.client = AsyncOpenAI(api_key=api_key)
-        
+
         # Cost safety manager for defensive budget controls
-        from deepr.experts.cost_safety import get_cost_safety_manager
         import uuid
-        
+
+        from deepr.experts.cost_safety import get_cost_safety_manager
+
         self.cost_safety = get_cost_safety_manager()
         self.session_id = f"chat_{expert.name}_{uuid.uuid4().hex[:8]}"
         self.cost_session = self.cost_safety.create_session(
-            session_id=self.session_id,
-            session_type="chat",
-            budget_limit=self.budget
+            session_id=self.session_id, session_type="chat", budget_limit=self.budget
         )
-        
+
         # ReasoningGraph for complex queries (Tree of Thoughts)
         self.reasoning_graph = ReasoningGraph(
             expert_profile=expert,
             thought_stream=self.thought_stream,
-            llm_client=None  # Will use internal methods for LLM calls
+            llm_client=None,  # Will use internal methods for LLM calls
         )
-        
+
         # Hierarchical Episodic Memory (H-MEM)
         self.memory = HierarchicalMemory(expert_name=expert.name)
         self.user_id: Optional[str] = None  # Set by caller if user tracking enabled
-        
+
         # LazyGraphRAG for hybrid retrieval
         self.lazy_graph_rag = LazyGraphRAG(expert_name=expert.name)
 
@@ -114,6 +120,7 @@ class ExpertChatSession:
         worldview_summary = None
         try:
             from deepr.experts.synthesis import Worldview
+
             store = ExpertStore()
             worldview_path = store.get_knowledge_dir(self.expert.name) / "worldview.json"
 
@@ -132,11 +139,13 @@ class ExpertChatSession:
 
                 # Knowledge gaps
                 if worldview.knowledge_gaps:
-                    worldview_summary += f"\nWhat you know you don't know yet ({len(worldview.knowledge_gaps)} identified gaps):\n"
+                    worldview_summary += (
+                        f"\nWhat you know you don't know yet ({len(worldview.knowledge_gaps)} identified gaps):\n"
+                    )
                     for gap in sorted(worldview.knowledge_gaps, key=lambda g: g.priority, reverse=True)[:3]:
                         worldview_summary += f"  - {gap.topic} (priority: {gap.priority}/5)\n"
 
-                worldview_summary += f"\nYour consciousness stats:\n"
+                worldview_summary += "\nYour consciousness stats:\n"
                 worldview_summary += f"  - {len(worldview.beliefs)} total beliefs formed\n"
                 worldview_summary += f"  - {worldview.synthesis_count} synthesis cycles completed\n"
                 worldview_summary += f"  - Last synthesis: {worldview.last_synthesis.strftime('%Y-%m-%d') if worldview.last_synthesis else 'never'}\n"
@@ -146,9 +155,9 @@ class ExpertChatSession:
             # Worldview not available - expert will function without it
             pass
 
-        base_message = f"""You are {self.expert.name}, a domain expert specialized in: {self.expert.domain or self.expert.description or 'various topics'}.
+        base_message = f"""You are {self.expert.name}, a domain expert specialized in: {self.expert.domain or self.expert.description or "various topics"}.
 
-{worldview_summary if worldview_summary else ''}
+{worldview_summary if worldview_summary else ""}
 
 HOW YOU THINK (Natural Expert Workflow):
 
@@ -193,12 +202,12 @@ SPEAKING STYLE:
 
 KNOWLEDGE BASE:
 - Documents: {self.expert.total_documents}
-- Last updated: {self.expert.updated_at.strftime('%Y-%m-%d') if self.expert.updated_at else 'unknown'}
+- Last updated: {self.expert.updated_at.strftime("%Y-%m-%d") if self.expert.updated_at else "unknown"}
 """
 
         # Add agentic research instructions if enabled
         if self.agentic:
-            budget_remaining = self.budget - self.cost_accumulated if self.budget else float('inf')
+            budget_remaining = self.budget - self.cost_accumulated if self.budget else float("inf")
             base_message += f"""
 
 RESEARCH TOOLS AVAILABLE:
@@ -251,10 +260,7 @@ Budget remaining: ${budget_remaining:.2f}
         if not self.enable_router or not self.router:
             # Router disabled - use expert's default model
             return ModelConfig(
-                provider=self.expert.provider,
-                model=self.expert.model,
-                cost_estimate=0.20,
-                confidence=1.0
+                provider=self.expert.provider, model=self.expert.model, cost_estimate=0.20, confidence=1.0
             )
 
         # Estimate context size from conversation history
@@ -272,18 +278,18 @@ Budget remaining: ${budget_remaining:.2f}
             context_size=context_size,
             budget_remaining=budget_remaining,
             current_model=self.expert.model,
-            provider_constraint="openai"  # Expert vector store requires OpenAI
+            provider_constraint="openai",  # Expert vector store requires OpenAI
         )
 
     def should_use_tot(self, query: str) -> bool:
         """Determine if Tree of Thoughts reasoning should be used for a query.
-        
+
         Complex queries benefit from hypothesis generation, claim verification,
         and self-correction. Simple queries can use direct chat.
-        
+
         Args:
             query: The user's query
-            
+
         Returns:
             True if ToT reasoning is recommended
         """
@@ -292,39 +298,42 @@ Budget remaining: ${budget_remaining:.2f}
 
     async def _run_tot_reasoning(self, query: str, status_callback=None) -> str:
         """Run Tree of Thoughts reasoning for complex queries.
-        
+
         Args:
             query: The user's query
             status_callback: Optional callback for status updates
-            
+
         Returns:
             Synthesized answer from reasoning
         """
+
         def report_status(status: str):
             if status_callback:
                 status_callback(status)
-        
+
         report_status("Using advanced reasoning for complex query...")
-        
+
         # Get context from knowledge base
         context = await self._search_knowledge_base(query, top_k=5)
-        
+
         # Run reasoning graph
         state = await self.reasoning_graph.reason(query, context=context)
-        
+
         # Log reasoning trace
-        self.reasoning_trace.append({
-            "step": "tot_reasoning",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "query": query[:100],
-            "phase": state.phase.value,
-            "hypotheses_count": len(state.hypotheses),
-            "verified_claims": len(state.verified_claims),
-            "confidence": state.confidence,
-            "is_degraded": state.is_degraded,
-            "iterations": state.iteration
-        })
-        
+        self.reasoning_trace.append(
+            {
+                "step": "tot_reasoning",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "query": query[:100],
+                "phase": state.phase.value,
+                "hypotheses_count": len(state.hypotheses),
+                "verified_claims": len(state.verified_claims),
+                "confidence": state.confidence,
+                "is_degraded": state.is_degraded,
+                "iterations": state.iteration,
+            }
+        )
+
         # Return synthesis or fallback
         if state.synthesis:
             # Add confidence indicator if low
@@ -340,7 +349,7 @@ Budget remaining: ${budget_remaining:.2f}
         Uses both:
         - EmbeddingCache for vector similarity search (fast, semantic)
         - LazyGraphRAG for graph-based retrieval (structured, relational)
-        
+
         Routes simple queries to vector-only, complex queries to hybrid.
         Logs retrieval sufficiency score every turn.
 
@@ -354,48 +363,49 @@ Budget remaining: ${budget_remaining:.2f}
         try:
             # Determine if we should use graph retrieval
             use_graph = self.lazy_graph_rag.should_use_graph(query)
-            
+
             # Log retrieval mode
-            self.reasoning_trace.append({
-                "step": "retrieval_routing",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "query": query[:100],
-                "use_graph": use_graph
-            })
-            
+            self.reasoning_trace.append(
+                {
+                    "step": "retrieval_routing",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "query": query[:100],
+                    "use_graph": use_graph,
+                }
+            )
+
             # Try graph retrieval for complex queries
             if use_graph:
                 graph_results = await self.lazy_graph_rag.retrieve(
-                    query=query,
-                    top_k=top_k,
-                    use_graph=True,
-                    expand_if_insufficient=True
+                    query=query, top_k=top_k, use_graph=True, expand_if_insufficient=True
                 )
-                
+
                 # Log sufficiency score
                 sufficiency = graph_results.get("sufficiency")
                 if sufficiency:
                     self.lazy_graph_rag.log_sufficiency(query, sufficiency)
-                    self.reasoning_trace.append({
-                        "step": "retrieval_sufficiency",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "coverage": sufficiency.coverage,
-                        "redundancy": sufficiency.redundancy,
-                        "overall_score": sufficiency.overall_score,
-                        "is_sufficient": sufficiency.is_sufficient()
-                    })
-                
+                    self.reasoning_trace.append(
+                        {
+                            "step": "retrieval_sufficiency",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "coverage": sufficiency.coverage,
+                            "redundancy": sufficiency.redundancy,
+                            "overall_score": sufficiency.overall_score,
+                            "is_sufficient": sufficiency.is_sufficient(),
+                        }
+                    )
+
                 # If graph has good results, use them
                 if graph_results.get("chunks") and sufficiency and sufficiency.is_sufficient():
                     return graph_results["chunks"]
-            
+
             # Fall back to vector search
             from deepr.experts.embedding_cache import EmbeddingCache
 
             # Get or create embedding cache for this expert
-            if not hasattr(self, '_embedding_cache'):
+            if not hasattr(self, "_embedding_cache"):
                 self._embedding_cache = EmbeddingCache(self.expert.name)
-            
+
             cache = self._embedding_cache
 
             # Get documents directory
@@ -414,13 +424,9 @@ Budget remaining: ${budget_remaining:.2f}
             documents = []
             for filepath in md_files:
                 try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, "r", encoding="utf-8") as f:
                         content = f.read()
-                    documents.append({
-                        "filename": filepath.name,
-                        "content": content,
-                        "filepath": str(filepath)
-                    })
+                    documents.append({"filename": filepath.name, "content": content, "filepath": str(filepath)})
                 except Exception:
                     continue
 
@@ -430,13 +436,15 @@ Budget remaining: ${budget_remaining:.2f}
                 added = await cache.add_documents(uncached, self.client)
                 if added > 0:
                     # Log cache update
-                    self.reasoning_trace.append({
-                        "step": "embedding_cache_update",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "documents_added": added,
-                        "total_cached": len(cache.index)
-                    })
-                    
+                    self.reasoning_trace.append(
+                        {
+                            "step": "embedding_cache_update",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "documents_added": added,
+                            "total_cached": len(cache.index),
+                        }
+                    )
+
                     # Also index in LazyGraphRAG for future graph queries
                     await self.lazy_graph_rag.index_documents(uncached)
 
@@ -458,19 +466,31 @@ Budget remaining: ${budget_remaining:.2f}
             True if domain is fast-moving
         """
         fast_moving_keywords = [
-            "AI", "machine learning", "ML", "crypto", "blockchain",
-            "latest", "current", "2025", "2024", "technology",
-            "startup", "software", "web", "framework", "library",
-            "cloud", "devops", "security", "api"
+            "AI",
+            "machine learning",
+            "ML",
+            "crypto",
+            "blockchain",
+            "latest",
+            "current",
+            "2025",
+            "2024",
+            "technology",
+            "startup",
+            "software",
+            "web",
+            "framework",
+            "library",
+            "cloud",
+            "devops",
+            "security",
+            "api",
         ]
 
         domain_lower = self.expert.domain.lower()
         desc_lower = self.expert.description.lower() if self.expert.description else ""
 
-        return any(
-            kw.lower() in domain_lower or kw.lower() in desc_lower
-            for kw in fast_moving_keywords
-        )
+        return any(kw.lower() in domain_lower or kw.lower() in desc_lower for kw in fast_moving_keywords)
 
     def _detect_recency_keywords(self, query: str) -> bool:
         """Detect if query asks for current/latest information.
@@ -482,8 +502,16 @@ Budget remaining: ${budget_remaining:.2f}
             True if query contains recency keywords
         """
         recency_keywords = [
-            "latest", "current", "recent", "new", "updated",
-            "2025", "2024", "now", "today", "this year"
+            "latest",
+            "current",
+            "recent",
+            "new",
+            "updated",
+            "2025",
+            "2024",
+            "now",
+            "today",
+            "this year",
         ]
 
         query_lower = query.lower()
@@ -506,10 +534,13 @@ Budget remaining: ${budget_remaining:.2f}
             response = await self.client.chat.completions.create(
                 model="gpt-5.2",
                 messages=[
-                    {"role": "system", "content": "Answer concisely using your knowledge. If information seems outdated or you're uncertain, recommend the user try standard research for current web information."},
-                    {"role": "user", "content": query}
+                    {
+                        "role": "system",
+                        "content": "Answer concisely using your knowledge. If information seems outdated or you're uncertain, recommend the user try standard research for current web information.",
+                    },
+                    {"role": "user", "content": query},
                 ],
-                reasoning_effort="high"  # High reasoning for quality
+                reasoning_effort="high",  # High reasoning for quality
             )
 
             answer = response.choices[0].message.content
@@ -523,11 +554,7 @@ Budget remaining: ${budget_remaining:.2f}
             else:
                 cost = 0.01  # Estimate ~5-10 cents for typical query
 
-            return {
-                "answer": answer,
-                "mode": "quick_lookup_gpt52",
-                "cost": cost
-            }
+            return {"answer": answer, "mode": "quick_lookup_gpt52", "cost": cost}
         except Exception as e:
             return {"error": str(e)}
 
@@ -542,27 +569,24 @@ Budget remaining: ${budget_remaining:.2f}
         """
         # Even though it's free, track it for rate limiting and audit
         estimated_cost = 0.002  # Nominal cost for tracking
-        
+
         # Check cost safety - mainly for rate limiting during loops
         allowed, reason, _ = self.cost_safety.check_operation(
             session_id=self.session_id,
             operation_type="standard_research",
             estimated_cost=estimated_cost,
-            require_confirmation=False  # Don't confirm for free operations
+            require_confirmation=False,  # Don't confirm for free operations
         )
-        
+
         if not allowed:
-            return {
-                "error": f"Research blocked: {reason}",
-                "mode": "standard_research",
-                "status": "blocked"
-            }
-        
+            return {"error": f"Research blocked: {reason}", "mode": "standard_research", "status": "blocked"}
+
         try:
             # Use Grok-4-Fast with agentic tool calling (web + X search)
             import os
+
             from xai_sdk import Client
-            from xai_sdk.chat import user, system
+            from xai_sdk.chat import system, user
             from xai_sdk.tools import web_search, x_search
 
             xai_key = os.getenv("XAI_API_KEY")
@@ -570,19 +594,23 @@ Budget remaining: ${budget_remaining:.2f}
                 raise Exception("XAI_API_KEY not set")
 
             # Create xAI client
-            xai_client = Client(api_key=xai_key, timeout=self.timeout if hasattr(self, 'timeout') else 120)
+            xai_client = Client(api_key=xai_key, timeout=self.timeout if hasattr(self, "timeout") else 120)
 
             # Create chat with agentic search tools
             chat = xai_client.chat.create(
                 model="grok-4-fast",  # Specifically trained for agentic search
                 tools=[
                     web_search(),  # Real-time web search
-                    x_search(),    # X/Twitter search
+                    x_search(),  # X/Twitter search
                 ],
             )
 
             # System prompt for research clarity
-            chat.append(system("You have real-time web search. Provide accurate current information with source citations. Be concise but thorough."))
+            chat.append(
+                system(
+                    "You have real-time web search. Provide accurate current information with source citations. Be concise but thorough."
+                )
+            )
             chat.append(user(query))
 
             # Get response with automatic agentic search
@@ -590,7 +618,7 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Extract answer and citations
             answer = response.content
-            citations = getattr(response, 'citations', [])
+            citations = getattr(response, "citations", [])
 
             # Convert citations to list (may be protobuf RepeatedScalarContainer)
             citations_list = list(citations) if citations else []
@@ -602,13 +630,13 @@ Budget remaining: ${budget_remaining:.2f}
             # Track cost (FREE during beta, but record for audit)
             cost = 0.0
             self.cost_accumulated += cost
-            
+
             # Record in cost safety for tracking/audit
             self.cost_safety.record_cost(
                 session_id=self.session_id,
                 operation_type="standard_research",
                 actual_cost=cost,
-                details=f"Query: {query[:50]}..."
+                details=f"Query: {query[:50]}...",
             )
 
             # Add research findings to knowledge base
@@ -619,26 +647,25 @@ Budget remaining: ${budget_remaining:.2f}
                 "mode": "standard_research_grok_agentic",
                 "cost": cost,
                 "citations": citations_list,  # Return as list for JSON serialization
-                "budget_remaining": self.cost_session.get_remaining_budget()
+                "budget_remaining": self.cost_session.get_remaining_budget(),
             }
 
         except Exception as e:
             # Record failure for circuit breaker
             self.cost_safety.record_failure(self.session_id, "standard_research", str(e))
-            
-            # Log the error for debugging
-            import traceback
-            error_details = traceback.format_exc()
 
             # Fallback to GPT-5.2 without web search
             try:
                 response = await self.client.chat.completions.create(
                     model="gpt-5.2",
                     messages=[
-                        {"role": "system", "content": "Answer based on your knowledge. Be honest if information might be outdated."},
-                        {"role": "user", "content": query}
+                        {
+                            "role": "system",
+                            "content": "Answer based on your knowledge. Be honest if information might be outdated.",
+                        },
+                        {"role": "user", "content": query},
                     ],
-                    reasoning_effort="high"
+                    reasoning_effort="high",
                 )
 
                 answer = f"{response.choices[0].message.content}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
@@ -649,20 +676,20 @@ Budget remaining: ${budget_remaining:.2f}
                     output_cost = (response.usage.completion_tokens / 1_000_000) * 14.00
                     cost = input_cost + output_cost
                 self.cost_accumulated += cost
-                
+
                 # Record fallback cost
                 self.cost_safety.record_cost(
                     session_id=self.session_id,
                     operation_type="standard_research_fallback",
                     actual_cost=cost,
-                    details=f"Fallback for: {query[:50]}..."
+                    details=f"Fallback for: {query[:50]}...",
                 )
 
                 return {
                     "answer": answer,
                     "mode": "standard_research_fallback",
                     "cost": cost,
-                    "budget_remaining": self.cost_session.get_remaining_budget()
+                    "budget_remaining": self.cost_session.get_remaining_budget(),
                 }
             except Exception as fallback_error:
                 return {"error": f"Grok search failed: {str(e)}. GPT-5.2 fallback failed: {str(fallback_error)}"}
@@ -677,40 +704,39 @@ Budget remaining: ${budget_remaining:.2f}
             Dict with job_id and estimated_cost
         """
         estimated_cost = 0.20  # Average estimate
-        
+
         # Check cost safety before proceeding
         allowed, reason, needs_confirm = self.cost_safety.check_operation(
             session_id=self.session_id,
             operation_type="deep_research",
             estimated_cost=estimated_cost,
-            require_confirmation=True
+            require_confirmation=True,
         )
-        
+
         if not allowed:
             return {
                 "error": f"Deep research blocked: {reason}",
                 "mode": "deep_research",
                 "status": "blocked",
                 "daily_spent": self.cost_safety.daily_cost,
-                "daily_limit": self.cost_safety.max_daily
+                "daily_limit": self.cost_safety.max_daily,
             }
-        
+
         # Check session budget
         can_proceed, session_reason = self.cost_session.can_proceed(estimated_cost)
         if not can_proceed:
             return {
                 "error": f"Session budget exceeded: {session_reason}",
-                "mode": "deep_research", 
+                "mode": "deep_research",
                 "status": "blocked",
                 "session_spent": self.cost_session.total_cost,
-                "session_budget": self.budget
+                "session_budget": self.budget,
             }
-        
+
         try:
             # Submit deep research job (async, will complete later)
             response = await self.client.responses.create(
-                model="o4-mini-deep-research",
-                messages=[{"role": "user", "content": query}]
+                model="o4-mini-deep-research", messages=[{"role": "user", "content": query}]
             )
 
             job_id = response.id
@@ -720,7 +746,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.pending_research[job_id] = {
                 "query": query,
                 "started_at": datetime.now(timezone.utc),
-                "estimated_cost": estimated_cost
+                "estimated_cost": estimated_cost,
             }
 
             # Add to expert profile
@@ -730,22 +756,20 @@ Budget remaining: ${budget_remaining:.2f}
                 # Save expert profile
                 store = ExpertStore()
                 store.save(self.expert)
-            
+
             # Record cost in BOTH session tracker AND global cost safety
             self.cost_session.record_operation(
-                operation_type="deep_research",
-                cost=estimated_cost,
-                details=f"Query: {query[:50]}..."
+                operation_type="deep_research", cost=estimated_cost, details=f"Query: {query[:50]}..."
             )
-            
+
             # Also record to global manager for daily/monthly tracking
             self.cost_safety.record_cost(
                 session_id=self.session_id,
                 operation_type="deep_research",
                 actual_cost=estimated_cost,
-                details=f"Job {job_id}: {query[:50]}..."
+                details=f"Job {job_id}: {query[:50]}...",
             )
-            
+
             self.cost_accumulated = self.cost_session.total_cost
 
             # Get spending summary for transparency
@@ -761,7 +785,7 @@ Budget remaining: ${budget_remaining:.2f}
                 "budget_remaining": self.cost_session.get_remaining_budget(),
                 "daily_spent": spending["daily"]["spent"],
                 "daily_limit": spending["daily"]["limit"],
-                "daily_remaining": spending["daily"]["remaining"]
+                "daily_remaining": spending["daily"]["remaining"],
             }
         except Exception as e:
             self.cost_session.record_failure("deep_research", str(e))
@@ -786,8 +810,8 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Create filename with timestamp
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            safe_query = "".join(c for c in query[:50] if c.isalnum() or c in (' ', '-', '_')).strip()
-            safe_query = safe_query.replace(' ', '_').lower()
+            safe_query = "".join(c for c in query[:50] if c.isalnum() or c in (" ", "-", "_")).strip()
+            safe_query = safe_query.replace(" ", "_").lower()
             filename = f"research_{timestamp}_{safe_query}.md"
             filepath = documents_dir / filename
 
@@ -804,20 +828,16 @@ Budget remaining: ${budget_remaining:.2f}
 """
 
             # Save to documents folder
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
 
             # Upload to vector store
-            with open(filepath, 'rb') as f:
-                file_obj = await self.client.files.create(
-                    file=f,
-                    purpose="assistants"
-                )
+            with open(filepath, "rb") as f:
+                file_obj = await self.client.files.create(file=f, purpose="assistants")
 
             # Add file to vector store
             await self.client.vector_stores.files.create(
-                vector_store_id=self.expert.vector_store_id,
-                file_id=file_obj.id
+                vector_store_id=self.expert.vector_store_id, file_id=file_obj.id
             )
 
             # Update expert profile
@@ -828,13 +848,13 @@ Budget remaining: ${budget_remaining:.2f}
             # Track temporal knowledge (when this was learned)
             if self.temporal:
                 # Extract topic from query
-                topic = query.split('?')[0].strip()[:100]  # First sentence as topic
+                topic = query.split("?")[0].strip()[:100]  # First sentence as topic
                 self.temporal.record_learning(
                     topic=topic,
                     fact_text=answer[:500],  # Store summary
                     source=filename,
                     confidence=0.8,  # Standard research confidence
-                    valid_for_days=180 if "latest" in query.lower() or "current" in query.lower() else None
+                    valid_for_days=180 if "latest" in query.lower() or "current" in query.lower() else None,
                 )
 
             return True
@@ -845,113 +865,113 @@ Budget remaining: ${budget_remaining:.2f}
 
     def should_trigger_synthesis(self) -> bool:
         """Determine if consciousness should be updated based on new research.
-        
+
         Triggers synthesis when:
         - Research count since last synthesis >= threshold (default 10)
         - AND agentic mode is enabled (research can happen)
-        
+
         Returns:
             True if synthesis should be triggered
         """
         if not self.agentic:
             return False
-        
+
         research_since_last_synthesis = self.research_count - self.last_synthesis_research_count
         return research_since_last_synthesis >= self.synthesis_threshold
 
     async def _trigger_background_synthesis(self, status_callback=None) -> Dict:
         """Re-synthesize worldview with new knowledge from recent research.
-        
+
         Uses existing KnowledgeSynthesizer to process new documents and update
         the expert's worldview (beliefs and knowledge gaps).
-        
+
         Args:
             status_callback: Optional callback function(status: str) to report progress
-            
+
         Returns:
             Dict with synthesis results (new_beliefs, updated_beliefs, gaps_filled)
         """
+
         def report_status(status: str):
             if status_callback:
                 status_callback(status)
-        
+
         try:
             from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
-            
+
             report_status("Expert consciousness updating...")
-            
+
             # Load existing worldview
             store = ExpertStore()
             worldview_path = store.get_knowledge_dir(self.expert.name) / "worldview.json"
             existing_worldview = None
             existing_belief_count = 0
             existing_gap_count = 0
-            
+
             if worldview_path.exists():
                 existing_worldview = Worldview.load(worldview_path)
                 existing_belief_count = len(existing_worldview.beliefs)
                 existing_gap_count = len(existing_worldview.knowledge_gaps)
-            
+
             # Get documents directory
             documents_dir = store.get_documents_dir(self.expert.name)
-            
+
             # Load all documents for synthesis
             new_documents = []
             if documents_dir.exists():
                 for filepath in documents_dir.glob("*.md"):
                     try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
+                        with open(filepath, "r", encoding="utf-8") as f:
                             content = f.read()
-                        new_documents.append({
-                            "filename": filepath.name,
-                            "content": content
-                        })
+                        new_documents.append({"filename": filepath.name, "content": content})
                     except Exception:
                         continue
-            
+
             if not new_documents:
                 return {
                     "status": "skipped",
                     "reason": "No documents to synthesize",
                     "new_beliefs": 0,
                     "updated_beliefs": 0,
-                    "gaps_filled": 0
+                    "gaps_filled": 0,
                 }
-            
+
             # Run synthesis
             synthesizer = KnowledgeSynthesizer()
             result = await synthesizer.synthesize_new_knowledge(
                 expert_name=self.expert.name,
                 domain=self.expert.domain or self.expert.description or "general",
                 new_documents=new_documents,
-                existing_worldview=existing_worldview
+                existing_worldview=existing_worldview,
             )
-            
+
             # Calculate changes
             new_worldview = result.get("worldview")
             new_belief_count = len(new_worldview.beliefs) if new_worldview else 0
             new_gap_count = len(new_worldview.knowledge_gaps) if new_worldview else 0
-            
+
             beliefs_added = max(0, new_belief_count - existing_belief_count)
             gaps_changed = abs(new_gap_count - existing_gap_count)
-            
+
             # Update tracking
             self.last_synthesis_research_count = self.research_count
-            
+
             # Log to reasoning trace
-            self.reasoning_trace.append({
-                "step": "continuous_learning_synthesis",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "trigger": f"research_count={self.research_count}, threshold={self.synthesis_threshold}",
-                "documents_processed": len(new_documents),
-                "beliefs_before": existing_belief_count,
-                "beliefs_after": new_belief_count,
-                "gaps_before": existing_gap_count,
-                "gaps_after": new_gap_count
-            })
-            
+            self.reasoning_trace.append(
+                {
+                    "step": "continuous_learning_synthesis",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "trigger": f"research_count={self.research_count}, threshold={self.synthesis_threshold}",
+                    "documents_processed": len(new_documents),
+                    "beliefs_before": existing_belief_count,
+                    "beliefs_after": new_belief_count,
+                    "gaps_before": existing_gap_count,
+                    "gaps_after": new_gap_count,
+                }
+            )
+
             report_status(f"✓ {beliefs_added} new beliefs formed, {gaps_changed} gaps updated")
-            
+
             return {
                 "status": "completed",
                 "new_beliefs": beliefs_added,
@@ -959,23 +979,19 @@ Budget remaining: ${budget_remaining:.2f}
                 "gaps_filled": max(0, existing_gap_count - new_gap_count),
                 "total_beliefs": new_belief_count,
                 "total_gaps": new_gap_count,
-                "documents_processed": len(new_documents)
+                "documents_processed": len(new_documents),
             }
-            
+
         except Exception as e:
             # Don't crash chat on synthesis failure
-            self.reasoning_trace.append({
-                "step": "continuous_learning_synthesis_error",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "error": str(e)
-            })
-            return {
-                "status": "error",
-                "error": str(e),
-                "new_beliefs": 0,
-                "updated_beliefs": 0,
-                "gaps_filled": 0
-            }
+            self.reasoning_trace.append(
+                {
+                    "step": "continuous_learning_synthesis_error",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "error": str(e),
+                }
+            )
+            return {"status": "error", "error": str(e), "new_beliefs": 0, "updated_beliefs": 0, "gaps_filled": 0}
 
     async def send_message(self, user_message: str, status_callback=None) -> str:
         """Send a message to the expert and get a response using GPT-5 + tool calling.
@@ -987,6 +1003,7 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             The expert's response
         """
+
         def report_status(status: str):
             """Report status if callback is provided."""
             if status_callback:
@@ -1000,7 +1017,7 @@ Budget remaining: ${budget_remaining:.2f}
                 "expert_name": self.expert.name,
                 "agentic_mode": self.agentic,
                 "budget_remaining": self.budget - self.cost_accumulated,
-            }
+            },
         )
 
         try:
@@ -1011,34 +1028,34 @@ Budget remaining: ${budget_remaining:.2f}
                 self.thought_stream.emit(
                     ThoughtType.PLAN_STEP,
                     "Complex query detected, using advanced reasoning",
-                    private_payload={"query_length": len(user_message.split())}
+                    private_payload={"query_length": len(user_message.split())},
                 )
-                
+
                 # Try ToT reasoning first
                 tot_result = await self._run_tot_reasoning(user_message, status_callback)
-                
+
                 # If ToT produced a good result, use it
                 if tot_result and "unable to generate" not in tot_result.lower():
                     # Add to message history
                     self.messages.append({"role": "user", "content": user_message})
                     self.messages.append({"role": "assistant", "content": tot_result})
-                    
+
                     # Emit final decision
                     self.thought_stream.decision(
                         decision_text="Response ready (via advanced reasoning)",
                         confidence=0.85,
-                        reasoning="Used Tree of Thoughts for complex query"
+                        reasoning="Used Tree of Thoughts for complex query",
                     )
-                    
+
                     return tot_result
-                
+
                 # Fall through to simple chat if ToT failed
                 self.thought_stream.emit(
                     ThoughtType.PLAN_STEP,
                     "Falling back to standard chat",
-                    private_payload={"reason": "ToT reasoning incomplete"}
+                    private_payload={"reason": "ToT reasoning incomplete"},
                 )
-            
+
             # Define tools
             tools = [
                 {
@@ -1049,72 +1066,71 @@ Budget remaining: ${budget_remaining:.2f}
                         "parameters": {
                             "type": "object",
                             "properties": {
-                                "query": {
-                                    "type": "string",
-                                    "description": "What you're looking for in your documents"
-                                },
+                                "query": {"type": "string", "description": "What you're looking for in your documents"},
                                 "top_k": {
                                     "type": "integer",
                                     "description": "Number of documents to retrieve",
-                                    "default": 5
+                                    "default": 5,
                                 },
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Why you need to check your documents (for transparency)"
-                                }
+                                    "description": "Why you need to check your documents (for transparency)",
+                                },
                             },
-                            "required": ["query", "reasoning"]
-                        }
-                    }
+                            "required": ["query", "reasoning"],
+                        },
+                    },
                 }
             ]
 
             # Add research tools if agentic mode is enabled
             if self.agentic:
-                tools.extend([
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "standard_research",
-                            "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "query": {
-                                        "type": "string",
-                                        "description": "What you need to research on the web"
+                tools.extend(
+                    [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "standard_research",
+                                "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {
+                                            "type": "string",
+                                            "description": "What you need to research on the web",
+                                        },
+                                        "reasoning": {
+                                            "type": "string",
+                                            "description": "Why your knowledge base isn't sufficient and you need web search",
+                                        },
                                     },
-                                    "reasoning": {
-                                        "type": "string",
-                                        "description": "Why your knowledge base isn't sufficient and you need web search"
-                                    }
+                                    "required": ["query", "reasoning"],
                                 },
-                                "required": ["query", "reasoning"]
-                            }
-                        }
-                    },
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "deep_research",
-                            "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "query": {
-                                        "type": "string",
-                                        "description": "The complex question that needs deep analysis"
+                            },
+                        },
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "deep_research",
+                                "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {
+                                            "type": "string",
+                                            "description": "The complex question that needs deep analysis",
+                                        },
+                                        "reasoning": {
+                                            "type": "string",
+                                            "description": "Why this needs expensive deep research instead of quick web search",
+                                        },
                                     },
-                                    "reasoning": {
-                                        "type": "string",
-                                        "description": "Why this needs expensive deep research instead of quick web search"
-                                    }
+                                    "required": ["query", "reasoning"],
                                 },
-                                "required": ["query", "reasoning"]
-                            }
-                        }
-                    }
-                ])
+                            },
+                        },
+                    ]
+                )
 
             # Add user message to history
             self.messages.append({"role": "user", "content": user_message})
@@ -1124,17 +1140,19 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Log routing decision to reasoning trace
             if self.enable_router:
-                self.reasoning_trace.append({
-                    "step": "model_routing",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "query": user_message[:100],  # First 100 chars
-                    "selected_provider": selected_model.provider,
-                    "selected_model": selected_model.model,
-                    "cost_estimate": selected_model.cost_estimate,
-                    "confidence": selected_model.confidence,
-                    "reasoning_effort": selected_model.reasoning_effort
-                })
-                
+                self.reasoning_trace.append(
+                    {
+                        "step": "model_routing",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "query": user_message[:100],  # First 100 chars
+                        "selected_provider": selected_model.provider,
+                        "selected_model": selected_model.model,
+                        "cost_estimate": selected_model.cost_estimate,
+                        "confidence": selected_model.confidence,
+                        "reasoning_effort": selected_model.reasoning_effort,
+                    }
+                )
+
                 # Emit thought about model selection
                 self.thought_stream.emit(
                     ThoughtType.PLAN_STEP,
@@ -1142,9 +1160,9 @@ Budget remaining: ${budget_remaining:.2f}
                     private_payload={
                         "provider": selected_model.provider,
                         "cost_estimate": selected_model.cost_estimate,
-                        "reasoning_effort": selected_model.reasoning_effort
+                        "reasoning_effort": selected_model.reasoning_effort,
                     },
-                    confidence=selected_model.confidence
+                    confidence=selected_model.confidence,
                 )
 
             # Step 1: Ask model (may call search tool)
@@ -1154,12 +1172,9 @@ Budget remaining: ${budget_remaining:.2f}
             # Build API call parameters
             api_params = {
                 "model": selected_model.model,
-                "messages": [
-                    {"role": "system", "content": self.get_system_message()},
-                    *self.messages
-                ],
+                "messages": [{"role": "system", "content": self.get_system_message()}, *self.messages],
                 "tools": tools,
-                "tool_choice": "auto"
+                "tool_choice": "auto",
             }
 
             # Add reasoning effort if supported (GPT-5 family)
@@ -1173,10 +1188,7 @@ Budget remaining: ${budget_remaining:.2f}
             # Step 2: Multi-round tool calling loop
             # Keep calling tools until no more tool calls are made
             current_message = assistant_message
-            conversation_messages = [
-                {"role": "system", "content": self.get_system_message()},
-                *self.messages
-            ]
+            conversation_messages = [{"role": "system", "content": self.get_system_message()}, *self.messages]
 
             max_rounds = 5  # Prevent infinite loops
             round_count = 0
@@ -1200,32 +1212,37 @@ Budget remaining: ${budget_remaining:.2f}
                             # Execute search
                             report_status("Searching knowledge base...")
                             search_results = await self._search_knowledge_base(query, top_k)
-                            
+
                             # Emit evidence found
                             for result in search_results[:3]:  # Top 3 results
                                 if result.get("filename") != "SYSTEM_WARNING":
                                     self.thought_stream.evidence(
                                         source_id=result.get("filename", "unknown"),
                                         summary=result.get("content", "")[:200],
-                                        relevance=result.get("score", 0.5)
+                                        relevance=result.get("score", 0.5),
                                     )
 
                         # Log reasoning trace with model's explanation
-                        self.reasoning_trace.append({
-                            "step": "search_knowledge_base",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "query": query,
-                            "reasoning": reasoning,  # Model's explanation of WHY it's searching
-                            "results_count": len(search_results),
-                            "sources": [r.get("filename", "unknown") for r in search_results]
-                        })
+                        self.reasoning_trace.append(
+                            {
+                                "step": "search_knowledge_base",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "query": query,
+                                "reasoning": reasoning,  # Model's explanation of WHY it's searching
+                                "results_count": len(search_results),
+                                "sources": [r.get("filename", "unknown") for r in search_results],
+                            }
+                        )
 
                         # Track tool call in observability span
-                        op.add_event("tool_call_search", {
-                            "query": query[:100],
-                            "results_count": len(search_results),
-                            "top_score": search_results[0].get("score", 0) if search_results else 0
-                        })
+                        op.add_event(
+                            "tool_call_search",
+                            {
+                                "query": query[:100],
+                                "results_count": len(search_results),
+                                "top_score": search_results[0].get("score", 0) if search_results else 0,
+                            },
+                        )
 
                         # Track knowledge gap if search returned empty
                         if self.metacognition and len(search_results) == 0:
@@ -1243,24 +1260,28 @@ Budget remaining: ${budget_remaining:.2f}
                                 # Check if any of the stale topics match the query
                                 topic = query[:100]
                                 if any(topic in stale_topic for stale_topic in stale_topics):
-                                    age_info = self.temporal.get_statistics()
-                                    staleness_warning = f"WARNING: My knowledge on this topic may be outdated (>{ max_age_days} days old). Consider triggering fresh research for current information."
+                                    staleness_warning = f"WARNING: My knowledge on this topic may be outdated (>{max_age_days} days old). Consider triggering fresh research for current information."
 
                         # Add staleness warning to results if detected
                         if staleness_warning and search_results:
-                            search_results.insert(0, {
-                                "id": "staleness_warning",
-                                "filename": "SYSTEM_WARNING",
-                                "content": staleness_warning,
-                                "score": 1.0
-                            })
+                            search_results.insert(
+                                0,
+                                {
+                                    "id": "staleness_warning",
+                                    "filename": "SYSTEM_WARNING",
+                                    "content": staleness_warning,
+                                    "score": 1.0,
+                                },
+                            )
 
                         # Add tool result
-                        tool_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": json.dumps({"results": search_results})
-                        })
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": json.dumps({"results": search_results}),
+                            }
+                        )
 
                     elif tool_call.function.name == "standard_research":
                         # Parse arguments
@@ -1275,12 +1296,12 @@ Budget remaining: ${budget_remaining:.2f}
 
                         # Increment research count for continuous learning trigger
                         self.research_count += 1
-                        
+
                         # Emit thought about research
                         self.thought_stream.tool_call(
                             tool_name="standard_research",
                             args={"query": query[:100]},
-                            result_summary="Searching web for current information"
+                            result_summary="Searching web for current information",
                         )
 
                         # Execute standard research
@@ -1288,29 +1309,30 @@ Budget remaining: ${budget_remaining:.2f}
                         result = await self._standard_research(query)
 
                         # Log reasoning trace with model's explanation
-                        self.reasoning_trace.append({
-                            "step": "standard_research",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "query": query,
-                            "reasoning": reasoning,  # Model's explanation of WHY it needs web search
-                            "mode": "standard_research",
-                            "cost": result.get("cost", 0.0)
-                        })
+                        self.reasoning_trace.append(
+                            {
+                                "step": "standard_research",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "query": query,
+                                "reasoning": reasoning,  # Model's explanation of WHY it needs web search
+                                "mode": "standard_research",
+                                "cost": result.get("cost", 0.0),
+                            }
+                        )
 
                         # Track tool call in observability span
-                        op.add_event("tool_call_standard_research", {
-                            "query": query[:100],
-                            "cost": result.get("cost", 0.0),
-                            "has_answer": "answer" in result
-                        })
-                        
+                        op.add_event(
+                            "tool_call_standard_research",
+                            {"query": query[:100], "cost": result.get("cost", 0.0), "has_answer": "answer" in result},
+                        )
+
                         # Emit result thought
                         if "answer" in result:
                             self.thought_stream.emit(
                                 ThoughtType.EVIDENCE_FOUND,
-                                f"Web search complete: found relevant information",
+                                "Web search complete: found relevant information",
                                 private_payload={"answer_preview": result["answer"][:200]},
-                                confidence=0.8
+                                confidence=0.8,
                             )
 
                         # Record learning after research completes
@@ -1318,15 +1340,13 @@ Budget remaining: ${budget_remaining:.2f}
                             self.metacognition.record_learning(
                                 topic=query[:100],
                                 confidence_after=0.8,
-                                sources=[result.get("mode", "standard_research")]
+                                sources=[result.get("mode", "standard_research")],
                             )
 
                         # Add tool result
-                        tool_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": json.dumps(result)
-                        })
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
+                        )
 
                     elif tool_call.function.name == "deep_research":
                         # Parse arguments
@@ -1341,66 +1361,72 @@ Budget remaining: ${budget_remaining:.2f}
 
                         # Increment research count for continuous learning trigger
                         self.research_count += 1
-                        
+
                         # Emit thought about deep research
                         self.thought_stream.tool_call(
                             tool_name="deep_research",
                             args={"query": query[:100]},
-                            result_summary="Submitting for deep analysis (5-20 min)"
+                            result_summary="Submitting for deep analysis (5-20 min)",
                         )
 
                         # Log reasoning trace with model's explanation
-                        self.reasoning_trace.append({
-                            "step": "deep_research",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "query": query,
-                            "reasoning": reasoning,  # Model's explanation of WHY it needs expensive deep research
-                            "mode": "deep_research"
-                        })
+                        self.reasoning_trace.append(
+                            {
+                                "step": "deep_research",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "query": query,
+                                "reasoning": reasoning,  # Model's explanation of WHY it needs expensive deep research
+                                "mode": "deep_research",
+                            }
+                        )
 
                         # Execute deep research (async submission)
                         report_status("Submitting deep research ($0.10-0.30, 5-20 min)...")
                         result = await self._deep_research(query)
 
                         # Track tool call in observability span
-                        op.add_event("tool_call_deep_research", {
-                            "query": query[:100],
-                            "job_id": result.get("job_id", ""),
-                            "estimated_cost": result.get("estimated_cost", 0)
-                        })
+                        op.add_event(
+                            "tool_call_deep_research",
+                            {
+                                "query": query[:100],
+                                "job_id": result.get("job_id", ""),
+                                "estimated_cost": result.get("estimated_cost", 0),
+                            },
+                        )
 
                         # Emit result thought
                         if "job_id" in result:
                             self.thought_stream.emit(
                                 ThoughtType.PLAN_STEP,
                                 f"Deep research submitted (job: {result['job_id'][:8]}...)",
-                                private_payload={"job_id": result["job_id"], "estimated_cost": result.get("estimated_cost")},
-                                confidence=0.9
+                                private_payload={
+                                    "job_id": result["job_id"],
+                                    "estimated_cost": result.get("estimated_cost"),
+                                },
+                                confidence=0.9,
                             )
 
                         # Note: Learning will be recorded later when research completes
                         # Deep research runs asynchronously and takes 5-20 minutes
 
                         # Add tool result
-                        tool_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": json.dumps(result)
-                        })
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
+                        )
 
                 # Add assistant message and tool results to conversation
                 conversation_messages.append(current_message)
                 conversation_messages.extend(tool_messages)
 
                 # Make next API call (might trigger more tool calls or final answer)
-                report_status(f"Thinking...")
+                report_status("Thinking...")
 
                 # Use same model as initial call for consistency
                 api_params_next = {
                     "model": selected_model.model,
                     "messages": conversation_messages,
                     "tools": tools,
-                    "tool_choice": "auto"
+                    "tool_choice": "auto",
                 }
 
                 if selected_model.reasoning_effort and selected_model.provider == "openai":
@@ -1428,9 +1454,15 @@ Budget remaining: ${budget_remaining:.2f}
             # Detect uncertainty in final response and track knowledge gaps
             if self.metacognition and final_message:
                 uncertainty_phrases = [
-                    "i don't know", "i'm not sure", "i don't have",
-                    "no information", "not in my knowledge", "i cannot find",
-                    "i'm uncertain", "unclear", "not familiar with"
+                    "i don't know",
+                    "i'm not sure",
+                    "i don't have",
+                    "no information",
+                    "not in my knowledge",
+                    "i cannot find",
+                    "i'm uncertain",
+                    "unclear",
+                    "not familiar with",
                 ]
 
                 final_lower = final_message.lower()
@@ -1441,41 +1473,40 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Add assistant response to history
             self.messages.append({"role": "assistant", "content": final_message})
-            
+
             # Emit final decision thought
             self.thought_stream.decision(
                 decision_text="Response ready",
-                confidence=0.9 if not any(
-                    phrase in final_message.lower() 
-                    for phrase in ["i don't know", "i'm not sure", "uncertain"]
-                ) else 0.5,
-                reasoning="Synthesized answer from available knowledge and research"
+                confidence=0.9
+                if not any(phrase in final_message.lower() for phrase in ["i don't know", "i'm not sure", "uncertain"])
+                else 0.5,
+                reasoning="Synthesized answer from available knowledge and research",
             )
 
             # Increment conversation count for continuous learning
             self.conversation_count += 1
-            
+
             # Record episode to hierarchical memory
             reasoning_chain = [
                 ReasoningStep(
                     step_type=trace.get("step", "unknown"),
                     content=str(trace.get("query", trace.get("reasoning", "")))[:200],
                     confidence=trace.get("confidence", 0.5),
-                    sources=trace.get("sources", [])
+                    sources=trace.get("sources", []),
                 )
                 for trace in self.reasoning_trace[-5:]  # Last 5 reasoning steps
             ]
-            
+
             episode = Episode(
                 query=user_message,
                 response=final_message,
                 context_docs=[],  # Would be populated from search results
                 reasoning_chain=reasoning_chain,
                 user_id=self.user_id,
-                session_id=self.session_id
+                session_id=self.session_id,
             )
             self.memory.add_episode(episode)
-            
+
             # Update user profile if user tracking enabled
             if self.user_id:
                 self.memory.update_user_profile(self.user_id, user_message)
@@ -1505,22 +1536,22 @@ Budget remaining: ${budget_remaining:.2f}
     def get_session_summary(self) -> Dict:
         """Get a summary of the chat session including cost safety status."""
         # Get cost session summary
-        cost_summary = self.cost_session.get_summary() if hasattr(self, 'cost_session') else {}
-
         # Get global spending summary
-        global_spending = self.cost_safety.get_spending_summary() if hasattr(self, 'cost_safety') else {}
+        global_spending = self.cost_safety.get_spending_summary() if hasattr(self, "cost_safety") else {}
 
         return {
             "expert_name": self.expert.name,
             "messages_exchanged": len([m for m in self.messages if m["role"] == "user"]),
             "cost_accumulated": round(self.cost_accumulated, 4),
-            "budget_remaining": round(self.cost_session.get_remaining_budget(), 4) if hasattr(self, 'cost_session') else None,
+            "budget_remaining": round(self.cost_session.get_remaining_budget(), 4)
+            if hasattr(self, "cost_session")
+            else None,
             "research_jobs_triggered": len(self.research_jobs),
             "model": self.expert.model,
             "reasoning_steps": len(self.reasoning_trace),
             # Session-level alerts
-            "cost_alerts": [a.to_dict() for a in self.cost_session.alerts] if hasattr(self, 'cost_session') else [],
-            "circuit_breaker_open": self.cost_session.is_circuit_open if hasattr(self, 'cost_session') else False,
+            "cost_alerts": [a.to_dict() for a in self.cost_session.alerts] if hasattr(self, "cost_session") else [],
+            "circuit_breaker_open": self.cost_session.is_circuit_open if hasattr(self, "cost_session") else False,
             # Global spending (daily/monthly)
             "daily_spent": global_spending.get("daily", {}).get("spent", 0),
             "daily_limit": global_spending.get("daily", {}).get("limit", 0),
@@ -1572,7 +1603,6 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Session ID
         """
-        from pathlib import Path
         import uuid
 
         if not session_id:
@@ -1589,7 +1619,9 @@ Budget remaining: ${budget_remaining:.2f}
         conversation_data = {
             "session_id": session_id,
             "expert_name": self.expert.name,
-            "started_at": self.messages[0].get("timestamp", datetime.now(timezone.utc).isoformat()) if self.messages else datetime.now(timezone.utc).isoformat(),
+            "started_at": self.messages[0].get("timestamp", datetime.now(timezone.utc).isoformat())
+            if self.messages
+            else datetime.now(timezone.utc).isoformat(),
             "ended_at": datetime.now(timezone.utc).isoformat(),
             "messages": self.messages,
             "summary": self.get_session_summary(),
@@ -1597,16 +1629,23 @@ Budget remaining: ${budget_remaining:.2f}
             "agentic_mode": self.agentic,
             "reasoning_trace": self.reasoning_trace,  # Full audit trail for transparency
             "thought_trace": self.thought_stream.get_trace(),  # Structured decision records
-            "thought_log_path": str(self.thought_stream.log_path)  # Path to JSONL log
+            "thought_log_path": str(self.thought_stream.log_path),  # Path to JSONL log
         }
 
-        with open(conversation_file, 'w', encoding='utf-8') as f:
+        with open(conversation_file, "w", encoding="utf-8") as f:
             json.dump(conversation_data, f, indent=2, ensure_ascii=False)
 
         return session_id
 
 
-async def start_chat_session(expert_name: str, budget: Optional[float] = None, agentic: bool = False, enable_router: bool = True, verbose: bool = False, quiet: bool = False) -> ExpertChatSession:
+async def start_chat_session(
+    expert_name: str,
+    budget: Optional[float] = None,
+    agentic: bool = False,
+    enable_router: bool = True,
+    verbose: bool = False,
+    quiet: bool = False,
+) -> ExpertChatSession:
     """Start a new chat session with an expert.
 
     Args:

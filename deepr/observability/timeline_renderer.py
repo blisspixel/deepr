@@ -14,17 +14,15 @@ Usage:
     renderer.render_timeline(tracker)
 """
 
-from datetime import datetime
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from deepr.observability.temporal_tracker import (
-    TemporalKnowledgeTracker,
-    TemporalFinding,
-    Hypothesis,
-    HypothesisEvolution,
-    FindingType,
     EvolutionType,
+    FindingType,
+    Hypothesis,
+    TemporalKnowledgeTracker,
 )
 
 
@@ -35,29 +33,30 @@ class Colors:
     DIM = "\033[2m"
 
     # Finding types
-    FACT = "\033[94m"       # Blue
+    FACT = "\033[94m"  # Blue
     OBSERVATION = "\033[96m"  # Cyan
-    INFERENCE = "\033[93m"   # Yellow
+    INFERENCE = "\033[93m"  # Yellow
     HYPOTHESIS = "\033[95m"  # Magenta
     CONTRADICTION = "\033[91m"  # Red
     CONFIRMATION = "\033[92m"  # Green
 
     # Evolution types
     STRENGTHENED = "\033[92m"  # Green
-    WEAKENED = "\033[91m"      # Red
-    MODIFIED = "\033[93m"      # Yellow
-    INVALIDATED = "\033[91m"   # Red
-    CREATED = "\033[94m"       # Blue
+    WEAKENED = "\033[91m"  # Red
+    MODIFIED = "\033[93m"  # Yellow
+    INVALIDATED = "\033[91m"  # Red
+    CREATED = "\033[94m"  # Blue
 
     # Structure
-    PHASE = "\033[96m"       # Cyan
-    TIME = "\033[90m"        # Gray
-    BORDER = "\033[90m"      # Gray
+    PHASE = "\033[96m"  # Cyan
+    TIME = "\033[90m"  # Gray
+    BORDER = "\033[90m"  # Gray
 
 
 @dataclass
 class TimelineEntry:
     """A single entry in the timeline."""
+
     timestamp: datetime
     phase: int
     entry_type: str  # 'finding', 'hypothesis_create', 'hypothesis_update'
@@ -211,10 +210,7 @@ class TimelineRenderer:
             elif conf <= 0.3:
                 color = Colors.WEAKENED
 
-            lines.append(
-                f"{self._colorize(bar, color)} "
-                f"{conf:.2f} ({point['evolution_type']})"
-            )
+            lines.append(f"{self._colorize(bar, color)} {conf:.2f} ({point['evolution_type']})")
 
         return "\n".join(lines)
 
@@ -270,13 +266,15 @@ class TimelineRenderer:
             if phase_filter is not None and finding.phase != phase_filter:
                 continue
 
-            events.append(TimelineEntry(
-                timestamp=finding.timestamp,
-                phase=finding.phase,
-                entry_type="finding",
-                data=finding,
-                color=self._get_finding_type_color(finding.finding_type),
-            ))
+            events.append(
+                TimelineEntry(
+                    timestamp=finding.timestamp,
+                    phase=finding.phase,
+                    entry_type="finding",
+                    data=finding,
+                    color=self._get_finding_type_color(finding.finding_type),
+                )
+            )
 
         # Add hypothesis events
         for hypothesis in tracker.hypotheses.values():
@@ -291,13 +289,15 @@ class TimelineRenderer:
                 if phase_filter is not None and phase != phase_filter:
                     continue
 
-                events.append(TimelineEntry(
-                    timestamp=evolution.timestamp,
-                    phase=phase,
-                    entry_type="hypothesis_update",
-                    data=evolution,
-                    color=self._get_evolution_color(evolution.evolution_type),
-                ))
+                events.append(
+                    TimelineEntry(
+                        timestamp=evolution.timestamp,
+                        phase=phase,
+                        entry_type="hypothesis_update",
+                        data=evolution,
+                        color=self._get_evolution_color(evolution.evolution_type),
+                    )
+                )
 
         # Sort by timestamp
         return sorted(events, key=lambda e: e.timestamp)
@@ -318,12 +318,9 @@ class TimelineRenderer:
             finding = event.data
             type_str = finding.finding_type.value.upper()
 
-            lines.append(
-                f"  {self._dim(time_str)} "
-                f"{self._colorize(f'[{type_str}]', event.color)} "
-            )
+            lines.append(f"  {self._dim(time_str)} {self._colorize(f'[{type_str}]', event.color)} ")
             # Truncate text if too long
-            text = finding.text[:self.max_width - 25]
+            text = finding.text[: self.max_width - 25]
             if len(finding.text) > self.max_width - 25:
                 text += "..."
             lines.append(f"    {text}")
@@ -399,9 +396,7 @@ class TimelineRenderer:
             conf_bar = self._confidence_bar(conf, 15)
 
             lines.append(
-                f"  {self._dim(prefix)} "
-                f"{self._colorize(evolution.evolution_type.value, color)} "
-                f"{conf_bar} {conf:.2f}"
+                f"  {self._dim(prefix)} {self._colorize(evolution.evolution_type.value, color)} {conf_bar} {conf:.2f}"
             )
             lines.append(f"  │   {evolution.reason}")
 
@@ -420,8 +415,7 @@ class TimelineRenderer:
 
         total_findings = len(tracker.findings)
         total_hypotheses = len(tracker.hypotheses)
-        active_hypotheses = len([h for h in tracker.hypotheses.values()
-                                 if h.current_state.confidence > 0])
+        active_hypotheses = len([h for h in tracker.hypotheses.values() if h.current_state.confidence > 0])
 
         lines.append(f"  Total Findings: {total_findings}")
         lines.append(f"  Hypotheses: {active_hypotheses} active / {total_hypotheses} total")
@@ -455,10 +449,7 @@ class TimelineRenderer:
         """Create a hypothesis header."""
         conf = hypothesis.current_state.confidence
         status = "ACTIVE" if conf > 0 else "INVALIDATED"
-        return self._colorize(
-            f"─ {hypothesis.id}: {status} (conf: {conf:.2f}) ─",
-            Colors.HYPOTHESIS
-        )
+        return self._colorize(f"─ {hypothesis.id}: {status} (conf: {conf:.2f}) ─", Colors.HYPOTHESIS)
 
     def _confidence_bar(self, confidence: float, width: int) -> str:
         """Create an ASCII confidence bar.

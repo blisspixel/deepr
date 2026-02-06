@@ -9,15 +9,14 @@ Provides commands for viewing and managing costs:
 - deepr costs expert - Show per-expert cost breakdown
 """
 
-import click
-from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from typing import Optional
 
-from deepr.observability.costs import CostDashboard
+import click
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
+from deepr.observability.costs import CostDashboard
 
 console = Console()
 
@@ -33,39 +32,40 @@ def costs():
 @click.option("--monthly-limit", type=float, help="Monthly spending limit")
 def show(daily_limit: Optional[float], monthly_limit: Optional[float]):
     """Show cost summary."""
-    dashboard = CostDashboard(
-        daily_limit=daily_limit or 10.0,
-        monthly_limit=monthly_limit or 100.0
-    )
-    
+    dashboard = CostDashboard(daily_limit=daily_limit or 10.0, monthly_limit=monthly_limit or 100.0)
+
     summary = dashboard.get_summary()
-    
+
     # Daily summary
     daily = summary["daily"]
     daily_pct = daily["utilization"] * 100
     daily_color = "green" if daily_pct < 50 else "yellow" if daily_pct < 80 else "red"
-    
-    console.print(Panel(
-        f"[bold]Today's Spending[/bold]\n"
-        f"Total: [bold]${daily['total']:.2f}[/bold] / ${daily['limit']:.2f}\n"
-        f"Remaining: ${daily['remaining']:.2f}\n"
-        f"Utilization: [{daily_color}]{daily_pct:.1f}%[/{daily_color}]",
-        title="Daily Costs"
-    ))
-    
+
+    console.print(
+        Panel(
+            f"[bold]Today's Spending[/bold]\n"
+            f"Total: [bold]${daily['total']:.2f}[/bold] / ${daily['limit']:.2f}\n"
+            f"Remaining: ${daily['remaining']:.2f}\n"
+            f"Utilization: [{daily_color}]{daily_pct:.1f}%[/{daily_color}]",
+            title="Daily Costs",
+        )
+    )
+
     # Monthly summary
     monthly = summary["monthly"]
     monthly_pct = monthly["utilization"] * 100
     monthly_color = "green" if monthly_pct < 50 else "yellow" if monthly_pct < 80 else "red"
-    
-    console.print(Panel(
-        f"[bold]This Month's Spending[/bold]\n"
-        f"Total: [bold]${monthly['total']:.2f}[/bold] / ${monthly['limit']:.2f}\n"
-        f"Remaining: ${monthly['remaining']:.2f}\n"
-        f"Utilization: [{monthly_color}]{monthly_pct:.1f}%[/{monthly_color}]",
-        title="Monthly Costs"
-    ))
-    
+
+    console.print(
+        Panel(
+            f"[bold]This Month's Spending[/bold]\n"
+            f"Total: [bold]${monthly['total']:.2f}[/bold] / ${monthly['limit']:.2f}\n"
+            f"Remaining: ${monthly['remaining']:.2f}\n"
+            f"Utilization: [{monthly_color}]{monthly_pct:.1f}%[/{monthly_color}]",
+            title="Monthly Costs",
+        )
+    )
+
     # Active alerts
     if summary["active_alerts"]:
         console.print("\n[bold red]Active Alerts:[/bold red]")
@@ -73,7 +73,7 @@ def show(daily_limit: Optional[float], monthly_limit: Optional[float]):
             level_color = "red" if alert["level"] == "critical" else "yellow"
             console.print(
                 f"  [{level_color}]●[/{level_color}] "
-                f"{alert['period'].title()}: {alert['threshold']*100:.0f}% threshold exceeded "
+                f"{alert['period'].title()}: {alert['threshold'] * 100:.0f}% threshold exceeded "
                 f"(${alert['current_value']:.2f} / ${alert['limit']:.2f})"
             )
 
@@ -84,31 +84,29 @@ def history(days: int):
     """Show daily cost history."""
     dashboard = CostDashboard()
     hist = dashboard.get_daily_history(days)
-    
+
     table = Table(title=f"Cost History (Last {days} Days)")
     table.add_column("Date", style="cyan")
     table.add_column("Total", justify="right")
     table.add_column("Limit", justify="right")
     table.add_column("Utilization", justify="right")
-    
+
     for day in hist:
         util_pct = day["utilization"] * 100
         util_color = "green" if util_pct < 50 else "yellow" if util_pct < 80 else "red"
-        
+
         table.add_row(
-            day["date"],
-            f"${day['total']:.2f}",
-            f"${day['limit']:.2f}",
-            f"[{util_color}]{util_pct:.1f}%[/{util_color}]"
+            day["date"], f"${day['total']:.2f}", f"${day['limit']:.2f}", f"[{util_color}]{util_pct:.1f}%[/{util_color}]"
         )
-    
+
     console.print(table)
 
 
 @costs.command()
 @click.option("--by", type=click.Choice(["provider", "operation", "model"]), default="provider")
-@click.option("--period", type=click.Choice(["today", "week", "month", "all"]), default="month",
-              help="Time period to include")
+@click.option(
+    "--period", type=click.Choice(["today", "week", "month", "all"]), default="month", help="Time period to include"
+)
 def breakdown(by: str, period: str):
     """Show cost breakdown."""
     from datetime import datetime, timedelta, timezone
@@ -149,17 +147,9 @@ def breakdown(by: str, period: str):
 
     for name, cost in sorted(data.items(), key=lambda x: x[1], reverse=True):
         pct = (cost / total * 100) if total > 0 else 0
-        table.add_row(
-            name,
-            f"${cost:.2f}",
-            f"{pct:.1f}%"
-        )
+        table.add_row(name, f"${cost:.2f}", f"{pct:.1f}%")
 
-    table.add_row(
-        "[bold]Total[/bold]",
-        f"[bold]${total:.2f}[/bold]",
-        "[bold]100%[/bold]"
-    )
+    table.add_row("[bold]Total[/bold]", f"[bold]${total:.2f}[/bold]", "[bold]100%[/bold]")
 
     console.print(table)
 
@@ -169,26 +159,28 @@ def alerts():
     """Show active cost alerts."""
     dashboard = CostDashboard()
     active = dashboard.get_active_alerts()
-    
+
     if not active:
         console.print("[green]✓ No active cost alerts[/green]")
         return
-    
+
     console.print(f"[bold red]Active Alerts ({len(active)}):[/bold red]\n")
-    
+
     for alert in active:
         level_color = "red" if alert.level == "critical" else "yellow"
         level_icon = "🔴" if alert.level == "critical" else "🟡"
-        
-        console.print(Panel(
-            f"[bold]{alert.period.title()} Budget Alert[/bold]\n\n"
-            f"Level: [{level_color}]{alert.level.upper()}[/{level_color}]\n"
-            f"Threshold: {alert.threshold*100:.0f}%\n"
-            f"Current: ${alert.current_value:.2f}\n"
-            f"Limit: ${alert.limit:.2f}\n"
-            f"Triggered: {alert.triggered_at.strftime('%Y-%m-%d %H:%M')}",
-            title=f"{level_icon} {alert.level.title()} Alert"
-        ))
+
+        console.print(
+            Panel(
+                f"[bold]{alert.period.title()} Budget Alert[/bold]\n\n"
+                f"Level: [{level_color}]{alert.level.upper()}[/{level_color}]\n"
+                f"Threshold: {alert.threshold * 100:.0f}%\n"
+                f"Current: ${alert.current_value:.2f}\n"
+                f"Limit: ${alert.limit:.2f}\n"
+                f"Triggered: {alert.triggered_at.strftime('%Y-%m-%d %H:%M')}",
+                title=f"{level_icon} {alert.level.title()} Alert",
+            )
+        )
 
 
 @costs.command()
@@ -197,21 +189,23 @@ def alerts():
 def limits(daily: Optional[float], monthly: Optional[float]):
     """View or set cost limits."""
     dashboard = CostDashboard()
-    
+
     if daily is None and monthly is None:
         # Show current limits
-        console.print(Panel(
-            f"Daily Limit: ${dashboard.daily_limit:.2f}\n"
-            f"Monthly Limit: ${dashboard.monthly_limit:.2f}\n\n"
-            f"Alert Thresholds: {', '.join(f'{t*100:.0f}%' for t in dashboard.alert_thresholds)}",
-            title="Current Cost Limits"
-        ))
+        console.print(
+            Panel(
+                f"Daily Limit: ${dashboard.daily_limit:.2f}\n"
+                f"Monthly Limit: ${dashboard.monthly_limit:.2f}\n\n"
+                f"Alert Thresholds: {', '.join(f'{t * 100:.0f}%' for t in dashboard.alert_thresholds)}",
+                title="Current Cost Limits",
+            )
+        )
     else:
         # Update limits
         if daily is not None:
             dashboard.daily_limit = daily
             console.print(f"[green]✓ Daily limit set to ${daily:.2f}[/green]")
-        
+
         if monthly is not None:
             dashboard.monthly_limit = monthly
             console.print(f"[green]✓ Monthly limit set to ${monthly:.2f}[/green]")
@@ -233,6 +227,7 @@ def timeline(days: int, weekly: bool):
         # Aggregate daily data into weekly buckets
         from collections import OrderedDict
         from datetime import date as date_type
+
         weeks: dict = OrderedDict()
         for day in hist:
             d = date_type.fromisoformat(day["date"])
@@ -275,11 +270,7 @@ def timeline(days: int, weekly: bool):
             prefix = "  "
 
         bar = "█" * bar_len
-        table.add_row(
-            f"{prefix}{label}",
-            f"${val:.2f}",
-            f"[{color}]{bar}[/{color}]"
-        )
+        table.add_row(f"{prefix}{label}", f"${val:.2f}", f"[{color}]{bar}[/{color}]")
 
     console.print(table)
     console.print(
@@ -303,19 +294,22 @@ def expert_costs(name: str):
         return
 
     # Expert summary
-    budget_pct = (profile.monthly_spending / profile.monthly_learning_budget * 100
-                  if profile.monthly_learning_budget > 0 else 0)
+    budget_pct = (
+        profile.monthly_spending / profile.monthly_learning_budget * 100 if profile.monthly_learning_budget > 0 else 0
+    )
     budget_color = "green" if budget_pct < 50 else "yellow" if budget_pct < 80 else "red"
 
-    console.print(Panel(
-        f"[bold]Total Research Cost:[/bold] ${profile.total_research_cost:.2f}\n"
-        f"[bold]Monthly Spending:[/bold] ${profile.monthly_spending:.2f} / "
-        f"${profile.monthly_learning_budget:.2f}\n"
-        f"[bold]Budget Used:[/bold] [{budget_color}]{budget_pct:.1f}%[/{budget_color}]\n"
-        f"[bold]Research Runs:[/bold] {profile.research_triggered}\n"
-        f"[bold]Conversations:[/bold] {profile.conversations}",
-        title=f"Expert: {name}"
-    ))
+    console.print(
+        Panel(
+            f"[bold]Total Research Cost:[/bold] ${profile.total_research_cost:.2f}\n"
+            f"[bold]Monthly Spending:[/bold] ${profile.monthly_spending:.2f} / "
+            f"${profile.monthly_learning_budget:.2f}\n"
+            f"[bold]Budget Used:[/bold] [{budget_color}]{budget_pct:.1f}%[/{budget_color}]\n"
+            f"[bold]Research Runs:[/bold] {profile.research_triggered}\n"
+            f"[bold]Conversations:[/bold] {profile.conversations}",
+            title=f"Expert: {name}",
+        )
+    )
 
     # Per-operation breakdown from cost entries
     dashboard = CostDashboard()

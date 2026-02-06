@@ -329,10 +329,7 @@ class AutoBatchExecutor:
                 )
 
         # Create tasks
-        tasks = [
-            execute_one(item, decision)
-            for item, decision in zip(items, routing.decisions)
-        ]
+        tasks = [execute_one(item, decision) for item, decision in zip(items, routing.decisions)]
 
         # Execute all
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -473,9 +470,11 @@ def format_batch_preview(routing: BatchRoutingResult) -> str:
 
             lines.append(f"  • {complexity.capitalize()} ({primary_model}): {count} queries, ~${cost:.2f}")
 
-    lines.extend([
-        "",
-        f"Estimated total: ${routing.total_cost_estimate:.2f}",
-    ])
+    lines.extend(
+        [
+            "",
+            f"Estimated total: ${routing.total_cost_estimate:.2f}",
+        ]
+    )
 
     return "\n".join(lines)
