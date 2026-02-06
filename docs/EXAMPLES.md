@@ -192,6 +192,9 @@ $5-$15 depending on depth and context size
 ## Creating Domain Experts
 
 ```bash
+# Preview what an expert would learn before committing
+deepr expert plan "Azure Fabric" --budget 10
+
 # Create expert from your proprietary documents
 deepr expert make "Azure Fabric Expert" \
   --files "./docs/*.md" \

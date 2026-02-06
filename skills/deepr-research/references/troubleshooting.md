@@ -2,6 +2,18 @@
 
 This document covers common issues, error scenarios, and solutions when using Deepr.
 
+## Contents
+
+- [API Key Issues](#api-key-issues)
+- [Job Failures](#job-failures)
+- [Budget and Cost Issues](#budget-and-cost-issues)
+- [Expert System Issues](#expert-system-issues)
+- [Network and Connectivity](#network-and-connectivity)
+- [Database and Storage](#database-and-storage)
+- [MCP Server Issues](#mcp-server-issues)
+- [Common Error Codes](#common-error-codes)
+- [Getting Help](#getting-help)
+
 ## API Key Issues
 
 ### Missing API Key
