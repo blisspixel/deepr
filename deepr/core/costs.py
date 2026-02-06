@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Optional
 
 
 @dataclass
@@ -276,7 +276,7 @@ class CostController:
 
         self.last_reset = now
 
-    def get_spending_summary(self) -> Dict[str, float]:
+    def get_spending_summary(self) -> dict[str, float]:
         """Get current spending summary."""
         self.reset_if_needed()
 
@@ -325,7 +325,7 @@ CHEAP_TEST_PROMPTS = [
 ]
 
 
-def get_safe_test_prompt(index: int = 0) -> Dict:
+def get_safe_test_prompt(index: int = 0) -> dict:
     """
     Get a pre-defined safe (cheap) test prompt.
 

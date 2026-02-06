@@ -12,7 +12,7 @@ Usage:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -38,9 +38,9 @@ class TemporalState:
     last_activity: datetime = field(default_factory=_utc_now)
     last_learning: Optional[datetime] = None
     last_chat: Optional[datetime] = None
-    activity_history: List[Dict[str, Any]] = field(default_factory=list)
+    activity_history: list[dict[str, Any]] = field(default_factory=list)
 
-    def record_activity(self, activity_type: str, details: Optional[Dict[str, Any]] = None):
+    def record_activity(self, activity_type: str, details: Optional[dict[str, Any]] = None):
         """Record an activity.
 
         Args:
@@ -122,7 +122,7 @@ class TemporalState:
 
         return count
 
-    def get_recent_activities(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_activities(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent activities.
 
         Args:
@@ -172,7 +172,7 @@ class TemporalState:
         else:
             return "mature"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary.
 
         Returns:
@@ -187,7 +187,7 @@ class TemporalState:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TemporalState":
+    def from_dict(cls, data: dict[str, Any]) -> "TemporalState":
         """Deserialize from dictionary.
 
         Args:

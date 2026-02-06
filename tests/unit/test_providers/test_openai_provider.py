@@ -10,12 +10,13 @@ Feature: code-quality-security-hardening
 """
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import openai
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
 from deepr.providers import OpenAIProvider
-from deepr.providers.base import ResearchRequest, ToolConfig, ProviderError
+from deepr.providers.base import ProviderError, ResearchRequest, ToolConfig
 
 
 class TestOpenAIProvider:
@@ -39,7 +40,7 @@ class TestOpenAIProvider:
         """Test provider raises error without API key."""
         with patch.dict(os.environ, {}, clear=True):
             # Remove OPENAI_API_KEY from environment
-            with patch.object(os, 'getenv', return_value=None):
+            with patch.object(os, "getenv", return_value=None):
                 with pytest.raises(ValueError, match="API key is required"):
                     OpenAIProvider(api_key=None)
 
@@ -64,6 +65,7 @@ class TestOpenAIProvider:
 # =============================================================================
 # Request Construction Tests
 # =============================================================================
+
 
 class TestRequestConstruction:
     """Test request payload construction.
@@ -97,7 +99,7 @@ class TestRequestConstruction:
 
             assert job_id == "resp_test123"
             mock_create.assert_called_once()
-            
+
             # Verify payload structure
             call_kwargs = mock_create.call_args[1]
             assert call_kwargs["model"] == "o3-deep-research-2025-06-26"
@@ -122,7 +124,7 @@ class TestRequestConstruction:
             )
 
             await provider.submit_research(request)
-            
+
             call_kwargs = mock_create.call_args[1]
             tools = call_kwargs["tools"]
             assert len(tools) == 1
@@ -145,7 +147,7 @@ class TestRequestConstruction:
             )
 
             await provider.submit_research(request)
-            
+
             call_kwargs = mock_create.call_args[1]
             tools = call_kwargs["tools"]
             assert len(tools) == 1
@@ -169,7 +171,7 @@ class TestRequestConstruction:
             )
 
             await provider.submit_research(request)
-            
+
             call_kwargs = mock_create.call_args[1]
             tools = call_kwargs["tools"]
             assert len(tools) == 1
@@ -194,7 +196,7 @@ class TestRequestConstruction:
             )
 
             await provider.submit_research(request)
-            
+
             call_kwargs = mock_create.call_args[1]
             assert "reasoning" in call_kwargs
             assert call_kwargs["reasoning"]["effort"] == "high"
@@ -217,15 +219,15 @@ class TestRequestConstruction:
             )
 
             await provider.submit_research(request)
-            
+
             call_kwargs = mock_create.call_args[1]
             input_messages = call_kwargs["input"]
-            
+
             # First message should be developer/system
             assert input_messages[0]["role"] == "developer"
             assert input_messages[0]["content"][0]["type"] == "input_text"
             assert input_messages[0]["content"][0]["text"] == "System instructions"
-            
+
             # Second message should be user
             assert input_messages[1]["role"] == "user"
             assert input_messages[1]["content"][0]["type"] == "input_text"
@@ -249,7 +251,7 @@ class TestRequestConstruction:
             )
 
             await provider.submit_research(request)
-            
+
             call_kwargs = mock_create.call_args[1]
             assert call_kwargs["previous_response_id"] == "resp_previous123"
 
@@ -257,6 +259,7 @@ class TestRequestConstruction:
 # =============================================================================
 # Response Parsing Tests
 # =============================================================================
+
 
 class TestResponseParsing:
     """Test response parsing from OpenAI API.
@@ -322,7 +325,7 @@ class TestResponseParsing:
         mock_usage.output_tokens = 500
         mock_usage.total_tokens = 1500
         mock_usage.reasoning_tokens = 200
-        
+
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
         mock_response.status = "completed"
@@ -358,11 +361,11 @@ class TestResponseParsing:
         mock_text_item = MagicMock()
         mock_text_item.type = "text"
         mock_text_item.text = "Research findings..."
-        
+
         mock_output_block = MagicMock()
         mock_output_block.type = "message"
         mock_output_block.content = [mock_text_item]
-        
+
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
         mock_response.status = "completed"
@@ -435,6 +438,7 @@ class TestResponseParsing:
 # Error Handling Tests
 # =============================================================================
 
+
 class TestErrorHandling:
     """Test error handling and retry logic.
 
@@ -450,24 +454,24 @@ class TestErrorHandling:
     async def test_submit_research_retries_on_rate_limit(self, provider):
         """Test that rate limit errors trigger retry."""
         from openai import RateLimitError
-        
+
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
-        
+
         # First call raises RateLimitError, second succeeds
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = [
                 RateLimitError("Rate limit exceeded", response=MagicMock(), body=None),
-                mock_response
+                mock_response,
             ]
-            
+
             request = ResearchRequest(
                 prompt="Test prompt",
                 model="o4-mini-deep-research",
                 system_message="Test system",
                 tools=[],
             )
-            
+
             # Should succeed after retry
             job_id = await provider.submit_research(request)
             assert job_id == "resp_test123"
@@ -477,23 +481,20 @@ class TestErrorHandling:
     async def test_submit_research_retries_on_connection_error(self, provider):
         """Test that connection errors trigger retry."""
         from openai import APIConnectionError
-        
+
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
-        
+
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = [
-                APIConnectionError(request=MagicMock()),
-                mock_response
-            ]
-            
+            mock_create.side_effect = [APIConnectionError(request=MagicMock()), mock_response]
+
             request = ResearchRequest(
                 prompt="Test prompt",
                 model="o4-mini-deep-research",
                 system_message="Test system",
                 tools=[],
             )
-            
+
             job_id = await provider.submit_research(request)
             assert job_id == "resp_test123"
             assert mock_create.call_count == 2
@@ -502,23 +503,20 @@ class TestErrorHandling:
     async def test_submit_research_retries_on_timeout(self, provider):
         """Test that timeout errors trigger retry."""
         from openai import APITimeoutError
-        
+
         mock_response = MagicMock()
         mock_response.id = "resp_test123"
-        
+
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = [
-                APITimeoutError(request=MagicMock()),
-                mock_response
-            ]
-            
+            mock_create.side_effect = [APITimeoutError(request=MagicMock()), mock_response]
+
             request = ResearchRequest(
                 prompt="Test prompt",
                 model="o4-mini-deep-research",
                 system_message="Test system",
                 tools=[],
             )
-            
+
             job_id = await provider.submit_research(request)
             assert job_id == "resp_test123"
             assert mock_create.call_count == 2
@@ -527,20 +525,18 @@ class TestErrorHandling:
     async def test_submit_research_raises_after_max_retries(self, provider):
         """Test that ProviderError is raised after max retries."""
         from openai import RateLimitError
-        
+
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
             # All calls fail
-            mock_create.side_effect = RateLimitError(
-                "Rate limit exceeded", response=MagicMock(), body=None
-            )
-            
+            mock_create.side_effect = RateLimitError("Rate limit exceeded", response=MagicMock(), body=None)
+
             request = ResearchRequest(
                 prompt="Test prompt",
                 model="o4-mini-deep-research",
                 system_message="Test system",
                 tools=[],
             )
-            
+
             # The provider raises ProviderError after exhausting retries
             with pytest.raises(ProviderError):
                 await provider.submit_research(request)
@@ -550,17 +546,17 @@ class TestErrorHandling:
         """Test that non-retryable errors raise immediately."""
         with patch.object(provider.client.responses, "create", new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = openai.OpenAIError("Invalid parameter")
-            
+
             request = ResearchRequest(
                 prompt="Test prompt",
                 model="o4-mini-deep-research",
                 system_message="Test system",
                 tools=[],
             )
-            
+
             with pytest.raises(ProviderError, match="Failed to submit research"):
                 await provider.submit_research(request)
-            
+
             # Should not retry for non-retryable errors
             assert mock_create.call_count == 1
 
@@ -569,7 +565,7 @@ class TestErrorHandling:
         """Test that get_status raises ProviderError on failure."""
         with patch.object(provider.client.responses, "retrieve", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = openai.OpenAIError("API error")
-            
+
             with pytest.raises(ProviderError, match="Failed to get status"):
                 await provider.get_status("resp_test123")
 
@@ -589,7 +585,7 @@ class TestErrorHandling:
         """Test that cancel_job raises ProviderError on failure."""
         with patch.object(provider.client.responses, "cancel", new_callable=AsyncMock) as mock_cancel:
             mock_cancel.side_effect = openai.OpenAIError("Cancel failed")
-            
+
             with pytest.raises(ProviderError, match="Failed to cancel job"):
                 await provider.cancel_job("resp_test123")
 
@@ -597,6 +593,7 @@ class TestErrorHandling:
 # =============================================================================
 # Document and Vector Store Tests
 # =============================================================================
+
 
 class TestDocumentOperations:
     """Test document upload and vector store operations.
@@ -635,7 +632,7 @@ class TestDocumentOperations:
 
         with patch.object(provider.client.files, "create", new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = openai.OpenAIError("Upload failed")
-            
+
             with pytest.raises(ProviderError, match="Failed to upload document"):
                 await provider.upload_document(str(test_file))
 
@@ -647,7 +644,9 @@ class TestDocumentOperations:
         mock_vs.name = "test-store"
 
         with patch.object(provider.client.vector_stores, "create", new_callable=AsyncMock) as mock_create:
-            with patch.object(provider.client.vector_stores.files, "create", new_callable=AsyncMock) as mock_file_create:
+            with patch.object(
+                provider.client.vector_stores.files, "create", new_callable=AsyncMock
+            ) as mock_file_create:
                 mock_create.return_value = mock_vs
                 mock_file_create.return_value = None
 
@@ -664,7 +663,7 @@ class TestDocumentOperations:
         """Test that create_vector_store raises ProviderError on failure."""
         with patch.object(provider.client.vector_stores, "create", new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = openai.OpenAIError("Creation failed")
-            
+
             with pytest.raises(ProviderError, match="Failed to create vector store"):
                 await provider.create_vector_store("test-store", ["file_1"])
 
@@ -684,7 +683,7 @@ class TestDocumentOperations:
         """Test that delete_vector_store raises ProviderError on failure."""
         with patch.object(provider.client.vector_stores, "delete", new_callable=AsyncMock) as mock_delete:
             mock_delete.side_effect = openai.OpenAIError("Delete failed")
-            
+
             with pytest.raises(ProviderError, match="Failed to delete vector store"):
                 await provider.delete_vector_store("vs_test123")
 
@@ -694,17 +693,17 @@ class TestDocumentOperations:
         mock_vs1 = MagicMock()
         mock_vs1.id = "vs_1"
         mock_vs1.name = "store-1"
-        
+
         mock_vs2 = MagicMock()
         mock_vs2.id = "vs_2"
         mock_vs2.name = "store-2"
-        
+
         mock_file = MagicMock()
         mock_file.id = "file_1"
-        
+
         mock_list_response = MagicMock()
         mock_list_response.data = [mock_vs1, mock_vs2]
-        
+
         mock_files_response = MagicMock()
         mock_files_response.data = [mock_file]
 
@@ -725,7 +724,7 @@ class TestDocumentOperations:
         """Test that list_vector_stores raises ProviderError on failure."""
         with patch.object(provider.client.vector_stores, "list", new_callable=AsyncMock) as mock_list:
             mock_list.side_effect = openai.OpenAIError("List failed")
-            
+
             with pytest.raises(ProviderError, match="Failed to list vector stores"):
                 await provider.list_vector_stores()
 
@@ -734,7 +733,7 @@ class TestDocumentOperations:
         """Test waiting for vector store ingestion (mocked)."""
         mock_file = MagicMock()
         mock_file.status = "completed"
-        
+
         mock_listing = MagicMock()
         mock_listing.data = [mock_file]
 
@@ -750,7 +749,7 @@ class TestDocumentOperations:
         """Test that wait_for_vector_store raises TimeoutError."""
         mock_file = MagicMock()
         mock_file.status = "in_progress"  # Never completes
-        
+
         mock_listing = MagicMock()
         mock_listing.data = [mock_file]
 
@@ -762,9 +761,7 @@ class TestDocumentOperations:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
-)
+@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
 class TestOpenAIProviderIntegration:
     """Integration tests with real OpenAI API (requires API key)."""
 

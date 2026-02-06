@@ -37,7 +37,7 @@ import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple
+from typing import Any, ClassVar, Literal, Optional
 
 # =============================================================================
 # Enums for type-safe configuration values
@@ -108,7 +108,7 @@ class ProviderSettings:
     azure_endpoint: Optional[str] = None
     azure_api_version: str = "2024-10-01-preview"
     azure_use_managed_identity: bool = False
-    azure_deployment_map: Dict[str, str] = field(default_factory=dict)
+    azure_deployment_map: dict[str, str] = field(default_factory=dict)
 
     def is_configured(self) -> bool:
         """Check if provider has required credentials."""
@@ -116,7 +116,7 @@ class ProviderSettings:
             return bool(self.azure_endpoint and (self.api_key or self.azure_use_managed_identity))
         return bool(self.api_key)
 
-    def to_dict(self, mask_keys: bool = True) -> Dict[str, Any]:
+    def to_dict(self, mask_keys: bool = True) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -145,7 +145,7 @@ class StorageSettings:
     azure_container: str = "reports"
     azure_use_managed_identity: bool = False
 
-    def to_dict(self, mask_keys: bool = True) -> Dict[str, Any]:
+    def to_dict(self, mask_keys: bool = True) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "type": self.type.value,
@@ -175,7 +175,7 @@ class DatabaseSettings:
     cosmosdb_database: str = "deepr"
     cosmosdb_container: str = "jobs"
 
-    def to_dict(self, mask_keys: bool = True) -> Dict[str, Any]:
+    def to_dict(self, mask_keys: bool = True) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "type": self.type.value,
@@ -199,7 +199,7 @@ class BudgetSettings:
     alert_threshold_80: float = 0.80
     alert_threshold_95: float = 0.95
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "max_cost_per_job": self.max_cost_per_job,
@@ -216,7 +216,7 @@ class ResearchSettings:
     """Settings for research behavior."""
 
     # Output
-    output_formats: List[str] = field(default_factory=lambda: ["txt", "md", "json", "docx"])
+    output_formats: list[str] = field(default_factory=lambda: ["txt", "md", "json", "docx"])
     generate_pdf: bool = False
     append_references: bool = False
     strip_inline_citations: bool = True
@@ -245,7 +245,7 @@ class ResearchSettings:
     # Default mode
     default_mode: ResearchMode = ResearchMode.STANDARD
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "output_formats": self.output_formats,
@@ -283,7 +283,7 @@ class ExpertSettings:
     monthly_learning_budget: float = 5.0
     max_context_tokens: int = 8000
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "default_topics": self.default_topics,
@@ -306,7 +306,7 @@ class WebhookSettings:
     ngrok_path: str = "ngrok"
     public_url: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "enabled": self.enabled,
@@ -344,7 +344,7 @@ class SecuritySettings:
     cost_buffer_size: int = 10
     cost_flush_interval: int = 30  # seconds
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "instruction_max_age": self.instruction_max_age,
@@ -359,7 +359,7 @@ class SecuritySettings:
 # =============================================================================
 
 # Maps task types to (provider, model) tuples for optimal routing
-TASK_MODEL_MAP: Dict[str, Tuple[str, str]] = {
+TASK_MODEL_MAP: dict[str, tuple[str, str]] = {
     "quick_lookup": ("xai", "grok-4-fast"),
     "fact_check": ("xai", "grok-4-fast"),
     "deep_research": ("openai", "o3-deep-research"),
@@ -420,7 +420,7 @@ class Settings:
     data_dir: str = "data"
 
     # Sub-configurations
-    providers: Dict[str, ProviderSettings] = field(default_factory=dict)
+    providers: dict[str, ProviderSettings] = field(default_factory=dict)
     storage: StorageSettings = field(default_factory=StorageSettings)
     database: DatabaseSettings = field(default_factory=DatabaseSettings)
     budget: BudgetSettings = field(default_factory=BudgetSettings)
@@ -431,11 +431,11 @@ class Settings:
 
     # Metadata (not persisted)
     _source: str = field(default="defaults", repr=False)
-    _overrides: Dict[str, str] = field(default_factory=dict, repr=False)
+    _overrides: dict[str, str] = field(default_factory=dict, repr=False)
     _config_path: Optional[Path] = field(default=None, repr=False)
 
     # Singleton instance
-    _instance: ClassVar[Optional["Settings"]] = None
+    _instance: ClassVar[Optional[Settings]] = None
 
     # ==========================================================================
     # Loading methods
@@ -445,9 +445,9 @@ class Settings:
     def load(
         cls,
         config_path: Optional[Path] = None,
-        cli_overrides: Optional[Dict[str, Any]] = None,
+        cli_overrides: Optional[dict[str, Any]] = None,
         reset_singleton: bool = False,
-    ) -> "Settings":
+    ) -> Settings:
         """Load settings from all sources.
 
         Args:
@@ -496,12 +496,12 @@ class Settings:
                 try:
                     import yaml
 
-                    with open(config_path, "r", encoding="utf-8") as f:
+                    with open(config_path, encoding="utf-8") as f:
                         data = yaml.safe_load(f) or {}
                 except ImportError:
                     return
             else:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     data = json.load(f)
 
             self._apply_dict(data, source=f"file:{config_path}")
@@ -630,14 +630,14 @@ class Settings:
         self._apply_env("DEEPR_COST_BUFFER_SIZE", "security.cost_buffer_size", type_=int)
         self._apply_env("DEEPR_COST_FLUSH_INTERVAL", "security.cost_flush_interval", type_=int)
 
-    def _apply_cli_overrides(self, overrides: Dict[str, Any]) -> None:
+    def _apply_cli_overrides(self, overrides: dict[str, Any]) -> None:
         """Apply CLI flag overrides."""
         for key, value in overrides.items():
             if value is not None:
                 self._set_nested(key, value)
                 self._overrides[key] = "cli"
 
-    def _apply_dict(self, data: Dict[str, Any], source: str = "dict") -> None:
+    def _apply_dict(self, data: dict[str, Any], source: str = "dict") -> None:
         """Apply dictionary configuration."""
         # Core settings
         for key in [
@@ -684,7 +684,7 @@ class Settings:
         if "security" in data:
             self._apply_security_dict(data["security"], source)
 
-    def _apply_storage_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_storage_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply storage configuration from dict."""
         if "type" in data:
             self.storage.type = StorageType(data["type"])
@@ -699,7 +699,7 @@ class Settings:
                 setattr(self.storage, key, data[key])
         self._overrides["storage"] = source
 
-    def _apply_database_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_database_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply database configuration from dict."""
         if "type" in data:
             self.database.type = DatabaseType(data["type"])
@@ -715,7 +715,7 @@ class Settings:
                 setattr(self.database, key, data[key])
         self._overrides["database"] = source
 
-    def _apply_budget_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_budget_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply budget configuration from dict."""
         for key in [
             "max_cost_per_job",
@@ -729,7 +729,7 @@ class Settings:
                 setattr(self.budget, key, data[key])
         self._overrides["budget"] = source
 
-    def _apply_research_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_research_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply research configuration from dict."""
         for key in [
             "output_formats",
@@ -756,7 +756,7 @@ class Settings:
             self.research.default_mode = ResearchMode(data["default_mode"])
         self._overrides["research"] = source
 
-    def _apply_expert_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_expert_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply expert configuration from dict."""
         for key in [
             "default_topics",
@@ -776,14 +776,14 @@ class Settings:
             self.expert.default_domain_velocity = DomainVelocity(data["default_domain_velocity"])
         self._overrides["expert"] = source
 
-    def _apply_webhook_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_webhook_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply webhook configuration from dict."""
         for key in ["enabled", "host", "port", "use_ngrok", "ngrok_path", "public_url"]:
             if key in data:
                 setattr(self.webhook, key, data[key])
         self._overrides["webhook"] = source
 
-    def _apply_security_dict(self, data: Dict[str, Any], source: str) -> None:
+    def _apply_security_dict(self, data: dict[str, Any], source: str) -> None:
         """Apply security configuration from dict."""
         for key in [
             "instruction_max_age",
@@ -910,7 +910,7 @@ class Settings:
         provider_settings = self.get_provider(provider)
         return provider_settings.api_key if provider_settings else ""
 
-    def get_model_for_task(self, task_type: str) -> Tuple[str, str]:
+    def get_model_for_task(self, task_type: str) -> tuple[str, str]:
         """Get optimal (provider, model) for a task type.
 
         Args:
@@ -928,7 +928,7 @@ class Settings:
     # Validation
     # ==========================================================================
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration.
 
         Returns:
@@ -964,7 +964,7 @@ class Settings:
     # Serialization
     # ==========================================================================
 
-    def to_dict(self, mask_keys: bool = True) -> Dict[str, Any]:
+    def to_dict(self, mask_keys: bool = True) -> dict[str, Any]:
         """Convert to dictionary.
 
         Args:
@@ -1063,7 +1063,7 @@ def _parse_bool(value: str) -> bool:
     return value.lower() in ("true", "1", "yes", "on")
 
 
-def get_settings(cli_overrides: Optional[Dict[str, Any]] = None, reset: bool = False) -> Settings:
+def get_settings(cli_overrides: Optional[dict[str, Any]] = None, reset: bool = False) -> Settings:
     """Get the global Settings instance.
 
     This is the recommended way to access settings. It returns a cached
@@ -1089,7 +1089,7 @@ def get_settings(cli_overrides: Optional[Dict[str, Any]] = None, reset: bool = F
 # =============================================================================
 
 
-def load_config() -> Dict[str, Any]:
+def load_config() -> dict[str, Any]:
     """Legacy function for loading configuration as dictionary.
 
     Deprecated: Use get_settings() instead.

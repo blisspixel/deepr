@@ -6,23 +6,23 @@ with different providers when one fails, using the AutonomousProviderRouter.
 All tests use mocks to avoid external API calls.
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from deepr.cli.output import OutputContext, OutputMode
+
 from deepr.cli.commands.run import (
-    _run_single,
-    _classify_provider_error,
-    TraceFlags,
     MAX_FALLBACK_ATTEMPTS,
+    _classify_provider_error,
+    _run_single,
 )
+from deepr.cli.output import OutputContext, OutputMode
 from deepr.core.errors import (
-    ProviderError,
-    ProviderTimeoutError,
-    ProviderRateLimitError,
     ProviderAuthError,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
     ProviderUnavailableError,
 )
-
 
 # Common mock patches applied to all fallback tests
 COMMON_PATCHES = {
@@ -127,9 +127,11 @@ class TestFallbackOnRateLimit:
 
         router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -143,8 +145,14 @@ class TestFallbackOnRateLimit:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
             )
 
@@ -152,7 +160,10 @@ class TestFallbackOnRateLimit:
             assert call_count == 2
             # Router should have recorded failure for openai
             router.record_result.assert_any_call(
-                "openai", "o4-mini-deep-research", success=False, error=pytest.approx(str(ProviderRateLimitError("openai")), abs=100)
+                "openai",
+                "o4-mini-deep-research",
+                success=False,
+                error=pytest.approx(str(ProviderRateLimitError("openai")), abs=100),
             )
 
 
@@ -174,9 +185,11 @@ class TestFallbackOnTimeout:
 
         router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -187,8 +200,14 @@ class TestFallbackOnTimeout:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
             )
 
@@ -216,9 +235,11 @@ class TestFallbackOnAuth:
 
         router = _make_mock_router()
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -229,8 +250,14 @@ class TestFallbackOnAuth:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
             )
 
@@ -253,9 +280,11 @@ class TestNoFallbackFlag:
 
         router = _make_mock_router()
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -266,8 +295,14 @@ class TestNoFallbackFlag:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
                 no_fallback=True,
             )
@@ -286,9 +321,11 @@ class TestRouterSelection:
         """Explicit --provider should bypass router.select_provider()."""
         router = _make_mock_router()
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -299,8 +336,14 @@ class TestRouterSelection:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
                 user_specified_provider=True,
             )
@@ -319,9 +362,11 @@ class TestRouterSelection:
         async def mock_submit(*args, **kwargs):
             submitted_providers.append(args[3])  # provider
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -332,8 +377,14 @@ class TestRouterSelection:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
                 user_specified_provider=False,
             )
@@ -362,10 +413,12 @@ class TestVectorStoreDegradation:
 
         router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.cli.commands.run._create_and_enqueue_job", new_callable=AsyncMock) as mock_enqueue, \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.cli.commands.run._create_and_enqueue_job", new_callable=AsyncMock) as mock_enqueue,
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             mock_enqueue.return_value = ("research-test123", MagicMock())
             emitter = MagicMock()
             emitter.tasks = []
@@ -388,8 +441,14 @@ class TestVectorStoreDegradation:
 
                 with patch("deepr.config.load_config", return_value={}):
                     await _run_single(
-                        "test query", "o4-mini-deep-research", "openai",
-                        False, False, ("test.pdf",), None, True,
+                        "test query",
+                        "o4-mini-deep-research",
+                        "openai",
+                        False,
+                        False,
+                        ("test.pdf",),
+                        None,
+                        True,
                         _make_output_context(),
                     )
 
@@ -435,9 +494,11 @@ class TestMaxFallbackAttempts:
         router.get_fallback.side_effect = get_fallback
         router.record_result.return_value = None
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -448,8 +509,14 @@ class TestMaxFallbackAttempts:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
             )
 
@@ -465,9 +532,11 @@ class TestSuccessRecording:
         """Successful submission should record result to router."""
         router = _make_mock_router()
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", new_callable=AsyncMock),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -478,8 +547,14 @@ class TestSuccessRecording:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
             )
 
@@ -507,9 +582,11 @@ class TestFallbackTraceEvents:
 
         router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
 
-        with patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router), \
-             patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit), \
-             patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls:
+        with (
+            patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
+            patch("deepr.cli.commands.run._submit_to_provider", side_effect=mock_submit),
+            patch("deepr.observability.metadata.MetadataEmitter") as mock_emitter_cls,
+        ):
             emitter = MagicMock()
             emitter.tasks = []
             emitter.trace_context.spans = []
@@ -520,8 +597,14 @@ class TestFallbackTraceEvents:
             mock_emitter_cls.return_value = emitter
 
             await _run_single(
-                "test query", "o4-mini-deep-research", "openai",
-                False, False, (), None, True,
+                "test query",
+                "o4-mini-deep-research",
+                "openai",
+                False,
+                False,
+                (),
+                None,
+                True,
                 _make_output_context(),
             )
 

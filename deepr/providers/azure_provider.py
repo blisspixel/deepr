@@ -3,7 +3,7 @@
 import asyncio
 import os
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Optional
 
 from azure.identity.aio import DefaultAzureCredential
 from openai import APIError as OpenAIAPIError
@@ -28,7 +28,7 @@ class AzureProvider(DeepResearchProvider):
         endpoint: Optional[str] = None,
         api_version: str = "2024-10-01-preview",
         use_managed_identity: bool = False,
-        deployment_mappings: Optional[Dict[str, str]] = None,
+        deployment_mappings: Optional[dict[str, str]] = None,
     ):
         """
         Initialize Azure OpenAI provider.
@@ -133,7 +133,7 @@ class AzureProvider(DeepResearchProvider):
 
         except OpenAIAPIError as e:
             raise ProviderError(
-                message=f"Failed to submit research to Azure: {str(e)}",
+                message=f"Failed to submit research to Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )
@@ -189,7 +189,7 @@ class AzureProvider(DeepResearchProvider):
 
         except OpenAIAPIError as e:
             raise ProviderError(
-                message=f"Failed to get status from Azure: {str(e)}",
+                message=f"Failed to get status from Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )
@@ -201,7 +201,7 @@ class AzureProvider(DeepResearchProvider):
             return True
         except OpenAIAPIError as e:
             raise ProviderError(
-                message=f"Failed to cancel job on Azure: {str(e)}",
+                message=f"Failed to cancel job on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )
@@ -214,12 +214,12 @@ class AzureProvider(DeepResearchProvider):
             return file_obj.id
         except (OpenAIAPIError, OSError) as e:
             raise ProviderError(
-                message=f"Failed to upload document to Azure: {str(e)}",
+                message=f"Failed to upload document to Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )
 
-    async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
+    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in Azure OpenAI."""
         try:
             # Create vector store
@@ -233,7 +233,7 @@ class AzureProvider(DeepResearchProvider):
 
         except OpenAIAPIError as e:
             raise ProviderError(
-                message=f"Failed to create vector store on Azure: {str(e)}",
+                message=f"Failed to create vector store on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )
@@ -265,7 +265,7 @@ class AzureProvider(DeepResearchProvider):
             raise
         except OpenAIAPIError as e:
             raise ProviderError(
-                message=f"Failed to wait for vector store on Azure: {str(e)}",
+                message=f"Failed to wait for vector store on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )
@@ -277,7 +277,7 @@ class AzureProvider(DeepResearchProvider):
             return True
         except OpenAIAPIError as e:
             raise ProviderError(
-                message=f"Failed to delete vector store on Azure: {str(e)}",
+                message=f"Failed to delete vector store on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
             )

@@ -11,7 +11,7 @@ from .web_search import WebSearchTool
 __all__ = [
     "Tool",
     "ToolExecutor",
+    "ToolRegistry",
     "ToolResult",
     "WebSearchTool",
-    "ToolRegistry",
 ]

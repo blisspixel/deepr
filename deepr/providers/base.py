@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal, Optional
 
 
 @dataclass
@@ -11,8 +11,8 @@ class ToolConfig:
     """Configuration for research tools."""
 
     type: Literal["web_search_preview", "code_interpreter", "file_search", "google_search"]
-    vector_store_ids: Optional[List[str]] = None
-    container: Optional[Dict[str, Any]] = None
+    vector_store_ids: Optional[list[str]] = None
+    container: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -22,10 +22,10 @@ class ResearchRequest:
     prompt: str
     model: str
     system_message: str
-    tools: List[ToolConfig] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tools: list[ToolConfig] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     webhook_url: Optional[str] = None
-    document_ids: Optional[List[str]] = None
+    document_ids: Optional[list[str]] = None
     temperature: Optional[float] = None
     tool_choice: str = "auto"
     store: bool = True
@@ -72,9 +72,9 @@ class ResearchResponse:
     created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     model: Optional[str] = None
-    output: Optional[List[Dict[str, Any]]] = None
+    output: Optional[list[dict[str, Any]]] = None
     usage: Optional[UsageStats] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
     error: Optional[str] = None
 
 
@@ -84,7 +84,7 @@ class VectorStore:
 
     id: str
     name: str
-    file_ids: List[str] = field(default_factory=list)
+    file_ids: list[str] = field(default_factory=list)
 
 
 class DeepResearchProvider(ABC):
@@ -160,7 +160,7 @@ class DeepResearchProvider(ABC):
         pass
 
     @abstractmethod
-    async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
+    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create a vector store with the given files.
 
@@ -196,7 +196,7 @@ class DeepResearchProvider(ABC):
         pass
 
     @abstractmethod
-    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """
         List all vector stores.
 

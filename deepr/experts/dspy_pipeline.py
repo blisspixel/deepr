@@ -27,7 +27,7 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 # Check if DSPy is available
 try:
@@ -76,7 +76,7 @@ if DSPY_AVAILABLE:
         """
 
         query: str = dspy.InputField(desc="Complex user query")
-        sub_questions: List[str] = dspy.OutputField(desc="List of simpler sub-questions")
+        sub_questions: list[str] = dspy.OutputField(desc="List of simpler sub-questions")
         reasoning: str = dspy.OutputField(desc="Why this decomposition was chosen")
 
     class SynthesisSignature(dspy.Signature):
@@ -86,7 +86,7 @@ if DSPY_AVAILABLE:
         """
 
         question: str = dspy.InputField(desc="Original question")
-        sub_answers: List[str] = dspy.InputField(desc="Answers to sub-questions")
+        sub_answers: list[str] = dspy.InputField(desc="Answers to sub-questions")
         synthesis: str = dspy.OutputField(desc="Synthesized final answer")
         confidence: float = dspy.OutputField(desc="Confidence in synthesis 0-1")
 
@@ -214,7 +214,7 @@ else:
         def __init__(self):
             pass
 
-        def forward(self, context: str, question: str) -> Dict[str, Any]:
+        def forward(self, context: str, question: str) -> dict[str, Any]:
             return {
                 "reasoning": "DSPy not available",
                 "answer": "Please install dspy to use this feature",
@@ -227,7 +227,7 @@ else:
         def __init__(self):
             pass
 
-        def forward(self, claim: str, context: str) -> Dict[str, Any]:
+        def forward(self, claim: str, context: str) -> dict[str, Any]:
             return {"is_supported": False, "evidence": "DSPy not available", "confidence": 0.0}
 
     class MultiHopExpertModule:
@@ -236,7 +236,7 @@ else:
         def __init__(self, retriever=None):
             pass
 
-        def forward(self, question: str, context: str = "") -> Dict[str, Any]:
+        def forward(self, question: str, context: str = "") -> dict[str, Any]:
             return {"synthesis": "DSPy not available", "confidence": 0.0}
 
 
@@ -276,7 +276,7 @@ class FeedbackEntry:
             content = f"{self.question}:{self.answer}:{self.timestamp.isoformat()}"
             self.id = hashlib.sha256(content.encode()).hexdigest()[:12]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "question": self.question,
@@ -289,7 +289,7 @@ class FeedbackEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FeedbackEntry":
+    def from_dict(cls, data: dict[str, Any]) -> "FeedbackEntry":
         return cls(
             id=data.get("id", ""),
             question=data["question"],
@@ -340,7 +340,7 @@ class FeedbackCollector:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         self.storage_path = self.storage_dir / "feedback.json"
-        self.entries: List[FeedbackEntry] = []
+        self.entries: list[FeedbackEntry] = []
 
         self._load()
 
@@ -373,7 +373,7 @@ class FeedbackCollector:
 
         return entry
 
-    def get_training_examples(self, positive_only: bool = False, min_entries: int = 10) -> List[Dict[str, Any]]:
+    def get_training_examples(self, positive_only: bool = False, min_entries: int = 10) -> list[dict[str, Any]]:
         """Get training examples for DSPy optimization.
 
         Args:
@@ -397,7 +397,7 @@ class FeedbackCollector:
 
         return examples
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get feedback statistics.
 
         Returns:
@@ -424,7 +424,7 @@ class FeedbackCollector:
     def _load(self):
         """Load feedback from disk."""
         if self.storage_path.exists():
-            with open(self.storage_path, "r", encoding="utf-8") as f:
+            with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
             self.entries = [FeedbackEntry.from_dict(e) for e in data]
 
@@ -451,12 +451,12 @@ class OptimizationResult:
     success: bool
     method: str
     num_examples: int = 0
-    metrics_before: Dict[str, float] = field(default_factory=dict)
-    metrics_after: Dict[str, float] = field(default_factory=dict)
+    metrics_before: dict[str, float] = field(default_factory=dict)
+    metrics_after: dict[str, float] = field(default_factory=dict)
     optimized_at: datetime = field(default_factory=_utc_now)
     error: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "method": self.method,
@@ -558,7 +558,7 @@ class DSPyOptimizer:
         except Exception as e:
             return OptimizationResult(success=False, method=method, num_examples=len(examples), error=str(e))
 
-    def _create_trainset(self, examples: List[Dict[str, Any]]) -> List[Any]:
+    def _create_trainset(self, examples: list[dict[str, Any]]) -> list[Any]:
         """Create DSPy trainset from examples.
 
         Args:
@@ -581,8 +581,8 @@ class DSPyOptimizer:
         return trainset
 
     def _optimize_bootstrap(
-        self, module: Any, trainset: List[Any], metric_fn: Optional[callable] = None
-    ) -> Tuple[Any, Dict[str, float]]:
+        self, module: Any, trainset: list[Any], metric_fn: Optional[callable] = None
+    ) -> tuple[Any, dict[str, float]]:
         """Optimize using BootstrapFewShot.
 
         Args:
@@ -607,8 +607,8 @@ class DSPyOptimizer:
         return optimized, metrics
 
     def _optimize_mipro(
-        self, module: Any, trainset: List[Any], metric_fn: Optional[callable] = None
-    ) -> Tuple[Any, Dict[str, float]]:
+        self, module: Any, trainset: list[Any], metric_fn: Optional[callable] = None
+    ) -> tuple[Any, dict[str, float]]:
         """Optimize using MIPROv2.
 
         Args:
@@ -668,7 +668,7 @@ class DSPyOptimizer:
         overlap = len(expected_words & predicted_words)
         return overlap / len(expected_words)
 
-    def _evaluate(self, module: Any, testset: List[Any], metric_fn: callable) -> Dict[str, float]:
+    def _evaluate(self, module: Any, testset: list[Any], metric_fn: callable) -> dict[str, float]:
         """Evaluate module on test set.
 
         Args:
@@ -722,7 +722,7 @@ class DSPyOptimizer:
             return module
 
         try:
-            with open(self.optimized_prompts_path, "r", encoding="utf-8") as f:
+            with open(self.optimized_prompts_path, encoding="utf-8") as f:
                 prompts = json.load(f)
 
             if hasattr(module, "load_state"):
@@ -740,7 +740,7 @@ class DSPyOptimizer:
         """
         history = []
         if self.optimization_history_path.exists():
-            with open(self.optimization_history_path, "r", encoding="utf-8") as f:
+            with open(self.optimization_history_path, encoding="utf-8") as f:
                 history = json.load(f)
 
         history.append(result.to_dict())
@@ -751,7 +751,7 @@ class DSPyOptimizer:
         with open(self.optimization_history_path, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
 
-    def get_optimization_history(self) -> List[Dict[str, Any]]:
+    def get_optimization_history(self) -> list[dict[str, Any]]:
         """Get optimization history.
 
         Returns:
@@ -760,10 +760,10 @@ class DSPyOptimizer:
         if not self.optimization_history_path.exists():
             return []
 
-        with open(self.optimization_history_path, "r", encoding="utf-8") as f:
+        with open(self.optimization_history_path, encoding="utf-8") as f:
             return json.load(f)
 
-    def should_optimize(self, min_new_examples: int = 20, days_since_last: int = 7) -> Tuple[bool, str]:
+    def should_optimize(self, min_new_examples: int = 20, days_since_last: int = 7) -> tuple[bool, str]:
         """Check if optimization should be run.
 
         Args:

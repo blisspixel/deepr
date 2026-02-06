@@ -4,17 +4,12 @@ Tests meta-cognitive awareness tracking including knowledge gaps,
 domain confidence, and learning pattern analysis.
 """
 
-import pytest
-from datetime import datetime, timedelta
-from pathlib import Path
-import json
 import tempfile
+from datetime import datetime, timedelta
 
-from deepr.experts.metacognition import (
-    KnowledgeGap,
-    DomainConfidence,
-    MetaCognitionTracker
-)
+import pytest
+
+from deepr.experts.metacognition import DomainConfidence, KnowledgeGap, MetaCognitionTracker
 
 
 class TestKnowledgeGap:
@@ -23,12 +18,7 @@ class TestKnowledgeGap:
     def test_create_knowledge_gap(self):
         """Test creating a knowledge gap."""
         now = datetime.utcnow()
-        gap = KnowledgeGap(
-            topic="Quantum Computing",
-            first_encountered=now,
-            times_asked=1,
-            research_triggered=False
-        )
+        gap = KnowledgeGap(topic="Quantum Computing", first_encountered=now, times_asked=1, research_triggered=False)
         assert gap.topic == "Quantum Computing"
         assert gap.times_asked == 1
         assert gap.research_triggered is False
@@ -46,7 +36,7 @@ class TestKnowledgeGap:
             research_triggered=True,
             research_date=now,
             confidence_before=0.1,
-            confidence_after=0.8
+            confidence_after=0.8,
         )
         assert gap.research_triggered is True
         assert gap.confidence_after == 0.8
@@ -59,11 +49,7 @@ class TestDomainConfidence:
         """Test creating domain confidence."""
         now = datetime.utcnow()
         conf = DomainConfidence(
-            domain="Python",
-            confidence=0.85,
-            evidence_count=10,
-            last_updated=now,
-            sources=["doc1.pdf", "research_001"]
+            domain="Python", confidence=0.85, evidence_count=10, last_updated=now, sources=["doc1.pdf", "research_001"]
         )
         assert conf.domain == "Python"
         assert conf.confidence == 0.85
@@ -73,11 +59,7 @@ class TestDomainConfidence:
     def test_domain_confidence_empty_sources(self):
         """Test domain confidence with no sources."""
         conf = DomainConfidence(
-            domain="New Domain",
-            confidence=0.0,
-            evidence_count=0,
-            last_updated=datetime.utcnow(),
-            sources=[]
+            domain="New Domain", confidence=0.0, evidence_count=0, last_updated=datetime.utcnow(), sources=[]
         )
         assert conf.sources == []
         assert conf.evidence_count == 0
@@ -90,10 +72,7 @@ class TestMetaCognitionTracker:
     def temp_tracker(self):
         """Create a tracker with temporary directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tracker = MetaCognitionTracker(
-                expert_name="Test Expert",
-                base_path=tmpdir
-            )
+            tracker = MetaCognitionTracker(expert_name="Test Expert", base_path=tmpdir)
             yield tracker
 
     def test_create_tracker(self, temp_tracker):
@@ -111,7 +90,7 @@ class TestMetaCognitionTracker:
     def test_record_knowledge_gap_new(self, temp_tracker):
         """Test recording a new knowledge gap."""
         gap = temp_tracker.record_knowledge_gap("Quantum Computing", 0.1)
-        
+
         assert gap.topic == "Quantum Computing"
         assert gap.times_asked == 1
         assert gap.confidence_before == 0.1
@@ -122,7 +101,7 @@ class TestMetaCognitionTracker:
         """Test recording an existing knowledge gap (increments count)."""
         temp_tracker.record_knowledge_gap("Quantum Computing", 0.1)
         gap = temp_tracker.record_knowledge_gap("Quantum Computing", 0.1)
-        
+
         assert gap.times_asked == 2
         assert len(temp_tracker.knowledge_gaps) == 1
         assert len(temp_tracker.uncertainty_log) == 2
@@ -131,7 +110,7 @@ class TestMetaCognitionTracker:
         """Test recording that research was triggered."""
         temp_tracker.record_knowledge_gap("Machine Learning")
         temp_tracker.record_research_triggered("Machine Learning", "deep_research")
-        
+
         gap = temp_tracker.knowledge_gaps["Machine Learning"]
         assert gap.research_triggered is True
         assert gap.research_date is not None
@@ -146,10 +125,10 @@ class TestMetaCognitionTracker:
         """Test recording learning completion."""
         temp_tracker.record_knowledge_gap("Python", 0.2)
         temp_tracker.record_learning("Python", 0.9, ["doc1.pdf", "research_001"])
-        
+
         gap = temp_tracker.knowledge_gaps["Python"]
         assert gap.confidence_after == 0.9
-        
+
         conf = temp_tracker.domain_confidence["Python"]
         assert conf.confidence == 0.9
         assert conf.evidence_count == 2
@@ -158,7 +137,7 @@ class TestMetaCognitionTracker:
         """Test that learning updates existing domain confidence."""
         temp_tracker.record_learning("Python", 0.7, ["doc1.pdf"])
         temp_tracker.record_learning("Python", 0.9, ["doc2.pdf", "doc3.pdf"])
-        
+
         conf = temp_tracker.domain_confidence["Python"]
         assert conf.confidence == 0.9
         assert conf.evidence_count == 3
@@ -169,7 +148,7 @@ class TestMetaCognitionTracker:
         temp_tracker.record_knowledge_gap("Topic 1")
         temp_tracker.record_knowledge_gap("Topic 2")
         temp_tracker.record_knowledge_gap("Topic 2")
-        
+
         gaps = temp_tracker.get_knowledge_gaps()
         assert len(gaps) == 2
 
@@ -179,7 +158,7 @@ class TestMetaCognitionTracker:
         temp_tracker.record_knowledge_gap("Topic 2")
         temp_tracker.record_knowledge_gap("Topic 2")
         temp_tracker.record_knowledge_gap("Topic 2")
-        
+
         gaps = temp_tracker.get_knowledge_gaps(min_times_asked=3)
         assert len(gaps) == 1
         assert gaps[0].topic == "Topic 2"
@@ -189,7 +168,7 @@ class TestMetaCognitionTracker:
         temp_tracker.record_learning("Python", 0.9, ["src1"])
         temp_tracker.record_learning("JavaScript", 0.8, ["src2"])
         temp_tracker.record_learning("Rust", 0.5, ["src3"])
-        
+
         high_conf = temp_tracker.get_high_confidence_domains(min_confidence=0.7)
         assert len(high_conf) == 2
         domains = [c.domain for c in high_conf]
@@ -201,7 +180,7 @@ class TestMetaCognitionTracker:
         temp_tracker.record_learning("Python", 0.9, ["src1"])
         temp_tracker.record_learning("JavaScript", 0.2, ["src2"])
         temp_tracker.record_learning("Rust", 0.1, ["src3"])
-        
+
         low_conf = temp_tracker.get_low_confidence_domains(max_confidence=0.3)
         assert len(low_conf) == 2
         domains = [c.domain for c in low_conf]
@@ -213,15 +192,15 @@ class TestMetaCognitionTracker:
         # Topic asked 3 times, no research
         for _ in range(3):
             temp_tracker.record_knowledge_gap("Frequent Topic")
-        
+
         # Topic asked once
         temp_tracker.record_knowledge_gap("Rare Topic")
-        
+
         # Topic asked 3 times but researched
         for _ in range(3):
             temp_tracker.record_knowledge_gap("Researched Topic")
         temp_tracker.record_research_triggered("Researched Topic", "standard")
-        
+
         suggestions = temp_tracker.suggest_proactive_research(threshold_times_asked=3)
         assert len(suggestions) == 1
         assert "Frequent Topic" in suggestions
@@ -229,7 +208,7 @@ class TestMetaCognitionTracker:
     def test_get_learning_stats_empty(self, temp_tracker):
         """Test get_learning_stats with no data."""
         stats = temp_tracker.get_learning_stats()
-        
+
         assert stats["total_knowledge_gaps"] == 0
         assert stats["researched_gaps"] == 0
         assert stats["learned_gaps"] == 0
@@ -243,22 +222,22 @@ class TestMetaCognitionTracker:
         temp_tracker.record_knowledge_gap("Topic 1")
         temp_tracker.record_knowledge_gap("Topic 2")
         temp_tracker.record_knowledge_gap("Topic 3")
-        
+
         # Research one
         temp_tracker.record_research_triggered("Topic 1", "standard")
-        
+
         # Learn one
         temp_tracker.record_learning("Topic 1", 0.8, ["src1"])
-        
+
         # Add domain confidence
         temp_tracker.record_learning("Python", 0.9, ["src2"])
-        
+
         stats = temp_tracker.get_learning_stats()
-        
+
         assert stats["total_knowledge_gaps"] == 3
         assert stats["researched_gaps"] == 1
         assert stats["learned_gaps"] == 1
-        assert stats["learning_rate"] == pytest.approx(1/3, rel=0.01)
+        assert stats["learning_rate"] == pytest.approx(1 / 3, rel=0.01)
         assert stats["domains_tracked"] == 2  # Topic 1 and Python
 
 
@@ -272,9 +251,9 @@ class TestMetaCognitionTrackerPersistence:
             tracker1.record_knowledge_gap("Topic 1", 0.1)
             tracker1.record_knowledge_gap("Topic 2", 0.2)
             tracker1.record_knowledge_gap("Topic 1", 0.1)  # Increment
-            
+
             tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
-            
+
             assert len(tracker2.knowledge_gaps) == 2
             assert tracker2.knowledge_gaps["Topic 1"].times_asked == 2
 
@@ -283,9 +262,9 @@ class TestMetaCognitionTrackerPersistence:
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
             tracker1.record_learning("Python", 0.9, ["doc1.pdf", "doc2.pdf"])
-            
+
             tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
-            
+
             assert "Python" in tracker2.domain_confidence
             conf = tracker2.domain_confidence["Python"]
             assert conf.confidence == 0.9
@@ -297,9 +276,9 @@ class TestMetaCognitionTrackerPersistence:
             tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
             tracker1.record_knowledge_gap("Topic 1")
             tracker1.record_research_triggered("Topic 1", "deep_research")
-            
+
             tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
-            
+
             assert len(tracker2.uncertainty_log) == 2
 
     def test_save_and_load_research_triggered(self):
@@ -308,9 +287,9 @@ class TestMetaCognitionTrackerPersistence:
             tracker1 = MetaCognitionTracker("Test Expert", tmpdir)
             tracker1.record_knowledge_gap("ML")
             tracker1.record_research_triggered("ML", "standard")
-            
+
             tracker2 = MetaCognitionTracker("Test Expert", tmpdir)
-            
+
             gap = tracker2.knowledge_gaps["ML"]
             assert gap.research_triggered is True
             assert gap.research_date is not None
@@ -322,10 +301,7 @@ class TestMetaCognitionEdgeCases:
     def test_special_characters_in_expert_name(self):
         """Test handling special characters in expert name."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tracker = MetaCognitionTracker(
-                expert_name="Test Expert @#$%",
-                base_path=tmpdir
-            )
+            tracker = MetaCognitionTracker(expert_name="Test Expert @#$%", base_path=tmpdir)
             assert "test_expert" in str(tracker.expert_dir).lower()
 
     def test_special_characters_in_topic(self):
@@ -364,7 +340,7 @@ class TestMetaCognitionEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = MetaCognitionTracker("Test", tmpdir)
             tracker.record_learning("Topic", 0.7, ["src"])
-            
+
             high = tracker.get_high_confidence_domains(min_confidence=0.7)
             assert len(high) == 1
 
@@ -373,7 +349,7 @@ class TestMetaCognitionEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = MetaCognitionTracker("Test", tmpdir)
             tracker.record_learning("Topic", 0.3, ["src"])
-            
+
             low = tracker.get_low_confidence_domains(max_confidence=0.3)
             assert len(low) == 1
 

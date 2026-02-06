@@ -2,7 +2,7 @@
 
 import hashlib
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -23,7 +23,7 @@ class LinkExtractor:
         self.base_url = base_url
         self.base_domain = urlparse(base_url).netloc
 
-    def extract_links(self, html: str, internal_only: bool = True) -> List[Dict[str, str]]:
+    def extract_links(self, html: str, internal_only: bool = True) -> list[dict[str, str]]:
         """
         Extract links from HTML.
 
@@ -80,7 +80,7 @@ class LinkExtractor:
             return parent.get_text(strip=True)[:200]
         return ""
 
-    def filter_excluded(self, links: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def filter_excluded(self, links: list[dict[str, str]]) -> list[dict[str, str]]:
         """
         Filter out commonly irrelevant links.
 
@@ -191,7 +191,7 @@ class ContentExtractor:
 
         return text
 
-    def extract_metadata(self, html: str) -> Dict[str, str]:
+    def extract_metadata(self, html: str) -> dict[str, str]:
         """
         Extract structured metadata from HTML.
 
@@ -250,8 +250,8 @@ class PageDeduplicator:
     """Deduplicates pages by URL and content hash."""
 
     def __init__(self):
-        self.seen_urls: Set[str] = set()
-        self.seen_hashes: Set[str] = set()
+        self.seen_urls: set[str] = set()
+        self.seen_hashes: set[str] = set()
 
     def is_duplicate(self, url: str, content_hash: Optional[str] = None) -> bool:
         """

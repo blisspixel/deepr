@@ -32,7 +32,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from deepr.core.constants import (
     CIRCUIT_BREAKER_FAILURE_THRESHOLD,
@@ -197,7 +197,7 @@ class CircuitBreaker:
 
         logger.debug(f"Circuit {self.provider}/{self.model}: {old_state.value} -> {new_state.value}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize circuit state for monitoring.
 
         Returns:
@@ -239,7 +239,7 @@ class CircuitBreakerRegistry:
             failure_threshold: Default failures before opening circuit
             recovery_timeout: Default seconds before testing recovery
         """
-        self.circuits: Dict[tuple, CircuitBreaker] = {}
+        self.circuits: dict[tuple, CircuitBreaker] = {}
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
 
@@ -294,7 +294,7 @@ class CircuitBreakerRegistry:
         """
         self.get_circuit(provider, model).record_failure(error)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get status of all circuits.
 
         Returns:

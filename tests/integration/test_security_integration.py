@@ -1,13 +1,13 @@
 """Integration tests for execution security components."""
 
-import pytest
 import tempfile
 from pathlib import Path
-from datetime import datetime, timezone
+
+import pytest
 
 from deepr.mcp.security.instruction_signing import InstructionSigner, SignedInstruction
-from deepr.mcp.security.output_verification import OutputVerifier, VerifiedOutput
-from deepr.mcp.security.tool_allowlist import ToolAllowlist, ResearchMode, ToolCategory
+from deepr.mcp.security.output_verification import OutputVerifier
+from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist, ToolCategory
 
 
 class TestSecurityPipelineIntegration:
@@ -321,12 +321,14 @@ class TestSecurityAuditTrail:
                         metadata={"nonce": signed.nonce},
                     )
 
-                    audit_entries.append({
-                        "tool": tool_name,
-                        "nonce": signed.nonce,
-                        "output_id": verified.id,
-                        "content_hash": verified.content_hash,
-                    })
+                    audit_entries.append(
+                        {
+                            "tool": tool_name,
+                            "nonce": signed.nonce,
+                            "output_id": verified.id,
+                            "content_hash": verified.content_hash,
+                        }
+                    )
 
             # Verify we have a complete audit trail
             assert len(audit_entries) == 4

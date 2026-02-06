@@ -1,6 +1,6 @@
 """Azure Service Bus queue backend (planned for cloud deployment)."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from .base import JobStatus, QueueBackend, ResearchJob
 
@@ -37,7 +37,7 @@ class ServiceBusQueue(QueueBackend):
     async def update_results(
         self,
         job_id: str,
-        report_paths: Dict[str, str],
+        report_paths: dict[str, str],
         cost: Optional[float] = None,
         tokens_used: Optional[int] = None,
     ) -> bool:
@@ -49,13 +49,13 @@ class ServiceBusQueue(QueueBackend):
         tenant_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[ResearchJob]:
+    ) -> list[ResearchJob]:
         raise NotImplementedError()
 
     async def cancel_job(self, job_id: str) -> bool:
         raise NotImplementedError()
 
-    async def get_queue_stats(self) -> Dict[str, Any]:
+    async def get_queue_stats(self) -> dict[str, Any]:
         raise NotImplementedError()
 
     async def cleanup_old_jobs(self, days: int = 30) -> int:

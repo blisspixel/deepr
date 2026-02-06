@@ -1,14 +1,14 @@
 """Unit tests for elicitation router."""
 
-import pytest
 import asyncio
-from datetime import datetime, timezone
+
+import pytest
 
 from deepr.mcp.state.elicitation_router import (
-    ElicitationRouter,
-    ElicitationTarget,
     ElicitationRequest,
     ElicitationResponse,
+    ElicitationRouter,
+    ElicitationTarget,
     create_cli_handler,
 )
 
@@ -331,6 +331,7 @@ class TestCLIHandler:
 
     def test_create_cli_handler(self):
         """Test creating a CLI handler."""
+
         def mock_prompt(msg):
             return "user_input"
 

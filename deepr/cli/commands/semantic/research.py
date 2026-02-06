@@ -328,7 +328,7 @@ def research(
                 temp_file.close()
 
                 # Add to upload list
-                upload = list(upload) + [temp_file.name]
+                upload = [*list(upload), temp_file.name]
                 if output_context.mode == OutputMode.VERBOSE:
                     click.echo("[Scraped content saved and added to research context]\n")
             else:
@@ -481,7 +481,6 @@ async def _verify_fact(
     """Verify a fact with schema validation and structured output."""
     import json
     import re
-    from typing import List
 
     from pydantic import BaseModel, Field, field_validator
 
@@ -495,7 +494,7 @@ async def _verify_fact(
         verdict: str = Field(..., pattern="^(TRUE|FALSE|UNCERTAIN)$")
         confidence: float = Field(..., ge=0.0, le=1.0)
         scope: str = Field(default="general")
-        evidence: List[dict] = Field(default_factory=list)
+        evidence: list[dict] = Field(default_factory=list)
         reasoning: str = ""
 
         @field_validator("confidence", mode="before")

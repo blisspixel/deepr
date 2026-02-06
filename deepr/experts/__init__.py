@@ -21,27 +21,27 @@ from .synthesis import Belief, KnowledgeGap, KnowledgeSynthesizer, Worldview
 from .temporal import TemporalState
 
 __all__ = [
+    "PROFILE_SCHEMA_VERSION",
+    "ActivityTracker",
+    "Belief",
+    # Composed managers
+    "BudgetManager",
+    # Utilities
+    "EmbeddingCache",
+    # Chat
+    "ExpertChatSession",
     # Core profile
     "ExpertProfile",
     "ExpertStore",
-    "PROFILE_SCHEMA_VERSION",
-    "migrate_profile_data",
-    # Composed managers
-    "BudgetManager",
-    "ActivityTracker",
     "FreshnessChecker",
     "FreshnessLevel",
     "FreshnessStatus",
-    "TemporalState",
-    "ProfileSerializer",
-    # Chat
-    "ExpertChatSession",
-    "start_chat_session",
+    "KnowledgeGap",
     # Synthesis
     "KnowledgeSynthesizer",
+    "ProfileSerializer",
+    "TemporalState",
     "Worldview",
-    "Belief",
-    "KnowledgeGap",
-    # Utilities
-    "EmbeddingCache",
+    "migrate_profile_data",
+    "start_chat_session",
 ]

@@ -10,7 +10,7 @@ No static personas. Each question gets a custom dream team.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from openai import OpenAI
 
@@ -50,7 +50,7 @@ class TeamArchitect:
         research_company: Optional[str] = None,
         perspective_lens: Optional[str] = None,
         adversarial: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Design optimal research team for this question.
 
@@ -106,7 +106,7 @@ class TeamArchitect:
         result = json.loads(response.choices[0].message.content)
         return result.get("team", [])
 
-    def _research_company_people(self, company: str) -> Optional[Dict[str, Any]]:
+    def _research_company_people(self, company: str) -> Optional[dict[str, Any]]:
         """
         Research actual executives/board members for grounded personas.
 
@@ -175,7 +175,7 @@ Only include people you find with actual research. If unable to find information
         question: str,
         context: Optional[str],
         team_size: int,
-        company_intel: Optional[Dict[str, Any]] = None,
+        company_intel: Optional[dict[str, Any]] = None,
         perspective_lens: Optional[str] = None,
         adversarial: bool = False,
     ) -> str:
@@ -313,7 +313,7 @@ class TeamSynthesizer:
         self.client = OpenAI(api_key=self.api_key)
         self.model = model
 
-    def synthesize_with_conflict_analysis(self, question: str, team_results: List[Dict[str, Any]]) -> str:
+    def synthesize_with_conflict_analysis(self, question: str, team_results: list[dict[str, Any]]) -> str:
         """
         Synthesize team findings with attribution.
 
@@ -339,7 +339,7 @@ class TeamSynthesizer:
 
         return response.choices[0].message.content
 
-    def _build_synthesis_prompt(self, question: str, team_results: List[Dict[str, Any]]) -> str:
+    def _build_synthesis_prompt(self, question: str, team_results: list[dict[str, Any]]) -> str:
         """Build synthesis prompt."""
 
         parts = ["# Research Question", f"\n{question}\n", "\n## Team Findings\n"]

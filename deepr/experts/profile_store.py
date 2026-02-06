@@ -21,7 +21,7 @@ import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from deepr.utils.security import sanitize_name, validate_path
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 PROFILE_SCHEMA_VERSION = 2
 
 # Migration registry: maps (from_version, to_version) -> migration function
-_MIGRATIONS: Dict[tuple, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
+_MIGRATIONS: dict[tuple, Callable[[dict[str, Any]], dict[str, Any]]] = {}
 
 
 def migration(from_version: int, to_version: int):
@@ -47,7 +47,7 @@ def migration(from_version: int, to_version: int):
             return data
     """
 
-    def decorator(func: Callable[[Dict[str, Any]], Dict[str, Any]]):
+    def decorator(func: Callable[[dict[str, Any]], dict[str, Any]]):
         _MIGRATIONS[(from_version, to_version)] = func
         return func
 
@@ -60,7 +60,7 @@ def migration(from_version: int, to_version: int):
 
 
 @migration(1, 2)
-def migrate_v1_to_v2(data: Dict[str, Any]) -> Dict[str, Any]:
+def migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
     """Migrate from schema v1 to v2.
 
     Changes in v2:
@@ -89,7 +89,7 @@ def migrate_v1_to_v2(data: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
-def migrate_profile_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def migrate_profile_data(data: dict[str, Any]) -> dict[str, Any]:
     """Apply all necessary migrations to bring profile data to current schema.
 
     Args:
@@ -224,7 +224,7 @@ class ExpertStore:
     # CRUD operations
     # =========================================================================
 
-    def save(self, profile: "ExpertProfile") -> None:
+    def save(self, profile: ExpertProfile) -> None:
         """Save expert profile to disk.
 
         Creates directory structure if it doesn't exist.
@@ -254,7 +254,7 @@ class ExpertStore:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-    def load(self, name: str, migrate: bool = True) -> Optional["ExpertProfile"]:
+    def load(self, name: str, migrate: bool = True) -> Optional[ExpertProfile]:
         """Load expert profile from disk.
 
         Automatically migrates old schema versions if migrate=True.
@@ -272,7 +272,7 @@ class ExpertStore:
         if not path.exists():
             return None
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Apply migrations if needed
@@ -293,7 +293,7 @@ class ExpertStore:
 
         return ExpertProfile.from_dict(data)
 
-    def list_all(self, include_errors: bool = False) -> List["ExpertProfile"]:
+    def list_all(self, include_errors: bool = False) -> list[ExpertProfile]:
         """List all expert profiles.
 
         Args:
@@ -310,7 +310,7 @@ class ExpertStore:
                 profile_path = expert_dir / "profile.json"
                 if profile_path.exists():
                     try:
-                        with open(profile_path, "r", encoding="utf-8") as f:
+                        with open(profile_path, encoding="utf-8") as f:
                             data = json.load(f)
                             data = migrate_profile_data(data)
                             profiles.append(ExpertProfile.from_dict(data))
@@ -416,8 +416,8 @@ class ExpertStore:
     # =========================================================================
 
     async def add_documents_to_vector_store(
-        self, profile: "ExpertProfile", file_paths: List[str], provider_client=None
-    ) -> Dict[str, Any]:
+        self, profile: ExpertProfile, file_paths: list[str], provider_client=None
+    ) -> dict[str, Any]:
         """Add documents to expert's vector store.
 
         Args:
@@ -436,7 +436,7 @@ class ExpertStore:
             provider = create_provider("openai", api_key=settings.get_api_key("openai"))
             provider_client = provider.client
 
-        results: Dict[str, List[Any]] = {"uploaded": [], "failed": [], "skipped": []}
+        results: dict[str, list[Any]] = {"uploaded": [], "failed": [], "skipped": []}
 
         for file_path in file_paths:
             path = Path(file_path)
@@ -461,7 +461,7 @@ class ExpertStore:
             self.save(profile)
         return results
 
-    async def refresh_expert_knowledge(self, name: str, provider_client=None) -> Dict[str, Any]:
+    async def refresh_expert_knowledge(self, name: str, provider_client=None) -> dict[str, Any]:
         """Scan documents folder and add any missing files to vector store.
 
         Args:
@@ -506,7 +506,7 @@ class ExpertStore:
     # Bulk operations
     # =========================================================================
 
-    def get_stale_experts(self) -> List["ExpertProfile"]:
+    def get_stale_experts(self) -> list[ExpertProfile]:
         """Get all experts with stale knowledge.
 
         Returns:
@@ -518,7 +518,7 @@ class ExpertStore:
                 stale.append(profile)
         return stale
 
-    def get_experts_by_domain(self, domain: str) -> List["ExpertProfile"]:
+    def get_experts_by_domain(self, domain: str) -> list[ExpertProfile]:
         """Get all experts in a specific domain.
 
         Args:

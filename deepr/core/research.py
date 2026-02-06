@@ -16,7 +16,7 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from ..formatting.converters import ReportConverter
 
@@ -86,11 +86,11 @@ class ResearchOrchestrator:
 
         # Temporal knowledge tracking (6.4)
         self._enable_temporal = enable_temporal_tracking
-        self._temporal_trackers: Dict[str, TemporalKnowledgeTracker] = {}
+        self._temporal_trackers: dict[str, TemporalKnowledgeTracker] = {}
         self._context_chainer = ContextChainer()
 
         # Track active vector stores for cleanup
-        self.active_vector_stores: Dict[str, str] = {}  # job_id -> vector_store_id
+        self.active_vector_stores: dict[str, str] = {}  # job_id -> vector_store_id
 
     def _load_default_system_message(self) -> str:
         """Load system message from file or return default."""
@@ -103,7 +103,7 @@ class ResearchOrchestrator:
 
             for path in paths:
                 if path.exists():
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         data = json.load(f)
                         return data.get("message", self._get_fallback_message())
 
@@ -126,10 +126,10 @@ class ResearchOrchestrator:
         self,
         prompt: str,
         model: str = "o3-deep-research",
-        documents: Optional[List[str]] = None,
+        documents: Optional[list[str]] = None,
         vector_store_id: Optional[str] = None,
         webhook_url: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         cost_sensitive: bool = False,
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
@@ -332,7 +332,7 @@ class ResearchOrchestrator:
         vector_store_id: Optional[str] = None,
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
-    ) -> List[ToolConfig]:
+    ) -> list[ToolConfig]:
         """Build tools configuration based on requirements."""
         tools = []
 
@@ -354,7 +354,7 @@ class ResearchOrchestrator:
         self,
         job_id: str,
         append_references: bool = False,
-        output_formats: Optional[List[str]] = None,
+        output_formats: Optional[list[str]] = None,
     ):
         """
         Process completed research job.
@@ -508,7 +508,7 @@ class ResearchOrchestrator:
         """
         return self._emitter
 
-    def get_trace_summary(self) -> Dict[str, Any]:
+    def get_trace_summary(self) -> dict[str, Any]:
         """Get a summary of traced operations.
 
         Returns:

@@ -12,7 +12,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 
@@ -55,16 +55,16 @@ class EmbeddingCache:
         self.embeddings_path = self.cache_dir / "embeddings.npy"
 
         # Load existing cache
-        self.index: Dict[str, Dict] = {}  # content_hash -> metadata
+        self.index: dict[str, dict] = {}  # content_hash -> metadata
         self.embeddings: Optional[np.ndarray] = None
-        self.hash_to_idx: Dict[str, int] = {}  # content_hash -> array index
+        self.hash_to_idx: dict[str, int] = {}  # content_hash -> array index
 
         self._load_cache()
 
     def _load_cache(self):
         """Load existing cache from disk."""
         if self.index_path.exists():
-            with open(self.index_path, "r", encoding="utf-8") as f:
+            with open(self.index_path, encoding="utf-8") as f:
                 data = json.load(f)
                 self.index = data.get("documents", {})
                 self.hash_to_idx = {h: i for i, h in enumerate(self.index.keys())}
@@ -101,7 +101,7 @@ class EmbeddingCache:
         content_hash = self._content_hash(content)
         return content_hash in self.index
 
-    def get_uncached_documents(self, documents: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def get_uncached_documents(self, documents: list[dict[str, str]]) -> list[dict[str, str]]:
         """Filter to only documents not yet in cache.
 
         Args:
@@ -118,7 +118,7 @@ class EmbeddingCache:
         return uncached
 
     async def add_documents(
-        self, documents: List[Dict[str, str]], client, model: str = "text-embedding-3-small"
+        self, documents: list[dict[str, str]], client, model: str = "text-embedding-3-small"
     ) -> int:
         """Add documents to cache, embedding only new ones.
 
@@ -191,7 +191,7 @@ class EmbeddingCache:
 
         return len(new_embeddings)
 
-    async def search(self, query: str, client, top_k: int = 5, model: str = "text-embedding-3-small") -> List[Dict]:
+    async def search(self, query: str, client, top_k: int = 5, model: str = "text-embedding-3-small") -> list[dict]:
         """Search cached documents by similarity.
 
         Args:
@@ -248,7 +248,7 @@ class EmbeddingCache:
 
         return results
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get cache statistics."""
         return {
             "expert_name": self.expert_name,

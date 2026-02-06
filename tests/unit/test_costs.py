@@ -1,7 +1,6 @@
 """Tests for cost estimation and control (no API calls)."""
 
-import pytest
-from deepr.core.costs import CostEstimator, CostController, get_safe_test_prompt
+from deepr.core.costs import CostController, CostEstimator, get_safe_test_prompt
 
 
 class TestCostEstimator:
@@ -103,9 +102,7 @@ class TestCostController:
         """Test per-job cost limit enforcement."""
         controller = CostController(max_cost_per_job=1.0)
 
-        cheap_estimate = CostEstimator.estimate_cost(
-            "Short prompt", "o4-mini-deep-research", enable_web_search=False
-        )
+        cheap_estimate = CostEstimator.estimate_cost("Short prompt", "o4-mini-deep-research", enable_web_search=False)
 
         allowed, reason = controller.check_cost_limit(cheap_estimate)
         assert allowed is True
@@ -114,9 +111,7 @@ class TestCostController:
         # Create artificially expensive estimate
         from deepr.core.costs import CostEstimate
 
-        expensive = CostEstimate(
-            min_cost=5.0, max_cost=10.0, expected_cost=7.5, model="o3", reasoning="Test"
-        )
+        expensive = CostEstimate(min_cost=5.0, max_cost=10.0, expected_cost=7.5, model="o3", reasoning="Test")
 
         allowed, reason = controller.check_cost_limit(expensive)
         assert allowed is False
@@ -129,9 +124,7 @@ class TestCostController:
         # Spend almost to limit
         controller.daily_spending = 4.5
 
-        estimate = CostEstimator.estimate_cost(
-            "Moderate prompt", "o4-mini-deep-research"
-        )
+        estimate = CostEstimator.estimate_cost("Moderate prompt", "o4-mini-deep-research")
 
         # Should be blocked if would exceed daily limit
         if estimate.expected_cost > 0.5:

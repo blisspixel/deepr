@@ -20,4 +20,4 @@ Usage:
 
 from deepr.routing.auto_mode import AutoModeDecision, AutoModeRouter
 
-__all__ = ["AutoModeRouter", "AutoModeDecision"]
+__all__ = ["AutoModeDecision", "AutoModeRouter"]

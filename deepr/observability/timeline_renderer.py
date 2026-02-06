@@ -16,7 +16,7 @@ Usage:
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from deepr.observability.temporal_tracker import (
     EvolutionType,
@@ -117,7 +117,7 @@ class TimelineRenderer:
             return "\n".join(lines)
 
         # Group by phase
-        phases: Dict[int, List[TimelineEntry]] = {}
+        phases: dict[int, list[TimelineEntry]] = {}
         for event in events:
             if event.phase not in phases:
                 phases[event.phase] = []
@@ -166,7 +166,7 @@ class TimelineRenderer:
             else:
                 return f"Hypothesis {hypothesis_id} not found."
 
-        for h_id, hypothesis in hypotheses.items():
+        for _h_id, hypothesis in hypotheses.items():
             lines.append("")
             lines.append(self._hypothesis_header(hypothesis))
             lines.extend(self._render_evolution_history(hypothesis))
@@ -249,7 +249,7 @@ class TimelineRenderer:
         self,
         tracker: TemporalKnowledgeTracker,
         phase_filter: Optional[int],
-    ) -> List[TimelineEntry]:
+    ) -> list[TimelineEntry]:
         """Collect all events into timeline entries.
 
         Args:
@@ -302,7 +302,7 @@ class TimelineRenderer:
         # Sort by timestamp
         return sorted(events, key=lambda e: e.timestamp)
 
-    def _render_event(self, event: TimelineEntry) -> List[str]:
+    def _render_event(self, event: TimelineEntry) -> list[str]:
         """Render a single event with full details.
 
         Args:
@@ -377,7 +377,7 @@ class TimelineRenderer:
 
         return ""
 
-    def _render_evolution_history(self, hypothesis: Hypothesis) -> List[str]:
+    def _render_evolution_history(self, hypothesis: Hypothesis) -> list[str]:
         """Render evolution history for a hypothesis.
 
         Args:
@@ -402,7 +402,7 @@ class TimelineRenderer:
 
         return lines
 
-    def _render_summary(self, tracker: TemporalKnowledgeTracker) -> List[str]:
+    def _render_summary(self, tracker: TemporalKnowledgeTracker) -> list[str]:
         """Render overall summary statistics.
 
         Args:
@@ -422,7 +422,7 @@ class TimelineRenderer:
         lines.append(f"  Phases: {len(tracker.phase_summaries)}")
 
         # Finding type distribution
-        type_counts: Dict[str, int] = {}
+        type_counts: dict[str, int] = {}
         for finding in tracker.findings:
             t = finding.finding_type.value
             type_counts[t] = type_counts.get(t, 0) + 1

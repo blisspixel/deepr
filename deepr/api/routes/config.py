@@ -124,7 +124,7 @@ def test_connection():
             return jsonify(
                 {
                     "status": "error",
-                    "message": f"Connection failed: {str(e)}",
+                    "message": f"Connection failed: {e!s}",
                     "provider": provider_type,
                 }
             ), 400

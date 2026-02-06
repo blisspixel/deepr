@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from deepr.core.constants import TASK_CHECKPOINT_INTERVAL, TASK_DEFAULT_TIMEOUT
 
@@ -68,10 +68,10 @@ class TaskCheckpoint:
 
     checkpoint_id: str
     task_id: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
     timestamp: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "checkpoint_id": self.checkpoint_id,
             "task_id": self.task_id,
@@ -91,12 +91,12 @@ class DurableTask:
     progress: float
     created_at: datetime
     updated_at: datetime
-    checkpoint: Optional[Dict[str, Any]] = None
+    checkpoint: Optional[dict[str, Any]] = None
     error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     timeout_seconds: int = TASK_DEFAULT_TIMEOUT
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "job_id": self.job_id,
@@ -230,8 +230,8 @@ class TaskDurabilityManager:
         self,
         job_id: str,
         description: str,
-        checkpoint: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        checkpoint: Optional[dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         timeout_seconds: Optional[int] = None,
     ) -> DurableTask:
         """Create a new durable task.
@@ -292,7 +292,7 @@ class TaskDurabilityManager:
         self,
         task_id: str,
         progress: float,
-        checkpoint: Optional[Dict[str, Any]] = None,
+        checkpoint: Optional[dict[str, Any]] = None,
         status: Optional[TaskStatus] = None,
     ) -> Optional[DurableTask]:
         """Update task progress and optionally save checkpoint.
@@ -400,7 +400,7 @@ class TaskDurabilityManager:
     async def complete_task(
         self,
         task_id: str,
-        final_checkpoint: Optional[Dict[str, Any]] = None,
+        final_checkpoint: Optional[dict[str, Any]] = None,
     ) -> Optional[DurableTask]:
         """Mark a task as completed.
 
@@ -422,7 +422,7 @@ class TaskDurabilityManager:
         self,
         task_id: str,
         error: str,
-        checkpoint: Optional[Dict[str, Any]] = None,
+        checkpoint: Optional[dict[str, Any]] = None,
     ) -> Optional[DurableTask]:
         """Mark a task as failed.
 
@@ -512,7 +512,7 @@ class TaskDurabilityManager:
 
         return DurableTask.from_row(row)
 
-    async def get_recoverable_tasks(self, job_id: str) -> List[DurableTask]:
+    async def get_recoverable_tasks(self, job_id: str) -> list[DurableTask]:
         """Get all recoverable tasks for a job.
 
         Args:
@@ -536,7 +536,7 @@ class TaskDurabilityManager:
         self,
         job_id: str,
         status: Optional[TaskStatus] = None,
-    ) -> List[DurableTask]:
+    ) -> list[DurableTask]:
         """Get all tasks for a job.
 
         Args:
@@ -571,7 +571,7 @@ class TaskDurabilityManager:
         self,
         task_id: str,
         limit: int = 10,
-    ) -> List[TaskCheckpoint]:
+    ) -> list[TaskCheckpoint]:
         """Get checkpoint history for a task.
 
         Args:
@@ -668,7 +668,7 @@ class TaskDurabilityManager:
     async def _save_checkpoint(
         self,
         task_id: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> TaskCheckpoint:
         """Save a checkpoint.
 

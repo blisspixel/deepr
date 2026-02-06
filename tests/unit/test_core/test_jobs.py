@@ -17,10 +17,7 @@ class TestJobRecord:
     def test_create_minimal_record(self):
         """Should create record with minimal required fields."""
         record = JobRecord(
-            response_id="resp_123",
-            status="queued",
-            timestamp="2026-01-01T00:00:00+00:00",
-            original_prompt="Test query"
+            response_id="resp_123", status="queued", timestamp="2026-01-01T00:00:00+00:00", original_prompt="Test query"
         )
 
         assert record.response_id == "resp_123"
@@ -41,7 +38,7 @@ class TestJobRecord:
             model="gpt-5",
             provider="openai",
             run_id="run_789",
-            metadata={"key": "value"}
+            metadata={"key": "value"},
         )
 
         assert record.response_id == "resp_456"
@@ -81,10 +78,7 @@ class TestJobManagerLogSubmission:
     @pytest.mark.asyncio
     async def test_log_minimal_submission(self, manager):
         """Should log submission with minimal fields."""
-        await manager.log_submission(
-            response_id="resp_001",
-            original_prompt="Test query"
-        )
+        await manager.log_submission(response_id="resp_001", original_prompt="Test query")
 
         # Verify log file exists and contains record
         assert manager.log_path.exists()
@@ -106,7 +100,7 @@ class TestJobManagerLogSubmission:
             model="gpt-5",
             provider="openai",
             run_id="run_123",
-            metadata={"key": "value"}
+            metadata={"key": "value"},
         )
 
         with open(manager.log_path) as f:
@@ -290,7 +284,7 @@ class TestJobManagerCleanup:
             "response_id": "resp_old",
             "status": "completed",
             "timestamp": old_timestamp,
-            "original_prompt": "Old query"
+            "original_prompt": "Old query",
         }
 
         with open(manager.log_path, "w") as f:
@@ -316,7 +310,7 @@ class TestJobManagerCleanup:
             "response_id": "resp_old",
             "status": "queued",
             "timestamp": old_timestamp,
-            "original_prompt": "Old query"
+            "original_prompt": "Old query",
         }
 
         with open(manager.log_path, "w") as f:

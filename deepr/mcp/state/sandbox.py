@@ -362,7 +362,7 @@ class SandboxManager:
             artifact_path.write_text(content, encoding="utf-8")
             state.artifacts.append(filename)
             return artifact_path
-        except (OSError, IOError):
+        except OSError:
             return None
 
     def write_report(self, sandbox_id: str, content: str) -> Optional[Path]:
@@ -385,7 +385,7 @@ class SandboxManager:
         try:
             report_path.write_text(content, encoding="utf-8")
             return report_path
-        except (OSError, IOError):
+        except OSError:
             return None
 
     def complete_sandbox(self, sandbox_id: str) -> bool:
@@ -451,7 +451,7 @@ class SandboxManager:
         if report_path.exists():
             try:
                 report_content = report_path.read_text(encoding="utf-8")
-            except (OSError, IOError):
+            except OSError:
                 pass
 
         return SandboxResult(
@@ -485,7 +485,7 @@ class SandboxManager:
         if remove_files and state.config.working_dir.exists():
             try:
                 shutil.rmtree(state.config.working_dir)
-            except (OSError, IOError):
+            except OSError:
                 pass
 
         state.status = SandboxStatus.CLEANED

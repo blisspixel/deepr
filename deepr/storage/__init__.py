@@ -33,12 +33,12 @@ def create_storage(storage_type: StorageType, **kwargs) -> StorageBackend:
 
 
 __all__ = [
-    "StorageBackend",
-    "ReportMetadata",
-    "LocalStorage",
     "AzureBlobStorage",
-    "create_storage",
-    "StorageType",
     "FindingsStore",
+    "LocalStorage",
+    "ReportMetadata",
+    "StorageBackend",
+    "StorageType",
     "StoredFinding",
+    "create_storage",
 ]

@@ -16,7 +16,7 @@ Requirements: 1.2 - ExpertProfile Refactoring
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from deepr.experts.activity_tracker import ActivityTracker
 from deepr.experts.budget_manager import BudgetManager
@@ -67,8 +67,8 @@ class ExpertProfile:
     updated_at: datetime = field(default_factory=_utc_now)
 
     # Knowledge base metadata
-    source_files: List[str] = field(default_factory=list)
-    research_jobs: List[str] = field(default_factory=list)
+    source_files: list[str] = field(default_factory=list)
+    research_jobs: list[str] = field(default_factory=list)
     total_documents: int = 0
 
     # Temporal awareness
@@ -91,7 +91,7 @@ class ExpertProfile:
     monthly_learning_budget: float = 5.0
     monthly_spending: float = 0.0
     monthly_spending_reset_date: Optional[datetime] = None
-    refresh_history: List[Dict] = field(default_factory=list)
+    refresh_history: list[dict] = field(default_factory=list)
 
     # Provider preferences
     provider: str = "openai"
@@ -176,7 +176,7 @@ class ExpertProfile:
     # Activity tracking (delegates to ActivityTracker)
     # =========================================================================
 
-    def record_activity(self, activity_type: str, details: Optional[Dict] = None):
+    def record_activity(self, activity_type: str, details: Optional[dict] = None):
         """Record an activity event.
 
         Args:
@@ -198,7 +198,7 @@ class ExpertProfile:
         """Check if knowledge needs refreshing based on domain velocity."""
         return self.freshness_checker.is_stale(last_learning=self.knowledge_cutoff_date)
 
-    def get_freshness_status(self) -> Dict[str, Any]:
+    def get_freshness_status(self) -> dict[str, Any]:
         """Get detailed freshness status.
 
         Returns:
@@ -231,7 +231,7 @@ class ExpertProfile:
             "freshness_score": status.score,
         }
 
-    def get_staleness_details(self) -> Dict[str, Any]:
+    def get_staleness_details(self) -> dict[str, Any]:
         """Get detailed staleness information for continuous self-improvement."""
         freshness = self.get_freshness_status()
 
@@ -271,7 +271,7 @@ class ExpertProfile:
             "refresh_command": f"deepr expert learn {self.name} --budget {estimated_cost:.2f}",
         }
 
-    def suggest_refresh(self) -> Optional[Dict[str, Any]]:
+    def suggest_refresh(self) -> Optional[dict[str, Any]]:
         """Suggest a knowledge refresh if needed."""
         staleness = self.get_staleness_details()
 
@@ -288,7 +288,7 @@ class ExpertProfile:
             "topics": self._suggest_refresh_topics(),
         }
 
-    def _suggest_refresh_topics(self) -> List[str]:
+    def _suggest_refresh_topics(self) -> list[str]:
         """Suggest topics for refresh based on domain."""
         topics = []
         if self.domain:
@@ -306,13 +306,13 @@ class ExpertProfile:
     # Budget management (delegates to BudgetManager)
     # =========================================================================
 
-    def get_monthly_budget_status(self) -> Dict[str, Any]:
+    def get_monthly_budget_status(self) -> dict[str, Any]:
         """Get monthly learning budget status."""
         status = self.budget_manager.get_status()
         self._sync_budget_from_manager()
         return status
 
-    def can_spend_learning_budget(self, amount: float) -> Tuple[bool, str]:
+    def can_spend_learning_budget(self, amount: float) -> tuple[bool, str]:
         """Check if spending amount is within monthly budget."""
         return self.budget_manager.can_spend(amount)
 
@@ -332,14 +332,14 @@ class ExpertProfile:
     # Serialization (uses serializer module)
     # =========================================================================
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         # Sync from managers before serialization
         self._sync_budget_from_manager()
         return profile_to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ExpertProfile":
+    def from_dict(cls, data: dict) -> "ExpertProfile":
         """Create from dictionary."""
         kwargs = dict_to_profile_kwargs(data)
         return cls(**kwargs)
@@ -435,9 +435,9 @@ DEFAULT_EXPERT_SYSTEM_MESSAGE = get_expert_system_message()
 from deepr.experts.profile_store import PROFILE_SCHEMA_VERSION, ExpertStore
 
 __all__ = [
+    "DEFAULT_EXPERT_SYSTEM_MESSAGE",
+    "PROFILE_SCHEMA_VERSION",
     "ExpertProfile",
     "ExpertStore",
-    "PROFILE_SCHEMA_VERSION",
     "get_expert_system_message",
-    "DEFAULT_EXPERT_SYSTEM_MESSAGE",
 ]

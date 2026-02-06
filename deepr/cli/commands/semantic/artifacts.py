@@ -169,7 +169,7 @@ async def _generate_docs(
         console.print(f"[dim]Reading {len(files)} context files...[/dim]")
         for file_path in files:
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     content = f.read()
                     context_content += f"\n\n## Context from: {os.path.basename(file_path)}\n\n{content}"
             except Exception as e:
@@ -723,7 +723,7 @@ async def _run_agentic_research(
 
     # Initialize or load state
     if resume and state_file.exists():
-        with open(state_file, "r", encoding="utf-8") as f:
+        with open(state_file, encoding="utf-8") as f:
             state = json.load(f)
         console.print(f"[dim]Resuming from round {state['current_round']}/{state['max_rounds']}[/dim]")
         current_round = state["current_round"]

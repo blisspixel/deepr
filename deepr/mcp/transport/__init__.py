@@ -25,15 +25,15 @@ from .http import (
 from .stdio import Message, StdioServer, StdioTransport, TransportStats
 
 __all__ = [
-    # Stdio (local, preferred)
-    "StdioTransport",
-    "StdioServer",
-    "Message",
-    "TransportStats",
-    # HTTP (cloud deployment)
-    "StreamingHttpTransport",
-    "HttpTransport",
     "HttpClient",
     "HttpMessage",
+    "HttpTransport",
     "HttpTransportStats",
+    "Message",
+    "StdioServer",
+    # Stdio (local, preferred)
+    "StdioTransport",
+    # HTTP (cloud deployment)
+    "StreamingHttpTransport",
+    "TransportStats",
 ]

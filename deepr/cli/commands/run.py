@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import click
 
@@ -647,7 +647,7 @@ async def _create_and_enqueue_job(
     provider: str,
     no_web: bool,
     no_code: bool,
-    document_ids: List[str],
+    document_ids: list[str],
     vector_store_id: Optional[str],
     limit: Optional[float],
     upload: tuple,
@@ -687,7 +687,7 @@ async def _submit_to_provider(
     provider: str,
     no_web: bool,
     no_code: bool,
-    document_ids: List[str],
+    document_ids: list[str],
     vector_store_id: Optional[str],
     output_context: OutputContext,
     formatter: OutputFormatter,
@@ -772,7 +772,7 @@ async def _submit_to_provider(
         _classify_provider_error(e, provider)
 
 
-def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_id: Optional[str]) -> List:
+def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_id: Optional[str]) -> list:
     """Build provider-specific tools list."""
     from deepr.cli.commands.provider_factory import get_tool_name, supports_vector_stores
     from deepr.providers.base import ToolConfig

@@ -1,14 +1,11 @@
 """Unit tests for instruction signing."""
 
-import pytest
 import time
-from datetime import datetime, timezone, timedelta
 
 from deepr.mcp.security.instruction_signing import (
     InstructionSigner,
     SignedInstruction,
     sign_instruction,
-    verify_instruction,
 )
 
 

@@ -22,7 +22,7 @@ Comparison to OpenAI:
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 try:
     from anthropic import Anthropic, AnthropicError
@@ -134,7 +134,7 @@ class AnthropicProvider(DeepResearchProvider):
 
             # Multi-turn loop for tool use
             max_turns = 5  # Prevent infinite loops
-            for turn in range(max_turns):
+            for _turn in range(max_turns):
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=self.thinking_budget + 16000,  # Must be > thinking budget
@@ -234,7 +234,7 @@ class AnthropicProvider(DeepResearchProvider):
         """
         raise NotImplementedError("Anthropic doesn't support file uploads. Embed documents directly in prompts.")
 
-    async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
+    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create vector store.
 
@@ -253,7 +253,7 @@ class AnthropicProvider(DeepResearchProvider):
         """Not applicable for Anthropic."""
         raise NotImplementedError("Anthropic doesn't support vector stores")
 
-    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """Not applicable for Anthropic."""
         raise NotImplementedError("Anthropic doesn't support vector stores")
 
@@ -314,7 +314,7 @@ Always show your work. Transparency builds trust."""
         return "\n".join(parts)
 
     def _format_research_report(
-        self, thinking: str, findings: str, tool_calls: List[Dict[str, Any]], request: ResearchRequest
+        self, thinking: str, findings: str, tool_calls: list[dict[str, Any]], request: ResearchRequest
     ) -> str:
         """Format research report with thinking trace."""
         parts = [

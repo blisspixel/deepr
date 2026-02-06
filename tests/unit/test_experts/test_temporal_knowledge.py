@@ -4,23 +4,18 @@ Tests temporal aspects of expert knowledge including fact tracking,
 knowledge evolution, staleness detection, and timeline management.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-import json
 import tempfile
-from unittest.mock import patch
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 
 def utc_now():
     """Return current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
 
-from deepr.experts.temporal_knowledge import (
-    KnowledgeFact,
-    KnowledgeEvolution,
-    TemporalKnowledgeTracker
-)
+
+from deepr.experts.temporal_knowledge import KnowledgeEvolution, KnowledgeFact, TemporalKnowledgeTracker
 
 
 class TestKnowledgeFact:
@@ -34,7 +29,7 @@ class TestKnowledgeFact:
             fact_text="Python 3.12 was released in October 2023",
             learned_at=now,
             source="research_001",
-            confidence=0.9
+            confidence=0.9,
         )
         assert fact.topic == "Python"
         assert fact.fact_text == "Python 3.12 was released in October 2023"
@@ -44,13 +39,7 @@ class TestKnowledgeFact:
 
     def test_is_current_no_supersede(self):
         """Test is_current when fact is not superseded."""
-        fact = KnowledgeFact(
-            topic="Test",
-            fact_text="Test fact",
-            learned_at=utc_now(),
-            source="test",
-            confidence=0.8
-        )
+        fact = KnowledgeFact(topic="Test", fact_text="Test fact", learned_at=utc_now(), source="test", confidence=0.8)
         assert fact.is_current is True
 
     def test_is_current_superseded(self):
@@ -61,7 +50,7 @@ class TestKnowledgeFact:
             learned_at=utc_now(),
             source="test",
             confidence=0.8,
-            superseded_by="new_fact_001"
+            superseded_by="new_fact_001",
         )
         assert fact.is_current is False
 
@@ -73,7 +62,7 @@ class TestKnowledgeFact:
             learned_at=utc_now() - timedelta(days=10),
             source="test",
             confidence=0.8,
-            valid_until=utc_now() - timedelta(days=1)
+            valid_until=utc_now() - timedelta(days=1),
         )
         assert fact.is_current is False
 
@@ -85,30 +74,20 @@ class TestKnowledgeFact:
             learned_at=utc_now(),
             source="test",
             confidence=0.8,
-            valid_until=utc_now() + timedelta(days=30)
+            valid_until=utc_now() + timedelta(days=30),
         )
         assert fact.is_current is True
 
     def test_age_days(self):
         """Test age_days calculation."""
         fact = KnowledgeFact(
-            topic="Test",
-            fact_text="Test fact",
-            learned_at=utc_now() - timedelta(days=5),
-            source="test",
-            confidence=0.8
+            topic="Test", fact_text="Test fact", learned_at=utc_now() - timedelta(days=5), source="test", confidence=0.8
         )
         assert fact.age_days == 5
 
     def test_age_days_today(self):
         """Test age_days for fact learned today."""
-        fact = KnowledgeFact(
-            topic="Test",
-            fact_text="Test fact",
-            learned_at=utc_now(),
-            source="test",
-            confidence=0.8
-        )
+        fact = KnowledgeFact(topic="Test", fact_text="Test fact", learned_at=utc_now(), source="test", confidence=0.8)
         assert fact.age_days == 0
 
 
@@ -160,7 +139,7 @@ class TestKnowledgeEvolution:
         ]
         evolution = KnowledgeEvolution(topic="Test", facts=facts)
         timeline = evolution.get_timeline()
-        
+
         assert len(timeline) == 3
         assert timeline[0][1] == "First fact"
         assert timeline[1][1] == "Second fact"
@@ -174,10 +153,7 @@ class TestTemporalKnowledgeTracker:
     def temp_tracker(self):
         """Create a tracker with temporary directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tracker = TemporalKnowledgeTracker(
-                expert_name="Test Expert",
-                base_path=tmpdir
-            )
+            tracker = TemporalKnowledgeTracker(expert_name="Test Expert", base_path=tmpdir)
             yield tracker
 
     def test_create_tracker(self, temp_tracker):
@@ -194,12 +170,9 @@ class TestTemporalKnowledgeTracker:
     def test_record_learning(self, temp_tracker):
         """Test recording a new fact."""
         fact_id = temp_tracker.record_learning(
-            topic="Python",
-            fact_text="Python supports async/await",
-            source="research_001",
-            confidence=0.9
+            topic="Python", fact_text="Python supports async/await", source="research_001", confidence=0.9
         )
-        
+
         assert fact_id is not None
         assert "Python" in temp_tracker.knowledge_by_topic
         assert len(temp_tracker.facts_by_id) == 1
@@ -211,9 +184,9 @@ class TestTemporalKnowledgeTracker:
             fact_text="Current stock price is $100",
             source="market_data",
             confidence=0.95,
-            valid_for_days=1
+            valid_for_days=1,
         )
-        
+
         fact = temp_tracker.facts_by_id[fact_id]
         assert fact.valid_until is not None
         assert fact.valid_until > utc_now()
@@ -223,7 +196,7 @@ class TestTemporalKnowledgeTracker:
         temp_tracker.record_learning("Python", "Fact 1", "src1", 0.8)
         temp_tracker.record_learning("Python", "Fact 2", "src2", 0.9)
         temp_tracker.record_learning("Python", "Fact 3", "src3", 0.85)
-        
+
         # All facts should be recorded in the topic's evolution
         assert len(temp_tracker.knowledge_by_topic["Python"].facts) == 3
         # Note: facts_by_id may have fewer entries if recorded in same second
@@ -233,9 +206,9 @@ class TestTemporalKnowledgeTracker:
         """Test superseding an old fact with a new one."""
         old_id = temp_tracker.record_learning("Python", "Python 3.11 is latest", "src1", 0.9)
         new_id = temp_tracker.record_learning("Python", "Python 3.12 is latest", "src2", 0.95)
-        
+
         temp_tracker.supersede_fact(old_id, new_id)
-        
+
         old_fact = temp_tracker.facts_by_id[old_id]
         assert old_fact.superseded_by == new_id
         assert old_fact.is_current is False
@@ -244,7 +217,7 @@ class TestTemporalKnowledgeTracker:
     def test_get_stale_knowledge_none(self, temp_tracker):
         """Test get_stale_knowledge when all knowledge is fresh."""
         temp_tracker.record_learning("Python", "Fresh fact", "src1", 0.9)
-        
+
         stale = temp_tracker.get_stale_knowledge(max_age_days=90)
         assert len(stale) == 0
 
@@ -253,19 +226,12 @@ class TestTemporalKnowledgeTracker:
         # Manually add an old fact
         old_date = utc_now() - timedelta(days=100)
         fact = KnowledgeFact(
-            topic="Old Topic",
-            fact_text="Old fact",
-            learned_at=old_date,
-            source="old_src",
-            confidence=0.8
+            topic="Old Topic", fact_text="Old fact", learned_at=old_date, source="old_src", confidence=0.8
         )
-        temp_tracker.knowledge_by_topic["Old Topic"] = KnowledgeEvolution(
-            topic="Old Topic",
-            facts=[fact]
-        )
+        temp_tracker.knowledge_by_topic["Old Topic"] = KnowledgeEvolution(topic="Old Topic", facts=[fact])
         fact_id = temp_tracker._generate_fact_id("Old Topic", old_date)
         temp_tracker.facts_by_id[fact_id] = fact
-        
+
         stale = temp_tracker.get_stale_knowledge(max_age_days=90)
         assert "Old Topic" in stale
 
@@ -293,13 +259,10 @@ class TestTemporalKnowledgeTracker:
             learned_at=expired_date,
             source="src",
             confidence=0.8,
-            valid_until=utc_now() - timedelta(days=1)
+            valid_until=utc_now() - timedelta(days=1),
         )
-        temp_tracker.knowledge_by_topic["Expired"] = KnowledgeEvolution(
-            topic="Expired",
-            facts=[fact]
-        )
-        
+        temp_tracker.knowledge_by_topic["Expired"] = KnowledgeEvolution(topic="Expired", facts=[fact])
+
         assert temp_tracker.needs_refresh("Expired") is True
 
     def test_get_knowledge_timeline_empty(self, temp_tracker):
@@ -311,9 +274,9 @@ class TestTemporalKnowledgeTracker:
         """Test get_knowledge_timeline returns events."""
         temp_tracker.record_learning("Python", "Fact 1", "src1", 0.8)
         temp_tracker.record_learning("Python", "Fact 2", "src2", 0.9)
-        
+
         timeline = temp_tracker.get_knowledge_timeline("Python")
-        
+
         assert len(timeline) == 2
         assert "date" in timeline[0]
         assert "fact" in timeline[0]
@@ -324,7 +287,7 @@ class TestTemporalKnowledgeTracker:
     def test_get_statistics_empty(self, temp_tracker):
         """Test get_statistics with no knowledge."""
         stats = temp_tracker.get_statistics()
-        
+
         assert stats["total_topics"] == 0
         assert stats["total_facts"] == 0
         assert stats["current_facts"] == 0
@@ -335,9 +298,9 @@ class TestTemporalKnowledgeTracker:
         """Test get_statistics with knowledge."""
         temp_tracker.record_learning("Python", "Fact 1", "src1", 0.8)
         temp_tracker.record_learning("JavaScript", "JS Fact", "src3", 0.85)
-        
+
         stats = temp_tracker.get_statistics()
-        
+
         assert stats["total_topics"] == 2
         # Each topic has 1 fact
         assert stats["total_facts"] >= 2
@@ -355,10 +318,10 @@ class TestTemporalKnowledgeTrackerPersistence:
             tracker1 = TemporalKnowledgeTracker("Test Expert", tmpdir)
             tracker1.record_learning("Python", "Fact 1", "src1", 0.9)
             tracker1.record_learning("Python", "Fact 2", "src2", 0.85)
-            
+
             # Create new tracker (should load saved data)
             tracker2 = TemporalKnowledgeTracker("Test Expert", tmpdir)
-            
+
             assert len(tracker2.knowledge_by_topic) == 1
             assert "Python" in tracker2.knowledge_by_topic
             assert len(tracker2.knowledge_by_topic["Python"].facts) == 2
@@ -366,38 +329,38 @@ class TestTemporalKnowledgeTrackerPersistence:
     def test_save_with_superseded_facts(self):
         """Test saving and loading superseded facts."""
         import time
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker1 = TemporalKnowledgeTracker("Test Expert", tmpdir)
-            
+
             # Record first fact
             old_id = tracker1.record_learning("Python", "Old fact", "src1", 0.8)
-            
+
             # Wait to ensure different timestamp (IDs are timestamp-based)
             time.sleep(1.1)
-            
+
             # Record second fact
             new_id = tracker1.record_learning("Python", "New fact", "src2", 0.9)
-            
+
             # Verify IDs are different
             assert old_id != new_id, "IDs should be different with 1+ second gap"
-            
+
             # Supersede the old fact
             tracker1.supersede_fact(old_id, new_id)
-            
+
             # Verify supersede worked before save
             assert tracker1.facts_by_id[old_id].superseded_by == new_id
-            
+
             # Reload
             tracker2 = TemporalKnowledgeTracker("Test Expert", tmpdir)
-            
+
             # Find the old fact by text
             old_fact = None
             for fact in tracker2.knowledge_by_topic["Python"].facts:
                 if fact.fact_text == "Old fact":
                     old_fact = fact
                     break
-            
+
             assert old_fact is not None
             assert old_fact.superseded_by == new_id
 
@@ -408,9 +371,9 @@ class TestTemporalKnowledgeTrackerPersistence:
             tracker1.stale_topics.add("Stale Topic 1")
             tracker1.stale_topics.add("Stale Topic 2")
             tracker1._save()
-            
+
             tracker2 = TemporalKnowledgeTracker("Test Expert", tmpdir)
-            
+
             assert "Stale Topic 1" in tracker2.stale_topics
             assert "Stale Topic 2" in tracker2.stale_topics
 
@@ -421,10 +384,7 @@ class TestTemporalKnowledgeEdgeCases:
     def test_special_characters_in_expert_name(self):
         """Test handling special characters in expert name."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tracker = TemporalKnowledgeTracker(
-                expert_name="Test Expert @#$%",
-                base_path=tmpdir
-            )
+            tracker = TemporalKnowledgeTracker(expert_name="Test Expert @#$%", base_path=tmpdir)
             assert "test_expert" in str(tracker.expert_dir).lower()
 
     def test_special_characters_in_topic(self):
@@ -432,10 +392,7 @@ class TestTemporalKnowledgeEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = TemporalKnowledgeTracker("Test", tmpdir)
             fact_id = tracker.record_learning(
-                topic="C++ Programming @#$%",
-                fact_text="Test fact",
-                source="src",
-                confidence=0.8
+                topic="C++ Programming @#$%", fact_text="Test fact", source="src", confidence=0.8
             )
             assert fact_id is not None
             assert "C++ Programming @#$%" in tracker.knowledge_by_topic
@@ -445,10 +402,7 @@ class TestTemporalKnowledgeEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = TemporalKnowledgeTracker("Test", tmpdir)
             fact_id = tracker.record_learning(
-                topic="Uncertain",
-                fact_text="Uncertain fact",
-                source="src",
-                confidence=0.0
+                topic="Uncertain", fact_text="Uncertain fact", source="src", confidence=0.0
             )
             fact = tracker.facts_by_id[fact_id]
             assert fact.confidence == 0.0
@@ -457,12 +411,7 @@ class TestTemporalKnowledgeEdgeCases:
         """Test recording fact with full confidence."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = TemporalKnowledgeTracker("Test", tmpdir)
-            fact_id = tracker.record_learning(
-                topic="Certain",
-                fact_text="Certain fact",
-                source="src",
-                confidence=1.0
-            )
+            fact_id = tracker.record_learning(topic="Certain", fact_text="Certain fact", source="src", confidence=1.0)
             fact = tracker.facts_by_id[fact_id]
             assert fact.confidence == 1.0
 
@@ -471,9 +420,9 @@ class TestTemporalKnowledgeEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = TemporalKnowledgeTracker("Test", tmpdir)
             tracker.stale_topics.add("Python")
-            
+
             tracker.record_learning("Python", "New fact", "src", 0.9)
-            
+
             assert "Python" not in tracker.stale_topics
 
 
