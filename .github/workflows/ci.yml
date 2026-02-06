@@ -7,9 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff==0.9.2
+
+      - name: Lint
+        run: ruff check deepr/
+
+      - name: Format check
+        run: ruff format --check deepr/
+
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
 
@@ -25,16 +45,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
 
       - name: Install dependencies
         run: pip install -e ".[dev,full]"
-
-      - name: Lint
-        run: ruff check deepr/
-
-      - name: Format check
-        run: ruff format --check deepr/
 
       - name: Unit tests with coverage
         run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing --cov-fail-under=60
