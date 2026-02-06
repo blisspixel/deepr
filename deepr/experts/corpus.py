@@ -18,11 +18,14 @@ Corpus Structure:
 """
 
 import json
+import logging
 import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -130,8 +133,8 @@ async def export_corpus(
             worldview = Worldview.load(worldview_path)
             belief_count = len(worldview.beliefs)
             gap_count = len(worldview.knowledge_gaps)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to parse worldview from %s: %s", worldview_path, e)
 
     if worldview_md_path.exists():
         shutil.copy2(worldview_md_path, corpus_dir / "worldview.md")

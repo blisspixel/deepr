@@ -15,10 +15,13 @@ Usage:
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -223,8 +226,8 @@ class UnifiedConfig:
             self._apply_dict(data, source="file")
             self._source = str(config_path)
 
-        except Exception:
-            pass  # Silently ignore config file errors
+        except Exception as e:
+            logger.warning("Failed to load config from %s: %s", config_path, e)
 
     def _apply_env(self):
         """Apply environment variable overrides."""

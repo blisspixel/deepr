@@ -33,11 +33,14 @@ Requirements: 1.1 - Configuration Consolidation
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Enums for type-safe configuration values
@@ -508,8 +511,8 @@ class Settings:
             self._config_path = config_path
             self._source = str(config_path)
 
-        except Exception:
-            pass  # Silently ignore config file errors
+        except Exception as e:
+            logger.warning("Failed to load config from %s: %s", config_path, e)
 
     def _apply_environment(self) -> None:
         """Apply environment variable overrides."""

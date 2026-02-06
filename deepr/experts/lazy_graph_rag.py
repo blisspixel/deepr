@@ -26,6 +26,7 @@ Usage:
 """
 
 import json
+import logging
 import math
 import re
 from collections import defaultdict
@@ -42,6 +43,8 @@ def _utc_now() -> datetime:
 import hashlib
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class EdgeType(Enum):
@@ -1348,8 +1351,8 @@ class SubgraphCache:
 
             for hash_key, entry_data in data.get("entries", {}).items():
                 self.cache[hash_key] = CachedSubgraph.from_dict(entry_data)
-        except Exception:
-            # Corrupted cache - start fresh
+        except Exception as e:
+            logger.warning("Corrupted cache at %s, starting fresh: %s", self.storage_path, e)
             self.cache.clear()
 
 
