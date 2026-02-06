@@ -1,314 +1,247 @@
 ---
 name: deepr-research
 description: |
-  Deep research infrastructure for comprehensive analysis. Activate when users need:
-  - Async deep research (5-20 min comprehensive reports vs instant shallow search)
-  - Domain expert consultation with persistent knowledge and belief formation
-  - Multi-step agentic research workflows with Plan-Execute-Review cycles
-  - Cost-aware research decisions with budget tracking and elicitation
-
-  Keywords: research, deep research, investigate, analyze, domain expert,
-  comprehensive analysis, async research, expert consultation, multi-step research,
-  knowledge synthesis, autonomous learning
-version: 2.6.0
+  Deep research infrastructure for comprehensive analysis. Use when users need
+  to research a topic in depth, consult domain experts, preview research curricula,
+  run async investigations, compare options with citations, or manage research budgets.
+  Keywords: research, deep research, investigate, analyze, domain expert, expert plan,
+  comprehensive analysis, async research, expert consultation, knowledge synthesis,
+  autonomous learning, curriculum, fill gaps, cost estimate
 license: MIT
-authors:
-  - Nick Seal
-requires:
-  bins:
-    - python3
-  env:
-    - OPENAI_API_KEY
-  optional_env:
-    - XAI_API_KEY
-    - GEMINI_API_KEY
-    - AZURE_OPENAI_API_KEY
-    - BRAVE_API_KEY
-os:
-  - darwin
-  - linux
-  - win32
-python: ">=3.9"
-allowed-tools:
-  # Gateway and discovery
-  - deepr_tool_search
-  - deepr_status
-  # Research operations
-  - deepr_research
-  - deepr_check_status
-  - deepr_get_result
-  - deepr_cancel_job
-  - deepr_agentic_research
-  # Expert operations
-  - deepr_list_experts
-  - deepr_query_expert
-  - deepr_get_expert_info
-restricted-tools:
-  # Administrative operations require explicit elevation
-  - deepr_delete_expert
-  - deepr_reset_costs
-  - deepr_purge_jobs
-commands:
-  - research
-  - expert
-  - check
-  - costs
+compatibility: |
+  Requires python3 and OPENAI_API_KEY. Optional: XAI_API_KEY, GEMINI_API_KEY,
+  AZURE_OPENAI_API_KEY. Runs on macOS, Linux, Windows.
+allowed-tools: >-
+  deepr_tool_search deepr_status deepr_research deepr_check_status
+  deepr_get_result deepr_cancel_job deepr_agentic_research
+  deepr_list_experts deepr_query_expert deepr_get_expert_info
+argument-hint: "[research query or expert command]"
 metadata:
-  openclaw:
-    install:
-      - id: python-deps
-        kind: command
-        cmd: "pip install -e ."
-    requires:
-      bins:
-        - python3
+  version: "2.8.0"
+  author: Nick Seal
 ---
 
 # Deepr Research Skill
 
-You have access to Deepr, a research operating system that produces cited, comprehensive reports through async deep research, domain experts, and agentic workflows.
+You have access to Deepr — the same deep research APIs behind ChatGPT and Gemini, but callable as tools. It produces cited, comprehensive reports through async deep research, domain experts, and agentic workflows. Use it when you need accurate, current information with sources instead of relying on your training data.
 
-## Quick Reference: Research Mode Selection
+## When to Use Deepr
 
-```
-User Need                          -> Mode              -> Cost        -> Time
----------------------------------------------------------------------------
-Simple factual question            -> Web Search        -> FREE        -> <5 sec
-Current info, moderate analysis    -> Standard Research -> $0.001-0.01 -> 30-60 sec
-Comprehensive analysis, decisions  -> Deep Research     -> $0.10-0.50  -> 5-20 min
-Multi-step autonomous research     -> Agentic Research  -> $1-10       -> 15-60 min
-```
+**Use Deepr when:**
+- The user needs current information beyond your training cutoff
+- A question requires cited, comprehensive analysis — not a best guess
+- You're mid-task and need verified facts (latest API docs, compliance rules, pricing)
+- The user explicitly asks for research or to consult a domain expert
+- You need to compare options with evidence, not just opinions
 
-## Tool Discovery Pattern
+**Don't use Deepr when:**
+- You're confident in your answer and the user isn't asking for citations
+- The question is well-covered by your training data
+- The user just needs code written, not researched
+- Speed matters more than depth (Deepr takes 30 seconds to 20 minutes)
 
-Deepr uses dynamic tool discovery to minimize context. Start with `deepr_tool_search`:
+## Choosing a Mode
 
-```
-1. Need to perform an action? Search for the tool first.
-2. Call: deepr_tool_search(query="<describe what you need>")
-3. System returns relevant tool schemas on-demand.
-4. Use the returned tool with proper parameters.
-```
+| User Need | Mode | Cost | Time |
+|-----------|------|------|------|
+| Quick current info, moderate analysis | Standard | $0.001-0.01 | 30-60 sec |
+| Comprehensive analysis, critical decisions | Deep | $0.10-0.50 | 5-20 min |
+| Multi-step autonomous investigation | Agentic | $1-10 | 15-60 min |
+| Unsure of complexity | Auto | varies | varies |
 
-Examples:
-- "submit a research job" -> returns deepr_research
-- "check job status" -> returns deepr_check_status  
-- "query domain expert" -> returns deepr_query_expert
-
-## Core Workflows
-
-### 1. Async Research Workflow
-
-Deep research runs asynchronously. Use resource subscriptions for efficient monitoring:
+**When in doubt, use auto mode.** It analyzes query complexity and routes to the cheapest sufficient model — simple questions go to grok-4-fast ($0.01) instead of o3-deep-research ($0.50). This saves 10-20x on costs.
 
 ```
-Step 1: Classify the research need (see Quick Reference)
-Step 2: State estimated cost and time to user
-Step 3: Get confirmation for operations > $5
-Step 4: Submit job via deepr_research tool
-        -> Returns: job_id, resource_uri
-Step 5: Subscribe to resource URI for progress updates
-        -> deepr://campaigns/{job_id}/status
-Step 6: Receive push notifications as phases complete:
-        - PLANNING: Research plan created
-        - EXECUTING: Active research in progress
-        - SYNTHESIZING: Combining findings
-        - COMPLETE: Results ready
-Step 7: Retrieve results via deepr_get_result(job_id)
-Step 8: Present results with preserved citations
+Can I answer this confidently from training data?
+  YES → Just answer, skip Deepr
+  NO  → Does it need multi-step autonomous exploration?
+          YES → Agentic Research (confirm budget first)
+          NO  → Is comprehensive, multi-source analysis needed?
+                  YES → Deep Research
+                  NO  → Standard Research (or auto mode)
 ```
 
-Subscription vs Polling:
-- Subscriptions: ~150 tokens per update (preferred)
-- Polling: ~500 tokens per check (avoid)
-- Token savings: 70% with subscriptions
+See `references/research_modes.md` for model details and async workflow patterns.
 
-Plan-Execute-Review Visibility:
-- Inspect plan: `deepr://campaigns/{id}/plan`
-- Monitor beliefs: `deepr://campaigns/{id}/beliefs`
-- Track progress: `deepr://campaigns/{id}/status`
+## Core Pattern: Research-Augmented Work
 
-### 2. Expert Consultation Workflow
-
-Domain experts maintain persistent knowledge with belief formation and gap awareness.
+The most common use case: you're working on a task and hit something you're not sure about. Instead of guessing, research it.
 
 ```
-Step 1: Discover experts
-        -> Call deepr_list_experts()
-        -> Returns: name, domain, document_count, belief_count, gaps_count
+1. Recognize uncertainty
+   → You're about to make a claim or decision you're not confident about
 
-Step 2: Inspect expert before complex queries
-        -> Read resource: deepr://experts/{id}/profile
-        -> Check beliefs: deepr://experts/{id}/beliefs
-        -> Review gaps: deepr://experts/{id}/gaps
+2. Research it
+   → deepr_research(query="your question", mode="auto")
+   → Returns: job_id
 
-Step 3: Query the expert
-        -> Call deepr_query_expert(expert_name, question)
-        -> Expert answers from synthesized knowledge
-        -> Response includes confidence level and source citations
+3. Wait for results
+   → Subscribe to deepr://campaigns/{job_id}/status (preferred, 70% fewer tokens)
+   → Or poll with deepr_check_status(job_id)
 
-Step 4: Handle knowledge gaps
-        -> If expert indicates low confidence or gap
-        -> Suggest: "Would you like me to research this topic?"
-        -> Enable agentic mode: deepr_query_expert(..., agentic=true)
+4. Present cited answer
+   → deepr_get_result(job_id)
+   → Integrate findings into your response with citations preserved
+   → Clearly mark what came from research vs your own knowledge
 ```
 
-Expert Resources:
-| Resource | Content |
-|----------|---------|
-| `deepr://experts/{id}/profile` | Name, domain, creation date, stats |
-| `deepr://experts/{id}/beliefs` | Synthesized knowledge with confidence (0-1) |
-| `deepr://experts/{id}/gaps` | Known unknowns with priority ranking |
+## Working With Experts
 
-Expert Query Patterns:
-- Direct question: "What are the best practices for X?"
-- Belief check: "How confident are you about Y?"
-- Gap exploration: "What don't you know about Z?"
-- Comparative: "Compare A vs B from your knowledge"
+Domain experts are persistent knowledge entities that synthesize beliefs from documents, track what they don't know, and can research to fill their own gaps. They get smarter over time.
 
-When to Use Experts vs Fresh Research:
-- Use expert: Domain-specific questions within their knowledge
-- Use research: Current events, topics outside expert domain
-- Use agentic expert: Complex questions requiring new research
-
-### 3. Agentic Research Workflow
-
-Autonomous multi-step research with Plan-Execute-Review cycles.
+**Query an expert** when the question falls within their domain — it's faster and cheaper than fresh research:
 
 ```
-Step 1: Clarify goal with user
-        -> "What specific outcome do you need?"
-        -> "What decisions will this inform?"
-
-Step 2: Confirm budget
-        -> State estimated cost range ($1-10 typical)
-        -> Get explicit confirmation for agentic operations
-        -> Set budget limit: deepr_agentic_research(..., budget=5.0)
-
-Step 3: Submit autonomous campaign
-        -> Call deepr_agentic_research(goal, budget, sources)
-        -> Returns: campaign_id, resource_uri, initial_plan
-
-Step 4: Monitor via subscriptions
-        -> Subscribe to: deepr://campaigns/{id}/status
-        -> Receive phase notifications:
-           - PLANNING: "Creating research plan with 4 tasks"
-           - EXECUTING: "Completed 2/4 tasks, $1.20 spent"
-           - REVIEWING: "Analyzing findings, planning next phase"
-           - SYNTHESIZING: "Combining all findings"
-
-Step 5: Handle budget elicitation
-        -> If cost exceeds budget, system pauses
-        -> You receive elicitation request with options:
-           - APPROVE_OVERRIDE: "Continue, I approve $X more"
-           - OPTIMIZE_FOR_COST: "Switch to cheaper models"
-           - ABORT: "Cancel and return partial results"
-        -> Relay decision to user, submit response
-
-Step 6: Retrieve and present results
-        -> Call deepr_get_result(campaign_id)
-        -> Present synthesized report with all citations
-        -> Include: total cost, time, sources consulted
+deepr_list_experts()           → See what experts exist
+deepr_query_expert(name, question)  → Ask a question
+deepr_get_expert_info(name)    → Check profile, beliefs, gaps
 ```
 
-Agentic Mode Benefits:
-- Autonomous decomposition of complex goals
-- Multi-phase research with context chaining
-- Adaptive planning based on intermediate findings
-- Sandboxed execution (isolated context, clean results)
+**The expert-research chain** is Deepr's key differentiator. When an expert has low confidence or identifies a knowledge gap, suggest filling it:
 
-Sandboxed Execution:
-- Heavy research runs in isolated context
-- Intermediate reasoning and debug logs contained
-- Only final synthesized report returned
-- Prevents context dilution in main conversation
-
-Budget Elicitation Flow:
 ```
-System: "Research paused. Estimated cost $7.50 exceeds budget $5.00"
-Options:
-  1. APPROVE_OVERRIDE - Continue with $7.50
-  2. OPTIMIZE_FOR_COST - Switch to grok-4-fast (~$3.00)
-  3. ABORT - Cancel, return partial results
-
-You: [Present options to user, relay their choice]
+1. Query expert → expert responds with LOW confidence or identifies gap
+2. Tell the user: "The expert doesn't have current info on this.
+   Want me to research it? (~$0.15)"
+3. User confirms → deepr_research(query="the gap topic")
+4. Expert integrates the findings permanently
+5. Next time anyone asks, the expert knows
 ```
 
-## Cost Awareness
+This loop — query → gap → research → learn — is how experts improve. Actively suggest it when you see low confidence. Use `deepr_query_expert(..., agentic=true)` to let the expert trigger research autonomously (costs more, needs budget confirmation).
 
-ALWAYS state estimated cost before proceeding with research:
+**When to use experts vs fresh research:**
+- Expert has the domain knowledge → query the expert (fast, cheap)
+- Current events or topic outside their domain → fresh research
+- Expert shows low confidence → fill the gap, then re-query
 
-| Operation | Typical Cost | Confirmation Required |
-|-----------|-------------|----------------------|
-| Web search | FREE | No |
-| Standard research | $0.001-0.01 | No |
-| Deep research | $0.10-0.50 | If > $5 |
-| Agentic research | $1-10 | Always |
+See `references/expert_system.md` for confidence levels, belief formation, and best practices.
 
-When budget limits are exceeded, the system will pause and elicit user decision:
-- APPROVE_OVERRIDE: Continue with higher cost
-- OPTIMIZE_FOR_COST: Switch to cheaper models
-- ABORT: Cancel the operation
+## Cost Rules
 
-## Output Formatting
+1. **Always state the estimated cost** before research that costs more than $0.01
+2. **Get explicit confirmation** before any operation over $5
+3. **Always confirm** agentic research — it's $1-10+
+4. **Prefer auto mode** when the right depth is unclear
+5. **Mention cumulative cost** if you've run multiple research operations in one session
+6. When the system **pauses for budget**, relay the three options to the user:
+   - APPROVE_OVERRIDE — continue at higher cost
+   - OPTIMIZE_FOR_COST — switch to cheaper model
+   - ABORT — cancel, return partial results
 
-When presenting research results:
-1. Preserve ALL inline citations from source report
-2. Structure with clear sections and executive summary
-3. Distinguish Deepr findings from your own knowledge
-4. Include metadata: cost, time, sources count
+See `references/cost_guidance.md` for pricing tables, budget tiers, and optimization strategies.
 
-## Resource URIs
+## Presenting Results
 
-Monitor async operations via MCP resources:
+1. **Preserve all inline citations** — [1], [2] etc. are the whole point of using Deepr
+2. **Lead with the answer** — executive summary first, details after
+3. **Distinguish sources** — clearly mark what came from Deepr vs your own knowledge
+4. **Include metadata** — cost, time, number of sources consulted
+5. **Structure for scannability** — sections, bullets, tables where appropriate
 
-### Campaign Resources (live job tracking)
-- `deepr://campaigns/{id}/status` - Job state, progress, cost
-- `deepr://campaigns/{id}/plan` - Research plan (inspectable)
-- `deepr://campaigns/{id}/beliefs` - Accumulated findings with confidence
+## Tool Discovery
 
-### Report Artifacts (completed research)
-- `deepr://reports/{id}/final.md` - Full research report (markdown)
-- `deepr://reports/{id}/summary.json` - Report metadata (cost, model, sources)
+Deepr uses dynamic tool discovery to minimize context window usage. If you need a capability and don't see the right tool, search for it:
 
-### Log Artifacts (provenance/debugging)
-- `deepr://logs/{id}/search_trace.json` - Search queries and results for provenance
-- `deepr://logs/{id}/decisions.md` - Human-readable decision log
+```
+deepr_tool_search(query="what you need to do")
+→ Returns matching tool schemas on demand
+```
 
-### Expert Resources (persistent knowledge)
-- `deepr://experts/{id}/profile` - Expert metadata
-- `deepr://experts/{id}/beliefs` - Expert knowledge with confidence
-- `deepr://experts/{id}/gaps` - Known knowledge gaps
+## Conversation Examples
+
+### Mid-task research
+
+```
+User: Set up a VPC with private subnets for ECS Fargate
+
+You: I'll set up the VPC. Let me check the current AWS recommendations
+     for Fargate networking to make sure this follows best practices.
+
+     [calls deepr_research("AWS ECS Fargate VPC networking best practices 2026")]
+     [receives result in ~45 seconds]
+
+You: Based on current AWS documentation [1][2], here's the recommended setup:
+     - Use at least 2 AZs with private subnets for tasks...
+     [continues with cited infrastructure code]
+
+     Research cost: $0.005 · 8 sources
+```
+
+### Comprehensive analysis
+
+```
+User: Compare Kubernetes vs ECS for our microservices migration
+
+You: This needs comprehensive analysis across cost, complexity, ecosystem,
+     and team readiness. Deep research will take 10-20 minutes and cost
+     ~$0.30-0.50. Want me to proceed?
+
+User: Yes
+
+You: Starting deep research now. I'll let you know when results are ready.
+
+     [calls deepr_research(query="...", mode="deep")]
+     [subscribes to status updates]
+     [~14 minutes later, result is ready]
+
+You: Research complete ($0.35, 23 sources). Here's what I found:
+
+     ## Executive Summary
+     [structured findings with all citations preserved]
+     [clearly attributes everything to Deepr research, not own knowledge]
+```
+
+### Expert with gap filling
+
+```
+User: Ask the security expert about OWASP API Top 10 changes for 2026
+
+You: [calls deepr_list_experts() → finds "Security Analyst"]
+     [calls deepr_query_expert("Security Analyst", "OWASP API Top 10 2026 changes?")]
+
+You: The Security Analyst has medium confidence here and flagged a knowledge
+     gap around the 2026 updates specifically. Want me to research the latest
+     changes so the expert can learn them? (~$0.15)
+
+User: Sure
+
+You: [calls deepr_research("OWASP API Security Top 10 2026 changes and updates")]
+     [expert integrates findings]
+
+You: Here's what changed in the 2026 OWASP API Security Top 10: [1][2][3]
+     [presents findings with citations]
+
+     The Security Analyst now has this information for future queries.
+```
 
 ## Available Tools
 
 | Tool | Purpose | Cost |
 |------|---------|------|
-| `deepr_tool_search` | Dynamic tool discovery - search capabilities by query | Free |
-| `deepr_status` | Health check - version, uptime, active jobs, spending | Free |
-| `deepr_research` | Submit deep research job | $0.10-0.50 |
-| `deepr_check_status` | Check research job progress | Free |
-| `deepr_get_result` | Get completed research results | Free |
-| `deepr_cancel_job` | Cancel a running research job | Free |
-| `deepr_agentic_research` | Autonomous multi-step research | $1-10 |
+| `deepr_tool_search` | Search available capabilities by description | Free |
+| `deepr_status` | System health, active jobs, spending summary | Free |
+| `deepr_research` | Submit research job (standard, deep, or auto mode) | $0.001-0.50 |
+| `deepr_check_status` | Check job progress | Free |
+| `deepr_get_result` | Retrieve completed research results | Free |
+| `deepr_cancel_job` | Cancel a running job | Free |
+| `deepr_agentic_research` | Autonomous multi-step research campaign | $1-10 |
 | `deepr_list_experts` | List available domain experts | Free |
-| `deepr_query_expert` | Query a domain expert | Low |
-| `deepr_get_expert_info` | Get detailed expert information | Free |
+| `deepr_query_expert` | Query an expert (optionally with agentic research) | Low |
+| `deepr_get_expert_info` | Detailed expert profile and stats | Free |
 
 ## Error Handling
 
-All tools return structured errors with these fields:
-- `error_code`: Machine-readable code (e.g., `BUDGET_EXCEEDED`, `JOB_NOT_FOUND`)
-- `message`: Human-readable description
-- `retry_hint`: Suggestion for how to retry (optional)
-- `fallback_suggestion`: Alternative approach (optional)
+Tools return structured errors with `error_code`, `message`, and optional `retry_hint` / `fallback_suggestion`.
 
-| Error Code | Action |
-|------------|--------|
-| `BUDGET_EXCEEDED` | Explain limit, offer alternatives, suggest waiting for daily reset |
-| `JOB_NOT_FOUND` | Verify job_id, suggest listing jobs |
-| `EXPERT_NOT_FOUND` | List available experts with `deepr_list_experts` |
-| `PROVIDER_NOT_CONFIGURED` | Direct user to setup instructions |
-| `BUDGET_INSUFFICIENT` | Suggest increasing budget parameter |
+| Error | What to Do |
+|-------|------------|
+| `BUDGET_EXCEEDED` | Tell user the limit was hit, offer alternatives or suggest daily reset |
+| `JOB_NOT_FOUND` | Double-check the job_id |
+| `EXPERT_NOT_FOUND` | Run `deepr_list_experts` and suggest available experts |
+| `PROVIDER_NOT_CONFIGURED` | Tell user which API key is needed |
+| `BUDGET_INSUFFICIENT` | Suggest increasing the budget parameter |
 
-See `references/` for detailed documentation on each topic.
+See `references/` for detailed documentation on [MCP patterns](references/mcp_patterns.md), [cost guidance](references/cost_guidance.md), [research modes](references/research_modes.md), [expert system](references/expert_system.md), and [troubleshooting](references/troubleshooting.md).
+
+The `scripts/` directory contains Python modules for Deepr's MCP server (result formatting, query classification) — reference implementations, not used by the skill directly.
