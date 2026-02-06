@@ -5,7 +5,6 @@ from unittest.mock import patch, MagicMock
 from tests.unit.test_services.conftest import make_chat_response
 
 
-@pytest.mark.asyncio
 class TestContextBuilder:
     """Test ContextBuilder context generation."""
 
@@ -34,12 +33,14 @@ class TestContextBuilder:
             call_kwargs = mock_cls.call_args
             assert call_kwargs[1]["api_key"] == "sk-test-key-not-real"
 
+    @pytest.mark.asyncio
     async def test_summarize_calls_llm(self, builder, mock_client):
         """summarize_research calls chat.completions.create."""
         mock_client.chat.completions.create.return_value = make_chat_response("- Key finding 1")
         await builder.summarize_research("Full report text here")
         mock_client.chat.completions.create.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_summarize_truncates_input(self, builder, mock_client):
         """Report content is truncated to first 20000 chars."""
         mock_client.chat.completions.create.return_value = make_chat_response("Summary")
@@ -51,12 +52,14 @@ class TestContextBuilder:
         assert "x" * 20000 in prompt
         assert "x" * 30000 not in prompt
 
+    @pytest.mark.asyncio
     async def test_summarize_returns_stripped_string(self, builder, mock_client):
         """Return value is a stripped string."""
         mock_client.chat.completions.create.return_value = make_chat_response("  Summary text  ")
         result = await builder.summarize_research("report")
         assert result == "Summary text"
 
+    @pytest.mark.asyncio
     async def test_summarize_respects_max_tokens(self, builder, mock_client):
         """max_tokens parameter affects prompt target words."""
         mock_client.chat.completions.create.return_value = make_chat_response("Summary")
@@ -64,18 +67,21 @@ class TestContextBuilder:
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         assert call_kwargs["max_completion_tokens"] == 300  # 200 + 100 buffer
 
+    @pytest.mark.asyncio
     async def test_build_phase_context_no_deps(self, builder):
         """Empty depends_on returns empty string."""
         task = {"prompt": "Do something", "depends_on": []}
         result = await builder.build_phase_context(task, {})
         assert result == ""
 
+    @pytest.mark.asyncio
     async def test_build_phase_context_no_depends_key(self, builder):
         """Missing depends_on key returns empty string."""
         task = {"prompt": "Do something"}
         result = await builder.build_phase_context(task, {})
         assert result == ""
 
+    @pytest.mark.asyncio
     async def test_build_phase_context_single_dep(self, builder, mock_client):
         """Single dependency is summarized and included."""
         mock_client.chat.completions.create.return_value = make_chat_response("Dep summary")
@@ -85,6 +91,7 @@ class TestContextBuilder:
         assert "Background" in result
         assert "Dep summary" in result
 
+    @pytest.mark.asyncio
     async def test_build_phase_context_missing_dep_skipped(self, builder, mock_client):
         """Dependency not in completed_tasks is skipped."""
         mock_client.chat.completions.create.return_value = make_chat_response("Summary")
@@ -94,6 +101,7 @@ class TestContextBuilder:
         assert "First" in result
         # Should not crash on missing dep 99
 
+    @pytest.mark.asyncio
     async def test_build_phase_context_empty_result_skipped(self, builder, mock_client):
         """Dependency with empty result is skipped."""
         task = {"prompt": "Analyze", "depends_on": [1]}
@@ -102,6 +110,7 @@ class TestContextBuilder:
         # summarize_research should NOT be called for empty result
         mock_client.chat.completions.create.assert_not_called()
 
+    @pytest.mark.asyncio
     async def test_build_synthesis_context_all_tasks(self, builder, mock_client):
         """All tasks are summarized in order."""
         mock_client.chat.completions.create.return_value = make_chat_response("Task summary")
@@ -114,12 +123,14 @@ class TestContextBuilder:
         assert "Research 2: Second" in result
         assert mock_client.chat.completions.create.call_count == 2
 
+    @pytest.mark.asyncio
     async def test_build_synthesis_context_empty_tasks(self, builder, mock_client):
         """No tasks with results returns minimal context."""
         result = await builder.build_synthesis_context({})
         assert "comprehensive synthesis" in result
         mock_client.chat.completions.create.assert_not_called()
 
+    @pytest.mark.asyncio
     async def test_build_synthesis_context_skips_empty(self, builder, mock_client):
         """Tasks with empty results are skipped."""
         mock_client.chat.completions.create.return_value = make_chat_response("Summary")
