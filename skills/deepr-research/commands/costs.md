@@ -80,16 +80,7 @@ Deepr implements multiple budget safety layers:
 
 ## Budget Elicitation
 
-When a job exceeds its budget, you receive an elicitation request:
-
-```
-Research paused: Estimated $7.50 exceeds budget $5.00
-
-Options:
-1. APPROVE_OVERRIDE - Continue with higher cost
-2. OPTIMIZE_FOR_COST - Switch to faster/cheaper model
-3. ABORT - Cancel and return partial results
-```
+When a job exceeds its budget, you receive an elicitation request with options: APPROVE_OVERRIDE, OPTIMIZE_FOR_COST, or ABORT. See `references/cost_guidance.md` for full details.
 
 ## Export Formats
 

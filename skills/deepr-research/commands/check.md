@@ -65,18 +65,7 @@ Sources: 12 consulted
 
 ## Resource Subscriptions
 
-For efficient monitoring, use resource subscriptions instead of polling:
-
-| Resource URI | Content |
-|-------------|---------|
-| `deepr://campaigns/{id}/status` | Phase, progress, cost |
-| `deepr://campaigns/{id}/plan` | Research plan details |
-| `deepr://campaigns/{id}/beliefs` | Accumulated findings |
-
-Token efficiency:
-- Polling: ~500 tokens per check
-- Subscription: ~150 tokens per update
-- Savings: 70%
+For efficient monitoring, use resource subscriptions instead of polling (70% token savings). See `references/mcp_patterns.md` for resource URIs and details.
 
 ## Actions
 
