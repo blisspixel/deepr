@@ -18,10 +18,9 @@ from deepr.providers import OpenAIProvider
 from deepr.providers.base import ResearchRequest, ToolConfig, ProviderError
 
 
-@pytest.mark.asyncio
 class TestOpenAIProvider:
     """Test OpenAI provider.
-    
+
     **Validates: Requirements 5.1**
     """
 
@@ -66,10 +65,9 @@ class TestOpenAIProvider:
 # Request Construction Tests
 # =============================================================================
 
-@pytest.mark.asyncio
 class TestRequestConstruction:
     """Test request payload construction.
-    
+
     **Validates: Requirements 5.1**
     """
 
@@ -260,10 +258,9 @@ class TestRequestConstruction:
 # Response Parsing Tests
 # =============================================================================
 
-@pytest.mark.asyncio
 class TestResponseParsing:
     """Test response parsing from OpenAI API.
-    
+
     **Validates: Requirements 5.1**
     """
 
@@ -438,10 +435,9 @@ class TestResponseParsing:
 # Error Handling Tests
 # =============================================================================
 
-@pytest.mark.asyncio
 class TestErrorHandling:
     """Test error handling and retry logic.
-    
+
     **Validates: Requirements 5.1**
     """
 
@@ -602,10 +598,9 @@ class TestErrorHandling:
 # Document and Vector Store Tests
 # =============================================================================
 
-@pytest.mark.asyncio
 class TestDocumentOperations:
     """Test document upload and vector store operations.
-    
+
     **Validates: Requirements 5.1**
     """
 
@@ -767,7 +762,6 @@ class TestDocumentOperations:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
 )

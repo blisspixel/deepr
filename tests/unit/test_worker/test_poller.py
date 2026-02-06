@@ -5,7 +5,6 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timezone, timedelta
 
 
-@pytest.mark.asyncio
 class TestJobPoller:
     """Test JobPoller polling and job management."""
 
@@ -45,18 +44,21 @@ class TestJobPoller:
         """Poller starts not running."""
         assert poller.running is False
 
+    @pytest.mark.asyncio
     async def test_stop_sets_running_false(self, poller):
         """stop() sets running to False."""
         poller.running = True
         await poller.stop()
         assert poller.running is False
 
+    @pytest.mark.asyncio
     async def test_poll_cycle_no_jobs(self, poller):
         """No active jobs returns quietly."""
         poller.queue.list_jobs.return_value = []
         await poller._poll_cycle()
         poller.queue.list_jobs.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_poll_cycle_with_jobs(self, poller):
         """Active jobs trigger _check_job_status calls."""
         mock_job = MagicMock()
@@ -71,6 +73,7 @@ class TestJobPoller:
         await poller._poll_cycle()
         poller.provider.get_status.assert_called_once_with("pj-1")
 
+    @pytest.mark.asyncio
     async def test_check_job_skips_missing_provider_id(self, poller):
         """Jobs without provider_job_id are skipped."""
         mock_job = MagicMock()
@@ -79,6 +82,7 @@ class TestJobPoller:
         await poller._check_job_status(mock_job)
         poller.provider.get_status.assert_not_called()
 
+    @pytest.mark.asyncio
     async def test_check_job_completed(self, poller):
         """Completed job triggers _handle_completion."""
         mock_job = MagicMock()
@@ -97,6 +101,7 @@ class TestJobPoller:
         poller.storage.save_report.assert_called_once()
         poller.queue.update_status.assert_called()
 
+    @pytest.mark.asyncio
     async def test_check_job_failed(self, poller):
         """Failed job triggers _handle_failure."""
         mock_job = MagicMock()
@@ -113,6 +118,7 @@ class TestJobPoller:
         call_kwargs = poller.queue.update_status.call_args[1]
         assert "Rate limit" in call_kwargs["error"]
 
+    @pytest.mark.asyncio
     async def test_check_job_in_progress_no_action(self, poller):
         """In-progress job does not update queue."""
         mock_job = MagicMock()
@@ -126,6 +132,7 @@ class TestJobPoller:
         await poller._check_job_status(mock_job)
         poller.queue.update_status.assert_not_called()
 
+    @pytest.mark.asyncio
     async def test_stuck_job_detection(self, poller):
         """Jobs queued >10 minutes are auto-cancelled."""
         mock_job = MagicMock()
@@ -141,6 +148,7 @@ class TestJobPoller:
         poller.provider.cancel_job.assert_called_once_with("pj-stuck")
         poller.queue.update_status.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_handle_completion_saves_and_updates(self, poller):
         """_handle_completion saves report and updates queue."""
         mock_job = MagicMock()
@@ -157,6 +165,7 @@ class TestJobPoller:
         poller.storage.save_report.assert_called_once()
         poller.queue.update_results.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_handle_failure_updates_queue(self, poller):
         """_handle_failure updates queue status to FAILED."""
         mock_job = MagicMock()
@@ -167,6 +176,7 @@ class TestJobPoller:
         call_kwargs = poller.queue.update_status.call_args[1]
         assert call_kwargs["error"] == "Test error"
 
+    @pytest.mark.asyncio
     async def test_completion_error_becomes_failure(self, poller):
         """Error during completion handling triggers failure path."""
         mock_job = MagicMock()
