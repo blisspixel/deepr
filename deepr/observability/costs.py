@@ -797,12 +797,16 @@ class CostDashboard:
         # Atomic write: write to temp file, then rename
         temp_path = self.storage_path.with_suffix(".tmp")
         try:
+            # Skip save if parent directory no longer exists (e.g. temp dir cleaned up)
+            if not self.storage_path.parent.exists():
+                logger.debug("Cost data directory no longer exists, skipping save")
+                return
             with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             # Atomic rename (on POSIX systems; best-effort on Windows)
             os.replace(temp_path, self.storage_path)
         except OSError as e:
-            logger.error(f"Failed to save cost data: {e}")
+            logger.debug(f"Failed to save cost data: {e}")
             # Clean up temp file if it exists
             if temp_path.exists():
                 try:
@@ -1016,7 +1020,7 @@ class BufferedCostDashboard(CostDashboard):
                 return True
             except Exception as e:
                 # Keep entries in buffer for retry on next flush
-                logger.error(f"Failed to flush cost entries: {e}")
+                logger.debug(f"Failed to flush cost entries: {e}")
                 return False
 
     def _time_since_flush(self) -> float:
@@ -1038,7 +1042,7 @@ class BufferedCostDashboard(CostDashboard):
                 logger.info(f"Flushing {len(self._buffer)} cost entries on shutdown")
                 self.flush()
         except Exception as e:
-            logger.error(f"Failed to flush cost entries on shutdown: {e}")
+            logger.debug(f"Failed to flush cost entries on shutdown: {e}")
 
     @property
     def buffer_count(self) -> int:
