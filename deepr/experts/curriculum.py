@@ -1159,7 +1159,7 @@ Generate the curriculum now:"""
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse curriculum JSON: {e}\n{json_str}")
+            raise ValueError(f"Failed to parse curriculum JSON: {e}\n{json_str}") from e
 
         # Create LearningTopic objects
         topics = []
