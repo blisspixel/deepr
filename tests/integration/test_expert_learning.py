@@ -10,10 +10,11 @@ Verifies end-to-end integration of:
 Requirements: 7.2 - Integration test for expert learning
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock
+
+import pytest
 
 from deepr.experts.profile import ExpertProfile
 
@@ -30,20 +31,22 @@ class TestExpertLearningIntegration:
             domain="artificial_intelligence",
             description="Test AI expert",
             monthly_learning_budget=50.0,
-            refresh_frequency_days=7
+            refresh_frequency_days=7,
         )
 
     @pytest.fixture
     def mock_curriculum_generator(self):
         """Create a mock curriculum generator."""
         generator = MagicMock()
-        generator.generate_curriculum = MagicMock(return_value={
-            "topics": [
-                {"name": "Topic 1", "priority": "high", "estimated_cost": 0.50},
-                {"name": "Topic 2", "priority": "medium", "estimated_cost": 0.30},
-            ],
-            "total_estimated_cost": 0.80
-        })
+        generator.generate_curriculum = MagicMock(
+            return_value={
+                "topics": [
+                    {"name": "Topic 1", "priority": "high", "estimated_cost": 0.50},
+                    {"name": "Topic 2", "priority": "medium", "estimated_cost": 0.30},
+                ],
+                "total_estimated_cost": 0.80,
+            }
+        )
         return generator
 
     @pytest.mark.integration
@@ -54,7 +57,7 @@ class TestExpertLearningIntegration:
             vector_store_id=f"vs-{uuid.uuid4().hex[:8]}",
             domain="machine_learning",
             description="ML specialist",
-            monthly_learning_budget=100.0
+            monthly_learning_budget=100.0,
         )
 
         assert expert.name == "new-expert"
@@ -82,7 +85,7 @@ class TestExpertLearningIntegration:
     @pytest.mark.integration
     def test_expert_monthly_reset(self, expert_profile):
         """Test monthly budget reset mechanism.
-        
+
         The BudgetManager tracks a reset_date for the next reset.
         When check_and_reset_if_needed is called and the reset_date has passed,
         the monthly spending is reset to 0.
@@ -90,29 +93,29 @@ class TestExpertLearningIntegration:
         # Record some spending
         expert_profile.record_learning_spend(10.0, "test_operation")
         assert expert_profile.monthly_spending == 10.0
-        
+
         # Get the current reset date
         original_reset_date = expert_profile.budget_manager.reset_date
-        
+
         # Verify reset date is in the future (next month)
         assert original_reset_date > datetime.utcnow()
-        
+
         # Total spending should be tracked
         assert expert_profile.budget_manager.total_spending == 10.0
-        
+
         # Simulate time passing beyond reset date by setting reset_date to past
         # and then calling check_and_reset_if_needed directly
         past_date = datetime.utcnow() - timedelta(days=1)
         expert_profile.budget_manager.reset_date = past_date
-        
+
         # Trigger reset check
         was_reset = expert_profile.budget_manager.check_and_reset_if_needed()
-        
+
         # Verify reset occurred
         assert was_reset is True
         assert expert_profile.budget_manager.monthly_spending == 0.0
         assert expert_profile.budget_manager.total_spending == 10.0
-        
+
         # Verify new reset date is in the future
         assert expert_profile.budget_manager.reset_date > datetime.utcnow()
 
@@ -172,7 +175,7 @@ class TestExpertLearningIntegration:
     @pytest.mark.integration
     def test_expert_budget_limit_enforcement(self, expert_profile):
         """Test that budget limits are enforced.
-        
+
         The budget manager checks if spending would exceed the monthly budget.
         """
         # Set a low budget
@@ -183,23 +186,18 @@ class TestExpertLearningIntegration:
 
         # Check if can spend more - should be False since we're at limit
         can_spend, reason = expert_profile.can_spend_learning_budget(1.0)
-        
+
         # Verify the reason mentions budget
         assert "budget" in reason.lower() or can_spend is False
-        
+
         # Verify we're at the limit
         assert expert_profile.monthly_spending >= expert_profile.budget_manager._monthly_budget
 
     @pytest.mark.integration
-    def test_expert_learning_with_curriculum(
-        self, expert_profile, mock_curriculum_generator
-    ):
+    def test_expert_learning_with_curriculum(self, expert_profile, mock_curriculum_generator):
         """Test expert learning with curriculum generation."""
         # Generate curriculum
-        curriculum = mock_curriculum_generator.generate_curriculum(
-            expert=expert_profile,
-            max_topics=5
-        )
+        curriculum = mock_curriculum_generator.generate_curriculum(expert=expert_profile, max_topics=5)
 
         assert "topics" in curriculum
         assert len(curriculum["topics"]) > 0
@@ -222,7 +220,7 @@ class TestExpertLearningEdgeCases:
             vector_store_id=f"vs-{uuid.uuid4().hex[:8]}",
             domain="test",
             description="Test expert",
-            monthly_learning_budget=0.0
+            monthly_learning_budget=0.0,
         )
 
         can_spend, reason = expert.can_spend_learning_budget(0.01)
@@ -231,7 +229,7 @@ class TestExpertLearningEdgeCases:
     @pytest.mark.integration
     def test_expert_with_negative_spending_rejected(self):
         """Test that negative spending behavior is documented.
-        
+
         Note: The current implementation does not validate negative spending.
         This test documents the current behavior. A future enhancement could
         add validation to reject negative amounts.
@@ -241,15 +239,15 @@ class TestExpertLearningEdgeCases:
             vector_store_id=f"vs-{uuid.uuid4().hex[:8]}",
             domain="test",
             description="Test",
-            monthly_learning_budget=100.0
+            monthly_learning_budget=100.0,
         )
 
         initial_spent = expert.monthly_spending
-        
+
         # Record positive spending first
         expert.record_learning_spend(10.0, "test_operation")
         assert expert.monthly_spending == 10.0
-        
+
         # Verify spending accumulates correctly with positive values
         expert.record_learning_spend(5.0, "another_operation")
         assert expert.monthly_spending == 15.0
@@ -265,7 +263,7 @@ class TestExpertLearningEdgeCases:
             description="AI expert",
             monthly_learning_budget=100.0,
             refresh_frequency_days=7,
-            domain_velocity="fast"
+            domain_velocity="fast",
         )
 
         # Low velocity domain
@@ -276,7 +274,7 @@ class TestExpertLearningEdgeCases:
             description="History expert",
             monthly_learning_budget=100.0,
             refresh_frequency_days=30,
-            domain_velocity="slow"
+            domain_velocity="slow",
         )
 
         # AI expert should have shorter refresh interval
@@ -290,7 +288,7 @@ class TestExpertLearningEdgeCases:
             vector_store_id=f"vs-{uuid.uuid4().hex[:8]}",
             domain="test",
             description="Test",
-            monthly_learning_budget=100.0
+            monthly_learning_budget=100.0,
         )
 
         # Record multiple spending events
@@ -310,7 +308,7 @@ class TestExpertLearningEdgeCases:
             vector_store_id=f"vs-{uuid.uuid4().hex[:8]}",
             domain="test",
             description="Test",
-            monthly_learning_budget=100.0
+            monthly_learning_budget=100.0,
         )
 
         # Record a learning spend (simulates refresh)
@@ -333,7 +331,7 @@ class TestExpertLearningConcurrency:
             vector_store_id=f"vs-{uuid.uuid4().hex[:8]}",
             domain="test",
             description="Test",
-            monthly_learning_budget=100.0
+            monthly_learning_budget=100.0,
         )
 
         # Perform multiple operations

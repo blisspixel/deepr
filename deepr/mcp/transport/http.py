@@ -13,9 +13,10 @@ Use Cases:
 
 import asyncio
 import json
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Callable, Optional
 
 import aiohttp
 from aiohttp import web

@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +36,13 @@ class UserProfile:
     total_interactions: int = 0
 
     # Interests and expertise
-    topics_asked_about: Dict[str, int] = field(default_factory=dict)  # topic -> count
-    expertise_signals: Dict[str, str] = field(default_factory=dict)  # topic -> level (beginner/intermediate/expert)
+    topics_asked_about: dict[str, int] = field(default_factory=dict)  # topic -> count
+    expertise_signals: dict[str, str] = field(default_factory=dict)  # topic -> level (beginner/intermediate/expert)
 
     # Context
-    tech_stack: List[str] = field(default_factory=list)
-    current_projects: List[str] = field(default_factory=list)
-    goals: List[str] = field(default_factory=list)
+    tech_stack: list[str] = field(default_factory=list)
+    current_projects: list[str] = field(default_factory=list)
+    goals: list[str] = field(default_factory=list)
 
     # Learning patterns
     preferred_detail_level: str = "balanced"  # concise, balanced, comprehensive
@@ -50,7 +50,7 @@ class UserProfile:
     prefers_comparisons: bool = False
 
     # Interaction history
-    recent_interactions: List[UserInteraction] = field(default_factory=list)
+    recent_interactions: list[UserInteraction] = field(default_factory=list)
     total_cost: float = 0.0
 
     # Metadata
@@ -70,7 +70,7 @@ class UserProfileTracker:
         """Get path to user profile file."""
         return self.base_path / f"{user_id}.json"
 
-    def _serialize_interaction(self, interaction: UserInteraction) -> Dict:
+    def _serialize_interaction(self, interaction: UserInteraction) -> dict:
         """Serialize interaction to dict."""
         return {
             "timestamp": interaction.timestamp.isoformat(),
@@ -81,7 +81,7 @@ class UserProfileTracker:
             "cost": interaction.cost,
         }
 
-    def _deserialize_interaction(self, data: Dict) -> UserInteraction:
+    def _deserialize_interaction(self, data: dict) -> UserInteraction:
         """Deserialize interaction from dict."""
         return UserInteraction(
             timestamp=datetime.fromisoformat(data["timestamp"]),
@@ -106,7 +106,7 @@ class UserProfileTracker:
 
         if profile_path.exists():
             try:
-                with open(profile_path, "r", encoding="utf-8") as f:
+                with open(profile_path, encoding="utf-8") as f:
                     data = json.load(f)
 
                 profile = UserProfile(
@@ -299,9 +299,9 @@ class UserProfileTracker:
 
     def update_context(
         self,
-        tech_stack: Optional[List[str]] = None,
-        projects: Optional[List[str]] = None,
-        goals: Optional[List[str]] = None,
+        tech_stack: Optional[list[str]] = None,
+        projects: Optional[list[str]] = None,
+        goals: Optional[list[str]] = None,
     ):
         """Update user context information.
 
@@ -322,7 +322,7 @@ class UserProfileTracker:
 
         self.save()
 
-    def get_top_interests(self, limit: int = 5) -> List[tuple]:
+    def get_top_interests(self, limit: int = 5) -> list[tuple]:
         """Get user's top interests by frequency.
 
         Args:

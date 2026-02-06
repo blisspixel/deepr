@@ -1,9 +1,9 @@
 """Test dual provider configuration (deep research vs general)."""
 
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def test_default_configuration():
@@ -16,7 +16,9 @@ def test_default_configuration():
     assert config.default_provider == "xai", "Default provider should be xai"
     assert config.default_model == "grok-4-fast", "Default model should be grok-4-fast"
     assert config.deep_research_provider == "openai", "Deep research provider should be openai"
-    assert config.deep_research_model == "o3-deep-research", "Deep research model should be o3-deep-research (BEST model)"
+    assert config.deep_research_model == "o3-deep-research", (
+        "Deep research model should be o3-deep-research (BEST model)"
+    )
 
     print("[OK] Default configuration verified:")
     print(f"  General operations: {config.default_provider} / {config.default_model}")
@@ -26,6 +28,7 @@ def test_default_configuration():
 def test_environment_override():
     """Test that environment variables can override defaults."""
     import os
+
     from deepr.config import ProviderConfig
 
     # Set environment variables
@@ -68,12 +71,12 @@ def test_cost_comparison():
     xai_output_cost = (10_000_000 / 1_000_000) * 0.50
     xai_total = xai_input_cost + xai_output_cost
 
-    print(f"GPT-5 (OpenAI):")
+    print("GPT-5 (OpenAI):")
     print(f"  Input:  10M tokens × $3.00  = ${gpt5_input_cost:.2f}")
     print(f"  Output: 10M tokens × $15.00 = ${gpt5_output_cost:.2f}")
     print(f"  Total: ${gpt5_total:.2f}\n")
 
-    print(f"xAI 4 Fast (xAI):")
+    print("xAI 4 Fast (xAI):")
     print(f"  Input:  10M tokens × $0.20  = ${xai_input_cost:.2f}")
     print(f"  Output: 10M tokens × $0.50  = ${xai_output_cost:.2f}")
     print(f"  Total: ${xai_total:.2f}\n")
@@ -131,11 +134,13 @@ def run_all_tests():
     except AssertionError as e:
         print(f"\n[FAIL] {e}")
         import traceback
+
         traceback.print_exc()
         return 1
     except Exception as e:
         print(f"\n[ERROR] {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

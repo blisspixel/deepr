@@ -12,4 +12,4 @@ from .core.settings import Settings, get_settings
 from .providers import create_provider
 from .storage import create_storage
 
-__all__ = ["AppConfig", "Settings", "get_settings", "create_provider", "create_storage"]
+__all__ = ["AppConfig", "Settings", "create_provider", "create_storage", "get_settings"]

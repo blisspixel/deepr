@@ -1,8 +1,9 @@
 """Tests for cost dashboard CLI commands (ROADMAP 4.3)."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
+
+import pytest
 from click.testing import CliRunner
 
 
@@ -10,8 +11,9 @@ def utc_now():
     """Return current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
 
+
 from deepr.cli.main import cli
-from deepr.observability.costs import CostEntry, CostDashboard, CostAggregator
+from deepr.observability.costs import CostAggregator, CostDashboard, CostEntry
 
 
 @pytest.fixture
@@ -27,13 +29,15 @@ def _make_entries(days=7, base_cost=1.0, anomaly_day=None):
         cost = base_cost
         if anomaly_day is not None and i == anomaly_day:
             cost = base_cost * 5  # >2x average
-        entries.append(CostEntry(
-            operation="research",
-            provider="openai",
-            cost=cost,
-            model="gpt-5.2",
-            timestamp=now - timedelta(days=days - 1 - i),
-        ))
+        entries.append(
+            CostEntry(
+                operation="research",
+                provider="openai",
+                cost=cost,
+                model="gpt-5.2",
+                timestamp=now - timedelta(days=days - 1 - i),
+            )
+        )
     return entries
 
 
@@ -55,12 +59,14 @@ def _make_dashboard_mock(entries=None, days=7, base_cost=1.0, anomaly_day=None):
         for i in range(num_days):
             target_date = today - timedelta(days=i)
             total = sum(e.cost for e in entries if e.date == target_date)
-            history.append({
-                "date": target_date.isoformat(),
-                "total": total,
-                "limit": 10.0,
-                "utilization": total / 10.0,
-            })
+            history.append(
+                {
+                    "date": target_date.isoformat(),
+                    "total": total,
+                    "limit": 10.0,
+                    "utilization": total / 10.0,
+                }
+            )
         return list(reversed(history))
 
     dashboard.get_daily_history = get_daily_history
@@ -111,14 +117,12 @@ class TestBreakdownPeriod:
         """Create dashboard with entries spanning multiple periods."""
         now = utc_now()
         entries = [
-            CostEntry(operation="research", provider="openai", cost=1.0,
-                      timestamp=now),  # today
-            CostEntry(operation="chat", provider="xai", cost=2.0,
-                      timestamp=now - timedelta(days=3)),  # this week
-            CostEntry(operation="research", provider="gemini", cost=5.0,
-                      timestamp=now - timedelta(days=15)),  # this month
-            CostEntry(operation="research", provider="openai", cost=10.0,
-                      timestamp=now - timedelta(days=60)),  # older
+            CostEntry(operation="research", provider="openai", cost=1.0, timestamp=now),  # today
+            CostEntry(operation="chat", provider="xai", cost=2.0, timestamp=now - timedelta(days=3)),  # this week
+            CostEntry(
+                operation="research", provider="gemini", cost=5.0, timestamp=now - timedelta(days=15)
+            ),  # this month
+            CostEntry(operation="research", provider="openai", cost=10.0, timestamp=now - timedelta(days=60)),  # older
         ]
         mock_dash = MagicMock(spec=CostDashboard)
         real_aggregator = CostAggregator(entries)
@@ -185,8 +189,10 @@ class TestExpertCosts:
         mock_dash = MagicMock(spec=CostDashboard)
         mock_dash.aggregator = CostAggregator([])
 
-        with patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash), \
-             patch("deepr.experts.profile.ExpertStore", mock_store_cls):
+        with (
+            patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
+            patch("deepr.experts.profile.ExpertStore", mock_store_cls),
+        ):
             result = runner.invoke(cli, ["costs", "expert", "Climate Expert"])
 
         assert result.exit_code == 0
@@ -213,18 +219,23 @@ class TestExpertCosts:
 
         now = utc_now()
         entries = [
-            CostEntry(operation="research", provider="openai", cost=5.0,
-                      timestamp=now, metadata={"expert": "Climate Expert"}),
-            CostEntry(operation="chat", provider="openai", cost=2.0,
-                      timestamp=now, metadata={"expert": "Climate Expert"}),
-            CostEntry(operation="research", provider="xai", cost=3.0,
-                      timestamp=now, metadata={"expert": "Other Expert"}),
+            CostEntry(
+                operation="research", provider="openai", cost=5.0, timestamp=now, metadata={"expert": "Climate Expert"}
+            ),
+            CostEntry(
+                operation="chat", provider="openai", cost=2.0, timestamp=now, metadata={"expert": "Climate Expert"}
+            ),
+            CostEntry(
+                operation="research", provider="xai", cost=3.0, timestamp=now, metadata={"expert": "Other Expert"}
+            ),
         ]
         mock_dash = MagicMock(spec=CostDashboard)
         mock_dash.aggregator = CostAggregator(entries)
 
-        with patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash), \
-             patch("deepr.experts.profile.ExpertStore", mock_store_cls):
+        with (
+            patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
+            patch("deepr.experts.profile.ExpertStore", mock_store_cls),
+        ):
             result = runner.invoke(cli, ["costs", "expert", "Climate Expert"])
 
         assert result.exit_code == 0
@@ -239,14 +250,10 @@ class TestCostAggregatorExpert:
 
     def test_get_entries_by_expert(self):
         entries = [
-            CostEntry(operation="research", provider="openai", cost=1.0,
-                      metadata={"expert": "Alice"}),
-            CostEntry(operation="chat", provider="xai", cost=2.0,
-                      metadata={"expert": "Bob"}),
-            CostEntry(operation="research", provider="gemini", cost=3.0,
-                      metadata={"expert": "Alice"}),
-            CostEntry(operation="research", provider="openai", cost=4.0,
-                      metadata={}),
+            CostEntry(operation="research", provider="openai", cost=1.0, metadata={"expert": "Alice"}),
+            CostEntry(operation="chat", provider="xai", cost=2.0, metadata={"expert": "Bob"}),
+            CostEntry(operation="research", provider="gemini", cost=3.0, metadata={"expert": "Alice"}),
+            CostEntry(operation="research", provider="openai", cost=4.0, metadata={}),
         ]
         agg = CostAggregator(entries)
 
@@ -262,12 +269,9 @@ class TestCostAggregatorExpert:
 
     def test_get_expert_breakdown(self):
         entries = [
-            CostEntry(operation="research", provider="openai", cost=5.0,
-                      metadata={"expert": "Alice"}),
-            CostEntry(operation="chat", provider="openai", cost=2.0,
-                      metadata={"expert": "Alice"}),
-            CostEntry(operation="research", provider="xai", cost=3.0,
-                      metadata={"expert": "Alice"}),
+            CostEntry(operation="research", provider="openai", cost=5.0, metadata={"expert": "Alice"}),
+            CostEntry(operation="chat", provider="openai", cost=2.0, metadata={"expert": "Alice"}),
+            CostEntry(operation="research", provider="xai", cost=3.0, metadata={"expert": "Alice"}),
         ]
         agg = CostAggregator(entries)
 

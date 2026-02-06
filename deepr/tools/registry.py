@@ -1,7 +1,5 @@
 """Tool registry for default tools."""
 
-from typing import List
-
 from .base import Tool, ToolExecutor
 from .web_search import WebSearchTool
 
@@ -17,7 +15,7 @@ class ToolRegistry:
     def get_default_tools(
         web_search: bool = True,
         backend: str = "auto",
-    ) -> List[Tool]:
+    ) -> list[Tool]:
         """
         Get default tool set.
 

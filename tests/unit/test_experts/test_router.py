@@ -5,7 +5,8 @@ based on query complexity, task type, and budget constraints.
 """
 
 import pytest
-from deepr.experts.router import ModelRouter, ModelConfig
+
+from deepr.experts.router import ModelConfig, ModelRouter
 
 
 class TestModelConfig:
@@ -13,11 +14,7 @@ class TestModelConfig:
 
     def test_create_basic_config(self):
         """Test creating a basic model config."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20)
         assert config.provider == "openai"
         assert config.model == "gpt-5"
         assert config.cost_estimate == 0.20
@@ -26,22 +23,12 @@ class TestModelConfig:
 
     def test_create_config_with_reasoning_effort(self):
         """Test creating config with reasoning effort."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20,
-            reasoning_effort="high"
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20, reasoning_effort="high")
         assert config.reasoning_effort == "high"
 
     def test_create_config_with_confidence(self):
         """Test creating config with custom confidence."""
-        config = ModelConfig(
-            provider="xai",
-            model="grok-4-fast",
-            cost_estimate=0.01,
-            confidence=0.95
-        )
+        config = ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.95)
         assert config.confidence == 0.95
 
 
@@ -80,7 +67,7 @@ class TestComplexityClassification:
 
     def test_moderate_comparison(self, router):
         """Test that comparison questions are classified appropriately.
-        
+
         Note: Short comparison queries may be classified as simple due to
         word count heuristics (< 5 words adds +2.0 to simple score).
         Longer comparison queries will be classified as moderate/complex.
@@ -88,14 +75,18 @@ class TestComplexityClassification:
         # Short comparison - may be simple due to word count
         complexity = router._classify_complexity("Compare React and Vue")
         assert complexity in ["simple", "moderate", "complex"]
-        
+
         # Longer comparison - should be moderate or complex
-        complexity = router._classify_complexity("Compare the differences between React and Vue frameworks for web development")
+        complexity = router._classify_complexity(
+            "Compare the differences between React and Vue frameworks for web development"
+        )
         assert complexity in ["moderate", "complex"]
 
     def test_complex_analysis(self, router):
         """Test that analysis requests are classified as complex."""
-        complexity = router._classify_complexity("Analyze the trade-offs between microservices and monolithic architecture")
+        complexity = router._classify_complexity(
+            "Analyze the trade-offs between microservices and monolithic architecture"
+        )
         assert complexity == "complex"
 
     def test_complex_strategy(self, router):
@@ -105,15 +96,17 @@ class TestComplexityClassification:
 
     def test_complex_multi_step(self, router):
         """Test that multi-step requests are classified as moderate or complex.
-        
+
         Note: The router uses weighted scoring. Multi-step patterns add to
         complex score, but other factors like word count also influence.
         """
         complexity = router._classify_complexity("Create a multi-step implementation plan with several phases")
         assert complexity in ["moderate", "complex"]
-        
+
         # More explicitly complex query
-        complexity = router._classify_complexity("Analyze and design a multi-step strategic implementation plan with several phases considering all trade-offs")
+        complexity = router._classify_complexity(
+            "Analyze and design a multi-step strategic implementation plan with several phases considering all trade-offs"
+        )
         assert complexity == "complex"
 
     def test_short_query_bias_simple(self, router):
@@ -123,15 +116,17 @@ class TestComplexityClassification:
 
     def test_long_query_bias_complex(self, router):
         """Test that very long queries bias toward complex."""
-        long_query = "I need you to analyze the current market trends, evaluate our competitive position, " \
-                     "design a comprehensive strategy, and create a detailed implementation roadmap " \
-                     "considering all the trade-offs and potential risks involved"
+        long_query = (
+            "I need you to analyze the current market trends, evaluate our competitive position, "
+            "design a comprehensive strategy, and create a detailed implementation roadmap "
+            "considering all the trade-offs and potential risks involved"
+        )
         complexity = router._classify_complexity(long_query)
         assert complexity == "complex"
 
     def test_multiple_questions_bias_complex(self, router):
         """Test that multiple questions add complexity bias.
-        
+
         Note: Multiple question marks add +1.0 to complex score, but
         simple WH-question patterns (what, how, why) also match simple/moderate.
         The final classification depends on the balance of all factors.
@@ -139,9 +134,11 @@ class TestComplexityClassification:
         # Simple WH questions may still be classified as simple despite multiple ?
         complexity = router._classify_complexity("What is X? How does it work? Why should I use it?")
         assert complexity in ["simple", "moderate", "complex"]
-        
+
         # More complex multi-part question
-        complexity = router._classify_complexity("What are the trade-offs? How should we analyze them? Why does this strategy matter for our roadmap?")
+        complexity = router._classify_complexity(
+            "What are the trade-offs? How should we analyze them? Why does this strategy matter for our roadmap?"
+        )
         assert complexity in ["moderate", "complex"]
 
 
@@ -227,47 +224,33 @@ class TestModelSelection:
 
     def test_budget_constraint_respected(self, router):
         """Test that budget constraints are respected."""
-        config = router.select_model(
-            "Research the latest AI trends comprehensively",
-            budget_remaining=0.50
-        )
+        config = router.select_model("Research the latest AI trends comprehensively", budget_remaining=0.50)
         # Should not exceed budget
         assert config.cost_estimate <= 0.50
 
     def test_zero_budget_uses_fallback(self, router):
         """Test that zero budget uses fallback model."""
-        config = router.select_model(
-            "Analyze complex architecture",
-            budget_remaining=0.0
-        )
+        config = router.select_model("Analyze complex architecture", budget_remaining=0.0)
         # Should use cheapest model
         assert config.cost_estimate <= 0.02
         assert config.confidence < 1.0  # Lower confidence due to budget constraint
 
     def test_openai_constraint_uses_openai(self, router):
         """Test that OpenAI constraint only uses OpenAI models."""
-        config = router.select_model(
-            "What is Python?",
-            provider_constraint="openai"
-        )
+        config = router.select_model("What is Python?", provider_constraint="openai")
         assert config.provider == "openai"
 
     def test_openai_constraint_research_uses_deep_research(self, router):
         """Test that OpenAI constraint with research uses o3-deep-research (BEST model)."""
         config = router.select_model(
-            "Research the latest AI trends comprehensively",
-            provider_constraint="openai",
-            budget_remaining=5.0
+            "Research the latest AI trends comprehensively", provider_constraint="openai", budget_remaining=5.0
         )
         assert config.provider == "openai"
         assert config.model == "o3-deep-research"
 
     def test_large_context_uses_gemini(self, router):
         """Test that large context uses Gemini."""
-        config = router.select_model(
-            "Analyze this document",
-            context_size=150_000
-        )
+        config = router.select_model("Analyze this document", context_size=150_000)
         # Should use Gemini for large context
         assert config.provider == "gemini" or config.model == "gemini-3-pro"
 
@@ -305,53 +288,32 @@ class TestRoutingExplanation:
 
     def test_explanation_includes_complexity(self, router):
         """Test that explanation includes complexity."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20)
         explanation = router.explain_routing_decision("What is Python?", config)
         assert "complexity" in explanation.lower()
 
     def test_explanation_includes_task_type(self, router):
         """Test that explanation includes task type."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20)
         explanation = router.explain_routing_decision("What is Python?", config)
         assert "task" in explanation.lower()
 
     def test_explanation_includes_model_info(self, router):
         """Test that explanation includes model information."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20)
         explanation = router.explain_routing_decision("What is Python?", config)
         assert "openai" in explanation.lower()
         assert "gpt-5" in explanation.lower()
 
     def test_explanation_includes_cost(self, router):
         """Test that explanation includes cost estimate."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20)
         explanation = router.explain_routing_decision("What is Python?", config)
         assert "$" in explanation or "cost" in explanation.lower()
 
     def test_explanation_includes_confidence(self, router):
         """Test that explanation includes confidence."""
-        config = ModelConfig(
-            provider="openai",
-            model="gpt-5",
-            cost_estimate=0.20,
-            confidence=0.85
-        )
+        config = ModelConfig(provider="openai", model="gpt-5", cost_estimate=0.20, confidence=0.85)
         explanation = router.explain_routing_decision("What is Python?", config)
         assert "confidence" in explanation.lower() or "85%" in explanation
 

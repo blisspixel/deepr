@@ -1,7 +1,9 @@
 """Tests for batch executor service."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+
 from deepr.queue.base import JobStatus
 from deepr.services.batch_executor import BatchExecutor
 
@@ -71,7 +73,9 @@ class TestBatchExecutor:
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
-    async def test_execute_campaign_single_phase(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
+    async def test_execute_campaign_single_phase(
+        self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder
+    ):
         """Single phase campaign completes."""
         mock_context_builder.build_phase_context.return_value = ""
         mock_provider.submit_research.return_value = "provider-job-1"
@@ -93,7 +97,9 @@ class TestBatchExecutor:
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
-    async def test_execute_campaign_multi_phase(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
+    async def test_execute_campaign_multi_phase(
+        self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder
+    ):
         """Multi-phase campaign executes phases sequentially."""
         mock_context_builder.build_phase_context.return_value = ""
         mock_provider.submit_research.return_value = "provider-job"
@@ -115,7 +121,9 @@ class TestBatchExecutor:
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
-    async def test_execute_campaign_tracks_costs(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
+    async def test_execute_campaign_tracks_costs(
+        self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder
+    ):
         """total_cost is accumulated across tasks."""
         mock_context_builder.build_phase_context.return_value = ""
         mock_provider.submit_research.return_value = "pj"
@@ -136,7 +144,9 @@ class TestBatchExecutor:
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
-    async def test_execute_campaign_saves_results(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
+    async def test_execute_campaign_saves_results(
+        self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder
+    ):
         """storage.save_report is called for campaign results."""
         mock_context_builder.build_phase_context.return_value = ""
         mock_provider.submit_research.return_value = "pj"
@@ -155,7 +165,9 @@ class TestBatchExecutor:
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
-    async def test_execute_phase_builds_context(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
+    async def test_execute_phase_builds_context(
+        self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder
+    ):
         """context_builder.build_phase_context is called for each task."""
         mock_context_builder.build_phase_context.return_value = "Prior context"
         mock_provider.submit_research.return_value = "pj"
@@ -173,7 +185,9 @@ class TestBatchExecutor:
 
     @pytest.mark.asyncio
     @patch("deepr.services.batch_executor.asyncio.sleep", new_callable=AsyncMock)
-    async def test_execute_phase_prepends_context(self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder):
+    async def test_execute_phase_prepends_context(
+        self, mock_sleep, executor, mock_queue, mock_provider, mock_storage, mock_context_builder
+    ):
         """Non-empty context is prepended to prompt."""
         mock_context_builder.build_phase_context.return_value = "CONTEXT_PREFIX"
         mock_provider.submit_research.return_value = "pj"

@@ -24,7 +24,7 @@ import glob
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 try:
     from openai import OpenAI
@@ -64,7 +64,7 @@ class DocReviewer:
         self.model = model
         self.docs_path = docs_path
 
-    def scan_docs(self, pattern: str = "**/*.txt") -> List[Dict[str, Any]]:
+    def scan_docs(self, pattern: str = "**/*.txt") -> list[dict[str, Any]]:
         """
         Scan docs directory for files matching pattern.
 
@@ -86,7 +86,7 @@ class DocReviewer:
                 size = stat.st_size
 
                 # Read first few lines for preview
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     preview = f.read(500)  # First 500 chars
 
                 docs.append(
@@ -104,7 +104,7 @@ class DocReviewer:
 
         return docs
 
-    def review_docs(self, scenario: str, context: Optional[str] = None, max_docs_to_review: int = 10) -> Dict[str, Any]:
+    def review_docs(self, scenario: str, context: Optional[str] = None, max_docs_to_review: int = 10) -> dict[str, Any]:
         """
         Review existing docs for relevance to scenario.
 
@@ -155,7 +155,7 @@ class DocReviewer:
         result = json.loads(response.choices[0].message.content)
         return result
 
-    def _build_evaluation_prompt(self, scenario: str, context: Optional[str], docs: List[Dict[str, Any]]) -> str:
+    def _build_evaluation_prompt(self, scenario: str, context: Optional[str], docs: list[dict[str, Any]]) -> str:
         """Build prompt for GPT-5 to evaluate docs."""
 
         parts = ["# Research Scenario", f"\n{scenario}\n"]
@@ -213,7 +213,7 @@ Return JSON:
 
         return "".join(parts)
 
-    def generate_tasks_from_review(self, review_result: Dict[str, Any], max_tasks: int = 5) -> List[Dict[str, Any]]:
+    def generate_tasks_from_review(self, review_result: dict[str, Any], max_tasks: int = 5) -> list[dict[str, Any]]:
         """
         Convert review recommendations into research tasks.
 

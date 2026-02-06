@@ -4,7 +4,7 @@ from .azure_queue import ServiceBusQueue
 from .base import JobStatus, QueueBackend, ResearchJob
 from .local_queue import SQLiteQueue
 
-__all__ = ["QueueBackend", "ResearchJob", "JobStatus", "SQLiteQueue", "ServiceBusQueue"]
+__all__ = ["JobStatus", "QueueBackend", "ResearchJob", "SQLiteQueue", "ServiceBusQueue"]
 
 from typing import Literal
 
@@ -34,11 +34,11 @@ def create_queue(queue_type: QueueType, **kwargs) -> QueueBackend:
 
 
 __all__ = [
-    "QueueBackend",
-    "ResearchJob",
     "JobStatus",
+    "QueueBackend",
+    "QueueType",
+    "ResearchJob",
     "SQLiteQueue",
     "ServiceBusQueue",
     "create_queue",
-    "QueueType",
 ]

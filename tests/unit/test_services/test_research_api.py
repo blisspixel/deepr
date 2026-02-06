@@ -1,7 +1,9 @@
 """Tests for research API service."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+
 from deepr.queue.base import JobStatus
 
 
@@ -18,6 +20,7 @@ class TestResearchAPI:
     def api(self, mock_queue):
         with patch("deepr.services.research_api.SQLiteQueue", return_value=mock_queue):
             from deepr.services.research_api import ResearchAPI
+
             mock_config = MagicMock()
             return ResearchAPI(config=mock_config)
 
@@ -25,6 +28,7 @@ class TestResearchAPI:
         """config attribute is set."""
         with patch("deepr.services.research_api.SQLiteQueue"):
             from deepr.services.research_api import ResearchAPI
+
             config = MagicMock()
             api = ResearchAPI(config=config)
             assert api.config is config

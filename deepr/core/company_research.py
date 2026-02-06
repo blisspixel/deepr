@@ -12,7 +12,7 @@ import logging
 import os
 import tempfile
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from deepr.config import load_config
 from deepr.core.research import ResearchOrchestrator
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CompanyResearchOrchestrator:
     """Orchestrates strategic company research workflow."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, Any]] = None):
         """Initialize the orchestrator.
 
         Args:
@@ -42,7 +42,7 @@ class CompanyResearchOrchestrator:
         budget_limit: Optional[float] = None,
         skip_confirmation: bool = False,
         scrape_only: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute strategic company research.
 
         Args:
@@ -157,7 +157,7 @@ class CompanyResearchOrchestrator:
 
     async def _scrape_company_website(
         self, company_url: str, company_name: str, config: ScrapeConfig
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Scrape company website and save to temporary file.
 
         Args:

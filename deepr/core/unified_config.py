@@ -18,7 +18,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -41,7 +41,7 @@ class ProviderConfig:
     rate_limit: int = 60
     timeout: int = 120
 
-    def to_dict(self, mask_keys: bool = True) -> Dict[str, Any]:
+    def to_dict(self, mask_keys: bool = True) -> dict[str, Any]:
         return {
             "name": self.name,
             "api_key": "***" if mask_keys and self.api_key else self.api_key,
@@ -74,10 +74,10 @@ class UnifiedConfig:
     log_level: str = "INFO"
 
     # Provider configurations
-    providers: Dict[str, ProviderConfig] = field(default_factory=dict)
+    providers: dict[str, ProviderConfig] = field(default_factory=dict)
 
     # Expert defaults
-    expert_defaults: Dict[str, Any] = field(
+    expert_defaults: dict[str, Any] = field(
         default_factory=lambda: {
             "monthly_learning_budget": 5.0,
             "staleness_threshold_days": 90,
@@ -86,12 +86,12 @@ class UnifiedConfig:
     )
 
     # Research defaults
-    research_defaults: Dict[str, Any] = field(
+    research_defaults: dict[str, Any] = field(
         default_factory=lambda: {"max_rounds": 5, "default_budget": 1.0, "parallel_searches": 3}
     )
 
     # Budget limits
-    budget_limits: Dict[str, float] = field(
+    budget_limits: dict[str, float] = field(
         default_factory=lambda: {
             "daily_limit": 10.0,
             "monthly_limit": 100.0,
@@ -103,11 +103,11 @@ class UnifiedConfig:
 
     # Internal tracking
     _source: str = "defaults"
-    _overrides: Dict[str, str] = field(default_factory=dict)
+    _overrides: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(
-        cls, config_path: Optional[Path] = None, cli_overrides: Optional[Dict[str, Any]] = None
+        cls, config_path: Optional[Path] = None, cli_overrides: Optional[dict[str, Any]] = None
     ) -> "UnifiedConfig":
         """Load configuration from all sources.
 
@@ -212,12 +212,12 @@ class UnifiedConfig:
                 try:
                     import yaml
 
-                    with open(config_path, "r", encoding="utf-8") as f:
+                    with open(config_path, encoding="utf-8") as f:
                         data = yaml.safe_load(f) or {}
                 except ImportError:
                     return
             else:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     data = json.load(f)
 
             self._apply_dict(data, source="file")
@@ -260,7 +260,7 @@ class UnifiedConfig:
                 self.providers[provider].api_key = value
                 self._overrides[f"providers.{provider}.api_key"] = "env"
 
-    def _apply_cli(self, overrides: Dict[str, Any]):
+    def _apply_cli(self, overrides: dict[str, Any]):
         """Apply CLI flag overrides.
 
         Args:
@@ -271,7 +271,7 @@ class UnifiedConfig:
                 self._set_nested(key, value)
                 self._overrides[key] = "cli"
 
-    def _apply_dict(self, data: Dict[str, Any], source: str = "dict"):
+    def _apply_dict(self, data: dict[str, Any], source: str = "dict"):
         """Apply dictionary configuration.
 
         Args:
@@ -416,7 +416,7 @@ class UnifiedConfig:
         config = self.providers.get(provider)
         return config.api_key if config else ""
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration.
 
         Returns:
@@ -442,7 +442,7 @@ class UnifiedConfig:
 
         return errors
 
-    def to_dict(self, mask_keys: bool = True) -> Dict[str, Any]:
+    def to_dict(self, mask_keys: bool = True) -> dict[str, Any]:
         """Convert to dictionary.
 
         Args:

@@ -1,7 +1,6 @@
 """Tests for branding module (deprecated)."""
 
 import warnings
-import pytest
 
 
 class TestBranding:
@@ -10,6 +9,7 @@ class TestBranding:
     def test_banner_constants_exist(self):
         """All banner constants are defined."""
         from deepr.branding import DEEPR_BANNER, DEEPR_BANNER_MINIMAL, DEEPR_SIMPLE, MANAGER_BANNER, SETUP_BANNER
+
         assert "Knowledge Is Power" in DEEPR_BANNER
         assert "Knowledge Is Power" in DEEPR_BANNER_MINIMAL
         assert "DEEPR" in DEEPR_SIMPLE
@@ -19,6 +19,7 @@ class TestBranding:
     def test_print_banner_deprecation_warning(self):
         """print_banner emits DeprecationWarning."""
         from deepr.branding import print_banner
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             print_banner("simple")
@@ -29,6 +30,7 @@ class TestBranding:
     def test_print_separator_deprecation_warning(self):
         """print_separator emits DeprecationWarning."""
         from deepr.branding import print_separator
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             print_separator()
@@ -38,6 +40,7 @@ class TestBranding:
     def test_print_section_header_deprecation_warning(self):
         """print_section_header emits DeprecationWarning."""
         from deepr.branding import print_section_header
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             print_section_header("Test")
@@ -46,7 +49,8 @@ class TestBranding:
 
     def test_symbols_are_strings(self):
         """CHECK, CROSS, ARROW are non-empty strings."""
-        from deepr.branding import CHECK, CROSS, ARROW
+        from deepr.branding import ARROW, CHECK, CROSS
+
         assert isinstance(CHECK, str) and len(CHECK) > 0
         assert isinstance(CROSS, str) and len(CROSS) > 0
         assert isinstance(ARROW, str) and len(ARROW) > 0

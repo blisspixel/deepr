@@ -8,4 +8,4 @@ by exposing only a single search tool that returns relevant tool schemas on dema
 from .gateway import GatewayTool
 from .registry import ToolRegistry, ToolSchema
 
-__all__ = ["ToolRegistry", "ToolSchema", "GatewayTool"]
+__all__ = ["GatewayTool", "ToolRegistry", "ToolSchema"]

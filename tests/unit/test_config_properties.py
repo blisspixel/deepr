@@ -10,27 +10,23 @@ Requirements: 17.1, 17.2
 Task: 18.5
 """
 
-import os
 import json
-import tempfile
-from typing import Any, Dict, Optional
+import os
 from unittest.mock import patch
 
-import pytest
-from hypothesis import given, settings, strategies as st, assume, HealthCheck
-from pydantic import ValidationError
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from deepr.config import (
     AppConfig,
+    DatabaseConfig,
+    ExpertConfig,
     ProviderConfig,
+    ResearchConfig,
     StorageConfig,
     WebhookConfig,
-    ResearchConfig,
-    ExpertConfig,
-    DatabaseConfig,
     load_config,
 )
-
 
 # =============================================================================
 # Test Strategies
@@ -83,6 +79,7 @@ booleans = st.booleans()
 # Unit Tests for ProviderConfig
 # =============================================================================
 
+
 class TestProviderConfigUnit:
     """Unit tests for ProviderConfig."""
 
@@ -104,7 +101,16 @@ class TestProviderConfigUnit:
     def test_task_model_map_exists(self):
         """Test TASK_MODEL_MAP has expected task types."""
         config = ProviderConfig()
-        expected_tasks = ["quick_lookup", "fact_check", "deep_research", "synthesis", "chat", "planning", "documentation", "strategy"]
+        expected_tasks = [
+            "quick_lookup",
+            "fact_check",
+            "deep_research",
+            "synthesis",
+            "chat",
+            "planning",
+            "documentation",
+            "strategy",
+        ]
         for task in expected_tasks:
             assert task in config.TASK_MODEL_MAP
 
@@ -248,6 +254,7 @@ class TestAppConfigUnit:
 # Property Tests for Configuration Hierarchy
 # =============================================================================
 
+
 class TestConfigurationHierarchyProperties:
     """Property tests for configuration hierarchy: CLI > Env > File > Defaults."""
 
@@ -267,10 +274,10 @@ class TestConfigurationHierarchyProperties:
             "DEEPR_STORAGE": env_storage,
             "DEEPR_DEBUG": str(env_debug).lower(),
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = AppConfig.from_env()
-            
+
             # Environment values should be applied
             assert config.provider.type == env_provider
             assert config.storage.type == env_storage
@@ -290,10 +297,10 @@ class TestConfigurationHierarchyProperties:
             "DEEPR_DEFAULT_MODEL": default_model,
             "DEEPR_DEFAULT_PROVIDER": default_provider,
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = ProviderConfig()
-            
+
             assert config.default_model == default_model
             assert config.default_provider == default_provider
 
@@ -313,10 +320,10 @@ class TestConfigurationHierarchyProperties:
             "DEEPR_EXPERT_DEEP_TOPICS": str(deep_topics),
             "DEEPR_EXPERT_QUICK_TOPICS": str(quick_topics),
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = ExpertConfig()
-            
+
             assert config.default_topics == default_topics
             assert config.deep_research_topics == deep_topics
             assert config.quick_research_topics == quick_topics
@@ -330,9 +337,9 @@ class TestConfigurationHierarchyProperties:
         """Property: Boolean config values can be overridden via environment."""
         # Test various boolean string representations
         bool_str = "true" if auto_synthesis else "false"
-        
+
         env_vars = {"DEEPR_EXPERT_AUTO_SYNTHESIS": bool_str}
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = ExpertConfig()
             assert config.auto_synthesis == auto_synthesis
@@ -417,10 +424,20 @@ class TestConfigurationValidityProperties:
 class TestTaskModelMappingProperties:
     """Property tests for task-to-model mapping."""
 
-    @given(task_type=st.sampled_from([
-        "quick_lookup", "fact_check", "deep_research", 
-        "synthesis", "chat", "planning", "documentation", "strategy"
-    ]))
+    @given(
+        task_type=st.sampled_from(
+            [
+                "quick_lookup",
+                "fact_check",
+                "deep_research",
+                "synthesis",
+                "chat",
+                "planning",
+                "documentation",
+                "strategy",
+            ]
+        )
+    )
     @settings(
         max_examples=20,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
@@ -429,7 +446,7 @@ class TestTaskModelMappingProperties:
         """Property: Known task types always return valid (provider, model) tuple."""
         config = ProviderConfig()
         result = config.get_model_for_task(task_type)
-        
+
         assert isinstance(result, tuple)
         assert len(result) == 2
         provider, model = result
@@ -447,7 +464,7 @@ class TestTaskModelMappingProperties:
         """Property: Any task type (known or unknown) returns a valid tuple."""
         config = ProviderConfig()
         result = config.get_model_for_task(task_type)
-        
+
         assert isinstance(result, tuple)
         assert len(result) == 2
 
@@ -473,13 +490,13 @@ class TestConfigSerializationProperties:
             provider=ProviderConfig(type=provider_type),
             storage=StorageConfig(type=storage_type),
         )
-        
+
         # Serialize to dict
         config_dict = config.model_dump()
-        
+
         # Deserialize back
         restored = AppConfig(**config_dict)
-        
+
         # Verify key fields match
         assert restored.environment == config.environment
         assert restored.debug == config.debug
@@ -500,14 +517,14 @@ class TestConfigSerializationProperties:
             provider=ProviderConfig(type=provider_type),
             storage=StorageConfig(type=storage_type),
         )
-        
+
         # Serialize to JSON
         json_str = config.model_dump_json()
-        
+
         # Deserialize back
         config_dict = json.loads(json_str)
         restored = AppConfig(**config_dict)
-        
+
         # Verify key fields match
         assert restored.provider.type == config.provider.type
         assert restored.storage.type == config.storage.type
@@ -530,17 +547,17 @@ class TestLoadConfigProperties:
             "DEEPR_MAX_COST_PER_JOB": str(max_cost_per_job),
             "DEEPR_MAX_COST_PER_DAY": str(max_daily_cost),
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = load_config()
-            
+
             assert abs(config["max_cost_per_job"] - max_cost_per_job) < 0.001
             assert abs(config["max_daily_cost"] - max_daily_cost) < 0.001
 
     def test_load_config_returns_dict(self):
         """Test load_config returns a dictionary with expected keys."""
         config = load_config()
-        
+
         assert isinstance(config, dict)
         expected_keys = ["provider", "api_key", "queue", "storage", "results_dir"]
         for key in expected_keys:
@@ -560,7 +577,7 @@ class TestConfigurationConsistencyProperties:
     def test_provider_config_consistency(self, provider_type):
         """Property: Provider config is internally consistent."""
         config = ProviderConfig(type=provider_type)
-        
+
         # If type is openai, azure-specific fields should not be required
         # If type is azure, openai-specific fields should not be required
         # Both should have valid defaults
@@ -578,12 +595,12 @@ class TestConfigurationConsistencyProperties:
     def test_storage_config_consistency(self, storage_type):
         """Property: Storage config is internally consistent."""
         config = StorageConfig(type=storage_type)
-        
+
         # Local storage should have a local path
         if storage_type == "local":
             assert config.local_path is not None
             assert len(config.local_path) > 0
-        
+
         # Blob storage should have container name
         if storage_type == "blob":
             assert config.azure_container is not None
@@ -591,7 +608,7 @@ class TestConfigurationConsistencyProperties:
     def test_app_config_all_components_initialized(self):
         """Test AppConfig initializes all component configs."""
         config = AppConfig()
-        
+
         # All nested configs should be initialized
         assert config.provider is not None
         assert config.storage is not None
@@ -614,9 +631,9 @@ class TestEnvironmentVariablePrecedence:
     def test_boolean_parsing_variants(self, env_value):
         """Property: Various boolean string formats are handled correctly."""
         expected = env_value.lower() in ("true", "1", "yes")
-        
+
         env_vars = {"DEEPR_EXPERT_AUTO_SYNTHESIS": env_value}
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = ExpertConfig()
             assert config.auto_synthesis == expected
@@ -635,9 +652,9 @@ class TestEnvironmentVariablePrecedence:
             "DEEPR_DEEP_RESEARCH_MODEL": deep_model,
             "DEEPR_DEEP_RESEARCH_PROVIDER": deep_provider,
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=False):
             config = ProviderConfig()
-            
+
             assert config.deep_research_model == deep_model
             assert config.deep_research_provider == deep_provider

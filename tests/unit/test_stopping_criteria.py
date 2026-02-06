@@ -1,11 +1,10 @@
 """Unit tests for stopping criteria."""
 
-import pytest
 from deepr.observability.stopping_criteria import (
     EntropyStoppingCriteria,
-    StoppingDecision,
-    PhaseContext,
     Finding,
+    PhaseContext,
+    StoppingDecision,
 )
 
 

@@ -13,21 +13,15 @@ These tests validate that:
 4. All parameters are passed correctly
 """
 
-import pytest
 import subprocess
-import json
-import re
-from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.integration
 def test_cli_help_shows_new_structure():
     """Test that main help shows new command structure."""
-    result = subprocess.run(
-        ["deepr", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "jobs" in result.stdout.lower()
@@ -37,11 +31,7 @@ def test_cli_help_shows_new_structure():
 @pytest.mark.integration
 def test_run_help_shows_all_modes():
     """Test that 'deepr run --help' shows all research modes."""
-    result = subprocess.run(
-        ["deepr", "run", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     output = result.stdout.lower()
@@ -60,11 +50,7 @@ def test_run_help_shows_all_modes():
 @pytest.mark.integration
 def test_jobs_help_shows_all_subcommands():
     """Test that 'deepr jobs --help' shows all job management commands."""
-    result = subprocess.run(
-        ["deepr", "jobs", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "jobs", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     output = result.stdout.lower()
@@ -78,11 +64,7 @@ def test_jobs_help_shows_all_subcommands():
 @pytest.mark.integration
 def test_focus_command_has_correct_options():
     """Test that 'deepr run focus' has all expected options."""
-    result = subprocess.run(
-        ["deepr", "run", "focus", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "focus", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     output = result.stdout
@@ -100,11 +82,7 @@ def test_focus_command_has_correct_options():
 @pytest.mark.integration
 def test_docs_command_exists():
     """Test that new 'deepr run docs' command exists and has help."""
-    result = subprocess.run(
-        ["deepr", "run", "docs", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "docs", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "documentation" in result.stdout.lower()
@@ -113,11 +91,7 @@ def test_docs_command_exists():
 @pytest.mark.integration
 def test_project_command_has_phases_option():
     """Test that 'deepr run project' has phases option."""
-    result = subprocess.run(
-        ["deepr", "run", "project", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "project", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "--phases" in result.stdout or "-p" in result.stdout
@@ -128,11 +102,7 @@ def test_project_command_has_phases_option():
 def test_deprecated_single_shows_warning():
     """Test that deprecated 'deepr run single' shows deprecation warning."""
     # Use a dry-run approach - just test help to avoid API calls
-    result = subprocess.run(
-        ["deepr", "run", "single", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "single", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "DEPRECATED" in result.stdout or "deprecated" in result.stdout.lower()
@@ -141,11 +111,7 @@ def test_deprecated_single_shows_warning():
 @pytest.mark.integration
 def test_deprecated_campaign_shows_warning():
     """Test that deprecated 'deepr run campaign' shows deprecation warning."""
-    result = subprocess.run(
-        ["deepr", "run", "campaign", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "campaign", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "DEPRECATED" in result.stdout or "deprecated" in result.stdout.lower()
@@ -154,11 +120,7 @@ def test_deprecated_campaign_shows_warning():
 @pytest.mark.integration
 def test_deprecated_list_shows_warning():
     """Test that deprecated 'deepr list' shows deprecation warning."""
-    result = subprocess.run(
-        ["deepr", "list", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "list", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "DEPRECATED" in result.stdout or "deprecated" in result.stdout.lower()
@@ -167,11 +129,7 @@ def test_deprecated_list_shows_warning():
 @pytest.mark.integration
 def test_jobs_list_works():
     """Test that 'deepr jobs list' command works."""
-    result = subprocess.run(
-        ["deepr", "jobs", "list", "--limit", "5"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "jobs", "list", "--limit", "5"], capture_output=True, text=True)
 
     # Should succeed even if no jobs
     assert result.returncode == 0
@@ -180,11 +138,7 @@ def test_jobs_list_works():
 @pytest.mark.integration
 def test_quick_alias_r_works():
     """Test that 'deepr r' quick alias works."""
-    result = subprocess.run(
-        ["deepr", "r", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "r", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "research" in result.stdout.lower() or "focus" in result.stdout.lower()
@@ -194,11 +148,7 @@ def test_quick_alias_r_works():
 def test_focus_command_accepts_provider():
     """Test that focus command accepts provider parameter."""
     # Just validate the help shows provider option
-    result = subprocess.run(
-        ["deepr", "run", "focus", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "focus", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "openai" in result.stdout.lower()
@@ -210,11 +160,7 @@ def test_focus_command_accepts_provider():
 @pytest.mark.integration
 def test_docs_command_has_upload_option():
     """Test that docs command supports file upload."""
-    result = subprocess.run(
-        ["deepr", "run", "docs", "--help"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["deepr", "run", "docs", "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "--upload" in result.stdout or "-u" in result.stdout
@@ -226,11 +172,7 @@ def test_command_structure_consistency():
     modes = ["focus", "docs"]
 
     for mode in modes:
-        result = subprocess.run(
-            ["deepr", "run", mode, "--help"],
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(["deepr", "run", mode, "--help"], capture_output=True, text=True)
 
         assert result.returncode == 0
 

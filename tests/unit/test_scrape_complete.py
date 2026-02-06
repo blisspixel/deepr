@@ -3,22 +3,22 @@
 This validates the entire scraping pipeline from start to finish.
 """
 
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from deepr.utils.scrape import (
-    scrape_website,
-    ScrapeConfig,
-    ContentFetcher,
     ContentExtractor,
-    LinkExtractor,
-    PageDeduplicator,
+    ContentFetcher,
     ContentSynthesizer,
-    ProvenanceTracker,
+    LinkExtractor,
     LinkFilter,
+    PageDeduplicator,
+    ProvenanceTracker,
+    ScrapeConfig,
     SmartCrawler,
+    scrape_website,
 )
 
 
@@ -109,7 +109,7 @@ def test_content_extraction():
 
     # Extract metadata
     metadata = extractor.extract_metadata(html)
-    assert metadata['title'] == "Test Page"
+    assert metadata["title"] == "Test Page"
     print("  [OK] Metadata extraction")
 
     # Content hashing
@@ -219,7 +219,7 @@ def test_link_filtering():
     assert len(filtered) > 0
     assert len(filtered) < len(test_links)
 
-    urls = [link['url'] for link in filtered]
+    urls = [link["url"] for link in filtered]
     assert "https://example.com/login" not in urls
     assert "https://example.com/terms" not in urls
 
@@ -244,10 +244,10 @@ def test_end_to_end_scrape():
         synthesize=False,
     )
 
-    assert results['success'] == True
-    assert results['pages_scraped'] >= 1
-    assert len(results['scraped_urls']) >= 1
-    assert len(results['scraped_data']) >= 1
+    assert results["success"] == True
+    assert results["pages_scraped"] >= 1
+    assert len(results["scraped_urls"]) >= 1
+    assert len(results["scraped_data"]) >= 1
 
     print(f"  [OK] Scraped {results['pages_scraped']} pages")
     print(f"  [OK] URLs: {results['scraped_urls']}")
@@ -267,24 +267,24 @@ def test_provenance_tracking():
     # Get sources
     sources1 = tracker.get_sources("Company offers SaaS product")
     assert len(sources1) == 2
-    print(f"  [OK] Multi-source citation tracked")
+    print("  [OK] Multi-source citation tracked")
 
     sources2 = tracker.get_sources("Founded in 2020")
     assert len(sources2) == 1
-    print(f"  [OK] Single-source citation tracked")
+    print("  [OK] Single-source citation tracked")
 
     # Format citation
     formatted = tracker.format_citation("Company offers SaaS product")
     assert "[1]" in formatted
     assert "[2]" in formatted
-    print(f"  [OK] Citation formatting")
+    print("  [OK] Citation formatting")
 
 
 def run_all_tests():
     """Run all tests."""
-    print("="*70)
+    print("=" * 70)
     print("Complete End-to-End Scraping Test")
-    print("="*70)
+    print("=" * 70)
 
     try:
         test_all_imports()
@@ -297,9 +297,9 @@ def run_all_tests():
         test_http_fetching()
         test_end_to_end_scrape()
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("ALL TESTS PASSED")
-        print("="*70)
+        print("=" * 70)
         print("\nWeb scraping skill is fully functional.")
         print("Ready for integration into deepr research workflows.")
         print()
@@ -308,11 +308,13 @@ def run_all_tests():
     except AssertionError as e:
         print(f"\n[FAIL] {e}")
         import traceback
+
         traceback.print_exc()
         return 1
     except Exception as e:
         print(f"\n[ERROR] {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

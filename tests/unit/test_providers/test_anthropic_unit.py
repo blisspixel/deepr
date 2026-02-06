@@ -10,6 +10,7 @@ import pytest
 # Import only if anthropic is available
 try:
     from anthropic import AnthropicError
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -198,9 +199,7 @@ class TestAnthropicProviderHelpers:
         from deepr.providers.base import ResearchRequest
 
         request = ResearchRequest(
-            prompt="Test query",
-            model="claude-opus-4-5",
-            system_message="You are a helpful assistant"
+            prompt="Test query", model="claude-opus-4-5", system_message="You are a helpful assistant"
         )
 
         prompt = provider._build_research_system_prompt(request)
@@ -213,9 +212,7 @@ class TestAnthropicProviderHelpers:
         from deepr.providers.base import ResearchRequest
 
         request = ResearchRequest(
-            prompt="What is machine learning?",
-            model="claude-opus-4-5",
-            system_message="You are a helpful assistant"
+            prompt="What is machine learning?", model="claude-opus-4-5", system_message="You are a helpful assistant"
         )
 
         prompt = provider._build_research_prompt(request)
@@ -227,16 +224,11 @@ class TestAnthropicProviderHelpers:
         from deepr.providers.base import ResearchRequest
 
         request = ResearchRequest(
-            prompt="Test query",
-            model="claude-opus-4-5",
-            system_message="You are a helpful assistant"
+            prompt="Test query", model="claude-opus-4-5", system_message="You are a helpful assistant"
         )
 
         report = provider._format_research_report(
-            thinking="Thought process here",
-            findings="Research findings here",
-            tool_calls=[],
-            request=request
+            thinking="Thought process here", findings="Research findings here", tool_calls=[], request=request
         )
 
         assert "# Research Report" in report
@@ -248,18 +240,14 @@ class TestAnthropicProviderHelpers:
         from deepr.providers.base import ResearchRequest
 
         request = ResearchRequest(
-            prompt="Test query",
-            model="claude-opus-4-5",
-            system_message="You are a helpful assistant"
+            prompt="Test query", model="claude-opus-4-5", system_message="You are a helpful assistant"
         )
 
         report = provider._format_research_report(
             thinking="",
             findings="Findings",
-            tool_calls=[
-                {"tool": "web_search", "input": {"query": "test"}, "success": True}
-            ],
-            request=request
+            tool_calls=[{"tool": "web_search", "input": {"query": "test"}, "success": True}],
+            request=request,
         )
 
         assert "Tool Usage" in report

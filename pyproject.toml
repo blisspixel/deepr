@@ -116,11 +116,24 @@ target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
-ignore = ["E501", "E402"]
+select = ["E", "F", "W", "I", "B", "UP", "RUF"]
+ignore = [
+    "E501",    # line-too-long (handled by formatter)
+    "E402",    # module-level-import-not-at-top (conditional imports)
+    "B904",    # raise-without-from-inside-except (CLI error handlers)
+    "B007",    # unused-loop-control-variable (harmless in dict iteration)
+    "UP007",   # non-pep604-annotation (X | Y syntax requires 3.10+)
+    "RUF001",  # ambiguous-unicode-character-string (intentional emoji/chars)
+    "RUF012",  # mutable-class-default (dataclass fields use field())
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["F811", "F841", "E712"]
+"tests/**/*.py" = ["F811", "F841", "E712", "B005", "B017", "RUF006"]
+"tests/integration/**/*.py" = ["F401"]
+"deepr/cli/**/*.py" = ["B023"]
+
+[tool.setuptools.package-data]
+deepr = ["py.typed"]
 
 [tool.setuptools.packages.find]
 where = ["."]

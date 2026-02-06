@@ -1,9 +1,8 @@
 """Tests for SQLite queue implementation."""
 
 import pytest
-import os
-from datetime import datetime
-from deepr.queue import SQLiteQueue, ResearchJob, JobStatus
+
+from deepr.queue import JobStatus, ResearchJob, SQLiteQueue
 
 
 @pytest.mark.asyncio

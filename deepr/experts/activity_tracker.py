@@ -8,7 +8,7 @@ Requirements: 5.3 - Extract activity recording logic
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -28,12 +28,12 @@ class ActivityTracker:
     conversations: int = 0
     research_triggered: int = 0
     last_activity: Optional[datetime] = None
-    activity_history: List[Dict] = field(default_factory=list)
+    activity_history: list[dict] = field(default_factory=list)
 
     # Maximum history entries to retain
     MAX_HISTORY_ENTRIES: int = field(default=50, repr=False)
 
-    def record_activity(self, activity_type: str, details: Optional[Dict] = None) -> None:
+    def record_activity(self, activity_type: str, details: Optional[dict] = None) -> None:
         """Record an activity event.
 
         Args:
@@ -57,7 +57,7 @@ class ActivityTracker:
         if len(self.activity_history) > self.MAX_HISTORY_ENTRIES:
             self.activity_history = self.activity_history[-self.MAX_HISTORY_ENTRIES :]
 
-    def get_stats(self) -> Dict[str, any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get activity statistics.
 
         Returns:
@@ -71,7 +71,7 @@ class ActivityTracker:
             "recent_activity_types": self._get_recent_activity_types(),
         }
 
-    def _get_recent_activity_types(self, limit: int = 10) -> List[str]:
+    def _get_recent_activity_types(self, limit: int = 10) -> list[str]:
         """Get types of recent activities.
 
         Args:
@@ -104,7 +104,7 @@ class ActivityTracker:
                     continue
         return count
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for serialization.
 
         Returns:
@@ -118,7 +118,7 @@ class ActivityTracker:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ActivityTracker":
+    def from_dict(cls, data: dict) -> "ActivityTracker":
         """Create from dictionary.
 
         Args:

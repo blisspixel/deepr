@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -51,15 +51,15 @@ class KnowledgeEvolution:
     """Tracks how knowledge about a topic evolved over time."""
 
     topic: str
-    facts: List[KnowledgeFact] = field(default_factory=list)
+    facts: list[KnowledgeFact] = field(default_factory=list)
     contradictions_detected: int = 0
     last_updated: datetime = field(default_factory=_utc_now)
 
-    def get_current_facts(self) -> List[KnowledgeFact]:
+    def get_current_facts(self) -> list[KnowledgeFact]:
         """Get all current (non-superseded) facts."""
         return [f for f in self.facts if f.is_current]
 
-    def get_timeline(self) -> List[Tuple[datetime, str]]:
+    def get_timeline(self) -> list[tuple[datetime, str]]:
         """Get chronological timeline of learning."""
         return sorted([(f.learned_at, f.fact_text) for f in self.facts])
 
@@ -74,13 +74,13 @@ class TemporalKnowledgeTracker:
         self.temporal_file = self.expert_dir / "temporal_knowledge.json"
 
         # Knowledge organized by topic
-        self.knowledge_by_topic: Dict[str, KnowledgeEvolution] = {}
+        self.knowledge_by_topic: dict[str, KnowledgeEvolution] = {}
 
         # Fast lookup by fact ID
-        self.facts_by_id: Dict[str, KnowledgeFact] = {}
+        self.facts_by_id: dict[str, KnowledgeFact] = {}
 
         # Outdated knowledge that needs refresh
-        self.stale_topics: Set[str] = set()
+        self.stale_topics: set[str] = set()
 
         self._load()
 
@@ -101,7 +101,7 @@ class TemporalKnowledgeTracker:
         """Load temporal knowledge from disk."""
         if self.temporal_file.exists():
             try:
-                with open(self.temporal_file, "r", encoding="utf-8") as f:
+                with open(self.temporal_file, encoding="utf-8") as f:
                     data = json.load(f)
 
                 for topic, evolution_data in data.get("knowledge_by_topic", {}).items():
@@ -237,7 +237,7 @@ class TemporalKnowledgeTracker:
 
             self._save()
 
-    def get_stale_knowledge(self, max_age_days: int = 90) -> List[str]:
+    def get_stale_knowledge(self, max_age_days: int = 90) -> list[str]:
         """Get topics with knowledge older than max_age_days.
 
         Args:
@@ -287,7 +287,7 @@ class TemporalKnowledgeTracker:
 
         return False
 
-    def get_knowledge_timeline(self, topic: str) -> List[Dict]:
+    def get_knowledge_timeline(self, topic: str) -> list[dict]:
         """Get chronological timeline of how knowledge evolved.
 
         Args:
@@ -317,7 +317,7 @@ class TemporalKnowledgeTracker:
 
         return timeline
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """Get statistics about temporal knowledge.
 
         Returns:

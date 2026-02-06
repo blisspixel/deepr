@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -13,7 +13,7 @@ class ToolResult:
     success: bool
     data: Any
     error: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
     timestamp: datetime = None
 
     def __post_init__(self):
@@ -42,7 +42,7 @@ class Tool(ABC):
 
     @property
     @abstractmethod
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         """JSON schema for tool parameters."""
         pass
 
@@ -51,7 +51,7 @@ class Tool(ABC):
         """Execute the tool with given parameters."""
         pass
 
-    def to_openai_tool(self) -> Dict[str, Any]:
+    def to_openai_tool(self) -> dict[str, Any]:
         """Convert to OpenAI tool format."""
         return {
             "type": "function",
@@ -62,7 +62,7 @@ class Tool(ABC):
             },
         }
 
-    def to_anthropic_tool(self) -> Dict[str, Any]:
+    def to_anthropic_tool(self) -> dict[str, Any]:
         """Convert to Anthropic tool format."""
         return {
             "name": self.name,
@@ -78,8 +78,8 @@ class ToolExecutor:
     Provides unified interface regardless of provider.
     """
 
-    def __init__(self, tools: Optional[List[Tool]] = None):
-        self.tools: Dict[str, Tool] = {}
+    def __init__(self, tools: Optional[list[Tool]] = None):
+        self.tools: dict[str, Tool] = {}
         if tools:
             for tool in tools:
                 self.register(tool)
@@ -98,7 +98,7 @@ class ToolExecutor:
         except Exception as e:
             return ToolResult(success=False, data=None, error=f"Tool execution failed: {e}")
 
-    def get_tool_definitions(self, format: str = "openai") -> List[Dict[str, Any]]:
+    def get_tool_definitions(self, format: str = "openai") -> list[dict[str, Any]]:
         """
         Get tool definitions for provider.
 

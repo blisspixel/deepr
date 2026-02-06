@@ -27,7 +27,7 @@ def _utc_now() -> datetime:
 
 
 import hashlib
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 
 @dataclass
@@ -50,7 +50,7 @@ class KnowledgeEntry:
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
     confidence: float = 0.5
-    tags: Set[str] = field(default_factory=set)
+    tags: set[str] = field(default_factory=set)
     is_archived: bool = False
     id: str = field(default="")
 
@@ -61,7 +61,7 @@ class KnowledgeEntry:
         if isinstance(self.tags, list):
             self.tags = set(self.tags)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "content": self.content,
@@ -74,7 +74,7 @@ class KnowledgeEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "KnowledgeEntry":
+    def from_dict(cls, data: dict[str, Any]) -> "KnowledgeEntry":
         return cls(
             id=data.get("id", ""),
             content=data["content"],
@@ -113,7 +113,7 @@ class ConsolidationResult:
     space_saved_bytes: int = 0
     duration_seconds: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "deduplicated": self.deduplicated,
             "merged": self.merged,
@@ -169,8 +169,8 @@ class KnowledgeConsolidator:
         self.archive_path = self.storage_dir / "archive.json"
 
         # Load entries
-        self.entries: List[KnowledgeEntry] = []
-        self.archived: List[KnowledgeEntry] = []
+        self.entries: list[KnowledgeEntry] = []
+        self.archived: list[KnowledgeEntry] = []
         self._load()
 
     async def consolidate(self) -> ConsolidationResult:
@@ -219,7 +219,7 @@ class KnowledgeConsolidator:
             return 0
 
         removed = 0
-        to_remove: Set[str] = set()
+        to_remove: set[str] = set()
 
         # Compare all pairs
         for i, entry1 in enumerate(self.entries):
@@ -260,10 +260,10 @@ class KnowledgeConsolidator:
             return 0
 
         merged = 0
-        to_remove: Set[str] = set()
+        to_remove: set[str] = set()
 
         # Group by tags
-        tag_groups: Dict[str, List[KnowledgeEntry]] = {}
+        tag_groups: dict[str, list[KnowledgeEntry]] = {}
         for entry in self.entries:
             for tag in entry.tags:
                 if tag not in tag_groups:
@@ -310,7 +310,7 @@ class KnowledgeConsolidator:
         """
         now = datetime.now(timezone.utc)
         archived = 0
-        to_archive: List[KnowledgeEntry] = []
+        to_archive: list[KnowledgeEntry] = []
 
         for entry in self.entries:
             age_days = (now - entry.updated_at).days
@@ -349,7 +349,7 @@ class KnowledgeConsolidator:
 
         return intersection / union if union > 0 else 0.0
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into words.
 
         Args:
@@ -452,7 +452,7 @@ class KnowledgeConsolidator:
         """
         self.entries.append(entry)
 
-    def get_entries(self, include_archived: bool = False) -> List[KnowledgeEntry]:
+    def get_entries(self, include_archived: bool = False) -> list[KnowledgeEntry]:
         """Get all entries.
 
         Args:
@@ -465,7 +465,7 @@ class KnowledgeConsolidator:
             return self.entries + self.archived
         return self.entries
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get consolidation statistics.
 
         Returns:
@@ -496,12 +496,12 @@ class KnowledgeConsolidator:
         """Load entries from disk."""
         # Load active entries
         if self.entries_path.exists():
-            with open(self.entries_path, "r", encoding="utf-8") as f:
+            with open(self.entries_path, encoding="utf-8") as f:
                 entries_data = json.load(f)
             self.entries = [KnowledgeEntry.from_dict(e) for e in entries_data]
 
         # Load archived entries
         if self.archive_path.exists():
-            with open(self.archive_path, "r", encoding="utf-8") as f:
+            with open(self.archive_path, encoding="utf-8") as f:
                 archive_data = json.load(f)
             self.archived = [KnowledgeEntry.from_dict(e) for e in archive_data]

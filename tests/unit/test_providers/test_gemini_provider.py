@@ -1,14 +1,16 @@
 """Tests for Gemini provider implementation."""
 
 import os
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.gemini_provider import (
-    GeminiProvider,
     DEEP_RESEARCH_AGENT,
+    GeminiProvider,
     _is_deep_research_model,
 )
-from deepr.providers.base import ResearchRequest, ToolConfig
 
 
 class TestGeminiProvider:
@@ -60,25 +62,19 @@ class TestGeminiProvider:
     def test_calculate_cost(self, provider):
         """Test cost calculation for Gemini models."""
         # Test with Pro model (highest cost)
-        cost_pro = provider._calculate_cost(
-            input_tokens=1000, output_tokens=1000, model="gemini-2.5-pro"
-        )
+        cost_pro = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-pro")
         assert cost_pro > 0
         # Pro: $1.25/M input + $5.00/M output = $6.25/M total
         # 1000 tokens = 0.001M tokens = $0.00625
         assert abs(cost_pro - 0.00625) < 0.0001
 
         # Test with Flash model (balanced cost)
-        cost_flash = provider._calculate_cost(
-            input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash"
-        )
+        cost_flash = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash")
         assert cost_flash > 0
         assert cost_flash < cost_pro  # Flash should be cheaper than Pro
 
         # Test with Flash-Lite model (lowest cost)
-        cost_lite = provider._calculate_cost(
-            input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash-lite"
-        )
+        cost_lite = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash-lite")
         assert cost_lite > 0
         assert cost_lite <= cost_flash  # Flash-Lite should be cheapest or equal
 
@@ -269,12 +265,8 @@ class TestGeminiCostCalculation:
         output_tokens = 10000
 
         cost_pro = provider._calculate_cost(input_tokens, output_tokens, "gemini-2.5-pro")
-        cost_flash = provider._calculate_cost(
-            input_tokens, output_tokens, "gemini-2.5-flash"
-        )
-        cost_lite = provider._calculate_cost(
-            input_tokens, output_tokens, "gemini-2.5-flash-lite"
-        )
+        cost_flash = provider._calculate_cost(input_tokens, output_tokens, "gemini-2.5-flash")
+        cost_lite = provider._calculate_cost(input_tokens, output_tokens, "gemini-2.5-flash-lite")
 
         # Verify pricing hierarchy
         assert cost_pro > cost_flash
@@ -371,9 +363,7 @@ class TestDeepResearchSubmission:
         mock_interaction.id = "interaction-xyz"
         provider.client.interactions.create.return_value = mock_interaction
 
-        request = ResearchRequest(
-            prompt="Test", model="deep-research", system_message="", tools=[]
-        )
+        request = ResearchRequest(prompt="Test", model="deep-research", system_message="", tools=[])
         job_id = await provider.submit_research(request)
 
         assert job_id in provider._deep_research_jobs

@@ -435,7 +435,7 @@ async def _list_jobs(status_filter: str, limit: int):
 
     # Determine which are actually campaigns (multiple jobs with same key)
     actual_campaigns = {k: v for k, v in campaigns.items() if len(v) > 1}
-    for k, v in campaigns.items():
+    for _k, v in campaigns.items():
         if len(v) == 1:
             standalone_jobs.extend(v)
 

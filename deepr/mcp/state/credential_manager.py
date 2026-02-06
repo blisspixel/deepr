@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from deepr.mcp.state.elicitation_router import ElicitationHandler, ElicitationRequest
@@ -74,12 +74,12 @@ class GatedCredential:
     created_at: datetime
     last_used_at: Optional[datetime] = None
     use_count: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # Transient field - not persisted
     _value: Optional[str] = field(default=None, repr=False)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "domain": self.domain,
@@ -161,7 +161,7 @@ class CredentialManager:
         self._create_tables()
 
         # In-memory credential cache (values only stored temporarily)
-        self._value_cache: Dict[str, str] = {}
+        self._value_cache: dict[str, str] = {}
 
     def _create_tables(self):
         """Create database tables."""
@@ -190,7 +190,7 @@ class CredentialManager:
         credential_type: CredentialType,
         value: str,
         expires_at: Optional[datetime] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> GatedCredential:
         """Store a credential.
 
@@ -438,7 +438,7 @@ class CredentialManager:
     async def list_credentials(
         self,
         include_expired: bool = False,
-    ) -> List[GatedCredential]:
+    ) -> list[GatedCredential]:
         """List all credentials.
 
         Args:
@@ -542,7 +542,7 @@ class CredentialManager:
     def _build_credential_schema(
         self,
         credential_type: CredentialType,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build JSON schema for credential input.
 
         Args:

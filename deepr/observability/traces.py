@@ -37,7 +37,7 @@ def _utc_now() -> datetime:
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 class SpanStatus(Enum):
@@ -73,8 +73,8 @@ class Span:
     start_time: datetime = field(default_factory=_utc_now)
     end_time: Optional[datetime] = None
     status: SpanStatus = SpanStatus.RUNNING
-    attributes: Dict[str, Any] = field(default_factory=dict)
-    events: List[Dict[str, Any]] = field(default_factory=list)
+    attributes: dict[str, Any] = field(default_factory=dict)
+    events: list[dict[str, Any]] = field(default_factory=list)
     cost: float = 0.0
 
     def set_attribute(self, key: str, value: Any):
@@ -86,7 +86,7 @@ class Span:
         """
         self.attributes[key] = value
 
-    def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None):
         """Add a timestamped event to the span.
 
         Args:
@@ -133,7 +133,7 @@ class Span:
         delta = self.end_time - self.start_time
         return delta.total_seconds() * 1000
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert span to dictionary for serialization."""
         return {
             "span_id": self.span_id,
@@ -172,8 +172,8 @@ class TraceContext:
             trace_id: Optional trace ID (generated if not provided)
         """
         self.trace_id = trace_id or str(uuid.uuid4())
-        self.spans: List[Span] = []
-        self._span_stack: List[str] = []  # Stack of active span IDs
+        self.spans: list[Span] = []
+        self._span_stack: list[str] = []  # Stack of active span IDs
         self._lock = threading.Lock()
 
     @classmethod
@@ -202,7 +202,7 @@ class TraceContext:
         with self._lock:
             return self._span_stack[-1] if self._span_stack else None
 
-    def start_span(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> Span:
+    def start_span(self, name: str, attributes: Optional[dict[str, Any]] = None) -> Span:
         """Start a new span.
 
         Args:
@@ -244,7 +244,7 @@ class TraceContext:
                 self._span_stack.pop()
 
     @contextmanager
-    def span(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+    def span(self, name: str, attributes: Optional[dict[str, Any]] = None):
         """Context manager for creating spans.
 
         Args:
@@ -279,7 +279,7 @@ class TraceContext:
                 return span
         return None
 
-    def get_root_spans(self) -> List[Span]:
+    def get_root_spans(self) -> list[Span]:
         """Get all root spans (spans without parents).
 
         Returns:
@@ -287,7 +287,7 @@ class TraceContext:
         """
         return [s for s in self.spans if s.parent_span_id is None]
 
-    def get_children(self, span_id: str) -> List[Span]:
+    def get_children(self, span_id: str) -> list[Span]:
         """Get child spans of a given span.
 
         Args:
@@ -325,7 +325,7 @@ class TraceContext:
         delta = end - start
         return delta.total_seconds() * 1000
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert trace to dictionary for serialization."""
         return {
             "trace_id": self.trace_id,
@@ -354,7 +354,7 @@ class TraceContext:
         Returns:
             TraceContext instance
         """
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         ctx = cls(trace_id=data["trace_id"])

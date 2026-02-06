@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -33,11 +33,11 @@ class Belief:
     topic: str
     statement: str
     confidence: float  # 0.0 to 1.0
-    evidence: List[str]  # Source documents/research
+    evidence: list[str]  # Source documents/research
     formed_at: datetime
     last_updated: datetime
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "topic": self.topic,
             "statement": self.statement,
@@ -48,7 +48,7 @@ class Belief:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "Belief":
+    def from_dict(cls, data: dict) -> "Belief":
         data["formed_at"] = datetime.fromisoformat(data["formed_at"])
         data["last_updated"] = datetime.fromisoformat(data["last_updated"])
         return cls(**data)
@@ -59,11 +59,11 @@ class KnowledgeGap:
     """A gap in expert's knowledge that they're aware of."""
 
     topic: str
-    questions: List[str]
+    questions: list[str]
     priority: int  # 1-5, higher is more important
     identified_at: datetime
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "topic": self.topic,
             "questions": self.questions,
@@ -72,7 +72,7 @@ class KnowledgeGap:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "KnowledgeGap":
+    def from_dict(cls, data: dict) -> "KnowledgeGap":
         data["identified_at"] = datetime.fromisoformat(data["identified_at"])
         return cls(**data)
 
@@ -89,12 +89,12 @@ class Worldview:
 
     expert_name: str
     domain: str
-    beliefs: List[Belief] = field(default_factory=list)
-    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    beliefs: list[Belief] = field(default_factory=list)
+    knowledge_gaps: list[KnowledgeGap] = field(default_factory=list)
     last_synthesis: Optional[datetime] = None
     synthesis_count: int = 0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "expert_name": self.expert_name,
             "domain": self.domain,
@@ -105,7 +105,7 @@ class Worldview:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "Worldview":
+    def from_dict(cls, data: dict) -> "Worldview":
         data["beliefs"] = [Belief.from_dict(b) for b in data.get("beliefs", [])]
         data["knowledge_gaps"] = [KnowledgeGap.from_dict(g) for g in data.get("knowledge_gaps", [])]
         if data.get("last_synthesis"):
@@ -120,7 +120,7 @@ class Worldview:
     @classmethod
     def load(cls, path: Path) -> "Worldview":
         """Load worldview from JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
             return cls.from_dict(data)
 
@@ -136,9 +136,9 @@ class KnowledgeSynthesizer:
         self,
         expert_name: str,
         domain: str,
-        new_documents: List[Dict[str, str]],
+        new_documents: list[dict[str, str]],
         existing_worldview: Optional[Worldview] = None,
-    ) -> Dict[str, any]:
+    ) -> dict[str, Any]:
         """Expert actively processes new knowledge and updates worldview.
 
         Args:
@@ -157,7 +157,7 @@ class KnowledgeSynthesizer:
             if "content" in doc:
                 doc_contents.append({"filename": path.name, "content": doc["content"]})
             elif path.exists():
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     doc_contents.append({"filename": path.name, "content": f.read()})
 
         if not doc_contents:
@@ -207,7 +207,7 @@ class KnowledgeSynthesizer:
         }
 
     def _build_synthesis_prompt(
-        self, expert_name: str, domain: str, documents: List[Dict], existing_worldview: Optional[Worldview]
+        self, expert_name: str, domain: str, documents: list[dict], existing_worldview: Optional[Worldview]
     ) -> str:
         """Build prompt for knowledge synthesis."""
 
@@ -276,8 +276,8 @@ Be specific, cite evidence, and show genuine intellectual engagement.
         return prompt
 
     async def _extract_structured_knowledge(
-        self, reflection_text: str, documents: List[Dict], expert_name: str
-    ) -> tuple[List[Belief], List[KnowledgeGap]]:
+        self, reflection_text: str, documents: list[dict], expert_name: str
+    ) -> tuple[list[Belief], list[KnowledgeGap]]:
         """Extract structured beliefs and gaps from reflection text."""
 
         # Use GPT-5 to parse the reflection into structured data
@@ -353,7 +353,7 @@ Output ONLY the JSON, no other text.
             return [], []
 
     def _update_worldview(
-        self, existing: Worldview, new_beliefs: List[Belief], new_gaps: List[KnowledgeGap]
+        self, existing: Worldview, new_beliefs: list[Belief], new_gaps: list[KnowledgeGap]
     ) -> Worldview:
         """Update existing worldview with new knowledge."""
 

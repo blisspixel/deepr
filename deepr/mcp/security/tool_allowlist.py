@@ -21,7 +21,7 @@ Usage:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 
 class ResearchMode(Enum):
@@ -50,9 +50,9 @@ class ToolConfig:
     name: str
     category: ToolCategory
     description: str = ""
-    requires_confirmation_in: Set[ResearchMode] = field(default_factory=set)
-    blocked_in: Set[ResearchMode] = field(default_factory=set)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    requires_confirmation_in: set[ResearchMode] = field(default_factory=set)
+    blocked_in: set[ResearchMode] = field(default_factory=set)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ToolAllowlist:
@@ -66,7 +66,7 @@ class ToolAllowlist:
     """
 
     # Default tool configurations
-    DEFAULT_TOOLS: Dict[str, ToolConfig] = {
+    DEFAULT_TOOLS: dict[str, ToolConfig] = {
         # Read tools
         "web_search": ToolConfig(
             name="web_search",
@@ -150,7 +150,7 @@ class ToolAllowlist:
     }
 
     # Category-level rules per mode
-    CATEGORY_RULES: Dict[ResearchMode, Dict[ToolCategory, str]] = {
+    CATEGORY_RULES: dict[ResearchMode, dict[ToolCategory, str]] = {
         ResearchMode.READ_ONLY: {
             ToolCategory.READ: "allow",
             ToolCategory.COMPUTE: "allow",
@@ -184,7 +184,7 @@ class ToolAllowlist:
     def __init__(
         self,
         mode: ResearchMode = ResearchMode.STANDARD,
-        custom_tools: Optional[Dict[str, ToolConfig]] = None,
+        custom_tools: Optional[dict[str, ToolConfig]] = None,
     ):
         """Initialize the allowlist.
 
@@ -280,8 +280,8 @@ class ToolAllowlist:
         name: str,
         category: ToolCategory,
         description: str = "",
-        requires_confirmation_in: Optional[Set[ResearchMode]] = None,
-        blocked_in: Optional[Set[ResearchMode]] = None,
+        requires_confirmation_in: Optional[set[ResearchMode]] = None,
+        blocked_in: Optional[set[ResearchMode]] = None,
     ) -> ToolConfig:
         """Register a new tool.
 
@@ -322,7 +322,7 @@ class ToolAllowlist:
     def get_allowed_tools(
         self,
         mode: Optional[ResearchMode] = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Get list of allowed tools for a mode.
 
         Args:
@@ -337,7 +337,7 @@ class ToolAllowlist:
     def get_blocked_tools(
         self,
         mode: Optional[ResearchMode] = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Get list of blocked tools for a mode.
 
         Args:
@@ -352,7 +352,7 @@ class ToolAllowlist:
     def get_tools_requiring_confirmation(
         self,
         mode: Optional[ResearchMode] = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Get list of tools requiring confirmation.
 
         Args:
@@ -454,7 +454,7 @@ def is_tool_allowed(tool_name: str, mode: str = "standard") -> bool:
     return allowlist.is_allowed(tool_name)
 
 
-def get_allowed_tools(mode: str = "standard") -> List[str]:
+def get_allowed_tools(mode: str = "standard") -> list[str]:
     """Get list of allowed tools for a mode.
 
     Args:

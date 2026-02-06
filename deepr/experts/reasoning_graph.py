@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 
@@ -33,7 +33,7 @@ class HypothesisSchema:
     HYPOTHESIS_FIELDS = ["id", "text", "confidence", "reasoning"]
 
     @classmethod
-    def validate(cls, data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate(cls, data: dict[str, Any]) -> tuple[bool, Optional[str]]:
         """Validate hypothesis response against schema.
 
         Args:
@@ -72,7 +72,7 @@ class HypothesisSchema:
         return True, None
 
     @classmethod
-    def repair(cls, raw_text: str) -> Optional[Dict[str, Any]]:
+    def repair(cls, raw_text: str) -> Optional[dict[str, Any]]:
         """Attempt to repair malformed JSON.
 
         Args:
@@ -120,7 +120,7 @@ class ClaimSchema:
     CLAIM_FIELDS = ["id", "text", "source"]
 
     @classmethod
-    def validate(cls, data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate(cls, data: dict[str, Any]) -> tuple[bool, Optional[str]]:
         """Validate claim response against schema."""
         for field_name in cls.REQUIRED_FIELDS:
             if field_name not in data:
@@ -141,7 +141,7 @@ class ClaimSchema:
         return True, None
 
     @classmethod
-    def repair(cls, raw_text: str) -> Optional[Dict[str, Any]]:
+    def repair(cls, raw_text: str) -> Optional[dict[str, Any]]:
         """Attempt to repair malformed JSON."""
         return HypothesisSchema.repair(raw_text)  # Same repair logic
 
@@ -167,11 +167,11 @@ class Hypothesis:
     id: str
     text: str
     confidence: float
-    evidence: List[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
     is_active: bool = True
     pruned_reason: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.text,
@@ -190,10 +190,10 @@ class Claim:
     text: str
     source_hypothesis_id: Optional[str]
     verified: Optional[bool] = None
-    verification_sources: List[str] = field(default_factory=list)
-    contradicts: List[str] = field(default_factory=list)
+    verification_sources: list[str] = field(default_factory=list)
+    contradicts: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.text,
@@ -226,22 +226,22 @@ class ReasoningState:
     """
 
     query: str
-    context: List[Dict[str, Any]] = field(default_factory=list)
-    sub_questions: List[str] = field(default_factory=list)
-    hypotheses: List[Hypothesis] = field(default_factory=list)
-    claims: List[Claim] = field(default_factory=list)
-    verified_claims: List[Claim] = field(default_factory=list)
-    contradictions: List[Dict[str, Any]] = field(default_factory=list)
+    context: list[dict[str, Any]] = field(default_factory=list)
+    sub_questions: list[str] = field(default_factory=list)
+    hypotheses: list[Hypothesis] = field(default_factory=list)
+    claims: list[Claim] = field(default_factory=list)
+    verified_claims: list[Claim] = field(default_factory=list)
+    contradictions: list[dict[str, Any]] = field(default_factory=list)
     synthesis: Optional[str] = None
     confidence: float = 0.0
-    trace: List[Dict[str, Any]] = field(default_factory=list)
+    trace: list[dict[str, Any]] = field(default_factory=list)
     phase: ReasoningPhase = ReasoningPhase.UNDERSTAND
     iteration: int = 0
     max_iterations: int = 10
     is_degraded: bool = False
     error: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "query": self.query,
             "context_count": len(self.context),
@@ -258,7 +258,7 @@ class ReasoningState:
             "error": self.error,
         }
 
-    def add_trace(self, phase: str, action: str, details: Optional[Dict] = None):
+    def add_trace(self, phase: str, action: str, details: Optional[dict] = None):
         """Add an entry to the reasoning trace."""
         self.trace.append(
             {
@@ -304,7 +304,7 @@ class ReasoningGraph:
         self.llm_client = llm_client
 
         # Node registry
-        self._nodes: Dict[ReasoningPhase, Callable] = {
+        self._nodes: dict[ReasoningPhase, Callable] = {
             ReasoningPhase.UNDERSTAND: self._understand_query,
             ReasoningPhase.DECOMPOSE: self._decompose_query,
             ReasoningPhase.RETRIEVE: self._retrieve_context,
@@ -314,7 +314,7 @@ class ReasoningGraph:
             ReasoningPhase.SELF_CORRECT: self._self_correct,
         }
 
-    async def reason(self, query: str, context: Optional[List[Dict]] = None) -> ReasoningState:
+    async def reason(self, query: str, context: Optional[list[dict]] = None) -> ReasoningState:
         """Run reasoning on a query.
 
         Args:
@@ -351,7 +351,7 @@ class ReasoningGraph:
             try:
                 state = await node(state)
             except Exception as e:
-                self._emit_thought(ThoughtType.ERROR, f"Error in {state.phase.value}: {str(e)}")
+                self._emit_thought(ThoughtType.ERROR, f"Error in {state.phase.value}: {e!s}")
                 state.phase = ReasoningPhase.ERROR
                 state.error = str(e)
                 break
@@ -537,8 +537,8 @@ class ReasoningGraph:
         return state
 
     async def _generate_hypotheses_with_llm(
-        self, query: str, context: List[Dict], num_hypotheses: int, max_retries: int = 3
-    ) -> Optional[Dict[str, Any]]:
+        self, query: str, context: list[dict], num_hypotheses: int, max_retries: int = 3
+    ) -> Optional[dict[str, Any]]:
         """Generate hypotheses using LLM with retry-repair loop.
 
         Args:
@@ -601,9 +601,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
                 return data
 
             except Exception as e:
-                self._emit_thought(
-                    ThoughtType.ERROR, f"LLM call failed: {str(e)} (attempt {attempt + 1}/{max_retries})"
-                )
+                self._emit_thought(ThoughtType.ERROR, f"LLM call failed: {e!s} (attempt {attempt + 1}/{max_retries})")
 
         return None
 
@@ -685,7 +683,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         return state
 
-    def _extract_atomic_claims(self, hypothesis: Hypothesis) -> List[str]:
+    def _extract_atomic_claims(self, hypothesis: Hypothesis) -> list[str]:
         """Extract atomic claims from a hypothesis.
 
         Breaks down hypothesis text into individual verifiable claims.
@@ -721,7 +719,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         return claims
 
-    def _verify_claim_against_context(self, claim: Claim, context: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _verify_claim_against_context(self, claim: Claim, context: list[dict[str, Any]]) -> dict[str, Any]:
         """Verify a claim against retrieved context.
 
         Args:
@@ -759,7 +757,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         return {"verified": len(supporting_sources) > 0, "sources": supporting_sources}
 
-    def _detect_contradictions(self, claims: List[Claim], context: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _detect_contradictions(self, claims: list[Claim], context: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Detect contradictions between claims.
 
         Uses negation detection and semantic analysis to find
@@ -816,7 +814,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
 
         # Check each pair of claims
         for i, claim1 in enumerate(claims):
-            for j, claim2 in enumerate(claims[i + 1 :], i + 1):
+            for _j, claim2 in enumerate(claims[i + 1 :], i + 1):
                 # Skip claims from the same hypothesis
                 if claim1.source_hypothesis_id == claim2.source_hypothesis_id:
                     continue
@@ -956,7 +954,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
         if self.thought_stream:
             self.thought_stream.emit(thought_type=thought_type, public_text=text, confidence=confidence)
 
-    def get_active_hypotheses(self, state: ReasoningState) -> List[Hypothesis]:
+    def get_active_hypotheses(self, state: ReasoningState) -> list[Hypothesis]:
         """Get active (non-pruned) hypotheses.
 
         Args:

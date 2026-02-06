@@ -1,16 +1,15 @@
 """Integration tests for stopping criteria with multi-phase research."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
+import pytest
+
+from deepr.observability.information_gain import InformationGainTracker
 from deepr.observability.stopping_criteria import (
     EntropyStoppingCriteria,
-    StoppingDecision,
-    PhaseContext,
     Finding,
+    PhaseContext,
 )
-from deepr.observability.information_gain import InformationGainTracker
 
 
 def make_findings(texts: list, phase: int = 1) -> list:
@@ -114,10 +113,7 @@ class TestStoppingIntegration:
             "Geothermal energy is location-dependent",
         ]
 
-        pivot = criteria.detect_auto_pivot(
-            make_findings(drifted_texts, 1),
-            original_query
-        )
+        pivot = criteria.detect_auto_pivot(make_findings(drifted_texts, 1), original_query)
 
         # Should detect that we've drifted from solar to general renewable energy
         # The actual pivot suggestion depends on implementation
@@ -193,10 +189,7 @@ class TestStoppingWithBatchExecutor:
         async def simulate_phase_execution(phase: int, prior_findings: list) -> tuple:
             """Simulate what batch_executor._execute_phase does."""
             # Mock LLM response with findings
-            mock_texts = [
-                f"Finding {i} from phase {phase}"
-                for i in range(3)
-            ]
+            mock_texts = [f"Finding {i} from phase {phase}" for i in range(3)]
 
             # Create Finding objects
             findings = make_findings(mock_texts, phase)

@@ -31,7 +31,7 @@ def cli():
 
 
 # Import command groups (after cli group to avoid circular imports)
-from deepr.cli.commands import (  # noqa: E402
+from deepr.cli.commands import (
     analytics,
     budget,
     config,
@@ -52,7 +52,7 @@ from deepr.cli.commands import (  # noqa: E402
     templates,
     vector,
 )
-from deepr.cli.commands import help as help_cmd  # noqa: E402
+from deepr.cli.commands import help as help_cmd
 
 # Core commands - new structure
 cli.add_command(run.run)

@@ -10,22 +10,18 @@ Tests complete workflows through the CLI:
 These tests exercise the actual CLI commands and database/storage integration.
 """
 
-import pytest
+import os
+import re
 import subprocess
 import time
-import re
-import os
-from pathlib import Path
+
+import pytest
 
 
 def extract_job_id_from_output(output):
     """Extract job ID from CLI output."""
     # Look for patterns like "Job ID: abc123" or "research-abc123"
-    patterns = [
-        r'Job ID:\s+([a-zA-Z0-9-]+)',
-        r'(research-[a-f0-9]+)',
-        r'ID:\s+([a-zA-Z0-9-]+)'
-    ]
+    patterns = [r"Job ID:\s+([a-zA-Z0-9-]+)", r"(research-[a-f0-9]+)", r"ID:\s+([a-zA-Z0-9-]+)"]
 
     for pattern in patterns:
         match = re.search(pattern, output)
@@ -46,17 +42,21 @@ def test_focus_command_complete_workflow_gemini():
     # Submit a simple research job
     result = subprocess.run(
         [
-            "deepr", "run", "focus",
+            "deepr",
+            "run",
+            "focus",
             "What is 2+2? Answer in one sentence.",
-            "--provider", "gemini",
-            "-m", "gemini-2.5-flash",
+            "--provider",
+            "gemini",
+            "-m",
+            "gemini-2.5-flash",
             "--yes",
             "--no-web",
-            "--no-code"
+            "--no-code",
         ],
         capture_output=True,
         text=True,
-        timeout=120
+        timeout=120,
     )
 
     print("Submit output:", result.stdout)
@@ -72,23 +72,13 @@ def test_focus_command_complete_workflow_gemini():
     time.sleep(5)
 
     # Check status
-    status_result = subprocess.run(
-        ["deepr", "jobs", "status", job_id],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    status_result = subprocess.run(["deepr", "jobs", "status", job_id], capture_output=True, text=True, timeout=30)
 
     print("Status output:", status_result.stdout)
     assert status_result.returncode == 0
 
     # Get results
-    get_result = subprocess.run(
-        ["deepr", "jobs", "get", job_id],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    get_result = subprocess.run(["deepr", "jobs", "get", job_id], capture_output=True, text=True, timeout=30)
 
     print("Get output:", get_result.stdout)
     assert get_result.returncode == 0
@@ -110,17 +100,21 @@ def test_focus_command_complete_workflow_grok():
     # Submit a simple research job
     result = subprocess.run(
         [
-            "deepr", "run", "focus",
+            "deepr",
+            "run",
+            "focus",
             "What is Python? Answer in one sentence.",
-            "--provider", "grok",
-            "-m", "grok-4-fast",
+            "--provider",
+            "grok",
+            "-m",
+            "grok-4-fast",
             "--yes",
             "--no-web",
-            "--no-code"
+            "--no-code",
         ],
         capture_output=True,
         text=True,
-        timeout=120
+        timeout=120,
     )
 
     print("Submit output:", result.stdout)
@@ -136,23 +130,13 @@ def test_focus_command_complete_workflow_grok():
     time.sleep(5)
 
     # Check status
-    status_result = subprocess.run(
-        ["deepr", "jobs", "status", job_id],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    status_result = subprocess.run(["deepr", "jobs", "status", job_id], capture_output=True, text=True, timeout=30)
 
     print("Status output:", status_result.stdout)
     assert status_result.returncode == 0
 
     # Get results
-    get_result = subprocess.run(
-        ["deepr", "jobs", "get", job_id],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    get_result = subprocess.run(["deepr", "jobs", "get", job_id], capture_output=True, text=True, timeout=30)
 
     print("Get output:", get_result.stdout)
     assert get_result.returncode == 0
@@ -163,12 +147,7 @@ def test_focus_command_complete_workflow_grok():
 @pytest.mark.e2e
 def test_jobs_list_command():
     """Test that jobs list command shows recent jobs."""
-    result = subprocess.run(
-        ["deepr", "jobs", "list", "--limit", "10"],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(["deepr", "jobs", "list", "--limit", "10"], capture_output=True, text=True, timeout=30)
 
     print("List output:", result.stdout)
     assert result.returncode == 0
@@ -179,10 +158,7 @@ def test_jobs_list_command():
 def test_jobs_list_with_filter():
     """Test jobs list with status filter."""
     result = subprocess.run(
-        ["deepr", "jobs", "list", "--status", "completed", "--limit", "5"],
-        capture_output=True,
-        text=True,
-        timeout=30
+        ["deepr", "jobs", "list", "--status", "completed", "--limit", "5"], capture_output=True, text=True, timeout=30
     )
 
     print("List filtered output:", result.stdout)
@@ -194,12 +170,7 @@ def test_jobs_list_with_filter():
 def test_deprecated_commands_still_work():
     """Test that deprecated commands still function with warnings."""
     # Test deprecated list command
-    result = subprocess.run(
-        ["deepr", "list", "--limit", "3"],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(["deepr", "list", "--limit", "3"], capture_output=True, text=True, timeout=30)
 
     assert result.returncode == 0
     assert "DEPRECATION" in result.stdout or "deprecated" in result.stdout.lower()
@@ -210,12 +181,7 @@ def test_deprecated_commands_still_work():
 def test_quick_alias_r():
     """Test that quick alias 'deepr r' works."""
     # Just test the help to avoid API calls
-    result = subprocess.run(
-        ["deepr", "r", "--help"],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(["deepr", "r", "--help"], capture_output=True, text=True, timeout=30)
 
     assert result.returncode == 0
 
@@ -224,12 +190,7 @@ def test_quick_alias_r():
 @pytest.mark.e2e
 def test_docs_command_structure():
     """Test that docs command has correct structure."""
-    result = subprocess.run(
-        ["deepr", "run", "docs", "--help"],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(["deepr", "run", "docs", "--help"], capture_output=True, text=True, timeout=30)
 
     assert result.returncode == 0
     assert "--provider" in result.stdout
@@ -245,16 +206,10 @@ def test_focus_with_provider_parameter():
         pytest.skip("Gemini API key not set")
 
     result = subprocess.run(
-        [
-            "deepr", "run", "focus",
-            "Say hello in one word",
-            "--provider", "gemini",
-            "-m", "gemini-2.5-flash",
-            "--yes"
-        ],
+        ["deepr", "run", "focus", "Say hello in one word", "--provider", "gemini", "-m", "gemini-2.5-flash", "--yes"],
         capture_output=True,
         text=True,
-        timeout=120
+        timeout=120,
     )
 
     print("Provider test output:", result.stdout)
@@ -266,10 +221,7 @@ def test_focus_with_provider_parameter():
 def test_invalid_job_id_handling():
     """Test that CLI handles invalid job IDs gracefully."""
     result = subprocess.run(
-        ["deepr", "jobs", "status", "invalid-job-id-12345"],
-        capture_output=True,
-        text=True,
-        timeout=30
+        ["deepr", "jobs", "status", "invalid-job-id-12345"], capture_output=True, text=True, timeout=30
     )
 
     # Should fail gracefully, not crash
@@ -281,12 +233,7 @@ def test_invalid_job_id_handling():
 def test_budget_commands():
     """Test budget management commands."""
     # Get current budget status
-    result = subprocess.run(
-        ["deepr", "budget", "status"],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(["deepr", "budget", "status"], capture_output=True, text=True, timeout=30)
 
     print("Budget output:", result.stdout)
     assert result.returncode == 0
@@ -296,12 +243,7 @@ def test_budget_commands():
 @pytest.mark.e2e
 def test_config_commands():
     """Test configuration commands."""
-    result = subprocess.run(
-        ["deepr", "config", "show"],
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(["deepr", "config", "show"], capture_output=True, text=True, timeout=30)
 
     print("Config output:", result.stdout)
     assert result.returncode == 0
@@ -317,16 +259,10 @@ def test_focus_command_with_limit():
 
     # Set a very low limit
     result = subprocess.run(
-        [
-            "deepr", "run", "focus",
-            "Test query",
-            "--provider", "gemini",
-            "--limit", "0.01",
-            "--yes"
-        ],
+        ["deepr", "run", "focus", "Test query", "--provider", "gemini", "--limit", "0.01", "--yes"],
         capture_output=True,
         text=True,
-        timeout=120
+        timeout=120,
     )
 
     print("Limit test output:", result.stdout)
@@ -353,12 +289,7 @@ def test_command_help_consistency():
     ]
 
     for cmd in commands_to_test:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         assert result.returncode == 0, f"Help failed for {' '.join(cmd)}"
         assert len(result.stdout) > 0, f"Help output empty for {' '.join(cmd)}"

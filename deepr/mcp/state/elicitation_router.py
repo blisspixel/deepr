@@ -17,10 +17,14 @@ Usage:
 """
 
 import asyncio
+import logging
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -44,13 +48,13 @@ class ElicitationRequest:
 
     id: str
     message: str
-    schema: Dict[str, Any]
+    schema: dict[str, Any]
     timeout_seconds: int = 300
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     priority: str = "normal"  # normal, high, critical
     created_at: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "message": self.message,
@@ -67,13 +71,13 @@ class ElicitationResponse:
     """Response from user elicitation."""
 
     request_id: str
-    response: Dict[str, Any]
+    response: dict[str, Any]
     target: ElicitationTarget
     responded_at: datetime = field(default_factory=_utc_now)
     was_default: bool = False
     timeout_used: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "request_id": self.request_id,
             "response": self.response,
@@ -85,7 +89,7 @@ class ElicitationResponse:
 
 
 # Type for elicitation handler
-ElicitationHandler = Callable[[ElicitationRequest], Awaitable[Optional[Dict[str, Any]]]]
+ElicitationHandler = Callable[[ElicitationRequest], Awaitable[Optional[dict[str, Any]]]]
 
 
 class ElicitationRouter:
@@ -107,7 +111,7 @@ class ElicitationRouter:
         Args:
             default_target: Default target for AUTO selection
         """
-        self.handlers: Dict[ElicitationTarget, ElicitationHandler] = {}
+        self.handlers: dict[ElicitationTarget, ElicitationHandler] = {}
         self.default_target = default_target
         self._available_targets: set = set()
 
@@ -232,7 +236,7 @@ class ElicitationRouter:
 
         return ElicitationTarget.NONE
 
-    def get_available_targets(self) -> List[ElicitationTarget]:
+    def get_available_targets(self) -> list[ElicitationTarget]:
         """Get list of available targets.
 
         Returns:
@@ -264,7 +268,7 @@ class ElicitationRouter:
     def _get_default_response(
         self,
         request: ElicitationRequest,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get default response for a request.
 
         Args:
@@ -320,9 +324,9 @@ def create_cli_handler(
         ElicitationHandler function
     """
 
-    async def handler(request: ElicitationRequest) -> Optional[Dict[str, Any]]:
+    async def handler(request: ElicitationRequest) -> Optional[dict[str, Any]]:
         # Display message
-        print(f"\n{request.message}\n")
+        logger.info("%s", request.message)
 
         schema = request.schema
         response = {}
@@ -333,7 +337,7 @@ def create_cli_handler(
 
             if "enum" in prop_schema:
                 options = prop_schema["enum"]
-                print(f"Options for {prop_name}: {', '.join(options)}")
+                logger.info("Options for %s: %s", prop_name, ", ".join(options))
 
             try:
                 user_input = prompt_func(f"{description}: ")

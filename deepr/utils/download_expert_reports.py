@@ -58,7 +58,7 @@ async def download_reports(expert_name: str, output_dir: str = "expert_reports")
             print(f"       Size: {len(raw_text)} chars")
 
         except Exception as e:
-            print(f"  [ERROR] {str(e)}")
+            print(f"  [ERROR] {e!s}")
 
     print()
     print(f"Reports saved to: {output_path.absolute()}")

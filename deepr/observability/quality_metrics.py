@@ -26,7 +26,7 @@ Usage:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -65,7 +65,7 @@ class EvaluationResult:
     novelty_score: float = 0.0  # How novel/unique this response is (0-1)
     timestamp: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "example_id": self.example_id,
             "category": self.category,
@@ -106,9 +106,9 @@ class MetricsSummary:
     avg_quality_score: float
 
     # By category
-    by_category: Dict[str, Dict[str, float]]
+    by_category: dict[str, dict[str, float]]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_examples": self.total_examples,
             "avg_citation_precision": self.avg_citation_precision,
@@ -135,29 +135,29 @@ class QualityMetrics:
 
     DEFAULT_WEIGHTS = {"citation_accuracy": 0.3, "answer_relevance": 0.4, "confidence_calibration": 0.3}
 
-    def __init__(self, weights: Optional[Dict[str, float]] = None):
+    def __init__(self, weights: Optional[dict[str, float]] = None):
         """Initialize quality metrics.
 
         Args:
             weights: Optional custom weights for metric combination
         """
         self.weights = weights or self.DEFAULT_WEIGHTS
-        self.results: List[EvaluationResult] = []
+        self.results: list[EvaluationResult] = []
 
         # For calibration binning
-        self._calibration_bins: Dict[int, List[Tuple[float, bool]]] = defaultdict(list)
+        self._calibration_bins: dict[int, list[tuple[float, bool]]] = defaultdict(list)
 
     def evaluate_response(
         self,
         example_id: str,
         category: str,
         response: str,
-        expected_contains: List[str],
-        actual_citations: List[str],
+        expected_contains: list[str],
+        actual_citations: list[str],
         expected_citation_count: int,
         confidence: float,
         is_correct: bool,
-        relevant_citations: Optional[List[str]] = None,
+        relevant_citations: Optional[list[str]] = None,
     ) -> EvaluationResult:
         """Evaluate a single response.
 
@@ -217,8 +217,8 @@ class QualityMetrics:
         return result
 
     def _calculate_citation_metrics(
-        self, actual_citations: List[str], expected_count: int, relevant_citations: Optional[List[str]] = None
-    ) -> Tuple[float, float, float]:
+        self, actual_citations: list[str], expected_count: int, relevant_citations: Optional[list[str]] = None
+    ) -> tuple[float, float, float]:
         """Calculate citation precision, recall, and F1.
 
         Args:
@@ -256,7 +256,7 @@ class QualityMetrics:
 
         return precision, recall, f1
 
-    def _calculate_relevance(self, response: str, expected_contains: List[str]) -> Tuple[float, bool]:
+    def _calculate_relevance(self, response: str, expected_contains: list[str]) -> tuple[float, bool]:
         """Calculate answer relevance.
 
         Args:
@@ -331,7 +331,7 @@ class QualityMetrics:
             return 0.0
 
         ece = 0.0
-        for bin_idx, samples in self._calibration_bins.items():
+        for _bin_idx, samples in self._calibration_bins.items():
             if not samples:
                 continue
 
@@ -382,7 +382,7 @@ class QualityMetrics:
         calibration_error = self._calculate_expected_calibration_error()
 
         # By category
-        by_category: Dict[str, Dict[str, float]] = {}
+        by_category: dict[str, dict[str, float]] = {}
         categories = set(r.category for r in self.results)
 
         for category in categories:

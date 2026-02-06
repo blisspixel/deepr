@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from openai import AsyncOpenAI
 
@@ -52,12 +52,12 @@ class ExpertChatSession:
         self.budget = budget or 10.0  # Default $10 budget if not specified
         self.agentic = agentic  # Enable research triggering
         self.cost_accumulated = 0.0
-        self.messages: List[Dict[str, any]] = []
-        self.research_jobs: List[str] = []  # Track triggered research
-        self.pending_research: Dict[str, Dict] = {}  # job_id -> {topic, started_at}
+        self.messages: list[dict[str, Any]] = []
+        self.research_jobs: list[str] = []  # Track triggered research
+        self.pending_research: dict[str, dict] = {}  # job_id -> {topic, started_at}
 
         # Reasoning trace for transparency and auditability
-        self.reasoning_trace: List[Dict[str, any]] = []
+        self.reasoning_trace: list[dict[str, Any]] = []
 
         # ThoughtStream for visible thinking (structured decision records)
         self.thought_stream = ThoughtStream(expert_name=expert.name, verbose=verbose, quiet=quiet)
@@ -343,7 +343,7 @@ Budget remaining: ${budget_remaining:.2f}
         else:
             return "I was unable to generate a confident answer through reasoning. Let me try a simpler approach."
 
-    async def _search_knowledge_base(self, query: str, top_k: int = 5) -> List[Dict]:
+    async def _search_knowledge_base(self, query: str, top_k: int = 5) -> list[dict]:
         """Search the expert's local knowledge base using hybrid retrieval.
 
         Uses both:
@@ -424,7 +424,7 @@ Budget remaining: ${budget_remaining:.2f}
             documents = []
             for filepath in md_files:
                 try:
-                    with open(filepath, "r", encoding="utf-8") as f:
+                    with open(filepath, encoding="utf-8") as f:
                         content = f.read()
                     documents.append({"filename": filepath.name, "content": content, "filepath": str(filepath)})
                 except Exception:
@@ -517,7 +517,7 @@ Budget remaining: ${budget_remaining:.2f}
         query_lower = query.lower()
         return any(kw in query_lower for kw in recency_keywords)
 
-    async def _quick_lookup(self, query: str) -> Dict:
+    async def _quick_lookup(self, query: str) -> dict:
         """Quick web lookup using GPT-5.2 with high reasoning (5-15 sec).
 
         Uses GPT-5.2 which has better current knowledge and reasoning.
@@ -558,7 +558,7 @@ Budget remaining: ${budget_remaining:.2f}
         except Exception as e:
             return {"error": str(e)}
 
-    async def _standard_research(self, query: str) -> Dict:
+    async def _standard_research(self, query: str) -> dict:
         """Standard research using Grok-4-Fast with agentic web search (FREE beta, 5-15 sec).
 
         Args:
@@ -692,9 +692,9 @@ Budget remaining: ${budget_remaining:.2f}
                     "budget_remaining": self.cost_session.get_remaining_budget(),
                 }
             except Exception as fallback_error:
-                return {"error": f"Grok search failed: {str(e)}. GPT-5.2 fallback failed: {str(fallback_error)}"}
+                return {"error": f"Grok search failed: {e!s}. GPT-5.2 fallback failed: {fallback_error!s}"}
 
-    async def _deep_research(self, query: str) -> Dict:
+    async def _deep_research(self, query: str) -> dict:
         """Deep research using o4-mini-deep-research ($0.10-0.30, 5-20 min).
 
         Args:
@@ -879,7 +879,7 @@ Budget remaining: ${budget_remaining:.2f}
         research_since_last_synthesis = self.research_count - self.last_synthesis_research_count
         return research_since_last_synthesis >= self.synthesis_threshold
 
-    async def _trigger_background_synthesis(self, status_callback=None) -> Dict:
+    async def _trigger_background_synthesis(self, status_callback=None) -> dict:
         """Re-synthesize worldview with new knowledge from recent research.
 
         Uses existing KnowledgeSynthesizer to process new documents and update
@@ -921,7 +921,7 @@ Budget remaining: ${budget_remaining:.2f}
             if documents_dir.exists():
                 for filepath in documents_dir.glob("*.md"):
                     try:
-                        with open(filepath, "r", encoding="utf-8") as f:
+                        with open(filepath, encoding="utf-8") as f:
                             content = f.read()
                         new_documents.append({"filename": filepath.name, "content": content})
                     except Exception:
@@ -1531,9 +1531,9 @@ Budget remaining: ${budget_remaining:.2f}
         except Exception as e:
             # Mark span as failed
             self._emitter.fail_task(op, str(e))
-            return f"Error communicating with expert: {str(e)}"
+            return f"Error communicating with expert: {e!s}"
 
-    def get_session_summary(self) -> Dict:
+    def get_session_summary(self) -> dict:
         """Get a summary of the chat session including cost safety status."""
         # Get cost session summary
         # Get global spending summary
@@ -1569,7 +1569,7 @@ Budget remaining: ${budget_remaining:.2f}
         """
         return self._emitter
 
-    def get_trace_summary(self) -> Dict[str, Any]:
+    def get_trace_summary(self) -> dict[str, Any]:
         """Get a summary of traced operations in this chat session.
 
         Returns:

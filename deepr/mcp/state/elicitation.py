@@ -7,10 +7,11 @@ user input when decisions require human judgment (e.g., budget overrides).
 
 import asyncio
 import uuid
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Awaitable, Callable, Optional
+from typing import Callable, Optional
 
 
 class BudgetDecision(Enum):

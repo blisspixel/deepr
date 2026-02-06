@@ -17,9 +17,10 @@ Resource URI Format:
 import asyncio
 import re
 import uuid
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Awaitable, Callable, Optional
+from typing import Callable, Optional
 
 
 @dataclass(frozen=True)

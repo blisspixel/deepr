@@ -21,12 +21,12 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepr.queue import create_queue
-from deepr.queue.base import ResearchJob, JobStatus
-from deepr.storage import create_storage
+from deepr.config import load_config
 from deepr.providers import create_provider
 from deepr.providers.base import ToolConfig
-from deepr.config import load_config
+from deepr.queue import create_queue
+from deepr.queue.base import JobStatus, ResearchJob
+from deepr.storage import create_storage
 
 # Import test prompts
 test_dir = Path(__file__).parent
@@ -62,10 +62,7 @@ class E2ETestRunner:
             api_key = self.config.get("api_key") or os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("OpenAI API key required for provider tests. Use --skip-provider to skip.")
-            self.provider = create_provider(
-                self.config.get("provider", "openai"),
-                api_key=api_key
-            )
+            self.provider = create_provider(self.config.get("provider", "openai"), api_key=api_key)
         else:
             self.provider = None
 
@@ -134,7 +131,7 @@ class E2ETestRunner:
         # Check exists
         exists = await self.storage.report_exists(job_id, filename)
         assert exists, "Report should exist"
-        print(f"[OK] Report exists check passed")
+        print("[OK] Report exists check passed")
 
         # List reports
         reports = await self.storage.list_reports(job_id=job_id)
@@ -143,7 +140,7 @@ class E2ETestRunner:
 
         # Cleanup test report
         await self.storage.delete_report(job_id)
-        print(f"[OK] Test report cleaned up")
+        print("[OK] Test report cleaned up")
 
         return True
 
@@ -191,7 +188,7 @@ class E2ETestRunner:
 
                     # Get result
                     result = await self.provider.get_result(job_id)
-                    print(f"\nResult preview:")
+                    print("\nResult preview:")
                     print(f"  Content length: {len(result.content)} chars")
                     print(f"  Cost: ${result.usage.cost:.4f}")
                     print(f"  Tokens: {result.usage.total_tokens}")

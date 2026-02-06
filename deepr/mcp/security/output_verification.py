@@ -24,7 +24,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -47,9 +47,9 @@ class VerifiedOutput:
     timestamp: datetime
     is_verified: bool = True
     verification_error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "job_id": self.job_id,
@@ -89,7 +89,7 @@ class VerificationChainEntry:
     sequence: int
     timestamp: datetime
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "output_id": self.output_id,
             "previous_hash": self.previous_hash,
@@ -129,7 +129,7 @@ class OutputVerifier:
         self._create_tables()
 
         # Chain tracking per job
-        self._chain_heads: Dict[str, str] = {}  # job_id -> last chain_hash
+        self._chain_heads: dict[str, str] = {}  # job_id -> last chain_hash
 
     def _create_tables(self):
         """Create database tables."""
@@ -168,7 +168,7 @@ class OutputVerifier:
         tool_name: str,
         content: Any,
         job_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> VerifiedOutput:
         """Record a tool output with hash verification.
 
@@ -278,7 +278,7 @@ class OutputVerifier:
     def get_verification_chain(
         self,
         job_id: str,
-    ) -> List[VerificationChainEntry]:
+    ) -> list[VerificationChainEntry]:
         """Get the verification chain for a job.
 
         Args:
@@ -397,7 +397,7 @@ class OutputVerifier:
     def get_outputs_for_job(
         self,
         job_id: str,
-    ) -> List[VerifiedOutput]:
+    ) -> list[VerifiedOutput]:
         """Get all verified outputs for a job.
 
         Args:
@@ -420,7 +420,7 @@ class OutputVerifier:
     def get_stats(
         self,
         job_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get verification statistics.
 
         Args:

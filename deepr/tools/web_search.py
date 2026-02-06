@@ -1,7 +1,7 @@
 """Web search tool implementation."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import requests
 
@@ -48,7 +48,7 @@ class WebSearchTool(Tool):
         )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -174,7 +174,7 @@ class MCPWebSearchTool(Tool):
         return "Search the web using local MCP server."
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "Search query"}},

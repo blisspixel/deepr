@@ -1,19 +1,19 @@
 """Test CLI integration with scraping functionality."""
 
-import sys
 import os
+import sys
 import tempfile
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from deepr.utils.scrape import scrape_website, ScrapeConfig
+from deepr.utils.scrape import ScrapeConfig, scrape_website
 
 
 def test_cli_scraping_workflow():
     """Test the scraping workflow that CLI would use."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("CLI Scraping Integration Test")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Scrape a website (what CLI does)
     print("[TEST] Scraping example.com...")
@@ -30,16 +30,16 @@ def test_cli_scraping_workflow():
         synthesize=False,
     )
 
-    assert results['success'] == True
+    assert results["success"] == True
     print(f"  [OK] Scraping successful: {results['pages_scraped']} pages")
 
     # Save to temporary file (what CLI does)
     print("[TEST] Saving scraped content to temp file...")
-    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8')
-    temp_file.write(f"# Scraped Content from example.com\n\n")
+    temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
+    temp_file.write("# Scraped Content from example.com\n\n")
     temp_file.write(f"**Scraped {results['pages_scraped']} pages**\n\n")
 
-    for url, content in results['scraped_data'].items():
+    for url, content in results["scraped_data"].items():
         temp_file.write(f"## Source: {url}\n\n")
         temp_file.write(content)
         temp_file.write("\n\n---\n\n")
@@ -50,7 +50,7 @@ def test_cli_scraping_workflow():
     # Verify file was created and has content
     print("[TEST] Verifying temp file...")
     assert os.path.exists(temp_file.name)
-    with open(temp_file.name, 'r', encoding='utf-8') as f:
+    with open(temp_file.name, encoding="utf-8") as f:
         content = f.read()
         assert len(content) > 100
         assert "# Scraped Content" in content
@@ -59,11 +59,11 @@ def test_cli_scraping_workflow():
 
     # Cleanup
     os.unlink(temp_file.name)
-    print(f"  [OK] Cleanup complete")
+    print("  [OK] Cleanup complete")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("CLI Integration Test PASSED")
-    print("="*70)
+    print("=" * 70)
     print("\nCLI command would be:")
     print('deepr research "Analyze example.com" --scrape https://example.com')
     print("\nThis would:")
@@ -81,5 +81,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[FAIL] {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

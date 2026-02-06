@@ -1,6 +1,6 @@
 """Report generation and formatting."""
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 from ..formatting.converters import ReportConverter
 from ..providers.base import ResearchResponse
@@ -13,7 +13,7 @@ class ReportGenerator:
         self,
         generate_pdf: bool = False,
         strip_citations: bool = True,
-        default_formats: Optional[List[str]] = None,
+        default_formats: Optional[list[str]] = None,
     ):
         """
         Initialize report generator.
@@ -54,8 +54,8 @@ class ReportGenerator:
         self,
         text: str,
         title: str,
-        formats: Optional[List[str]] = None,
-    ) -> Dict[str, bytes]:
+        formats: Optional[list[str]] = None,
+    ) -> dict[str, bytes]:
         """
         Generate reports in multiple formats.
 

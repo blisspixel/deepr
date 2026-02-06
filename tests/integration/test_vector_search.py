@@ -1,10 +1,13 @@
 """Test vector search for pricing"""
+
 import asyncio
 import os
+
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 load_dotenv()
+
 
 async def test_search():
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -15,7 +18,7 @@ async def test_search():
         "Microsoft Agent 365 pricing",
         "pricing for Agent 365",
         "what does Agent 365 cost",
-        "Agent 365"
+        "Agent 365",
     ]
 
     for query in queries:
@@ -29,35 +32,28 @@ async def test_search():
             instructions="You are a test assistant",
             model="gpt-4o-mini",
             tools=[{"type": "file_search"}],
-            tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}}
+            tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
         )
 
         # Create thread
         thread = await client.beta.threads.create()
 
         # Send message
-        message = await client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=query
-        )
+        message = await client.beta.threads.messages.create(thread_id=thread.id, role="user", content=query)
 
         # Run assistant
-        run = await client.beta.threads.runs.create_and_poll(
-            thread_id=thread.id,
-            assistant_id=assistant.id
-        )
+        run = await client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
 
-        if run.status == 'completed':
+        if run.status == "completed":
             # Get messages
             messages = await client.beta.threads.messages.list(thread_id=thread.id)
             response_message = messages.data[0]
 
             # Check if file_search was used
-            if hasattr(response_message, 'attachments') and response_message.attachments:
+            if hasattr(response_message, "attachments") and response_message.attachments:
                 print(f"✅ Found knowledge - Attachments: {len(response_message.attachments)}")
             else:
-                print(f"❌ No knowledge found")
+                print("❌ No knowledge found")
 
             # Show response excerpt
             content = response_message.content[0].text.value
@@ -70,6 +66,7 @@ async def test_search():
         await client.beta.threads.delete(thread.id)
 
     await client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(test_search())

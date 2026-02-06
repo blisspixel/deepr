@@ -33,7 +33,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -57,21 +57,21 @@ class StoredFinding:
     source: Optional[str]
     finding_type: str
     timestamp: datetime
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    tokens: List[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    tokens: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.tokens:
             self.tokens = self._tokenize(self.text)
 
     @staticmethod
-    def _tokenize(text: str) -> List[str]:
+    def _tokenize(text: str) -> list[str]:
         """Tokenize text for search."""
         text = text.lower()
         text = re.sub(r"[^\w\s]", " ", text)
         return [t for t in text.split() if len(t) > 2]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "job_id": self.job_id,
@@ -128,8 +128,8 @@ class FindingsStore:
         self._create_tables()
 
         # In-memory token index for fast retrieval
-        self._token_index: Dict[str, Dict[str, int]] = {}  # token -> {finding_id: count}
-        self._doc_lengths: Dict[str, int] = {}  # finding_id -> token count
+        self._token_index: dict[str, dict[str, int]] = {}  # token -> {finding_id: count}
+        self._doc_lengths: dict[str, int] = {}  # finding_id -> token count
         self._load_index()
 
     def _create_tables(self):
@@ -177,7 +177,7 @@ class FindingsStore:
         job_id: str,
         phase: int,
         text: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         confidence: float = 0.5,
         source: Optional[str] = None,
         finding_type: str = "fact",
@@ -261,7 +261,7 @@ class FindingsStore:
         top_k: int = 10,
         phase: Optional[int] = None,
         min_confidence: float = 0.0,
-    ) -> List[StoredFinding]:
+    ) -> list[StoredFinding]:
         """Retrieve findings relevant to a query.
 
         Uses TF-IDF-like scoring for relevance ranking.
@@ -312,7 +312,7 @@ class FindingsStore:
         self,
         job_id: str,
         phase: int,
-    ) -> List[StoredFinding]:
+    ) -> list[StoredFinding]:
         """Get all findings for a specific phase.
 
         Args:
@@ -336,7 +336,7 @@ class FindingsStore:
     async def get_all_findings(
         self,
         job_id: str,
-    ) -> List[StoredFinding]:
+    ) -> list[StoredFinding]:
         """Get all findings for a job.
 
         Args:
@@ -388,7 +388,7 @@ class FindingsStore:
 
         return cursor.rowcount
 
-    async def get_stats(self, job_id: Optional[str] = None) -> Dict[str, Any]:
+    async def get_stats(self, job_id: Optional[str] = None) -> dict[str, Any]:
         """Get storage statistics.
 
         Args:
@@ -422,7 +422,7 @@ class FindingsStore:
     async def _get_candidates(
         self,
         job_id: str,
-        query_tokens: List[str],
+        query_tokens: list[str],
         phase: Optional[int],
     ) -> set:
         """Get candidate finding IDs for a query.
@@ -455,7 +455,7 @@ class FindingsStore:
     def _calculate_relevance_score(
         self,
         finding_id: str,
-        query_tokens: List[str],
+        query_tokens: list[str],
         total_docs: int,
     ) -> float:
         """Calculate TF-IDF-like relevance score.

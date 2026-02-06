@@ -41,7 +41,7 @@ def _utc_now() -> datetime:
 
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
 
 class EdgeType(Enum):
@@ -73,9 +73,9 @@ class Concept:
 
     text: str
     concept_type: str = "noun_phrase"
-    original_forms: Set[str] = field(default_factory=set)
-    document_ids: Set[str] = field(default_factory=set)
-    section_ids: Set[str] = field(default_factory=set)
+    original_forms: set[str] = field(default_factory=set)
+    document_ids: set[str] = field(default_factory=set)
+    section_ids: set[str] = field(default_factory=set)
     frequency: int = 0
     tf_idf_score: float = 0.0
     created_at: datetime = field(default_factory=_utc_now)
@@ -91,7 +91,7 @@ class Concept:
         if isinstance(self.section_ids, list):
             self.section_ids = set(self.section_ids)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.text,
@@ -105,7 +105,7 @@ class Concept:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Concept":
+    def from_dict(cls, data: dict[str, Any]) -> "Concept":
         return cls(
             id=data.get("id", ""),
             text=data["text"],
@@ -138,7 +138,7 @@ class Edge:
     target_id: str
     edge_type: EdgeType
     weight: float = 1.0
-    document_ids: Set[str] = field(default_factory=set)
+    document_ids: set[str] = field(default_factory=set)
     created_at: datetime = field(default_factory=_utc_now)
 
     def __post_init__(self):
@@ -149,7 +149,7 @@ class Edge:
     def id(self) -> str:
         return f"{self.source_id}:{self.edge_type.value}:{self.target_id}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "source_id": self.source_id,
             "target_id": self.target_id,
@@ -160,7 +160,7 @@ class Edge:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Edge":
+    def from_dict(cls, data: dict[str, Any]) -> "Edge":
         return cls(
             source_id=data["source_id"],
             target_id=data["target_id"],
@@ -357,7 +357,7 @@ class ConceptExtractor:
         # Pattern for headings in markdown
         self._heading_pattern = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
-    def extract_concepts(self, text: str, document_id: str, section_id: Optional[str] = None) -> List[Concept]:
+    def extract_concepts(self, text: str, document_id: str, section_id: Optional[str] = None) -> list[Concept]:
         """Extract concepts from text using multiple methods.
 
         Args:
@@ -368,7 +368,7 @@ class ConceptExtractor:
         Returns:
             List of extracted concepts
         """
-        concepts: Dict[str, Concept] = {}
+        concepts: dict[str, Concept] = {}
 
         # 1. Extract noun phrases
         np_concepts = self._extract_noun_phrases(text, document_id, section_id)
@@ -405,7 +405,7 @@ class ConceptExtractor:
         # Filter by minimum frequency
         return [c for c in concepts.values() if c.frequency >= self.min_frequency]
 
-    def _extract_noun_phrases(self, text: str, document_id: str, section_id: Optional[str] = None) -> List[Concept]:
+    def _extract_noun_phrases(self, text: str, document_id: str, section_id: Optional[str] = None) -> list[Concept]:
         """Extract noun phrases from text.
 
         Uses simple pattern matching for noun phrase extraction.
@@ -458,7 +458,7 @@ class ConceptExtractor:
 
         return concepts
 
-    def _extract_headings(self, text: str, document_id: str) -> List[Concept]:
+    def _extract_headings(self, text: str, document_id: str) -> list[Concept]:
         """Extract headings from markdown text.
 
         Args:
@@ -493,7 +493,7 @@ class ConceptExtractor:
 
         return concepts
 
-    def _extract_key_phrases(self, text: str, document_id: str, section_id: Optional[str] = None) -> List[Concept]:
+    def _extract_key_phrases(self, text: str, document_id: str, section_id: Optional[str] = None) -> list[Concept]:
         """Extract key phrases using TF-IDF-like scoring.
 
         Simple implementation without external dependencies.
@@ -511,7 +511,7 @@ class ConceptExtractor:
 
         # Tokenize and count
         words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9_-]*\b", text.lower())
-        word_counts: Dict[str, int] = defaultdict(int)
+        word_counts: dict[str, int] = defaultdict(int)
 
         for word in words:
             if word not in self.stopwords and len(word) > 2:
@@ -544,7 +544,7 @@ class ConceptExtractor:
 
         return concepts
 
-    def extract_sections(self, text: str, document_id: str) -> List[DocumentSection]:
+    def extract_sections(self, text: str, document_id: str) -> list[DocumentSection]:
         """Extract sections from markdown document.
 
         Args:
@@ -638,7 +638,7 @@ class EdgeBuilder:
         # Scope weights (higher = stronger relationship)
         self.scope_weights = {"same_heading": 1.0, "same_paragraph": 0.7, "same_chunk": 0.4}
 
-    def build_edges(self, concepts: List[Concept], sections: List[DocumentSection], document_id: str) -> List[Edge]:
+    def build_edges(self, concepts: list[Concept], sections: list[DocumentSection], document_id: str) -> list[Edge]:
         """Build edges between concepts based on co-occurrence.
 
         Args:
@@ -649,10 +649,10 @@ class EdgeBuilder:
         Returns:
             List of edges
         """
-        edges: Dict[str, Edge] = {}
+        edges: dict[str, Edge] = {}
 
         # Build concept index by section
-        section_concepts: Dict[str, List[Concept]] = defaultdict(list)
+        section_concepts: dict[str, list[Concept]] = defaultdict(list)
         for concept in concepts:
             for section_id in concept.section_ids:
                 section_concepts[section_id].append(concept)
@@ -739,7 +739,7 @@ class EdgeBuilder:
 
         return Edge(source_id=c1.id, target_id=c2.id, edge_type=edge_type, weight=weight, document_ids={document_id})
 
-    def _find_concept_by_text(self, concepts: List[Concept], text: str) -> Optional[Concept]:
+    def _find_concept_by_text(self, concepts: list[Concept], text: str) -> Optional[Concept]:
         """Find concept by text.
 
         Args:
@@ -888,7 +888,7 @@ class SufficiencyScorer:
         }
 
     def score(
-        self, query: str, chunks: List[Dict[str, Any]], citations: Optional[List[str]] = None
+        self, query: str, chunks: list[dict[str, Any]], citations: Optional[list[str]] = None
     ) -> RetrievalSufficiency:
         """Score retrieval sufficiency.
 
@@ -925,7 +925,7 @@ class SufficiencyScorer:
 
         return sufficiency
 
-    def _calculate_coverage(self, query: str, chunks: List[Dict[str, Any]]) -> float:
+    def _calculate_coverage(self, query: str, chunks: list[dict[str, Any]]) -> float:
         """Calculate how well chunks cover query aspects.
 
         Args:
@@ -953,7 +953,7 @@ class SufficiencyScorer:
 
         return len(covered) / len(query_words)
 
-    def _calculate_redundancy(self, chunks: List[Dict[str, Any]]) -> float:
+    def _calculate_redundancy(self, chunks: list[dict[str, Any]]) -> float:
         """Calculate redundancy between chunks.
 
         Args:
@@ -1001,7 +1001,7 @@ class SufficiencyScorer:
 
         return intersection / union if union > 0 else 0.0
 
-    def _estimate_citation_density(self, chunks: List[Dict[str, Any]]) -> float:
+    def _estimate_citation_density(self, chunks: list[dict[str, Any]]) -> float:
         """Estimate citation density from chunks.
 
         Args:
@@ -1027,7 +1027,7 @@ class SufficiencyScorer:
 
         return total_citations / len(chunks) if chunks else 0.0
 
-    def _estimate_contradiction_rate(self, chunks: List[Dict[str, Any]]) -> float:
+    def _estimate_contradiction_rate(self, chunks: list[dict[str, Any]]) -> float:
         """Estimate contradiction rate between chunks.
 
         Simple heuristic: look for negation patterns.
@@ -1093,9 +1093,9 @@ class CachedSubgraph:
     """
 
     query_hash: str
-    node_ids: Set[str] = field(default_factory=set)
-    node_summaries: Dict[str, str] = field(default_factory=dict)
-    prompt_blocks: List[str] = field(default_factory=list)
+    node_ids: set[str] = field(default_factory=set)
+    node_summaries: dict[str, str] = field(default_factory=dict)
+    prompt_blocks: list[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=_utc_now)
     last_accessed: datetime = field(default_factory=_utc_now)
     access_count: int = 0
@@ -1109,7 +1109,7 @@ class CachedSubgraph:
         self.last_accessed = datetime.now(timezone.utc)
         self.access_count += 1
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "query_hash": self.query_hash,
             "node_ids": list(self.node_ids),
@@ -1121,7 +1121,7 @@ class CachedSubgraph:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CachedSubgraph":
+    def from_dict(cls, data: dict[str, Any]) -> "CachedSubgraph":
         return cls(
             query_hash=data["query_hash"],
             node_ids=set(data.get("node_ids", [])),
@@ -1162,7 +1162,7 @@ class SubgraphCache:
             storage_path: Path for persistence
         """
         self.max_size = max_size
-        self.cache: Dict[str, CachedSubgraph] = {}
+        self.cache: dict[str, CachedSubgraph] = {}
         self.storage_path = storage_path
 
         if storage_path:
@@ -1189,9 +1189,9 @@ class SubgraphCache:
     def put(
         self,
         query: str,
-        node_ids: Set[str],
-        node_summaries: Optional[Dict[str, str]] = None,
-        prompt_blocks: Optional[List[str]] = None,
+        node_ids: set[str],
+        node_summaries: Optional[dict[str, str]] = None,
+        prompt_blocks: Optional[list[str]] = None,
     ) -> CachedSubgraph:
         """Cache a subgraph for query.
 
@@ -1225,7 +1225,7 @@ class SubgraphCache:
 
         return subgraph
 
-    def update_summaries(self, query: str, summaries: Dict[str, str]):
+    def update_summaries(self, query: str, summaries: dict[str, str]):
         """Update node summaries for cached query.
 
         Args:
@@ -1241,7 +1241,7 @@ class SubgraphCache:
             if self.storage_path:
                 self._save()
 
-    def update_prompt_blocks(self, query: str, blocks: List[str]):
+    def update_prompt_blocks(self, query: str, blocks: list[str]):
         """Update prompt blocks for cached query.
 
         Args:
@@ -1278,7 +1278,7 @@ class SubgraphCache:
         if self.storage_path:
             self._save()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.
 
         Returns:
@@ -1341,7 +1341,7 @@ class SubgraphCache:
             return
 
         try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
+            with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             self.max_size = data.get("max_size", self.max_size)
@@ -1382,12 +1382,12 @@ class KnowledgeGraph:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         # Graph data
-        self.concepts: Dict[str, Concept] = {}
-        self.edges: Dict[str, Edge] = {}
-        self.adjacency: Dict[str, List[Tuple[str, Edge]]] = defaultdict(list)
+        self.concepts: dict[str, Concept] = {}
+        self.edges: dict[str, Edge] = {}
+        self.adjacency: dict[str, list[tuple[str, Edge]]] = defaultdict(list)
 
         # Reverse index: text -> concept_id
-        self._text_index: Dict[str, str] = {}
+        self._text_index: dict[str, str] = {}
 
         # Load persisted graph
         self._load()
@@ -1466,8 +1466,8 @@ class KnowledgeGraph:
         return None
 
     def get_neighbors(
-        self, concept_id: str, edge_types: Optional[List[EdgeType]] = None, min_weight: float = 0.0
-    ) -> List[Tuple[Concept, Edge]]:
+        self, concept_id: str, edge_types: Optional[list[EdgeType]] = None, min_weight: float = 0.0
+    ) -> list[tuple[Concept, Edge]]:
         """Get neighboring concepts.
 
         Args:
@@ -1500,12 +1500,12 @@ class KnowledgeGraph:
 
     def traverse(
         self,
-        start_ids: List[str],
+        start_ids: list[str],
         max_depth: int = 2,
         max_nodes: int = 50,
-        edge_types: Optional[List[EdgeType]] = None,
+        edge_types: Optional[list[EdgeType]] = None,
         min_weight: float = 0.0,
-    ) -> Set[str]:
+    ) -> set[str]:
         """Traverse graph from starting nodes.
 
         BFS traversal with depth and node limits.
@@ -1520,8 +1520,8 @@ class KnowledgeGraph:
         Returns:
             Set of visited concept IDs
         """
-        visited: Set[str] = set()
-        queue: List[Tuple[str, int]] = [(cid, 0) for cid in start_ids if cid in self.concepts]
+        visited: set[str] = set()
+        queue: list[tuple[str, int]] = [(cid, 0) for cid in start_ids if cid in self.concepts]
 
         while queue and len(visited) < max_nodes:
             concept_id, depth = queue.pop(0)
@@ -1535,13 +1535,13 @@ class KnowledgeGraph:
                 continue
 
             # Add neighbors to queue
-            for neighbor, edge in self.get_neighbors(concept_id, edge_types, min_weight):
+            for neighbor, _edge in self.get_neighbors(concept_id, edge_types, min_weight):
                 if neighbor.id not in visited:
                     queue.append((neighbor.id, depth + 1))
 
         return visited
 
-    def search(self, query: str, top_k: int = 10) -> List[Concept]:
+    def search(self, query: str, top_k: int = 10) -> list[Concept]:
         """Search for concepts matching query.
 
         Args:
@@ -1557,7 +1557,7 @@ class KnowledgeGraph:
             return []
 
         # Score concepts by keyword overlap
-        scored: List[Tuple[float, Concept]] = []
+        scored: list[tuple[float, Concept]] = []
 
         for concept in self.concepts.values():
             concept_words = set(concept.text.lower().split())
@@ -1596,7 +1596,7 @@ class KnowledgeGraph:
         # Load concepts
         concepts_path = self.storage_dir / "concepts.json"
         if concepts_path.exists():
-            with open(concepts_path, "r", encoding="utf-8") as f:
+            with open(concepts_path, encoding="utf-8") as f:
                 concepts_data = json.load(f)
             for data in concepts_data:
                 concept = Concept.from_dict(data)
@@ -1606,7 +1606,7 @@ class KnowledgeGraph:
         # Load edges
         edges_path = self.storage_dir / "edges.json"
         if edges_path.exists():
-            with open(edges_path, "r", encoding="utf-8") as f:
+            with open(edges_path, encoding="utf-8") as f:
                 edges_data = json.load(f)
             for data in edges_data:
                 edge = Edge.from_dict(data)
@@ -1614,7 +1614,7 @@ class KnowledgeGraph:
                 self.adjacency[edge.source_id].append((edge.target_id, edge))
                 self.adjacency[edge.target_id].append((edge.source_id, edge))
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get graph statistics.
 
         Returns:
@@ -1628,16 +1628,16 @@ class KnowledgeGraph:
             "edge_types": self._count_edge_types(),
         }
 
-    def _count_concept_types(self) -> Dict[str, int]:
+    def _count_concept_types(self) -> dict[str, int]:
         """Count concepts by type."""
-        counts: Dict[str, int] = defaultdict(int)
+        counts: dict[str, int] = defaultdict(int)
         for concept in self.concepts.values():
             counts[concept.concept_type] += 1
         return dict(counts)
 
-    def _count_edge_types(self) -> Dict[str, int]:
+    def _count_edge_types(self) -> dict[str, int]:
         """Count edges by type."""
-        counts: Dict[str, int] = defaultdict(int)
+        counts: dict[str, int] = defaultdict(int)
         for edge in self.edges.values():
             counts[edge.edge_type.value] += 1
         return dict(counts)
@@ -1700,12 +1700,12 @@ class LazyGraphRAG:
         self.sufficiency_scorer = SufficiencyScorer()
 
         # Track indexing stats
-        self._indexed_docs: Set[str] = set()
+        self._indexed_docs: set[str] = set()
         self._last_index_time: Optional[datetime] = None
 
     async def index_document(
-        self, document_id: str, content: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, document_id: str, content: str, metadata: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """Index a single document.
 
         Extracts concepts and builds edges lazily.
@@ -1724,7 +1724,7 @@ class LazyGraphRAG:
         sections = self.extractor.extract_sections(content, document_id)
 
         # Extract concepts from each section
-        all_concepts: List[Concept] = []
+        all_concepts: list[Concept] = []
         for section in sections:
             concepts = self.extractor.extract_concepts(section.content, document_id, section.id)
             all_concepts.extend(concepts)
@@ -1755,7 +1755,7 @@ class LazyGraphRAG:
             "elapsed_seconds": elapsed,
         }
 
-    async def index_documents(self, documents: List[Dict[str, Any]], batch_size: int = 100) -> Dict[str, Any]:
+    async def index_documents(self, documents: list[dict[str, Any]], batch_size: int = 100) -> dict[str, Any]:
         """Index multiple documents.
 
         Args:
@@ -1798,7 +1798,7 @@ class LazyGraphRAG:
 
     async def retrieve(
         self, query: str, top_k: int = 5, use_graph: bool = True, expand_if_insufficient: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Retrieve relevant content for query.
 
         Hybrid retrieval:
@@ -1861,7 +1861,7 @@ class LazyGraphRAG:
 
         return {"chunks": chunks, "from_cache": False, "sufficiency": sufficiency, "concepts": concept_ids}
 
-    def _build_chunks(self, concept_ids: List[str], max_chunks: int) -> List[Dict[str, Any]]:
+    def _build_chunks(self, concept_ids: list[str], max_chunks: int) -> list[dict[str, Any]]:
         """Build retrieval chunks from concepts.
 
         Args:
@@ -1947,7 +1947,7 @@ class LazyGraphRAG:
 
         return False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get LazyGraphRAG statistics.
 
         Returns:
@@ -1971,7 +1971,7 @@ class LazyGraphRAG:
         # This would integrate with observability system
         # For now, just track in memory
         if not hasattr(self, "_sufficiency_log"):
-            self._sufficiency_log: List[Dict[str, Any]] = []
+            self._sufficiency_log: list[dict[str, Any]] = []
 
         self._sufficiency_log.append(
             {

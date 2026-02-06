@@ -1,8 +1,9 @@
 """Tests for team architect service."""
 
-import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from tests.unit.test_services.conftest import make_chat_response
 
 
@@ -17,12 +18,14 @@ class TestTeamArchitect:
     def architect(self, mock_client):
         with patch("deepr.services.team_architect.OpenAI", return_value=mock_client):
             from deepr.services.team_architect import TeamArchitect
+
             return TeamArchitect(api_key="test-key")
 
     def test_init_with_api_key(self):
         """Direct API key accepted."""
         with patch("deepr.services.team_architect.OpenAI"):
             from deepr.services.team_architect import TeamArchitect
+
             a = TeamArchitect(api_key="direct-key")
             assert a.api_key == "direct-key"
 
@@ -30,6 +33,7 @@ class TestTeamArchitect:
         """Falls back to OPENAI_API_KEY env."""
         with patch("deepr.services.team_architect.OpenAI"):
             from deepr.services.team_architect import TeamArchitect
+
             a = TeamArchitect()
             assert a.api_key == "sk-test-key-not-real"
 
@@ -38,17 +42,20 @@ class TestTeamArchitect:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with patch("deepr.services.team_architect.OpenAI"):
             from deepr.services.team_architect import TeamArchitect
+
             with pytest.raises(ValueError, match="OPENAI_API_KEY not found"):
                 TeamArchitect()
 
     def test_design_team_returns_list(self, architect, mock_client):
         """design_team returns list of team member dicts."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "team": [
-                {"role": "Analyst", "focus": "Data", "perspective": "data-driven", "rationale": "Need data"},
-            ],
-            "team_rationale": "Good team",
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "team": [
+                    {"role": "Analyst", "focus": "Data", "perspective": "data-driven", "rationale": "Need data"},
+                ],
+                "team_rationale": "Good team",
+            }
+        )
         result = architect.design_team("Should we pivot?")
         assert isinstance(result, list)
         assert len(result) == 1
@@ -56,26 +63,35 @@ class TestTeamArchitect:
 
     def test_design_team_calls_api(self, architect, mock_client):
         """design_team calls chat.completions.create."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "team": [], "team_rationale": "",
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "team": [],
+                "team_rationale": "",
+            }
+        )
         architect.design_team("Question")
         mock_client.chat.completions.create.assert_called_once()
 
     def test_design_team_uses_json_format(self, architect, mock_client):
         """Uses response_format json_object."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "team": [], "team_rationale": "",
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "team": [],
+                "team_rationale": "",
+            }
+        )
         architect.design_team("Question")
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         assert call_kwargs["response_format"] == {"type": "json_object"}
 
     def test_design_team_with_context(self, architect, mock_client):
         """Context is included in the prompt."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "team": [], "team_rationale": "",
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "team": [],
+                "team_rationale": "",
+            }
+        )
         architect.design_team("Question", context="We are a startup")
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         user_msg = call_kwargs["messages"][1]["content"]
@@ -83,9 +99,12 @@ class TestTeamArchitect:
 
     def test_design_team_with_perspective_lens(self, architect, mock_client):
         """Perspective lens text appears in prompt."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "team": [], "team_rationale": "",
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "team": [],
+                "team_rationale": "",
+            }
+        )
         architect.design_team("Question", perspective_lens="Japanese business culture")
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         user_msg = call_kwargs["messages"][1]["content"]
@@ -93,9 +112,12 @@ class TestTeamArchitect:
 
     def test_design_team_adversarial_mode(self, architect, mock_client):
         """Adversarial mode adds skeptical emphasis to prompt."""
-        mock_client.chat.completions.create.return_value = make_chat_response({
-            "team": [], "team_rationale": "",
-        })
+        mock_client.chat.completions.create.return_value = make_chat_response(
+            {
+                "team": [],
+                "team_rationale": "",
+            }
+        )
         architect.design_team("Question", adversarial=True)
         call_kwargs = mock_client.chat.completions.create.call_args[1]
         user_msg = call_kwargs["messages"][1]["content"]
@@ -136,12 +158,14 @@ class TestTeamSynthesizer:
     def synthesizer(self, mock_client):
         with patch("deepr.services.team_architect.OpenAI", return_value=mock_client):
             from deepr.services.team_architect import TeamSynthesizer
+
             return TeamSynthesizer(api_key="test-key")
 
     def test_init_with_api_key(self):
         """Direct API key accepted."""
         with patch("deepr.services.team_architect.OpenAI"):
             from deepr.services.team_architect import TeamSynthesizer
+
             s = TeamSynthesizer(api_key="direct-key")
             assert s.api_key == "direct-key"
 
@@ -150,6 +174,7 @@ class TestTeamSynthesizer:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with patch("deepr.services.team_architect.OpenAI"):
             from deepr.services.team_architect import TeamSynthesizer
+
             with pytest.raises(ValueError, match="OPENAI_API_KEY not found"):
                 TeamSynthesizer()
 

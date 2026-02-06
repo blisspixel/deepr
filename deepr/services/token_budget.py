@@ -24,7 +24,7 @@ Usage:
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from deepr.core.constants import (
     MAX_CONTEXT_TOKENS,
@@ -62,7 +62,7 @@ class PhaseAllocation:
         if self.remaining == 0:
             self.remaining = self.allocated
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "phase": self.phase,
             "allocated": self.allocated,
@@ -79,12 +79,12 @@ class BudgetPlan:
 
     total_budget: int
     synthesis_reserve: int
-    phases: Dict[int, PhaseAllocation]
+    phases: dict[int, PhaseAllocation]
     strategy: AllocationStrategy
     created_at: datetime = field(default_factory=_utc_now)
     reallocation_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_budget": self.total_budget,
             "synthesis_reserve": self.synthesis_reserve,
@@ -146,7 +146,7 @@ class TokenBudgetAllocator:
     def create_plan(
         self,
         num_phases: int,
-        phase_weights: Optional[Dict[int, float]] = None,
+        phase_weights: Optional[dict[int, float]] = None,
         strategy: AllocationStrategy = AllocationStrategy.WEIGHTED,
     ) -> BudgetPlan:
         """Create a budget plan for phases.
@@ -287,7 +287,7 @@ class TokenBudgetAllocator:
         self,
         plan: BudgetPlan,
         current_phase: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Estimate remaining research capacity.
 
         Args:
@@ -315,7 +315,7 @@ class TokenBudgetAllocator:
     def suggest_optimization(
         self,
         plan: BudgetPlan,
-    ) -> List[str]:
+    ) -> list[str]:
         """Suggest budget optimizations.
 
         Args:
@@ -349,7 +349,7 @@ class TokenBudgetAllocator:
         self,
         num_phases: int,
         strategy: AllocationStrategy,
-    ) -> Dict[int, float]:
+    ) -> dict[int, float]:
         """Get phase weights for a strategy.
 
         Args:
@@ -406,8 +406,8 @@ class BudgetTracker:
             plan: Budget plan to track
         """
         self.plan = plan
-        self.usage_log: List[Dict[str, Any]] = []
-        self.alerts: List[str] = []
+        self.usage_log: list[dict[str, Any]] = []
+        self.alerts: list[str] = []
 
     def log_usage(
         self,
@@ -437,7 +437,7 @@ class BudgetTracker:
             if alloc.used > alloc.allocated * 0.9:
                 self.alerts.append(f"Phase {phase} at {alloc.used / alloc.allocated:.0%} capacity")
 
-    def get_usage_summary(self) -> Dict[str, Any]:
+    def get_usage_summary(self) -> dict[str, Any]:
         """Get usage summary.
 
         Returns:

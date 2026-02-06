@@ -7,8 +7,6 @@ import click
 
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
-# from deepr.services.cost_estimation import CostEstimator  # TODO: implement or remove
-
 # -------------------------------
 # Helpers
 # -------------------------------
@@ -848,7 +846,7 @@ def _render_temporal_timeline(job_id: str, trace_path):
 
     try:
         # Try to load temporal data from trace
-        with open(trace_path, "r") as f:
+        with open(trace_path) as f:
             trace_data = json.load(f)
 
         temporal_data = trace_data.get("temporal", {})

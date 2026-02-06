@@ -3,17 +3,18 @@
 Requirements: 1.3 - Test Coverage
 """
 
-import pytest
 import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 from deepr.experts.curriculum import (
     CurriculumGenerationProgress,
-    SourceReference,
-    LearningTopic,
+    CurriculumGenerator,
     LearningCurriculum,
-    CurriculumGenerator
+    LearningTopic,
+    SourceReference,
 )
 
 
@@ -26,7 +27,7 @@ class TestSourceReference:
             url="https://docs.example.com",
             title="Example Docs",
             source_type="documentation",
-            description="Official documentation"
+            description="Official documentation",
         )
 
         assert source.url == "https://docs.example.com"
@@ -173,7 +174,7 @@ class TestLearningTopic:
             estimated_cost=0.20,
             estimated_minutes=10,
             priority=1,
-            research_prompt="Research Azure Landing Zone best practices 2025"
+            research_prompt="Research Azure Landing Zone best practices 2025",
         )
 
         assert topic.title == "Azure Architecture Basics"
@@ -193,7 +194,7 @@ class TestLearningTopic:
             estimated_cost=2.00,
             estimated_minutes=50,
             priority=1,
-            research_prompt="Survey deep learning research papers"
+            research_prompt="Survey deep learning research papers",
         )
 
         assert topic.research_mode == "campaign"
@@ -211,7 +212,7 @@ class TestLearningTopic:
             estimated_minutes=12,
             priority=2,
             research_prompt="Research advanced patterns",
-            dependencies=["Basics", "Fundamentals"]
+            dependencies=["Basics", "Fundamentals"],
         )
 
         assert len(topic.dependencies) == 2
@@ -232,7 +233,7 @@ class TestLearningCurriculum:
                 estimated_cost=0.15,
                 estimated_minutes=8,
                 priority=1,
-                research_prompt="Research topic 1"
+                research_prompt="Research topic 1",
             ),
             LearningTopic(
                 title="Topic 2",
@@ -242,8 +243,8 @@ class TestLearningCurriculum:
                 estimated_cost=0.20,
                 estimated_minutes=10,
                 priority=2,
-                research_prompt="Research topic 2"
-            )
+                research_prompt="Research topic 2",
+            ),
         ]
 
         curriculum = LearningCurriculum(
@@ -252,7 +253,7 @@ class TestLearningCurriculum:
             topics=topics,
             total_estimated_cost=0.35,
             total_estimated_minutes=18,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
         assert curriculum.expert_name == "Test Expert"
@@ -270,7 +271,7 @@ class TestLearningCurriculum:
                 estimated_cost=0.15,
                 estimated_minutes=8,
                 priority=1,
-                research_prompt="Research 1"
+                research_prompt="Research 1",
             )
         ]
 
@@ -280,7 +281,7 @@ class TestLearningCurriculum:
             topics=topics,
             total_estimated_cost=0.15,
             total_estimated_minutes=8,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
         # Serialize and deserialize
@@ -319,7 +320,7 @@ class TestCurriculumGenerator:
             domain="Azure Architecture",
             initial_documents=["doc1.md", "doc2.pdf"],
             target_topics=10,
-            budget_limit=5.0
+            budget_limit=5.0,
         )
 
         # Check key elements in prompt
@@ -362,11 +363,7 @@ class TestCurriculumGenerator:
 }
 ```"""
 
-        curriculum = generator._parse_curriculum_response(
-            response,
-            expert_name="Test Expert",
-            domain="Testing"
-        )
+        curriculum = generator._parse_curriculum_response(response, expert_name="Test Expert", domain="Testing")
 
         assert curriculum.expert_name == "Test Expert"
         assert len(curriculum.topics) == 2
@@ -396,11 +393,7 @@ class TestCurriculumGenerator:
 }
 ```"""
 
-        curriculum = generator._parse_curriculum_response(
-            response,
-            expert_name="Legacy Expert",
-            domain="Legacy"
-        )
+        curriculum = generator._parse_curriculum_response(response, expert_name="Legacy Expert", domain="Legacy")
 
         # Should get default values
         assert curriculum.topics[0].research_mode == "focus"
@@ -417,7 +410,7 @@ class TestCurriculumGenerator:
                 estimated_cost=1.0,
                 estimated_minutes=10,
                 priority=1,
-                research_prompt="Research 1"
+                research_prompt="Research 1",
             ),
             LearningTopic(
                 title="Critical 2",
@@ -427,7 +420,7 @@ class TestCurriculumGenerator:
                 estimated_cost=1.0,
                 estimated_minutes=10,
                 priority=1,
-                research_prompt="Research 2"
+                research_prompt="Research 2",
             ),
             LearningTopic(
                 title="Optional",
@@ -437,8 +430,8 @@ class TestCurriculumGenerator:
                 estimated_cost=2.0,
                 estimated_minutes=20,
                 priority=5,
-                research_prompt="Research 3"
-            )
+                research_prompt="Research 3",
+            ),
         ]
 
         curriculum = LearningCurriculum(
@@ -447,7 +440,7 @@ class TestCurriculumGenerator:
             topics=topics,
             total_estimated_cost=4.0,
             total_estimated_minutes=40,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
         # Truncate to $2.50 budget
@@ -470,7 +463,7 @@ class TestCurriculumGenerator:
                 estimated_minutes=8,
                 priority=1,
                 research_prompt="Research 1",
-                dependencies=[]
+                dependencies=[],
             ),
             LearningTopic(
                 title="Topic 2",
@@ -481,8 +474,8 @@ class TestCurriculumGenerator:
                 estimated_minutes=10,
                 priority=1,
                 research_prompt="Research 2",
-                dependencies=[]
-            )
+                dependencies=[],
+            ),
         ]
 
         curriculum = LearningCurriculum(
@@ -491,7 +484,7 @@ class TestCurriculumGenerator:
             topics=topics,
             total_estimated_cost=0.35,
             total_estimated_minutes=18,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
         phases = generator.get_execution_order(curriculum)
@@ -512,7 +505,7 @@ class TestCurriculumGenerator:
                 estimated_minutes=8,
                 priority=1,
                 research_prompt="Research foundation",
-                dependencies=[]
+                dependencies=[],
             ),
             LearningTopic(
                 title="Intermediate",
@@ -523,7 +516,7 @@ class TestCurriculumGenerator:
                 estimated_minutes=10,
                 priority=2,
                 research_prompt="Research intermediate",
-                dependencies=["Foundation"]
+                dependencies=["Foundation"],
             ),
             LearningTopic(
                 title="Advanced",
@@ -534,8 +527,8 @@ class TestCurriculumGenerator:
                 estimated_minutes=12,
                 priority=3,
                 research_prompt="Research advanced",
-                dependencies=["Intermediate"]
-            )
+                dependencies=["Intermediate"],
+            ),
         ]
 
         curriculum = LearningCurriculum(
@@ -544,7 +537,7 @@ class TestCurriculumGenerator:
             topics=topics,
             total_estimated_cost=0.60,
             total_estimated_minutes=30,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
         phases = generator.get_execution_order(curriculum)
@@ -563,10 +556,7 @@ class TestLearningCurriculumAdvanced:
         """Should include sources in topic dict."""
         sources = [
             SourceReference(
-                url="https://example.com",
-                title="Example",
-                source_type="documentation",
-                description="Example docs"
+                url="https://example.com", title="Example", source_type="documentation", description="Example docs"
             )
         ]
         topics = [
@@ -579,7 +569,7 @@ class TestLearningCurriculumAdvanced:
                 estimated_minutes=10,
                 priority=2,
                 research_prompt="Research topic",
-                sources=sources
+                sources=sources,
             )
         ]
 
@@ -589,7 +579,7 @@ class TestLearningCurriculumAdvanced:
             topics=topics,
             total_estimated_cost=0.25,
             total_estimated_minutes=10,
-            generated_at=datetime.now(timezone.utc)
+            generated_at=datetime.now(timezone.utc),
         )
 
         result = curriculum.to_dict()
@@ -619,14 +609,14 @@ class TestLearningCurriculumAdvanced:
                             "url": "https://example.com",
                             "title": "Example",
                             "source_type": "documentation",
-                            "description": "Docs"
+                            "description": "Docs",
                         }
-                    ]
+                    ],
                 }
             ],
             "total_estimated_cost": 0.25,
             "total_estimated_minutes": 10,
-            "generated_at": "2026-01-15T12:00:00+00:00"
+            "generated_at": "2026-01-15T12:00:00+00:00",
         }
 
         curriculum = LearningCurriculum.from_dict(data)
@@ -645,7 +635,7 @@ class TestLearningCurriculumAdvanced:
                 estimated_cost=2.0,
                 estimated_minutes=45,
                 priority=1,
-                research_prompt="Research"
+                research_prompt="Research",
             )
         ]
 
@@ -655,7 +645,7 @@ class TestLearningCurriculumAdvanced:
             topics=topics,
             total_estimated_cost=2.0,
             total_estimated_minutes=45,
-            generated_at=datetime.now(timezone.utc)
+            generated_at=datetime.now(timezone.utc),
         )
 
         # Serialize to JSON and back
@@ -720,30 +710,32 @@ class TestCurriculumGeneratorAdvanced:
 
     def test_parse_calculates_totals(self, generator):
         """Should calculate total cost and minutes."""
-        response = json.dumps({
-            "topics": [
-                {
-                    "title": "Topic 1",
-                    "description": "Test",
-                    "research_mode": "campaign",
-                    "research_type": "academic",
-                    "estimated_cost": 2.0,
-                    "estimated_minutes": 45,
-                    "priority": 1,
-                    "research_prompt": "Test"
-                },
-                {
-                    "title": "Topic 2",
-                    "description": "Test",
-                    "research_mode": "focus",
-                    "research_type": "documentation",
-                    "estimated_cost": 0.25,
-                    "estimated_minutes": 10,
-                    "priority": 2,
-                    "research_prompt": "Test"
-                }
-            ]
-        })
+        response = json.dumps(
+            {
+                "topics": [
+                    {
+                        "title": "Topic 1",
+                        "description": "Test",
+                        "research_mode": "campaign",
+                        "research_type": "academic",
+                        "estimated_cost": 2.0,
+                        "estimated_minutes": 45,
+                        "priority": 1,
+                        "research_prompt": "Test",
+                    },
+                    {
+                        "title": "Topic 2",
+                        "description": "Test",
+                        "research_mode": "focus",
+                        "research_type": "documentation",
+                        "estimated_cost": 0.25,
+                        "estimated_minutes": 10,
+                        "priority": 2,
+                        "research_prompt": "Test",
+                    },
+                ]
+            }
+        )
 
         result = generator._parse_curriculum_response(response, "test", "Test")
 
@@ -761,7 +753,7 @@ class TestCurriculumGeneratorAdvanced:
                 estimated_cost=2.2,  # Just over 2.0 budget
                 estimated_minutes=45,
                 priority=1,
-                research_prompt="Research"
+                research_prompt="Research",
             ),
         ]
 
@@ -771,7 +763,7 @@ class TestCurriculumGeneratorAdvanced:
             topics=topics,
             total_estimated_cost=2.2,
             total_estimated_minutes=45,
-            generated_at=datetime.now(timezone.utc)
+            generated_at=datetime.now(timezone.utc),
         )
 
         # Budget is 2.0, but topic costs 2.2
@@ -791,7 +783,7 @@ class TestCurriculumGeneratorAdvanced:
                 estimated_cost=2.0,
                 estimated_minutes=45,
                 priority=1,
-                research_prompt="Research base"
+                research_prompt="Research base",
             ),
             LearningTopic(
                 title="Branch A",
@@ -802,7 +794,7 @@ class TestCurriculumGeneratorAdvanced:
                 estimated_minutes=10,
                 priority=2,
                 research_prompt="Research branch A",
-                dependencies=["Base"]
+                dependencies=["Base"],
             ),
             LearningTopic(
                 title="Branch B",
@@ -813,7 +805,7 @@ class TestCurriculumGeneratorAdvanced:
                 estimated_minutes=10,
                 priority=2,
                 research_prompt="Research branch B",
-                dependencies=["Base"]
+                dependencies=["Base"],
             ),
         ]
 
@@ -823,7 +815,7 @@ class TestCurriculumGeneratorAdvanced:
             topics=topics,
             total_estimated_cost=2.5,
             total_estimated_minutes=65,
-            generated_at=datetime.now(timezone.utc)
+            generated_at=datetime.now(timezone.utc),
         )
 
         phases = generator.get_execution_order(curriculum)
@@ -839,7 +831,7 @@ class TestCurriculumGeneratorAdvanced:
                 url="https://docs.example.com",
                 title="Example Docs",
                 source_type="documentation",
-                description="Official documentation"
+                description="Official documentation",
             )
         ]
 
@@ -849,7 +841,7 @@ class TestCurriculumGeneratorAdvanced:
             initial_documents=["doc1.md"],
             target_topics=5,
             budget_limit=None,
-            discovered_sources=sources
+            discovered_sources=sources,
         )
 
         assert "DISCOVERED SOURCES" in prompt
@@ -866,7 +858,7 @@ class TestCurriculumGeneratorAdvanced:
             budget_limit=None,
             docs_count=2,
             quick_count=2,
-            deep_count=1
+            deep_count=1,
         )
 
         assert "EXPLICIT TOPIC COUNTS" in prompt

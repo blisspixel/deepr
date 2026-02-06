@@ -1,8 +1,9 @@
 """Shared fixtures for services tests."""
 
 import json
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture

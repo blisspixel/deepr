@@ -324,7 +324,7 @@ def print_markdown(text: str):
     console.print(md)
 
 
-def print_panel(text: str, title: str = None, style: str = "cyan"):
+def print_panel(text: str, title: Optional[str] = None, style: str = "cyan"):
     """Print text in a panel."""
     console.print(Panel(text, title=title, border_style=style))
 
@@ -385,7 +385,7 @@ def style_command(text: str) -> str:
 
 
 # Modern section header (replaces === separators)
-def print_section_header(title: str, subtitle: str = None):
+def print_section_header(title: str, subtitle: Optional[str] = None):
     """Print a modern section header (replaces === separators).
 
     Args:
@@ -429,7 +429,7 @@ def print_list_item(text: str, indent: int = 0):
     console.print(f"{prefix}[dim]{bullet}[/dim] {text}")
 
 
-def print_error_with_suggestion(summary: str, details: str = None, suggestion: str = None):
+def print_error_with_suggestion(summary: str, details: Optional[str] = None, suggestion: Optional[str] = None):
     """Print formatted error message with optional details and suggestion.
 
     Args:

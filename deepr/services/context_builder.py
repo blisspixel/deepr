@@ -13,7 +13,7 @@ Includes token budget management and intelligent context pruning.
 """
 
 import os
-from typing import Dict, Optional
+from typing import Optional
 
 from openai import OpenAI
 
@@ -30,7 +30,7 @@ class ContextBuilder:
 
     def __init__(
         self,
-        api_key: str = None,
+        api_key: Optional[str] = None,
         token_budget: Optional[int] = None,
         enable_pruning: bool = True,
     ):
@@ -93,8 +93,8 @@ Summary (bullet list, ~{target_words} words):"""
 
     async def build_phase_context(
         self,
-        task: Dict,
-        completed_tasks: Dict[int, Dict],
+        task: dict,
+        completed_tasks: dict[int, dict],
         token_budget: Optional[int] = None,
         current_query: Optional[str] = None,
     ) -> str:
@@ -185,7 +185,7 @@ Summary (bullet list, ~{target_words} words):"""
 
         return "\n".join(context_parts)
 
-    def get_context_utilization(self) -> Dict:
+    def get_context_utilization(self) -> dict:
         """Get context utilization metrics for --explain output.
 
         Returns:
@@ -212,7 +212,7 @@ Summary (bullet list, ~{target_words} words):"""
 
     async def build_synthesis_context(
         self,
-        all_tasks: Dict[int, Dict],
+        all_tasks: dict[int, dict],
     ) -> str:
         """
         Build comprehensive context for final synthesis report.

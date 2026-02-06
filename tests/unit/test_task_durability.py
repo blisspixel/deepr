@@ -1,13 +1,14 @@
 """Unit tests for task durability."""
 
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
 
 from deepr.mcp.state.task_durability import (
-    TaskDurabilityManager,
     DurableTask,
+    TaskDurabilityManager,
     TaskStatus,
 )
 
@@ -88,16 +89,9 @@ class TestTaskProgress:
     @pytest.mark.asyncio
     async def test_update_progress_preserves_checkpoint(self, manager):
         """Test that progress update preserves checkpoint data."""
-        task = await manager.create_task(
-            "job1", "Task",
-            {"initial": "data", "progress": 0.0}
-        )
+        task = await manager.create_task("job1", "Task", {"initial": "data", "progress": 0.0})
 
-        await manager.update_progress(
-            task.id,
-            progress=0.3,
-            checkpoint={"progress": 0.3, "new_field": "value"}
-        )
+        await manager.update_progress(task.id, progress=0.3, checkpoint={"progress": 0.3, "new_field": "value"})
 
         retrieved = await manager.get_task(task.id)
 
@@ -130,10 +124,7 @@ class TestTaskPauseResume:
     @pytest.mark.asyncio
     async def test_resume_preserves_checkpoint(self, manager):
         """Test that resume preserves checkpoint."""
-        task = await manager.create_task(
-            "job1", "Task",
-            {"phase": 2, "items": [1, 2, 3]}
-        )
+        task = await manager.create_task("job1", "Task", {"phase": 2, "items": [1, 2, 3]})
         await manager.pause_task(task.id)
 
         resumed = await manager.resume_task(task.id)
@@ -161,10 +152,7 @@ class TestTaskCompletion:
         """Test completing a task."""
         task = await manager.create_task("job1", "Task", {})
 
-        completed = await manager.complete_task(
-            task.id,
-            final_checkpoint={"output": "research results"}
-        )
+        completed = await manager.complete_task(task.id, final_checkpoint={"output": "research results"})
 
         assert completed.status == TaskStatus.COMPLETED
         assert completed.checkpoint["output"] == "research results"
@@ -174,10 +162,7 @@ class TestTaskCompletion:
         """Test marking a task as failed."""
         task = await manager.create_task("job1", "Task", {})
 
-        failed = await manager.fail_task(
-            task.id,
-            error="Connection timeout"
-        )
+        failed = await manager.fail_task(task.id, error="Connection timeout")
 
         assert failed.status == TaskStatus.FAILED
         assert failed.error == "Connection timeout"
@@ -266,15 +251,16 @@ class TestCheckpointPersistence:
         """Test that checkpoints survive manager restart."""
         # Create manager and task
         manager1 = TaskDurabilityManager(db_path=temp_db)
-        task = await manager1.create_task(
-            "job1", "Task",
-            {"important_data": [1, 2, 3], "state": "processing"}
+        task = await manager1.create_task("job1", "Task", {"important_data": [1, 2, 3], "state": "processing"})
+        await manager1.update_progress(
+            task.id,
+            0.7,
+            {
+                "important_data": [1, 2, 3],
+                "state": "almost_done",
+                "items_processed": 70,
+            },
         )
-        await manager1.update_progress(task.id, 0.7, {
-            "important_data": [1, 2, 3],
-            "state": "almost_done",
-            "items_processed": 70,
-        })
         await manager1.pause_task(task.id)
         manager1.close()
 

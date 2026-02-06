@@ -32,7 +32,7 @@ def _utc_now() -> datetime:
 
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 
 @dataclass
@@ -42,9 +42,9 @@ class CalibrationExample:
     raw_confidence: float
     was_correct: bool
     timestamp: datetime = field(default_factory=_utc_now)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "raw_confidence": self.raw_confidence,
             "was_correct": self.was_correct,
@@ -53,7 +53,7 @@ class CalibrationExample:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CalibrationExample":
+    def from_dict(cls, data: dict[str, Any]) -> "CalibrationExample":
         return cls(
             raw_confidence=data["raw_confidence"],
             was_correct=data["was_correct"],
@@ -70,10 +70,10 @@ class IsotonicCalibrator:
     """
 
     def __init__(self):
-        self._breakpoints: List[Tuple[float, float]] = []
+        self._breakpoints: list[tuple[float, float]] = []
         self._is_fitted = False
 
-    def fit(self, confidences: List[float], outcomes: List[bool]):
+    def fit(self, confidences: list[float], outcomes: list[bool]):
         """Fit isotonic regression model.
 
         Args:
@@ -168,7 +168,7 @@ class PlattCalibrator:
         self._b: float = 0.0
         self._is_fitted = False
 
-    def fit(self, confidences: List[float], outcomes: List[bool], max_iter: int = 100):
+    def fit(self, confidences: list[float], outcomes: list[bool], max_iter: int = 100):
         """Fit Platt scaling model using gradient descent.
 
         Args:
@@ -252,7 +252,7 @@ class ConfidenceCalibrator:
             method: Calibration method ('isotonic' or 'platt')
         """
         self.method = method
-        self.examples: List[CalibrationExample] = []
+        self.examples: list[CalibrationExample] = []
 
         self._isotonic = IsotonicCalibrator()
         self._platt = PlattCalibrator()
@@ -261,7 +261,7 @@ class ConfidenceCalibrator:
         # Calibration statistics
         self._stats = {"total_examples": 0, "accuracy": 0.0, "avg_confidence": 0.0, "calibration_error": 0.0}
 
-    def add_example(self, raw_confidence: float, was_correct: bool, metadata: Optional[Dict[str, Any]] = None):
+    def add_example(self, raw_confidence: float, was_correct: bool, metadata: Optional[dict[str, Any]] = None):
         """Add a calibration training example.
 
         Args:
@@ -312,7 +312,7 @@ class ConfidenceCalibrator:
         else:
             return self._platt.calibrate(confidence)
 
-    def _calculate_ece(self, confidences: List[float], outcomes: List[bool], n_bins: int = 10) -> float:
+    def _calculate_ece(self, confidences: list[float], outcomes: list[bool], n_bins: int = 10) -> float:
         """Calculate Expected Calibration Error.
 
         Args:
@@ -323,7 +323,7 @@ class ConfidenceCalibrator:
         Returns:
             ECE score
         """
-        bins: Dict[int, List[Tuple[float, bool]]] = defaultdict(list)
+        bins: dict[int, list[tuple[float, bool]]] = defaultdict(list)
 
         for conf, outcome in zip(confidences, outcomes):
             bin_idx = min(int(conf * n_bins), n_bins - 1)
@@ -344,7 +344,7 @@ class ConfidenceCalibrator:
 
         return ece
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get calibration statistics.
 
         Returns:
@@ -379,7 +379,7 @@ class ConfidenceCalibrator:
         Returns:
             ConfidenceCalibrator instance
         """
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         calibrator = cls(method=data.get("method", "isotonic"))

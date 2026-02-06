@@ -11,22 +11,22 @@ Tests the research job execution workflow including:
 All tests use mocks to avoid external API calls.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import hypothesis.strategies as st
+import pytest
 from click.testing import CliRunner
 
 # Import Hypothesis for property-based testing
-from hypothesis import given, settings, assume
-import hypothesis.strategies as st
+from hypothesis import given, settings
 
 from deepr.cli.commands.run import (
-    run,
-    focus,
-    estimate_cost,
     TraceFlags,
+    _save_and_show_full_trace,
     _show_trace_explain,
     _show_trace_timeline,
-    _save_and_show_full_trace,
+    estimate_cost,
+    run,
 )
 
 
@@ -75,7 +75,7 @@ class TestFocusCommand:
         # Mock asyncio.run to capture the coroutine
         with patch("deepr.cli.commands.run.asyncio.run") as mock_asyncio:
             result = runner.invoke(run, ["focus", "Test query"])
-            
+
             # Verify asyncio.run was called
             mock_asyncio.assert_called_once()
 
@@ -129,22 +129,22 @@ class TestRunSingleAsync:
         """Test that _run_single estimates cost before proceeding."""
         from deepr.cli.commands.run import _run_single
         from deepr.cli.output import OutputContext, OutputMode
-        
+
         output_context = OutputContext(mode=OutputMode.QUIET)
-        
+
         # Mock all external dependencies
         with patch("deepr.cli.commands.run.check_budget_approval", return_value=True):
             with patch("deepr.providers.create_provider") as mock_create:
                 mock_provider = MagicMock()
                 mock_provider.submit_research = AsyncMock(return_value="job-123")
                 mock_create.return_value = mock_provider
-                
+
                 with patch("deepr.config.load_config", return_value={"api_key": "test"}):
                     with patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class:
                         mock_queue_instance = MagicMock()
                         mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
                         mock_queue_class.return_value = mock_queue_instance
-                        
+
                         # This should not raise
                         await _run_single(
                             query="Test query",
@@ -163,23 +163,23 @@ class TestRunSingleAsync:
         """Test that --yes flag skips budget confirmation."""
         from deepr.cli.commands.run import _run_single
         from deepr.cli.output import OutputContext, OutputMode
-        
+
         output_context = OutputContext(mode=OutputMode.QUIET)
-        
+
         with patch("deepr.cli.commands.run.check_budget_approval") as mock_budget:
             mock_budget.return_value = False  # Would normally block
-            
+
             with patch("deepr.providers.create_provider") as mock_create:
                 mock_provider = MagicMock()
                 mock_provider.submit_research = AsyncMock(return_value="job-123")
                 mock_create.return_value = mock_provider
-                
+
                 with patch("deepr.config.load_config", return_value={"api_key": "test"}):
                     with patch("deepr.cli.commands.run.SQLiteQueue") as mock_queue_class:
                         mock_queue_instance = MagicMock()
                         mock_queue_instance.enqueue = AsyncMock(return_value="job-123")
                         mock_queue_class.return_value = mock_queue_instance
-                        
+
                         # With yes=True, should proceed even if budget check fails
                         await _run_single(
                             query="Test query",
@@ -196,7 +196,7 @@ class TestRunSingleAsync:
 
 class TestOutputModes:
     """Test different output modes.
-    
+
     The CLI uses these flags (from output_options decorator):
     - --verbose / -v : Detailed output
     - --json : Machine-readable JSON output
@@ -256,19 +256,19 @@ class TestPropertyBasedCostEstimation:
     def test_property_cost_always_positive(self, model_name):
         """
         Property: Cost Estimation Non-Negative
-        
+
         INVARIANT: Cost estimation for ANY model name (including empty,
         random strings, etc.) MUST return a positive value.
-        
+
         This ensures:
         - No division by zero in budget calculations
         - Unknown models have safe fallback
         - No negative costs that could bypass limits
-        
+
         Validates: Requirement 2.7 (Cost estimation bounds)
         """
         cost = estimate_cost(model_name)
-        
+
         assert cost > 0, f"Model '{model_name}' has non-positive cost: {cost}"
         assert isinstance(cost, (int, float)), f"Cost is not numeric: {type(cost)}"
 
@@ -278,10 +278,10 @@ class TestPropertyBasedCostEstimation:
     def test_property_web_search_affects_cost(self, enable_web_search):
         """
         Property: Web search parameter is accepted
-        
+
         INVARIANT: The enable_web_search parameter should be accepted
         without raising errors.
-        
+
         Validates: Requirement 2.3 (Parameter handling)
         """
         # Should not raise for any boolean value
@@ -349,19 +349,13 @@ class TestTraceFlagsCLI:
     def test_focus_accepts_all_trace_flags(self, runner):
         """Focus command accepts all trace flags together."""
         with patch("deepr.cli.commands.run.asyncio.run"):
-            result = runner.invoke(run, [
-                "focus", "Test query",
-                "--explain", "--timeline", "--full-trace", "--yes"
-            ])
+            result = runner.invoke(run, ["focus", "Test query", "--explain", "--timeline", "--full-trace", "--yes"])
             assert result.exit_code == 0 or "Error" not in result.output
 
     def test_trace_flags_compatible_with_verbose(self, runner):
         """Trace flags work with --verbose output mode."""
         with patch("deepr.cli.commands.run.asyncio.run"):
-            result = runner.invoke(run, [
-                "focus", "Test query",
-                "--explain", "--verbose", "--yes"
-            ])
+            result = runner.invoke(run, ["focus", "Test query", "--explain", "--verbose", "--yes"])
             assert result.exit_code == 0 or "Error" not in result.output
 
 
@@ -371,19 +365,28 @@ class TestTraceDisplay:
     def _make_emitter(self):
         """Create a MetadataEmitter with sample data."""
         from deepr.observability.metadata import MetadataEmitter
+
         emitter = MetadataEmitter()
 
-        op = emitter.start_task("research_job", prompt="Test query", attributes={
-            "provider": "openai", "model": "o4-mini",
-        })
+        op = emitter.start_task(
+            "research_job",
+            prompt="Test query",
+            attributes={
+                "provider": "openai",
+                "model": "o4-mini",
+            },
+        )
         op.set_model("o4-mini", "openai")
         op.set_cost(0.15)
         op.set_tokens(1000, 500)
         emitter.complete_task(op)
 
-        child = emitter.start_task("provider_submit", attributes={
-            "provider": "openai",
-        })
+        child = emitter.start_task(
+            "provider_submit",
+            attributes={
+                "provider": "openai",
+            },
+        )
         child.set_model("o4-mini", "openai")
         child.set_cost(0.10)
         emitter.complete_task(child)
@@ -422,6 +425,7 @@ class TestTraceDisplay:
     def test_explain_empty_emitter(self, capsys):
         """_show_trace_explain handles empty emitter."""
         from deepr.observability.metadata import MetadataEmitter
+
         emitter = MetadataEmitter()
         _show_trace_explain(emitter)
         captured = capsys.readouterr()
@@ -430,6 +434,7 @@ class TestTraceDisplay:
     def test_timeline_empty_emitter(self, capsys):
         """_show_trace_timeline handles empty emitter gracefully."""
         from deepr.observability.metadata import MetadataEmitter
+
         emitter = MetadataEmitter()
         _show_trace_timeline(emitter)
         # Should not raise

@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -19,7 +19,7 @@ class JobRecord:
     model: Optional[str] = None
     provider: Optional[str] = None
     run_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class JobManager:
@@ -55,7 +55,7 @@ class JobManager:
         model: Optional[str] = None,
         provider: Optional[str] = None,
         run_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ):
         """
         Log a new job submission.
@@ -110,7 +110,7 @@ class JobManager:
 
         return None
 
-    async def list_jobs(self, status: Optional[str] = None, limit: int = 100) -> List[JobRecord]:
+    async def list_jobs(self, status: Optional[str] = None, limit: int = 100) -> list[JobRecord]:
         """
         List job records.
 
@@ -155,7 +155,7 @@ class JobManager:
 
         updated_lines = []
 
-        with open(self.log_path, "r", encoding="utf-8") as f:
+        with open(self.log_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     record = json.loads(line)
@@ -174,7 +174,7 @@ class JobManager:
         if not self.log_path.exists():
             return None
 
-        with open(self.log_path, "r", encoding="utf-8") as f:
+        with open(self.log_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     record = json.loads(line)
@@ -185,14 +185,14 @@ class JobManager:
 
         return None
 
-    async def _list_jsonl_jobs(self, status: Optional[str] = None, limit: int = 100) -> List[JobRecord]:
+    async def _list_jsonl_jobs(self, status: Optional[str] = None, limit: int = 100) -> list[JobRecord]:
         """List jobs from JSONL file."""
         if not self.log_path.exists():
             return []
 
         jobs = []
 
-        with open(self.log_path, "r", encoding="utf-8") as f:
+        with open(self.log_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     record_dict = json.loads(line)
@@ -215,7 +215,7 @@ class JobManager:
         retained = []
         cleaned = 0
 
-        with open(self.log_path, "r", encoding="utf-8") as f:
+        with open(self.log_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     record = json.loads(line)

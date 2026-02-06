@@ -19,7 +19,7 @@ def _utc_now() -> datetime:
 
 
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 class Verdict(Enum):
@@ -55,8 +55,8 @@ class Evidence:
     quote: str = ""
     span: Optional[tuple] = None
     retrieved_at: datetime = field(default_factory=_utc_now)
-    supports: List[str] = field(default_factory=list)
-    contradicts: List[str] = field(default_factory=list)
+    supports: list[str] = field(default_factory=list)
+    contradicts: list[str] = field(default_factory=list)
 
     @classmethod
     def create(cls, source: str, quote: str, **kwargs) -> "Evidence":
@@ -69,7 +69,7 @@ class Evidence:
         id_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
         return cls(id=id_hash, source=source, quote=quote, **kwargs)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "id": self.id,
@@ -83,7 +83,7 @@ class Evidence:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Evidence":
+    def from_dict(cls, data: dict[str, Any]) -> "Evidence":
         """Create from dictionary."""
         return cls(
             id=data["id"],
@@ -121,7 +121,7 @@ class FactCheckResult:
     verdict: Verdict
     confidence: float  # 0.0-1.0, calibrated
     scope: str  # What sources/domain was checked
-    evidence: List[Evidence] = field(default_factory=list)
+    evidence: list[Evidence] = field(default_factory=list)
     reasoning: str = ""  # Brief explanation
     cost: float = 0.0  # Cost of verification
 
@@ -159,7 +159,7 @@ class FactCheckResult:
 
         return "\n".join(lines)
 
-    def to_mcp_payload(self) -> Dict[str, Any]:
+    def to_mcp_payload(self) -> dict[str, Any]:
         """Render for MCP tool response."""
         return {
             "claim": self.claim,
@@ -171,12 +171,12 @@ class FactCheckResult:
             "cost": self.cost,
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return self.to_mcp_payload()
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FactCheckResult":
+    def from_dict(cls, data: dict[str, Any]) -> "FactCheckResult":
         """Create from dictionary."""
         return cls(
             claim=data["claim"],
@@ -197,7 +197,7 @@ class ExpertAnswer:
     """
 
     answer_text: str
-    evidence: List[Evidence] = field(default_factory=list)
+    evidence: list[Evidence] = field(default_factory=list)
     confidence: float = 0.0
     cost: float = 0.0
     reasoning_trace: Optional[str] = None  # For --verbose mode
@@ -224,7 +224,7 @@ class ExpertAnswer:
 
         return "\n".join(lines)
 
-    def to_mcp_payload(self) -> Dict[str, Any]:
+    def to_mcp_payload(self) -> dict[str, Any]:
         """Render for MCP tool response."""
         return {
             "answer": self.answer_text,

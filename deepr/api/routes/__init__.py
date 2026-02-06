@@ -2,4 +2,4 @@
 
 from . import config, cost, jobs, results
 
-__all__ = ["jobs", "results", "cost", "config"]
+__all__ = ["config", "cost", "jobs", "results"]

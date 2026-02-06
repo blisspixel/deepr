@@ -1,7 +1,9 @@
 """
 Test context chaining logic (without making expensive API calls).
 """
+
 import pytest
+
 from deepr.services.context_builder import ContextBuilder
 
 

@@ -22,7 +22,7 @@ import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
@@ -42,14 +42,14 @@ class CorpusManifest:
     gap_count: int = 0
 
     # File list
-    files: List[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CorpusManifest":
+    def from_dict(cls, data: dict[str, Any]) -> "CorpusManifest":
         """Create from dictionary."""
         return cls(**data)
 
@@ -61,7 +61,7 @@ class CorpusManifest:
     @classmethod
     def load(cls, path: Path) -> "CorpusManifest":
         """Load manifest from JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return cls.from_dict(data)
 
@@ -283,7 +283,7 @@ async def import_corpus(
     metadata_path = corpus_dir / "metadata.json"
     metadata = {}
     if metadata_path.exists():
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(metadata_path, encoding="utf-8") as f:
             metadata = json.load(f)
 
     # Create vector store
@@ -348,7 +348,7 @@ async def import_corpus(
     return profile
 
 
-def validate_corpus(corpus_dir: Path) -> Dict[str, Any]:
+def validate_corpus(corpus_dir: Path) -> dict[str, Any]:
     """Validate a corpus directory structure.
 
     Args:

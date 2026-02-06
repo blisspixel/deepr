@@ -6,20 +6,19 @@ Tests cover:
 - Various print functions with mocked console
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from deepr.cli.ui import (
     QueryComplexity,
     classify_query_complexity,
-    print_welcome,
-    print_user_input,
-    print_thinking,
-    print_tool_use,
     print_divider,
-    print_tool_summary,
-    stream_response,
     print_error,
+    print_thinking,
+    print_tool_summary,
+    print_tool_use,
+    print_user_input,
+    print_welcome,
+    stream_response,
 )
 
 
@@ -157,11 +156,7 @@ class TestPrintFunctions:
     def test_print_welcome(self, mock_console):
         """print_welcome should create panel with expert info."""
         print_welcome(
-            expert_name="TestExpert",
-            domain="Testing",
-            documents=100,
-            updated_date="2024-01-15",
-            knowledge_age_days=5
+            expert_name="TestExpert", domain="Testing", documents=100, updated_date="2024-01-15", knowledge_age_days=5
         )
 
         # Should call print multiple times (empty lines + panel)

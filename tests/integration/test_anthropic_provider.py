@@ -1,7 +1,7 @@
 """Quick test of Anthropic provider with web search."""
 
 import asyncio
-import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,10 +9,12 @@ load_dotenv()
 # Check if we need to install duckduckgo-search
 try:
     import duckduckgo_search
+
     print("[OK] duckduckgo-search installed")
 except ImportError:
     print("[WARNING] Installing duckduckgo-search for free web search...")
     import subprocess
+
     subprocess.run(["pip", "install", "duckduckgo-search"], shell=False)
 
 from deepr.providers.anthropic_provider import AnthropicProvider
@@ -22,20 +24,20 @@ from deepr.providers.base import ResearchRequest
 async def test_anthropic():
     """Test Anthropic provider with a simple poem request."""
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Testing Anthropic Provider with Extended Thinking")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Initialize provider
     provider = AnthropicProvider(
         model="claude-sonnet-4-5",
         thinking_budget=10000,  # 10k tokens for thinking
-        web_search_backend="auto"  # Try all backends
+        web_search_backend="auto",  # Try all backends
     )
 
     print(f"Model: {provider.model}")
     print(f"Thinking Budget: {provider.thinking_budget} tokens")
-    print(f"Web Search: Enabled (backend: auto)\n")
+    print("Web Search: Enabled (backend: auto)\n")
 
     # Create request (simplified - just needs prompt and model)
     request = ResearchRequest(
@@ -55,13 +57,14 @@ async def test_anthropic():
     try:
         job_id = await provider.submit_research(request)
         print(f"[OK] Job completed: {job_id}\n")
-        print("="*80)
+        print("=" * 80)
         print("SUCCESS! Anthropic provider is working with web search!")
-        print("="*80)
+        print("=" * 80)
 
     except Exception as e:
         print(f"[ERROR] {e}")
         import traceback
+
         traceback.print_exc()
 
 

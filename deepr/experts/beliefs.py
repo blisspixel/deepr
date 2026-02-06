@@ -33,7 +33,7 @@ def _utc_now() -> datetime:
 
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
 
 class ConflictResolution(Enum):
@@ -64,14 +64,14 @@ class Belief:
 
     claim: str
     confidence: float
-    evidence_refs: List[str] = field(default_factory=list)
+    evidence_refs: list[str] = field(default_factory=list)
     domain: str = ""
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
-    contradictions_with: List[str] = field(default_factory=list)
+    contradictions_with: list[str] = field(default_factory=list)
     source_type: str = "learned"  # learned, inferred, user_provided
     decay_rate: float = 0.01  # Per day
-    history: List[Dict[str, Any]] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
     id: str = field(default="")
 
     def __post_init__(self):
@@ -139,7 +139,7 @@ class Belief:
         """
         return self.get_current_confidence() < threshold
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "claim": self.claim,
@@ -155,7 +155,7 @@ class Belief:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Belief":
+    def from_dict(cls, data: dict[str, Any]) -> "Belief":
         return cls(
             id=data.get("id", ""),
             claim=data["claim"],
@@ -265,13 +265,13 @@ class BeliefStore:
         self.storage_path = self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
 
-        self.beliefs: Dict[str, Belief] = {}
-        self.domain_index: Dict[str, Set[str]] = {}
-        self.changes: List[BeliefChange] = []
+        self.beliefs: dict[str, Belief] = {}
+        self.domain_index: dict[str, set[str]] = {}
+        self.changes: list[BeliefChange] = []
 
         self._load()
 
-    def add_belief(self, belief: Belief, check_conflicts: bool = True) -> Tuple[Belief, Optional[BeliefChange]]:
+    def add_belief(self, belief: Belief, check_conflicts: bool = True) -> tuple[Belief, Optional[BeliefChange]]:
         """Add a belief to the store.
 
         Args:
@@ -428,7 +428,7 @@ class BeliefStore:
         self._save()
         return change
 
-    def get_beliefs_by_domain(self, domain: str) -> List[Belief]:
+    def get_beliefs_by_domain(self, domain: str) -> list[Belief]:
         """Get all beliefs in a domain.
 
         Args:
@@ -440,7 +440,7 @@ class BeliefStore:
         belief_ids = self.domain_index.get(domain, set())
         return [self.beliefs[bid] for bid in belief_ids if bid in self.beliefs]
 
-    def get_stale_beliefs(self, threshold: float = 0.3) -> List[Belief]:
+    def get_stale_beliefs(self, threshold: float = 0.3) -> list[Belief]:
         """Get beliefs that have become stale.
 
         Args:
@@ -451,7 +451,7 @@ class BeliefStore:
         """
         return [b for b in self.beliefs.values() if b.is_stale(threshold)]
 
-    def get_contradictions(self, belief_id: str) -> List[Belief]:
+    def get_contradictions(self, belief_id: str) -> list[Belief]:
         """Get beliefs that contradict a given belief.
 
         Args:
@@ -466,7 +466,7 @@ class BeliefStore:
         belief = self.beliefs[belief_id]
         return [self.beliefs[cid] for cid in belief.contradictions_with if cid in self.beliefs]
 
-    def get_recent_changes(self, limit: int = 10) -> List[BeliefChange]:
+    def get_recent_changes(self, limit: int = 10) -> list[BeliefChange]:
         """Get recent belief changes.
 
         Args:
@@ -501,7 +501,7 @@ class BeliefStore:
 
         return None
 
-    def _find_contradictions(self, belief: Belief) -> List[Belief]:
+    def _find_contradictions(self, belief: Belief) -> list[Belief]:
         """Find beliefs that might contradict.
 
         Args:
@@ -528,7 +528,7 @@ class BeliefStore:
 
         return contradictions
 
-    def _resolve_conflict(self, existing: Belief, new: Belief) -> Tuple[Belief, Optional[BeliefChange]]:
+    def _resolve_conflict(self, existing: Belief, new: Belief) -> tuple[Belief, Optional[BeliefChange]]:
         """Resolve conflict between beliefs.
 
         Args:
@@ -614,7 +614,7 @@ class BeliefStore:
         if not self.storage_path.exists():
             return
 
-        with open(self.storage_path, "r", encoding="utf-8") as f:
+        with open(self.storage_path, encoding="utf-8") as f:
             data = json.load(f)
 
         self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
@@ -676,8 +676,8 @@ class SharedBeliefStore:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         self.storage_path = self.storage_dir / "shared_beliefs.json"
-        self.domain_stores: Dict[str, Dict[str, Belief]] = {}
-        self.contributors: Dict[str, Set[str]] = {}  # belief_id -> expert_names
+        self.domain_stores: dict[str, dict[str, Belief]] = {}
+        self.contributors: dict[str, set[str]] = {}  # belief_id -> expert_names
 
         self._load()
 
@@ -726,7 +726,7 @@ class SharedBeliefStore:
         self._save()
         return True
 
-    def get_shared_beliefs(self, domain: str, min_confidence: float = 0.5, exclude_stale: bool = True) -> List[Belief]:
+    def get_shared_beliefs(self, domain: str, min_confidence: float = 0.5, exclude_stale: bool = True) -> list[Belief]:
         """Get shared beliefs for a domain.
 
         Args:
@@ -785,7 +785,7 @@ class SharedBeliefStore:
 
         return imported
 
-    def get_contributors(self, belief_id: str) -> Set[str]:
+    def get_contributors(self, belief_id: str) -> set[str]:
         """Get experts who contributed to a belief.
 
         Args:
@@ -876,7 +876,7 @@ class SharedBeliefStore:
         if not self.storage_path.exists():
             return
 
-        with open(self.storage_path, "r", encoding="utf-8") as f:
+        with open(self.storage_path, encoding="utf-8") as f:
             data = json.load(f)
 
         for domain, beliefs in data.get("domains", {}).items():

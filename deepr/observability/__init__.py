@@ -28,31 +28,31 @@ from deepr.observability.timeline_renderer import TimelineRenderer
 from deepr.observability.traces import Span, SpanStatus, TraceContext, get_or_create_trace
 
 __all__ = [
-    "TraceContext",
-    "Span",
-    "SpanStatus",
-    "get_or_create_trace",
-    "MetadataEmitter",
-    "TaskMetadata",
-    "OperationContext",
-    "QualityMetrics",
-    "EvaluationResult",
-    "MetricsSummary",
     # Stopping criteria
     "EntropyStoppingCriteria",
+    "EvaluationResult",
+    "EvolutionType",
     "Finding",
-    "PhaseContext",
-    "StoppingDecision",
-    # Information gain
-    "InformationGainTracker",
-    "InformationGainMetrics",
-    "PriorContext",
-    # Temporal tracking
-    "TemporalKnowledgeTracker",
-    "TemporalFinding",
+    "FindingType",
     "Hypothesis",
     "HypothesisEvolution",
-    "FindingType",
-    "EvolutionType",
+    "InformationGainMetrics",
+    # Information gain
+    "InformationGainTracker",
+    "MetadataEmitter",
+    "MetricsSummary",
+    "OperationContext",
+    "PhaseContext",
+    "PriorContext",
+    "QualityMetrics",
+    "Span",
+    "SpanStatus",
+    "StoppingDecision",
+    "TaskMetadata",
+    "TemporalFinding",
+    # Temporal tracking
+    "TemporalKnowledgeTracker",
     "TimelineRenderer",
+    "TraceContext",
+    "get_or_create_trace",
 ]

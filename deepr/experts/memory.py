@@ -43,7 +43,7 @@ def _utc_now() -> datetime:
 
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 
 class MemoryTier(Enum):
@@ -61,10 +61,10 @@ class ReasoningStep:
     step_type: str  # "search", "hypothesis", "verification", "synthesis"
     content: str
     confidence: float = 0.0
-    sources: List[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
     timestamp: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "step_type": self.step_type,
             "content": self.content,
@@ -74,7 +74,7 @@ class ReasoningStep:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ReasoningStep":
+    def from_dict(cls, data: dict[str, Any]) -> "ReasoningStep":
         return cls(
             step_type=data["step_type"],
             content=data["content"],
@@ -110,13 +110,13 @@ class Episode:
 
     query: str
     response: str
-    context_docs: List[str] = field(default_factory=list)
-    reasoning_chain: List[ReasoningStep] = field(default_factory=list)
+    context_docs: list[str] = field(default_factory=list)
+    reasoning_chain: list[ReasoningStep] = field(default_factory=list)
     user_id: Optional[str] = None
     session_id: Optional[str] = None
     timestamp: datetime = field(default_factory=_utc_now)
     quality_score: Optional[float] = None
-    tags: Set[str] = field(default_factory=set)
+    tags: set[str] = field(default_factory=set)
     tier: MemoryTier = MemoryTier.WORKING
     id: str = field(default="")
 
@@ -131,7 +131,7 @@ class Episode:
         if isinstance(self.tags, list):
             self.tags = set(self.tags)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "query": self.query,
@@ -147,7 +147,7 @@ class Episode:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Episode":
+    def from_dict(cls, data: dict[str, Any]) -> "Episode":
         return cls(
             id=data.get("id", ""),
             query=data["query"],
@@ -162,7 +162,7 @@ class Episode:
             tier=MemoryTier(data.get("tier", "working")),
         )
 
-    def get_keywords(self) -> Set[str]:
+    def get_keywords(self) -> set[str]:
         """Extract keywords from query and response for retrieval."""
         text = f"{self.query} {self.response}".lower()
         # Simple keyword extraction - remove common words
@@ -301,15 +301,15 @@ class UserProfile:
     """
 
     user_id: str
-    expertise_levels: Dict[str, float] = field(default_factory=dict)
-    interests: Dict[str, int] = field(default_factory=dict)  # topic -> count
-    preferences: Dict[str, Any] = field(default_factory=dict)
+    expertise_levels: dict[str, float] = field(default_factory=dict)
+    interests: dict[str, int] = field(default_factory=dict)  # topic -> count
+    preferences: dict[str, Any] = field(default_factory=dict)
     interaction_count: int = 0
     first_seen: datetime = field(default_factory=_utc_now)
     last_seen: datetime = field(default_factory=_utc_now)
-    feedback_history: List[tuple] = field(default_factory=list)
+    feedback_history: list[tuple] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "user_id": self.user_id,
             "expertise_levels": self.expertise_levels,
@@ -322,7 +322,7 @@ class UserProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "UserProfile":
+    def from_dict(cls, data: dict[str, Any]) -> "UserProfile":
         return cls(
             user_id=data["user_id"],
             expertise_levels=data.get("expertise_levels", {}),
@@ -357,7 +357,7 @@ class UserProfile:
         """
         self.interests[topic] = self.interests.get(topic, 0) + 1
 
-    def get_top_interests(self, n: int = 5) -> List[str]:
+    def get_top_interests(self, n: int = 5) -> list[str]:
         """Get top N interests by frequency.
 
         Args:
@@ -416,13 +416,13 @@ class MetaKnowledge:
     """
 
     expert_name: str
-    domains: Dict[str, float] = field(default_factory=dict)
-    knowledge_gaps: List[Dict[str, Any]] = field(default_factory=list)
-    confidence_by_topic: Dict[str, float] = field(default_factory=dict)
-    learning_events: List[Dict[str, Any]] = field(default_factory=list)
+    domains: dict[str, float] = field(default_factory=dict)
+    knowledge_gaps: list[dict[str, Any]] = field(default_factory=list)
+    confidence_by_topic: dict[str, float] = field(default_factory=dict)
+    learning_events: list[dict[str, Any]] = field(default_factory=list)
     last_updated: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "expert_name": self.expert_name,
             "domains": self.domains,
@@ -433,7 +433,7 @@ class MetaKnowledge:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MetaKnowledge":
+    def from_dict(cls, data: dict[str, Any]) -> "MetaKnowledge":
         return cls(
             expert_name=data["expert_name"],
             domains=data.get("domains", {}),
@@ -534,7 +534,7 @@ class MetaKnowledge:
 
         return 0.5  # Default medium confidence
 
-    def get_unresolved_gaps(self) -> List[Dict[str, Any]]:
+    def get_unresolved_gaps(self) -> list[dict[str, Any]]:
         """Get list of unresolved knowledge gaps.
 
         Returns:
@@ -584,18 +584,18 @@ class HierarchicalMemory:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize memory tiers
-        self.working_memory: List[Episode] = []
-        self.episodic_memory: List[Episode] = []
-        self.semantic_memory: Dict[str, Any] = {}
+        self.working_memory: list[Episode] = []
+        self.episodic_memory: list[Episode] = []
+        self.semantic_memory: dict[str, Any] = {}
 
         # User profiles
-        self.user_profiles: Dict[str, UserProfile] = {}
+        self.user_profiles: dict[str, UserProfile] = {}
 
         # Meta-knowledge
         self.meta_knowledge = MetaKnowledge(expert_name=expert_name)
 
         # Keyword index for fast retrieval
-        self._keyword_index: Dict[str, Set[str]] = {}  # keyword -> episode_ids
+        self._keyword_index: dict[str, set[str]] = {}  # keyword -> episode_ids
 
         # Load persisted memory
         self._load()
@@ -625,7 +625,7 @@ class HierarchicalMemory:
 
         return episode.id
 
-    def retrieve(self, query: str, top_k: int = 5, tiers: Optional[List[MemoryTier]] = None) -> List[Episode]:
+    def retrieve(self, query: str, top_k: int = 5, tiers: Optional[list[MemoryTier]] = None) -> list[Episode]:
         """Retrieve relevant episodes using hierarchical search.
 
         Searches working memory first (fast), then episodic (medium),
@@ -642,7 +642,7 @@ class HierarchicalMemory:
         if tiers is None:
             tiers = [MemoryTier.WORKING, MemoryTier.EPISODIC, MemoryTier.SEMANTIC]
 
-        results: List[tuple] = []  # (score, episode)
+        results: list[tuple] = []  # (score, episode)
         query_keywords = self._extract_keywords(query)
 
         # Search each tier
@@ -690,7 +690,7 @@ class HierarchicalMemory:
         # Persist changes
         self._save()
 
-    def _compute_relevance(self, episode: Episode, query_keywords: Set[str]) -> float:
+    def _compute_relevance(self, episode: Episode, query_keywords: set[str]) -> float:
         """Compute relevance score between episode and query.
 
         Args:
@@ -725,7 +725,7 @@ class HierarchicalMemory:
 
         return base_score * (0.5 + 0.3 * recency_boost + 0.2 * quality_boost)
 
-    def _extract_keywords(self, text: str) -> Set[str]:
+    def _extract_keywords(self, text: str) -> set[str]:
         """Extract keywords from text.
 
         Args:
@@ -738,7 +738,7 @@ class HierarchicalMemory:
         temp_episode = Episode(query=text, response="")
         return temp_episode.get_keywords()
 
-    def _get_semantic_episodes(self) -> List[Episode]:
+    def _get_semantic_episodes(self) -> list[Episode]:
         """Get episodes from semantic memory.
 
         Reconstructs episodes from consolidated knowledge.
@@ -811,7 +811,7 @@ class HierarchicalMemory:
         # Load episodic memory
         episodic_path = self.storage_dir / "episodic.json"
         if episodic_path.exists():
-            with open(episodic_path, "r", encoding="utf-8") as f:
+            with open(episodic_path, encoding="utf-8") as f:
                 episodic_data = json.load(f)
             self.episodic_memory = [Episode.from_dict(ep) for ep in episodic_data]
 
@@ -825,18 +825,18 @@ class HierarchicalMemory:
         # Load user profiles
         profiles_path = self.storage_dir / "profiles.json"
         if profiles_path.exists():
-            with open(profiles_path, "r", encoding="utf-8") as f:
+            with open(profiles_path, encoding="utf-8") as f:
                 profiles_data = json.load(f)
             self.user_profiles = {uid: UserProfile.from_dict(p) for uid, p in profiles_data.items()}
 
         # Load meta-knowledge
         meta_path = self.storage_dir / "meta_knowledge.json"
         if meta_path.exists():
-            with open(meta_path, "r", encoding="utf-8") as f:
+            with open(meta_path, encoding="utf-8") as f:
                 meta_data = json.load(f)
             self.meta_knowledge = MetaKnowledge.from_dict(meta_data)
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get memory statistics.
 
         Returns:
@@ -868,12 +868,12 @@ class ReconstructedContext:
     """
 
     episode: Episode
-    documents: List[Dict[str, Any]] = field(default_factory=list)
+    documents: list[dict[str, Any]] = field(default_factory=list)
     reasoning_summary: str = ""
-    related_episodes: List[Episode] = field(default_factory=list)
+    related_episodes: list[Episode] = field(default_factory=list)
     user_context: Optional[UserProfile] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "episode": self.episode.to_dict(),
             "documents": self.documents,
@@ -953,7 +953,7 @@ def _add_reconstruct_method():
                 doc_path = docs_dir / doc_name
                 if doc_path.exists():
                     try:
-                        with open(doc_path, "r", encoding="utf-8") as f:
+                        with open(doc_path, encoding="utf-8") as f:
                             content = f.read()
                         documents.append({"name": doc_name, "content": content})
                     except Exception:
@@ -1187,7 +1187,7 @@ class UserProfileLearner:
         else:
             profile.preferences["engagement_level"] = "low"
 
-    def get_personalization_hints(self, user_id: str) -> Dict[str, Any]:
+    def get_personalization_hints(self, user_id: str) -> dict[str, Any]:
         """Get personalization hints for a user.
 
         Args:

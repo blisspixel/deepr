@@ -11,7 +11,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class SearchResult:
     model: Optional[str] = None
     summary: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "report_id": self.report_id,
@@ -135,7 +135,7 @@ class ContextIndex:
         content = f"{job_id}:{created_at}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
-    def _scan_reports(self) -> List[Dict[str, Any]]:
+    def _scan_reports(self) -> list[dict[str, Any]]:
         """Scan reports directory for unindexed reports."""
         reports = []
 
@@ -301,7 +301,7 @@ class ContextIndex:
         top_k: int = 5,
         threshold: float = 0.7,
         include_keyword: bool = True,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """Search for related reports.
 
         Args:
@@ -313,7 +313,7 @@ class ContextIndex:
         Returns:
             List of SearchResult objects sorted by relevance
         """
-        results: Dict[str, SearchResult] = {}
+        results: dict[str, SearchResult] = {}
 
         # Semantic search
         if self.embeddings is not None and len(self.embeddings) > 0:
@@ -335,7 +335,7 @@ class ContextIndex:
         sorted_results = sorted(results.values(), key=lambda x: x.similarity, reverse=True)
         return sorted_results[:top_k]
 
-    async def _semantic_search(self, query: str, top_k: int, threshold: float) -> List[SearchResult]:
+    async def _semantic_search(self, query: str, top_k: int, threshold: float) -> list[SearchResult]:
         """Perform semantic similarity search."""
         from openai import AsyncOpenAI
 
@@ -394,7 +394,7 @@ class ContextIndex:
         conn.close()
         return results
 
-    def _keyword_search(self, query: str, top_k: int) -> List[SearchResult]:
+    def _keyword_search(self, query: str, top_k: int) -> list[SearchResult]:
         """Perform keyword search using FTS5."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -445,7 +445,7 @@ class ContextIndex:
         conn.close()
         return results
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get index statistics."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -488,7 +488,7 @@ class ContextIndex:
         exclude_job_id: Optional[str] = None,
         top_k: int = 3,
         threshold: float = 0.75,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """Find related prior research for a given prompt.
 
         This is used by context discovery (6.1) to automatically detect

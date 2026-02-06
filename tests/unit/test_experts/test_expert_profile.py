@@ -4,14 +4,11 @@ Tests the expert profile data structure, serialization, freshness detection,
 and programmatic date injection without making any external API calls.
 """
 
-import pytest
 from datetime import datetime, timedelta, timezone
-from deepr.experts.profile import (
-    ExpertProfile,
-    ExpertStore,
-    get_expert_system_message,
-    DEFAULT_EXPERT_SYSTEM_MESSAGE
-)
+
+import pytest
+
+from deepr.experts.profile import DEFAULT_EXPERT_SYSTEM_MESSAGE, ExpertProfile, ExpertStore, get_expert_system_message
 
 
 def utc_now():
@@ -24,10 +21,7 @@ class TestExpertProfileDataStructure:
 
     def test_expert_profile_initialization(self):
         """Test creating an expert profile with minimal fields."""
-        profile = ExpertProfile(
-            name="Test Expert",
-            vector_store_id="vs_test123"
-        )
+        profile = ExpertProfile(name="Test Expert", vector_store_id="vs_test123")
 
         assert profile.name == "Test Expert"
         assert profile.vector_store_id == "vs_test123"
@@ -56,7 +50,7 @@ class TestExpertProfileDataStructure:
             refresh_frequency_days=30,
             domain_velocity="fast",
             provider="openai",
-            model="gpt-4-turbo"
+            model="gpt-4-turbo",
         )
 
         assert profile.name == "Azure Expert"
@@ -73,11 +67,7 @@ class TestKnowledgeFreshnessDetection:
 
     def test_is_knowledge_stale_no_cutoff(self):
         """Test that expert with no cutoff is considered stale."""
-        profile = ExpertProfile(
-            name="Test Expert",
-            vector_store_id="vs_test",
-            knowledge_cutoff_date=None
-        )
+        profile = ExpertProfile(name="Test Expert", vector_store_id="vs_test", knowledge_cutoff_date=None)
 
         assert profile.is_knowledge_stale() is True
 
@@ -87,10 +77,7 @@ class TestKnowledgeFreshnessDetection:
         recent = now - timedelta(days=15)  # 15 days old
 
         profile = ExpertProfile(
-            name="AI Expert",
-            vector_store_id="vs_ai",
-            knowledge_cutoff_date=recent,
-            domain_velocity="fast"
+            name="AI Expert", vector_store_id="vs_ai", knowledge_cutoff_date=recent, domain_velocity="fast"
         )
 
         assert profile.is_knowledge_stale() is False
@@ -101,10 +88,7 @@ class TestKnowledgeFreshnessDetection:
         old = now - timedelta(days=45)  # 45 days old
 
         profile = ExpertProfile(
-            name="AI Expert",
-            vector_store_id="vs_ai",
-            knowledge_cutoff_date=old,
-            domain_velocity="fast"
+            name="AI Expert", vector_store_id="vs_ai", knowledge_cutoff_date=old, domain_velocity="fast"
         )
 
         assert profile.is_knowledge_stale() is True
@@ -115,10 +99,7 @@ class TestKnowledgeFreshnessDetection:
         recent = now - timedelta(days=60)  # 60 days old
 
         profile = ExpertProfile(
-            name="Tech Expert",
-            vector_store_id="vs_tech",
-            knowledge_cutoff_date=recent,
-            domain_velocity="medium"
+            name="Tech Expert", vector_store_id="vs_tech", knowledge_cutoff_date=recent, domain_velocity="medium"
         )
 
         assert profile.is_knowledge_stale() is False
@@ -129,10 +110,7 @@ class TestKnowledgeFreshnessDetection:
         old = now - timedelta(days=120)  # 120 days old
 
         profile = ExpertProfile(
-            name="Tech Expert",
-            vector_store_id="vs_tech",
-            knowledge_cutoff_date=old,
-            domain_velocity="medium"
+            name="Tech Expert", vector_store_id="vs_tech", knowledge_cutoff_date=old, domain_velocity="medium"
         )
 
         assert profile.is_knowledge_stale() is True
@@ -143,10 +121,7 @@ class TestKnowledgeFreshnessDetection:
         recent = now - timedelta(days=100)  # 100 days old
 
         profile = ExpertProfile(
-            name="Legal Expert",
-            vector_store_id="vs_legal",
-            knowledge_cutoff_date=recent,
-            domain_velocity="slow"
+            name="Legal Expert", vector_store_id="vs_legal", knowledge_cutoff_date=recent, domain_velocity="slow"
         )
 
         assert profile.is_knowledge_stale() is False
@@ -157,10 +132,7 @@ class TestKnowledgeFreshnessDetection:
         old = now - timedelta(days=200)  # 200 days old
 
         profile = ExpertProfile(
-            name="Legal Expert",
-            vector_store_id="vs_legal",
-            knowledge_cutoff_date=old,
-            domain_velocity="slow"
+            name="Legal Expert", vector_store_id="vs_legal", knowledge_cutoff_date=old, domain_velocity="slow"
         )
 
         assert profile.is_knowledge_stale() is True
@@ -171,11 +143,7 @@ class TestFreshnessStatus:
 
     def test_get_freshness_status_incomplete(self):
         """Test status for expert with no knowledge cutoff."""
-        profile = ExpertProfile(
-            name="New Expert",
-            vector_store_id="vs_new",
-            knowledge_cutoff_date=None
-        )
+        profile = ExpertProfile(name="New Expert", vector_store_id="vs_new", knowledge_cutoff_date=None)
 
         status = profile.get_freshness_status()
 
@@ -186,7 +154,7 @@ class TestFreshnessStatus:
 
     def test_get_freshness_status_fresh(self):
         """Test status for expert with fresh knowledge.
-        
+
         FreshnessChecker uses 50% of threshold as "fresh" boundary.
         For medium domain (90 days), fresh is < 45 days.
         """
@@ -194,10 +162,7 @@ class TestFreshnessStatus:
         recent = now - timedelta(days=30)  # 30 days old (threshold is 90, fresh < 45)
 
         profile = ExpertProfile(
-            name="Fresh Expert",
-            vector_store_id="vs_fresh",
-            knowledge_cutoff_date=recent,
-            domain_velocity="medium"
+            name="Fresh Expert", vector_store_id="vs_fresh", knowledge_cutoff_date=recent, domain_velocity="medium"
         )
 
         status = profile.get_freshness_status()
@@ -211,23 +176,20 @@ class TestFreshnessStatus:
 
     def test_get_freshness_status_aging(self):
         """Test status for expert with aging knowledge (> 50% but < 80% of threshold).
-        
+
         FreshnessChecker thresholds:
         - Fresh: < 50% of velocity_days (< 45 days for medium)
         - Aging: 50-80% of velocity_days (45-72 days for medium)
         - Stale: 80-150% of velocity_days (72-135 days for medium)
         - Critical: > 150% of velocity_days (> 135 days for medium)
-        
+
         For medium domain (90 days), aging is 45-72 days.
         """
         now = utc_now()
         aging = now - timedelta(days=60)  # 60 days old (in aging range: 45-72)
 
         profile = ExpertProfile(
-            name="Aging Expert",
-            vector_store_id="vs_aging",
-            knowledge_cutoff_date=aging,
-            domain_velocity="medium"
+            name="Aging Expert", vector_store_id="vs_aging", knowledge_cutoff_date=aging, domain_velocity="medium"
         )
 
         status = profile.get_freshness_status()
@@ -241,17 +203,14 @@ class TestFreshnessStatus:
 
     def test_get_freshness_status_stale(self):
         """Test status for expert with stale knowledge (> threshold).
-        
+
         For medium domain (90 days), stale is 72-135 days (80-150% of threshold).
         """
         now = utc_now()
         stale = now - timedelta(days=120)  # 120 days old (in stale range: 72-135)
 
         profile = ExpertProfile(
-            name="Stale Expert",
-            vector_store_id="vs_stale",
-            knowledge_cutoff_date=stale,
-            domain_velocity="medium"
+            name="Stale Expert", vector_store_id="vs_stale", knowledge_cutoff_date=stale, domain_velocity="medium"
         )
 
         status = profile.get_freshness_status()
@@ -289,10 +248,7 @@ class TestProgrammaticDateInjection:
         now = utc_now()
         old_cutoff = now - timedelta(days=120)
 
-        message = get_expert_system_message(
-            knowledge_cutoff_date=old_cutoff,
-            domain_velocity="medium"
-        )
+        message = get_expert_system_message(knowledge_cutoff_date=old_cutoff, domain_velocity="medium")
 
         # Should show 120 days old
         assert "120 days old" in message
@@ -307,10 +263,7 @@ class TestProgrammaticDateInjection:
 
         # Fast domain with old knowledge (>30 days)
         old_cutoff = now - timedelta(days=45)
-        message = get_expert_system_message(
-            knowledge_cutoff_date=old_cutoff,
-            domain_velocity="fast"
-        )
+        message = get_expert_system_message(knowledge_cutoff_date=old_cutoff, domain_velocity="fast")
 
         assert "STALE - RESEARCH REQUIRED" in message
         assert "fast" in message
@@ -322,10 +275,7 @@ class TestProgrammaticDateInjection:
 
         # Medium domain with recent knowledge (<90 days)
         recent_cutoff = now - timedelta(days=30)
-        message = get_expert_system_message(
-            knowledge_cutoff_date=recent_cutoff,
-            domain_velocity="medium"
-        )
+        message = get_expert_system_message(knowledge_cutoff_date=recent_cutoff, domain_velocity="medium")
 
         assert "FRESH" in message
         assert "STALE" not in message
@@ -373,7 +323,7 @@ class TestExpertProfileSerialization:
             vector_store_id="vs_test",
             description="Test description",
             knowledge_cutoff_date=now,
-            domain_velocity="fast"
+            domain_velocity="fast",
         )
 
         data = profile.to_dict()
@@ -413,7 +363,7 @@ class TestExpertProfileSerialization:
             "system_message": None,
             "temperature": 0.7,
             "max_tokens": 4000,
-            "domain": None
+            "domain": None,
         }
 
         profile = ExpertProfile.from_dict(data)
@@ -435,7 +385,7 @@ class TestExpertProfileSerialization:
             knowledge_cutoff_date=now,
             domain_velocity="fast",
             source_files=["doc1.pdf", "doc2.md"],
-            total_documents=2
+            total_documents=2,
         )
 
         # Convert to dict and back
@@ -452,7 +402,7 @@ class TestExpertProfileSerialization:
 
 class TestExpertStoreFilenames:
     """Test ExpertStore filename sanitization.
-    
+
     Note: The current implementation uses a folder structure:
     data/experts/[expert_name]/profile.json
     """
@@ -501,7 +451,7 @@ class TestExpertStoreSaveLoad:
             vector_store_id="vs_test",
             description="Test expert",
             knowledge_cutoff_date=now,
-            domain_velocity="medium"
+            domain_velocity="medium",
         )
 
         # Save
@@ -528,10 +478,7 @@ class TestExpertStoreSaveLoad:
         """Test checking if expert exists."""
         store = ExpertStore(base_path=str(tmp_path))
 
-        profile = ExpertProfile(
-            name="Existing Expert",
-            vector_store_id="vs_exists"
-        )
+        profile = ExpertProfile(name="Existing Expert", vector_store_id="vs_exists")
 
         assert store.exists("Existing Expert") is False
 
@@ -543,10 +490,7 @@ class TestExpertStoreSaveLoad:
         """Test deleting an expert profile."""
         store = ExpertStore(base_path=str(tmp_path))
 
-        profile = ExpertProfile(
-            name="Delete Me",
-            vector_store_id="vs_delete"
-        )
+        profile = ExpertProfile(name="Delete Me", vector_store_id="vs_delete")
 
         store.save(profile)
         assert store.exists("Delete Me") is True
@@ -578,10 +522,7 @@ class TestExpertStoreSaveLoad:
 
         # Create multiple experts
         for i in range(3):
-            profile = ExpertProfile(
-                name=f"Expert {i}",
-                vector_store_id=f"vs_{i}"
-            )
+            profile = ExpertProfile(name=f"Expert {i}", vector_store_id=f"vs_{i}")
             store.save(profile)
 
         experts = store.list_all()
@@ -595,21 +536,16 @@ class TestExpertStoreSaveLoad:
     def test_list_all_sorts_by_updated_at(self, tmp_path):
         """Test that list_all sorts by updated_at descending."""
         import time
+
         store = ExpertStore(base_path=str(tmp_path))
 
         # Create experts with different timestamps
-        profile1 = ExpertProfile(
-            name="First Expert",
-            vector_store_id="vs_1"
-        )
+        profile1 = ExpertProfile(name="First Expert", vector_store_id="vs_1")
         store.save(profile1)
 
         time.sleep(0.01)  # Small delay to ensure different timestamps
 
-        profile2 = ExpertProfile(
-            name="Second Expert",
-            vector_store_id="vs_2"
-        )
+        profile2 = ExpertProfile(name="Second Expert", vector_store_id="vs_2")
         store.save(profile2)
 
         experts = store.list_all()

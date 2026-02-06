@@ -74,7 +74,7 @@ class ExpertBeliefs:
             "belief_count": len(self.beliefs),
         }
 
-    def add_belief(self, text: str, confidence: float, source: str = None) -> None:
+    def add_belief(self, text: str, confidence: float, source: Optional[str] = None) -> None:
         """
         Add a belief and recalculate overall confidence.
 
@@ -135,7 +135,7 @@ class ExpertGaps:
             "high_priority_count": len([g for g in self.gaps if g.severity == "high"]),
         }
 
-    def add_gap(self, topic: str, severity: str = "medium", suggested_research: str = None) -> None:
+    def add_gap(self, topic: str, severity: str = "medium", suggested_research: Optional[str] = None) -> None:
         """Add a knowledge gap."""
         self.gaps.append(KnowledgeGap(topic=topic, severity=severity, suggested_research=suggested_research))
 
@@ -187,7 +187,7 @@ class ExpertResourceManager:
         """Get expert knowledge gaps."""
         return self._gaps.get(expert_id)
 
-    def add_belief(self, expert_id: str, text: str, confidence: float, source: str = None) -> bool:
+    def add_belief(self, expert_id: str, text: str, confidence: float, source: Optional[str] = None) -> bool:
         """
         Add a belief to an expert.
 
@@ -213,7 +213,9 @@ class ExpertResourceManager:
         beliefs.add_belief(text, confidence, source)
         return True
 
-    def add_gap(self, expert_id: str, topic: str, severity: str = "medium", suggested_research: str = None) -> bool:
+    def add_gap(
+        self, expert_id: str, topic: str, severity: str = "medium", suggested_research: Optional[str] = None
+    ) -> bool:
         """
         Add a knowledge gap to an expert.
 
@@ -228,7 +230,11 @@ class ExpertResourceManager:
         return True
 
     def update_profile_stats(
-        self, expert_id: str, document_count: int = None, conversation_count: int = None, total_cost: float = None
+        self,
+        expert_id: str,
+        document_count: Optional[int] = None,
+        conversation_count: Optional[int] = None,
+        total_cost: Optional[float] = None,
     ) -> bool:
         """
         Update expert profile statistics.

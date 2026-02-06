@@ -29,7 +29,7 @@ def _utc_now() -> datetime:
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -65,13 +65,13 @@ class Thought:
 
     thought_type: ThoughtType
     public_text: str
-    private_payload: Optional[Dict[str, Any]] = None
+    private_payload: Optional[dict[str, Any]] = None
     confidence: Optional[float] = None
-    evidence_refs: Optional[List[str]] = None
+    evidence_refs: Optional[list[str]] = None
     timestamp: datetime = field(default_factory=_utc_now)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "thought_type": self.thought_type.value,
@@ -250,7 +250,7 @@ class ThoughtStream:
         self.log_path = log_dir / f"thoughts_{session_id}.jsonl"
 
         # Track thoughts for this session
-        self.thoughts: List[Thought] = []
+        self.thoughts: list[Thought] = []
 
         # Current phase for grouping
         self._current_phase: Optional[str] = None
@@ -259,9 +259,9 @@ class ThoughtStream:
         self,
         thought_type: ThoughtType,
         public_text: str,
-        private_payload: Optional[Dict[str, Any]] = None,
+        private_payload: Optional[dict[str, Any]] = None,
         confidence: Optional[float] = None,
-        evidence_refs: Optional[List[str]] = None,
+        evidence_refs: Optional[list[str]] = None,
         **metadata,
     ) -> Thought:
         """Emit a thought to both sinks.
@@ -302,7 +302,7 @@ class ThoughtStream:
 
         return thought
 
-    def _write_to_log(self, thought: Thought, original_text: str = None):
+    def _write_to_log(self, thought: Thought, original_text: Optional[str] = None):
         """Write thought to JSONL log file.
 
         Args:
@@ -409,7 +409,7 @@ class ThoughtStream:
         self,
         decision_text: str,
         confidence: float,
-        evidence: Optional[List[str]] = None,
+        evidence: Optional[list[str]] = None,
         reasoning: Optional[str] = None,
     ):
         """Record a decision.
@@ -444,7 +444,7 @@ class ThoughtStream:
             evidence_refs=[source_id],
         )
 
-    def tool_call(self, tool_name: str, args: Optional[Dict[str, Any]] = None, result_summary: Optional[str] = None):
+    def tool_call(self, tool_name: str, args: Optional[dict[str, Any]] = None, result_summary: Optional[str] = None):
         """Record a tool call.
 
         Args:
@@ -460,7 +460,7 @@ class ThoughtStream:
             ThoughtType.TOOL_CALL, public, private_payload={"tool": tool_name, "args": args, "result": result_summary}
         )
 
-    def error(self, message: str, details: Optional[Dict[str, Any]] = None):
+    def error(self, message: str, details: Optional[dict[str, Any]] = None):
         """Record an error.
 
         Args:
@@ -469,7 +469,7 @@ class ThoughtStream:
         """
         self.emit(ThoughtType.ERROR, f"Error: {message}", private_payload=details)
 
-    def get_trace(self) -> List[Dict[str, Any]]:
+    def get_trace(self) -> list[dict[str, Any]]:
         """Get the full thought trace for this session.
 
         Returns:
@@ -477,7 +477,7 @@ class ThoughtStream:
         """
         return [t.to_dict() for t in self.thoughts]
 
-    def get_public_trace(self) -> List[Dict[str, Any]]:
+    def get_public_trace(self) -> list[dict[str, Any]]:
         """Get redacted thought trace safe for sharing.
 
         Returns:

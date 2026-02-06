@@ -9,7 +9,7 @@ Requirements: 8.2 - Implement rapid cost accumulation detection and circuit brea
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 
 @dataclass
@@ -142,7 +142,7 @@ class CostCircuitBreaker:
             cooldown_remaining=cooldown_remaining,
         )
 
-    def allow_request(self, estimated_cost: float = 0.0) -> Tuple[bool, Optional[str]]:
+    def allow_request(self, estimated_cost: float = 0.0) -> tuple[bool, Optional[str]]:
         """Check if a request should be allowed.
 
         Args:
@@ -229,7 +229,7 @@ class CostCircuitBreaker:
         """Manually open the circuit breaker."""
         self._trip(reason)
 
-    def get_recent_events(self, limit: int = 10) -> List[CostEvent]:
+    def get_recent_events(self, limit: int = 10) -> list[CostEvent]:
         """Get recent cost events.
 
         Args:
@@ -262,7 +262,7 @@ class CostAlert:
     current_cost: float
     budget_limit: float
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
             "level": self.level,
@@ -322,9 +322,9 @@ class CostSession:
 
         # State
         self.total_cost: float = 0.0
-        self.operations: List[Dict] = []
-        self.alerts: List[CostAlert] = []
-        self.failures: List[Dict] = []
+        self.operations: list[dict] = []
+        self.alerts: list[CostAlert] = []
+        self.failures: list[dict] = []
         self.is_circuit_open: bool = False
         self._circuit_open_reason: Optional[str] = None
         self.created_at: float = time.time()
@@ -346,7 +346,7 @@ class CostSession:
         """
         return max(0.0, self.budget_limit - self.total_cost)
 
-    def can_proceed(self, estimated_cost: float) -> Tuple[bool, str]:
+    def can_proceed(self, estimated_cost: float) -> tuple[bool, str]:
         """Check if an operation can proceed within budget.
 
         Args:
@@ -443,7 +443,7 @@ class CostSession:
             self.alerts.append(alert)
             self._warning_sent = True
 
-    def get_summary(self) -> Dict:
+    def get_summary(self) -> dict:
         """Get session summary.
 
         Returns:
@@ -533,8 +533,8 @@ class CostSafetyManager:
                            uses default configuration.
         """
         self._circuit_breaker = circuit_breaker or create_default_circuit_breaker()
-        self._session_costs: Dict[str, float] = {}
-        self._sessions: Dict[str, CostSession] = {}
+        self._session_costs: dict[str, float] = {}
+        self._sessions: dict[str, CostSession] = {}
 
         # Global daily/monthly tracking
         self.daily_cost: float = 0.0
@@ -577,7 +577,7 @@ class CostSafetyManager:
 
     def check_operation(
         self, session_id: str, operation_type: str, estimated_cost: float, require_confirmation: bool = False
-    ) -> Tuple[bool, str, bool]:
+    ) -> tuple[bool, str, bool]:
         """Check if an operation should be allowed.
 
         Args:
@@ -663,7 +663,7 @@ class CostSafetyManager:
         """
         return self._session_costs.get(session_id, 0.0)
 
-    def get_spending_summary(self) -> Dict:
+    def get_spending_summary(self) -> dict:
         """Get global spending summary.
 
         Returns:

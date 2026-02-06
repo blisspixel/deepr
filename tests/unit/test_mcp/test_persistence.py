@@ -9,15 +9,15 @@ Validates:
 """
 
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from deepr.mcp.state.job_manager import JobBeliefs, JobPhase, JobPlan, JobState
 from deepr.mcp.state.persistence import JobPersistence
-from deepr.mcp.state.job_manager import JobState, JobPhase, JobPlan, JobBeliefs
 
 
 @pytest.fixture
@@ -67,13 +67,11 @@ def sample_beliefs():
 # Schema and initialization
 # ------------------------------------------------------------------ #
 
-class TestSchema:
 
+class TestSchema:
     def test_tables_created(self, db):
         """All three tables should exist after init."""
-        cursor = db._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
+        cursor = db._conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         tables = {row[0] for row in cursor.fetchall()}
         assert "jobs" in tables
         assert "job_plans" in tables
@@ -101,8 +99,8 @@ class TestSchema:
 # CRUD: save and load
 # ------------------------------------------------------------------ #
 
-class TestSaveLoad:
 
+class TestSaveLoad:
     def test_save_and_load_state_only(self, db, sample_state):
         """Save and load a job with state only."""
         db.save_job(sample_state)
@@ -175,8 +173,8 @@ class TestSaveLoad:
 # CRUD: list
 # ------------------------------------------------------------------ #
 
-class TestList:
 
+class TestList:
     def test_list_empty(self, db):
         assert db.list_jobs() == []
 
@@ -206,8 +204,8 @@ class TestList:
 # CRUD: delete
 # ------------------------------------------------------------------ #
 
-class TestDelete:
 
+class TestDelete:
     def test_delete_existing(self, db, sample_state, sample_plan, sample_beliefs):
         db.save_job(sample_state, plan=sample_plan, beliefs=sample_beliefs)
         assert db.delete_job("job_001") is True
@@ -222,12 +220,8 @@ class TestDelete:
         db.delete_job("job_001")
 
         # Verify cascaded deletion
-        plan_row = db._conn.execute(
-            "SELECT * FROM job_plans WHERE job_id = ?", ("job_001",)
-        ).fetchone()
-        beliefs_row = db._conn.execute(
-            "SELECT * FROM job_beliefs WHERE job_id = ?", ("job_001",)
-        ).fetchone()
+        plan_row = db._conn.execute("SELECT * FROM job_plans WHERE job_id = ?", ("job_001",)).fetchone()
+        beliefs_row = db._conn.execute("SELECT * FROM job_beliefs WHERE job_id = ?", ("job_001",)).fetchone()
         assert plan_row is None
         assert beliefs_row is None
 
@@ -236,8 +230,8 @@ class TestDelete:
 # Restart recovery
 # ------------------------------------------------------------------ #
 
-class TestRestartRecovery:
 
+class TestRestartRecovery:
     def test_mark_incomplete_as_failed(self, db):
         """Non-terminal jobs should be marked failed on restart."""
         db.save_job(JobState(job_id="q1", phase=JobPhase.QUEUED))
@@ -273,9 +267,7 @@ class TestRestartRecovery:
         # First session: create jobs
         db1 = JobPersistence(db_path=db_path)
         db1.save_job(JobState(job_id="persist_1", phase=JobPhase.EXECUTING))
-        db1.save_job(
-            JobState(job_id="persist_2", phase=JobPhase.COMPLETED, progress=1.0)
-        )
+        db1.save_job(JobState(job_id="persist_2", phase=JobPhase.COMPLETED, progress=1.0))
         db1.close()
 
         # Second session: verify data survived

@@ -4,10 +4,11 @@ Unit tests for LocalStorage backend.
 Tests human-readable naming, metadata generation, and legacy compatibility.
 """
 
-import pytest
 import json
-from pathlib import Path
 from datetime import datetime
+
+import pytest
+
 from deepr.storage.local import LocalStorage
 
 
@@ -39,18 +40,14 @@ class TestLocalStorage:
         content = b"# Research Report\n\nTest content..."
 
         await storage.save_report(
-            job_id=job_id,
-            filename="report.md",
-            content=content,
-            content_type="text/markdown",
-            metadata=sample_metadata
+            job_id=job_id, filename="report.md", content=content, content_type="text/markdown", metadata=sample_metadata
         )
 
         # Find the created directory
         base_path = storage.base_path
         # Look for directory containing any part of the job_id
-        short_id = job_id.split('-')[-1][:8]  # Last 8 chars
-        dirs = [d for d in base_path.iterdir() if d.is_dir() and d.name != 'campaigns' and short_id in d.name]
+        short_id = job_id.split("-")[-1][:8]  # Last 8 chars
+        dirs = [d for d in base_path.iterdir() if d.is_dir() and d.name != "campaigns" and short_id in d.name]
 
         assert len(dirs) == 1, f"Should create exactly one directory, found: {[d.name for d in base_path.iterdir()]}"
 
@@ -68,11 +65,7 @@ class TestLocalStorage:
         content = b"Report content"
 
         await storage.save_report(
-            job_id=job_id,
-            filename="report.md",
-            content=content,
-            content_type="text/markdown",
-            metadata=sample_metadata
+            job_id=job_id, filename="report.md", content=content, content_type="text/markdown", metadata=sample_metadata
         )
 
         # Find metadata file
@@ -105,8 +98,7 @@ class TestLocalStorage:
         for prompt, expected_slug in test_cases:
             slug = storage._create_readable_dirname("test-id", prompt)
             # Slug should be in the directory name
-            assert expected_slug in slug or expected_slug[:30] in slug, \
-                f"Expected '{expected_slug}' in slug '{slug}'"
+            assert expected_slug in slug or expected_slug[:30] in slug, f"Expected '{expected_slug}' in slug '{slug}'"
 
     # Test Legacy Compatibility
 
@@ -128,18 +120,14 @@ class TestLocalStorage:
         # Create a report with human-readable name
         job_id = "test-job-readable"
         await storage.save_report(
-            job_id=job_id,
-            filename="report.md",
-            content=b"test",
-            content_type="text/markdown",
-            metadata=sample_metadata
+            job_id=job_id, filename="report.md", content=b"test", content_type="text/markdown", metadata=sample_metadata
         )
 
         # Should find by job_id even though directory name is different
         found_dir = storage._get_job_dir(job_id)
         assert found_dir.exists()
         # Directory name should contain short_id from job_id
-        short_id = job_id.split('-')[-1][:8] if '-' in job_id else job_id[:8]
+        short_id = job_id.split("-")[-1][:8] if "-" in job_id else job_id[:8]
         assert short_id in found_dir.name or "readable" in found_dir.name
 
     @pytest.mark.asyncio
@@ -159,11 +147,7 @@ class TestLocalStorage:
         # Test 2: New format (human-readable)
         new_id = "new-readable-id"
         await storage.save_report(
-            job_id=new_id,
-            filename="report.md",
-            content=content,
-            content_type="text/markdown",
-            metadata=sample_metadata
+            job_id=new_id, filename="report.md", content=content, content_type="text/markdown", metadata=sample_metadata
         )
 
         retrieved = await storage.get_report(new_id, "report.md")
@@ -186,7 +170,7 @@ class TestLocalStorage:
             filename="campaign_results.json",
             content=b'{"test": "data"}',
             content_type="application/json",
-            metadata=metadata
+            metadata=metadata,
         )
 
         # Should be in campaigns folder
@@ -196,7 +180,7 @@ class TestLocalStorage:
         campaign_dirs = [d for d in campaigns_dir.iterdir() if d.is_dir()]
         assert len(campaign_dirs) > 0, "Should create campaign directory"
         # Campaign ID or short version should be in directory name
-        short_id = campaign_id.replace('campaign-', '')[:12]
+        short_id = campaign_id.replace("campaign-", "")[:12]
         assert any(campaign_id in d.name or short_id in d.name for d in campaign_dirs)
 
     # Test Metadata Structure
@@ -210,7 +194,7 @@ class TestLocalStorage:
             filename="report.md",
             content=b"content",
             content_type="text/markdown",
-            metadata=sample_metadata
+            metadata=sample_metadata,
         )
 
         job_dir = storage._get_job_dir(job_id)
@@ -252,7 +236,7 @@ class TestLocalStorage:
             filename="report.md",
             content=b"new content",
             content_type="text/markdown",
-            metadata=sample_metadata
+            metadata=sample_metadata,
         )
 
         # List all reports
@@ -263,8 +247,10 @@ class TestLocalStorage:
         # Legacy should match exactly
         assert any(legacy_id == jid for jid in job_ids), f"Should find legacy report. Got: {job_ids}"
         # New format: directory name contains short_id or full id
-        new_short_id = new_id.split('-')[-1][:8] if '-' in new_id else new_id[:8]
-        assert any(new_id in jid or new_short_id in jid for jid in job_ids), f"Should find new format report. Got: {job_ids}"
+        new_short_id = new_id.split("-")[-1][:8] if "-" in new_id else new_id[:8]
+        assert any(new_id in jid or new_short_id in jid for jid in job_ids), (
+            f"Should find new format report. Got: {job_ids}"
+        )
 
     # Test Error Handling
 
@@ -283,11 +269,7 @@ class TestLocalStorage:
 
         # Should not crash without metadata
         await storage.save_report(
-            job_id=job_id,
-            filename="report.md",
-            content=b"content",
-            content_type="text/markdown",
-            metadata=None
+            job_id=job_id, filename="report.md", content=b"content", content_type="text/markdown", metadata=None
         )
 
         # Report should be saved (as legacy format since no prompt for slug)

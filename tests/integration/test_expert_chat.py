@@ -1,4 +1,5 @@
 """Test expert chat with Microsoft AI Expert"""
+
 import asyncio
 import sys
 from pathlib import Path
@@ -6,8 +7,9 @@ from pathlib import Path
 # Add deepr to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from deepr.experts.profile import ExpertProfile
 from deepr.experts.chat import ExpertChatSession
+from deepr.experts.profile import ExpertProfile
+
 
 async def test_chat():
     print("Loading Microsoft AI Expert...")
@@ -39,10 +41,12 @@ async def test_chat():
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
     return True
+
 
 if __name__ == "__main__":
     success = asyncio.run(test_chat())

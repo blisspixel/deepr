@@ -4,7 +4,6 @@ import asyncio
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List
 
 import click
 
@@ -22,7 +21,7 @@ class DiagnosticCheck:
         self.details = []
 
 
-async def check_api_keys(config) -> List[DiagnosticCheck]:
+async def check_api_keys(config) -> list[DiagnosticCheck]:
     """Check if API keys are configured."""
     checks = []
 
@@ -84,7 +83,7 @@ async def check_api_keys(config) -> List[DiagnosticCheck]:
     return checks
 
 
-async def check_provider_connectivity(config) -> List[DiagnosticCheck]:
+async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
     """Test basic connectivity to configured providers."""
     checks = []
 
@@ -164,7 +163,7 @@ async def check_provider_connectivity(config) -> List[DiagnosticCheck]:
     return checks
 
 
-async def check_filesystem() -> List[DiagnosticCheck]:
+async def check_filesystem() -> list[DiagnosticCheck]:
     """Check file system permissions."""
     checks = []
 
@@ -230,7 +229,7 @@ async def check_filesystem() -> List[DiagnosticCheck]:
     return checks
 
 
-async def check_database(config) -> List[DiagnosticCheck]:
+async def check_database(config) -> list[DiagnosticCheck]:
     """Check database connectivity."""
     checks = []
 
@@ -264,12 +263,12 @@ async def check_database(config) -> List[DiagnosticCheck]:
     return checks
 
 
-def print_checks(checks: List[DiagnosticCheck]):
+def print_checks(checks: list[DiagnosticCheck]):
     """Print diagnostic checks in a formatted way."""
     from deepr.cli.colors import console, get_symbol
 
     # Group by category
-    categories: Dict[str, List[DiagnosticCheck]] = {}
+    categories: dict[str, list[DiagnosticCheck]] = {}
     for check in checks:
         if check.category not in categories:
             categories[check.category] = []

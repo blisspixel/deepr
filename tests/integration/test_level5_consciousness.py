@@ -3,14 +3,15 @@
 Tests expert synthesis, worldview formation, and consciousness-based responses.
 These features distinguish Level 5 (digital consciousness) from Level 1 (retrieval).
 """
-import pytest
-import asyncio
-from pathlib import Path
-from deepr.experts.chat import start_chat_session, ExpertChatSession
-from deepr.experts.profile import ExpertStore
-from deepr.experts.synthesis import Worldview, KnowledgeSynthesizer
-from openai import AsyncOpenAI
+
 import os
+
+import pytest
+from openai import AsyncOpenAI
+
+from deepr.experts.chat import start_chat_session
+from deepr.experts.profile import ExpertStore
+from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
 
 pytestmark = pytest.mark.integration
 
@@ -42,21 +43,24 @@ async def test_consciousness_based_response():
     session = await start_chat_session(
         "Agentic Digital Consciousness",
         budget=1.0,
-        agentic=False  # Non-agentic to test pure consciousness
+        agentic=False,  # Non-agentic to test pure consciousness
     )
 
     # Ask opinion question (tests belief-based response)
-    response = await session.send_message(
-        "What's your opinion on dual-mode agent architectures?"
-    )
+    response = await session.send_message("What's your opinion on dual-mode agent architectures?")
 
     assert isinstance(response, str)
     assert len(response) > 50, "Should give substantive response"
 
     # Check for consciousness indicators (belief language)
     consciousness_indicators = [
-        "i believe", "i think", "in my", "my understanding",
-        "confidence", "uncertain", "i've learned"
+        "i believe",
+        "i think",
+        "in my",
+        "my understanding",
+        "confidence",
+        "uncertain",
+        "i've learned",
     ]
 
     response_lower = response.lower()
@@ -70,16 +74,10 @@ async def test_consciousness_based_response():
 @pytest.mark.asyncio
 async def test_reasoning_trace_captured():
     """Test that reasoning traces are captured for transparency."""
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0,
-        agentic=False
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=1.0, agentic=False)
 
     # Ask a question
-    response = await session.send_message(
-        "What are temporal knowledge graphs?"
-    )
+    response = await session.send_message("What are temporal knowledge graphs?")
 
     # Check reasoning trace
     assert isinstance(session.reasoning_trace, list), "Should have reasoning trace"
@@ -111,11 +109,7 @@ async def test_worldview_influences_response():
     top_belief = sorted(worldview.beliefs, key=lambda b: b.confidence, reverse=True)[0]
 
     # Ask about the topic of the top belief
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0,
-        agentic=False
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=1.0, agentic=False)
 
     response = await session.send_message(f"Tell me about {top_belief.topic}")
 
@@ -154,11 +148,8 @@ async def test_knowledge_synthesis():
     result = await synthesizer.synthesize_new_knowledge(
         expert_name="Test Expert",
         domain="Agent Architecture",
-        new_documents=[{
-            'path': 'test_doc.md',
-            'content': test_doc_content
-        }],
-        existing_worldview=None
+        new_documents=[{"path": "test_doc.md", "content": test_doc_content}],
+        existing_worldview=None,
     )
 
     assert result["success"] is True, "Synthesis should succeed"
@@ -179,23 +170,22 @@ async def test_knowledge_synthesis():
 @pytest.mark.asyncio
 async def test_meta_awareness():
     """Test that expert shows meta-cognitive awareness."""
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0,
-        agentic=False
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=1.0, agentic=False)
 
     # Ask about something potentially outside expertise
-    response = await session.send_message(
-        "What's your understanding of quantum computing hardware?"
-    )
+    response = await session.send_message("What's your understanding of quantum computing hardware?")
 
     assert isinstance(response, str)
 
     # Check for meta-awareness indicators
     meta_indicators = [
-        "i don't know", "i'm not sure", "outside my", "not certain",
-        "limited understanding", "i'd need to", "uncertain"
+        "i don't know",
+        "i'm not sure",
+        "outside my",
+        "not certain",
+        "limited understanding",
+        "i'd need to",
+        "uncertain",
     ]
 
     response_lower = response.lower()
@@ -208,22 +198,20 @@ async def test_meta_awareness():
 @pytest.mark.asyncio
 async def test_humble_tone():
     """Test that expert uses humble, helpful tone (not pompous)."""
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0,
-        agentic=False
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=1.0, agentic=False)
 
-    response = await session.send_message(
-        "How should I build an AI agent?"
-    )
+    response = await session.send_message("How should I build an AI agent?")
 
     assert isinstance(response, str)
 
     # Check for pompous language (should NOT be present)
     pompous_terms = [
-        "you must", "you should always", "the only way",
-        "it is imperative", "you need to", "—"  # em dash (explicitly forbidden)
+        "you must",
+        "you should always",
+        "the only way",
+        "it is imperative",
+        "you need to",
+        "—",  # em dash (explicitly forbidden)
     ]
 
     response_lower = response.lower()
@@ -232,10 +220,7 @@ async def test_humble_tone():
     assert len(pompous_found) == 0, f"Response uses pompous language: {pompous_found}"
 
     # Check for humble language (should be present)
-    humble_terms = [
-        "i think", "i believe", "in my understanding", "consider",
-        "might", "could", "one approach"
-    ]
+    humble_terms = ["i think", "i believe", "in my understanding", "consider", "might", "could", "one approach"]
 
     humble_found = [term for term in humble_terms if term in response_lower]
 
@@ -246,11 +231,7 @@ async def test_humble_tone():
 @pytest.mark.asyncio
 async def test_session_summary_includes_consciousness_data():
     """Test that session summary includes consciousness-related data."""
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=1.0,
-        agentic=False
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=1.0, agentic=False)
 
     await session.send_message("Hello")
 

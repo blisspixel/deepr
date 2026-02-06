@@ -5,7 +5,7 @@ Used by ModelRouter to make intelligent routing decisions.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -17,15 +17,15 @@ class ModelCapability:
     cost_per_query: float  # Average cost in USD
     latency_ms: int  # Average latency in milliseconds
     context_window: int  # Max context window in tokens
-    specializations: List[str]  # Areas where this model excels
-    strengths: List[str]  # Key strengths
-    weaknesses: List[str]  # Known limitations
+    specializations: list[str]  # Areas where this model excels
+    strengths: list[str]  # Key strengths
+    weaknesses: list[str]  # Known limitations
     input_cost_per_1m: float = 0.0  # Cost per 1M input tokens (USD)
     output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
 
 
 # Model capabilities registry
-MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
+MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # OpenAI Models
     "openai/gpt-5.2": ModelCapability(
         provider="openai",
@@ -217,7 +217,7 @@ MODEL_CAPABILITIES: Dict[str, ModelCapability] = {
 }
 
 
-def get_token_pricing(model: str) -> Dict[str, float]:
+def get_token_pricing(model: str) -> dict[str, float]:
     """Get per-token pricing for a model.
 
     Searches registry by model name across all providers.
@@ -279,7 +279,7 @@ def get_model_capability(provider: str, model: str) -> Optional[ModelCapability]
     return MODEL_CAPABILITIES.get(key)
 
 
-def get_models_by_specialization(specialization: str) -> List[ModelCapability]:
+def get_models_by_specialization(specialization: str) -> list[ModelCapability]:
     """Get all models that specialize in a given area.
 
     Args:
