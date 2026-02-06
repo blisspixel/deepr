@@ -512,7 +512,7 @@ class TestRedactionRulesPropertyTests:
         word2=st.text(alphabet=st.characters(whitelist_categories=('L',)), min_size=3, max_size=15),
         word3=st.text(alphabet=st.characters(whitelist_categories=('L',)), min_size=3, max_size=15)
     )
-    @settings(max_examples=50)
+    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_safe_text_unchanged(self, word1, word2, word3):
         """Property: Text without sensitive patterns passes through unchanged."""
         # Build safe text from random words

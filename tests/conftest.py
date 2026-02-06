@@ -1,26 +1,31 @@
 """Pytest configuration and fixtures.
 
 This module provides shared test infrastructure for the Deepr test suite:
-- Event loop management for async tests
 - Mock providers, storage, and queue fixtures
 - Environment variable mocking
 - Sample data fixtures
+- Hypothesis profile for CI stability
 
 The fixtures are designed to enable comprehensive testing without
 making actual API calls or incurring costs.
 """
 
 import pytest
-import os
-import asyncio
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 from dotenv import load_dotenv
+from hypothesis import settings as hypothesis_settings, HealthCheck
 
 # Load .env file for API keys in integration/E2E tests
 load_dotenv()
+
+# Suppress slow-generation health checks globally — property tests use complex
+# strategies (nested dicts, filtered text) that can be slow on CI/Windows.
+hypothesis_settings.register_profile(
+    "ci",
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    deadline=None,
+)
+hypothesis_settings.load_profile("ci")
 
 
 # =============================================================================
@@ -36,21 +41,6 @@ def pytest_configure(config):
         "markers", "security: marks tests as security-focused tests"
     )
 
-
-# =============================================================================
-# EVENT LOOP FIXTURES
-# =============================================================================
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create event loop for async tests.
-    
-    Uses session scope to share the loop across all async tests,
-    improving test performance.
-    """
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 # =============================================================================
