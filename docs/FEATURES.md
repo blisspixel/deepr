@@ -402,6 +402,26 @@ deepr expert make "FDA Regulations" --files docs/*.pdf --learn --budget 10
 deepr expert make "Supply Chain Expert" --files *.md --description "Logistics and supply chain domain"
 ```
 
+### Preview Curriculum
+
+```bash
+# Preview what an expert would learn (no cost, no expert created)
+deepr expert plan "Azure Architect"
+
+# With budget constraint
+deepr expert plan "Cloud Security" --budget 10
+
+# Output as JSON or CSV
+deepr expert plan "Kubernetes" --json
+deepr expert plan "Kubernetes" --csv
+
+# Just the prompts, one per line
+deepr expert plan "FastAPI" -q
+
+# Skip source discovery (faster)
+deepr expert plan "React hooks" --no-discovery
+```
+
 ### Manage Experts
 
 ```bash
