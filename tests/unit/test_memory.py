@@ -979,7 +979,7 @@ class TestUserProfilePropertyTests:
             max_size=5
         )
     )
-    @settings(max_examples=30)
+    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
     def test_serialization_round_trip(self, expertise_levels):
         """Property: UserProfile serialization is lossless."""
         profile = UserProfile(
