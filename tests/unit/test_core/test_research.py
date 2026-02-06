@@ -10,18 +10,18 @@ Tests the research orchestration workflow including:
 All tests use mocks to avoid external API calls.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
+
+import hypothesis.strategies as st
+import pytest
 
 # Import Hypothesis for property-based testing
-from hypothesis import given, settings, assume
-import hypothesis.strategies as st
+from hypothesis import given, settings
 
 from deepr.core.research import (
-    ResearchOrchestrator,
-    MODEL_COST_ESTIMATES,
     DEFAULT_COST_ESTIMATE,
+    MODEL_COST_ESTIMATES,
+    ResearchOrchestrator,
 )
 
 
@@ -58,7 +58,7 @@ class TestResearchOrchestratorInit:
     ):
         """Test initialization with custom system message."""
         custom_message = "You are a specialized research assistant."
-        
+
         orchestrator = ResearchOrchestrator(
             provider=mock_provider,
             storage=mock_storage,
@@ -91,7 +91,7 @@ class TestResearchOrchestratorInit:
 
 class TestBudgetValidation:
     """Test budget validation occurs BEFORE API calls.
-    
+
     Critical requirement: Budget must be validated before any
     expensive operations to prevent cost overruns.
     """
@@ -136,7 +136,7 @@ class TestBudgetValidation:
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
-            
+
             # Mock provider response
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
@@ -174,7 +174,7 @@ class TestBudgetValidation:
 
 class TestPromptValidation:
     """Test prompt length validation.
-    
+
     OpenAI metadata fields have 512 char limit, so prompts
     must be validated before submission.
     """
@@ -226,7 +226,7 @@ class TestPromptValidation:
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
-            
+
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
             result = await orchestrator.submit_research(
@@ -267,17 +267,13 @@ class TestVectorStoreManagement:
             mock_csm.return_value = mock_manager
 
             # Mock document upload
-            orchestrator.document_manager.upload_documents = AsyncMock(
-                return_value=["file-1", "file-2"]
-            )
-            
+            orchestrator.document_manager.upload_documents = AsyncMock(return_value=["file-1", "file-2"])
+
             # Mock vector store creation
             mock_vs = MagicMock()
             mock_vs.id = "vs-test-123"
-            orchestrator.document_manager.create_vector_store = AsyncMock(
-                return_value=mock_vs
-            )
-            
+            orchestrator.document_manager.create_vector_store = AsyncMock(return_value=mock_vs)
+
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
             await orchestrator.submit_research(
@@ -287,20 +283,22 @@ class TestVectorStoreManagement:
 
             # Verify document upload was called
             orchestrator.document_manager.upload_documents.assert_called_once()
-            
+
             # Verify vector store was created
             orchestrator.document_manager.create_vector_store.assert_called_once()
-            
+
             # Verify vector store is tracked for cleanup
-            assert "job-123" not in orchestrator.active_vector_stores or \
-                   orchestrator.active_vector_stores.get("job-123") is not None
+            assert (
+                "job-123" not in orchestrator.active_vector_stores
+                or orchestrator.active_vector_stores.get("job-123") is not None
+            )
 
     @pytest.mark.asyncio
     async def test_vector_store_cleanup_on_completion(self, orchestrator):
         """Test that vector store is cleaned up after job completion."""
         # Set up tracked vector store
         orchestrator.active_vector_stores["job-123"] = "vs-test-123"
-        
+
         # Mock provider delete
         orchestrator.provider.delete_vector_store = AsyncMock()
 
@@ -308,7 +306,7 @@ class TestVectorStoreManagement:
 
         # Verify cleanup was called
         orchestrator.provider.delete_vector_store.assert_called_once_with("vs-test-123")
-        
+
         # Verify tracking removed
         assert "job-123" not in orchestrator.active_vector_stores
 
@@ -365,11 +363,9 @@ class TestErrorHandling:
         mock_response.status = "completed"
         mock_response.metadata = {}
         orchestrator.provider.get_status = AsyncMock(return_value=mock_response)
-        
+
         # Mock empty text extraction
-        orchestrator.report_generator.extract_text_from_response = MagicMock(
-            return_value=""
-        )
+        orchestrator.report_generator.extract_text_from_response = MagicMock(return_value="")
 
         with pytest.raises(ValueError) as exc_info:
             await orchestrator.process_completion("job-123")
@@ -381,7 +377,7 @@ class TestErrorHandling:
         """Test that cancelling a job cleans up its vector store."""
         # Track a vector store
         orchestrator.active_vector_stores["job-123"] = "vs-test-123"
-        
+
         # Mock successful cancellation
         orchestrator.provider.cancel_job = AsyncMock(return_value=True)
         orchestrator.provider.delete_vector_store = AsyncMock()
@@ -519,7 +515,7 @@ class TestPromptEnhancement:
 
 class TestPropertyBasedValidation:
     """Property-based tests for ResearchOrchestrator.
-    
+
     These tests verify invariants that must hold for ALL valid inputs,
     not just specific examples. This catches edge cases and ensures
     robust behavior across the input space.
@@ -547,15 +543,15 @@ class TestPropertyBasedValidation:
     def test_property_long_prompts_always_rejected(self, prompt):
         """
         Property 1: Long Prompt Rejection
-        
+
         INVARIANT: Any prompt longer than 300 characters MUST be rejected
         with a ValueError before any API call is made.
-        
+
         This property ensures:
         - OpenAI metadata field limits (512 chars) are respected
         - No wasted API calls on invalid prompts
         - Consistent error messaging
-        
+
         Validates: Requirement 1.3 (Prompt length validation)
         """
         # Create fresh orchestrator for each test
@@ -563,31 +559,30 @@ class TestPropertyBasedValidation:
         mock_storage = MagicMock()
         mock_document_manager = MagicMock()
         mock_report_generator = MagicMock()
-        
+
         orchestrator = ResearchOrchestrator(
             provider=mock_provider,
             storage=mock_storage,
             document_manager=mock_document_manager,
             report_generator=mock_report_generator,
         )
-        
+
         # Mock cost safety to allow (we want to test prompt validation)
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_csm.return_value = mock_manager
-            
+
             # Property: Long prompts must raise ValueError
             with pytest.raises(ValueError) as exc_info:
                 import asyncio
-                asyncio.run(
-                    orchestrator.submit_research(prompt=prompt)
-                )
-            
+
+                asyncio.run(orchestrator.submit_research(prompt=prompt))
+
             # Verify error message mentions length
             assert "too long" in str(exc_info.value).lower()
             assert "300" in str(exc_info.value)
-            
+
             # Verify provider was NEVER called
             mock_provider.submit_research.assert_not_called()
 
@@ -597,14 +592,14 @@ class TestPropertyBasedValidation:
     def test_property_valid_prompts_pass_validation(self, prompt):
         """
         Property 2: Valid Prompt Acceptance
-        
+
         INVARIANT: Any non-empty prompt of 300 characters or less
         MUST pass prompt validation (may still fail on other checks).
-        
+
         This property ensures:
         - Valid prompts are not incorrectly rejected
         - The 300 char limit is correctly implemented
-        
+
         Validates: Requirement 1.3 (Prompt length validation)
         """
         # Create fresh orchestrator for each test
@@ -613,58 +608,55 @@ class TestPropertyBasedValidation:
         mock_storage = MagicMock()
         mock_document_manager = MagicMock()
         mock_report_generator = MagicMock()
-        
+
         orchestrator = ResearchOrchestrator(
             provider=mock_provider,
             storage=mock_storage,
             document_manager=mock_document_manager,
             report_generator=mock_report_generator,
         )
-        
+
         # Mock cost safety to allow
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
-            
+
             # Property: Valid prompts should not raise prompt-length errors
             import asyncio
+
             try:
-                result = asyncio.run(
-                    orchestrator.submit_research(prompt=prompt)
-                )
+                result = asyncio.run(orchestrator.submit_research(prompt=prompt))
                 # If we get here, prompt validation passed
                 assert result == "job-123"
             except ValueError as e:
                 # If ValueError, it should NOT be about prompt length
-                assert "too long" not in str(e).lower(), \
+                assert "too long" not in str(e).lower(), (
                     f"Valid prompt '{prompt[:50]}...' incorrectly rejected as too long"
+                )
 
     @pytest.mark.property
-    @given(
-        st.sampled_from(list(MODEL_COST_ESTIMATES.keys()) + ["unknown-model", "test-model"])
-    )
+    @given(st.sampled_from([*list(MODEL_COST_ESTIMATES.keys()), "unknown-model", "test-model"]))
     @settings(max_examples=50, deadline=None)
     def test_property_cost_estimation_always_positive(self, model):
         """
         Property 3: Cost Estimation Non-Negative
-        
+
         INVARIANT: Cost estimation for ANY model (known or unknown)
         MUST return a positive value.
-        
+
         This property ensures:
         - Budget validation always has a valid cost to check
         - Unknown models fall back to a safe default
         - No division by zero or negative budget issues
-        
+
         Validates: Requirement 2.7 (Cost estimation bounds)
         """
         estimated_cost = MODEL_COST_ESTIMATES.get(model, DEFAULT_COST_ESTIMATE)
-        
+
         assert estimated_cost > 0, f"Model {model} has non-positive cost estimate"
-        assert isinstance(estimated_cost, (int, float)), \
-            f"Cost estimate for {model} is not numeric"
+        assert isinstance(estimated_cost, (int, float)), f"Cost estimate for {model} is not numeric"
 
     @pytest.mark.property
     @given(
@@ -673,17 +665,15 @@ class TestPropertyBasedValidation:
         st.one_of(st.none(), st.text(min_size=1, max_size=50)),  # vector_store_id
     )
     @settings(max_examples=50, deadline=None)
-    def test_property_tools_configuration_consistent(
-        self, enable_web_search, enable_code_interpreter, vector_store_id
-    ):
+    def test_property_tools_configuration_consistent(self, enable_web_search, enable_code_interpreter, vector_store_id):
         """
         Property 4: Tools Configuration Consistency
-        
+
         INVARIANT: Tool configuration must be consistent with parameters:
         - file_search present IFF vector_store_id provided
         - web_search_preview present IFF enable_web_search=True
         - code_interpreter present IFF enable_code_interpreter=True
-        
+
         Validates: Requirement 1.7 (Configuration round-trip)
         """
         # Create orchestrator
@@ -691,45 +681,39 @@ class TestPropertyBasedValidation:
         mock_storage = MagicMock()
         mock_document_manager = MagicMock()
         mock_report_generator = MagicMock()
-        
+
         orchestrator = ResearchOrchestrator(
             provider=mock_provider,
             storage=mock_storage,
             document_manager=mock_document_manager,
             report_generator=mock_report_generator,
         )
-        
+
         tools = orchestrator._build_tools(
             vector_store_id=vector_store_id,
             enable_web_search=enable_web_search,
             enable_code_interpreter=enable_code_interpreter,
         )
-        
+
         tool_types = [t.type for t in tools]
-        
+
         # Property: file_search IFF vector_store_id
         if vector_store_id:
-            assert "file_search" in tool_types, \
-                "file_search missing when vector_store_id provided"
+            assert "file_search" in tool_types, "file_search missing when vector_store_id provided"
         else:
-            assert "file_search" not in tool_types, \
-                "file_search present without vector_store_id"
-        
+            assert "file_search" not in tool_types, "file_search present without vector_store_id"
+
         # Property: web_search_preview IFF enable_web_search
         if enable_web_search:
-            assert "web_search_preview" in tool_types, \
-                "web_search_preview missing when enabled"
+            assert "web_search_preview" in tool_types, "web_search_preview missing when enabled"
         else:
-            assert "web_search_preview" not in tool_types, \
-                "web_search_preview present when disabled"
-        
+            assert "web_search_preview" not in tool_types, "web_search_preview present when disabled"
+
         # Property: code_interpreter IFF enable_code_interpreter
         if enable_code_interpreter:
-            assert "code_interpreter" in tool_types, \
-                "code_interpreter missing when enabled"
+            assert "code_interpreter" in tool_types, "code_interpreter missing when enabled"
         else:
-            assert "code_interpreter" not in tool_types, \
-                "code_interpreter present when disabled"
+            assert "code_interpreter" not in tool_types, "code_interpreter present when disabled"
 
 
 if __name__ == "__main__":
@@ -738,7 +722,7 @@ if __name__ == "__main__":
 
 class TestPromptSanitization:
     """Test prompt sanitization integration.
-    
+
     Verifies that prompt injection attacks are detected and blocked
     before any API calls are made.
     """
@@ -793,7 +777,7 @@ class TestPromptSanitization:
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
-            
+
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
             result = await orchestrator.submit_research(prompt=safe_prompt)
@@ -813,7 +797,7 @@ class TestPromptSanitization:
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
-            
+
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
             result = await orchestrator.submit_research(prompt=medium_risk_prompt)
@@ -833,14 +817,11 @@ class TestPromptSanitization:
             mock_manager.check_operation.return_value = (True, "OK", False)
             mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
-            
+
             orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
             # With skip_sanitization=True, should pass
-            result = await orchestrator.submit_research(
-                prompt=dangerous_prompt,
-                skip_sanitization=True
-            )
+            result = await orchestrator.submit_research(prompt=dangerous_prompt, skip_sanitization=True)
 
             assert result == "job-123"
 

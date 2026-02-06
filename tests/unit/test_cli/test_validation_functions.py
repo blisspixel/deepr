@@ -8,21 +8,19 @@ Tests cover:
 - confirm_high_cost_operation
 """
 
-import pytest
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
 
 import click
+import pytest
 
 from deepr.cli.validation import (
-    validate_upload_files,
-    validate_prompt,
-    validate_expert_name,
-    validate_budget,
-    confirm_high_cost_operation,
     ALLOWED_DOCUMENT_EXTENSIONS,
     MAX_FILE_SIZE_MB,
+    confirm_high_cost_operation,
+    validate_budget,
+    validate_expert_name,
+    validate_prompt,
+    validate_upload_files,
 )
 
 
@@ -87,10 +85,7 @@ class TestValidateUploadFiles:
         test_file = tmp_path / "test.xyz"
         test_file.write_text("content")
 
-        result = validate_upload_files(
-            (str(test_file),),
-            allowed_extensions=[".xyz"]
-        )
+        result = validate_upload_files((str(test_file),), allowed_extensions=[".xyz"])
 
         assert len(result) == 1
 

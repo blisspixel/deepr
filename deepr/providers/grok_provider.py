@@ -8,7 +8,7 @@ Grok uses chat completions API (OpenAI-compatible) with:
 
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import openai
 
@@ -86,7 +86,7 @@ class GrokProvider(DeepResearchProvider):
         }
 
         # Store completed jobs in memory (simple implementation)
-        self.jobs: Dict[str, Dict[str, Any]] = {}
+        self.jobs: dict[str, dict[str, Any]] = {}
 
     def get_model_name(self, model: str) -> str:
         """Map user-friendly model names to xAI model IDs."""
@@ -264,7 +264,7 @@ class GrokProvider(DeepResearchProvider):
 
         return round(input_cost + output_cost, 6)
 
-    async def upload_document(self, file_path: str, collection_id: Optional[str] = None) -> Dict[str, Any]:
+    async def upload_document(self, file_path: str, collection_id: Optional[str] = None) -> dict[str, Any]:
         """
         Upload document to Grok collections.
 
@@ -284,7 +284,7 @@ class GrokProvider(DeepResearchProvider):
         """Delete Grok collection."""
         raise NotImplementedError("Grok vector store not yet implemented")
 
-    async def list_vector_stores(self) -> List[Dict[str, Any]]:
+    async def list_vector_stores(self) -> list[dict[str, Any]]:
         """List Grok collections."""
         raise NotImplementedError("Grok vector store not yet implemented")
 

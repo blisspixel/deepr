@@ -3,25 +3,25 @@
 Tests the full pipeline: fetch → extract → synthesize
 """
 
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from deepr.utils.scrape import (
-    ScrapeConfig,
-    ContentFetcher,
     ContentExtractor,
+    ContentFetcher,
     LinkExtractor,
     PageDeduplicator,
+    ScrapeConfig,
 )
 
 
 def test_full_scrape_workflow():
     """Test complete scraping workflow on example.com."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Full Scraping Workflow Integration Test")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Configuration
     config = ScrapeConfig(
@@ -56,7 +56,7 @@ def test_full_scrape_workflow():
     if links:
         for i, link in enumerate(links[:5], 1):
             print(f"    {i}. {link['url']}")
-            if link['text']:
+            if link["text"]:
                 print(f"       Text: {link['text'][:50]}")
 
     # Filter out common exclusions
@@ -74,7 +74,7 @@ def test_full_scrape_workflow():
 
     # Extract metadata
     metadata = content_extractor.extract_metadata(result.html)
-    print(f"  [OK] Metadata extracted:")
+    print("  [OK] Metadata extracted:")
     for key, value in metadata.items():
         print(f"       {key}: {value}")
     print()
@@ -91,7 +91,7 @@ def test_full_scrape_workflow():
     deduper.mark_seen(base_url, content_hash)
     assert deduper.is_duplicate(base_url), "URL should be marked as seen"
     assert deduper.is_duplicate("http://other-url.com", content_hash), "Same content hash should be detected"
-    print(f"  [OK] Deduplication working\n")
+    print("  [OK] Deduplication working\n")
 
     # Step 5: Scrape additional pages (if any links found)
     if filtered_links:
@@ -99,7 +99,7 @@ def test_full_scrape_workflow():
         scraped_pages = {base_url: main_content}
 
         for link in filtered_links[:3]:
-            url = link['url']
+            url = link["url"]
             if deduper.is_duplicate(url):
                 print(f"  [SKIP] Already seen: {url}")
                 continue
@@ -116,7 +116,7 @@ def test_full_scrape_workflow():
                     deduper.mark_seen(url, page_hash)
                     print(f"    [OK] Scraped {len(page_content)} chars")
                 else:
-                    print(f"    [SKIP] Duplicate content")
+                    print("    [SKIP] Duplicate content")
             else:
                 print(f"    [FAIL] {page_result.error}")
 
@@ -125,17 +125,17 @@ def test_full_scrape_workflow():
         print("[STEP 5] No additional links to scrape\n")
 
     # Summary
-    print("="*70)
+    print("=" * 70)
     print("Integration Test Complete")
-    print("="*70)
-    print(f"\nResults:")
+    print("=" * 70)
+    print("\nResults:")
     print(f"  Homepage fetched: {result.success}")
     print(f"  Strategy used: {result.strategy}")
     print(f"  Links found: {len(links)}")
     print(f"  Links after filtering: {len(filtered_links)}")
     print(f"  Content extracted: {len(text)} chars")
     print(f"  Metadata fields: {len(metadata)}")
-    print(f"  Deduplication: Working")
+    print("  Deduplication: Working")
     print()
 
 
@@ -147,5 +147,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[FAIL] {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

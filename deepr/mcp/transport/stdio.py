@@ -14,9 +14,10 @@ Security Properties:
 import asyncio
 import json
 import sys
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Callable, Optional
 
 
 @dataclass

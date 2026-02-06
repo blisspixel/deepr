@@ -1,17 +1,18 @@
 """Integration tests for task durability across disconnections."""
 
-import pytest
 import asyncio
 import tempfile
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
+import pytest
+
+from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher, DispatchResult
 from deepr.mcp.state.task_durability import (
-    TaskDurabilityManager,
     DurableTask,
+    TaskDurabilityManager,
     TaskStatus,
 )
-from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher, DispatchResult
 
 
 class TestTaskDurabilityIntegration:
@@ -295,10 +296,12 @@ class TestAsyncDispatcherIntegration:
         progress_updates = []
 
         async def on_progress(task_id: str, progress: float):
-            progress_updates.append({
-                "task_id": task_id,
-                "progress": progress,
-            })
+            progress_updates.append(
+                {
+                    "task_id": task_id,
+                    "progress": progress,
+                }
+            )
 
         async def mock_task_with_progress(task_id: str) -> dict:
             return {"task_id": task_id, "done": True}

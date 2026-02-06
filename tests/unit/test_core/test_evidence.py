@@ -11,8 +11,6 @@ Property tests validate:
 """
 
 import pytest
-from datetime import datetime
-from typing import List
 
 from deepr.core.evidence import Evidence, FactCheckResult, Verdict
 
@@ -41,14 +39,10 @@ class TestEvidence:
     def test_evidence_to_dict(self):
         """Test Evidence serialization to dict."""
         evidence = Evidence.create(
-            source="test.md",
-            quote="Test quote",
-            url="https://example.com",
-            supports=["claim1"],
-            contradicts=["claim2"]
+            source="test.md", quote="Test quote", url="https://example.com", supports=["claim1"], contradicts=["claim2"]
         )
         data = evidence.to_dict()
-        
+
         assert data["id"] == evidence.id
         assert data["source"] == "test.md"
         assert data["quote"] == "Test quote"
@@ -65,10 +59,10 @@ class TestEvidence:
             "url": "https://example.com",
             "retrieved_at": "2025-01-01T00:00:00",
             "supports": ["claim1"],
-            "contradicts": []
+            "contradicts": [],
         }
         evidence = Evidence.from_dict(data)
-        
+
         assert evidence.id == "abc123"
         assert evidence.source == "test.md"
         assert evidence.quote == "Test quote"
@@ -82,11 +76,7 @@ class TestEvidence:
 
     def test_evidence_to_footnote_with_url(self):
         """Test footnote format with URL."""
-        evidence = Evidence.create(
-            source="document.md",
-            quote="test",
-            url="https://example.com"
-        )
+        evidence = Evidence.create(source="document.md", quote="test", url="https://example.com")
         footnote = evidence.to_footnote()
         assert evidence.id in footnote
         assert "document.md" in footnote
@@ -126,12 +116,7 @@ class TestFactCheckResult:
 
     def test_fact_check_result_creation(self):
         """Test creating a FactCheckResult."""
-        result = FactCheckResult(
-            claim="Test claim",
-            verdict=Verdict.TRUE,
-            confidence=0.95,
-            scope="general"
-        )
+        result = FactCheckResult(claim="Test claim", verdict=Verdict.TRUE, confidence=0.95, scope="general")
         assert result.claim == "Test claim"
         assert result.verdict == Verdict.TRUE
         assert result.confidence == 0.95
@@ -141,11 +126,7 @@ class TestFactCheckResult:
         """Test FactCheckResult with evidence."""
         evidence = Evidence.create(source="test.md", quote="Supporting quote")
         result = FactCheckResult(
-            claim="Test claim",
-            verdict=Verdict.TRUE,
-            confidence=0.9,
-            scope="test",
-            evidence=[evidence]
+            claim="Test claim", verdict=Verdict.TRUE, confidence=0.9, scope="test", evidence=[evidence]
         )
         assert len(result.evidence) == 1
         assert result.evidence[0].source == "test.md"
@@ -157,10 +138,10 @@ class TestFactCheckResult:
             verdict=Verdict.TRUE,
             confidence=0.95,
             scope="general",
-            reasoning="Evidence supports the claim"
+            reasoning="Evidence supports the claim",
         )
         output = result.to_cli_output()
-        
+
         assert "TRUE" in output
         assert "95%" in output
         assert "general" in output
@@ -176,10 +157,10 @@ class TestFactCheckResult:
             scope="test",
             evidence=[evidence],
             reasoning="Contradicted by evidence",
-            cost=0.01
+            cost=0.01,
         )
         payload = result.to_mcp_payload()
-        
+
         assert payload["claim"] == "Test claim"
         assert payload["verdict"] == "FALSE"
         assert payload["confidence"] == 0.8
@@ -197,12 +178,12 @@ class TestFactCheckResult:
             scope="limited",
             evidence=[Evidence.create(source="doc.md", quote="Quote")],
             reasoning="Insufficient evidence",
-            cost=0.02
+            cost=0.02,
         )
-        
+
         data = original.to_dict()
         restored = FactCheckResult.from_dict(data)
-        
+
         assert restored.claim == original.claim
         assert restored.verdict == original.verdict
         assert restored.confidence == original.confidence
@@ -213,46 +194,44 @@ class TestFactCheckResult:
 
 
 # Property-based tests using hypothesis
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 
 class TestEvidencePropertyTests:
     """Property-based tests for Evidence class.
-    
+
     Property 2: Evidence ID determinism
     - Same source + quote always produces same ID
     - Different content produces different IDs (with high probability)
     """
 
-    @given(
-        source=st.text(min_size=1, max_size=100),
-        quote=st.text(min_size=1, max_size=500)
-    )
+    @given(source=st.text(min_size=1, max_size=100), quote=st.text(min_size=1, max_size=500))
     @settings(max_examples=100)
     def test_evidence_id_deterministic(self, source, quote):
         """Property: Evidence.create is deterministic - same input = same ID."""
-        assume('\x00' not in source and '\x00' not in quote)
-        
+        assume("\x00" not in source and "\x00" not in quote)
+
         e1 = Evidence.create(source=source, quote=quote)
         e2 = Evidence.create(source=source, quote=quote)
-        
+
         assert e1.id == e2.id, "Same content should produce same ID"
 
     @given(
         source=st.text(min_size=1, max_size=50),
         quote1=st.text(min_size=1, max_size=100),
-        quote2=st.text(min_size=1, max_size=100)
+        quote2=st.text(min_size=1, max_size=100),
     )
     @settings(max_examples=100)
     def test_evidence_id_different_for_different_content(self, source, quote1, quote2):
         """Property: Different content produces different IDs."""
-        assume('\x00' not in source)
-        assume('\x00' not in quote1 and '\x00' not in quote2)
+        assume("\x00" not in source)
+        assume("\x00" not in quote1 and "\x00" not in quote2)
         assume(quote1 != quote2)  # Ensure quotes are different
-        
+
         e1 = Evidence.create(source=source, quote=quote1)
         e2 = Evidence.create(source=source, quote=quote2)
-        
+
         assert e1.id != e2.id, "Different content should produce different IDs"
 
     @given(
@@ -260,26 +239,20 @@ class TestEvidencePropertyTests:
         quote=st.text(min_size=0, max_size=200),
         url=st.one_of(st.none(), st.text(min_size=1, max_size=100)),
         supports=st.lists(st.text(min_size=1, max_size=20), max_size=5),
-        contradicts=st.lists(st.text(min_size=1, max_size=20), max_size=5)
+        contradicts=st.lists(st.text(min_size=1, max_size=20), max_size=5),
     )
     @settings(max_examples=50)
     def test_evidence_round_trip(self, source, quote, url, supports, contradicts):
         """Property: Evidence serialization round-trip preserves data."""
-        assume('\x00' not in source and '\x00' not in quote)
+        assume("\x00" not in source and "\x00" not in quote)
         if url:
-            assume('\x00' not in url)
-        
-        original = Evidence.create(
-            source=source,
-            quote=quote,
-            url=url,
-            supports=supports,
-            contradicts=contradicts
-        )
-        
+            assume("\x00" not in url)
+
+        original = Evidence.create(source=source, quote=quote, url=url, supports=supports, contradicts=contradicts)
+
         data = original.to_dict()
         restored = Evidence.from_dict(data)
-        
+
         assert restored.id == original.id
         assert restored.source == original.source
         assert restored.quote == original.quote
@@ -291,11 +264,11 @@ class TestEvidencePropertyTests:
     @settings(max_examples=50)
     def test_evidence_inline_citation_format(self, source):
         """Property: Inline citation always has correct format."""
-        assume('\x00' not in source)
-        
+        assume("\x00" not in source)
+
         evidence = Evidence.create(source=source, quote="test")
         citation = evidence.to_inline_citation()
-        
+
         assert citation.startswith("[Source: ")
         assert citation.endswith("]")
         assert source in citation
@@ -303,7 +276,7 @@ class TestEvidencePropertyTests:
 
 class TestFactCheckResultPropertyTests:
     """Property-based tests for FactCheckResult.
-    
+
     Property 3: Fact verification response structure
     - Verdict is always one of TRUE, FALSE, UNCERTAIN
     - Confidence is always in [0.0, 1.0]
@@ -316,22 +289,17 @@ class TestFactCheckResultPropertyTests:
         confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
         scope=st.text(min_size=1, max_size=50),
         reasoning=st.text(min_size=0, max_size=200),
-        cost=st.floats(min_value=0.0, max_value=100.0, allow_nan=False)
+        cost=st.floats(min_value=0.0, max_value=100.0, allow_nan=False),
     )
     @settings(max_examples=100)
     def test_fact_check_result_structure_valid(self, claim, verdict, confidence, scope, reasoning, cost):
         """Property: FactCheckResult always has valid structure."""
-        assume('\x00' not in claim and '\x00' not in scope and '\x00' not in reasoning)
-        
+        assume("\x00" not in claim and "\x00" not in scope and "\x00" not in reasoning)
+
         result = FactCheckResult(
-            claim=claim,
-            verdict=verdict,
-            confidence=confidence,
-            scope=scope,
-            reasoning=reasoning,
-            cost=cost
+            claim=claim, verdict=verdict, confidence=confidence, scope=scope, reasoning=reasoning, cost=cost
         )
-        
+
         # Verify structure
         assert result.verdict in [Verdict.TRUE, Verdict.FALSE, Verdict.UNCERTAIN]
         assert 0.0 <= result.confidence <= 1.0
@@ -343,25 +311,20 @@ class TestFactCheckResultPropertyTests:
         confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
         scope=st.text(min_size=1, max_size=50),
         reasoning=st.text(min_size=0, max_size=100),
-        cost=st.floats(min_value=0.0, max_value=10.0, allow_nan=False)
+        cost=st.floats(min_value=0.0, max_value=10.0, allow_nan=False),
     )
     @settings(max_examples=50)
     def test_fact_check_result_round_trip(self, claim, verdict, confidence, scope, reasoning, cost):
         """Property: FactCheckResult serialization round-trip preserves data."""
-        assume('\x00' not in claim and '\x00' not in scope and '\x00' not in reasoning)
-        
+        assume("\x00" not in claim and "\x00" not in scope and "\x00" not in reasoning)
+
         original = FactCheckResult(
-            claim=claim,
-            verdict=verdict,
-            confidence=confidence,
-            scope=scope,
-            reasoning=reasoning,
-            cost=cost
+            claim=claim, verdict=verdict, confidence=confidence, scope=scope, reasoning=reasoning, cost=cost
         )
-        
+
         data = original.to_dict()
         restored = FactCheckResult.from_dict(data)
-        
+
         assert restored.claim == original.claim
         assert restored.verdict == original.verdict
         assert abs(restored.confidence - original.confidence) < 1e-10
@@ -373,30 +336,18 @@ class TestFactCheckResultPropertyTests:
     @settings(max_examples=10)
     def test_fact_check_result_cli_output_contains_verdict(self, verdict):
         """Property: CLI output always contains the verdict."""
-        result = FactCheckResult(
-            claim="Test claim",
-            verdict=verdict,
-            confidence=0.5,
-            scope="test"
-        )
+        result = FactCheckResult(claim="Test claim", verdict=verdict, confidence=0.5, scope="test")
         output = result.to_cli_output()
-        
+
         assert verdict.value in output
 
-    @given(
-        confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
-    )
+    @given(confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False))
     @settings(max_examples=50)
     def test_fact_check_result_cli_output_shows_confidence(self, confidence):
         """Property: CLI output shows confidence as percentage."""
-        result = FactCheckResult(
-            claim="Test claim",
-            verdict=Verdict.TRUE,
-            confidence=confidence,
-            scope="test"
-        )
+        result = FactCheckResult(claim="Test claim", verdict=Verdict.TRUE, confidence=confidence, scope="test")
         output = result.to_cli_output()
-        
+
         # Confidence should be shown as percentage
         expected_pct = f"{confidence:.0%}"
         assert expected_pct in output or "%" in output
@@ -405,21 +356,16 @@ class TestFactCheckResultPropertyTests:
         claim=st.text(min_size=1, max_size=100),
         verdict=st.sampled_from([Verdict.TRUE, Verdict.FALSE, Verdict.UNCERTAIN]),
         confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
-        scope=st.text(min_size=1, max_size=50)
+        scope=st.text(min_size=1, max_size=50),
     )
     @settings(max_examples=50)
     def test_fact_check_result_mcp_payload_structure(self, claim, verdict, confidence, scope):
         """Property: MCP payload always has required fields."""
-        assume('\x00' not in claim and '\x00' not in scope)
-        
-        result = FactCheckResult(
-            claim=claim,
-            verdict=verdict,
-            confidence=confidence,
-            scope=scope
-        )
+        assume("\x00" not in claim and "\x00" not in scope)
+
+        result = FactCheckResult(claim=claim, verdict=verdict, confidence=confidence, scope=scope)
         payload = result.to_mcp_payload()
-        
+
         # Required fields
         assert "claim" in payload
         assert "verdict" in payload
@@ -428,13 +374,13 @@ class TestFactCheckResultPropertyTests:
         assert "evidence" in payload
         assert "reasoning" in payload
         assert "cost" in payload
-        
+
         # Verdict is string value
         assert payload["verdict"] in ["TRUE", "FALSE", "UNCERTAIN"]
-        
+
         # Confidence is in range
         assert 0.0 <= payload["confidence"] <= 1.0
-        
+
         # Evidence is list
         assert isinstance(payload["evidence"], list)
 
@@ -480,7 +426,7 @@ class TestExpertAnswer:
             evidence=[evidence],
             confidence=0.9,
             cost=0.05,
-            reasoning_trace="Step 1: ...\nStep 2: ..."
+            reasoning_trace="Step 1: ...\nStep 2: ...",
         )
 
         assert answer.answer_text == "This is the answer"
@@ -498,15 +444,8 @@ class TestExpertAnswer:
 
     def test_to_cli_output_with_evidence(self):
         """Should render CLI output with evidence."""
-        evidence = Evidence.create(
-            source="guide.md",
-            quote="Quote",
-            url="https://example.com"
-        )
-        answer = ExpertAnswer(
-            answer_text="The answer",
-            evidence=[evidence]
-        )
+        evidence = Evidence.create(source="guide.md", quote="Quote", url="https://example.com")
+        answer = ExpertAnswer(answer_text="The answer", evidence=[evidence])
         output = answer.to_cli_output()
 
         assert "The answer" in output
@@ -515,10 +454,7 @@ class TestExpertAnswer:
 
     def test_to_cli_output_with_cost(self):
         """Should show cost in CLI output."""
-        answer = ExpertAnswer(
-            answer_text="The answer",
-            cost=0.0123
-        )
+        answer = ExpertAnswer(answer_text="The answer", cost=0.0123)
         output = answer.to_cli_output()
 
         assert "Cost:" in output
@@ -526,10 +462,7 @@ class TestExpertAnswer:
 
     def test_to_cli_output_verbose_with_reasoning(self):
         """Should show reasoning trace in verbose mode."""
-        answer = ExpertAnswer(
-            answer_text="The answer",
-            reasoning_trace="Step 1: Analyzed docs\nStep 2: Synthesized"
-        )
+        answer = ExpertAnswer(answer_text="The answer", reasoning_trace="Step 1: Analyzed docs\nStep 2: Synthesized")
         output = answer.to_cli_output(verbose=True)
 
         assert "Reasoning:" in output
@@ -545,12 +478,7 @@ class TestExpertAnswer:
     def test_to_mcp_payload(self):
         """Should render MCP payload."""
         evidence = Evidence.create(source="test.md", quote="Quote")
-        answer = ExpertAnswer(
-            answer_text="The answer",
-            evidence=[evidence],
-            confidence=0.85,
-            cost=0.02
-        )
+        answer = ExpertAnswer(answer_text="The answer", evidence=[evidence], confidence=0.85, cost=0.02)
         payload = answer.to_mcp_payload()
 
         assert payload["answer"] == "The answer"
@@ -572,17 +500,9 @@ class TestFactCheckResultCliOutput:
 
     def test_cli_output_with_evidence_markers(self):
         """Should show support/contradict markers."""
-        evidence = Evidence.create(
-            source="test.md",
-            quote="This supports the claim",
-            supports=["claim1"]
-        )
+        evidence = Evidence.create(source="test.md", quote="This supports the claim", supports=["claim1"])
         result = FactCheckResult(
-            claim="claim1",
-            verdict=Verdict.TRUE,
-            confidence=0.9,
-            scope="test",
-            evidence=[evidence]
+            claim="claim1", verdict=Verdict.TRUE, confidence=0.9, scope="test", evidence=[evidence]
         )
         output = result.to_cli_output()
 
@@ -591,18 +511,8 @@ class TestFactCheckResultCliOutput:
 
     def test_cli_output_with_url(self):
         """Should show URL in evidence."""
-        evidence = Evidence.create(
-            source="test.md",
-            quote="Quote",
-            url="https://example.com/doc"
-        )
-        result = FactCheckResult(
-            claim="Test",
-            verdict=Verdict.TRUE,
-            confidence=0.9,
-            scope="test",
-            evidence=[evidence]
-        )
+        evidence = Evidence.create(source="test.md", quote="Quote", url="https://example.com/doc")
+        result = FactCheckResult(claim="Test", verdict=Verdict.TRUE, confidence=0.9, scope="test", evidence=[evidence])
         output = result.to_cli_output()
 
         assert "https://example.com/doc" in output
@@ -611,13 +521,7 @@ class TestFactCheckResultCliOutput:
         """Should truncate very long quotes."""
         long_quote = "A" * 200
         evidence = Evidence.create(source="test.md", quote=long_quote)
-        result = FactCheckResult(
-            claim="Test",
-            verdict=Verdict.TRUE,
-            confidence=0.9,
-            scope="test",
-            evidence=[evidence]
-        )
+        result = FactCheckResult(claim="Test", verdict=Verdict.TRUE, confidence=0.9, scope="test", evidence=[evidence])
         output = result.to_cli_output()
 
         # Should truncate to ~100 chars + "..."

@@ -2,8 +2,10 @@
 
 import asyncio
 import os
+
+from deepr.providers.base import ResearchRequest
 from deepr.providers.grok_provider import GrokProvider
-from deepr.providers.base import ResearchRequest, ToolConfig
+
 
 async def test_immediate_execution():
     """Test that Grok executes and completes immediately."""
@@ -35,6 +37,7 @@ async def test_immediate_execution():
         print(f"Error: {response.error}")
 
     return response
+
 
 if __name__ == "__main__":
     asyncio.run(test_immediate_execution())

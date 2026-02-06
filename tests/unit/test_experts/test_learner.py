@@ -4,15 +4,16 @@ Tests the learning execution system including progress tracking,
 pause/resume functionality, and budget protection.
 """
 
-import pytest
-from datetime import datetime, timedelta
-from pathlib import Path
 import json
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from deepr.experts.learner import LearningProgress, AutonomousLearner
+import pytest
+
 from deepr.experts.curriculum import LearningCurriculum, LearningTopic
+from deepr.experts.learner import AutonomousLearner, LearningProgress
 
 
 class TestLearningProgress:
@@ -33,7 +34,7 @@ class TestLearningProgress:
                     research_type="research",
                     estimated_cost=0.10,
                     estimated_minutes=5,
-                    priority=1
+                    priority=1,
                 ),
                 LearningTopic(
                     title="Topic 2",
@@ -43,7 +44,7 @@ class TestLearningProgress:
                     research_type="research",
                     estimated_cost=0.10,
                     estimated_minutes=5,
-                    priority=2
+                    priority=2,
                 ),
                 LearningTopic(
                     title="Topic 3",
@@ -53,12 +54,12 @@ class TestLearningProgress:
                     research_type="research",
                     estimated_cost=0.50,
                     estimated_minutes=15,
-                    priority=3
-                )
+                    priority=3,
+                ),
             ],
             total_estimated_cost=0.70,
             total_estimated_minutes=25,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
     def test_create_progress(self, sample_curriculum):
@@ -68,7 +69,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=[],
             total_cost=0.0,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.total_cost == 0.0
         assert len(progress.completed_topics) == 0
@@ -81,7 +82,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=[],
             total_cost=0.0,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.is_complete() is False
 
@@ -92,7 +93,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1"],
             failed_topics=[],
             total_cost=0.10,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.is_complete() is False
 
@@ -103,7 +104,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2", "Topic 3"],
             failed_topics=[],
             total_cost=0.70,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.is_complete() is True
 
@@ -114,7 +115,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2"],
             failed_topics=["Topic 3"],
             total_cost=0.20,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.is_complete() is True
 
@@ -125,7 +126,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=[],
             total_cost=0.0,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.success_rate() == 0.0
 
@@ -136,7 +137,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2", "Topic 3"],
             failed_topics=[],
             total_cost=0.70,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.success_rate() == 1.0
 
@@ -147,7 +148,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=["Topic 1", "Topic 2", "Topic 3"],
             total_cost=0.0,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
         assert progress.success_rate() == 0.0
 
@@ -158,9 +159,9 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2"],
             failed_topics=["Topic 3"],
             total_cost=0.20,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
         )
-        assert progress.success_rate() == pytest.approx(2/3, rel=0.01)
+        assert progress.success_rate() == pytest.approx(2 / 3, rel=0.01)
 
 
 class TestAutonomousLearnerProgressPersistence:
@@ -189,17 +190,18 @@ class TestAutonomousLearnerProgressPersistence:
     def test_save_learning_progress(self, mock_config, mock_expert_store):
         """Test saving learning progress."""
         store, knowledge_dir = mock_expert_store
-        
-        with patch('deepr.experts.learner.create_provider'), \
-             patch('deepr.experts.learner.create_storage'), \
-             patch('deepr.experts.learner.ExpertStore', return_value=store):
-            
+
+        with (
+            patch("deepr.experts.learner.create_provider"),
+            patch("deepr.experts.learner.create_storage"),
+            patch("deepr.experts.learner.ExpertStore", return_value=store),
+        ):
             learner = AutonomousLearner(mock_config)
-            
+
             # Create mock expert and progress
             expert = MagicMock()
             expert.name = "Test Expert"
-            
+
             curriculum = LearningCurriculum(
                 expert_name="Test Expert",
                 domain="Testing",
@@ -212,7 +214,7 @@ class TestAutonomousLearnerProgressPersistence:
                         research_type="research",
                         estimated_cost=0.10,
                         estimated_minutes=5,
-                        priority=1
+                        priority=1,
                     ),
                     LearningTopic(
                         title="Topic 2",
@@ -222,35 +224,35 @@ class TestAutonomousLearnerProgressPersistence:
                         research_type="research",
                         estimated_cost=0.10,
                         estimated_minutes=5,
-                        priority=2
-                    )
+                        priority=2,
+                    ),
                 ],
                 total_estimated_cost=0.20,
                 total_estimated_minutes=10,
-                generated_at=datetime.utcnow()
+                generated_at=datetime.utcnow(),
             )
-            
+
             progress = LearningProgress(
                 curriculum=curriculum,
                 completed_topics=["Topic 1"],
                 failed_topics=[],
                 total_cost=0.10,
-                started_at=datetime.utcnow()
+                started_at=datetime.utcnow(),
             )
-            
+
             remaining_topics = [curriculum.topics[1]]  # Topic 2 remaining
-            
+
             # Save progress
             learner._save_learning_progress(expert, progress, remaining_topics)
-            
+
             # Verify file was created
             progress_file = knowledge_dir / "learning_progress.json"
             assert progress_file.exists()
-            
+
             # Verify content
-            with open(progress_file, 'r') as f:
+            with open(progress_file) as f:
                 saved_data = json.load(f)
-            
+
             assert saved_data["expert_name"] == "Test Expert"
             assert saved_data["completed_topics"] == ["Topic 1"]
             assert len(saved_data["remaining_topics"]) == 1
@@ -259,7 +261,7 @@ class TestAutonomousLearnerProgressPersistence:
     def test_load_learning_progress(self, mock_config, mock_expert_store):
         """Test loading saved learning progress."""
         store, knowledge_dir = mock_expert_store
-        
+
         # Create progress file
         progress_data = {
             "expert_name": "Test Expert",
@@ -273,27 +275,28 @@ class TestAutonomousLearnerProgressPersistence:
                     "research_mode": "focus",
                     "research_type": "research",
                     "estimated_cost": 0.10,
-                    "estimated_minutes": 5
+                    "estimated_minutes": 5,
                 }
             ],
             "total_cost_so_far": 0.10,
             "started_at": datetime.utcnow().isoformat(),
-            "reason": "daily_or_monthly_limit"
+            "reason": "daily_or_monthly_limit",
         }
-        
+
         progress_file = knowledge_dir / "learning_progress.json"
-        with open(progress_file, 'w') as f:
+        with open(progress_file, "w") as f:
             json.dump(progress_data, f)
-        
-        with patch('deepr.experts.learner.create_provider'), \
-             patch('deepr.experts.learner.create_storage'), \
-             patch('deepr.experts.learner.ExpertStore', return_value=store):
-            
+
+        with (
+            patch("deepr.experts.learner.create_provider"),
+            patch("deepr.experts.learner.create_storage"),
+            patch("deepr.experts.learner.ExpertStore", return_value=store),
+        ):
             learner = AutonomousLearner(mock_config)
-            
+
             # Load progress
             loaded = learner.load_learning_progress("Test Expert")
-            
+
             assert loaded is not None
             assert loaded["expert_name"] == "Test Expert"
             assert loaded["completed_topics"] == ["Topic 1"]
@@ -302,49 +305,52 @@ class TestAutonomousLearnerProgressPersistence:
     def test_load_learning_progress_not_found(self, mock_config, mock_expert_store):
         """Test loading when no saved progress exists."""
         store, knowledge_dir = mock_expert_store
-        
-        with patch('deepr.experts.learner.create_provider'), \
-             patch('deepr.experts.learner.create_storage'), \
-             patch('deepr.experts.learner.ExpertStore', return_value=store):
-            
+
+        with (
+            patch("deepr.experts.learner.create_provider"),
+            patch("deepr.experts.learner.create_storage"),
+            patch("deepr.experts.learner.ExpertStore", return_value=store),
+        ):
             learner = AutonomousLearner(mock_config)
-            
+
             # Load progress (should return None)
             loaded = learner.load_learning_progress("Nonexistent Expert")
-            
+
             assert loaded is None
 
     def test_clear_learning_progress(self, mock_config, mock_expert_store):
         """Test clearing saved learning progress."""
         store, knowledge_dir = mock_expert_store
-        
+
         # Create progress file
         progress_file = knowledge_dir / "learning_progress.json"
         progress_file.write_text('{"test": "data"}')
         assert progress_file.exists()
-        
-        with patch('deepr.experts.learner.create_provider'), \
-             patch('deepr.experts.learner.create_storage'), \
-             patch('deepr.experts.learner.ExpertStore', return_value=store):
-            
+
+        with (
+            patch("deepr.experts.learner.create_provider"),
+            patch("deepr.experts.learner.create_storage"),
+            patch("deepr.experts.learner.ExpertStore", return_value=store),
+        ):
             learner = AutonomousLearner(mock_config)
-            
+
             # Clear progress
             learner.clear_learning_progress("Test Expert")
-            
+
             # Verify file was deleted
             assert not progress_file.exists()
 
     def test_clear_learning_progress_not_found(self, mock_config, mock_expert_store):
         """Test clearing when no saved progress exists (should not error)."""
         store, knowledge_dir = mock_expert_store
-        
-        with patch('deepr.experts.learner.create_provider'), \
-             patch('deepr.experts.learner.create_storage'), \
-             patch('deepr.experts.learner.ExpertStore', return_value=store):
-            
+
+        with (
+            patch("deepr.experts.learner.create_provider"),
+            patch("deepr.experts.learner.create_storage"),
+            patch("deepr.experts.learner.ExpertStore", return_value=store),
+        ):
             learner = AutonomousLearner(mock_config)
-            
+
             # Should not raise error
             learner.clear_learning_progress("Nonexistent Expert")
 
@@ -360,14 +366,10 @@ class TestLearningProgressEdgeCases:
             topics=[],
             total_estimated_cost=0.0,
             total_estimated_minutes=0,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
         progress = LearningProgress(
-            curriculum=curriculum,
-            completed_topics=[],
-            failed_topics=[],
-            total_cost=0.0,
-            started_at=datetime.utcnow()
+            curriculum=curriculum, completed_topics=[], failed_topics=[], total_cost=0.0, started_at=datetime.utcnow()
         )
         # Empty curriculum is technically complete
         assert progress.is_complete() is True
@@ -387,12 +389,12 @@ class TestLearningProgressEdgeCases:
                     research_type="research",
                     estimated_cost=0.10,
                     estimated_minutes=5,
-                    priority=1
+                    priority=1,
                 )
             ],
             total_estimated_cost=0.10,
             total_estimated_minutes=5,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
         now = datetime.utcnow()
         progress = LearningProgress(
@@ -401,7 +403,7 @@ class TestLearningProgressEdgeCases:
             failed_topics=[],
             total_cost=0.10,
             started_at=now - timedelta(minutes=5),
-            completed_at=now
+            completed_at=now,
         )
         assert progress.completed_at is not None
         assert progress.is_complete() is True

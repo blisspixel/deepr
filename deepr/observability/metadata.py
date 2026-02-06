@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from deepr.observability.traces import Span, SpanStatus, TraceContext, get_or_create_trace
 
@@ -65,14 +65,14 @@ class TaskMetadata:
     tokens_input: int = 0
     tokens_output: int = 0
     cost: float = 0.0
-    context_sources: List[str] = field(default_factory=list)
+    context_sources: list[str] = field(default_factory=list)
     start_time: datetime = field(default_factory=_utc_now)
     end_time: Optional[datetime] = None
     status: str = "running"
     error: Optional[str] = None
     parent_task_id: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "task_id": self.task_id,
@@ -154,7 +154,7 @@ class OperationContext:
         self.metadata.context_sources.append(source)
         self.span.set_attribute("context_sources", self.metadata.context_sources)
 
-    def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None):
         """Add a timestamped event to this operation.
 
         Args:
@@ -197,9 +197,9 @@ class MetadataEmitter:
             trace_context: Optional existing trace context
         """
         self.trace_context = trace_context or get_or_create_trace()
-        self.tasks: List[TaskMetadata] = []
-        self._active_operations: Dict[str, OperationContext] = {}
-        self._temporal_tracker: Optional["TemporalKnowledgeTracker"] = None
+        self.tasks: list[TaskMetadata] = []
+        self._active_operations: dict[str, OperationContext] = {}
+        self._temporal_tracker: Optional[TemporalKnowledgeTracker] = None
 
     def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker"):
         """Set the temporal knowledge tracker for findings/hypothesis tracking.
@@ -218,7 +218,7 @@ class MetadataEmitter:
         return self._temporal_tracker
 
     def start_task(
-        self, task_type: str, prompt: str = "", attributes: Optional[Dict[str, Any]] = None
+        self, task_type: str, prompt: str = "", attributes: Optional[dict[str, Any]] = None
     ) -> OperationContext:
         """Start tracking a new task.
 
@@ -279,7 +279,7 @@ class MetadataEmitter:
         self._active_operations.pop(op.span.span_id, None)
 
     @contextmanager
-    def operation(self, task_type: str, attributes: Optional[Dict[str, Any]] = None, prompt: str = ""):
+    def operation(self, task_type: str, attributes: Optional[dict[str, Any]] = None, prompt: str = ""):
         """Context manager for tracking an operation.
 
         Args:
@@ -298,7 +298,7 @@ class MetadataEmitter:
             self.fail_task(op, str(e))
             raise
 
-    def get_timeline(self) -> List[Dict[str, Any]]:
+    def get_timeline(self) -> list[dict[str, Any]]:
         """Get a timeline of all tasks.
 
         Returns:
@@ -318,13 +318,13 @@ class MetadataEmitter:
 
         return timeline
 
-    def get_cost_breakdown(self) -> Dict[str, float]:
+    def get_cost_breakdown(self) -> dict[str, float]:
         """Get cost breakdown by task type.
 
         Returns:
             Dictionary mapping task type to total cost
         """
-        breakdown: Dict[str, float] = {}
+        breakdown: dict[str, float] = {}
         for task in self.tasks:
             if task.task_type not in breakdown:
                 breakdown[task.task_type] = 0.0
@@ -339,7 +339,7 @@ class MetadataEmitter:
         """
         return sum(t.cost for t in self.tasks)
 
-    def get_context_lineage(self) -> Dict[str, List[str]]:
+    def get_context_lineage(self) -> dict[str, list[str]]:
         """Get context lineage showing which sources were used by which tasks.
 
         Returns:
@@ -383,7 +383,7 @@ class MetadataEmitter:
         Returns:
             MetadataEmitter instance
         """
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Load trace context
@@ -434,7 +434,7 @@ class MetadataEmitter:
         return emitter
 
     @staticmethod
-    def load_trace_raw(path: Path) -> Dict[str, Any]:
+    def load_trace_raw(path: Path) -> dict[str, Any]:
         """Load raw trace data from a JSON file.
 
         Use this when you need access to all trace data including temporal tracking.
@@ -445,5 +445,5 @@ class MetadataEmitter:
         Returns:
             Raw trace data dictionary
         """
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)

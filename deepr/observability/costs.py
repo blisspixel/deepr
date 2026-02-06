@@ -22,7 +22,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 # Module logger for debugging persistence and validation issues
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class CostEntry:
     tokens_input: int = 0
     tokens_output: int = 0
     task_id: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def total_tokens(self) -> int:
@@ -74,7 +74,7 @@ class CostEntry:
         """Get date of entry."""
         return self.timestamp.date()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp.isoformat(),
             "operation": self.operation,
@@ -88,7 +88,7 @@ class CostEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CostEntry":
+    def from_dict(cls, data: dict[str, Any]) -> "CostEntry":
         return cls(
             timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
             operation=data["operation"],
@@ -122,7 +122,7 @@ class CostAlert:
     period: str
     triggered_at: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "level": self.level,
             "threshold": self.threshold,
@@ -150,7 +150,7 @@ class AlertManager:
     # Threshold at or above which alerts are considered critical
     CRITICAL_THRESHOLD = 0.95
 
-    def __init__(self, thresholds: Optional[List[float]] = None, triggered_alerts: Optional[List[CostAlert]] = None):
+    def __init__(self, thresholds: Optional[list[float]] = None, triggered_alerts: Optional[list[CostAlert]] = None):
         """Initialize alert manager.
 
         Args:
@@ -160,7 +160,7 @@ class AlertManager:
         self.thresholds = thresholds or [0.5, 0.8, 0.95]
         self.triggered_alerts = triggered_alerts or []
 
-    def check_daily_alerts(self, daily_total: float, daily_limit: float, check_date: date) -> List[CostAlert]:
+    def check_daily_alerts(self, daily_total: float, daily_limit: float, check_date: date) -> list[CostAlert]:
         """Check for daily threshold violations.
 
         Args:
@@ -188,7 +188,7 @@ class AlertManager:
 
     def check_monthly_alerts(
         self, monthly_total: float, monthly_limit: float, check_year: int, check_month: int
-    ) -> List[CostAlert]:
+    ) -> list[CostAlert]:
         """Check for monthly threshold violations.
 
         Args:
@@ -215,7 +215,7 @@ class AlertManager:
 
         return new_alerts
 
-    def get_active_alerts(self, now: datetime) -> List[CostAlert]:
+    def get_active_alerts(self, now: datetime) -> list[CostAlert]:
         """Get currently active alerts.
 
         Args:
@@ -297,7 +297,7 @@ class CostAggregator:
         entries: Reference to the list of cost entries to aggregate
     """
 
-    def __init__(self, entries: List[CostEntry]):
+    def __init__(self, entries: list[CostEntry]):
         """Initialize aggregator with entries reference.
 
         Args:
@@ -339,7 +339,7 @@ class CostAggregator:
 
     def get_breakdown_by_provider(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Get cost breakdown by provider.
 
         Args:
@@ -354,7 +354,7 @@ class CostAggregator:
 
     def get_breakdown_by_operation(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Get cost breakdown by operation type.
 
         Args:
@@ -369,7 +369,7 @@ class CostAggregator:
 
     def get_breakdown_by_model(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Get cost breakdown by model.
 
         Args:
@@ -384,7 +384,7 @@ class CostAggregator:
 
     def get_all_breakdowns(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> dict[str, dict[str, float]]:
         """Get all breakdowns in a single pass for efficiency.
 
         This method iterates through entries once to compute all breakdowns,
@@ -399,9 +399,9 @@ class CostAggregator:
         """
         entries = self._filter_by_date(start_date, end_date)
 
-        by_provider: Dict[str, float] = {}
-        by_operation: Dict[str, float] = {}
-        by_model: Dict[str, float] = {}
+        by_provider: dict[str, float] = {}
+        by_operation: dict[str, float] = {}
+        by_model: dict[str, float] = {}
 
         for entry in entries:
             # Aggregate by provider
@@ -422,7 +422,7 @@ class CostAggregator:
 
         return {"by_provider": by_provider, "by_operation": by_operation, "by_model": by_model}
 
-    def _filter_by_date(self, start_date: Optional[datetime], end_date: Optional[datetime]) -> List[CostEntry]:
+    def _filter_by_date(self, start_date: Optional[datetime], end_date: Optional[datetime]) -> list[CostEntry]:
         """Filter entries by date range.
 
         Args:
@@ -442,7 +442,7 @@ class CostAggregator:
 
         return entries
 
-    def get_entries_by_expert(self, expert_name: str) -> List[CostEntry]:
+    def get_entries_by_expert(self, expert_name: str) -> list[CostEntry]:
         """Get all cost entries for a specific expert.
 
         Args:
@@ -453,7 +453,7 @@ class CostAggregator:
         """
         return [e for e in self._entries if e.metadata.get("expert") == expert_name]
 
-    def get_expert_breakdown(self, expert_name: str) -> Dict[str, float]:
+    def get_expert_breakdown(self, expert_name: str) -> dict[str, float]:
         """Get cost breakdown by operation type for a specific expert.
 
         Args:
@@ -465,7 +465,7 @@ class CostAggregator:
         entries = self.get_entries_by_expert(expert_name)
         return self._aggregate_by_field(entries, lambda e: e.operation)
 
-    def _aggregate_by_field(self, entries: List[CostEntry], key_func) -> Dict[str, float]:
+    def _aggregate_by_field(self, entries: list[CostEntry], key_func) -> dict[str, float]:
         """Aggregate costs by a field extracted via key function.
 
         Args:
@@ -475,7 +475,7 @@ class CostAggregator:
         Returns:
             Dictionary mapping key to total cost
         """
-        breakdown: Dict[str, float] = {}
+        breakdown: dict[str, float] = {}
         for entry in entries:
             key = key_func(entry)
             if key not in breakdown:
@@ -504,7 +504,7 @@ class CostDashboard:
         storage_path: Optional[Path] = None,
         daily_limit: float = 10.0,
         monthly_limit: float = 100.0,
-        alert_thresholds: Optional[List[float]] = None,
+        alert_thresholds: Optional[list[float]] = None,
     ):
         """Initialize cost dashboard.
 
@@ -525,7 +525,7 @@ class CostDashboard:
         # Store thresholds for backward compatibility
         self.alert_thresholds = alert_thresholds or [0.5, 0.8, 0.95]
 
-        self.entries: List[CostEntry] = []
+        self.entries: list[CostEntry] = []
 
         # Initialize collaborators
         self.alert_manager = AlertManager(thresholds=self.alert_thresholds)
@@ -534,7 +534,7 @@ class CostDashboard:
         self._load()
 
     @property
-    def triggered_alerts(self) -> List[CostAlert]:
+    def triggered_alerts(self) -> list[CostAlert]:
         """Get triggered alerts (delegates to alert manager).
 
         Provides backward compatibility for code accessing triggered_alerts directly.
@@ -550,7 +550,7 @@ class CostDashboard:
         tokens_input: int = 0,
         tokens_output: int = 0,
         task_id: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> CostEntry:
         """Record a cost entry.
 
@@ -623,7 +623,7 @@ class CostDashboard:
 
     def get_breakdown_by_provider(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Get cost breakdown by provider.
 
         Delegates to CostAggregator.
@@ -639,7 +639,7 @@ class CostDashboard:
 
     def get_breakdown_by_operation(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Get cost breakdown by operation type.
 
         Delegates to CostAggregator.
@@ -655,7 +655,7 @@ class CostDashboard:
 
     def get_breakdown_by_model(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Get cost breakdown by model.
 
         Delegates to CostAggregator.
@@ -669,7 +669,7 @@ class CostDashboard:
         """
         return self.aggregator.get_breakdown_by_model(start_date, end_date)
 
-    def check_alerts(self) -> List[CostAlert]:
+    def check_alerts(self) -> list[CostAlert]:
         """Check for cost alerts.
 
         Delegates to AlertManager for threshold checking and deduplication.
@@ -697,7 +697,7 @@ class CostDashboard:
 
         return new_alerts
 
-    def get_active_alerts(self) -> List[CostAlert]:
+    def get_active_alerts(self) -> list[CostAlert]:
         """Get currently active alerts.
 
         Delegates to AlertManager.
@@ -707,7 +707,7 @@ class CostDashboard:
         """
         return self.alert_manager.get_active_alerts(datetime.now(timezone.utc))
 
-    def get_daily_history(self, days: int = 30) -> List[Dict[str, Any]]:
+    def get_daily_history(self, days: int = 30) -> list[dict[str, Any]]:
         """Get daily cost history.
 
         Args:
@@ -734,7 +734,7 @@ class CostDashboard:
 
         return list(reversed(history))
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get cost summary using efficient single-pass aggregation.
 
         Returns:
@@ -765,7 +765,7 @@ class CostDashboard:
             "total_entries": len(self.entries),
         }
 
-    def _filter_by_date(self, start_date: Optional[datetime], end_date: Optional[datetime]) -> List[CostEntry]:
+    def _filter_by_date(self, start_date: Optional[datetime], end_date: Optional[datetime]) -> list[CostEntry]:
         """Filter entries by date range.
 
         Delegates to CostAggregator for backward compatibility.
@@ -828,7 +828,7 @@ class CostDashboard:
             return
 
         try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
+            with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             self.entries = [CostEntry.from_dict(e) for e in data.get("entries", [])]
@@ -896,7 +896,7 @@ class BufferedCostDashboard(CostDashboard):
         storage_path: Optional[Path] = None,
         daily_limit: float = 10.0,
         monthly_limit: float = 100.0,
-        alert_thresholds: Optional[List[float]] = None,
+        alert_thresholds: Optional[list[float]] = None,
         buffer_size: int = COST_BUFFER_SIZE,
         flush_interval: int = COST_FLUSH_INTERVAL,
     ):
@@ -918,7 +918,7 @@ class BufferedCostDashboard(CostDashboard):
 
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval
-        self._buffer: List[CostEntry] = []
+        self._buffer: list[CostEntry] = []
         self._last_flush: datetime = datetime.now(timezone.utc)
         self._lock = threading.Lock()
 
@@ -934,7 +934,7 @@ class BufferedCostDashboard(CostDashboard):
         tokens_input: int = 0,
         tokens_output: int = 0,
         task_id: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> CostEntry:
         """Record a cost entry with buffering.
 

@@ -44,7 +44,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 from deepr.config import load_config
 from deepr.core.documents import DocumentManager
@@ -160,11 +160,11 @@ class DeeprMCPServer:
         """Initialize MCP server with research and expert capabilities."""
         # Expert-related components
         self.store = ExpertStore()
-        self.sessions: Dict[str, ExpertChatSession] = {}
+        self.sessions: dict[str, ExpertChatSession] = {}
 
         # Research-related components
         self.config = load_config()
-        self.active_jobs: Dict[str, Dict] = {}  # Provider instance cache
+        self.active_jobs: dict[str, dict] = {}  # Provider instance cache
 
         # MCP infrastructure
         self.resource_handler = get_resource_handler()
@@ -204,7 +204,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_status (health check)
     # ------------------------------------------------------------------ #
-    async def deepr_status(self) -> Dict:
+    async def deepr_status(self) -> dict:
         """Health check returning server version, uptime, active jobs, and cost summary."""
         try:
             from deepr.experts.cost_safety import get_cost_safety_manager
@@ -247,14 +247,14 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_tool_search (gateway / dynamic discovery)
     # ------------------------------------------------------------------ #
-    async def deepr_tool_search(self, query: str, limit: int = 3) -> Dict:
+    async def deepr_tool_search(self, query: str, limit: int = 3) -> dict:
         """Search Deepr capabilities by natural language query."""
         return self.gateway.search(query, limit=limit)
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_cancel_job
     # ------------------------------------------------------------------ #
-    async def deepr_cancel_job(self, job_id: str) -> Dict:
+    async def deepr_cancel_job(self, job_id: str) -> dict:
         """Cancel a running research job."""
         state = self.resource_handler.jobs.get_state(job_id)
         if not state:
@@ -281,7 +281,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_list_experts
     # ------------------------------------------------------------------ #
-    async def list_experts(self) -> List[Dict]:
+    async def list_experts(self) -> list[dict]:
         """List all available experts."""
         try:
             experts = self.store.list_all()
@@ -301,7 +301,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_get_expert_info
     # ------------------------------------------------------------------ #
-    async def get_expert_info(self, expert_name: str) -> Dict:
+    async def get_expert_info(self, expert_name: str) -> dict:
         """Get detailed information about a specific expert."""
         try:
             expert = self.store.load(expert_name)
@@ -336,7 +336,7 @@ class DeeprMCPServer:
         question: str,
         budget: float = 0.0,
         agentic: bool = False,
-    ) -> Dict:
+    ) -> dict:
         """Query an expert with a question."""
         try:
             expert = self.store.load(expert_name)
@@ -378,8 +378,8 @@ class DeeprMCPServer:
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
         budget: Optional[float] = None,
-        files: Optional[List[str]] = None,
-    ) -> Dict:
+        files: Optional[list[str]] = None,
+    ) -> dict:
         """Submit a deep research job."""
         try:
             # Generate trace_id for end-to-end request tracking
@@ -517,7 +517,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_check_status
     # ------------------------------------------------------------------ #
-    async def deepr_check_status(self, job_id: str) -> Dict:
+    async def deepr_check_status(self, job_id: str) -> dict:
         """Check the status of a research job."""
         try:
             # First check JobManager (canonical state)
@@ -582,7 +582,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_get_result
     # ------------------------------------------------------------------ #
-    async def deepr_get_result(self, job_id: str) -> Dict:
+    async def deepr_get_result(self, job_id: str) -> dict:
         """Get the results of a completed research job."""
         try:
             job_cache = self.active_jobs.get(job_id)
@@ -669,11 +669,11 @@ class DeeprMCPServer:
         goal: str,
         expert_name: Optional[str] = None,
         budget: float = 5.0,
-        sources: Optional[List[str]] = None,
-        files: Optional[List[str]] = None,
+        sources: Optional[list[str]] = None,
+        files: Optional[list[str]] = None,
         model: str = "o4-mini-deep-research",
         provider: str = "openai",
-    ) -> Dict:
+    ) -> dict:
         """Start an agentic research workflow."""
         try:
             workflow_id = str(uuid.uuid4())
@@ -791,14 +791,14 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Task Durability Methods
     # ------------------------------------------------------------------ #
-    async def deepr_get_task_progress(self, task_id: str) -> Dict:
+    async def deepr_get_task_progress(self, task_id: str) -> dict:
         """Get progress for a durable task."""
         task = await self.durability_manager.get_task(task_id)
         if not task:
             return _make_error("TASK_NOT_FOUND", f"Task '{task_id}' not found")
         return task.to_dict()
 
-    async def deepr_list_recoverable_tasks(self, job_id: str) -> Dict:
+    async def deepr_list_recoverable_tasks(self, job_id: str) -> dict:
         """List recoverable tasks for a job."""
         tasks = await self.durability_manager.get_recoverable_tasks(job_id)
         return {
@@ -807,7 +807,7 @@ class DeeprMCPServer:
             "count": len(tasks),
         }
 
-    async def deepr_resume_task(self, task_id: str) -> Dict:
+    async def deepr_resume_task(self, task_id: str) -> dict:
         """Resume a paused task."""
         task = await self.durability_manager.resume_task(task_id)
         if not task:
@@ -819,7 +819,7 @@ class DeeprMCPServer:
             "message": f"Task '{task_id}' resumed from checkpoint",
         }
 
-    async def deepr_pause_task(self, task_id: str) -> Dict:
+    async def deepr_pause_task(self, task_id: str) -> dict:
         """Pause a running task."""
         task = await self.durability_manager.pause_task(task_id)
         if not task:

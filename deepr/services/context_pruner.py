@@ -21,7 +21,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 
 def _utc_now() -> datetime:
@@ -40,14 +40,14 @@ class ContextItem:
     phase: int
     importance: float = 0.5
     tokens: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.tokens == 0:
             # Rough token estimate: ~4 chars per token
             self.tokens = len(self.text) // 4 + 1
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.text,
@@ -69,11 +69,11 @@ class PruningDecision:
     original_tokens: int
     final_tokens: int
     budget: int
-    items_removed: List[str]  # IDs of removed items
-    removal_reasons: Dict[str, str]  # ID -> reason
+    items_removed: list[str]  # IDs of removed items
+    removal_reasons: dict[str, str]  # ID -> reason
     strategy_used: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "original_count": self.original_count,
             "pruned_count": self.pruned_count,
@@ -126,11 +126,11 @@ class ContextPruner:
 
     def prune(
         self,
-        context_items: List[ContextItem],
+        context_items: list[ContextItem],
         current_query: str,
         token_budget: int,
         preserve_recent_phases: int = 1,
-    ) -> Tuple[List[ContextItem], PruningDecision]:
+    ) -> tuple[list[ContextItem], PruningDecision]:
         """Prune context items to fit token budget.
 
         Args:
@@ -320,7 +320,7 @@ class ContextPruner:
 
         return overlap
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenize text for comparison.
 
         Args:
@@ -336,8 +336,8 @@ class ContextPruner:
 
     def _remove_duplicates(
         self,
-        items: List[ContextItem],
-    ) -> Tuple[List[ContextItem], Dict[str, str]]:
+        items: list[ContextItem],
+    ) -> tuple[list[ContextItem], dict[str, str]]:
         """Remove near-duplicate items.
 
         Args:
@@ -403,8 +403,8 @@ class AdaptivePruner(ContextPruner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._usage_history: Dict[str, int] = {}  # item_id -> use count
-        self._score_cache: Dict[str, float] = {}
+        self._usage_history: dict[str, int] = {}  # item_id -> use count
+        self._score_cache: dict[str, float] = {}
 
     def record_usage(self, item_id: str):
         """Record that an item was actually used.

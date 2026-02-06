@@ -29,7 +29,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from deepr.core.constants import MAX_CONTEXT_TOKENS
 from deepr.observability.temporal_tracker import (
@@ -53,7 +53,7 @@ class ExtractedFinding:
     source: Optional[str] = None
     importance: float = 0.5  # 0-1 score for prioritization
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "text": self.text,
             "confidence": self.confidence,
@@ -68,16 +68,16 @@ class StructuredPhaseOutput:
     """Structured output from a research phase."""
 
     phase: int
-    key_findings: List[ExtractedFinding]
+    key_findings: list[ExtractedFinding]
     summary: str
-    entities: List[str]
-    open_questions: List[str]
-    contradictions: List[str]
+    entities: list[str]
+    open_questions: list[str]
+    contradictions: list[str]
     confidence_avg: float
     timestamp: datetime = field(default_factory=_utc_now)
     token_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "phase": self.phase,
             "key_findings": [f.to_dict() for f in self.key_findings],
@@ -177,7 +177,7 @@ class ContextChainer:
 
     def build_structured_context(
         self,
-        prior_phases: List[StructuredPhaseOutput],
+        prior_phases: list[StructuredPhaseOutput],
         current_phase: int,
         max_tokens: Optional[int] = None,
         focus_query: Optional[str] = None,
@@ -246,7 +246,7 @@ class ContextChainer:
 
     def merge_contexts(
         self,
-        contexts: List[str],
+        contexts: list[str],
         max_tokens: Optional[int] = None,
     ) -> str:
         """Merge multiple context strings with deduplication.
@@ -285,7 +285,7 @@ class ContextChainer:
 
         return result
 
-    def _extract_findings(self, text: str) -> List[ExtractedFinding]:
+    def _extract_findings(self, text: str) -> list[ExtractedFinding]:
         """Extract key findings from text.
 
         Args:
@@ -330,7 +330,7 @@ class ContextChainer:
         findings.sort(key=lambda f: f.importance, reverse=True)
         return findings[:20]  # Limit to top 20
 
-    def _extract_entities(self, text: str) -> List[str]:
+    def _extract_entities(self, text: str) -> list[str]:
         """Extract named entities from text.
 
         Args:
@@ -360,7 +360,7 @@ class ContextChainer:
 
         return list(entities)[:30]
 
-    def _extract_questions(self, text: str) -> List[str]:
+    def _extract_questions(self, text: str) -> list[str]:
         """Extract open questions from text.
 
         Args:
@@ -394,7 +394,7 @@ class ContextChainer:
 
         return questions[:10]
 
-    def _detect_contradictions(self, text: str) -> List[str]:
+    def _detect_contradictions(self, text: str) -> list[str]:
         """Detect potential contradictions in text.
 
         Args:
@@ -424,7 +424,7 @@ class ContextChainer:
     def _generate_summary(
         self,
         text: str,
-        findings: List[ExtractedFinding],
+        findings: list[ExtractedFinding],
     ) -> str:
         """Generate a brief summary.
 

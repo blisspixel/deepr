@@ -9,7 +9,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 import click
 import httpx
@@ -135,8 +135,8 @@ class LearningTopic:
     estimated_minutes: int
     priority: int  # 1 (highest) to 5 (lowest)
     research_prompt: str
-    dependencies: List[str] = None  # Topic titles this depends on
-    sources: List[SourceReference] = None  # Specific sources to learn from (populated in discovery phase)
+    dependencies: list[str] = None  # Topic titles this depends on
+    sources: list[SourceReference] = None  # Specific sources to learn from (populated in discovery phase)
 
     def __post_init__(self):
         if self.dependencies is None:
@@ -151,7 +151,7 @@ class LearningCurriculum:
 
     expert_name: str
     domain: str
-    topics: List[LearningTopic]
+    topics: list[LearningTopic]
     total_estimated_cost: float
     total_estimated_minutes: int
     generated_at: datetime
@@ -231,7 +231,7 @@ class CurriculumGenerator:
         self,
         expert_name: str,
         domain: str,
-        initial_documents: List[str],
+        initial_documents: list[str],
         target_topics: int = 15,
         budget_limit: Optional[float] = None,
         timeout: int = 120,
@@ -526,7 +526,7 @@ class CurriculumGenerator:
         domain: str,
         timeout: int = 120,  # 2 minutes is plenty for a chat completion
         progress: Optional[CurriculumGenerationProgress] = None,
-    ) -> List[SourceReference]:
+    ) -> list[SourceReference]:
         """Phase 1: Discover what sources exist for this domain.
 
         This asks the LLM: "What documentation, research papers, and knowledge sources
@@ -628,7 +628,7 @@ Generate the source list now for: {domain}"""
             # If discovery fails, log warning and return empty list
             # Curriculum generation will proceed without discovered sources
             if progress:
-                progress.error(f"Discovery failed: {str(e)}")
+                progress.error(f"Discovery failed: {e!s}")
             return []
 
         # Parse response
@@ -672,10 +672,10 @@ Generate the source list now for: {domain}"""
         self,
         expert_name: str,
         domain: str,
-        initial_documents: List[str],
+        initial_documents: list[str],
         target_topics: int,
         budget_limit: Optional[float],
-        discovered_sources: Optional[List[SourceReference]] = None,
+        discovered_sources: Optional[list[SourceReference]] = None,
         docs_count: Optional[int] = None,
         quick_count: Optional[int] = None,
         deep_count: Optional[int] = None,
@@ -1166,7 +1166,7 @@ Generate the curriculum now:"""
         for topic_data in data["topics"]:
             # Parse sources if present
             sources = []
-            if "sources" in topic_data and topic_data["sources"]:
+            if topic_data.get("sources"):
                 for source_data in topic_data["sources"]:
                     sources.append(
                         SourceReference(
@@ -1239,7 +1239,7 @@ Generate the curriculum now:"""
             generated_at=curriculum.generated_at,
         )
 
-    def get_execution_order(self, curriculum: LearningCurriculum) -> List[List[LearningTopic]]:
+    def get_execution_order(self, curriculum: LearningCurriculum) -> list[list[LearningTopic]]:
         """Get topics organized into execution phases based on dependencies.
 
         Returns:

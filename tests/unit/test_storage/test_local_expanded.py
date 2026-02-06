@@ -1,8 +1,9 @@
 """Expanded tests for LocalStorage operations."""
 
 import pytest
-from deepr.storage.local import LocalStorage
+
 from deepr.storage.base import StorageError
+from deepr.storage.local import LocalStorage
 
 
 @pytest.mark.asyncio

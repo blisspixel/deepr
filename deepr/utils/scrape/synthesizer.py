@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,9 @@ class ContentSynthesizer:
         self,
         company_name: str,
         base_url: str,
-        scraped_data: Dict[str, str],
+        scraped_data: dict[str, str],
         purpose: str = "company research",
-    ) -> Dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Synthesize scraped content into structured insights.
 
@@ -84,7 +84,7 @@ class ContentSynthesizer:
             "timestamp": datetime.utcnow().isoformat(),
         }
 
-    def _combine_content(self, scraped_data: Dict[str, str]) -> str:
+    def _combine_content(self, scraped_data: dict[str, str]) -> str:
         """
         Combine scraped content with source attribution.
 
@@ -307,7 +307,7 @@ class ProvenanceTracker:
     """Tracks which URLs contributed which information."""
 
     def __init__(self):
-        self.citations: Dict[str, List[str]] = {}
+        self.citations: dict[str, list[str]] = {}
 
     def add_citation(self, fact: str, source_url: str):
         """
@@ -322,7 +322,7 @@ class ProvenanceTracker:
         if source_url not in self.citations[fact]:
             self.citations[fact].append(source_url)
 
-    def get_sources(self, fact: str) -> List[str]:
+    def get_sources(self, fact: str) -> list[str]:
         """
         Get sources for a fact.
 

@@ -1,15 +1,15 @@
 """Integration tests for validating Gemini and Grok provider implementations."""
 
-import pytest
 import asyncio
-import os
+
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()
 
+from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.gemini_provider import GeminiProvider
 from deepr.providers.grok_provider import GrokProvider
-from deepr.providers.base import ResearchRequest, ToolConfig
 
 
 @pytest.mark.asyncio
@@ -23,7 +23,7 @@ async def test_gemini_provider_basic():
         model="gemini-2.5-flash",
         system_message="You are a helpful research assistant. Provide concise, accurate information.",
         tools=[ToolConfig(type="web_search_preview")],
-        background=False
+        background=False,
     )
 
     # Submit job
@@ -50,10 +50,10 @@ async def test_gemini_provider_basic():
             # Check for content
             has_content = False
             for block in response.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
-                        if item.get('type') == 'output_text':
-                            text = item.get('text', '')
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
+                        if item.get("type") == "output_text":
+                            text = item.get("text", "")
                             if text:
                                 has_content = True
                                 break
@@ -85,7 +85,7 @@ async def test_grok_provider_basic():
         model="grok-4-fast",
         system_message="You are a helpful research assistant. Provide concise, accurate information.",
         tools=[ToolConfig(type="web_search_preview")],
-        background=False
+        background=False,
     )
 
     # Submit job
@@ -111,10 +111,10 @@ async def test_grok_provider_basic():
             # Check for content
             has_content = False
             for block in response.output:
-                if block.get('type') == 'message':
-                    for item in block.get('content', []):
-                        if item.get('type') == 'output_text':
-                            text = item.get('text', '')
+                if block.get("type") == "message":
+                    for item in block.get("content", []):
+                        if item.get("type") == "output_text":
+                            text = item.get("text", "")
                             if text:
                                 has_content = True
                                 break
@@ -146,7 +146,7 @@ async def test_gemini_cost_tracking():
         model="gemini-2.5-flash",
         system_message="You are a helpful assistant.",
         tools=[],
-        background=False
+        background=False,
     )
 
     job_id = await provider.submit_research(request)
@@ -185,7 +185,7 @@ async def test_grok_cost_tracking():
         model="grok-4-fast",
         system_message="You are a helpful assistant.",
         tools=[],
-        background=False
+        background=False,
     )
 
     job_id = await provider.submit_research(request)

@@ -9,7 +9,7 @@ Requirements: 5.5 - Extract to_dict/from_dict logic
 
 from dataclasses import asdict
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
@@ -61,7 +61,7 @@ def iso_to_datetime(iso_str: Optional[str]) -> Optional[datetime]:
     return datetime.fromisoformat(iso_str)
 
 
-def profile_to_dict(profile: "ExpertProfile") -> Dict[str, Any]:
+def profile_to_dict(profile: "ExpertProfile") -> dict[str, Any]:
     """Convert ExpertProfile to dictionary for JSON serialization.
 
     Excludes composed components (_temporal_state, _freshness_checker, etc.)
@@ -88,7 +88,7 @@ def profile_to_dict(profile: "ExpertProfile") -> Dict[str, Any]:
     return data
 
 
-def dict_to_profile_kwargs(data: Dict[str, Any]) -> Dict[str, Any]:
+def dict_to_profile_kwargs(data: dict[str, Any]) -> dict[str, Any]:
     """Convert dictionary to kwargs for ExpertProfile constructor.
 
     Handles datetime conversion and removes any composed component
@@ -127,7 +127,7 @@ class ProfileSerializer:
     """
 
     @staticmethod
-    def to_dict(profile: "ExpertProfile") -> Dict[str, Any]:
+    def to_dict(profile: "ExpertProfile") -> dict[str, Any]:
         """Convert profile to dictionary.
 
         Args:
@@ -139,7 +139,7 @@ class ProfileSerializer:
         return profile_to_dict(profile)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any], profile_class: type) -> "ExpertProfile":
+    def from_dict(data: dict[str, Any], profile_class: type) -> "ExpertProfile":
         """Create profile from dictionary.
 
         Args:

@@ -3,18 +3,18 @@
 Tests the fundamental functionality without requiring external dependencies.
 """
 
-import sys
 import os
+import sys
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from deepr.utils.scrape import (
-    ScrapeConfig,
-    ContentFetcher,
     ContentExtractor,
+    ContentFetcher,
     LinkExtractor,
     PageDeduplicator,
+    ScrapeConfig,
 )
 
 
@@ -196,9 +196,9 @@ def test_http_fetcher():
 
 def run_all_tests():
     """Run all tests."""
-    print("="*70)
+    print("=" * 70)
     print("Testing deepr scraping utilities")
-    print("="*70)
+    print("=" * 70)
 
     try:
         test_scrape_config()
@@ -207,9 +207,9 @@ def run_all_tests():
         test_page_deduplicator()
         test_http_fetcher()
 
-        print("="*70)
+        print("=" * 70)
         print("ALL TESTS PASSED")
-        print("="*70)
+        print("=" * 70)
         return 0
 
     except AssertionError as e:
@@ -218,6 +218,7 @@ def run_all_tests():
     except Exception as e:
         print(f"\n[ERROR] {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

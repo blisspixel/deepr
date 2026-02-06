@@ -16,7 +16,7 @@ Example:
 
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Optional
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import OpenAI
@@ -77,7 +77,7 @@ class ResearchPlanner:
         scenario: str,
         max_tasks: int = 5,
         context: Optional[str] = None,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Decompose a scenario into multiple research tasks.
 
@@ -222,7 +222,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
             logger.error("Error planning research: %s", e)
             return self._fallback_plan(scenario, max_tasks)
 
-    def _fallback_plan(self, scenario: str, max_tasks: int) -> List[Dict[str, str]]:
+    def _fallback_plan(self, scenario: str, max_tasks: int) -> list[dict[str, str]]:
         """
         Fallback plan if GPT-5 call fails.
         Generates generic but useful research tasks.

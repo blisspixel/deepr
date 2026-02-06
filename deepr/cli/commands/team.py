@@ -9,7 +9,7 @@ from deepr.cli.colors import console, print_section_header, print_success
 
 
 async def run_dream_team(
-    question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str = None
+    question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: Optional[str] = None
 ):
     """
     Execute dream team research (async wrapper for new CLI).

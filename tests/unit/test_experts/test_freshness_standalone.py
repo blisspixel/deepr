@@ -43,7 +43,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.9,
             recommendation="No action needed",
-            details={}
+            details={},
         )
 
         assert status.level == FreshnessLevel.FRESH
@@ -59,7 +59,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.9,
             recommendation="",
-            details={}
+            details={},
         )
         assert status.is_stale() is False
 
@@ -71,7 +71,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.5,
             recommendation="",
-            details={}
+            details={},
         )
         assert status.is_stale() is False
 
@@ -83,7 +83,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.3,
             recommendation="",
-            details={}
+            details={},
         )
         assert status.is_stale() is True
 
@@ -95,7 +95,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.1,
             recommendation="",
-            details={}
+            details={},
         )
         assert status.is_stale() is True
 
@@ -107,7 +107,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.9,
             recommendation="",
-            details={}
+            details={},
         )
         assert status.needs_refresh() is False
 
@@ -119,7 +119,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.5,
             recommendation="",
-            details={}
+            details={},
         )
         assert status.needs_refresh() is True
 
@@ -131,7 +131,7 @@ class TestFreshnessStatus:
             threshold_days=90,
             score=0.9,
             recommendation="Test recommendation",
-            details={"key": "value"}
+            details={"key": "value"},
         )
 
         result = status.to_dict()
@@ -262,10 +262,7 @@ class TestFreshnessCheckerCheck:
             {"date": (now - timedelta(days=15)).isoformat()},
         ]
 
-        status = checker.check(
-            last_learning=last_learning,
-            knowledge_sources=sources
-        )
+        status = checker.check(last_learning=last_learning, knowledge_sources=sources)
 
         assert status.details["source_freshness"] is not None
         assert status.details["source_freshness"]["count"] == 2
@@ -447,10 +444,7 @@ class TestFreshnessCheckerSourceAnalysis:
     def test_analyze_sources_without_dates(self):
         """Should handle sources without dates."""
         checker = FreshnessChecker()
-        result = checker._analyze_sources([
-            {"title": "Source 1"},
-            {"title": "Source 2"}
-        ])
+        result = checker._analyze_sources([{"title": "Source 1"}, {"title": "Source 2"}])
 
         assert result["count"] == 2
         assert result["dated_count"] == 0

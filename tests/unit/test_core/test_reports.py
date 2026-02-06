@@ -23,11 +23,7 @@ class TestReportGeneratorInit:
 
     def test_custom_initialization(self):
         """Should initialize with custom settings."""
-        generator = ReportGenerator(
-            generate_pdf=True,
-            strip_citations=False,
-            default_formats=["txt", "md"]
-        )
+        generator = ReportGenerator(generate_pdf=True, strip_citations=False, default_formats=["txt", "md"])
 
         assert generator.strip_citations is False
         assert generator.default_formats == ["txt", "md"]
@@ -55,8 +51,8 @@ class TestExtractTextFromResponse:
                 "type": "message",
                 "content": [
                     {"type": "output_text", "text": "First paragraph."},
-                    {"type": "output_text", "text": "Second paragraph."}
-                ]
+                    {"type": "output_text", "text": "Second paragraph."},
+                ],
             }
         ]
 
@@ -69,14 +65,7 @@ class TestExtractTextFromResponse:
         """Should extract text from 'text' type content."""
         generator = ReportGenerator()
         response = MagicMock()
-        response.output = [
-            {
-                "type": "message",
-                "content": [
-                    {"type": "text", "text": "Text content."}
-                ]
-            }
-        ]
+        response.output = [{"type": "message", "content": [{"type": "text", "text": "Text content."}]}]
 
         result = generator.extract_text_from_response(response)
 
@@ -89,10 +78,7 @@ class TestExtractTextFromResponse:
         response.output = [
             {
                 "type": "message",
-                "content": [
-                    {"type": "image", "data": "..."},
-                    {"type": "output_text", "text": "Text content."}
-                ]
+                "content": [{"type": "image", "data": "..."}, {"type": "output_text", "text": "Text content."}],
             }
         ]
 
@@ -105,14 +91,8 @@ class TestExtractTextFromResponse:
         generator = ReportGenerator()
         response = MagicMock()
         response.output = [
-            {
-                "type": "message",
-                "content": [{"type": "output_text", "text": "First message."}]
-            },
-            {
-                "type": "message",
-                "content": [{"type": "output_text", "text": "Second message."}]
-            }
+            {"type": "message", "content": [{"type": "output_text", "text": "First message."}]},
+            {"type": "message", "content": [{"type": "output_text", "text": "Second message."}]},
         ]
 
         result = generator.extract_text_from_response(response)
@@ -126,10 +106,7 @@ class TestExtractTextFromResponse:
         response = MagicMock()
         response.output = [
             {"type": "tool_call", "tool": "search"},
-            {
-                "type": "message",
-                "content": [{"type": "output_text", "text": "Text content."}]
-            }
+            {"type": "message", "content": [{"type": "output_text", "text": "Text content."}]},
         ]
 
         result = generator.extract_text_from_response(response)
@@ -145,18 +122,15 @@ class TestGenerateReports:
         """Should generate default formats."""
         generator = ReportGenerator(default_formats=["txt", "md"])
 
-        with patch.object(generator.converter, 'generate_all_formats', new_callable=AsyncMock) as mock_gen:
+        with patch.object(generator.converter, "generate_all_formats", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = {
                 "txt": b"text content",
                 "md": b"markdown content",
                 "json": b"json content",
-                "docx": b"docx content"
+                "docx": b"docx content",
             }
 
-            reports = await generator.generate_reports(
-                text="Test content",
-                title="Test Report"
-            )
+            reports = await generator.generate_reports(text="Test content", title="Test Report")
 
             # Should only include default formats
             assert "txt" in reports
@@ -169,19 +143,15 @@ class TestGenerateReports:
         """Should generate custom formats."""
         generator = ReportGenerator()
 
-        with patch.object(generator.converter, 'generate_all_formats', new_callable=AsyncMock) as mock_gen:
+        with patch.object(generator.converter, "generate_all_formats", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = {
                 "txt": b"text content",
                 "md": b"markdown content",
                 "json": b"json content",
-                "docx": b"docx content"
+                "docx": b"docx content",
             }
 
-            reports = await generator.generate_reports(
-                text="Test content",
-                title="Test Report",
-                formats=["json"]
-            )
+            reports = await generator.generate_reports(text="Test content", title="Test Report", formats=["json"])
 
             # Should only include requested formats
             assert "json" in reports
@@ -192,20 +162,12 @@ class TestGenerateReports:
         """Should pass strip_citations setting to converter."""
         generator = ReportGenerator(strip_citations=False)
 
-        with patch.object(generator.converter, 'generate_all_formats', new_callable=AsyncMock) as mock_gen:
+        with patch.object(generator.converter, "generate_all_formats", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = {"txt": b"content"}
 
-            await generator.generate_reports(
-                text="Test content",
-                title="Test Report",
-                formats=["txt"]
-            )
+            await generator.generate_reports(text="Test content", title="Test Report", formats=["txt"])
 
-            mock_gen.assert_called_once_with(
-                text="Test content",
-                title="Test Report",
-                strip_citations=False
-            )
+            mock_gen.assert_called_once_with(text="Test content", title="Test Report", strip_citations=False)
 
 
 class TestGenerateSingleFormat:
@@ -216,14 +178,10 @@ class TestGenerateSingleFormat:
         """Should generate single txt format."""
         generator = ReportGenerator()
 
-        with patch.object(generator.converter, 'generate_all_formats', new_callable=AsyncMock) as mock_gen:
+        with patch.object(generator.converter, "generate_all_formats", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = {"txt": b"text content"}
 
-            result = await generator.generate_single_format(
-                text="Test content",
-                title="Test Report",
-                format_type="txt"
-            )
+            result = await generator.generate_single_format(text="Test content", title="Test Report", format_type="txt")
 
             assert result == b"text content"
 
@@ -232,13 +190,9 @@ class TestGenerateSingleFormat:
         """Should return empty bytes if format not available."""
         generator = ReportGenerator()
 
-        with patch.object(generator.converter, 'generate_all_formats', new_callable=AsyncMock) as mock_gen:
+        with patch.object(generator.converter, "generate_all_formats", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = {"txt": b"text content"}
 
-            result = await generator.generate_single_format(
-                text="Test content",
-                title="Test Report",
-                format_type="pdf"
-            )
+            result = await generator.generate_single_format(text="Test content", title="Test Report", format_type="pdf")
 
             assert result == b""

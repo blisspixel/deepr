@@ -1,11 +1,13 @@
 """Tests for Grok provider implementation."""
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import openai
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from deepr.providers.grok_provider import GrokProvider
+
 from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.grok_provider import GrokProvider
 
 
 class TestGrokProvider:
@@ -68,17 +70,13 @@ class TestGrokProvider:
         """Test cost calculation for Grok 4 Fast (cost-effective model)."""
         # 1M input tokens + 1M output tokens = $0.20 + $0.50 = $0.70
         cost = provider._calculate_cost(
-            prompt_tokens=1_000_000,
-            completion_tokens=1_000_000,
-            model="grok-4-fast-reasoning"
+            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4-fast-reasoning"
         )
         assert cost == 0.70
 
         # Test non-reasoning mode (same pricing)
         cost_non_reasoning = provider._calculate_cost(
-            prompt_tokens=1_000_000,
-            completion_tokens=1_000_000,
-            model="grok-4-fast-non-reasoning"
+            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4-fast-non-reasoning"
         )
         assert cost_non_reasoning == 0.70
 
@@ -89,7 +87,7 @@ class TestGrokProvider:
             prompt_tokens=1_000_000,
             completion_tokens=500_000,
             model="grok-4-fast-reasoning",
-            reasoning_tokens=500_000  # Additional reasoning tokens
+            reasoning_tokens=500_000,  # Additional reasoning tokens
         )
         # Total output = 500k + 500k = 1M at $0.50 = $0.50
         # Input = 1M at $0.20 = $0.20
@@ -99,11 +97,7 @@ class TestGrokProvider:
     def test_calculate_cost_grok_4(self, provider):
         """Test cost calculation for Grok 4 (expensive reasoning model)."""
         # 1M input + 1M output = $3.00 + $15.00 = $18.00
-        cost = provider._calculate_cost(
-            prompt_tokens=1_000_000,
-            completion_tokens=1_000_000,
-            model="grok-4"
-        )
+        cost = provider._calculate_cost(prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4")
         assert cost == 18.00
 
     def test_cost_scales_linearly(self, provider):

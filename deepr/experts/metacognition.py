@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class DomainConfidence:
     confidence: float  # 0.0 to 1.0
     evidence_count: int  # Number of documents/research covering this
     last_updated: datetime
-    sources: List[str]  # Document names or research IDs
+    sources: list[str]  # Document names or research IDs
 
 
 class MetaCognitionTracker:
@@ -46,9 +46,9 @@ class MetaCognitionTracker:
         self.expert_dir = self._get_expert_dir()
         self.meta_file = self.expert_dir / "meta_knowledge.json"
 
-        self.knowledge_gaps: Dict[str, KnowledgeGap] = {}
-        self.domain_confidence: Dict[str, DomainConfidence] = {}
-        self.uncertainty_log: List[Dict] = []
+        self.knowledge_gaps: dict[str, KnowledgeGap] = {}
+        self.domain_confidence: dict[str, DomainConfidence] = {}
+        self.uncertainty_log: list[dict] = []
 
         self._load()
 
@@ -62,7 +62,7 @@ class MetaCognitionTracker:
         """Load meta-knowledge from disk."""
         if self.meta_file.exists():
             try:
-                with open(self.meta_file, "r", encoding="utf-8") as f:
+                with open(self.meta_file, encoding="utf-8") as f:
                     data = json.load(f)
 
                 # Load knowledge gaps
@@ -189,7 +189,7 @@ class MetaCognitionTracker:
 
         self._save()
 
-    def record_learning(self, topic: str, confidence_after: float, sources: List[str]):
+    def record_learning(self, topic: str, confidence_after: float, sources: list[str]):
         """Record that learning occurred (research completed and integrated).
 
         Args:
@@ -232,7 +232,7 @@ class MetaCognitionTracker:
 
         self._save()
 
-    def get_knowledge_gaps(self, min_times_asked: int = 1) -> List[KnowledgeGap]:
+    def get_knowledge_gaps(self, min_times_asked: int = 1) -> list[KnowledgeGap]:
         """Get knowledge gaps that have been asked about multiple times.
 
         Args:
@@ -243,7 +243,7 @@ class MetaCognitionTracker:
         """
         return [gap for gap in self.knowledge_gaps.values() if gap.times_asked >= min_times_asked]
 
-    def get_high_confidence_domains(self, min_confidence: float = 0.7) -> List[DomainConfidence]:
+    def get_high_confidence_domains(self, min_confidence: float = 0.7) -> list[DomainConfidence]:
         """Get domains where expert has high confidence.
 
         Args:
@@ -254,7 +254,7 @@ class MetaCognitionTracker:
         """
         return [conf for conf in self.domain_confidence.values() if conf.confidence >= min_confidence]
 
-    def get_low_confidence_domains(self, max_confidence: float = 0.3) -> List[DomainConfidence]:
+    def get_low_confidence_domains(self, max_confidence: float = 0.3) -> list[DomainConfidence]:
         """Get domains where expert has low confidence (might need more learning).
 
         Args:
@@ -265,7 +265,7 @@ class MetaCognitionTracker:
         """
         return [conf for conf in self.domain_confidence.values() if conf.confidence <= max_confidence]
 
-    def suggest_proactive_research(self, threshold_times_asked: int = 3) -> List[str]:
+    def suggest_proactive_research(self, threshold_times_asked: int = 3) -> list[str]:
         """Suggest topics for proactive research based on repeated questions.
 
         Args:
@@ -280,7 +280,7 @@ class MetaCognitionTracker:
             if gap.times_asked >= threshold_times_asked and not gap.research_triggered
         ]
 
-    def get_learning_stats(self) -> Dict:
+    def get_learning_stats(self) -> dict:
         """Get statistics about the expert's learning journey.
 
         Returns:

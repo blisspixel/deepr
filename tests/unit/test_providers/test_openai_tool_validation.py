@@ -4,8 +4,10 @@ These tests ensure that tools are correctly formatted according to OpenAI's
 Responses API specification, catching parameter mismatches before they hit production.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from deepr.providers import OpenAIProvider
 from deepr.providers.base import ResearchRequest, ToolConfig
 
@@ -256,10 +258,8 @@ class TestToolParameterRegressions:
 
             # The bug was adding container to web_search_preview
             web_search = next(t for t in tools if t["type"] == "web_search_preview")
-            assert "container" not in web_search, \
-                "REGRESSION: web_search_preview should NOT have container parameter"
+            assert "container" not in web_search, "REGRESSION: web_search_preview should NOT have container parameter"
 
             # But code_interpreter still needs it
             code_interp = next(t for t in tools if t["type"] == "code_interpreter")
-            assert "container" in code_interp, \
-                "code_interpreter MUST have container parameter"
+            assert "container" in code_interp, "code_interpreter MUST have container parameter"

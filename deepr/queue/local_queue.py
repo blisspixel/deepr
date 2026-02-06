@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 from .base import JobStatus, QueueBackend, ResearchJob
 
@@ -103,7 +103,7 @@ class SQLiteQueue(QueueBackend):
         conn.commit()
         conn.close()
 
-    def _job_to_dict(self, job: ResearchJob) -> Dict[str, Any]:
+    def _job_to_dict(self, job: ResearchJob) -> dict[str, Any]:
         """Convert job to dictionary for storage."""
         return {
             "id": job.id,
@@ -134,7 +134,7 @@ class SQLiteQueue(QueueBackend):
             "metadata": json.dumps(job.metadata),
         }
 
-    def _dict_to_job(self, row: Dict[str, Any]) -> ResearchJob:
+    def _dict_to_job(self, row: dict[str, Any]) -> ResearchJob:
         """Convert database row to job object."""
         job_id = row["id"]
         return ResearchJob(
@@ -318,7 +318,7 @@ class SQLiteQueue(QueueBackend):
     async def update_results(
         self,
         job_id: str,
-        report_paths: Dict[str, str],
+        report_paths: dict[str, str],
         cost: Optional[float] = None,
         tokens_used: Optional[int] = None,
     ) -> bool:
@@ -326,7 +326,7 @@ class SQLiteQueue(QueueBackend):
         return await asyncio.to_thread(self._update_results_sync, job_id, report_paths, cost, tokens_used)
 
     def _update_results_sync(
-        self, job_id: str, report_paths: Dict[str, str], cost: Optional[float], tokens_used: Optional[int]
+        self, job_id: str, report_paths: dict[str, str], cost: Optional[float], tokens_used: Optional[int]
     ) -> bool:
         """Synchronous results update."""
         conn = sqlite3.connect(self.db_path)
@@ -353,13 +353,13 @@ class SQLiteQueue(QueueBackend):
         tenant_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[ResearchJob]:
+    ) -> list[ResearchJob]:
         """List jobs with filtering."""
         return await asyncio.to_thread(self._list_jobs_sync, status, tenant_id, limit, offset)
 
     def _list_jobs_sync(
         self, status: Optional[JobStatus], tenant_id: Optional[str], limit: int, offset: int
-    ) -> List[ResearchJob]:
+    ) -> list[ResearchJob]:
         """Synchronous list jobs."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -390,11 +390,11 @@ class SQLiteQueue(QueueBackend):
         """Cancel a job."""
         return await self.update_status(job_id, JobStatus.CANCELLED)
 
-    async def get_queue_stats(self) -> Dict[str, Any]:
+    async def get_queue_stats(self) -> dict[str, Any]:
         """Get queue statistics."""
         return await asyncio.to_thread(self._get_stats_sync)
 
-    def _get_stats_sync(self) -> Dict[str, Any]:
+    def _get_stats_sync(self) -> dict[str, Any]:
         """Synchronous stats calculation."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

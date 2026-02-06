@@ -8,8 +8,9 @@ Provides unified progress feedback with:
 """
 
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator, Optional
+from typing import Optional
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
