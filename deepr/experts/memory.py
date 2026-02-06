@@ -31,6 +31,7 @@ Usage:
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -44,6 +45,8 @@ def _utc_now() -> datetime:
 import hashlib
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryTier(Enum):
@@ -956,8 +959,8 @@ def _add_reconstruct_method():
                         with open(doc_path, encoding="utf-8") as f:
                             content = f.read()
                         documents.append({"name": doc_name, "content": content})
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("Failed to read document %s: %s", doc_path, e)
 
         # Generate reasoning summary
         reasoning_summary = ""
