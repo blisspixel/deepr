@@ -1414,7 +1414,7 @@ class TestHybridRetrievalPropertyTests:
                 assert "chunks" in results
                 assert len(results["chunks"]) <= top_k
         
-        asyncio.get_event_loop().run_until_complete(run_test())
+        asyncio.run(run_test())
 
     @given(
         num_docs=st.integers(min_value=1, max_value=10)
@@ -1440,7 +1440,7 @@ class TestHybridRetrievalPropertyTests:
                 assert "chunks" in results
                 assert isinstance(results["chunks"], list)
         
-        asyncio.get_event_loop().run_until_complete(run_test())
+        asyncio.run(run_test())
 
 
 class TestCacheLRUPropertyTests:

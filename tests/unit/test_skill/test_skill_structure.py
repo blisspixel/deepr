@@ -100,9 +100,13 @@ class TestYAMLFrontmatter:
         assert len(frontmatter["description"].strip()) > 0, "description must be non-empty"
     
     def test_version_field_is_valid_semver(self, frontmatter: dict[str, Any]) -> None:
-        """Version field must be valid semver format."""
-        assert "version" in frontmatter, "Missing 'version' field"
-        version = frontmatter["version"]
+        """Version field must be valid semver format (top-level or under metadata)."""
+        if "version" in frontmatter:
+            version = frontmatter["version"]
+        else:
+            metadata = frontmatter.get("metadata", {})
+            assert "version" in metadata, "Missing 'version' field in frontmatter or metadata"
+            version = metadata["version"]
         
         # Semver pattern: MAJOR.MINOR.PATCH with optional pre-release
         semver_pattern = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$"
