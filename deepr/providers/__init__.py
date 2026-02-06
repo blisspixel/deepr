@@ -2,11 +2,24 @@
 
 from typing import Literal
 
-from .azure_provider import AzureProvider
 from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
-from .gemini_provider import GeminiProvider
-from .grok_provider import GrokProvider
 from .openai_provider import OpenAIProvider
+
+# Optional providers — imported lazily so missing SDKs don't break the package
+try:
+    from .azure_provider import AzureProvider
+except ImportError:
+    AzureProvider = None
+
+try:
+    from .gemini_provider import GeminiProvider
+except ImportError:
+    GeminiProvider = None
+
+try:
+    from .grok_provider import GrokProvider
+except ImportError:
+    GrokProvider = None
 
 ProviderType = Literal["openai", "azure", "gemini", "xai"]
 
@@ -28,10 +41,16 @@ def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvid
     if provider_type == "openai":
         return OpenAIProvider(**kwargs)
     elif provider_type == "azure":
+        if AzureProvider is None:
+            raise ImportError("Azure provider requires: pip install deepr-research[azure]")
         return AzureProvider(**kwargs)
     elif provider_type == "gemini":
+        if GeminiProvider is None:
+            raise ImportError("Gemini provider requires: pip install google-genai")
         return GeminiProvider(**kwargs)
     elif provider_type == "xai":
+        if GrokProvider is None:
+            raise ImportError("xAI provider requires: pip install xai-sdk")
         return GrokProvider(**kwargs)
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
