@@ -226,29 +226,6 @@ During async research, inspect these resources:
 | `deepr://campaigns/{id}/plan` | Research plan (tasks, dependencies) |
 | `deepr://campaigns/{id}/beliefs` | Synthesized findings so far |
 
-### Subscription vs Polling
+Prefer resource subscriptions over polling for async monitoring (70% token savings). See `references/mcp_patterns.md` for details.
 
-PREFERRED: Resource Subscriptions
-- Event-driven updates (~150 tokens per notification)
-- No wasted API calls
-- Real-time progress visibility
-- 70% token savings vs polling
-
-AVOID: Polling
-- Burns tokens on repeated status checks (~500 tokens per poll)
-- Clutters conversation history
-- Higher latency for updates
-- Unnecessary API costs
-
-Token Comparison (10-minute research job):
-- Polling every 30 seconds: ~10,000 tokens
-- Subscriptions: ~3,000 tokens
-- Savings: 70%
-
-## Cost Optimization Tips
-
-1. Start with Standard research for initial exploration
-2. Use Deep research only when comprehensive analysis is needed
-3. Set explicit budgets for Agentic research
-4. Monitor cumulative session costs
-5. Use OPTIMIZE_FOR_COST when elicited for budget decisions
+For cost optimization strategies, see `references/cost_guidance.md`.

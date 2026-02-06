@@ -16,7 +16,7 @@
 
 ## Current Status (v2.8)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. CI via GitHub Actions, pre-commit hooks with ruff.
+Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -47,7 +47,7 @@ These features work but APIs or behavior may change:
 - Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4, Anthropic Claude, Azure)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
-- Expert system with autonomous learning, agentic chat, knowledge synthesis
+- Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
 - MCP server with 10 tools, persistence, security, multi-runtime configs
 - Web dashboard (10 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, trace explorer, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
@@ -59,7 +59,6 @@ These features work but APIs or behavior may change:
 - Multi-layer budget protection with pause/resume
 - Docker deployment option
 - Cloud deployment templates (AWS, Azure, GCP)
-- GitHub Actions CI (lint + unit tests on push/PR)
 - Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
 - Coverage configuration with 60% minimum threshold
 - Context discovery with semantic search (`deepr search`, `--context` flag)
@@ -418,6 +417,7 @@ Recommended sequence for remaining work (updated 2026-02-04):
 | Tests | Integration tests, 80% coverage target | Medium | In Progress |
 | - | README demo GIF (CLI research query + web dashboard) | Small | Pending |
 | - | Architecture diagram in README (Mermaid) | Small | Done |
+| - | `deepr expert plan` — preview curriculum without creating expert | Small | Done |
 
 ### Phase 2: Provider Intelligence
 *Data-driven routing, reliability metrics, cost optimization*

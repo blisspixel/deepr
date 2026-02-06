@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed: citation sidebar invisible on mobile viewports
 - Removed dead code: unused type files, legacy pages, stale constants, unused components
 
+**Expert System**
+- `deepr expert plan` command to preview a learning curriculum without creating an expert or spending money
+- Outputs as Rich table (default), JSON (`--json`), CSV (`--csv`), or prompts only (`-q`)
+- Supports `--budget`, `--topics`, and `--no-discovery` options
+
 **Real-Time Progress (7.3)**
 - `ResearchProgressTracker` for live progress updates during research
 - `--progress` flag in `deepr research wait` shows phase tracking with progress bar
