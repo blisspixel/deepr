@@ -3,6 +3,7 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from deepr.providers.base import ResearchRequest, ToolConfig
@@ -541,7 +542,7 @@ class TestCitationUrlResolution:
         """On error, returns original URL as fallback."""
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
 
-        with patch("httpx.AsyncClient", side_effect=Exception("Connection failed")):
+        with patch("httpx.AsyncClient", side_effect=httpx.NetworkError("Connection failed")):
             result = await GeminiProvider.resolve_redirect_url(redirect_url)
             assert result == redirect_url  # Falls back to original
 
