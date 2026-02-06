@@ -56,14 +56,18 @@ def mock_storage():
 @pytest.fixture
 def client(mock_queue, mock_provider, mock_storage):
     """Create Flask test client with mocked dependencies.
-    
+
     Uses sys.modules to get the actual module object because
     deepr/api/__init__.py exports the Flask app directly, which
     causes normal import to return the app instead of the module.
     We need the module to patch its globals (queue, provider, storage).
     """
     import sys
-    
+
+    # Ensure API key exists before import triggers OpenAIProvider init
+    import os
+    os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-for-unit-tests")
+
     # Import the module first to ensure it's loaded
     import deepr.api.app
     

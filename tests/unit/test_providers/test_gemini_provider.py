@@ -11,7 +11,6 @@ from deepr.providers.gemini_provider import (
 from deepr.providers.base import ResearchRequest, ToolConfig
 
 
-@pytest.mark.asyncio
 class TestGeminiProvider:
     """Test Gemini provider."""
 
