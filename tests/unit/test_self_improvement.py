@@ -1124,11 +1124,7 @@ class TestConsolidationResultPropertyTests:
             initial_count = len(consolidator.entries)
             
             # Run consolidation synchronously for property test
-            loop = asyncio.new_event_loop()
-            try:
-                result = loop.run_until_complete(consolidator.consolidate())
-            finally:
-                loop.close()
+            result = asyncio.run(consolidator.consolidate())
             
             # Property: total_after <= total_before
             assert result.total_after <= result.total_before
