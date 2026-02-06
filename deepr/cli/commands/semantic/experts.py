@@ -1,16 +1,24 @@
 """Expert system commands - create, manage, and interact with domain experts."""
 
-import click
 import asyncio
 from typing import Optional
+
+import click
+
 from deepr.cli.colors import (
-    print_header, print_section_header, print_success, print_error,
-    print_warning, print_key_value, print_list_item, console
+    console,
+    print_error,
+    print_header,
+    print_key_value,
+    print_list_item,
+    print_section_header,
+    print_success,
+    print_warning,
 )
 
 
 @click.group(invoke_without_command=True)
-@click.option('--list', '-l', is_flag=True, help='List all experts')
+@click.option("--list", "-l", is_flag=True, help="List all experts")
 @click.pass_context
 def expert(ctx, list):
     """Create and interact with domain experts.
@@ -48,31 +56,43 @@ def expert(ctx, list):
 
 @expert.command(name="make")
 @click.argument("name")
-@click.option("--files", "-f", multiple=True, type=click.Path(exists=True),
-              help="Files to include in expert's knowledge base")
+@click.option(
+    "--files", "-f", multiple=True, type=click.Path(exists=True), help="Files to include in expert's knowledge base"
+)
 @click.option("--description", "-d", help="Description of expert's domain")
-@click.option("--provider", "-p", default="openai",
-              type=click.Choice(["openai", "azure", "gemini"]),
-              help="AI provider for expert")
-@click.option("--learn", is_flag=True, default=False,
-              help="Generate and execute autonomous learning curriculum")
-@click.option("--budget", type=float, default=None,
-              help="Budget limit for autonomous learning (requires --learn)")
-@click.option("--topics", type=int, default=None,
-              help="Total number of topics (auto-calculated if using --docs/--quick/--deep)")
-@click.option("--docs", type=int, default=None,
-              help="Number of documentation topics (FOCUS, ~$0.25 each)")
-@click.option("--quick", type=int, default=None,
-              help="Number of quick research topics (FOCUS, ~$0.25 each)")
-@click.option("--deep", type=int, default=None,
-              help="Number of deep research topics (CAMPAIGN, ~$2.00 each)")
-@click.option("--no-discovery", is_flag=True, default=False,
-              help="Skip source discovery phase (faster but less comprehensive)")
+@click.option(
+    "--provider",
+    "-p",
+    default="openai",
+    type=click.Choice(["openai", "azure", "gemini"]),
+    help="AI provider for expert",
+)
+@click.option("--learn", is_flag=True, default=False, help="Generate and execute autonomous learning curriculum")
+@click.option("--budget", type=float, default=None, help="Budget limit for autonomous learning (requires --learn)")
+@click.option(
+    "--topics", type=int, default=None, help="Total number of topics (auto-calculated if using --docs/--quick/--deep)"
+)
+@click.option("--docs", type=int, default=None, help="Number of documentation topics (FOCUS, ~$0.25 each)")
+@click.option("--quick", type=int, default=None, help="Number of quick research topics (FOCUS, ~$0.25 each)")
+@click.option("--deep", type=int, default=None, help="Number of deep research topics (CAMPAIGN, ~$2.00 each)")
+@click.option(
+    "--no-discovery", is_flag=True, default=False, help="Skip source discovery phase (faster but less comprehensive)"
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation for autonomous learning")
-def make_expert(name: str, files: tuple, description: Optional[str], provider: str,
-                learn: bool, budget: Optional[float], topics: Optional[int],
-                docs: Optional[int], quick: Optional[int], deep: Optional[int],
-                no_discovery: bool, yes: bool):
+def make_expert(
+    name: str,
+    files: tuple,
+    description: Optional[str],
+    provider: str,
+    learn: bool,
+    budget: Optional[float],
+    topics: Optional[int],
+    docs: Optional[int],
+    quick: Optional[int],
+    deep: Optional[int],
+    no_discovery: bool,
+    yes: bool,
+):
     """Create a new domain expert with a knowledge base.
 
     Creates an expert that can answer questions based on provided documents
@@ -94,11 +114,12 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
       deepr expert make "AI Expert" -f docs/*.md --learn --budget 10
     """
     import asyncio
-    from deepr.experts.profile import ExpertStore, ExpertProfile, get_expert_system_message
-    from deepr.config import load_config
-    from deepr.providers import create_provider
     from datetime import datetime
-    from deepr.cli.validation import validate_upload_files, validate_expert_name, validate_budget
+
+    from deepr.cli.validation import validate_budget, validate_expert_name, validate_upload_files
+    from deepr.config import load_config
+    from deepr.experts.profile import ExpertProfile, ExpertStore, get_expert_system_message
+    from deepr.providers import create_provider
 
     # Validate expert name
     try:
@@ -158,8 +179,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
         # Create vector store (empty if using --learn)
         vector_store = await provider_instance.create_vector_store(
-            name=f"expert-{name.lower().replace(' ', '-')}",
-            file_ids=file_ids
+            name=f"expert-{name.lower().replace(' ', '-')}", file_ids=file_ids
         )
 
         # Wait for indexing only if there are files
@@ -184,9 +204,9 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
             last_knowledge_refresh=now,
             system_message=get_expert_system_message(
                 knowledge_cutoff_date=now,
-                domain_velocity="medium"  # Default, can be customized later
+                domain_velocity="medium",  # Default, can be customized later
             ),
-            provider=provider
+            provider=provider,
         )
 
         # Save profile
@@ -196,6 +216,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
         return profile
 
     import os
+
     profile = asyncio.run(create_expert())
 
     if not profile:
@@ -203,7 +224,6 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
     # Check if we should generate autonomous learning curriculum
     if learn:
-
         # Calculate topics and budget based on provided options
         has_topic_counts = any([docs is not None, quick is not None, deep is not None])
 
@@ -226,21 +246,34 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
             # Calculate budget from topic counts using actual config values
             from deepr.config import AppConfig
+
             temp_config = AppConfig.from_env()
             expert_config = temp_config.expert
 
             # docs and quick are both FOCUS mode (grok-4-fast: ~$0.002)
             # deep is CAMPAIGN mode (o4-mini-deep-research: ~$1.00)
-            calculated_budget = (docs_count * expert_config.quick_research_cost) + (quick_count * expert_config.quick_research_cost) + (deep_count * expert_config.deep_research_cost)
+            calculated_budget = (
+                (docs_count * expert_config.quick_research_cost)
+                + (quick_count * expert_config.quick_research_cost)
+                + (deep_count * expert_config.deep_research_cost)
+            )
 
             if budget is not None:
                 # Mode 3: Validate calculated budget against provided budget
                 if calculated_budget > budget:
-                    click.echo(f"Error: Calculated budget (${calculated_budget:.2f}) exceeds provided budget (${budget:.2f})")
-                    click.echo(f"\nTopic breakdown:")
-                    click.echo(f"  {docs_count} docs × ${expert_config.quick_research_cost:.3f} = ${docs_count * expert_config.quick_research_cost:.2f}")
-                    click.echo(f"  {quick_count} quick × ${expert_config.quick_research_cost:.3f} = ${quick_count * expert_config.quick_research_cost:.2f}")
-                    click.echo(f"  {deep_count} deep × ${expert_config.deep_research_cost:.2f} = ${deep_count * expert_config.deep_research_cost:.2f}")
+                    click.echo(
+                        f"Error: Calculated budget (${calculated_budget:.2f}) exceeds provided budget (${budget:.2f})"
+                    )
+                    click.echo("\nTopic breakdown:")
+                    click.echo(
+                        f"  {docs_count} docs × ${expert_config.quick_research_cost:.3f} = ${docs_count * expert_config.quick_research_cost:.2f}"
+                    )
+                    click.echo(
+                        f"  {quick_count} quick × ${expert_config.quick_research_cost:.3f} = ${quick_count * expert_config.quick_research_cost:.2f}"
+                    )
+                    click.echo(
+                        f"  {deep_count} deep × ${expert_config.deep_research_cost:.2f} = ${deep_count * expert_config.deep_research_cost:.2f}"
+                    )
                     click.echo(f"  Total: ${calculated_budget:.2f}")
                     return
                 # Use provided budget (may be higher than calculated)
@@ -278,13 +311,13 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 
         # Generate curriculum
         async def generate_and_execute_curriculum():
+            from deepr.config import AppConfig
             from deepr.experts.curriculum import CurriculumGenerator
             from deepr.experts.learner import AutonomousLearner
-            from deepr.config import AppConfig
 
             config = AppConfig.from_env()
 
-            click.echo(f"Generating curriculum...")
+            click.echo("Generating curriculum...")
 
             generator = CurriculumGenerator(config)
 
@@ -298,7 +331,7 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                     docs_count=docs_count,
                     quick_count=quick_count,
                     deep_count=deep_count,
-                    enable_discovery=not no_discovery  # Skip discovery if --no-discovery flag is set
+                    enable_discovery=not no_discovery,  # Skip discovery if --no-discovery flag is set
                 )
 
                 # Display curriculum summary
@@ -311,22 +344,23 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
                 for i, topic in enumerate(curriculum.topics, 1):
                     console.print(f"{i}. [bold]{topic.title}[/bold]")
                     console.print(f"   [dim]Mode:[/dim] {topic.research_mode} | [dim]Type:[/dim] {topic.research_type}")
-                    console.print(f"   [dim]Cost:[/dim] ${topic.estimated_cost:.4f} | [dim]Time:[/dim] ~{topic.estimated_minutes}min")
+                    console.print(
+                        f"   [dim]Cost:[/dim] ${topic.estimated_cost:.4f} | [dim]Time:[/dim] ~{topic.estimated_minutes}min"
+                    )
                     if topic.sources:
                         console.print(f"   [dim]Sources:[/dim] {len(topic.sources)}")
                     console.print()
 
-                console.print(f"[dim]Total:[/dim] ${curriculum.total_estimated_cost:.2f}, ~{curriculum.total_estimated_minutes}min\n")
+                console.print(
+                    f"[dim]Total:[/dim] ${curriculum.total_estimated_cost:.2f}, ~{curriculum.total_estimated_minutes}min\n"
+                )
                 console.print("Starting execution...")
 
                 # Execute curriculum
                 learner = AutonomousLearner(config)
 
                 progress = await learner.execute_curriculum(
-                    expert=profile,
-                    curriculum=curriculum,
-                    budget_limit=budget_to_use,
-                    dry_run=False
+                    expert=profile, curriculum=curriculum, budget_limit=budget_to_use, dry_run=False
                 )
 
                 return progress
@@ -341,15 +375,17 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
         if result and isinstance(result, dict) and "error" in result:
             error = result["error"]
             click.echo(f"\nError: {str(error)}")
-            click.echo(f"Expert created but learning failed. Try again later.")
+            click.echo("Expert created but learning failed. Try again later.")
             return
 
         progress = result
 
         if progress:
-            click.echo(f"\nComplete: {len(progress.completed_topics)}/{len(progress.completed_topics) + len(progress.failed_topics)} topics, ${progress.total_cost:.2f}, {(progress.completed_at - progress.started_at).total_seconds()/60:.0f}min")
+            click.echo(
+                f"\nComplete: {len(progress.completed_topics)}/{len(progress.completed_topics) + len(progress.failed_topics)} topics, ${progress.total_cost:.2f}, {(progress.completed_at - progress.started_at).total_seconds() / 60:.0f}min"
+            )
 
-    click.echo(f"\nUsage: deepr chat expert \"{profile.name}\"")
+    click.echo(f'\nUsage: deepr chat expert "{profile.name}"')
 
 
 @expert.command(name="plan")
@@ -360,8 +396,15 @@ def make_expert(name: str, files: tuple, description: Optional[str], provider: s
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 @click.option("--csv", "output_csv", is_flag=True, help="Output as CSV")
 @click.option("--quiet", "-q", is_flag=True, help="Output prompts only, one per line")
-def plan_curriculum(domain: str, budget: Optional[float], topics: int,
-                    no_discovery: bool, output_json: bool, output_csv: bool, quiet: bool):
+def plan_curriculum(
+    domain: str,
+    budget: Optional[float],
+    topics: int,
+    no_discovery: bool,
+    output_json: bool,
+    output_csv: bool,
+    quiet: bool,
+):
     """Generate a research curriculum for any topic — without creating an expert.
 
     Shows what deepr would research, how much it would cost, and the prompts
@@ -389,8 +432,8 @@ def plan_curriculum(domain: str, budget: Optional[float], topics: int,
     import json as json_mod
 
     async def generate():
-        from deepr.experts.curriculum import CurriculumGenerator
         from deepr.config import AppConfig
+        from deepr.experts.curriculum import CurriculumGenerator
 
         config = AppConfig.from_env()
         generator = CurriculumGenerator(config)
@@ -435,15 +478,17 @@ def plan_curriculum(domain: str, budget: Optional[float], topics: int,
         writer = csv.writer(buf)
         writer.writerow(["title", "type", "mode", "prompt", "cost", "priority", "dependencies"])
         for t in curriculum.topics:
-            writer.writerow([
-                t.title,
-                t.research_type,
-                t.research_mode,
-                t.research_prompt,
-                f"{t.estimated_cost:.4f}",
-                t.priority,
-                ";".join(t.dependencies) if t.dependencies else "",
-            ])
+            writer.writerow(
+                [
+                    t.title,
+                    t.research_type,
+                    t.research_mode,
+                    t.research_prompt,
+                    f"{t.estimated_cost:.4f}",
+                    t.priority,
+                    ";".join(t.dependencies) if t.dependencies else "",
+                ]
+            )
         click.echo(buf.getvalue().rstrip())
         return
 
@@ -464,15 +509,15 @@ def plan_curriculum(domain: str, budget: Optional[float], topics: int,
     topic_num = 0
     for group_name, group_topics in groups.items():
         group_cost = sum(t.estimated_cost for t in group_topics)
-        console.print(f"\n[bold cyan]{group_name.replace('-', ' ').title()}[/bold cyan]  ({len(group_topics)} topics, ~${group_cost:.2f})")
+        console.print(
+            f"\n[bold cyan]{group_name.replace('-', ' ').title()}[/bold cyan]  ({len(group_topics)} topics, ~${group_cost:.2f})"
+        )
 
         for t in group_topics:
             topic_num += 1
             prompt_preview = t.research_prompt[:60] + "..." if len(t.research_prompt) > 60 else t.research_prompt
             console.print(
-                f"  {topic_num:>2}. [bold]{t.title:<40}[/bold]  "
-                f"${t.estimated_cost:<8.3f}"
-                f"[dim]{prompt_preview}[/dim]"
+                f"  {topic_num:>2}. [bold]{t.title:<40}[/bold]  ${t.estimated_cost:<8.3f}[dim]{prompt_preview}[/dim]"
             )
 
     # Summary footer
@@ -482,7 +527,7 @@ def plan_curriculum(domain: str, budget: Optional[float], topics: int,
         f"· ~${curriculum.total_estimated_cost:.2f} "
         f"· ~{total_hours:.1f} hours"
     )
-    console.print(f"\n[dim]To create an expert with this curriculum:[/dim]")
+    console.print("\n[dim]To create an expert with this curriculum:[/dim]")
     console.print(f'  deepr expert make "{domain}" --learn --budget {curriculum.total_estimated_cost:.2f}')
 
 
@@ -498,8 +543,8 @@ def list_experts():
       deepr expert --list
       deepr expert -l
     """
+    from deepr.cli.colors import console, print_header
     from deepr.experts.profile import ExpertStore
-    from deepr.cli.colors import print_header, print_info, console
 
     print_header("Domain Experts")
 
@@ -521,11 +566,13 @@ def list_experts():
         console.print(f"    Documents: {expert.total_documents}")
         console.print(f"    Conversations: {expert.conversations}")
         if expert.research_triggered > 0:
-            console.print(f"    Research: {expert.research_triggered} jobs [yellow](${expert.total_research_cost:.2f})[/yellow]")
+            console.print(
+                f"    Research: {expert.research_triggered} jobs [yellow](${expert.total_research_cost:.2f})[/yellow]"
+            )
 
         # Show temporal information
-        created_str = expert.created_at.strftime('%Y-%m-%d')
-        updated_str = expert.updated_at.strftime('%Y-%m-%d')
+        created_str = expert.created_at.strftime("%Y-%m-%d")
+        updated_str = expert.updated_at.strftime("%Y-%m-%d")
 
         if created_str == updated_str:
             console.print(f"    Created: {created_str}")
@@ -535,15 +582,15 @@ def list_experts():
         # Show knowledge freshness status
         if expert.knowledge_cutoff_date:
             freshness = expert.get_freshness_status()
-            age_days = freshness.get('age_days', 0)
-            status = freshness.get('status', 'unknown')
+            age_days = freshness.get("age_days", 0)
+            status = freshness.get("status", "unknown")
             # Color code the status
-            if status == 'fresh':
-                status_color = 'green'
-            elif status == 'recent':
-                status_color = 'yellow'
+            if status == "fresh":
+                status_color = "green"
+            elif status == "recent":
+                status_color = "yellow"
             else:
-                status_color = 'red'
+                status_color = "red"
             console.print(f"    Knowledge: {age_days} days old [{status_color}]{status}[/{status_color}]")
 
         console.print()
@@ -557,6 +604,7 @@ def list_experts():
 def expert_info(name: str):
     """Show detailed information about an expert."""
     import os
+
     from deepr.experts.profile import ExpertStore
 
     store = ExpertStore()
@@ -568,7 +616,7 @@ def expert_info(name: str):
         click.echo("  deepr expert list")
         return
 
-    from deepr.cli.colors import print_header, print_key_value, print_list_item, console
+    from deepr.cli.colors import console, print_header, print_key_value
 
     print_header(f"Expert: {profile.name}")
 
@@ -600,8 +648,8 @@ def expert_info(name: str):
         print_key_value("Research Jobs", str(len(profile.research_jobs)), indent=1)
 
     console.print()
-    print_key_value("Created", profile.created_at.strftime('%Y-%m-%d %H:%M:%S'))
-    print_key_value("Updated", profile.updated_at.strftime('%Y-%m-%d %H:%M:%S'))
+    print_key_value("Created", profile.created_at.strftime("%Y-%m-%d %H:%M:%S"))
+    print_key_value("Updated", profile.updated_at.strftime("%Y-%m-%d %H:%M:%S"))
 
 
 @expert.command(name="delete")
@@ -631,24 +679,24 @@ def delete_expert(name: str, yes: bool):
 
     if store.delete(name):
         print_success(f"Expert deleted: {name}")
-        click.echo(f"\nTo delete the knowledge base:")
+        click.echo("\nTo delete the knowledge base:")
         click.echo(f"  deepr knowledge delete {profile.vector_store_id}")
     else:
-        click.echo(f"\nError: Failed to delete expert")
+        click.echo("\nError: Failed to delete expert")
 
 
 @expert.command(name="learn")
 @click.argument("name")
 @click.argument("topic", required=False)
-@click.option("--files", "-f", multiple=True, type=click.Path(exists=True),
-              help="Files to add to expert's knowledge base")
-@click.option("--budget", "-b", type=float, default=1.0,
-              help="Budget limit for topic research (default: $1)")
-@click.option("--synthesize/--no-synthesize", default=True,
-              help="Re-synthesize consciousness after learning (default: yes)")
+@click.option(
+    "--files", "-f", multiple=True, type=click.Path(exists=True), help="Files to add to expert's knowledge base"
+)
+@click.option("--budget", "-b", type=float, default=1.0, help="Budget limit for topic research (default: $1)")
+@click.option(
+    "--synthesize/--no-synthesize", default=True, help="Re-synthesize consciousness after learning (default: yes)"
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
-                 synthesize: bool, yes: bool):
+def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, synthesize: bool, yes: bool):
     """Add knowledge to an expert on demand.
 
     Allows you to teach an expert new things by either:
@@ -677,13 +725,14 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
     """
     import asyncio
     import os
-    from pathlib import Path
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.synthesis import Worldview, KnowledgeSynthesizer
-    from deepr.config import AppConfig
-    from deepr.providers import create_provider
     from datetime import datetime
+    from pathlib import Path
+
     from deepr.cli.validation import validate_budget
+    from deepr.config import AppConfig
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+    from deepr.providers import create_provider
 
     # Validate inputs
     if not topic and not files:
@@ -793,6 +842,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
 
                     # Copy file to expert's documents folder
                     import shutil
+
                     shutil.copy2(src_path, dst_path)
                     uploaded_files.append(dst_path)
                     print_success(f"Copied: {src_path.name}")
@@ -807,10 +857,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                 try:
                     for file_path in uploaded_files:
                         file_id = await provider.upload_document(str(file_path))
-                        await provider.add_file_to_vector_store(
-                            profile.vector_store_id,
-                            file_id
-                        )
+                        await provider.add_file_to_vector_store(profile.vector_store_id, file_id)
                         documents_added += 1
                         console.print(f"[success]Indexed: {file_path.name}[/success]")
 
@@ -851,7 +898,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                     expert_name=profile.name,
                     domain=profile.domain or profile.description,
                     new_documents=docs_to_process,
-                    existing_worldview=existing_worldview
+                    existing_worldview=existing_worldview,
                 )
 
                 if synthesis_result["success"]:
@@ -866,7 +913,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
                     click.echo(f"    Beliefs: {len(new_worldview.beliefs)}")
                     click.echo(f"    Knowledge gaps: {len(new_worldview.knowledge_gaps)}")
 
-                    if synthesis_result.get('beliefs_formed', 0) > 0:
+                    if synthesis_result.get("beliefs_formed", 0) > 0:
                         click.echo(f"    New beliefs formed: {synthesis_result['beliefs_formed']}")
                 else:
                     console.print(f"[warning]Synthesis failed: {synthesis_result.get('error', 'Unknown')}[/warning]")
@@ -874,24 +921,20 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
             except Exception as e:
                 console.print(f"[warning]Synthesis error: {e}[/warning]")
 
-        return {
-            "documents_added": documents_added,
-            "total_cost": total_cost,
-            "research_results": len(research_results)
-        }
+        return {"documents_added": documents_added, "total_cost": total_cost, "research_results": len(research_results)}
 
     result = asyncio.run(do_learn())
 
     # Summary
     print_header("Learning Complete")
-    print_key_value("Documents added", str(result['documents_added']))
-    if result['research_results'] > 0:
-        print_key_value("Research queries", str(result['research_results']))
+    print_key_value("Documents added", str(result["documents_added"]))
+    if result["research_results"] > 0:
+        print_key_value("Research queries", str(result["research_results"]))
     print_key_value("Total cost", f"${result['total_cost']:.4f}")
 
-    if synthesize and result['documents_added'] > 0:
+    if synthesize and result["documents_added"] > 0:
         console.print("\nExpert consciousness has been updated.")
-    elif result['documents_added'] > 0:
+    elif result["documents_added"] > 0:
         console.print("\nKnowledge added. Run with --synthesize to update consciousness.")
 
     console.print(f'\nChat with: deepr chat expert "{name}"')
@@ -899,8 +942,9 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float,
 
 @expert.command(name="resume")
 @click.argument("name")
-@click.option("--budget", "-b", type=float, default=None,
-              help="Budget limit for remaining topics (default: use original budget)")
+@click.option(
+    "--budget", "-b", type=float, default=None, help="Budget limit for remaining topics (default: use original budget)"
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
     """Resume paused learning for an expert.
@@ -924,12 +968,12 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
       deepr expert resume "AWS Expert" -y
     """
     import asyncio
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.learner import AutonomousLearner
-    from deepr.experts.curriculum import LearningCurriculum, LearningTopic
-    from deepr.config import AppConfig
+
     from deepr.cli.validation import validate_budget, validate_expert_name
-    from datetime import datetime
+    from deepr.config import AppConfig
+    from deepr.experts.curriculum import LearningCurriculum, LearningTopic
+    from deepr.experts.learner import AutonomousLearner
+    from deepr.experts.profile import ExpertStore
 
     # Validate expert name
     try:
@@ -963,11 +1007,11 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
         return
 
     # Display saved progress info
-    remaining_topics = saved_progress.get('remaining_topics', [])
-    completed_topics = saved_progress.get('completed_topics', [])
-    failed_topics = saved_progress.get('failed_topics', [])
-    cost_so_far = saved_progress.get('total_cost_so_far', 0.0)
-    paused_at = saved_progress.get('paused_at', 'unknown')
+    remaining_topics = saved_progress.get("remaining_topics", [])
+    completed_topics = saved_progress.get("completed_topics", [])
+    failed_topics = saved_progress.get("failed_topics", [])
+    cost_so_far = saved_progress.get("total_cost_so_far", 0.0)
+    paused_at = saved_progress.get("paused_at", "unknown")
 
     print_key_value("Paused at", paused_at)
     print_key_value("Completed topics", str(len(completed_topics)))
@@ -983,7 +1027,7 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
         return
 
     # Calculate estimated cost for remaining topics
-    estimated_remaining_cost = sum(t.get('estimated_cost', 0.5) for t in remaining_topics)
+    estimated_remaining_cost = sum(t.get("estimated_cost", 0.5) for t in remaining_topics)
     print_key_value("Estimated remaining cost", f"${estimated_remaining_cost:.2f}")
 
     # Determine budget
@@ -1020,12 +1064,12 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
         topics = []
         for t in remaining_topics:
             topic = LearningTopic(
-                title=t.get('title', 'Unknown'),
-                research_prompt=t.get('research_prompt', ''),
-                research_mode=t.get('research_mode', 'focus'),
-                research_type=t.get('research_type', 'general'),
-                estimated_cost=t.get('estimated_cost', 0.5),
-                estimated_minutes=t.get('estimated_minutes', 5)
+                title=t.get("title", "Unknown"),
+                research_prompt=t.get("research_prompt", ""),
+                research_mode=t.get("research_mode", "focus"),
+                research_type=t.get("research_type", "general"),
+                estimated_cost=t.get("estimated_cost", 0.5),
+                estimated_minutes=t.get("estimated_minutes", 5),
             )
             topics.append(topic)
 
@@ -1034,16 +1078,12 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
             domain=profile.domain or profile.description or name,
             topics=topics,
             total_estimated_cost=estimated_remaining_cost,
-            total_estimated_minutes=sum(t.get('estimated_minutes', 5) for t in remaining_topics)
+            total_estimated_minutes=sum(t.get("estimated_minutes", 5) for t in remaining_topics),
         )
 
         # Execute with resume=True
         progress = await learner.execute_curriculum(
-            expert=profile,
-            curriculum=curriculum,
-            budget_limit=budget,
-            dry_run=False,
-            resume=True
+            expert=profile, curriculum=curriculum, budget_limit=budget, dry_run=False, resume=True
         )
 
         return progress
@@ -1055,7 +1095,7 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
         print_key_value("Completed", f"{len(progress.completed_topics)} topics")
         print_key_value("Failed", f"{len(progress.failed_topics)} topics")
         print_key_value("Total cost", f"${progress.total_cost:.2f}")
-        print_key_value("Success rate", f"{progress.success_rate()*100:.1f}%")
+        print_key_value("Success rate", f"{progress.success_rate() * 100:.1f}%")
 
         if progress.is_complete():
             console.print("\nAll topics processed. Learning complete.")
@@ -1068,8 +1108,9 @@ def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
 
 @expert.command(name="export")
 @click.argument("name")
-@click.option("--output", "-o", type=click.Path(), default=".",
-              help="Output directory for corpus (default: current directory)")
+@click.option(
+    "--output", "-o", type=click.Path(), default=".", help="Output directory for corpus (default: current directory)"
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def export_expert(name: str, output: str, yes: bool):
     """Export an expert's consciousness to a portable corpus.
@@ -1095,8 +1136,9 @@ def export_expert(name: str, output: str, yes: bool):
     """
     import asyncio
     from pathlib import Path
-    from deepr.experts.profile import ExpertStore
+
     from deepr.experts.corpus import export_corpus
+    from deepr.experts.profile import ExpertStore
 
     print_header(f"Export Expert: {name}")
 
@@ -1115,7 +1157,7 @@ def export_expert(name: str, output: str, yes: bool):
     corpus_path = output_path / corpus_name
 
     print_key_value("Expert", profile.name)
-    print_key_value("Domain", profile.domain or profile.description or 'General')
+    print_key_value("Domain", profile.domain or profile.description or "General")
     print_key_value("Documents", str(profile.total_documents))
     print_key_value("Output", str(corpus_path))
 
@@ -1145,14 +1187,13 @@ def export_expert(name: str, output: str, yes: bool):
     print_key_value("Beliefs", str(manifest.belief_count))
     print_key_value("Knowledge gaps", str(manifest.gap_count))
     print_key_value("Files", str(len(manifest.files)))
-    console.print(f"\nTo import this corpus:")
+    console.print("\nTo import this corpus:")
     console.print(f'  deepr expert import "New Expert Name" --corpus {corpus_path}')
 
 
 @expert.command(name="import")
 @click.argument("name")
-@click.option("--corpus", "-c", type=click.Path(exists=True), required=True,
-              help="Path to corpus directory to import")
+@click.option("--corpus", "-c", type=click.Path(exists=True), required=True, help="Path to corpus directory to import")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def import_expert(name: str, corpus: str, yes: bool):
     """Import a corpus to create a new expert.
@@ -1170,9 +1211,10 @@ def import_expert(name: str, corpus: str, yes: bool):
     """
     import asyncio
     from pathlib import Path
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.corpus import import_corpus, validate_corpus, CorpusManifest
+
     from deepr.config import AppConfig
+    from deepr.experts.corpus import import_corpus, validate_corpus
+    from deepr.experts.profile import ExpertStore
     from deepr.providers import create_provider
 
     print_header(f"Import Expert: {name}")
@@ -1239,10 +1281,8 @@ def import_expert(name: str, corpus: str, yes: bool):
 
 @expert.command(name="fill-gaps")
 @click.argument("name")
-@click.option("--budget", "-b", type=float, default=5.0,
-              help="Budget limit for gap filling research (default: $5)")
-@click.option("--top", "-t", type=int, default=3,
-              help="Number of top-priority gaps to fill (default: 3)")
+@click.option("--budget", "-b", type=float, default=5.0, help="Budget limit for gap filling research (default: $5)")
+@click.option("--top", "-t", type=int, default=3, help="Number of top-priority gaps to fill (default: 3)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def fill_gaps(name: str, budget: float, top: int, yes: bool):
     """Proactively research and fill knowledge gaps.
@@ -1265,15 +1305,21 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
       deepr expert fill-gaps "AI Expert" -y
     """
     import asyncio
-    from deepr.experts.profile import ExpertStore
-    from deepr.experts.synthesis import Worldview, KnowledgeSynthesizer
-    from deepr.config import AppConfig
-    from deepr.providers import create_provider
-    from datetime import datetime
+
     from deepr.cli.colors import (
-        print_header, print_success, print_error, print_warning,
-        print_info, print_step, print_result, get_symbol, console
+        console,
+        get_symbol,
+        print_error,
+        print_header,
+        print_result,
+        print_step,
+        print_success,
+        print_warning,
     )
+    from deepr.config import AppConfig
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+    from deepr.providers import create_provider
 
     print_header(f"Fill Knowledge Gaps: {name}")
 
@@ -1292,8 +1338,8 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
     worldview_path = knowledge_dir / "worldview.json"
 
     if not worldview_path.exists():
-        print_error(f"Expert has no worldview yet.")
-        console.print(f"\nThe expert needs to synthesize knowledge first:")
+        print_error("Expert has no worldview yet.")
+        console.print("\nThe expert needs to synthesize knowledge first:")
         console.print(f'  deepr expert refresh "{name}" --synthesize')
         return
 
@@ -1305,8 +1351,8 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
 
     # Check for gaps
     if not worldview.knowledge_gaps:
-        print_success(f"Expert has no identified knowledge gaps!")
-        console.print(f"\nThe expert's consciousness is complete (for now).")
+        print_success("Expert has no identified knowledge gaps!")
+        console.print("\nThe expert's consciousness is complete (for now).")
         console.print(f"Beliefs: {len(worldview.beliefs)}")
         return
 
@@ -1325,7 +1371,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
     for i, gap in enumerate(gaps_to_fill, 1):
         console.print(f"\n  {i}. {gap.topic} [dim](Priority: {gap.priority}/5)[/dim]")
         if gap.questions:
-            console.print(f"     Questions:")
+            console.print("     Questions:")
             for q in gap.questions[:3]:
                 console.print(f"       [dim]{get_symbol('sub_bullet')}[/dim] {q}")
             if len(gap.questions) > 3:
@@ -1373,7 +1419,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
 
                 if "error" in result:
                     print_error(f"Research failed: {result['error']}")
-                    failed_gaps.append({"gap": gap, "error": result['error']})
+                    failed_gaps.append({"gap": gap, "error": result["error"]})
                 else:
                     cost = result.get("cost", 0.0)
                     total_cost += cost
@@ -1409,7 +1455,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
                     expert_name=profile.name,
                     domain=profile.domain or profile.description,
                     new_documents=docs_to_process,
-                    existing_worldview=worldview
+                    existing_worldview=worldview,
                 )
 
                 if synthesis_result["success"]:
@@ -1418,8 +1464,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
                     # Remove filled gaps from worldview
                     filled_topics = {g["gap"].topic for g in filled_gaps}
                     new_worldview.knowledge_gaps = [
-                        g for g in new_worldview.knowledge_gaps
-                        if g.topic not in filled_topics
+                        g for g in new_worldview.knowledge_gaps if g.topic not in filled_topics
                     ]
 
                     # Save updated worldview
@@ -1434,30 +1479,29 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
             except Exception as e:
                 print_warning(f"Synthesis error: {e}")
 
-        return {
-            "filled": len(filled_gaps),
-            "failed": len(failed_gaps),
-            "total_cost": total_cost
-        }
+        return {"filled": len(filled_gaps), "failed": len(failed_gaps), "total_cost": total_cost}
 
     result = asyncio.run(do_fill_gaps())
 
     # Summary
     print_header("Gap Filling Complete")
     console.print(f"Gaps filled: {result['filled']}/{len(gaps_to_fill)}")
-    if result['failed'] > 0:
+    if result["failed"] > 0:
         console.print(f"Gaps failed: {result['failed']}")
     console.print(f"Total cost: ${result['total_cost']:.4f}")
-    console.print(f"\nExpert consciousness has been updated.")
+    console.print("\nExpert consciousness has been updated.")
     console.print(f'Chat with: deepr expert chat "{name}"')
 
 
 @expert.command(name="refresh")
 @click.argument("name")
-@click.option("--synthesize", is_flag=True, default=False,
-              help="Synthesize knowledge after refresh (expert actively processes documents)")
-@click.option("--yes", "-y", is_flag=True, default=False,
-              help="Skip confirmation prompts")
+@click.option(
+    "--synthesize",
+    is_flag=True,
+    default=False,
+    help="Synthesize knowledge after refresh (expert actively processes documents)",
+)
+@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompts")
 def refresh_expert(name: str, synthesize: bool, yes: bool):
     """Refresh expert's knowledge by adding new documents from their folder.
 
@@ -1473,6 +1517,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
         deepr expert refresh "Azure Architect" --synthesize
     """
     import asyncio
+
     from deepr.experts.profile import ExpertStore
 
     print_header(f"Refreshing Expert Knowledge: {name}")
@@ -1490,6 +1535,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 print_success(f"Uploaded {len(results['uploaded'])} new documents:")
                 for item in results["uploaded"]:
                     import os
+
                     basename = os.path.basename(item["path"])
                     console.print(f"  [dim]-[/dim] {basename}")
                     console.print(f"    [dim]File ID:[/dim] {item['file_id']}")
@@ -1499,6 +1545,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 print_warning(f"Failed to upload {len(results['failed'])} documents:")
                 for item in results["failed"]:
                     import os
+
                     basename = os.path.basename(item["path"])
                     console.print(f"  [dim]-[/dim] {basename}: {item['error']}")
                 console.print()
@@ -1511,16 +1558,18 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
             profile = store.load(name)
             if profile:
                 print_key_value("Documents in knowledge base", str(profile.total_documents))
-                print_key_value("Last refreshed", profile.last_knowledge_refresh.strftime('%Y-%m-%d %H:%M:%S'))
+                print_key_value("Last refreshed", profile.last_knowledge_refresh.strftime("%Y-%m-%d %H:%M:%S"))
 
             # Synthesize if requested
-            if synthesize and (results["uploaded"] or yes or click.confirm("\nNo new documents. Synthesize existing knowledge anyway?")):
+            if synthesize and (
+                results["uploaded"] or yes or click.confirm("\nNo new documents. Synthesize existing knowledge anyway?")
+            ):
                 print_section_header("Synthesizing Knowledge (Level 5 Consciousness)")
                 console.print("Expert is actively processing documents to form beliefs and meta-awareness...")
                 console.print("This may take 1-2 minutes...\n")
 
-                from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
                 from deepr.config import AppConfig
+                from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
                 from deepr.providers import create_provider
 
                 # Get client
@@ -1539,7 +1588,9 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 if worldview_path.exists():
                     try:
                         existing_worldview = Worldview.load(worldview_path)
-                        console.print(f"[dim]Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)[/dim]")
+                        console.print(
+                            f"[dim]Loaded existing worldview ({existing_worldview.synthesis_count} prior syntheses)[/dim]"
+                        )
                     except Exception as e:
                         print_warning(f"Could not load existing worldview: {e}")
 
@@ -1556,11 +1607,12 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 
                 # Synthesize
                 from datetime import datetime
+
                 synthesis_result = await synthesizer.synthesize_new_knowledge(
                     expert_name=profile.name,
                     domain=profile.domain or profile.description,
                     new_documents=docs_to_process,
-                    existing_worldview=existing_worldview
+                    existing_worldview=existing_worldview,
                 )
 
                 if synthesis_result["success"]:
@@ -1571,12 +1623,10 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     worldview.save(worldview_path)
 
                     # Generate and save worldview document
-                    worldview_doc = await synthesizer.generate_worldview_document(
-                        worldview, reflection
-                    )
+                    worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
 
                     worldview_doc_path = knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
-                    with open(worldview_doc_path, 'w', encoding='utf-8') as f:
+                    with open(worldview_doc_path, "w", encoding="utf-8") as f:
                         f.write(worldview_doc)
 
                     print_success("Synthesis complete!")
@@ -1587,7 +1637,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 
                     # Show sample beliefs
                     if worldview.beliefs:
-                        click.echo(f"\nTop beliefs:")
+                        click.echo("\nTop beliefs:")
                         for belief in sorted(worldview.beliefs, key=lambda b: b.confidence, reverse=True)[:3]:
                             click.echo(f"  - {belief.statement[:80]}... ({belief.confidence:.0%} confidence)")
 
@@ -1599,19 +1649,19 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
         except Exception as e:
             print_error(f"Unexpected error: {e}")
             import traceback
+
             traceback.print_exc()
 
-    from datetime import datetime
     asyncio.run(do_refresh())
     click.echo()
 
 
 @expert.command(name="chat")
 @click.argument("name")
-@click.option("--budget", "-b", type=float, default=5.0,
-              help="Session budget limit for research (default: $5)")
-@click.option("--no-research", is_flag=True, default=False,
-              help="Disable agentic research (experts can research by default)")
+@click.option("--budget", "-b", type=float, default=5.0, help="Session budget limit for research (default: $5)")
+@click.option(
+    "--no-research", is_flag=True, default=False, help="Disable agentic research (experts can research by default)"
+)
 def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     """Start an interactive chat session with an expert.
 
@@ -1637,10 +1687,11 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
         /synthesize - Trigger consciousness synthesis (form beliefs from recent learning)
     """
     import asyncio
-    from deepr.experts.chat import start_chat_session
+    from datetime import datetime
+
     from deepr.cli import ui
     from deepr.cli.validation import validate_budget
-    from datetime import datetime
+    from deepr.experts.chat import start_chat_session
 
     # Validate budget - warns for high amounts, doesn't hard block
     try:
@@ -1673,10 +1724,12 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     # Display modern welcome message
     ui.print_welcome(
         expert_name=session.expert.name,
-        domain=session.expert.domain or session.expert.description or 'General',
+        domain=session.expert.domain or session.expert.description or "General",
         documents=session.expert.total_documents,
-        updated_date=session.expert.knowledge_cutoff_date.strftime('%Y-%m-%d') if session.expert.knowledge_cutoff_date else 'unknown',
-        knowledge_age_days=knowledge_age_days
+        updated_date=session.expert.knowledge_cutoff_date.strftime("%Y-%m-%d")
+        if session.expert.knowledge_cutoff_date
+        else "unknown",
+        knowledge_age_days=knowledge_age_days,
     )
 
     # Interactive chat loop
@@ -1695,7 +1748,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                     messages_count=len([m for m in session.messages if m["role"] == "user"]),
                     cost=session.cost_accumulated,
                     research_jobs=len(session.research_jobs),
-                    model=session.expert.model
+                    model=session.expert.model,
                 )
                 break
 
@@ -1707,16 +1760,16 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                 summary = session.get_session_summary()
                 ui.print_status(
                     expert_name=session.expert.name,
-                    messages_count=summary['messages_exchanged'],
-                    cost=summary['cost_accumulated'],
+                    messages_count=summary["messages_exchanged"],
+                    cost=summary["cost_accumulated"],
                     budget=budget,
-                    research_jobs=summary['research_jobs_triggered'],
-                    model=summary['model'],
+                    research_jobs=summary["research_jobs_triggered"],
+                    model=summary["model"],
                     documents=session.expert.total_documents,
-                    daily_spent=summary.get('daily_spent', 0),
-                    daily_limit=summary.get('daily_limit', 0),
-                    monthly_spent=summary.get('monthly_spent', 0),
-                    monthly_limit=summary.get('monthly_limit', 0)
+                    daily_spent=summary.get("daily_spent", 0),
+                    daily_limit=summary.get("daily_limit", 0),
+                    monthly_spent=summary.get("monthly_spent", 0),
+                    monthly_limit=summary.get("monthly_limit", 0),
                 )
                 continue
 
@@ -1736,9 +1789,10 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                     print_error("Usage: /learn <file_path>")
                     continue
 
-                from pathlib import Path
-                from deepr.experts.profile import ExpertStore
                 import shutil
+                from pathlib import Path
+
+                from deepr.experts.profile import ExpertStore
 
                 path = Path(file_path)
                 if not path.exists():
@@ -1758,21 +1812,19 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                         shutil.copy(path, dest_path)
 
                         # Upload to vector store
-                        results = await store.add_documents_to_vector_store(
-                            session.expert, [str(dest_path)]
-                        )
+                        results = await store.add_documents_to_vector_store(session.expert, [str(dest_path)])
 
                         if results["uploaded"]:
                             print_success("Document uploaded to knowledge base")
                             click.echo(f"    Expert now has {session.expert.total_documents + 1} documents")
-                            click.echo(f"\nTip: Use /synthesize to help the expert form beliefs from this knowledge\n")
+                            click.echo("\nTip: Use /synthesize to help the expert form beliefs from this knowledge\n")
 
                             # Reload expert to get updated document count
                             session.expert = store.load(session.expert.name)
                         elif results["failed"]:
                             print_error(f"Failed to upload: {results['failed'][0]['error']}")
                         else:
-                            click.echo(f"[INFO] Document already in knowledge base\n")
+                            click.echo("[INFO] Document already in knowledge base\n")
                     except Exception as e:
                         print_error(f"Error: {e}")
 
@@ -1786,9 +1838,9 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
 
                 async def do_synthesis():
                     try:
-                        from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
-                        from deepr.experts.profile import ExpertStore
                         from deepr.config import AppConfig
+                        from deepr.experts.profile import ExpertStore
+                        from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
                         from deepr.providers import create_provider
 
                         store = ExpertStore()
@@ -1809,7 +1861,9 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                         if worldview_path.exists():
                             try:
                                 existing_worldview = Worldview.load(worldview_path)
-                                console.print(f"[dim]Building on {existing_worldview.synthesis_count} prior syntheses[/dim]")
+                                console.print(
+                                    f"[dim]Building on {existing_worldview.synthesis_count} prior syntheses[/dim]"
+                                )
                             except Exception as e:
                                 print_warning(f"Could not load existing worldview: {e}")
 
@@ -1825,7 +1879,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                             expert_name=session.expert.name,
                             domain=session.expert.domain or session.expert.description,
                             new_documents=docs_to_process,
-                            existing_worldview=existing_worldview
+                            existing_worldview=existing_worldview,
                         )
 
                         if synthesis_result["success"]:
@@ -1837,12 +1891,13 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
 
                             # Generate and save worldview document
                             from datetime import datetime
-                            worldview_doc = await synthesizer.generate_worldview_document(
-                                worldview, reflection
-                            )
 
-                            worldview_doc_path = knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
-                            with open(worldview_doc_path, 'w', encoding='utf-8') as f:
+                            worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
+
+                            worldview_doc_path = (
+                                knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+                            )
+                            with open(worldview_doc_path, "w", encoding="utf-8") as f:
                                 f.write(worldview_doc)
 
                             print_success("Synthesis complete!")
@@ -1851,18 +1906,19 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
 
                             # Show top beliefs
                             if worldview.beliefs:
-                                click.echo(f"\nTop beliefs (highest confidence):")
+                                click.echo("\nTop beliefs (highest confidence):")
                                 for belief in sorted(worldview.beliefs, key=lambda b: b.confidence, reverse=True)[:3]:
                                     click.echo(f"  - {belief.statement[:80]}...")
                                     click.echo(f"    Confidence: {belief.confidence:.0%}")
 
-                            click.echo(f"\nThe expert's consciousness has evolved.\n")
+                            click.echo("\nThe expert's consciousness has evolved.\n")
                         else:
                             print_error(f"Synthesis failed: {synthesis_result.get('error', 'Unknown error')}")
 
                     except Exception as e:
                         print_error(f"Error: {e}")
                         import traceback
+
                         traceback.print_exc()
 
                 asyncio.run(do_synthesis())
@@ -1882,17 +1938,19 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                 simple_responses = {
                     "hi": f"Hello! I'm {session.expert.name}. What would you like to know?",
                     "hello": f"Hello! I'm {session.expert.name}. How can I help you today?",
-                    "hey": f"Hey! What questions do you have for me?",
+                    "hey": "Hey! What questions do you have for me?",
                     "thanks": "You're welcome! Let me know if you need anything else.",
                     "thank you": "You're welcome! Feel free to ask more questions.",
                     "ok": "Got it. Anything else you'd like to know?",
                     "okay": "Understood. What else can I help with?",
                     "bye": "Goodbye! Feel free to come back anytime.",
-                    "goodbye": "Take care! Come back if you have more questions."
+                    "goodbye": "Take care! Come back if you have more questions.",
                 }
 
-                response = simple_responses.get(user_input.lower().strip(),
-                                               f"I'm here to help with {session.expert.domain or 'your questions'}. What would you like to know?")
+                response = simple_responses.get(
+                    user_input.lower().strip(),
+                    f"I'm here to help with {session.expert.domain or 'your questions'}. What would you like to know?",
+                )
                 ui.stream_response(session.expert.name, response)
                 continue
 
@@ -1916,9 +1974,10 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                 # Update live display if active
                 if status_live and status_live.is_started:
                     # Import at function level to avoid circular imports
-                    from rich.spinner import Spinner
                     import os
                     import sys
+
+                    from rich.spinner import Spinner
 
                     # Use modern styling with diamond icon
                     spinner_type = "dots" if os.environ.get("WT_SESSION") or sys.platform != "win32" else "line"
@@ -1961,13 +2020,13 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     summary = session.get_session_summary()
 
     # Save conversation before ending
-    if summary['messages_exchanged'] > 0:
+    if summary["messages_exchanged"] > 0:
         session_id = session.save_conversation()
         print_success(f"Conversation saved: {session_id}")
 
     print_header("Session Summary")
-    print_key_value("Messages", str(summary['messages_exchanged']))
+    print_key_value("Messages", str(summary["messages_exchanged"]))
     print_key_value("Total Cost", f"${summary['cost_accumulated']:.4f}")
-    if summary['research_jobs_triggered'] > 0:
-        print_key_value("Research Jobs", str(summary['research_jobs_triggered']))
+    if summary["research_jobs_triggered"] > 0:
+        print_key_value("Research Jobs", str(summary["research_jobs_triggered"]))
     console.print()

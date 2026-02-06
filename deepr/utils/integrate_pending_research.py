@@ -1,13 +1,14 @@
 """Manually integrate completed research for existing experts."""
+
 import asyncio
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from deepr.experts.profile import ExpertStore
-from deepr.experts.learner import AutonomousLearner
 from deepr.config import load_config
+from deepr.experts.learner import AutonomousLearner
+from deepr.experts.profile import ExpertStore
 
 
 async def integrate_expert_research(expert_name: str):
@@ -21,7 +22,7 @@ async def integrate_expert_research(expert_name: str):
         return
 
     if not expert.research_jobs:
-        print(f"Expert has no research jobs")
+        print("Expert has no research jobs")
         return
 
     print(f"Expert: {expert_name}")
@@ -35,11 +36,7 @@ async def integrate_expert_research(expert_name: str):
 
     # Run polling and integration
     print("Starting integration...")
-    await learner._poll_and_integrate_reports(
-        expert=expert,
-        job_ids=expert.research_jobs,
-        callback=None
-    )
+    await learner._poll_and_integrate_reports(expert=expert, job_ids=expert.research_jobs, callback=None)
 
     # Reload to show updated counts
     expert = store.load(expert_name)

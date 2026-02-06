@@ -1,11 +1,11 @@
 """Simple API wrapper for submitting and managing research jobs."""
 
-from typing import Optional, Dict, Any
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
 from deepr.config import AppConfig
+from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
-from deepr.queue.base import ResearchJob, JobStatus
 
 
 class ResearchAPI:
@@ -24,7 +24,7 @@ class ResearchAPI:
         vector_store_id: Optional[str] = None,
         enable_web: bool = True,
         enable_code: bool = False,
-        cost_limit: Optional[float] = None
+        cost_limit: Optional[float] = None,
     ) -> str:
         """Submit a research job to the queue.
 
@@ -54,6 +54,7 @@ class ResearchAPI:
 
         # Generate job ID
         import uuid
+
         job_id = f"research-{uuid.uuid4().hex[:6]}"
 
         # Create research job
@@ -67,7 +68,7 @@ class ResearchAPI:
             documents=[vector_store_id] if vector_store_id else [],
             enable_web_search=enable_web,
             enable_code_interpreter=enable_code,
-            cost_limit=cost_limit
+            cost_limit=cost_limit,
         )
 
         # Submit to queue
@@ -99,7 +100,7 @@ class ResearchAPI:
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
             "cost": job.cost,
-            "error": job.last_error
+            "error": job.last_error,
         }
 
     async def get_job_result(self, job_id: str) -> Dict[str, Any]:
@@ -126,7 +127,7 @@ class ResearchAPI:
             "report_paths": job.report_paths or {},
             "cost": job.cost,
             "tokens_used": job.tokens_used,
-            "completed_at": job.completed_at.isoformat() if job.completed_at else None
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         }
 
     async def cancel_job(self, job_id: str):

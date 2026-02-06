@@ -1,10 +1,11 @@
 """Content and link extraction from HTML."""
 
-import logging
-from typing import List, Dict, Optional, Set
-from urllib.parse import urljoin, urlparse
-from bs4 import BeautifulSoup
 import hashlib
+import logging
+from typing import Dict, List, Optional, Set
+from urllib.parse import urljoin, urlparse
+
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +61,13 @@ class LinkExtractor:
             link_text = tag.get_text(strip=True)
             context = self._get_link_context(tag)
 
-            links.append({
-                "url": full_url,
-                "text": link_text,
-                "context": context,
-            })
+            links.append(
+                {
+                    "url": full_url,
+                    "text": link_text,
+                    "context": context,
+                }
+            )
 
         logger.info(f"Extracted {len(links)} links from {self.base_url}")
         return links
@@ -88,11 +91,23 @@ class LinkExtractor:
             Filtered list
         """
         excluded_keywords = [
-            "login", "signin", "signup", "register",
-            "support", "help", "contact",
-            "terms", "privacy", "cookies", "legal",
-            "careers", "jobs", "apply",
-            "cart", "checkout", "account",
+            "login",
+            "signin",
+            "signup",
+            "register",
+            "support",
+            "help",
+            "contact",
+            "terms",
+            "privacy",
+            "cookies",
+            "legal",
+            "careers",
+            "jobs",
+            "apply",
+            "cart",
+            "checkout",
+            "account",
         ]
 
         filtered = []
@@ -287,8 +302,6 @@ class PageDeduplicator:
         # Remove trailing slash
         url = url.rstrip("/")
 
-        # Remove common tracking parameters
-        parsed = urlparse(url)
-        # TODO: Implement parameter filtering
+        # TODO: Remove common tracking parameters / implement parameter filtering
 
         return url.lower()

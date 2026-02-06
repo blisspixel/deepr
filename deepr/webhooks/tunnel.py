@@ -2,8 +2,9 @@
 
 import subprocess
 import time
-import requests
 from typing import Optional
+
+import requests
 
 
 class NgrokTunnel:
@@ -47,9 +48,7 @@ class NgrokTunnel:
             # Poll for public URL
             for _ in range(60):
                 try:
-                    response = requests.get(
-                        "http://127.0.0.1:4040/api/tunnels", timeout=2
-                    )
+                    response = requests.get("http://127.0.0.1:4040/api/tunnels", timeout=2)
                     tunnels = response.json().get("tunnels", [])
 
                     for tunnel in tunnels:

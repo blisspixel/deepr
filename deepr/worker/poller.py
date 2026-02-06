@@ -2,14 +2,12 @@
 
 import asyncio
 import logging
-from typing import Optional
 
-from ..queue import create_queue
-from ..storage import create_storage
-from ..providers import create_provider
 from ..config import load_config
 from ..core.costs import CostController
-
+from ..providers import create_provider
+from ..queue import create_queue
+from ..storage import create_storage
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ class JobPoller:
     def __init__(
         self,
         poll_interval: int = 30,
-        socketio = None,
+        socketio=None,
     ):
         """
         Initialize job poller.
@@ -43,19 +41,12 @@ class JobPoller:
 
         # Initialize components
         self.queue = create_queue(
-            config.get("queue", "local"),
-            db_path=config.get("queue_db_path", "queue/research_queue.db")
+            config.get("queue", "local"), db_path=config.get("queue_db_path", "queue/research_queue.db")
         )
 
-        self.storage = create_storage(
-            config.get("storage", "local"),
-            base_path=config.get("results_dir", "results")
-        )
+        self.storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "results"))
 
-        self.provider = create_provider(
-            config.get("provider", "openai"),
-            api_key=config.get("api_key")
-        )
+        self.provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
 
         self.cost_controller = CostController(
             max_cost_per_job=float(config.get("max_cost_per_job", 5.0)),
@@ -154,8 +145,7 @@ class JobPoller:
 
                         # Mark as failed in queue
                         await self._handle_failure(
-                            job,
-                            f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled"
+                            job, f"Job stuck in provider queue for {queue_time_minutes:.1f} minutes - auto-cancelled"
                         )
                     else:
                         logger.debug(f"Job {job.id} queued for {queue_time_minutes:.1f} minutes")
@@ -175,9 +165,9 @@ class JobPoller:
             content = ""
             if response.output:
                 for block in response.output:
-                    if block.get('type') == 'message':
-                        for item in block.get('content', []):
-                            text = item.get('text', '')
+                    if block.get("type") == "message":
+                        for item in block.get("content", []):
+                            text = item.get("text", "")
                             if text:
                                 content += text + "\n"
 
@@ -185,14 +175,14 @@ class JobPoller:
             await self.storage.save_report(
                 job_id=job.id,
                 filename="report.md",
-                content=content.encode('utf-8'),
+                content=content.encode("utf-8"),
                 content_type="text/markdown",
                 metadata={
                     "prompt": job.prompt,
                     "model": job.model,
                     "status": "completed",
                     "provider_job_id": job.provider_job_id,
-                }
+                },
             )
 
             # Extract cost and tokens
@@ -201,10 +191,7 @@ class JobPoller:
 
             # Update queue with results
             await self.queue.update_results(
-                job_id=job.id,
-                report_paths={"markdown": "report.md"},
-                cost=cost,
-                tokens_used=tokens
+                job_id=job.id, report_paths={"markdown": "report.md"}, cost=cost, tokens_used=tokens
             )
 
             # Mark as completed
@@ -224,11 +211,7 @@ class JobPoller:
             logger.error(f"Job {job.id} failed: {error}")
 
             # Update queue with failure status
-            await self.queue.update_status(
-                job_id=job.id,
-                status=JobStatus.FAILED,
-                error=error
-            )
+            await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
 
         except Exception as e:
             logger.error(f"Error handling failure for job {job.id}: {e}")
@@ -251,10 +234,7 @@ async def run_poller(poll_interval: int = 30):
 
 if __name__ == "__main__":
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Run poller
     asyncio.run(run_poller())

@@ -6,10 +6,10 @@ and understands the timeline of learning.
 
 import json
 import logging
-from pathlib import Path
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ def _utc_now() -> datetime:
 @dataclass
 class KnowledgeFact:
     """A single fact learned at a specific time."""
+
     topic: str
     fact_text: str
     learned_at: datetime
@@ -48,6 +49,7 @@ class KnowledgeFact:
 @dataclass
 class KnowledgeEvolution:
     """Tracks how knowledge about a topic evolved over time."""
+
     topic: str
     facts: List[KnowledgeFact] = field(default_factory=list)
     contradictions_detected: int = 0
@@ -84,22 +86,22 @@ class TemporalKnowledgeTracker:
 
     def _get_expert_dir(self) -> Path:
         """Get expert directory path."""
-        safe_name = "".join(c for c in self.expert_name if c.isalnum() or c in (' ', '-', '_')).strip()
-        safe_name = safe_name.replace(' ', '_').lower()
+        safe_name = "".join(c for c in self.expert_name if c.isalnum() or c in (" ", "-", "_")).strip()
+        safe_name = safe_name.replace(" ", "_").lower()
         return self.base_path / safe_name
 
     def _generate_fact_id(self, topic: str, learned_at: datetime) -> str:
         """Generate unique ID for a fact."""
         timestamp = learned_at.strftime("%Y%m%d_%H%M%S")
-        topic_slug = "".join(c for c in topic[:30] if c.isalnum() or c in (' ', '-', '_'))
-        topic_slug = topic_slug.replace(' ', '_').lower()
+        topic_slug = "".join(c for c in topic[:30] if c.isalnum() or c in (" ", "-", "_"))
+        topic_slug = topic_slug.replace(" ", "_").lower()
         return f"{topic_slug}_{timestamp}"
 
     def _load(self):
         """Load temporal knowledge from disk."""
         if self.temporal_file.exists():
             try:
-                with open(self.temporal_file, 'r', encoding='utf-8') as f:
+                with open(self.temporal_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
                 for topic, evolution_data in data.get("knowledge_by_topic", {}).items():
@@ -112,7 +114,9 @@ class TemporalKnowledgeTracker:
                             source=fact_data["source"],
                             confidence=fact_data["confidence"],
                             superseded_by=fact_data.get("superseded_by"),
-                            valid_until=datetime.fromisoformat(fact_data["valid_until"]) if fact_data.get("valid_until") else None
+                            valid_until=datetime.fromisoformat(fact_data["valid_until"])
+                            if fact_data.get("valid_until")
+                            else None,
                         )
                         facts.append(fact)
 
@@ -124,7 +128,9 @@ class TemporalKnowledgeTracker:
                         topic=topic,
                         facts=facts,
                         contradictions_detected=evolution_data.get("contradictions_detected", 0),
-                        last_updated=datetime.fromisoformat(evolution_data.get("last_updated", datetime.now(timezone.utc).isoformat()))
+                        last_updated=datetime.fromisoformat(
+                            evolution_data.get("last_updated", datetime.now(timezone.utc).isoformat())
+                        ),
                     )
 
                 self.stale_topics = set(data.get("stale_topics", []))
@@ -151,31 +157,26 @@ class TemporalKnowledgeTracker:
                                 "source": fact.source,
                                 "confidence": fact.confidence,
                                 "superseded_by": fact.superseded_by,
-                                "valid_until": fact.valid_until.isoformat() if fact.valid_until else None
+                                "valid_until": fact.valid_until.isoformat() if fact.valid_until else None,
                             }
                             for fact in evolution.facts
                         ],
                         "contradictions_detected": evolution.contradictions_detected,
-                        "last_updated": evolution.last_updated.isoformat()
+                        "last_updated": evolution.last_updated.isoformat(),
                     }
                     for topic, evolution in self.knowledge_by_topic.items()
                 },
-                "stale_topics": list(self.stale_topics)
+                "stale_topics": list(self.stale_topics),
             }
 
-            with open(self.temporal_file, 'w', encoding='utf-8') as f:
+            with open(self.temporal_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error("Error saving temporal knowledge: %s", e)
 
     def record_learning(
-        self,
-        topic: str,
-        fact_text: str,
-        source: str,
-        confidence: float = 0.8,
-        valid_for_days: Optional[int] = None
+        self, topic: str, fact_text: str, source: str, confidence: float = 0.8, valid_for_days: Optional[int] = None
     ) -> str:
         """Record a new fact learned.
 
@@ -203,7 +204,7 @@ class TemporalKnowledgeTracker:
             learned_at=now,
             source=source,
             confidence=confidence,
-            valid_until=valid_until
+            valid_until=valid_until,
         )
 
         # Generate ID
@@ -308,7 +309,7 @@ class TemporalKnowledgeTracker:
                 "source": fact.source,
                 "confidence": fact.confidence,
                 "current": fact.is_current,
-                "age_days": fact.age_days
+                "age_days": fact.age_days,
             }
             if fact.superseded_by:
                 event["superseded_by"] = fact.superseded_by
@@ -326,10 +327,7 @@ class TemporalKnowledgeTracker:
         current_facts = sum(1 for f in self.facts_by_id.values() if f.is_current)
         superseded = total_facts - current_facts
 
-        total_contradictions = sum(
-            e.contradictions_detected
-            for e in self.knowledge_by_topic.values()
-        )
+        total_contradictions = sum(e.contradictions_detected for e in self.knowledge_by_topic.values())
 
         # Age distribution
         if self.facts_by_id:
@@ -348,5 +346,5 @@ class TemporalKnowledgeTracker:
             "contradictions_resolved": total_contradictions,
             "stale_topics": len(self.stale_topics),
             "average_fact_age_days": avg_age,
-            "oldest_fact_age_days": oldest
+            "oldest_fact_age_days": oldest,
         }

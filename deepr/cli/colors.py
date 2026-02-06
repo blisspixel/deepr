@@ -20,7 +20,7 @@ from rich.theme import Theme
 
 def _detect_unicode_support() -> bool:
     """Detect if terminal supports Unicode.
-    
+
     Returns True for modern terminals (Windows Terminal, most Unix terminals).
     Returns False for legacy cmd.exe or when DEEPR_FORCE_ASCII is set.
     """
@@ -34,7 +34,7 @@ def _detect_unicode_support() -> bool:
         return bool(os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"))
 
     # Unix-like systems generally support Unicode
-    encoding = getattr(sys.stdout, 'encoding', '') or ''
+    encoding = getattr(sys.stdout, "encoding", "") or ""
     return encoding.lower() in ("utf-8", "utf8", "")
 
 
@@ -70,32 +70,35 @@ _UNICODE_SUPPORTED = _detect_unicode_support()
 
 def get_symbol(name: str) -> str:
     """Get the appropriate symbol for the current terminal.
-    
+
     Args:
         name: Symbol name (success, error, warning, info, progress, bullet, etc.)
-        
+
     Returns:
         Unicode symbol or ASCII fallback based on terminal support.
     """
     symbols = UNICODE_SYMBOLS if _UNICODE_SUPPORTED else ASCII_SYMBOLS
     return symbols.get(name, name)
 
+
 # Initialize rich console with custom theme
-custom_theme = Theme({
-    "info": "cyan",
-    "success": "bold green",
-    "warning": "bold yellow",
-    "error": "bold red",
-    "dim": "dim white",
-    "highlight": "bold cyan",
-    "command": "bold magenta",
-    "provider": "bold blue",
-    "cost": "yellow",
-    "status_queued": "dim white",
-    "status_processing": "bold cyan",
-    "status_completed": "bold green",
-    "status_failed": "bold red",
-})
+custom_theme = Theme(
+    {
+        "info": "cyan",
+        "success": "bold green",
+        "warning": "bold yellow",
+        "error": "bold red",
+        "dim": "dim white",
+        "highlight": "bold cyan",
+        "command": "bold magenta",
+        "provider": "bold blue",
+        "cost": "yellow",
+        "status_queued": "dim white",
+        "status_processing": "bold cyan",
+        "status_completed": "bold green",
+        "status_failed": "bold red",
+    }
+)
 
 console = Console(theme=custom_theme)
 
@@ -150,15 +153,17 @@ def print_status(status: str, message: str):
         console.print(f"[status_queued]{message}[/status_queued]")
 
 
-def print_result(message: str, duration_seconds: Optional[float] = None, cost_usd: Optional[float] = None, success: bool = True):
+def print_result(
+    message: str, duration_seconds: Optional[float] = None, cost_usd: Optional[float] = None, success: bool = True
+):
     """Print operation result with optional duration and cost.
-    
+
     Args:
         message: Result message
         duration_seconds: Optional duration in seconds
         cost_usd: Optional cost in USD
         success: Whether operation succeeded (default True)
-        
+
     Example output: Research complete (12.3s, $0.0234)
     """
     color = "success" if success else "error"
@@ -179,10 +184,10 @@ def print_result(message: str, duration_seconds: Optional[float] = None, cost_us
 
 def _format_duration(seconds: float) -> str:
     """Format duration in human-readable form.
-    
+
     Args:
         seconds: Duration in seconds
-        
+
     Returns:
         Formatted string like "12.3s" or "2m 15s"
     """
@@ -195,12 +200,12 @@ def _format_duration(seconds: float) -> str:
 
 def print_step(current: int, total: int, message: str):
     """Print a numbered step indicator.
-    
+
     Args:
         current: Current step number (1-indexed)
         total: Total number of steps
         message: Step description
-        
+
     Example output: Step 1/5 Generating curriculum
     """
     console.print(f"[dim]Step {current}/{total}[/dim] {message}")
@@ -209,22 +214,24 @@ def print_step(current: int, total: int, message: str):
 def print_deprecation(old_cmd: str, new_cmd: str):
     """Print deprecation warning."""
     console.print()
-    console.print(Panel(
-        f"[warning]Command '[command]{old_cmd}[/command]' is deprecated.[/warning]\n"
-        f"[info]Use '[command]{new_cmd}[/command]' instead.[/info]",
-        title="[yellow]Deprecation Warning[/yellow]",
-        border_style="yellow"
-    ))
+    console.print(
+        Panel(
+            f"[warning]Command '[command]{old_cmd}[/command]' is deprecated.[/warning]\n"
+            f"[info]Use '[command]{new_cmd}[/command]' instead.[/info]",
+            title="[yellow]Deprecation Warning[/yellow]",
+            border_style="yellow",
+        )
+    )
     console.print()
 
 
 def truncate_text(text: str, max_width: int = 80) -> str:
     """Truncate text intelligently at word boundaries.
-    
+
     Args:
         text: Text to truncate
         max_width: Maximum width (default 80)
-        
+
     Returns:
         Truncated text with ellipsis if needed
     """
@@ -250,11 +257,11 @@ def truncate_text(text: str, max_width: int = 80) -> str:
 
 def truncate_path(path: str, max_width: int = 60) -> str:
     """Truncate file path preserving filename.
-    
+
     Args:
         path: File path to truncate
         max_width: Maximum width (default 60)
-        
+
     Returns:
         Truncated path with ellipsis if needed
     """
@@ -269,7 +276,7 @@ def truncate_path(path: str, max_width: int = 60) -> str:
 
     if len(filename) >= max_width - 3:
         # Filename itself is too long
-        return ellipsis + filename[-(max_width - 1):]
+        return ellipsis + filename[-(max_width - 1) :]
 
     # Keep first dir and filename, truncate middle
     if len(parts) > 2:
@@ -305,11 +312,7 @@ def print_job_table(jobs: list):
         cost = f"${job.cost:.4f}" if job.cost else "-"
 
         table.add_row(
-            f"[{status_style}]{status}[/{status_style}]",
-            truncate_text(job.id, max_width=14),
-            job.model,
-            prompt,
-            cost
+            f"[{status_style}]{status}[/{status_style}]", truncate_text(job.id, max_width=14), job.model, prompt, cost
         )
 
     console.print(table)
@@ -338,13 +341,15 @@ def create_spinner(text: str):
 def print_provider_info(provider: str, model: str, estimated_cost: float):
     """Print provider configuration info."""
     console.print()
-    console.print(Panel(
-        f"[provider]Provider:[/provider] {provider}\n"
-        f"[dim]Model:[/dim] {model}\n"
-        f"[cost]Estimated cost:[/cost] ${estimated_cost:.2f}",
-        title="[bold]Research Configuration[/bold]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel(
+            f"[provider]Provider:[/provider] {provider}\n"
+            f"[dim]Model:[/dim] {model}\n"
+            f"[cost]Estimated cost:[/cost] ${estimated_cost:.2f}",
+            title="[bold]Research Configuration[/bold]",
+            border_style="blue",
+        )
+    )
     console.print()
 
 
@@ -382,16 +387,16 @@ def style_command(text: str) -> str:
 # Modern section header (replaces === separators)
 def print_section_header(title: str, subtitle: str = None):
     """Print a modern section header (replaces === separators).
-    
+
     Args:
         title: Main section title
         subtitle: Optional subtitle
-        
+
     Example output:
-        
+
         Research Results
         Query: What is the meaning of life?
-        
+
     """
     console.print()
     console.print(f"[bold cyan]{title}[/bold cyan]")
@@ -402,7 +407,7 @@ def print_section_header(title: str, subtitle: str = None):
 
 def print_key_value(key: str, value: str, indent: int = 0):
     """Print a key-value pair with consistent formatting.
-    
+
     Args:
         key: Label/key
         value: Value to display
@@ -414,7 +419,7 @@ def print_key_value(key: str, value: str, indent: int = 0):
 
 def print_list_item(text: str, indent: int = 0):
     """Print a bullet list item.
-    
+
     Args:
         text: Item text
         indent: Indentation level (0 = top level, 1+ = nested)
@@ -519,12 +524,7 @@ def print_report_link(report_path: str, label: Optional[str] = None):
         console.print(f"[dim]Report:[/dim] {display}")
 
 
-def print_truncated(
-    lines: list,
-    max_lines: int = 10,
-    flag_name: str = "--full",
-    show_count: bool = True
-):
+def print_truncated(lines: list, max_lines: int = 10, flag_name: str = "--full", show_count: bool = True):
     """Print lines with truncation and hint to see more.
 
     Args:

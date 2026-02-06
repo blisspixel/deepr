@@ -21,11 +21,12 @@ Usage:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Set, Optional, List, Any
+from typing import Any, Dict, List, Optional, Set
 
 
 class ResearchMode(Enum):
     """Research mode determines tool availability."""
+
     READ_ONLY = "read_only"  # Only read operations
     STANDARD = "standard"  # Normal research operations
     EXTENDED = "extended"  # Includes write operations with confirmation
@@ -34,6 +35,7 @@ class ResearchMode(Enum):
 
 class ToolCategory(Enum):
     """Categories of tools by risk level."""
+
     READ = "read"  # Read-only operations (web search, file read)
     COMPUTE = "compute"  # Computation/analysis (no side effects)
     WRITE = "write"  # Write operations (file write, API calls)
@@ -44,6 +46,7 @@ class ToolCategory(Enum):
 @dataclass
 class ToolConfig:
     """Configuration for a tool."""
+
     name: str
     category: ToolCategory
     description: str = ""
@@ -90,7 +93,6 @@ class ToolAllowlist:
             category=ToolCategory.READ,
             description="Search Semantic Scholar",
         ),
-
         # Compute tools
         "summarize": ToolConfig(
             name="summarize",
@@ -107,7 +109,6 @@ class ToolAllowlist:
             category=ToolCategory.COMPUTE,
             description="Extract structured data",
         ),
-
         # Write tools
         "file_write": ToolConfig(
             name="file_write",
@@ -123,7 +124,6 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
-
         # Execute tools
         "code_execute": ToolConfig(
             name="code_execute",
@@ -139,7 +139,6 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY, ResearchMode.STANDARD},
         ),
-
         # Sensitive tools
         "credential_access": ToolConfig(
             name="credential_access",
@@ -333,10 +332,7 @@ class ToolAllowlist:
             List of allowed tool names
         """
         mode = mode or self.mode
-        return [
-            name for name in self._tools.keys()
-            if self.is_allowed(name, mode)
-        ]
+        return [name for name in self._tools.keys() if self.is_allowed(name, mode)]
 
     def get_blocked_tools(
         self,
@@ -351,10 +347,7 @@ class ToolAllowlist:
             List of blocked tool names
         """
         mode = mode or self.mode
-        return [
-            name for name in self._tools.keys()
-            if not self.is_allowed(name, mode)
-        ]
+        return [name for name in self._tools.keys() if not self.is_allowed(name, mode)]
 
     def get_tools_requiring_confirmation(
         self,
@@ -370,8 +363,7 @@ class ToolAllowlist:
         """
         mode = mode or self.mode
         return [
-            name for name in self._tools.keys()
-            if self.is_allowed(name, mode) and self.require_confirmation(name, mode)
+            name for name in self._tools.keys() if self.is_allowed(name, mode) and self.require_confirmation(name, mode)
         ]
 
     def validate_tool_call(
@@ -436,13 +428,12 @@ class ToolAllowlist:
             "allowed_tools": len(self.get_allowed_tools(mode)),
             "blocked_tools": len(self.get_blocked_tools(mode)),
             "requiring_confirmation": len(self.get_tools_requiring_confirmation(mode)),
-            "category_rules": {
-                cat.value: rule for cat, rule in rules.items()
-            },
+            "category_rules": {cat.value: rule for cat, rule in rules.items()},
         }
 
 
 # Convenience functions
+
 
 def is_tool_allowed(tool_name: str, mode: str = "standard") -> bool:
     """Check if a tool is allowed in the given mode.

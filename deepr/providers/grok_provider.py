@@ -7,17 +7,17 @@ Grok uses chat completions API (OpenAI-compatible) with:
 """
 
 import os
-import asyncio
-import openai
-from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+import openai
 
 from .base import (
     DeepResearchProvider,
+    ProviderError,
     ResearchRequest,
     ResearchResponse,
     UsageStats,
-    ProviderError,
 )
 
 
@@ -53,7 +53,7 @@ class GrokProvider(DeepResearchProvider):
             base_url=base_url,
             timeout=timeout,
         )
-        
+
         # Store timeout for xAI SDK client
         self.timeout = timeout
 
@@ -74,6 +74,7 @@ class GrokProvider(DeepResearchProvider):
 
         # Pricing (per million tokens) -- grok-4-fast from registry, rest local
         from .registry import get_token_pricing
+
         _grok_fast = get_token_pricing("grok-4-fast")
         self.pricing = {
             "grok-4": {"input": 3.00, "output": 15.00},
@@ -107,7 +108,7 @@ class GrokProvider(DeepResearchProvider):
             "status": "processing",
             "request": request,
             "created_at": datetime.now(timezone.utc),
-            "model": self.get_model_name(request.model)
+            "model": self.get_model_name(request.model),
         }
 
         # Execute research immediately
@@ -126,12 +127,10 @@ class GrokProvider(DeepResearchProvider):
             messages = [
                 {
                     "role": "system",
-                    "content": request.system_message or "You are Grok, a highly intelligent research assistant. Provide comprehensive, well-reasoned analysis with citations."
+                    "content": request.system_message
+                    or "You are Grok, a highly intelligent research assistant. Provide comprehensive, well-reasoned analysis with citations.",
                 },
-                {
-                    "role": "user",
-                    "content": request.prompt
-                }
+                {"role": "user", "content": request.prompt},
             ]
 
             # Build tools list (if enabled)
@@ -162,24 +161,30 @@ class GrokProvider(DeepResearchProvider):
                 usage.prompt_tokens,
                 usage.completion_tokens,
                 model,
-                getattr(usage.completion_tokens_details, "reasoning_tokens", 0) if hasattr(usage, "completion_tokens_details") else 0
+                getattr(usage.completion_tokens_details, "reasoning_tokens", 0)
+                if hasattr(usage, "completion_tokens_details")
+                else 0,
             )
 
             # Store completion
-            self.jobs[job_id].update({
-                "status": "completed",
-                "content": content,
-                "usage": usage,
-                "cost": cost,
-                "completed_at": datetime.now(timezone.utc),
-            })
+            self.jobs[job_id].update(
+                {
+                    "status": "completed",
+                    "content": content,
+                    "usage": usage,
+                    "cost": cost,
+                    "completed_at": datetime.now(timezone.utc),
+                }
+            )
 
         except openai.OpenAIError as e:
-            self.jobs[job_id].update({
-                "status": "failed",
-                "error": str(e),
-                "completed_at": datetime.now(timezone.utc),
-            })
+            self.jobs[job_id].update(
+                {
+                    "status": "failed",
+                    "error": str(e),
+                    "completed_at": datetime.now(timezone.utc),
+                }
+            )
             # Don't raise - store error in job status instead
             # This matches the behavior expected for immediate-completion providers
 
@@ -205,17 +210,7 @@ class GrokProvider(DeepResearchProvider):
             usage_data = job_data.get("usage")
 
             # Format output in standardized structure
-            output = [
-                {
-                    "type": "message",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": content
-                        }
-                    ]
-                }
-            ]
+            output = [{"type": "message", "content": [{"type": "output_text", "text": content}]}]
 
             # Create usage stats
             usage = None
@@ -224,7 +219,7 @@ class GrokProvider(DeepResearchProvider):
                     input_tokens=usage_data.prompt_tokens,
                     output_tokens=usage_data.completion_tokens,
                     total_tokens=usage_data.total_tokens,
-                    cost=job_data.get("cost", 0.0)
+                    cost=job_data.get("cost", 0.0),
                 )
 
             return ResearchResponse(
@@ -253,11 +248,7 @@ class GrokProvider(DeepResearchProvider):
         return False
 
     def _calculate_cost(
-        self,
-        prompt_tokens: int,
-        completion_tokens: int,
-        model: str,
-        reasoning_tokens: int = 0
+        self, prompt_tokens: int, completion_tokens: int, model: str, reasoning_tokens: int = 0
     ) -> float:
         """Calculate cost for Grok models including reasoning tokens."""
         # Get pricing for model

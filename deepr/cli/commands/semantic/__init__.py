@@ -12,18 +12,41 @@ Command mapping:
 All flags from the underlying commands are supported.
 """
 
-from deepr.cli.commands.semantic.research import research, learn, team, check, detect_research_mode
-from deepr.cli.commands.semantic.artifacts import make, agentic
+from deepr.cli.commands.semantic.artifacts import agentic, make
 from deepr.cli.commands.semantic.experts import (
-    expert, make_expert, list_experts, expert_info, delete_expert,
-    learn_expert, resume_expert_learning, export_expert, import_expert,
-    fill_gaps, refresh_expert, chat_with_expert,
+    chat_with_expert,
+    delete_expert,
+    expert,
+    expert_info,
+    export_expert,
+    fill_gaps,
+    import_expert,
+    learn_expert,
+    list_experts,
+    make_expert,
+    refresh_expert,
+    resume_expert_learning,
 )
+from deepr.cli.commands.semantic.research import check, detect_research_mode, learn, research, team
 
 __all__ = [
-    "research", "learn", "team", "check", "detect_research_mode",
-    "make", "agentic",
-    "expert", "make_expert", "list_experts", "expert_info", "delete_expert",
-    "learn_expert", "resume_expert_learning", "export_expert", "import_expert",
-    "fill_gaps", "refresh_expert", "chat_with_expert",
+    "research",
+    "learn",
+    "team",
+    "check",
+    "detect_research_mode",
+    "make",
+    "agentic",
+    "expert",
+    "make_expert",
+    "list_experts",
+    "expert_info",
+    "delete_expert",
+    "learn_expert",
+    "resume_expert_learning",
+    "export_expert",
+    "import_expert",
+    "fill_gaps",
+    "refresh_expert",
+    "chat_with_expert",
 ]

@@ -432,7 +432,7 @@ DEFAULT_EXPERT_SYSTEM_MESSAGE = get_expert_system_message()
 
 # Re-export ExpertStore for backwards compatibility
 # New code should import from profile_store directly
-from deepr.experts.profile_store import ExpertStore, PROFILE_SCHEMA_VERSION
+from deepr.experts.profile_store import PROFILE_SCHEMA_VERSION, ExpertStore
 
 __all__ = [
     "ExpertProfile",

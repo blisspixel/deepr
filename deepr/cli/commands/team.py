@@ -1,12 +1,16 @@
 """Team commands - dynamic dream team research."""
 
-import click
 import asyncio
 from typing import Optional
-from deepr.cli.colors import console, print_section_header, print_success, print_error
+
+import click
+
+from deepr.cli.colors import console, print_section_header, print_success
 
 
-async def run_dream_team(question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str = None):
+async def run_dream_team(
+    question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str = None
+):
     """
     Execute dream team research (async wrapper for new CLI).
 
@@ -18,16 +22,17 @@ async def run_dream_team(question: str, model: str = "o4-mini-deep-research", pe
         perspectives: Number of team perspectives
         provider: Provider to use (defaults to model-based routing)
     """
-    from deepr.services.team_architect import TeamArchitect
+    import os
+    import uuid
+    from datetime import datetime, timezone
+
+    from deepr.config import load_config
     from deepr.providers import create_provider
     from deepr.providers.base import ResearchRequest, ToolConfig
-    from deepr.storage import create_storage
     from deepr.queue import create_queue
-    from deepr.queue.base import ResearchJob, JobStatus
-    from deepr.config import load_config
-    from datetime import datetime, timezone
-    import uuid
-    import os
+    from deepr.queue.base import JobStatus, ResearchJob
+    from deepr.services.team_architect import TeamArchitect
+    from deepr.storage import create_storage
 
     # Load config
     config = load_config()
@@ -61,23 +66,20 @@ async def run_dream_team(question: str, model: str = "o4-mini-deep-research", pe
         team_size=perspectives,
         research_company=None,
         perspective_lens=None,
-        adversarial=False
+        adversarial=False,
     )
 
     click.echo(f"\nTeam assembled with {len(team)} perspectives:")
     for i, member in enumerate(team, 1):
         # Handle Unicode encoding issues on Windows
-        role = member['role'].encode('ascii', 'replace').decode('ascii')
-        focus = member['focus'][:60].encode('ascii', 'replace').decode('ascii')
+        role = member["role"].encode("ascii", "replace").decode("ascii")
+        focus = member["focus"][:60].encode("ascii", "replace").decode("ascii")
         click.echo(f"  {i}. {role}: {focus}...")
 
     # Phase 2: Execute research for each perspective
     provider_instance = create_provider(provider, api_key=api_key)
     queue = create_queue("local")
-    storage = create_storage(
-        config.get("storage", "local"),
-        base_path=config.get("results_dir", "data/reports")
-    )
+    storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "data/reports"))
 
     click.echo(f"\nExecuting research from {len(team)} perspectives...")
     results = []
@@ -86,9 +88,9 @@ async def run_dream_team(question: str, model: str = "o4-mini-deep-research", pe
         # Create research prompt for this perspective
         prompt = f"""Question: {question}
 
-Perspective: {member['role']}
-Focus: {member['focus']}
-Rationale: {member['rationale']}
+Perspective: {member["role"]}
+Focus: {member["focus"]}
+Rationale: {member["rationale"]}
 
 Provide your analysis from this perspective."""
 
@@ -104,12 +106,12 @@ Provide your analysis from this perspective."""
             submitted_at=datetime.now(timezone.utc),
             started_at=datetime.now(timezone.utc),
             enable_web_search=True,
-            metadata={"team_role": member['role'], "question": question}
+            metadata={"team_role": member["role"], "question": question},
         )
         await queue.enqueue(job)
 
         # Handle Unicode encoding issues on Windows
-        role = member['role'].encode('ascii', 'replace').decode('ascii')
+        role = member["role"].encode("ascii", "replace").decode("ascii")
         click.echo(f"\n[{i}/{len(team)}] {role}...")
 
         # Submit to provider
@@ -131,6 +133,7 @@ Provide your analysis from this perspective."""
 
             # For async providers, poll until complete
             import asyncio
+
             max_wait = 600  # 10 minutes max
             waited = 0
             while response.status in ["queued", "in_progress"] and waited < max_wait:
@@ -143,10 +146,10 @@ Provide your analysis from this perspective."""
                 content = ""
                 if response.output:
                     for block in response.output:
-                        if block.get('type') == 'message':
-                            for item in block.get('content', []):
-                                if item.get('type') in ['output_text', 'text']:
-                                    text = item.get('text', '')
+                        if block.get("type") == "message":
+                            for item in block.get("content", []):
+                                if item.get("type") in ["output_text", "text"]:
+                                    text = item.get("text", "")
                                     if text:
                                         content += text + "\n"
 
@@ -154,31 +157,22 @@ Provide your analysis from this perspective."""
                 report_metadata = await storage.save_report(
                     job_id=job_id,
                     filename="report.md",
-                    content=content.encode('utf-8'),
+                    content=content.encode("utf-8"),
                     content_type="text/markdown",
                     metadata={
                         "prompt": prompt,
                         "model": model,
-                        "team_role": member['role'],
+                        "team_role": member["role"],
                         "question": question,
-                    }
+                    },
                 )
 
                 # Update queue
                 await queue.update_status(job_id, JobStatus.COMPLETED)
                 cost = response.usage.cost if response.usage else 0.0
-                await queue.update_results(
-                    job_id,
-                    report_paths={"markdown": report_metadata.url},
-                    cost=cost
-                )
+                await queue.update_results(job_id, report_paths={"markdown": report_metadata.url}, cost=cost)
 
-                results.append({
-                    "job_id": job_id,
-                    "role": member['role'],
-                    "content": content,
-                    "cost": cost
-                })
+                results.append({"job_id": job_id, "role": member["role"], "content": content, "cost": cost})
 
                 console.print(f"  [success]Completed[/success] [dim](${cost:.4f})[/dim]")
 
@@ -191,7 +185,7 @@ Provide your analysis from this perspective."""
             await queue.update_status(job_id, JobStatus.FAILED, error=str(e))
             console.print(f"  [error]Error: {e}[/error]")
 
-    total_cost = sum(r.get('cost', 0) for r in results)
+    total_cost = sum(r.get("cost", 0) for r in results)
     print_success("Team research completed!")
     click.echo(f"  Perspectives analyzed: {len(results)}/{len(team)}")
     click.echo(f"  Total cost: ${total_cost:.4f}")
@@ -207,22 +201,36 @@ def team():
 
 @team.command()
 @click.argument("question")
-@click.option("--team-size", "-n", default=5, type=click.IntRange(3, 8),
-              help="Number of team members (3-8)")
-@click.option("--context", "-c", default=None,
-              help="Additional context for research")
-@click.option("--company", default=None,
-              help="Company name to research for grounded personas (e.g., 'Anthropic', 'OpenAI')")
-@click.option("--perspective", "-p", default=None,
-              help="Cultural/demographic perspective lens (e.g., 'Japanese business culture', 'Jewish perspective', 'Gen Z', 'Rural American')")
-@click.option("--adversarial", is_flag=True,
-              help="Weight team toward skeptical/devil's advocate perspectives")
-@click.option("--model", "-m", default="o4-mini-deep-research",
-              type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
-              help="Deep research model for execution")
-@click.option("--yes", "-y", is_flag=True,
-              help="Skip confirmation and execute immediately")
-def analyze(question: str, team_size: int, context: Optional[str], company: Optional[str], perspective: Optional[str], adversarial: bool, model: str, yes: bool):
+@click.option("--team-size", "-n", default=5, type=click.IntRange(3, 8), help="Number of team members (3-8)")
+@click.option("--context", "-c", default=None, help="Additional context for research")
+@click.option(
+    "--company", default=None, help="Company name to research for grounded personas (e.g., 'Anthropic', 'OpenAI')"
+)
+@click.option(
+    "--perspective",
+    "-p",
+    default=None,
+    help="Cultural/demographic perspective lens (e.g., 'Japanese business culture', 'Jewish perspective', 'Gen Z', 'Rural American')",
+)
+@click.option("--adversarial", is_flag=True, help="Weight team toward skeptical/devil's advocate perspectives")
+@click.option(
+    "--model",
+    "-m",
+    default="o4-mini-deep-research",
+    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
+    help="Deep research model for execution",
+)
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation and execute immediately")
+def analyze(
+    question: str,
+    team_size: int,
+    context: Optional[str],
+    company: Optional[str],
+    perspective: Optional[str],
+    adversarial: bool,
+    model: str,
+    yes: bool,
+):
     """
     Dynamically assemble optimal research team for your question.
 
@@ -249,17 +257,17 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
     if perspective:
         click.echo(f"Perspective lens: {perspective}")
     if adversarial:
-        click.echo(f"Mode: Adversarial (weighted toward skeptical/devil's advocate perspectives)")
+        click.echo("Mode: Adversarial (weighted toward skeptical/devil's advocate perspectives)")
     click.echo(f"Team size: {team_size} members")
     click.echo(f"Model: {model}\n")
 
     try:
         import json
+        from datetime import datetime, timezone
         from pathlib import Path
-        from datetime import datetime
-        from deepr.services.team_architect import TeamArchitect, TeamSynthesizer
-        from deepr.services.research_planner import ResearchPlanner
+
         from deepr.services.batch_executor import BatchExecutor
+        from deepr.services.team_architect import TeamArchitect, TeamSynthesizer
         from deepr.storage.local import LocalStorage
 
         # Phase 1: GPT-5 designs optimal team for THIS question
@@ -275,7 +283,7 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
             team_size=team_size,
             research_company=company,
             perspective_lens=perspective,
-            adversarial=adversarial
+            adversarial=adversarial,
         )
 
         click.echo(f"Assembled {len(team)}-person dream team:\n")
@@ -291,23 +299,22 @@ def analyze(question: str, team_size: int, context: Optional[str], company: Opti
         # Phase 2: Create research tasks for each team member
         click.echo("\n[Phase 2] Creating research tasks for each team member...\n")
 
-        planner = ResearchPlanner(model="gpt-5")
         tasks = []
 
         for i, member in enumerate(team, 1):
             # Build role-specific research prompt
-            role_prompt = f"""You are: {member['role']}
-Your perspective: {member['perspective']}
-Your focus: {member['focus']}
+            role_prompt = f"""You are: {member["role"]}
+Your perspective: {member["perspective"]}
+Your focus: {member["focus"]}
 
 Question: {question}
 
-{f'Context: {context}' if context else ''}
+{f"Context: {context}" if context else ""}
 
-Research this question from YOUR perspective as a {member['role']}.
-Focus specifically on: {member['focus']}
+Research this question from YOUR perspective as a {member["role"]}.
+Focus specifically on: {member["focus"]}
 
-Provide analysis and insights from your unique perspective. Don't try to cover everything - stay in your lane as {member['role']}."""
+Provide analysis and insights from your unique perspective. Don't try to cover everything - stay in your lane as {member["role"]}."""
 
             task = {
                 "id": i,
@@ -315,7 +322,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
                 "prompt": role_prompt,
                 "type": "analysis",
                 "team_member": member,
-                "model": model
+                "model": model,
             }
             tasks.append(task)
 
@@ -331,17 +338,17 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
             "team": team,
             "tasks": tasks,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "status": "ready"
+            "status": "ready",
         }
 
-        with open(plan_path, 'w') as f:
+        with open(plan_path, "w") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Team research plan saved to {plan_path}")
 
         # Phase 3: Execute research with role context
         click.echo("\n[Phase 3] Team members conducting research...\n")
-        click.echo(f"Each member will research independently from their perspective.")
+        click.echo("Each member will research independently from their perspective.")
         click.echo(f"This will take ~{len(tasks) * 5}-{len(tasks) * 15} minutes.\n")
 
         # Execute asynchronously
@@ -350,9 +357,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
 
         async def run_research():
             results = await executor.execute_batch(
-                tasks=tasks,
-                campaign_id=f"team-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
-                storage=storage
+                tasks=tasks, campaign_id=f"team-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}", storage=storage
             )
             return results
 
@@ -361,7 +366,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         # Update plan with results
         plan_data["results"] = results
         plan_data["status"] = "researched"
-        with open(plan_path, 'w') as f:
+        with open(plan_path, "w") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Research complete! {len(results)} team members finished.")
@@ -370,14 +375,11 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         click.echo("\n[Phase 4] Lead Researcher synthesizing team perspectives...\n")
 
         synthesizer = TeamSynthesizer(model="gpt-5")
-        report = synthesizer.synthesize_with_conflict_analysis(
-            question=question,
-            team_results=results
-        )
+        report = synthesizer.synthesize_with_conflict_analysis(question=question, team_results=results)
 
         # Save report
         report_path = Path(".deepr") / "team_research_report.md"
-        with open(report_path, 'w') as f:
+        with open(report_path, "w") as f:
             f.write(report)
 
         click.echo(report)
@@ -390,6 +392,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
     except Exception as e:
         click.echo(f"\n[ERROR] {e}", err=True)
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -397,8 +400,8 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
 @team.command()
 def status():
     """Show status of current team research."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     plan_path = Path(".deepr") / "team_research_plan.json"
 
@@ -413,7 +416,7 @@ def status():
     click.echo(f"Status: {plan['status']}")
     click.echo(f"Team size: {len(plan['team'])}")
 
-    if plan['status'] == 'researched':
-        results = plan.get('results', [])
-        completed = sum(1 for r in results if r.get('status') == 'completed')
+    if plan["status"] == "researched":
+        results = plan.get("results", [])
+        completed = sum(1 for r in results if r.get("status") == "completed")
         click.echo(f"Progress: {completed}/{len(results)} completed")

@@ -1,8 +1,8 @@
 """Security utilities for Deepr."""
 
+import ipaddress
 import re
 import socket
-import ipaddress
 from pathlib import Path
 from typing import Union
 from urllib.parse import urlparse
@@ -10,25 +10,29 @@ from urllib.parse import urlparse
 
 class SecurityError(Exception):
     """Base exception for security violations."""
+
     pass
 
 
 class PathTraversalError(SecurityError):
     """Raised when path traversal is detected."""
+
     pass
 
 
 class SSRFError(SecurityError):
     """Raised when SSRF (Server-Side Request Forgery) is detected."""
+
     pass
 
 
 class InvalidInputError(SecurityError):
     """Raised when input validation fails."""
+
     pass
 
 
-def sanitize_name(name: str, allowed_chars: str = r'a-zA-Z0-9_-') -> str:
+def sanitize_name(name: str, allowed_chars: str = r"a-zA-Z0-9_-") -> str:
     """
     Sanitize a name by removing dangerous characters.
 
@@ -45,14 +49,14 @@ def sanitize_name(name: str, allowed_chars: str = r'a-zA-Z0-9_-') -> str:
         >>> sanitize_name("../../etc/passwd")
         '______etc_passwd'
     """
-    pattern = f'[^{allowed_chars}]'
-    sanitized = re.sub(pattern, '_', name)
+    pattern = f"[^{allowed_chars}]"
+    sanitized = re.sub(pattern, "_", name)
 
     # Remove leading/trailing underscores
-    sanitized = sanitized.strip('_')
+    sanitized = sanitized.strip("_")
 
     # Collapse multiple underscores
-    sanitized = re.sub(r'_+', '_', sanitized)
+    sanitized = re.sub(r"_+", "_", sanitized)
 
     # Ensure not empty
     if not sanitized:
@@ -62,10 +66,7 @@ def sanitize_name(name: str, allowed_chars: str = r'a-zA-Z0-9_-') -> str:
 
 
 def validate_path(
-    user_path: Union[str, Path],
-    base_dir: Union[str, Path],
-    must_exist: bool = False,
-    allow_create: bool = True
+    user_path: Union[str, Path], base_dir: Union[str, Path], must_exist: bool = False, allow_create: bool = True
 ) -> Path:
     """
     Validate that a user-provided path is safe and within allowed directory.
@@ -106,9 +107,7 @@ def validate_path(
     try:
         resolved.relative_to(base)
     except ValueError:
-        raise PathTraversalError(
-            f"Path '{user_path}' attempts to escape base directory '{base}'"
-        )
+        raise PathTraversalError(f"Path '{user_path}' attempts to escape base directory '{base}'")
 
     # Check existence requirements
     if must_exist and not resolved.exists():
@@ -172,7 +171,7 @@ def is_safe_url(url: str, allow_private: bool = False) -> bool:
         parsed = urlparse(url)
 
         # Only allow HTTP(S)
-        if parsed.scheme not in ['http', 'https']:
+        if parsed.scheme not in ["http", "https"]:
             return False
 
         # Check for hostname
@@ -250,17 +249,12 @@ def validate_file_size(file_path: Union[str, Path], max_size_mb: int = 100) -> P
     size_mb = path.stat().st_size / (1024 * 1024)
 
     if size_mb > max_size_mb:
-        raise InvalidInputError(
-            f"File size ({size_mb:.2f} MB) exceeds limit ({max_size_mb} MB): {path}"
-        )
+        raise InvalidInputError(f"File size ({size_mb:.2f} MB) exceeds limit ({max_size_mb} MB): {path}")
 
     return path
 
 
-def validate_file_extension(
-    file_path: Union[str, Path],
-    allowed_extensions: list[str]
-) -> Path:
+def validate_file_extension(file_path: Union[str, Path], allowed_extensions: list[str]) -> Path:
     """
     Validate file extension is in allowed list.
 
@@ -283,9 +277,7 @@ def validate_file_extension(
     ext = path.suffix.lower()
 
     if ext not in [e.lower() for e in allowed_extensions]:
-        raise InvalidInputError(
-            f"File extension '{ext}' not allowed. Allowed: {allowed_extensions}"
-        )
+        raise InvalidInputError(f"File extension '{ext}' not allowed. Allowed: {allowed_extensions}")
 
     return path
 
@@ -310,9 +302,7 @@ def validate_prompt_length(prompt: str, max_length: int = 50000) -> str:
         >>> validate_prompt_length("x" * 100000)  # Raises InvalidInputError
     """
     if len(prompt) > max_length:
-        raise InvalidInputError(
-            f"Prompt length ({len(prompt)}) exceeds limit ({max_length})"
-        )
+        raise InvalidInputError(f"Prompt length ({len(prompt)}) exceeds limit ({max_length})")
 
     return prompt
 
@@ -340,18 +330,16 @@ def validate_api_key(api_key: str, provider: str) -> str:
 
     # Provider-specific validation
     patterns = {
-        'openai': r'^sk-(proj-)?[A-Za-z0-9_-]{20,}$',
-        'anthropic': r'^sk-ant-[A-Za-z0-9_-]{20,}$',
-        'gemini': r'^[A-Za-z0-9_-]{20,}$',
-        'xai': r'^xai-[A-Za-z0-9_-]{20,}$',
-        'azure': r'^[A-Za-z0-9]{32,}$',  # Azure keys are typically 32 chars
+        "openai": r"^sk-(proj-)?[A-Za-z0-9_-]{20,}$",
+        "anthropic": r"^sk-ant-[A-Za-z0-9_-]{20,}$",
+        "gemini": r"^[A-Za-z0-9_-]{20,}$",
+        "xai": r"^xai-[A-Za-z0-9_-]{20,}$",
+        "azure": r"^[A-Za-z0-9]{32,}$",  # Azure keys are typically 32 chars
     }
 
     pattern = patterns.get(provider.lower())
     if pattern and not re.match(pattern, api_key):
-        raise InvalidInputError(
-            f"API key for {provider} does not match expected format"
-        )
+        raise InvalidInputError(f"API key for {provider} does not match expected format")
 
     return api_key
 
@@ -372,11 +360,11 @@ def sanitize_log_message(message: str) -> str:
     """
     # Patterns for sensitive data
     patterns = [
-        (r'(api[_-]?key["\']?\s*[:=]\s*["\']?)([A-Za-z0-9_-]+)', r'\1[REDACTED]'),
-        (r'(password["\']?\s*[:=]\s*["\']?)([^\s"\']+)', r'\1[REDACTED]'),
-        (r'(token["\']?\s*[:=]\s*["\']?)([A-Za-z0-9_.-]+)', r'\1[REDACTED]'),
-        (r'(sk-[a-z]+-[A-Za-z0-9_-]+)', r'[REDACTED]'),  # OpenAI keys
-        (r'(xai-[A-Za-z0-9_-]+)', r'[REDACTED]'),  # xAI keys
+        (r'(api[_-]?key["\']?\s*[:=]\s*["\']?)([A-Za-z0-9_-]+)', r"\1[REDACTED]"),
+        (r'(password["\']?\s*[:=]\s*["\']?)([^\s"\']+)', r"\1[REDACTED]"),
+        (r'(token["\']?\s*[:=]\s*["\']?)([A-Za-z0-9_.-]+)', r"\1[REDACTED]"),
+        (r"(sk-[a-z]+-[A-Za-z0-9_-]+)", r"[REDACTED]"),  # OpenAI keys
+        (r"(xai-[A-Za-z0-9_-]+)", r"[REDACTED]"),  # xAI keys
     ]
 
     sanitized = message

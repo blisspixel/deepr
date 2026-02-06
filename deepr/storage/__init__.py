@@ -1,10 +1,11 @@
 """Storage abstraction for multiple backends (local, Azure Blob)."""
 
 from typing import Literal
-from .base import StorageBackend, ReportMetadata
-from .local import LocalStorage
+
+from .base import ReportMetadata, StorageBackend
 from .blob import AzureBlobStorage
 from .findings_store import FindingsStore, StoredFinding
+from .local import LocalStorage
 
 StorageType = Literal["local", "blob"]
 

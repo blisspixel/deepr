@@ -8,18 +8,15 @@ The output is a consultant-grade strategic overview suitable for M&A, competitiv
 intelligence, strategic planning, and due diligence.
 """
 
-import asyncio
-import tempfile
-import os
-from typing import Optional, Dict, Any
-from pathlib import Path
-from datetime import datetime
 import logging
+import os
+import tempfile
+from datetime import datetime
+from typing import Any, Dict, Optional
 
-from deepr.utils.scrape import scrape_for_company_research, ScrapeConfig
-from deepr.core.research import ResearchOrchestrator
-from deepr.core.jobs import JobStatus
 from deepr.config import load_config
+from deepr.core.research import ResearchOrchestrator
+from deepr.utils.scrape import ScrapeConfig, scrape_for_company_research
 
 logger = logging.getLogger(__name__)
 
@@ -76,36 +73,34 @@ class CompanyResearchOrchestrator:
         # Configure scraping for company research
         scrape_config = ScrapeConfig(
             max_pages=25,  # More pages for comprehensive company research
-            max_depth=3,   # Deeper crawl to get product/services pages
+            max_depth=3,  # Deeper crawl to get product/services pages
             try_selenium=True,  # Use Selenium for dynamic content
             try_pdf=True,  # Capture PDF documents (annual reports, etc.)
         )
 
         # Execute scraping
         scrape_results = await self._scrape_company_website(
-            company_url=website,
-            company_name=company_name,
-            config=scrape_config
+            company_url=website, company_name=company_name, config=scrape_config
         )
 
-        if not scrape_results['success']:
+        if not scrape_results["success"]:
             return {
-                'success': False,
-                'error': f"Scraping failed: {scrape_results.get('error', 'Unknown error')}",
-                'message': "Could not scrape company website. Try again or check URL."
+                "success": False,
+                "error": f"Scraping failed: {scrape_results.get('error', 'Unknown error')}",
+                "message": "Could not scrape company website. Try again or check URL.",
             }
 
-        logger.info("Scraped %d pages successfully", scrape_results['pages_scraped'])
-        logger.info("Content saved to: %s", scrape_results['scraped_file'])
+        logger.info("Scraped %d pages successfully", scrape_results["pages_scraped"])
+        logger.info("Content saved to: %s", scrape_results["scraped_file"])
 
         # If scrape-only mode, return here
         if scrape_only:
             return {
-                'success': True,
-                'scraped_file': scrape_results['scraped_file'],
-                'pages_scraped': scrape_results['pages_scraped'],
-                'status': 'scrape_complete',
-                'message': f"Scraping complete. {scrape_results['pages_scraped']} pages captured."
+                "success": True,
+                "scraped_file": scrape_results["scraped_file"],
+                "pages_scraped": scrape_results["pages_scraped"],
+                "status": "scrape_complete",
+                "message": f"Scraping complete. {scrape_results['pages_scraped']} pages captured.",
             }
 
         # Phase 2: Deep Research
@@ -129,20 +124,20 @@ class CompanyResearchOrchestrator:
             prompt=research_prompt,
             model=model,
             provider=provider,
-            uploaded_files=[scrape_results['scraped_file']],
+            uploaded_files=[scrape_results["scraped_file"]],
             budget_limit=budget_limit,
             skip_confirmation=skip_confirmation,
         )
 
-        if not job_result.get('success'):
+        if not job_result.get("success"):
             return {
-                'success': False,
-                'error': job_result.get('error', 'Research submission failed'),
-                'scraped_file': scrape_results['scraped_file'],
-                'pages_scraped': scrape_results['pages_scraped'],
+                "success": False,
+                "error": job_result.get("error", "Research submission failed"),
+                "scraped_file": scrape_results["scraped_file"],
+                "pages_scraped": scrape_results["pages_scraped"],
             }
 
-        job_id = job_result['job_id']
+        job_id = job_result["job_id"]
 
         logger.info("Research job submitted: %s", job_id)
         logger.info("This will take 5-20 minutes depending on model and depth.")
@@ -152,19 +147,16 @@ class CompanyResearchOrchestrator:
         logger.info("  deepr jobs get %s", job_id)
 
         return {
-            'success': True,
-            'job_id': job_id,
-            'scraped_file': scrape_results['scraped_file'],
-            'pages_scraped': scrape_results['pages_scraped'],
-            'status': 'research_submitted',
-            'message': f"Research job submitted: {job_id}. Check status with 'deepr jobs status {job_id}'"
+            "success": True,
+            "job_id": job_id,
+            "scraped_file": scrape_results["scraped_file"],
+            "pages_scraped": scrape_results["pages_scraped"],
+            "status": "research_submitted",
+            "message": f"Research job submitted: {job_id}. Check status with 'deepr jobs status {job_id}'",
         }
 
     async def _scrape_company_website(
-        self,
-        company_url: str,
-        company_name: str,
-        config: ScrapeConfig
+        self, company_url: str, company_name: str, config: ScrapeConfig
     ) -> Dict[str, Any]:
         """Scrape company website and save to temporary file.
 
@@ -178,26 +170,22 @@ class CompanyResearchOrchestrator:
         """
         try:
             # Use deepr's scraping infrastructure
-            results = scrape_for_company_research(
-                company_url=company_url,
-                company_name=company_name,
-                config=config
-            )
+            results = scrape_for_company_research(company_url=company_url, company_name=company_name, config=config)
 
-            if not results['success']:
+            if not results["success"]:
                 return {
-                    'success': False,
-                    'error': results.get('error', 'Scraping failed'),
+                    "success": False,
+                    "error": results.get("error", "Scraping failed"),
                 }
 
             # Save scraped content to temporary file for upload
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             temp_file = tempfile.NamedTemporaryFile(
-                mode='w',
-                suffix='.md',
-                prefix=f'company_scrape_{company_name.replace(" ", "_")}_{timestamp}_',
+                mode="w",
+                suffix=".md",
+                prefix=f"company_scrape_{company_name.replace(' ', '_')}_{timestamp}_",
                 delete=False,
-                encoding='utf-8'
+                encoding="utf-8",
             )
 
             # Write scraped content
@@ -208,14 +196,14 @@ class CompanyResearchOrchestrator:
             temp_file.write("---\n\n")
 
             # Write synthesis if available
-            if results.get('synthesis'):
+            if results.get("synthesis"):
                 temp_file.write("## Synthesis\n\n")
-                temp_file.write(results['synthesis'])
+                temp_file.write(results["synthesis"])
                 temp_file.write("\n\n---\n\n")
 
             # Write individual page contents
             temp_file.write("## Scraped Pages\n\n")
-            for url, content in results.get('scraped_data', {}).items():
+            for url, content in results.get("scraped_data", {}).items():
                 temp_file.write(f"### Source: {url}\n\n")
                 temp_file.write(content)
                 temp_file.write("\n\n---\n\n")
@@ -223,15 +211,15 @@ class CompanyResearchOrchestrator:
             temp_file.close()
 
             return {
-                'success': True,
-                'scraped_file': temp_file.name,
-                'pages_scraped': results['pages_scraped'],
+                "success": True,
+                "scraped_file": temp_file.name,
+                "pages_scraped": results["pages_scraped"],
             }
 
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e),
+                "success": False,
+                "error": str(e),
             }
 
     def _build_research_prompt(self, company_name: str, website: str) -> str:

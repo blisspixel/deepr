@@ -1,11 +1,12 @@
 """Cost analytics API routes."""
 
 import logging
-from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 
-from ...core.costs import CostEstimator, CostController
+from flask import Blueprint, jsonify, request
+
 from ...config import load_config
+from ...core.costs import CostController, CostEstimator
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +77,13 @@ def get_trends():
         today = datetime.now()
         for i in range(days):
             date = today - timedelta(days=days - i - 1)
-            trends["daily"].append({
-                "date": date.strftime("%Y-%m-%d"),
-                "cost": 0,
-                "jobs": 0,
-            })
+            trends["daily"].append(
+                {
+                    "date": date.strftime("%Y-%m-%d"),
+                    "cost": 0,
+                    "jobs": 0,
+                }
+            )
 
         return jsonify({"trends": trends, "days": days}), 200
 
@@ -157,11 +160,13 @@ def estimate_cost():
         cost_controller = get_cost_controller()
         allowed, reason = cost_controller.check_job_limit(estimate.expected_cost)
 
-        return jsonify({
-            "estimate": estimate.to_dict(),
-            "allowed": allowed,
-            "reason": reason if not allowed else None,
-        }), 200
+        return jsonify(
+            {
+                "estimate": estimate.to_dict(),
+                "allowed": allowed,
+                "reason": reason if not allowed else None,
+            }
+        ), 200
 
     except Exception as e:
         logger.exception("Error estimating cost: %s", e)

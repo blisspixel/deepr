@@ -1,4 +1,5 @@
 """Simple status check for expert research jobs."""
+
 import asyncio
 import sys
 from pathlib import Path
@@ -15,7 +16,7 @@ async def check_status(expert_name: str):
     expert = store.load(expert_name)
 
     if not expert or not expert.research_jobs:
-        print(f"No expert or research jobs found")
+        print("No expert or research jobs found")
         return
 
     print(f"Expert: {expert_name}")

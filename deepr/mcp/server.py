@@ -33,47 +33,48 @@ Resources:
 - deepr://experts/{id}/beliefs - Expert beliefs
 - deepr://experts/{id}/gaps - Knowledge gaps
 """
-import os
-import sys
+
 import asyncio
 import json
 import logging
+import os
+import sys
 import time
 import uuid
-from typing import Any, Dict, List, Optional
-from pathlib import Path
+from dataclasses import dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from pathlib import Path
+from typing import Dict, List, Optional
 
+from deepr.config import load_config
+from deepr.core.documents import DocumentManager
 from deepr.core.errors import DeeprError
-from deepr.experts.profile import ExpertProfile, ExpertStore
+from deepr.core.reports import ReportGenerator
+from deepr.core.research import ResearchOrchestrator
 from deepr.experts.chat import ExpertChatSession
+from deepr.experts.profile import ExpertStore
+from deepr.mcp.search.gateway import GatewayTool
+from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
+from deepr.mcp.security import SSRFProtector
+from deepr.mcp.security.instruction_signing import InstructionSigner
+from deepr.mcp.security.output_verification import OutputVerifier
+from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
+from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
+from deepr.mcp.state.job_manager import JobPhase
+from deepr.mcp.state.resource_handler import get_resource_handler
+from deepr.mcp.state.task_durability import TaskDurabilityManager
+from deepr.mcp.transport.stdio import StdioServer
 from deepr.providers import create_provider
 from deepr.storage import create_storage
-from deepr.core.research import ResearchOrchestrator
-from deepr.core.documents import DocumentManager
-from deepr.core.reports import ReportGenerator
-from deepr.config import load_config
-
-from deepr.mcp.transport.stdio import StdioServer, Message
-from deepr.mcp.state.resource_handler import MCPResourceHandler, get_resource_handler
-from deepr.mcp.state.job_manager import JobManager, JobPhase
-from deepr.mcp.state.task_durability import TaskDurabilityManager, TaskStatus, DurableTask
-from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
-from deepr.mcp.search.registry import ToolRegistry, ToolSchema, create_default_registry
-from deepr.mcp.search.gateway import GatewayTool
-from deepr.mcp.security import SSRFProtector
-from deepr.mcp.security.instruction_signing import InstructionSigner, SignedInstruction
-from deepr.mcp.security.output_verification import OutputVerifier
-from deepr.mcp.security.tool_allowlist import ToolAllowlist, ResearchMode
 
 # Prompt primitives (template menus for MCP clients)
 try:
-    from skills.deepr_research_prompts import list_prompts, get_prompt  # type: ignore
+    from skills.deepr_research_prompts import get_prompt, list_prompts  # type: ignore
 except ImportError:
     # Fallback: load prompts module from skills directory without sys.path manipulation
     try:
         import importlib.util
+
         _prompts_path = Path(__file__).parent.parent.parent / "skills" / "deepr-research" / "prompts.py"
         _spec = importlib.util.spec_from_file_location("deepr_prompts", _prompts_path)
         _mod = importlib.util.module_from_spec(_spec)
@@ -82,8 +83,10 @@ except ImportError:
         get_prompt = _mod.get_prompt
     except (ImportError, FileNotFoundError, AttributeError, OSError) as e:
         logging.getLogger(__name__).debug("Could not load prompts module: %s", e)
+
         def list_prompts():
             return []
+
         def get_prompt(name, arguments):
             return {"error": "Prompts module not available"}
 
@@ -93,19 +96,18 @@ logger = logging.getLogger("deepr.mcp")
 _log_handler = logging.StreamHandler(sys.stderr)
 _log_format = os.environ.get("DEEPR_LOG_FORMAT", "text")
 if _log_format == "json":
-    _log_handler.setFormatter(logging.Formatter(
-        '{"ts":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}'
-    ))
+    _log_handler.setFormatter(
+        logging.Formatter('{"ts":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}')
+    )
 else:
-    _log_handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s [%(name)s] %(message)s"
-    ))
+    _log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
 logger.addHandler(_log_handler)
 logger.setLevel(getattr(logging, os.environ.get("DEEPR_LOG_LEVEL", "INFO").upper(), logging.INFO))
 
 
 # Server version and start time for health checks
 from deepr import __version__ as SERVER_VERSION
+
 _server_start_time: float = 0.0
 
 
@@ -115,6 +117,7 @@ class ToolError:
 
     Agents can parse these fields to decide on retry/fallback strategies.
     """
+
     error_code: str
     message: str
     retry_hint: Optional[str] = None
@@ -171,9 +174,7 @@ class DeeprMCPServer:
         # Security: SSRF protection for outbound requests
         allowed_domains_env = os.environ.get("DEEPR_ALLOWED_DOMAINS", "")
         allowed_domains = (
-            [d.strip() for d in allowed_domains_env.split(",") if d.strip()]
-            if allowed_domains_env
-            else None
+            [d.strip() for d in allowed_domains_env.split(",") if d.strip()] if allowed_domains_env else None
         )
         self.ssrf_protector = SSRFProtector(
             allowed_domains=allowed_domains,
@@ -207,6 +208,7 @@ class DeeprMCPServer:
         """Health check returning server version, uptime, active jobs, and cost summary."""
         try:
             from deepr.experts.cost_safety import get_cost_safety_manager
+
             cost_safety = get_cost_safety_manager()
             spending = cost_safety.get_spending_summary()
         except (ImportError, KeyError, ValueError):
@@ -319,9 +321,7 @@ class DeeprMCPServer:
                 },
                 "created_at": expert.created_at.isoformat() if expert.created_at else None,
                 "last_knowledge_refresh": (
-                    expert.last_knowledge_refresh.isoformat()
-                    if expert.last_knowledge_refresh
-                    else None
+                    expert.last_knowledge_refresh.isoformat() if expert.last_knowledge_refresh else None
                 ),
             }
         except (OSError, KeyError, ValueError) as e:
@@ -451,9 +451,7 @@ class DeeprMCPServer:
             doc_manager = DocumentManager()
             report_generator = ReportGenerator()
 
-            orchestrator = ResearchOrchestrator(
-                provider_instance, storage_instance, doc_manager, report_generator
-            )
+            orchestrator = ResearchOrchestrator(provider_instance, storage_instance, doc_manager, report_generator)
 
             job_id = await orchestrator.submit_research(
                 prompt=prompt,
@@ -541,9 +539,7 @@ class DeeprMCPServer:
                         "in_progress": JobPhase.EXECUTING,
                         "queued": JobPhase.QUEUED,
                     }
-                    provider_phase = phase_map.get(
-                        status.get("status", ""), JobPhase.EXECUTING
-                    )
+                    provider_phase = phase_map.get(status.get("status", ""), JobPhase.EXECUTING)
                     await self.resource_handler.jobs.update_phase(
                         job_id,
                         provider_phase,
@@ -610,7 +606,9 @@ class DeeprMCPServer:
 
             # Update JobManager to completed
             await self.resource_handler.jobs.update_phase(
-                job_id, JobPhase.COMPLETED, progress=1.0,
+                job_id,
+                JobPhase.COMPLETED,
+                progress=1.0,
                 cost_so_far=result.get("cost", 0.0),
             )
             self.resource_handler.persist_job(job_id)
@@ -681,7 +679,7 @@ class DeeprMCPServer:
             workflow_id = str(uuid.uuid4())
             trace_id = uuid.uuid4().hex[:16]
 
-            from deepr.experts.cost_safety import get_cost_safety_manager, CostSafetyManager
+            from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
 
             cost_safety = get_cost_safety_manager()
             max_agentic_budget = min(budget, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION)
@@ -713,9 +711,7 @@ class DeeprMCPServer:
             if expert_name:
                 expert = self.store.load(expert_name)
                 if not expert:
-                    return _make_error(
-                        "EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found"
-                    )
+                    return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
             else:
                 return _make_error(
                     "EXPERT_REQUIRED",
@@ -734,18 +730,14 @@ class DeeprMCPServer:
                 estimated_cost=max_agentic_budget,
                 estimated_time="varies",
             )
-            await self.resource_handler.jobs.update_phase(
-                workflow_id, JobPhase.EXECUTING
-            )
+            await self.resource_handler.jobs.update_phase(workflow_id, JobPhase.EXECUTING)
             # Store trace_id in job metadata
             state = self.resource_handler.jobs.get_state(workflow_id)
             if state:
                 state.metadata["trace_id"] = trace_id
             self.resource_handler.persist_job(workflow_id)
 
-            session = ExpertChatSession(
-                expert, budget=max_agentic_budget, agentic=True
-            )
+            session = ExpertChatSession(expert, budget=max_agentic_budget, agentic=True)
 
             agentic_prompt = (
                 f"Research Goal: {goal}\n\n"
@@ -784,9 +776,7 @@ class DeeprMCPServer:
                 "budget_allocated": max_agentic_budget,
                 "daily_spent": spending["daily"]["spent"],
                 "daily_remaining": spending["daily"]["remaining"],
-                "initial_response": (
-                    response[:500] + "..." if len(response) > 500 else response
-                ),
+                "initial_response": (response[:500] + "..." if len(response) > 500 else response),
                 "resource_uris": resource_uris,
                 "message": (
                     f"Agentic workflow started. Use deepr_check_status with "
@@ -870,42 +860,47 @@ class DeeprMCPServer:
 # Tool Registration
 # ------------------------------------------------------------------ #
 
+
 def _register_new_tools(registry: ToolRegistry) -> None:
     """Register the three new tools (status, cancel, tool_search) in the registry."""
-    registry.register(ToolSchema(
-        name="deepr_status",
-        description=(
-            "Health check for the Deepr MCP server. Returns version, uptime, "
-            "active jobs count, daily/monthly cost summary, and available capabilities. "
-            "Use this to verify the server is running and check spending before starting research."
-        ),
-        input_schema={
-            "type": "object",
-            "properties": {},
-        },
-        category="system",
-        cost_tier="free",
-    ))
-
-    registry.register(ToolSchema(
-        name="deepr_cancel_job",
-        description=(
-            "Cancel a running research job. Use when the user wants to stop an "
-            "in-progress research task. Cannot cancel already completed or failed jobs."
-        ),
-        input_schema={
-            "type": "object",
-            "properties": {
-                "job_id": {
-                    "type": "string",
-                    "description": "Job ID from deepr_research or deepr_agentic_research",
-                },
+    registry.register(
+        ToolSchema(
+            name="deepr_status",
+            description=(
+                "Health check for the Deepr MCP server. Returns version, uptime, "
+                "active jobs count, daily/monthly cost summary, and available capabilities. "
+                "Use this to verify the server is running and check spending before starting research."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {},
             },
-            "required": ["job_id"],
-        },
-        category="research",
-        cost_tier="free",
-    ))
+            category="system",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
+            name="deepr_cancel_job",
+            description=(
+                "Cancel a running research job. Use when the user wants to stop an "
+                "in-progress research task. Cannot cancel already completed or failed jobs."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Job ID from deepr_research or deepr_agentic_research",
+                    },
+                },
+                "required": ["job_id"],
+            },
+            category="research",
+            cost_tier="free",
+        )
+    )
 
     # Note: deepr_tool_search is already defined in GatewayTool.SCHEMA
     # but we register it in the registry too so it appears in full tool lists.
@@ -915,6 +910,7 @@ def _register_new_tools(registry: ToolRegistry) -> None:
 # ------------------------------------------------------------------ #
 # MCP Protocol Handlers (JSON-RPC methods)
 # ------------------------------------------------------------------ #
+
 
 def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list:
     """Build the tools list for tools/list response.
@@ -969,13 +965,18 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
     if not validation["allowed"]:
         logger.warning("Tool '%s' blocked by allowlist: %s", name, validation["reason"])
         return {
-            "content": [{"type": "text", "text": json.dumps(
-                _make_error(
-                    "TOOL_BLOCKED",
-                    validation["reason"],
-                    fallback=f"Current research mode: {validation['mode']}",
-                )
-            )}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        _make_error(
+                            "TOOL_BLOCKED",
+                            validation["reason"],
+                            fallback=f"Current research mode: {validation['mode']}",
+                        )
+                    ),
+                }
+            ],
             "isError": True,
         }
 
@@ -1030,9 +1031,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
     handler = tool_dispatch.get(name)
     if not handler:
         return {
-            "content": [{"type": "text", "text": json.dumps(
-                _make_error("TOOL_NOT_FOUND", f"Unknown tool: {name}")
-            )}],
+            "content": [{"type": "text", "text": json.dumps(_make_error("TOOL_NOT_FOUND", f"Unknown tool: {name}"))}],
             "isError": True,
         }
 
@@ -1050,8 +1049,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
             },
         )
         logger.debug(
-            "Recorded output for tool '%s': id=%s, hash=%s",
-            name, verified_output.id, verified_output.content_hash[:16]
+            "Recorded output for tool '%s': id=%s, hash=%s", name, verified_output.id, verified_output.content_hash[:16]
         )
 
         text = json.dumps(result, default=str)
@@ -1070,9 +1068,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
     except Exception as e:
         logger.exception(f"Tool {name} failed")
         return {
-            "content": [{"type": "text", "text": json.dumps(
-                _make_error("TOOL_EXECUTION_FAILED", str(e))
-            )}],
+            "content": [{"type": "text", "text": json.dumps(_make_error("TOOL_EXECUTION_FAILED", str(e)))}],
             "isError": True,
         }
 
@@ -1080,10 +1076,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
 async def _handle_resources_list(server: DeeprMCPServer, params: dict) -> dict:
     """Handle resources/list."""
     uris = server.resource_handler.list_resources()
-    resources = [
-        {"uri": uri, "name": uri.split("/")[-1], "mimeType": "application/json"}
-        for uri in uris
-    ]
+    resources = [{"uri": uri, "name": uri.split("/")[-1], "mimeType": "application/json"} for uri in uris]
     return {"resources": resources}
 
 
@@ -1094,19 +1087,23 @@ async def _handle_resources_read(server: DeeprMCPServer, params: dict) -> dict:
 
     if response.success:
         return {
-            "contents": [{
-                "uri": uri,
-                "mimeType": "application/json",
-                "text": json.dumps(response.data, default=str),
-            }]
+            "contents": [
+                {
+                    "uri": uri,
+                    "mimeType": "application/json",
+                    "text": json.dumps(response.data, default=str),
+                }
+            ]
         }
 
     return {
-        "contents": [{
-            "uri": uri,
-            "mimeType": "application/json",
-            "text": json.dumps({"error": response.error}),
-        }]
+        "contents": [
+            {
+                "uri": uri,
+                "mimeType": "application/json",
+                "text": json.dumps({"error": response.error}),
+            }
+        ]
     }
 
 
@@ -1157,6 +1154,7 @@ _LEGACY_METHOD_MAP = {
 # Server Entry Point
 # ------------------------------------------------------------------ #
 
+
 async def run_stdio_server():
     """Run MCP server using StdioServer for proper JSON-RPC dispatch."""
     global _server_start_time
@@ -1206,10 +1204,10 @@ async def run_stdio_server():
 
     # Register legacy method names for backward compatibility
     for legacy_name, new_name in _LEGACY_METHOD_MAP.items():
+
         async def _make_legacy(params, tool_name=new_name):
-            return await _handle_tools_call(
-                deepr_server, {"name": tool_name, "arguments": params}
-            )
+            return await _handle_tools_call(deepr_server, {"name": tool_name, "arguments": params})
+
         stdio.register_method(legacy_name, _make_legacy)
 
     logger.info("Deepr MCP Server v%s started (stdio transport)", SERVER_VERSION)

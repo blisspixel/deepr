@@ -1,16 +1,15 @@
 """Document management and vector store operations."""
 
-from typing import List
 from pathlib import Path
+from typing import List
+
 from ..providers.base import DeepResearchProvider, VectorStore
 
 
 class DocumentManager:
     """Manages document uploads and vector store operations."""
 
-    async def upload_documents(
-        self, file_paths: List[str], provider: DeepResearchProvider
-    ) -> List[str]:
+    async def upload_documents(self, file_paths: List[str], provider: DeepResearchProvider) -> List[str]:
         """
         Upload multiple documents to the provider.
 
@@ -40,9 +39,7 @@ class DocumentManager:
 
         return file_ids
 
-    async def create_vector_store(
-        self, name: str, file_ids: List[str], provider: DeepResearchProvider
-    ) -> VectorStore:
+    async def create_vector_store(self, name: str, file_ids: List[str], provider: DeepResearchProvider) -> VectorStore:
         """
         Create a vector store with the given files.
 

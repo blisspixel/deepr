@@ -15,31 +15,29 @@ Instrumented with distributed tracing for observability (4.2 Auto-Generated Meta
 import json
 import logging
 import uuid
-from typing import Optional, List, Dict, Any
 from pathlib import Path
-from ..providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
-from ..storage.base import StorageBackend
+from typing import Any, Dict, List, Optional
+
 from ..formatting.converters import ReportConverter
+
+# Observability infrastructure
+from ..observability.metadata import MetadataEmitter
+from ..observability.temporal_tracker import FindingType, TemporalKnowledgeTracker
+from ..providers.base import DeepResearchProvider, ResearchRequest, ToolConfig
+
+# Cost estimates sourced from the model registry (single source of truth).
+# get_cost_estimate() looks up cost_per_query from providers/registry.py.
+from ..providers.registry import MODEL_CAPABILITIES, get_cost_estimate
+from ..services.context_chainer import ContextChainer
+from ..storage.base import StorageBackend
 from ..utils.prompt_security import PromptSanitizer
 from .documents import DocumentManager
 from .reports import ReportGenerator
 
-# Observability infrastructure
-from ..observability.metadata import MetadataEmitter
-from ..observability.temporal_tracker import TemporalKnowledgeTracker, FindingType
-from ..services.context_chainer import ContextChainer
-
-# Cost estimates sourced from the model registry (single source of truth).
-# get_cost_estimate() looks up cost_per_query from providers/registry.py.
-from ..providers.registry import get_cost_estimate, MODEL_CAPABILITIES
-
 DEFAULT_COST_ESTIMATE = 0.20  # Fallback for unknown models
 
 # Derived from registry for backward compatibility (used by tests).
-MODEL_COST_ESTIMATES = {
-    cap.model: cap.cost_per_query
-    for cap in MODEL_CAPABILITIES.values()
-}
+MODEL_COST_ESTIMATES = {cap.model: cap.cost_per_query for cap in MODEL_CAPABILITIES.values()}
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +165,7 @@ class ResearchOrchestrator:
         """
         # Start observability span for research submission
         with self._emitter.operation(
-            "research_submit",
-            prompt=prompt[:500],
-            attributes={"model": model, "cost_sensitive": cost_sensitive}
+            "research_submit", prompt=prompt[:500], attributes={"model": model, "cost_sensitive": cost_sensitive}
         ) as op:
             # SECURITY: Sanitize prompt before any processing
             if not skip_sanitization:
@@ -178,7 +174,9 @@ class ResearchOrchestrator:
 
                 # Block high-risk prompts entirely
                 if sanitization_result.risk_level == "high":
-                    op.add_event("prompt_blocked", {"risk_level": "high", "patterns": sanitization_result.patterns_detected})
+                    op.add_event(
+                        "prompt_blocked", {"risk_level": "high", "patterns": sanitization_result.patterns_detected}
+                    )
                     raise ValueError(
                         f"Prompt blocked due to high-risk patterns detected: "
                         f"{', '.join(sanitization_result.patterns_detected)}. "
@@ -208,7 +206,7 @@ class ResearchOrchestrator:
                 session_id=tracking_session_id,
                 operation_type="research_submit",
                 estimated_cost=estimated_cost,
-                require_confirmation=False  # CLI/API handles confirmation
+                require_confirmation=False,  # CLI/API handles confirmation
             )
 
             if not allowed:
@@ -218,9 +216,7 @@ class ResearchOrchestrator:
             # Check against explicit budget limit if provided
             if budget_limit is not None and estimated_cost > budget_limit:
                 op.add_event("budget_exceeded", {"limit": budget_limit, "estimated": estimated_cost})
-                raise ValueError(
-                    f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}"
-                )
+                raise ValueError(f"Estimated cost ${estimated_cost:.2f} exceeds budget limit ${budget_limit:.2f}")
 
             op.add_event("budget_validated", {"estimated_cost": estimated_cost})
 
@@ -312,7 +308,7 @@ class ResearchOrchestrator:
                 session_id=tracking_session_id,
                 operation_type="research_submit",
                 actual_cost=estimated_cost,
-                details=f"Job {response_id}: {prompt[:50]}..."
+                details=f"Job {response_id}: {prompt[:50]}...",
             )
 
             # Set final cost on span
@@ -322,11 +318,7 @@ class ResearchOrchestrator:
 
     def _enhance_prompt(self, prompt: str, has_documents: bool) -> str:
         """Enhance prompt with citation instructions."""
-        prefix = (
-            "Use ONLY the attached document(s) as source material. "
-            if has_documents
-            else ""
-        )
+        prefix = "Use ONLY the attached document(s) as source material. " if has_documents else ""
 
         citation_instruction = (
             "Do NOT include inline citations, links, footnotes, bracketed numbers, "
@@ -346,9 +338,7 @@ class ResearchOrchestrator:
 
         # Add file search if documents provided
         if vector_store_id:
-            tools.append(
-                ToolConfig(type="file_search", vector_store_ids=[vector_store_id])
-            )
+            tools.append(ToolConfig(type="file_search", vector_store_ids=[vector_store_id]))
 
         # Add web search
         if enable_web_search:
@@ -356,9 +346,7 @@ class ResearchOrchestrator:
 
         # Add code interpreter
         if enable_code_interpreter:
-            tools.append(
-                ToolConfig(type="code_interpreter", container={"type": "auto"})
-            )
+            tools.append(ToolConfig(type="code_interpreter", container={"type": "auto"}))
 
         return tools
 
@@ -381,8 +369,7 @@ class ResearchOrchestrator:
         """
         # Start observability span for completion processing
         with self._emitter.operation(
-            "research_completion",
-            attributes={"job_id": job_id, "append_references": append_references}
+            "research_completion", attributes={"job_id": job_id, "append_references": append_references}
         ) as op:
             # Get job results from provider
             op.add_event("fetch_status_start")
@@ -411,13 +398,16 @@ class ResearchOrchestrator:
                 structured = self._context_chainer.structure_phase_output(
                     raw_output=raw_text,
                     phase=1,  # Single-phase research
-                    tracker=tracker
+                    tracker=tracker,
                 )
-                op.add_event("temporal_findings_extracted", {
-                    "finding_count": len(structured.key_findings),
-                    "entity_count": len(structured.entities),
-                    "open_questions": len(structured.open_questions)
-                })
+                op.add_event(
+                    "temporal_findings_extracted",
+                    {
+                        "finding_count": len(structured.key_findings),
+                        "entity_count": len(structured.entities),
+                        "open_questions": len(structured.open_questions),
+                    },
+                )
                 self._emitter.set_temporal_tracker(tracker)
 
             # Extract metadata for title generation
@@ -485,10 +475,7 @@ class ResearchOrchestrator:
         Returns:
             True if cancellation was successful
         """
-        with self._emitter.operation(
-            "research_cancel",
-            attributes={"job_id": job_id}
-        ) as op:
+        with self._emitter.operation("research_cancel", attributes={"job_id": job_id}) as op:
             success = await self.provider.cancel_job(job_id)
             op.set_attribute("cancel_success", success)
 
@@ -612,7 +599,7 @@ class ResearchOrchestrator:
         for phase_num in range(1, current_phase):
             phase_findings = tracker.get_timeline(phase=phase_num)
             if phase_findings:
-                from ..services.context_chainer import StructuredPhaseOutput, ExtractedFinding
+                from ..services.context_chainer import ExtractedFinding, StructuredPhaseOutput
 
                 # Convert temporal findings to structured output
                 key_findings = [
@@ -633,7 +620,9 @@ class ResearchOrchestrator:
                     entities=[],  # Could extract from metadata
                     open_questions=[],
                     contradictions=[],
-                    confidence_avg=sum(f.confidence for f in phase_findings) / len(phase_findings) if phase_findings else 0.5,
+                    confidence_avg=sum(f.confidence for f in phase_findings) / len(phase_findings)
+                    if phase_findings
+                    else 0.5,
                 )
                 prior_phases.append(structured)
 

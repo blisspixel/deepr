@@ -25,17 +25,17 @@ Usage:
     )
 """
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
-import hashlib
+from typing import Any, Dict, List, Optional
 
-from deepr.observability.temporal_tracker import (
-    TemporalKnowledgeTracker,
-    FindingType,
-)
 from deepr.core.constants import MAX_CONTEXT_TOKENS
+from deepr.observability.temporal_tracker import (
+    FindingType,
+    TemporalKnowledgeTracker,
+)
 
 
 def _utc_now() -> datetime:
@@ -46,6 +46,7 @@ def _utc_now() -> datetime:
 @dataclass
 class ExtractedFinding:
     """A finding extracted from raw output."""
+
     text: str
     confidence: float
     finding_type: FindingType
@@ -65,6 +66,7 @@ class ExtractedFinding:
 @dataclass
 class StructuredPhaseOutput:
     """Structured output from a research phase."""
+
     phase: int
     key_findings: List[ExtractedFinding]
     summary: str
@@ -146,10 +148,7 @@ class ContextChainer:
         summary = self._generate_summary(raw_output, findings)
 
         # Calculate average confidence
-        conf_avg = (
-            sum(f.confidence for f in findings) / len(findings)
-            if findings else 0.5
-        )
+        conf_avg = sum(f.confidence for f in findings) / len(findings) if findings else 0.5
 
         # Record findings in tracker if provided
         if tracker:
@@ -317,13 +316,15 @@ class ContextChainer:
             source = self._extract_source(para)
 
             if importance >= self.importance_threshold:
-                findings.append(ExtractedFinding(
-                    text=para[:500],  # Truncate long paragraphs
-                    confidence=confidence,
-                    finding_type=finding_type,
-                    source=source,
-                    importance=importance,
-                ))
+                findings.append(
+                    ExtractedFinding(
+                        text=para[:500],  # Truncate long paragraphs
+                        confidence=confidence,
+                        finding_type=finding_type,
+                        source=source,
+                        importance=importance,
+                    )
+                )
 
         # Sort by importance and return top findings
         findings.sort(key=lambda f: f.importance, reverse=True)
@@ -341,13 +342,19 @@ class ContextChainer:
         entities = set()
 
         # Find capitalized phrases
-        pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b'
+        pattern = r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b"
         matches = re.findall(pattern, text)
 
         for match in matches:
             if len(match) > 3 and match.lower() not in {
-                'the', 'this', 'that', 'these', 'those',
-                'however', 'therefore', 'furthermore',
+                "the",
+                "this",
+                "that",
+                "these",
+                "those",
+                "however",
+                "therefore",
+                "furthermore",
             }:
                 entities.add(match)
 
@@ -365,7 +372,7 @@ class ContextChainer:
         questions = []
 
         # Find sentences ending with ?
-        pattern = r'([^.!?]*\?)'
+        pattern = r"([^.!?]*\?)"
         matches = re.findall(pattern, text)
 
         for match in matches:
@@ -375,10 +382,10 @@ class ContextChainer:
 
         # Also look for phrases indicating uncertainty
         uncertainty_patterns = [
-            r'(remains unclear[^.]*\.)',
-            r'(further research[^.]*\.)',
-            r'(unknown whether[^.]*\.)',
-            r'(needs investigation[^.]*\.)',
+            r"(remains unclear[^.]*\.)",
+            r"(further research[^.]*\.)",
+            r"(unknown whether[^.]*\.)",
+            r"(needs investigation[^.]*\.)",
         ]
 
         for pattern in uncertainty_patterns:
@@ -400,11 +407,11 @@ class ContextChainer:
 
         # Look for contradiction indicators
         indicators = [
-            (r'however[^.]*contradicts[^.]*\.', 'Direct contradiction'),
-            (r'in contrast[^.]*\.', 'Contrasting view'),
-            (r'on the other hand[^.]*\.', 'Alternative perspective'),
-            (r'contrary to[^.]*\.', 'Contrary finding'),
-            (r'despite[^.]*evidence[^.]*\.', 'Evidence conflict'),
+            (r"however[^.]*contradicts[^.]*\.", "Direct contradiction"),
+            (r"in contrast[^.]*\.", "Contrasting view"),
+            (r"on the other hand[^.]*\.", "Alternative perspective"),
+            (r"contrary to[^.]*\.", "Contrary finding"),
+            (r"despite[^.]*evidence[^.]*\.", "Evidence conflict"),
         ]
 
         for pattern, label in indicators:
@@ -451,17 +458,17 @@ class ContextChainer:
         """
         text_lower = text.lower()
 
-        if any(w in text_lower for w in ['data shows', 'study found', 'research indicates']):
+        if any(w in text_lower for w in ["data shows", "study found", "research indicates"]):
             return FindingType.FACT
-        elif any(w in text_lower for w in ['observed', 'noted', 'seen']):
+        elif any(w in text_lower for w in ["observed", "noted", "seen"]):
             return FindingType.OBSERVATION
-        elif any(w in text_lower for w in ['suggests', 'implies', 'indicates']):
+        elif any(w in text_lower for w in ["suggests", "implies", "indicates"]):
             return FindingType.INFERENCE
-        elif any(w in text_lower for w in ['hypothesis', 'theory', 'possibly']):
+        elif any(w in text_lower for w in ["hypothesis", "theory", "possibly"]):
             return FindingType.HYPOTHESIS
-        elif any(w in text_lower for w in ['contradicts', 'conflicts', 'however']):
+        elif any(w in text_lower for w in ["contradicts", "conflicts", "however"]):
             return FindingType.CONTRADICTION
-        elif any(w in text_lower for w in ['confirms', 'supports', 'validates']):
+        elif any(w in text_lower for w in ["confirms", "supports", "validates"]):
             return FindingType.CONFIRMATION
         else:
             return FindingType.OBSERVATION
@@ -478,17 +485,17 @@ class ContextChainer:
         text_lower = text.lower()
 
         # High confidence indicators
-        high_conf = ['definitely', 'certainly', 'proven', 'established', 'confirmed']
+        high_conf = ["definitely", "certainly", "proven", "established", "confirmed"]
         if any(w in text_lower for w in high_conf):
             return 0.9
 
         # Low confidence indicators
-        low_conf = ['might', 'possibly', 'uncertain', 'unclear', 'maybe']
+        low_conf = ["might", "possibly", "uncertain", "unclear", "maybe"]
         if any(w in text_lower for w in low_conf):
             return 0.3
 
         # Medium indicators
-        medium_conf = ['likely', 'probably', 'suggests', 'appears']
+        medium_conf = ["likely", "probably", "suggests", "appears"]
         if any(w in text_lower for w in medium_conf):
             return 0.6
 
@@ -510,15 +517,15 @@ class ContextChainer:
             score += 0.1
 
         # Boost for citations/sources
-        if any(w in text.lower() for w in ['according to', 'study', 'research']):
+        if any(w in text.lower() for w in ["according to", "study", "research"]):
             score += 0.15
 
         # Boost for novel findings
-        if any(w in text.lower() for w in ['first', 'novel', 'new', 'discovered']):
+        if any(w in text.lower() for w in ["first", "novel", "new", "discovered"]):
             score += 0.2
 
         # Penalty for hedging
-        if any(w in text.lower() for w in ['might', 'possibly', 'perhaps']):
+        if any(w in text.lower() for w in ["might", "possibly", "perhaps"]):
             score -= 0.1
 
         return min(1.0, max(0.0, score))
@@ -539,7 +546,7 @@ class ContextChainer:
             return urls[0]
 
         # Look for citations
-        cite_pattern = r'\(([^)]+(?:19|20)\d{2}[^)]*)\)'
+        cite_pattern = r"\(([^)]+(?:19|20)\d{2}[^)]*)\)"
         cites = re.findall(cite_pattern, text)
         if cites:
             return cites[0]

@@ -7,10 +7,11 @@ diverse team with relevant expertise.
 No static personas. Each question gets a custom dream team.
 """
 
-import os
 import json
 import logging
-from typing import List, Dict, Any, Optional
+import os
+from typing import Any, Dict, List, Optional
+
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class TeamArchitect:
         team_size: int = 5,
         research_company: Optional[str] = None,
         perspective_lens: Optional[str] = None,
-        adversarial: bool = False
+        adversarial: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Design optimal research team for this question.
@@ -86,21 +87,20 @@ class TeamArchitect:
         if research_company:
             company_intel = self._research_company_people(research_company)
 
-        prompt = self._build_team_design_prompt(question, context, team_size, company_intel, perspective_lens, adversarial)
+        prompt = self._build_team_design_prompt(
+            question, context, team_size, company_intel, perspective_lens, adversarial
+        )
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a research team architect. Design optimal teams with diverse perspectives."
+                    "content": "You are a research team architect. Design optimal teams with diverse perspectives.",
                 },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
+                {"role": "user", "content": prompt},
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         result = json.loads(response.choices[0].message.content)
@@ -158,14 +158,11 @@ Only include people you find with actual research. If unable to find information
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a research analyst. Find factual information about company leadership."
+                        "content": "You are a research analyst. Find factual information about company leadership.",
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
 
             return json.loads(response.choices[0].message.content)
@@ -180,24 +177,23 @@ Only include people you find with actual research. If unable to find information
         team_size: int,
         company_intel: Optional[Dict[str, Any]] = None,
         perspective_lens: Optional[str] = None,
-        adversarial: bool = False
+        adversarial: bool = False,
     ) -> str:
         """Build prompt for GPT-5 to design team."""
 
-        parts = [
-            "# Research Question",
-            f"\n{question}\n"
-        ]
+        parts = ["# Research Question", f"\n{question}\n"]
 
         if context:
             parts.append(f"\n## Context\n{context}\n")
 
         if perspective_lens:
-            parts.append(f"\n## Perspective Lens\n")
-            parts.append(f"**IMPORTANT:** All team members must analyze this question through the lens of: **{perspective_lens}**\n\n")
-            parts.append(f"This means:\n")
-            parts.append(f"- Team members should represent or understand this perspective deeply\n")
-            parts.append(f"- Research focus should consider cultural context, values, and priorities of this group\n")
+            parts.append("\n## Perspective Lens\n")
+            parts.append(
+                f"**IMPORTANT:** All team members must analyze this question through the lens of: **{perspective_lens}**\n\n"
+            )
+            parts.append("This means:\n")
+            parts.append("- Team members should represent or understand this perspective deeply\n")
+            parts.append("- Research focus should consider cultural context, values, and priorities of this group\n")
             parts.append(f"- Analysis should reflect how {perspective_lens} would approach this question\n\n")
 
         if company_intel:
@@ -219,7 +215,9 @@ Only include people you find with actual research. If unable to find information
             if company_intel.get("summary"):
                 parts.append(f"**Summary:** {company_intel['summary']}\n\n")
 
-            parts.append("**IMPORTANT:** Create personas grounded in these actual people's backgrounds and expertise. Don't use their exact names, but use their real experience to inform persona design.\n\n")
+            parts.append(
+                "**IMPORTANT:** Create personas grounded in these actual people's backgrounds and expertise. Don't use their exact names, but use their real experience to inform persona design.\n\n"
+            )
 
         if adversarial:
             parts.append("\n## ADVERSARIAL MODE\n")
@@ -234,13 +232,13 @@ Design the optimal {team_size}-person research team for THIS specific question.
 
 **Requirements:**
 
-1. **Diverse perspectives**{' - WEIGHTED TOWARD SKEPTICAL in adversarial mode' if adversarial else ' - Not all optimistic, not all skeptical'}
+1. **Diverse perspectives**{" - WEIGHTED TOWARD SKEPTICAL in adversarial mode" if adversarial else " - Not all optimistic, not all skeptical"}
    - Include data-driven perspectives (objective facts)
-   {'' if adversarial else '- Include optimistic perspectives (opportunities, upside)'}
-   - Include skeptical perspectives (risks, problems, reality check){' - MAJORITY' if adversarial else ''}
+   {"" if adversarial else "- Include optimistic perspectives (opportunities, upside)"}
+   - Include skeptical perspectives (risks, problems, reality check){" - MAJORITY" if adversarial else ""}
    - Include customer/user perspectives (real-world experience)
-   {'' if adversarial else '- Include creative perspectives (unconventional angles)'}
-   {'- Include adversarial perspectives (challenge core assumptions, find fatal flaws)' if adversarial else ''}
+   {"" if adversarial else "- Include creative perspectives (unconventional angles)"}
+   {"- Include adversarial perspectives (challenge core assumptions, find fatal flaws)" if adversarial else ""}
 
 2. **Relevant expertise** - Specific to this question, not generic
    - Bad: "Data Analyst" (too generic)
@@ -315,11 +313,7 @@ class TeamSynthesizer:
         self.client = OpenAI(api_key=self.api_key)
         self.model = model
 
-    def synthesize_with_conflict_analysis(
-        self,
-        question: str,
-        team_results: List[Dict[str, Any]]
-    ) -> str:
+    def synthesize_with_conflict_analysis(self, question: str, team_results: List[Dict[str, Any]]) -> str:
         """
         Synthesize team findings with attribution.
 
@@ -337,29 +331,18 @@ class TeamSynthesizer:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are the Lead Researcher synthesizing diverse team perspectives. Show your work. Make conflicts explicit. Attribute findings to team members."
+                    "content": "You are the Lead Researcher synthesizing diverse team perspectives. Show your work. Make conflicts explicit. Attribute findings to team members.",
                 },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+                {"role": "user", "content": prompt},
+            ],
         )
 
         return response.choices[0].message.content
 
-    def _build_synthesis_prompt(
-        self,
-        question: str,
-        team_results: List[Dict[str, Any]]
-    ) -> str:
+    def _build_synthesis_prompt(self, question: str, team_results: List[Dict[str, Any]]) -> str:
         """Build synthesis prompt."""
 
-        parts = [
-            "# Research Question",
-            f"\n{question}\n",
-            "\n## Team Findings\n"
-        ]
+        parts = ["# Research Question", f"\n{question}\n", "\n## Team Findings\n"]
 
         for result in team_results:
             member = result.get("team_member", {})

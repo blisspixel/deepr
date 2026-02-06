@@ -1,6 +1,7 @@
 """Tool registry for default tools."""
 
-from typing import List, Optional
+from typing import List
+
 from .base import Tool, ToolExecutor
 from .web_search import WebSearchTool
 
@@ -49,8 +50,5 @@ class ToolRegistry:
         Returns:
             Configured ToolExecutor
         """
-        tools = ToolRegistry.get_default_tools(
-            web_search=web_search,
-            backend=backend
-        )
+        tools = ToolRegistry.get_default_tools(web_search=web_search, backend=backend)
         return ToolExecutor(tools=tools)
