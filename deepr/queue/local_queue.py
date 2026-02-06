@@ -1,13 +1,14 @@
 """SQLite-based queue for local development."""
 
-import sqlite3
-import json
 import asyncio
+import json
 import logging
-from typing import Optional, List, Dict, Any, TypeVar
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from .base import QueueBackend, ResearchJob, JobStatus, QueueError
+from typing import Any, Dict, List, Optional, TypeVar
+
+from .base import JobStatus, QueueBackend, ResearchJob
 
 logger = logging.getLogger(__name__)
 
@@ -215,14 +216,17 @@ class SQLiteQueue(QueueBackend):
         job_id = row["id"]
 
         # Claim the job (atomic update)
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE research_queue
             SET status = 'processing',
                 worker_id = ?,
                 started_at = ?,
                 attempts = attempts + 1
             WHERE id = ? AND status = 'queued'
-        """, (worker_id, datetime.now(timezone.utc).isoformat(), job_id))
+        """,
+            (worker_id, datetime.now(timezone.utc).isoformat(), job_id),
+        )
 
         if cursor.rowcount == 0:
             # Job was claimed by another worker
@@ -277,9 +281,7 @@ class SQLiteQueue(QueueBackend):
         provider_job_id: Optional[str] = None,
     ) -> bool:
         """Update job status."""
-        return await asyncio.to_thread(
-            self._update_status_sync, job_id, status, error, provider_job_id
-        )
+        return await asyncio.to_thread(self._update_status_sync, job_id, status, error, provider_job_id)
 
     def _update_status_sync(
         self, job_id: str, status: JobStatus, error: Optional[str], provider_job_id: Optional[str]
@@ -305,9 +307,7 @@ class SQLiteQueue(QueueBackend):
 
         values.append(job_id)
 
-        cursor.execute(
-            f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ?", values
-        )
+        cursor.execute(f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ?", values)
 
         success = cursor.rowcount > 0
         conn.commit()
@@ -323,9 +323,7 @@ class SQLiteQueue(QueueBackend):
         tokens_used: Optional[int] = None,
     ) -> bool:
         """Update job results."""
-        return await asyncio.to_thread(
-            self._update_results_sync, job_id, report_paths, cost, tokens_used
-        )
+        return await asyncio.to_thread(self._update_results_sync, job_id, report_paths, cost, tokens_used)
 
     def _update_results_sync(
         self, job_id: str, report_paths: Dict[str, str], cost: Optional[float], tokens_used: Optional[int]
@@ -334,11 +332,14 @@ class SQLiteQueue(QueueBackend):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE research_queue
             SET report_paths = ?, cost = ?, tokens_used = ?
             WHERE id = ?
-        """, (json.dumps(report_paths), cost, tokens_used, job_id))
+        """,
+            (json.dumps(report_paths), cost, tokens_used, job_id),
+        )
 
         success = cursor.rowcount > 0
         conn.commit()
@@ -354,9 +355,7 @@ class SQLiteQueue(QueueBackend):
         offset: int = 0,
     ) -> List[ResearchJob]:
         """List jobs with filtering."""
-        return await asyncio.to_thread(
-            self._list_jobs_sync, status, tenant_id, limit, offset
-        )
+        return await asyncio.to_thread(self._list_jobs_sync, status, tenant_id, limit, offset)
 
     def _list_jobs_sync(
         self, status: Optional[JobStatus], tenant_id: Optional[str], limit: int, offset: int
@@ -433,11 +432,14 @@ class SQLiteQueue(QueueBackend):
 
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             DELETE FROM research_queue
             WHERE status IN ('completed', 'failed', 'cancelled')
             AND completed_at < ?
-        """, (cutoff,))
+        """,
+            (cutoff,),
+        )
 
         deleted = cursor.rowcount
         conn.commit()

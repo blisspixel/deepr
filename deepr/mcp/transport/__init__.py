@@ -15,14 +15,14 @@ Security Considerations:
 - HttpTransport: Requires TLS in production, network exposure
 """
 
-from .stdio import StdioTransport, StdioServer, Message, TransportStats
 from .http import (
-    StreamingHttpTransport,
-    HttpTransport,
     HttpClient,
     HttpMessage,
+    HttpTransport,
     HttpTransportStats,
+    StreamingHttpTransport,
 )
+from .stdio import Message, StdioServer, StdioTransport, TransportStats
 
 __all__ = [
     # Stdio (local, preferred)

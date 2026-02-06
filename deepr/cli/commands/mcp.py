@@ -1,7 +1,8 @@
 """MCP (Model Context Protocol) server commands."""
-import click
+
 import sys
-import os
+
+import click
 
 
 @click.group()
@@ -63,8 +64,8 @@ def test():
 
     Sends test requests to verify the server works correctly.
     """
-    import json
     import asyncio
+
     from deepr.mcp.server import DeeprMCPServer
 
     async def run_tests():
@@ -96,13 +97,8 @@ def test():
                 click.echo(f"   Error: {info['error']}")
 
             # Test 3: Query expert
-            click.echo(f"\n3. Testing query_expert...")
-            result = await server.query_expert(
-                expert_name,
-                "What is your domain expertise?",
-                budget=0.0,
-                agentic=False
-            )
+            click.echo("\n3. Testing query_expert...")
+            result = await server.query_expert(expert_name, "What is your domain expertise?", budget=0.0, agentic=False)
             if "error" not in result:
                 click.echo(f"   Answer: {result['answer'][:200]}...")
                 click.echo(f"   Cost: ${result['cost']:.4f}")

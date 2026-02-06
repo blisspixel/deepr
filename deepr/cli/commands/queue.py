@@ -1,8 +1,8 @@
 """Queue commands - manage job queue."""
 
 import click
-from typing import Optional
-from deepr.cli.colors import print_section_header, print_success, print_error, print_warning, console
+
+from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
 @click.group()
@@ -12,9 +12,13 @@ def queue():
 
 
 @queue.command()
-@click.option("--status", "-s",
-              type=click.Choice(["all", "queued", "processing", "completed", "failed"]),
-              default="all", help="Filter by status")
+@click.option(
+    "--status",
+    "-s",
+    type=click.Choice(["all", "queued", "processing", "completed", "failed"]),
+    default="all",
+    help="Filter by status",
+)
 @click.option("--limit", "-n", default=10, help="Max jobs to show")
 def list(status: str, limit: int):
     """
@@ -29,9 +33,10 @@ def list(status: str, limit: int):
 
     try:
         import asyncio
+
+        from deepr.config import load_config
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
-        from deepr.config import load_config
 
         config = load_config()
         queue_svc = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
@@ -44,8 +49,8 @@ def list(status: str, limit: int):
         jobs = asyncio.run(get_jobs())
 
         if not jobs:
-            click.echo(f"\nQueue is empty")
-            click.echo(f"\nSubmit a job: deepr research submit \"Your prompt\"")
+            click.echo("\nQueue is empty")
+            click.echo('\nSubmit a job: deepr research submit "Your prompt"')
             return
 
         # Display jobs
@@ -56,7 +61,7 @@ def list(status: str, limit: int):
                 "queued": "QUEUED     ",
                 "processing": "PROCESSING ",
                 "completed": "COMPLETED  ",
-                "failed": "FAILED     "
+                "failed": "FAILED     ",
             }
             label = status_labels.get(job.status.value, "UNKNOWN    ")
 
@@ -69,7 +74,7 @@ def list(status: str, limit: int):
             click.echo()
 
         # Summary
-        console.print(f"View status: deepr research status <job-id>")
+        console.print("View status: deepr research status <job-id>")
 
     except Exception as e:
         print_error(f"Error: {e}")
@@ -88,8 +93,9 @@ def stats():
 
     try:
         import asyncio
-        from deepr.queue import create_queue
+
         from deepr.config import load_config
+        from deepr.queue import create_queue
 
         config = load_config()
         queue_svc = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
@@ -99,7 +105,7 @@ def stats():
 
         stats = asyncio.run(get_stats())
 
-        console.print(f"\nJob Statistics:")
+        console.print("\nJob Statistics:")
         console.print(f"   Total Jobs: {stats['total']}")
         console.print(f"   Queued: {stats['queued']}")
         console.print(f"   Processing: {stats['processing']}")
@@ -112,9 +118,7 @@ def stats():
 
 
 @queue.command()
-@click.option("--status", "-s",
-              type=click.Choice(["pending", "failed"]),
-              default="failed", help="Status to clear")
+@click.option("--status", "-s", type=click.Choice(["pending", "failed"]), default="failed", help="Status to clear")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 def clear(status: str, yes: bool):
     """
@@ -222,9 +226,10 @@ def sync():
 
     try:
         import asyncio
-        from deepr.queue import create_queue
-        from deepr.providers import create_provider
+
         from deepr.config import load_config
+        from deepr.providers import create_provider
+        from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
 
         config = load_config()
@@ -236,12 +241,13 @@ def sync():
 
             # Filter to jobs with provider IDs that aren't in terminal states
             active_jobs = [
-                j for j in jobs
+                j
+                for j in jobs
                 if j.provider_job_id and j.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
             ]
 
             if not active_jobs:
-                click.echo(f"\nNo active jobs to sync")
+                click.echo("\nNo active jobs to sync")
                 return []
 
             click.echo(f"\nSyncing {len(active_jobs)} active job(s) with provider...\n")
@@ -257,38 +263,31 @@ def sync():
 
                     # Update if status changed
                     if response.status == "completed" and job.status != JobStatus.COMPLETED:
-                        console.print(f"   [success]Status changed to COMPLETED[/success]")
+                        console.print("   [success]Status changed to COMPLETED[/success]")
 
                         # Update with usage info but don't download results
                         cost = response.usage.cost if response.usage else 0
                         tokens = response.usage.total_tokens if response.usage else 0
 
-                        await queue_svc.update_results(
-                            job_id=job.id,
-                            report_paths={},
-                            cost=cost,
-                            tokens_used=tokens
-                        )
+                        await queue_svc.update_results(job_id=job.id, report_paths={}, cost=cost, tokens_used=tokens)
 
                         await queue_svc.update_status(job.id, JobStatus.COMPLETED)
                         synced.append(job)
 
                     elif response.status == "failed" and job.status != JobStatus.FAILED:
-                        console.print(f"   [error]Status changed to FAILED[/error]")
+                        console.print("   [error]Status changed to FAILED[/error]")
                         await queue_svc.update_status(
-                            job_id=job.id,
-                            status=JobStatus.FAILED,
-                            error=response.error or "Unknown error"
+                            job_id=job.id, status=JobStatus.FAILED, error=response.error or "Unknown error"
                         )
                         synced.append(job)
 
                     elif response.status == "in_progress" and job.status != JobStatus.PROCESSING:
-                        console.print(f"   Status changed to PROCESSING")
+                        console.print("   Status changed to PROCESSING")
                         await queue_svc.update_status(job.id, JobStatus.PROCESSING)
                         synced.append(job)
 
                     else:
-                        console.print(f"   No change")
+                        console.print("   No change")
 
                 except Exception as e:
                     console.print(f"   [error]Error: {e}[/error]")
@@ -301,12 +300,13 @@ def sync():
 
         if synced:
             print_success(f"Synced {len(synced)} job(s)")
-            console.print(f"\nTo download results: deepr research get --all")
+            console.print("\nTo download results: deepr research get --all")
         else:
-            console.print(f"\nAll jobs already in sync")
+            console.print("\nAll jobs already in sync")
 
     except Exception as e:
         print_error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()

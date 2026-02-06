@@ -20,11 +20,11 @@ Current Status: Disabled by default (--check-docs flag required)
 Recommendation: Only use for factual/API docs, never for comprehensive research.
 """
 
-import os
 import glob
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import json
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
     from openai import OpenAI
@@ -43,10 +43,7 @@ class DocReviewer:
     """
 
     def __init__(
-        self,
-        api_key: Optional[str] = None,
-        model: str = "gpt-5",
-        docs_path: str = "docs/research and documentation"
+        self, api_key: Optional[str] = None, model: str = "gpt-5", docs_path: str = "docs/research and documentation"
     ):
         """
         Initialize doc reviewer.
@@ -89,28 +86,25 @@ class DocReviewer:
                 size = stat.st_size
 
                 # Read first few lines for preview
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     preview = f.read(500)  # First 500 chars
 
-                docs.append({
-                    "path": file_path,
-                    "name": os.path.basename(file_path),
-                    "modified": modified.isoformat(),
-                    "size_bytes": size,
-                    "preview": preview
-                })
-            except Exception as e:
+                docs.append(
+                    {
+                        "path": file_path,
+                        "name": os.path.basename(file_path),
+                        "modified": modified.isoformat(),
+                        "size_bytes": size,
+                        "preview": preview,
+                    }
+                )
+            except Exception:
                 # Skip files we can't read
                 continue
 
         return docs
 
-    def review_docs(
-        self,
-        scenario: str,
-        context: Optional[str] = None,
-        max_docs_to_review: int = 10
-    ) -> Dict[str, Any]:
+    def review_docs(self, scenario: str, context: Optional[str] = None, max_docs_to_review: int = 10) -> Dict[str, Any]:
         """
         Review existing docs for relevance to scenario.
 
@@ -134,9 +128,7 @@ class DocReviewer:
                 "sufficient": [],
                 "needs_update": [],
                 "gaps": [scenario],
-                "recommendations": [
-                    {"action": "research", "topic": scenario, "reason": "No existing docs found"}
-                ]
+                "recommendations": [{"action": "research", "topic": scenario, "reason": "No existing docs found"}],
             }
 
         # Limit to most recent docs
@@ -152,32 +144,21 @@ class DocReviewer:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a research strategist evaluating existing documentation for reuse opportunities. Your goal is to save costs by reusing good existing research and only requesting updates or new research where genuinely needed."
+                    "content": "You are a research strategist evaluating existing documentation for reuse opportunities. Your goal is to save costs by reusing good existing research and only requesting updates or new research where genuinely needed.",
                 },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
+                {"role": "user", "content": prompt},
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         # Parse response
         result = json.loads(response.choices[0].message.content)
         return result
 
-    def _build_evaluation_prompt(
-        self,
-        scenario: str,
-        context: Optional[str],
-        docs: List[Dict[str, Any]]
-    ) -> str:
+    def _build_evaluation_prompt(self, scenario: str, context: Optional[str], docs: List[Dict[str, Any]]) -> str:
         """Build prompt for GPT-5 to evaluate docs."""
 
-        parts = [
-            "# Research Scenario",
-            f"\n{scenario}\n"
-        ]
+        parts = ["# Research Scenario", f"\n{scenario}\n"]
 
         if context:
             parts.append(f"\n## Additional Context\n{context}\n")
@@ -232,11 +213,7 @@ Return JSON:
 
         return "".join(parts)
 
-    def generate_tasks_from_review(
-        self,
-        review_result: Dict[str, Any],
-        max_tasks: int = 5
-    ) -> List[Dict[str, Any]]:
+    def generate_tasks_from_review(self, review_result: Dict[str, Any], max_tasks: int = 5) -> List[Dict[str, Any]]:
         """
         Convert review recommendations into research tasks.
 
@@ -265,7 +242,7 @@ Return JSON:
                     "title": f"Update: {rec.get('topic', doc_name)}",
                     "prompt": f"Update research: {rec.get('topic')}. Reason: {rec.get('reason')}. Focus on what has changed since the previous research.",
                     "type": "documentation",
-                    "reason": rec.get("reason")
+                    "reason": rec.get("reason"),
                 }
                 tasks.append(task)
                 task_id += 1
@@ -277,7 +254,7 @@ Return JSON:
                     "title": rec.get("topic"),
                     "prompt": f"Research: {rec.get('topic')}. {rec.get('reason', '')}",
                     "type": "documentation",
-                    "reason": rec.get("reason")
+                    "reason": rec.get("reason"),
                 }
                 tasks.append(task)
                 task_id += 1

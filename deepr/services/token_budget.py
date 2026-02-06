@@ -23,13 +23,13 @@ Usage:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from deepr.core.constants import (
+    MAX_CONTEXT_TOKENS,
     TOKEN_BUDGET_DEFAULT,
     TOKEN_BUDGET_SYNTHESIS_RESERVE_PCT,
-    MAX_CONTEXT_TOKENS,
 )
 
 
@@ -40,6 +40,7 @@ def _utc_now() -> datetime:
 
 class AllocationStrategy(Enum):
     """Budget allocation strategies."""
+
     EQUAL = "equal"  # Equal allocation per phase
     WEIGHTED = "weighted"  # Custom weights per phase
     FRONT_LOADED = "front_loaded"  # More for early phases
@@ -50,6 +51,7 @@ class AllocationStrategy(Enum):
 @dataclass
 class PhaseAllocation:
     """Budget allocation for a single phase."""
+
     phase: int
     allocated: int
     used: int = 0
@@ -74,6 +76,7 @@ class PhaseAllocation:
 @dataclass
 class BudgetPlan:
     """Complete budget plan for a research session."""
+
     total_budget: int
     synthesis_reserve: int
     phases: Dict[int, PhaseAllocation]
@@ -242,10 +245,7 @@ class TokenBudgetAllocator:
             return plan
 
         # Find pending phases
-        pending_phases = [
-            p for p, alloc in plan.phases.items()
-            if p > from_phase and alloc.status == "pending"
-        ]
+        pending_phases = [p for p, alloc in plan.phases.items() if p > from_phase and alloc.status == "pending"]
 
         if not pending_phases:
             return plan
@@ -297,15 +297,9 @@ class TokenBudgetAllocator:
         Returns:
             Capacity estimation dictionary
         """
-        remaining_phases = [
-            p for p in plan.phases.keys()
-            if p >= current_phase
-        ]
+        remaining_phases = [p for p in plan.phases.keys() if p >= current_phase]
 
-        remaining_budget = sum(
-            plan.phases[p].remaining
-            for p in remaining_phases
-        )
+        remaining_budget = sum(plan.phases[p].remaining for p in remaining_phases)
 
         # Estimate research depth (assuming ~500 tokens per finding)
         estimated_findings = remaining_budget // 500
@@ -338,25 +332,16 @@ class TokenBudgetAllocator:
                 utilization = alloc.used / max(alloc.allocated, 1)
                 if utilization < 0.5:
                     suggestions.append(
-                        f"Phase {phase} only used {utilization:.0%} of budget. "
-                        f"Consider reducing allocation."
+                        f"Phase {phase} only used {utilization:.0%} of budget. Consider reducing allocation."
                     )
                 elif utilization > 0.95:
-                    suggestions.append(
-                        f"Phase {phase} nearly exhausted budget. "
-                        f"Consider increasing allocation."
-                    )
+                    suggestions.append(f"Phase {phase} nearly exhausted budget. Consider increasing allocation.")
 
         # Check overall utilization
         if plan.overall_utilization > 0.9:
-            suggestions.append(
-                "Overall utilization high. Consider increasing total budget "
-                "or reducing phase count."
-            )
+            suggestions.append("Overall utilization high. Consider increasing total budget or reducing phase count.")
         elif plan.overall_utilization < 0.3:
-            suggestions.append(
-                "Overall utilization low. Budget may be oversized for this research."
-            )
+            suggestions.append("Overall utilization low. Budget may be oversized for this research.")
 
         return suggestions
 
@@ -437,20 +422,20 @@ class BudgetTracker:
             operation: Operation description
             tokens: Tokens used
         """
-        self.usage_log.append({
-            "timestamp": _utc_now().isoformat(),
-            "phase": phase,
-            "operation": operation,
-            "tokens": tokens,
-        })
+        self.usage_log.append(
+            {
+                "timestamp": _utc_now().isoformat(),
+                "phase": phase,
+                "operation": operation,
+                "tokens": tokens,
+            }
+        )
 
         # Check for alerts
         if phase in self.plan.phases:
             alloc = self.plan.phases[phase]
             if alloc.used > alloc.allocated * 0.9:
-                self.alerts.append(
-                    f"Phase {phase} at {alloc.used / alloc.allocated:.0%} capacity"
-                )
+                self.alerts.append(f"Phase {phase} at {alloc.used / alloc.allocated:.0%} capacity")
 
     def get_usage_summary(self) -> Dict[str, Any]:
         """Get usage summary.

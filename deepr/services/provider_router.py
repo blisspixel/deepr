@@ -12,8 +12,8 @@ This enables multi-provider support where users can configure multiple API keys
 and Deepr automatically uses the best provider for each task.
 """
 
-from typing import List, Dict, Optional, Literal
 from dataclasses import dataclass
+from typing import List, Literal
 
 
 @dataclass
@@ -90,9 +90,7 @@ class ProviderRouter:
         """
         self.available_providers = available_providers
         self.capabilities = {
-            name: PROVIDER_CAPABILITIES[name]
-            for name in available_providers
-            if name in PROVIDER_CAPABILITIES
+            name: PROVIDER_CAPABILITIES[name] for name in available_providers if name in PROVIDER_CAPABILITIES
         }
 
     def route_task(
@@ -251,8 +249,6 @@ def create_router_from_env() -> ProviderRouter:
         available.append("azure")
 
     if not available:
-        raise ValueError(
-            "No provider API keys found. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or AZURE_OPENAI_API_KEY"
-        )
+        raise ValueError("No provider API keys found. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or AZURE_OPENAI_API_KEY")
 
     return ProviderRouter(available)

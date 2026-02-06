@@ -1,5 +1,5 @@
 """API route modules."""
 
-from . import jobs, results, cost, config
+from . import config, cost, jobs, results
 
 __all__ = ["jobs", "results", "cost", "config"]

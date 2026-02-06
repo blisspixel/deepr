@@ -10,12 +10,13 @@ See docs/mcp-client-architecture.md for the full design.
 """
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable, Optional
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
 class SearchResult:
     """A single search result."""
+
     title: str
     url: str
     snippet: str
@@ -68,6 +69,7 @@ class BuiltinSearchBackend:
         """Search using built-in web search."""
         try:
             from deepr.tools.web_search import WebSearchTool
+
             tool = WebSearchTool()
             result = await tool.execute({"query": query, "num_results": num_results})
 
@@ -91,6 +93,7 @@ class BuiltinSearchBackend:
         """Check if built-in search is available."""
         try:
             from deepr.tools.web_search import WebSearchTool
+
             WebSearchTool()
             return True
         except Exception:
