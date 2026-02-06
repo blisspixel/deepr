@@ -13,7 +13,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from google import genai
 from google.genai import types
@@ -102,10 +102,10 @@ class GeminiProvider(DeepResearchProvider):
         self.deep_research_cost_estimate = 1.00
 
         # Job tracking for regular (synchronous) research
-        self.jobs: Dict[str, Dict[str, Any]] = {}
+        self.jobs: dict[str, dict[str, Any]] = {}
 
         # Deep research interaction tracking
-        self._deep_research_jobs: Dict[str, Dict[str, Any]] = {}
+        self._deep_research_jobs: dict[str, dict[str, Any]] = {}
 
     def get_model_name(self, model_key: str) -> str:
         """Map generic model key to Gemini model name."""
@@ -193,7 +193,7 @@ class GeminiProvider(DeepResearchProvider):
         prompt = "\n\n".join(prompt_parts)
 
         # Build tools list for file grounding
-        tools: List[Dict[str, Any]] = []
+        tools: list[dict[str, Any]] = []
         file_store_name = None
 
         if request.document_ids:
@@ -206,7 +206,7 @@ class GeminiProvider(DeepResearchProvider):
 
         for attempt in range(max_retries):
             try:
-                create_kwargs: Dict[str, Any] = {
+                create_kwargs: dict[str, Any] = {
                     "input": prompt,
                     "agent": DEEP_RESEARCH_AGENT,
                     "background": True,
@@ -442,7 +442,7 @@ class GeminiProvider(DeepResearchProvider):
 
         return self._build_deep_research_response(interaction_id, job_data)
 
-    def _build_deep_research_response(self, interaction_id: str, job_data: Dict) -> ResearchResponse:
+    def _build_deep_research_response(self, interaction_id: str, job_data: dict) -> ResearchResponse:
         """Build a ResearchResponse from deep research job data."""
         usage = None
         if job_data["status"] == "completed":
@@ -489,7 +489,7 @@ class GeminiProvider(DeepResearchProvider):
         if "output" in job_data:
             output = [{"type": "message", "content": [{"type": "output_text", "text": job_data["output"]}]}]
 
-            if "thoughts" in job_data and job_data["thoughts"]:
+            if job_data.get("thoughts"):
                 output[0]["content"].insert(0, {"type": "reasoning", "text": job_data["thoughts"]})
 
         return ResearchResponse(
@@ -518,7 +518,7 @@ class GeminiProvider(DeepResearchProvider):
             return "\n".join(text_parts) if text_parts else ""
         return ""
 
-    def _extract_interaction_citations(self, interaction: Any) -> List[Dict[str, str]]:
+    def _extract_interaction_citations(self, interaction: Any) -> list[dict[str, str]]:
         """Extract citation URLs from grounding metadata."""
         citations = []
         if not hasattr(interaction, "outputs") or not interaction.outputs:
@@ -555,7 +555,7 @@ class GeminiProvider(DeepResearchProvider):
     # Deep Research — File Search Store support
     # =========================================================================
 
-    async def _create_file_search_store(self, name: str, file_ids: List[str]) -> Optional[str]:
+    async def _create_file_search_store(self, name: str, file_ids: list[str]) -> Optional[str]:
         """
         Create a File Search Store for deep research grounding.
 
@@ -727,9 +727,9 @@ class GeminiProvider(DeepResearchProvider):
             return file_obj.name
 
         except (OSError, GenaiAPIError) as e:
-            raise ProviderError(message=f"Failed to upload document: {str(e)}", provider="gemini", original_error=e)
+            raise ProviderError(message=f"Failed to upload document: {e!s}", provider="gemini", original_error=e)
 
-    async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
+    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create vector store for file grouping.
 
@@ -770,7 +770,7 @@ class GeminiProvider(DeepResearchProvider):
         except GenaiAPIError:
             return False
 
-    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """List all vector stores."""
         if not hasattr(self, "vector_stores"):
             return []

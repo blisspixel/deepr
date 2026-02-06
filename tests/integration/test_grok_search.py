@@ -1,13 +1,16 @@
 """Test Grok agentic web search directly"""
-import os
+
 import asyncio
+import os
+
 from dotenv import load_dotenv
 from xai_sdk import Client
-from xai_sdk.chat import user, system
+from xai_sdk.chat import system, user
 from xai_sdk.tools import web_search, x_search
 
 # Load .env file
 load_dotenv()
+
 
 async def test_grok():
     xai_key = os.getenv("XAI_API_KEY")
@@ -39,13 +42,14 @@ async def test_grok():
     print("ANSWER:")
     print(response.content)
 
-    if hasattr(response, 'citations') and response.citations:
+    if hasattr(response, "citations") and response.citations:
         print("\n\nCITATIONS:")
         for url in response.citations[:5]:
             print(f"  - {url}")
 
-    print(f"\n\nModel used: grok-4-fast")
-    print(f"SUCCESS: Found real information about Microsoft Agent 365!")
+    print("\n\nModel used: grok-4-fast")
+    print("SUCCESS: Found real information about Microsoft Agent 365!")
+
 
 if __name__ == "__main__":
     asyncio.run(test_grok())

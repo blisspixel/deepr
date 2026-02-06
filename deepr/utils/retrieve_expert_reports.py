@@ -71,7 +71,7 @@ async def retrieve_reports(expert_name: str):
                 console.print(f"  [dim]SKIP: Status: {response.status}[/dim]")
 
         except Exception as e:
-            print_error(f"ERROR: {str(e)}")
+            print_error(f"ERROR: {e!s}")
             failed += 1
 
     console.print()

@@ -1,14 +1,13 @@
 """Unit tests for temporal knowledge tracker."""
 
-import pytest
 from datetime import datetime, timezone
 
 from deepr.observability.temporal_tracker import (
-    TemporalKnowledgeTracker,
-    TemporalFinding,
     FindingType,
     Hypothesis,
     HypothesisEvolution,
+    TemporalFinding,
+    TemporalKnowledgeTracker,
 )
 
 

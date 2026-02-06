@@ -207,9 +207,9 @@ This is a paragraph with _italic_ and __bold__ text.
 ###Subsection
 
 More content here."""
-        
+
         result = normalize_markdown(text)
-        
+
         assert "# Title" in result
         assert "## Section 1" in result
         assert "### Subsection" in result

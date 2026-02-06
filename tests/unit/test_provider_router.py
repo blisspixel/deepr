@@ -19,6 +19,7 @@ def utc_now():
     """Return current UTC time as timezone-aware datetime."""
     return datetime.now(timezone.utc)
 
+
 from deepr.observability.provider_router import (
     AutonomousProviderRouter,
     FallbackEvent,
@@ -652,7 +653,7 @@ class TestProviderRouterEdgeCases:
         """NaN latency should be clamped to zero, not corrupt metrics."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
 
-        router.record_result("openai", "gpt-4o", True, latency_ms=float('nan'), cost=0.05)
+        router.record_result("openai", "gpt-4o", True, latency_ms=float("nan"), cost=0.05)
 
         key = ("openai", "gpt-4o")
         # NaN should be clamped to 0
@@ -663,7 +664,7 @@ class TestProviderRouterEdgeCases:
         """Infinity latency should be clamped to zero."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
 
-        router.record_result("openai", "gpt-4o", True, latency_ms=float('inf'), cost=0.05)
+        router.record_result("openai", "gpt-4o", True, latency_ms=float("inf"), cost=0.05)
 
         key = ("openai", "gpt-4o")
         # Infinity should be clamped to 0
@@ -674,7 +675,7 @@ class TestProviderRouterEdgeCases:
         """Negative infinity latency should be clamped to zero."""
         router = AutonomousProviderRouter(storage_path=temp_storage)
 
-        router.record_result("openai", "gpt-4o", True, latency_ms=float('-inf'), cost=0.05)
+        router.record_result("openai", "gpt-4o", True, latency_ms=float("-inf"), cost=0.05)
 
         key = ("openai", "gpt-4o")
         # Negative infinity should be clamped to 0
@@ -799,12 +800,7 @@ class TestTaskTypeTracking:
         router = AutonomousProviderRouter(storage_path=temp_storage)
 
         router.record_result(
-            provider="openai",
-            model="gpt-4o",
-            success=True,
-            latency_ms=1000.0,
-            cost=0.05,
-            task_type="research"
+            provider="openai", model="gpt-4o", success=True, latency_ms=1000.0, cost=0.05, task_type="research"
         )
 
         key = ("openai", "gpt-4o")
@@ -887,10 +883,7 @@ class TestBenchmarkData:
 
         # Record some metrics
         for _ in range(5):
-            router.record_result(
-                "openai", "gpt-4o", True,
-                latency_ms=1000.0, cost=0.05, task_type="research"
-            )
+            router.record_result("openai", "gpt-4o", True, latency_ms=1000.0, cost=0.05, task_type="research")
         router.record_result("openai", "gpt-4o", False, error="Error", task_type="research")
 
         data = router.get_benchmark_data()

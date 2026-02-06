@@ -1,10 +1,8 @@
 """Tests for context index service (context discovery 6.1-6.3)."""
 
 import json
-import tempfile
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -156,30 +154,37 @@ class TestIndexingAndSearch:
 
         # Manually insert into database (simulating indexing without embeddings)
         import sqlite3
+
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports
             (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "report-abc",
-            metadata["job_id"],
-            metadata["prompt"],
-            metadata["model"],
-            metadata["created_at"],
-            str(report_dir),
-            "Summary about Kubernetes",
-            None,  # No embedding
-            datetime.now(timezone.utc).isoformat(),
-        ))
+        """,
+            (
+                "report-abc",
+                metadata["job_id"],
+                metadata["prompt"],
+                metadata["model"],
+                metadata["created_at"],
+                str(report_dir),
+                "Summary about Kubernetes",
+                None,  # No embedding
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
 
         # Insert into FTS table
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports_fts (report_id, prompt, summary)
             VALUES (?, ?, ?)
-        """, ("report-abc", metadata["prompt"], "Summary about Kubernetes"))
+        """,
+            ("report-abc", metadata["prompt"], "Summary about Kubernetes"),
+        )
 
         conn.commit()
         conn.close()
@@ -200,24 +205,28 @@ class TestExplicitContext:
 
         # Insert into database
         import sqlite3
+
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports
             (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "report-abc",
-            metadata["job_id"],
-            metadata["prompt"],
-            metadata["model"],
-            metadata["created_at"],
-            str(report_dir),
-            "Summary",
-            None,
-            datetime.now(timezone.utc).isoformat(),
-        ))
+        """,
+            (
+                "report-abc",
+                metadata["job_id"],
+                metadata["prompt"],
+                metadata["model"],
+                metadata["created_at"],
+                str(report_dir),
+                "Summary",
+                None,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -232,24 +241,28 @@ class TestExplicitContext:
 
         # Insert into database
         import sqlite3
+
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports
             (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "report-abc",
-            metadata["job_id"],
-            metadata["prompt"],
-            metadata["model"],
-            metadata["created_at"],
-            str(report_dir),
-            "Summary",
-            None,
-            datetime.now(timezone.utc).isoformat(),
-        ))
+        """,
+            (
+                "report-abc",
+                metadata["job_id"],
+                metadata["prompt"],
+                metadata["model"],
+                metadata["created_at"],
+                str(report_dir),
+                "Summary",
+                None,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -270,24 +283,28 @@ class TestExplicitContext:
 
         # Insert into database
         import sqlite3
+
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports
             (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "report-abc",
-            metadata["job_id"],
-            metadata["prompt"],
-            metadata["model"],
-            metadata["created_at"],
-            str(report_dir),
-            "Summary",
-            None,
-            datetime.now(timezone.utc).isoformat(),
-        ))
+        """,
+            (
+                "report-abc",
+                metadata["job_id"],
+                metadata["prompt"],
+                metadata["model"],
+                metadata["created_at"],
+                str(report_dir),
+                "Summary",
+                None,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -304,24 +321,28 @@ class TestExplicitContext:
 
         # Insert with recent date
         import sqlite3
+
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports
             (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "report-abc",
-            metadata["job_id"],
-            metadata["prompt"],
-            metadata["model"],
-            datetime.now(timezone.utc).isoformat(),  # Fresh date
-            str(report_dir),
-            "Summary",
-            None,
-            datetime.now(timezone.utc).isoformat(),
-        ))
+        """,
+            (
+                "report-abc",
+                metadata["job_id"],
+                metadata["prompt"],
+                metadata["model"],
+                datetime.now(timezone.utc).isoformat(),  # Fresh date
+                str(report_dir),
+                "Summary",
+                None,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -334,25 +355,29 @@ class TestExplicitContext:
 
         # Insert with old date
         import sqlite3
+
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
         old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO reports
             (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "report-abc",
-            metadata["job_id"],
-            metadata["prompt"],
-            metadata["model"],
-            old_date,
-            str(report_dir),
-            "Summary",
-            None,
-            datetime.now(timezone.utc).isoformat(),
-        ))
+        """,
+            (
+                "report-abc",
+                metadata["job_id"],
+                metadata["prompt"],
+                metadata["model"],
+                old_date,
+                str(report_dir),
+                "Summary",
+                None,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
         conn.commit()
         conn.close()
 

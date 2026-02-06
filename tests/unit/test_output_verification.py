@@ -1,13 +1,13 @@
 """Unit tests for output verification."""
 
-import pytest
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from deepr.mcp.security.output_verification import (
     OutputVerifier,
     VerifiedOutput,
-    VerificationChainEntry,
 )
 
 

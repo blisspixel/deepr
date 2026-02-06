@@ -54,7 +54,7 @@ async def check_status(expert_name: str):
                 print(f"   Cost: ${cost:.4f}")
 
         except Exception as e:
-            print(f"{i}. [ERR] {job_id[:20]}... - {str(e)}")
+            print(f"{i}. [ERR] {job_id[:20]}... - {e!s}")
             failed += 1
 
     print()

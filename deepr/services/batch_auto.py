@@ -30,7 +30,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from deepr.routing.auto_mode import AutoModeDecision, AutoModeRouter, BatchRoutingResult
 
@@ -53,7 +53,7 @@ class BatchQueryItem:
     cost_limit: Optional[float] = None
     force_model: Optional[str] = None
     force_provider: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -97,14 +97,14 @@ class BatchResult:
     batch_id: str
     started_at: datetime
     completed_at: Optional[datetime] = None
-    results: List[BatchQueryResult] = field(default_factory=list)
+    results: list[BatchQueryResult] = field(default_factory=list)
     total_cost_estimated: float = 0.0
     total_cost_actual: float = 0.0
     success_count: int = 0
     failure_count: int = 0
 
 
-def parse_batch_file(file_path: str) -> tuple[List[BatchQueryItem], Dict[str, Any]]:
+def parse_batch_file(file_path: str) -> tuple[list[BatchQueryItem], dict[str, Any]]:
     """Parse a batch file (.txt or .json) into query items.
 
     Args:
@@ -131,11 +131,11 @@ def parse_batch_file(file_path: str) -> tuple[List[BatchQueryItem], Dict[str, An
         raise ValueError(f"Unsupported batch file format: {suffix}. Use .txt or .json")
 
 
-def _parse_txt_file(path: Path) -> List[BatchQueryItem]:
+def _parse_txt_file(path: Path) -> list[BatchQueryItem]:
     """Parse simple text file format (one query per line)."""
     items = []
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
 
@@ -153,9 +153,9 @@ def _parse_txt_file(path: Path) -> List[BatchQueryItem]:
     return items
 
 
-def _parse_json_file(path: Path) -> tuple[List[BatchQueryItem], Dict[str, Any]]:
+def _parse_json_file(path: Path) -> tuple[list[BatchQueryItem], dict[str, Any]]:
     """Parse JSON file format with per-query options."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     defaults = data.get("defaults", {})

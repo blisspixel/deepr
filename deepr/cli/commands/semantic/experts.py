@@ -374,7 +374,7 @@ def make_expert(
         # Check if curriculum generation failed
         if result and isinstance(result, dict) and "error" in result:
             error = result["error"]
-            click.echo(f"\nError: {str(error)}")
+            click.echo(f"\nError: {error!s}")
             click.echo("Expert created but learning failed. Try again later.")
             return
 

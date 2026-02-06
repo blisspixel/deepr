@@ -1,14 +1,15 @@
 """Unit tests for the model capabilities registry (Phase 3a)."""
 
 import pytest
+
 from deepr.providers.registry import (
     MODEL_CAPABILITIES,
     ModelCapability,
-    get_model_capability,
-    get_models_by_specialization,
     get_cheapest_model,
     get_fastest_model,
-    get_largest_context_model
+    get_largest_context_model,
+    get_model_capability,
+    get_models_by_specialization,
 )
 
 

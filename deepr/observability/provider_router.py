@@ -26,7 +26,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from deepr.observability.circuit_breaker import CircuitBreakerRegistry
 
@@ -81,13 +81,13 @@ class ProviderMetrics:
     last_success: Optional[datetime] = None
     last_failure: Optional[datetime] = None
     last_error: str = ""
-    rolling_latencies: List[float] = field(default_factory=list)
-    rolling_costs: List[float] = field(default_factory=list)
+    rolling_latencies: list[float] = field(default_factory=list)
+    rolling_costs: list[float] = field(default_factory=list)
     # Task type tracking: {task_type: {"success": count, "failure": count}}
-    task_type_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    task_type_stats: dict[str, dict[str, int]] = field(default_factory=dict)
 
     @property
-    def key(self) -> Tuple[str, str]:
+    def key(self) -> tuple[str, str]:
         """Get unique key for this provider/model."""
         return (self.provider, self.model)
 
@@ -131,7 +131,7 @@ class ProviderMetrics:
             return self.avg_cost
         return sum(self.rolling_costs) / len(self.rolling_costs)
 
-    def _percentile(self, values: List[float], p: float) -> float:
+    def _percentile(self, values: list[float], p: float) -> float:
         """Calculate percentile from a list of values.
 
         Args:
@@ -164,7 +164,7 @@ class ProviderMetrics:
         """Get 99th percentile latency in milliseconds."""
         return self._percentile(self.rolling_latencies, 99)
 
-    def get_latency_percentiles(self) -> Dict[str, float]:
+    def get_latency_percentiles(self) -> dict[str, float]:
         """Get all latency percentiles.
 
         Returns:
@@ -194,7 +194,7 @@ class ProviderMetrics:
             return 1.0
         return stats.get("success", 0) / total
 
-    def get_all_task_type_stats(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_task_type_stats(self) -> dict[str, dict[str, Any]]:
         """Get success rates for all task types.
 
         Returns:
@@ -298,7 +298,7 @@ class ProviderMetrics:
 
         return True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "provider": self.provider,
             "model": self.model,
@@ -315,7 +315,7 @@ class ProviderMetrics:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ProviderMetrics":
+    def from_dict(cls, data: dict[str, Any]) -> "ProviderMetrics":
         return cls(
             provider=data["provider"],
             model=data["model"],
@@ -354,7 +354,7 @@ class FallbackEvent:
     success: bool
     timestamp: datetime = field(default_factory=_utc_now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp.isoformat(),
             "original_provider": self.original_provider,
@@ -409,7 +409,7 @@ class AutonomousProviderRouter:
     def __init__(
         self,
         storage_path: Optional[Path] = None,
-        fallback_chain: Optional[List[Tuple[str, str]]] = None,
+        fallback_chain: Optional[list[tuple[str, str]]] = None,
         min_samples: int = 3,
         circuit_breaker_registry: Optional[CircuitBreakerRegistry] = None,
         exploration_rate: float = 0.1,
@@ -433,8 +433,8 @@ class AutonomousProviderRouter:
         self.exploration_rate = max(0.0, min(1.0, exploration_rate))  # Clamp to [0, 1]
 
         # Metrics keyed by (provider, model) tuple
-        self.metrics: Dict[Tuple[str, str], ProviderMetrics] = {}
-        self.fallback_events: List[FallbackEvent] = []
+        self.metrics: dict[tuple[str, str], ProviderMetrics] = {}
+        self.fallback_events: list[FallbackEvent] = []
 
         # Circuit breaker for fail-fast behavior
         self.circuit_breaker = circuit_breaker_registry or CircuitBreakerRegistry()
@@ -453,7 +453,7 @@ class AutonomousProviderRouter:
         """
         return self.circuit_breaker.is_available(provider, model)
 
-    def is_auto_disabled(self, provider: str, model: str) -> Tuple[bool, Optional[str]]:
+    def is_auto_disabled(self, provider: str, model: str) -> tuple[bool, Optional[str]]:
         """Check if provider is auto-disabled due to high failure rate.
 
         Auto-disables providers with >50% failure rate after minimum requests,
@@ -491,7 +491,7 @@ class AutonomousProviderRouter:
 
         return (False, None)
 
-    def get_disabled_providers(self) -> List[Dict[str, Any]]:
+    def get_disabled_providers(self) -> list[dict[str, Any]]:
         """Get list of all auto-disabled providers.
 
         Returns:
@@ -555,9 +555,9 @@ class AutonomousProviderRouter:
         task_type: str = "general",
         prefer_cost: bool = False,
         prefer_speed: bool = False,
-        exclude: Optional[List[Tuple[str, str]]] = None,
+        exclude: Optional[list[tuple[str, str]]] = None,
         force_exploit: bool = False,
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         """Select best provider for a task.
 
         Uses exploration vs exploitation strategy:
@@ -636,7 +636,7 @@ class AutonomousProviderRouter:
         # Exploit: return the best provider
         return (scored[0][1], scored[0][2])
 
-    def get_fallback(self, failed_provider: str, failed_model: str, reason: str) -> Optional[Tuple[str, str]]:
+    def get_fallback(self, failed_provider: str, failed_model: str, reason: str) -> Optional[tuple[str, str]]:
         """Get fallback provider after failure.
 
         Checks circuit breaker state before selecting fallback.
@@ -679,7 +679,7 @@ class AutonomousProviderRouter:
 
         return None
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get router status.
 
         Includes both metrics and circuit breaker status.
@@ -729,7 +729,7 @@ class AutonomousProviderRouter:
 
         return status
 
-    def get_benchmark_data(self) -> Dict[str, Any]:
+    def get_benchmark_data(self) -> dict[str, Any]:
         """Get benchmark data for all providers.
 
         Returns detailed performance metrics suitable for comparison and analysis.
@@ -789,7 +789,7 @@ class AutonomousProviderRouter:
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    def _get_candidates(self, task_type: str) -> List[Tuple[str, str]]:
+    def _get_candidates(self, task_type: str) -> list[tuple[str, str]]:
         """Get candidate providers for a task.
 
         Args:
@@ -899,7 +899,7 @@ class AutonomousProviderRouter:
             return
 
         try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
+            with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             for key_str, metrics_data in data.get("metrics", {}).items():

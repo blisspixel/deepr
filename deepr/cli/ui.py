@@ -10,8 +10,9 @@ Uses rich library for modern 2026 CLI design:
 import os
 import re
 import sys
+from collections.abc import AsyncIterator
 from enum import Enum
-from typing import AsyncIterator, Optional
+from typing import Optional
 
 from rich.console import Console
 from rich.live import Live

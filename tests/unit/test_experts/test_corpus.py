@@ -4,21 +4,14 @@ Tests the expert consciousness export/import functionality including
 corpus manifest, validation, and file operations.
 """
 
-import pytest
+import tempfile
 from datetime import datetime
 from pathlib import Path
-import json
-import tempfile
-import shutil
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from deepr.experts.corpus import (
-    CorpusManifest,
-    export_corpus,
-    import_corpus,
-    validate_corpus,
-    _generate_readme
-)
+import pytest
+
+from deepr.experts.corpus import CorpusManifest, _generate_readme, export_corpus, import_corpus, validate_corpus
 
 
 class TestCorpusManifest:
@@ -26,9 +19,7 @@ class TestCorpusManifest:
 
     def test_create_basic_manifest(self):
         """Test creating a basic manifest."""
-        manifest = CorpusManifest(
-            name="test-corpus"
-        )
+        manifest = CorpusManifest(name="test-corpus")
         assert manifest.name == "test-corpus"
         assert manifest.version == "1.0"
         assert manifest.document_count == 0
@@ -45,7 +36,7 @@ class TestCorpusManifest:
             document_count=5,
             belief_count=3,
             gap_count=2,
-            files=["doc1.md", "doc2.md"]
+            files=["doc1.md", "doc2.md"],
         )
         assert manifest.name == "full-corpus"
         assert manifest.version == "2.0"
@@ -54,11 +45,7 @@ class TestCorpusManifest:
 
     def test_manifest_to_dict(self):
         """Test manifest serialization to dict."""
-        manifest = CorpusManifest(
-            name="serialize-test",
-            source_expert="Expert",
-            document_count=3
-        )
+        manifest = CorpusManifest(name="serialize-test", source_expert="Expert", document_count=3)
         data = manifest.to_dict()
         assert data["name"] == "serialize-test"
         assert data["source_expert"] == "Expert"
@@ -77,7 +64,7 @@ class TestCorpusManifest:
             "document_count": 10,
             "belief_count": 5,
             "gap_count": 2,
-            "files": ["a.md", "b.md"]
+            "files": ["a.md", "b.md"],
         }
         manifest = CorpusManifest.from_dict(data)
         assert manifest.name == "restored-corpus"
@@ -86,16 +73,12 @@ class TestCorpusManifest:
 
     def test_manifest_save_and_load(self):
         """Test manifest persistence to file."""
-        manifest = CorpusManifest(
-            name="persistent-corpus",
-            source_expert="Persistent Expert",
-            document_count=7
-        )
+        manifest = CorpusManifest(name="persistent-corpus", source_expert="Persistent Expert", document_count=7)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "manifest.json"
             manifest.save(path)
-            
+
             loaded = CorpusManifest.load(path)
             assert loaded.name == manifest.name
             assert loaded.source_expert == manifest.source_expert
@@ -112,11 +95,11 @@ class TestCorpusManifest:
             document_count=15,
             belief_count=8,
             gap_count=3,
-            files=["doc1.md", "doc2.md", "doc3.md"]
+            files=["doc1.md", "doc2.md", "doc3.md"],
         )
         data = original.to_dict()
         restored = CorpusManifest.from_dict(data)
-        
+
         assert restored.name == original.name
         assert restored.version == original.version
         assert restored.document_count == original.document_count
@@ -130,20 +113,17 @@ class TestValidateCorpus:
         """Test validating a valid corpus structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
-            
+
             # Create valid structure
-            manifest = CorpusManifest(
-                name="valid-corpus",
-                document_count=1
-            )
+            manifest = CorpusManifest(name="valid-corpus", document_count=1)
             manifest.save(corpus_dir / "manifest.json")
-            
+
             docs_dir = corpus_dir / "documents"
             docs_dir.mkdir()
             (docs_dir / "test.md").write_text("# Test Document")
-            
+
             (corpus_dir / "worldview.json").write_text("{}")
-            
+
             result = validate_corpus(corpus_dir)
             assert result["valid"] is True
             assert len(result["errors"]) == 0
@@ -153,7 +133,7 @@ class TestValidateCorpus:
         """Test validation fails without manifest."""
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
-            
+
             result = validate_corpus(corpus_dir)
             assert result["valid"] is False
             assert "manifest.json not found" in result["errors"]
@@ -162,10 +142,10 @@ class TestValidateCorpus:
         """Test validation fails without documents directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
-            
+
             manifest = CorpusManifest(name="test")
             manifest.save(corpus_dir / "manifest.json")
-            
+
             result = validate_corpus(corpus_dir)
             assert result["valid"] is False
             assert "documents/ directory not found" in result["errors"]
@@ -174,13 +154,13 @@ class TestValidateCorpus:
         """Test validation fails with empty documents directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
-            
+
             manifest = CorpusManifest(name="test")
             manifest.save(corpus_dir / "manifest.json")
-            
+
             docs_dir = corpus_dir / "documents"
             docs_dir.mkdir()
-            
+
             result = validate_corpus(corpus_dir)
             assert result["valid"] is False
             assert "No .md files in documents/ directory" in result["errors"]
@@ -189,14 +169,14 @@ class TestValidateCorpus:
         """Test validation warns about missing worldview."""
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
-            
+
             manifest = CorpusManifest(name="test")
             manifest.save(corpus_dir / "manifest.json")
-            
+
             docs_dir = corpus_dir / "documents"
             docs_dir.mkdir()
             (docs_dir / "test.md").write_text("# Test")
-            
+
             result = validate_corpus(corpus_dir)
             # Should have warning about worldview
             assert any("worldview.json not found" in e for e in result["errors"])
@@ -205,10 +185,10 @@ class TestValidateCorpus:
         """Test validation fails with invalid manifest JSON."""
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
-            
+
             # Write invalid JSON
             (corpus_dir / "manifest.json").write_text("not valid json")
-            
+
             result = validate_corpus(corpus_dir)
             assert result["valid"] is False
             assert any("Invalid manifest.json" in e for e in result["errors"])
@@ -223,9 +203,9 @@ class TestGenerateReadme:
         profile.name = "Test Expert"
         profile.domain = "Testing"
         profile.description = "A test expert"
-        
+
         readme = _generate_readme(profile, None, 5)
-        
+
         assert "# Test Expert" in readme
         assert "Testing" in readme
         assert "Documents**: 5" in readme
@@ -233,12 +213,12 @@ class TestGenerateReadme:
     def test_generate_readme_with_worldview(self):
         """Test generating README with worldview."""
         from deepr.experts.synthesis import Belief, KnowledgeGap, Worldview
-        
+
         profile = MagicMock()
         profile.name = "Expert With Worldview"
         profile.domain = "Knowledge"
         profile.description = "Expert with beliefs"
-        
+
         now = datetime.utcnow()
         worldview = Worldview(
             expert_name="Expert",
@@ -250,21 +230,16 @@ class TestGenerateReadme:
                     confidence=0.95,
                     evidence=["test.md"],
                     formed_at=now,
-                    last_updated=now
+                    last_updated=now,
                 )
             ],
             knowledge_gaps=[
-                KnowledgeGap(
-                    topic="Unknown Area",
-                    questions=["What is this?"],
-                    priority=4,
-                    identified_at=now
-                )
-            ]
+                KnowledgeGap(topic="Unknown Area", questions=["What is this?"], priority=4, identified_at=now)
+            ],
         )
-        
+
         readme = _generate_readme(profile, worldview, 3)
-        
+
         assert "Expert With Worldview" in readme
         assert "Beliefs**: 1" in readme
         assert "Knowledge Gaps**: 1" in readme
@@ -278,9 +253,9 @@ class TestGenerateReadme:
         profile.name = "Import Test"
         profile.domain = "Testing"
         profile.description = ""
-        
+
         readme = _generate_readme(profile, None, 1)
-        
+
         assert "deepr expert import" in readme
         assert "import-test" in readme  # lowercase, hyphenated
 
@@ -298,14 +273,10 @@ class TestExportCorpus:
     async def test_export_nonexistent_expert(self, mock_store):
         """Test export fails for nonexistent expert."""
         mock_store.load.return_value = None
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with pytest.raises(ValueError, match="Expert not found"):
-                await export_corpus(
-                    expert_name="Nonexistent",
-                    output_dir=Path(tmpdir),
-                    store=mock_store
-                )
+                await export_corpus(expert_name="Nonexistent", output_dir=Path(tmpdir), store=mock_store)
 
     @pytest.mark.asyncio
     async def test_export_creates_directory_structure(self, mock_store):
@@ -322,37 +293,33 @@ class TestExportCorpus:
         profile.conversations = 5
         profile.research_triggered = 1
         profile.total_research_cost = 0.50
-        
+
         mock_store.load.return_value = profile
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create mock knowledge and docs directories
             knowledge_dir = Path(tmpdir) / "knowledge"
             docs_dir = Path(tmpdir) / "docs"
             knowledge_dir.mkdir()
             docs_dir.mkdir()
-            
+
             # Create test documents
             (docs_dir / "doc1.md").write_text("# Document 1")
             (docs_dir / "doc2.md").write_text("# Document 2")
-            
+
             mock_store.get_knowledge_dir.return_value = knowledge_dir
             mock_store.get_documents_dir.return_value = docs_dir
-            
+
             output_dir = Path(tmpdir) / "output"
             output_dir.mkdir()
-            
-            manifest = await export_corpus(
-                expert_name="Export Test",
-                output_dir=output_dir,
-                store=mock_store
-            )
-            
+
+            manifest = await export_corpus(expert_name="Export Test", output_dir=output_dir, store=mock_store)
+
             # Check manifest
             assert manifest.name == "export-test"
             assert manifest.source_expert == "Export Test"
             assert manifest.document_count == 2
-            
+
             # Check directory structure
             corpus_dir = output_dir / "export-test"
             assert corpus_dir.exists()
@@ -389,31 +356,25 @@ class TestImportCorpus:
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
             # No manifest.json
-            
+
             with pytest.raises(ValueError, match="Invalid corpus"):
                 await import_corpus(
-                    new_expert_name="New Expert",
-                    corpus_dir=corpus_dir,
-                    store=mock_store,
-                    provider=mock_provider
+                    new_expert_name="New Expert", corpus_dir=corpus_dir, store=mock_store, provider=mock_provider
                 )
 
     @pytest.mark.asyncio
     async def test_import_existing_expert(self, mock_store, mock_provider):
         """Test import fails if expert already exists."""
         mock_store.load.return_value = MagicMock()  # Expert exists
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir)
             manifest = CorpusManifest(name="test")
             manifest.save(corpus_dir / "manifest.json")
-            
+
             with pytest.raises(ValueError, match="Expert already exists"):
                 await import_corpus(
-                    new_expert_name="Existing Expert",
-                    corpus_dir=corpus_dir,
-                    store=mock_store,
-                    provider=mock_provider
+                    new_expert_name="Existing Expert", corpus_dir=corpus_dir, store=mock_store, provider=mock_provider
                 )
 
 
@@ -422,22 +383,16 @@ class TestCorpusEdgeCases:
 
     def test_manifest_empty_files_list(self):
         """Test manifest with empty files list."""
-        manifest = CorpusManifest(
-            name="empty-files",
-            files=[]
-        )
+        manifest = CorpusManifest(name="empty-files", files=[])
         data = manifest.to_dict()
         assert data["files"] == []
-        
+
         restored = CorpusManifest.from_dict(data)
         assert restored.files == []
 
     def test_manifest_special_characters_in_name(self):
         """Test manifest with special characters in name."""
-        manifest = CorpusManifest(
-            name="test-corpus_v2.0",
-            source_expert="Test Expert (v2)"
-        )
+        manifest = CorpusManifest(name="test-corpus_v2.0", source_expert="Test Expert (v2)")
         data = manifest.to_dict()
         restored = CorpusManifest.from_dict(data)
         assert restored.name == "test-corpus_v2.0"

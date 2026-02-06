@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -31,7 +31,7 @@ class ProviderConfig(BaseModel):
 
     # Model/Deployment Mappings
     default_model: str = Field(default="grok-4-fast", description="Default model to use")
-    model_mappings: Dict[str, str] = Field(
+    model_mappings: dict[str, str] = Field(
         default_factory=dict, description="Model key to deployment name mappings (Azure)"
     )
 
@@ -42,7 +42,7 @@ class ProviderConfig(BaseModel):
 
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
-    TASK_MODEL_MAP: Dict[str, tuple] = {
+    TASK_MODEL_MAP: dict[str, tuple] = {
         "quick_lookup": ("xai", "grok-4-fast"),  # Fast, cheap fact checks
         "fact_check": ("xai", "grok-4-fast"),  # Fact verification
         "deep_research": ("openai", "o3-deep-research"),  # Deep research (BEST model)
@@ -420,7 +420,7 @@ class AppConfig(BaseModel):
     )
 
 
-def load_config() -> Dict:
+def load_config() -> dict:
     """
     Load configuration as a simple dictionary.
 

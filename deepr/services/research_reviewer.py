@@ -11,7 +11,6 @@ Workflow:
 """
 
 import os
-from typing import Dict, List
 
 from openai import OpenAI
 
@@ -43,10 +42,10 @@ class ResearchReviewer:
     def review_and_plan_next(
         self,
         scenario: str,
-        completed_results: List[Dict],
+        completed_results: list[dict],
         current_phase: int,
         max_tasks: int = 5,
-    ) -> Dict:
+    ) -> dict:
         """
         Review completed research and plan next phase.
 
@@ -134,7 +133,7 @@ Return ONLY valid JSON, no other text."""
                 ],
             }
 
-    def _summarize_completed_research(self, completed_results: List[Dict]) -> str:
+    def _summarize_completed_research(self, completed_results: list[dict]) -> str:
         """Create readable summary of completed research."""
         lines = []
         for i, result in enumerate(completed_results, 1):
@@ -167,10 +166,10 @@ Return ONLY valid JSON, no other text."""
         # Fallback
         return str(response)
 
-    def should_continue(self, review_result: Dict) -> bool:
+    def should_continue(self, review_result: dict) -> bool:
         """Check if more research is needed."""
         return review_result.get("status") == "continue"
 
-    def is_ready_for_synthesis(self, review_result: Dict) -> bool:
+    def is_ready_for_synthesis(self, review_result: dict) -> bool:
         """Check if ready for final synthesis."""
         return review_result.get("status") == "ready_for_synthesis"

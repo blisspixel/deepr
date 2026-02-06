@@ -17,7 +17,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from deepr.observability.information_gain import InformationGainTracker
 from deepr.observability.stopping_criteria import (
@@ -69,10 +69,10 @@ class BatchExecutor:
 
     async def execute_campaign(
         self,
-        tasks: List[Dict],
+        tasks: list[dict],
         campaign_id: str,
         enable_stopping_criteria: bool = True,
-    ) -> Dict:
+    ) -> dict:
         """
         Execute a complete research campaign.
 
@@ -173,12 +173,12 @@ class BatchExecutor:
 
     async def _execute_phase(
         self,
-        phase_tasks: List[Dict],
+        phase_tasks: list[dict],
         phase_num: int,
-        completed_tasks: Dict[int, Dict],
+        completed_tasks: dict[int, dict],
         campaign_id: str,
         prior_entropy: Optional[float] = None,
-    ) -> Tuple[Dict[int, Dict], Optional[StoppingDecision]]:
+    ) -> tuple[dict[int, dict], Optional[StoppingDecision]]:
         """
         Execute all tasks in a phase.
 
@@ -264,9 +264,9 @@ class BatchExecutor:
 
     def _extract_findings(
         self,
-        results: Dict[int, Dict],
+        results: dict[int, dict],
         phase_num: int,
-    ) -> List[Finding]:
+    ) -> list[Finding]:
         """Extract findings from task results.
 
         Args:
@@ -304,7 +304,7 @@ class BatchExecutor:
         prompt: str,
         task_id: int,
         campaign_id: str,
-        metadata: Dict,
+        metadata: dict,
     ) -> str:
         """Submit a single task to the queue."""
 
@@ -350,9 +350,9 @@ class BatchExecutor:
 
     async def _wait_for_completion(
         self,
-        job_ids: Dict[int, str],
-        tasks: List[Dict],
-    ) -> Dict[int, Dict]:
+        job_ids: dict[int, str],
+        tasks: list[dict],
+    ) -> dict[int, dict]:
         """
         Wait for all jobs to complete and retrieve results.
 
@@ -426,7 +426,7 @@ class BatchExecutor:
 
         return results
 
-    def _group_by_phase(self, tasks: List[Dict]) -> Dict[int, List[Dict]]:
+    def _group_by_phase(self, tasks: list[dict]) -> dict[int, list[dict]]:
         """Group tasks by phase number."""
         phases = {}
         for task in tasks:
@@ -439,13 +439,13 @@ class BatchExecutor:
     async def _save_campaign_results(
         self,
         campaign_id: str,
-        results: Dict,
+        results: dict,
     ):
         """Save campaign results to storage."""
         # Extract campaign prompt/goal if available (from first task)
         campaign_prompt = "Multi-phase research campaign"
         if results.get("tasks"):
-            first_task = list(results["tasks"].values())[0]
+            first_task = next(iter(results["tasks"].values()))
             campaign_prompt = first_task.get("title", campaign_prompt)
 
         # Save as JSON
@@ -472,7 +472,7 @@ class BatchExecutor:
             content_type="text/markdown",
         )
 
-    def _generate_campaign_summary(self, results: Dict) -> str:
+    def _generate_campaign_summary(self, results: dict) -> str:
         """Generate human-readable campaign summary."""
         lines = [
             f"# Campaign Results: {results['campaign_id']}",

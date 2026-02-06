@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 def _utc_now() -> datetime:
@@ -39,7 +39,7 @@ class ResearchJob:
     completed_at: Optional[datetime] = None
 
     # Request options
-    documents: List[str] = field(default_factory=list)
+    documents: list[str] = field(default_factory=list)
     enable_web_search: bool = True
     enable_code_interpreter: bool = True
     cost_limit: Optional[float] = None
@@ -51,7 +51,7 @@ class ResearchJob:
     last_error: Optional[str] = None
 
     # Results
-    report_paths: Dict[str, str] = field(default_factory=dict)
+    report_paths: dict[str, str] = field(default_factory=dict)
     cost: Optional[float] = None
     tokens_used: Optional[int] = None
 
@@ -59,13 +59,13 @@ class ResearchJob:
     tenant_id: Optional[str] = None
     workspace_id: Optional[str] = None
     submitted_by: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     callback_url: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # Auto-mode routing (when --auto flag is used)
     auto_routed: bool = False
-    routing_decision: Optional[Dict[str, Any]] = None  # Serialized AutoModeDecision
+    routing_decision: Optional[dict[str, Any]] = None  # Serialized AutoModeDecision
     batch_id: Optional[str] = None  # For batch processing
 
 
@@ -144,7 +144,7 @@ class QueueBackend(ABC):
     async def update_results(
         self,
         job_id: str,
-        report_paths: Dict[str, str],
+        report_paths: dict[str, str],
         cost: Optional[float] = None,
         tokens_used: Optional[int] = None,
     ) -> bool:
@@ -169,7 +169,7 @@ class QueueBackend(ABC):
         tenant_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[ResearchJob]:
+    ) -> list[ResearchJob]:
         """
         List jobs with optional filtering.
 
@@ -198,7 +198,7 @@ class QueueBackend(ABC):
         pass
 
     @abstractmethod
-    async def get_queue_stats(self) -> Dict[str, Any]:
+    async def get_queue_stats(self) -> dict[str, Any]:
         """
         Get queue statistics.
 

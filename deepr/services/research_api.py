@@ -1,7 +1,7 @@
 """Simple API wrapper for submitting and managing research jobs."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from deepr.config import AppConfig
 from deepr.queue.base import JobStatus, ResearchJob
@@ -76,7 +76,7 @@ class ResearchAPI:
 
         return job.id
 
-    async def get_job_status(self, job_id: str) -> Dict[str, Any]:
+    async def get_job_status(self, job_id: str) -> dict[str, Any]:
         """Get status of a research job.
 
         Args:
@@ -103,7 +103,7 @@ class ResearchAPI:
             "error": job.last_error,
         }
 
-    async def get_job_result(self, job_id: str) -> Dict[str, Any]:
+    async def get_job_result(self, job_id: str) -> dict[str, Any]:
         """Get result of a completed research job.
 
         Args:

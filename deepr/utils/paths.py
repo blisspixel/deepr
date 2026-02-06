@@ -17,7 +17,7 @@ import os
 import platform
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 
 class ShellType(Enum):
@@ -265,7 +265,7 @@ def resolve_file_path(path_str: str, must_exist: bool = True) -> Path:
     return path
 
 
-def resolve_glob_pattern(pattern: str, must_match: bool = False) -> List[Path]:
+def resolve_glob_pattern(pattern: str, must_match: bool = False) -> list[Path]:
     """Resolve a glob pattern to list of matching files.
 
     Handles:

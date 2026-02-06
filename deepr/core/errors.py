@@ -24,7 +24,7 @@ Exception Hierarchy:
         └── SchemaValidationError
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 class DeeprError(Exception):
@@ -41,14 +41,14 @@ class DeeprError(Exception):
 
     error_code: str = "DEEPR_ERROR"
 
-    def __init__(self, message: str, error_code: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, error_code: Optional[str] = None, details: Optional[dict[str, Any]] = None):
         self.message = message
         if error_code:
             self.error_code = error_code
         self.details = details or {}
         super().__init__(message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert exception to dict for API responses."""
         return {"error": True, "error_code": self.error_code, "message": self.message, "details": self.details}
 

@@ -5,7 +5,7 @@ import re
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
 
@@ -49,7 +49,7 @@ class LocalStorage(StorageBackend):
             sanitized = sanitize_name(job_id, allowed_chars=r"a-zA-Z0-9_-")
             return sanitized
         except (PathTraversalError, InvalidInputError) as e:
-            raise StorageError(message=f"Invalid job_id: {str(e)}", storage_type="local", original_error=e)
+            raise StorageError(message=f"Invalid job_id: {e!s}", storage_type="local", original_error=e)
 
     def _validate_filename(self, filename: str) -> str:
         """Validate filename has no directory components.
@@ -218,7 +218,7 @@ class LocalStorage(StorageBackend):
         filename: str,
         content: bytes,
         content_type: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> ReportMetadata:
         """Save report to local filesystem with human-readable naming."""
         try:
@@ -275,7 +275,7 @@ class LocalStorage(StorageBackend):
             )
 
         except OSError as e:
-            raise StorageError(message=f"Failed to save report: {str(e)}", storage_type="local", original_error=e)
+            raise StorageError(message=f"Failed to save report: {e!s}", storage_type="local", original_error=e)
 
     async def get_report(self, job_id: str, filename: str) -> bytes:
         """Retrieve report from local filesystem."""
@@ -291,12 +291,12 @@ class LocalStorage(StorageBackend):
             raise StorageError(message=str(e), storage_type="local", original_error=e)
         except OSError as e:
             raise StorageError(
-                message=f"Failed to retrieve report: {str(e)}",
+                message=f"Failed to retrieve report: {e!s}",
                 storage_type="local",
                 original_error=e,
             )
 
-    async def list_reports(self, job_id: Optional[str] = None) -> List[ReportMetadata]:
+    async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
         """List reports in local storage."""
         try:
             reports = []
@@ -348,7 +348,7 @@ class LocalStorage(StorageBackend):
 
         except OSError as e:
             raise StorageError(
-                message=f"Failed to list reports: {str(e)}",
+                message=f"Failed to list reports: {e!s}",
                 storage_type="local",
                 original_error=e,
             )
@@ -373,7 +373,7 @@ class LocalStorage(StorageBackend):
 
         except OSError as e:
             raise StorageError(
-                message=f"Failed to delete report: {str(e)}",
+                message=f"Failed to delete report: {e!s}",
                 storage_type="local",
                 original_error=e,
             )
@@ -426,7 +426,7 @@ class LocalStorage(StorageBackend):
 
         except OSError as e:
             raise StorageError(
-                message=f"Failed to cleanup old reports: {str(e)}",
+                message=f"Failed to cleanup old reports: {e!s}",
                 storage_type="local",
                 original_error=e,
             )

@@ -294,7 +294,7 @@ def submit_job():
         except Exception as e:
             logger.error(f"Provider submission failed: {e}")
             run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED))
-            return jsonify({"error": f"Provider error: {str(e)}"}), 500
+            return jsonify({"error": f"Provider error: {e!s}"}), 500
 
         # Return job data matching frontend expectations
         job_response = {

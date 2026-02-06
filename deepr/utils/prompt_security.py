@@ -8,7 +8,7 @@ Requirements: 8.1 - Implement injection pattern detection and sanitization
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Optional
 
 
 @dataclass
@@ -17,7 +17,7 @@ class SanitizationResult:
 
     original: str
     sanitized: str
-    patterns_detected: List[str]
+    patterns_detected: list[str]
     was_modified: bool
     risk_level: str  # "low", "medium", "high"
 
@@ -42,7 +42,7 @@ class PromptSanitizer:
 
     # Patterns that indicate potential prompt injection
     # Each tuple: (pattern, description, risk_level)
-    INJECTION_PATTERNS: List[Tuple[str, str, str]] = [
+    INJECTION_PATTERNS: list[tuple[str, str, str]] = [
         # Direct instruction override attempts
         (r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|rules?)", "instruction_override", "high"),
         (r"disregard\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?)", "instruction_override", "high"),
@@ -72,7 +72,7 @@ class PromptSanitizer:
     ]
 
     # Patterns to neutralize (replace with safe alternatives)
-    NEUTRALIZATION_PATTERNS: List[Tuple[str, str]] = [
+    NEUTRALIZATION_PATTERNS: list[tuple[str, str]] = [
         # Neutralize instruction overrides
         (r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?", "[instruction reference removed]"),
         (r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions?", "[instruction reference removed]"),
@@ -98,7 +98,7 @@ class PromptSanitizer:
             (re.compile(pattern, re.IGNORECASE), replacement) for pattern, replacement in self.NEUTRALIZATION_PATTERNS
         ]
 
-    def detect_patterns(self, text: str) -> List[Tuple[str, str]]:
+    def detect_patterns(self, text: str) -> list[tuple[str, str]]:
         """Detect injection patterns in text.
 
         Args:
@@ -113,7 +113,7 @@ class PromptSanitizer:
                 detected.append((description, risk))
         return detected
 
-    def calculate_risk_level(self, detected_patterns: List[Tuple[str, str]]) -> str:
+    def calculate_risk_level(self, detected_patterns: list[tuple[str, str]]) -> str:
         """Calculate overall risk level from detected patterns.
 
         Args:
@@ -184,7 +184,7 @@ class PromptSanitizer:
             risk_level=risk_level,
         )
 
-    def validate(self, prompt: str) -> Tuple[bool, Optional[str]]:
+    def validate(self, prompt: str) -> tuple[bool, Optional[str]]:
         """Validate a prompt and return simple pass/fail.
 
         Args:
@@ -223,7 +223,7 @@ def sanitize_prompt(prompt: str, strict: bool = False) -> str:
     return result.sanitized
 
 
-def validate_prompt(prompt: str) -> Tuple[bool, Optional[str]]:
+def validate_prompt(prompt: str) -> tuple[bool, Optional[str]]:
     """Convenience function to validate a prompt.
 
     Args:

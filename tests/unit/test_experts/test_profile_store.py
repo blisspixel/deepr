@@ -4,17 +4,16 @@ Requirements: 1.2 - ExpertProfile Refactoring
 """
 
 import json
-import pytest
 from datetime import datetime, timezone
-from pathlib import Path
+
+import pytest
 
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.profile_store import (
-    ExpertStore,
-    PROFILE_SCHEMA_VERSION,
-    migrate_profile_data,
-    migration,
     _MIGRATIONS,
+    PROFILE_SCHEMA_VERSION,
+    ExpertStore,
+    migrate_profile_data,
 )
 
 

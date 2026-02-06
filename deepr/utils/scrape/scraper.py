@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Optional
 
 from .config import ScrapeConfig
 from .extractor import ContentExtractor, LinkExtractor, PageDeduplicator
@@ -22,7 +22,7 @@ def scrape_website(
     config: Optional[ScrapeConfig] = None,
     synthesize: bool = True,
     save_to: Optional[str] = None,
-) -> Dict[str, any]:
+) -> dict[str, Any]:
     """
     Scrape a website with intelligent filtering and synthesis.
 
@@ -158,7 +158,7 @@ def scrape_for_company_research(
     company_url: str,
     company_name: str,
     save_dir: Optional[str] = None,
-) -> Dict[str, any]:
+) -> dict[str, Any]:
     """
     Scrape a company website for research purposes.
 
@@ -204,7 +204,7 @@ def scrape_for_documentation(
     docs_url: str,
     project_name: str,
     save_dir: Optional[str] = None,
-) -> Dict[str, any]:
+) -> dict[str, Any]:
     """
     Scrape a documentation site.
 

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-from typing import List, Optional
+from typing import Optional
 
 import openai
 
@@ -164,7 +164,7 @@ class OpenAIProvider(DeepResearchProvider):
             except openai.OpenAIError as e:
                 # Non-retryable API errors (auth, invalid request, etc.)
                 raise ProviderError(
-                    message=f"Failed to submit research: {str(e)}",
+                    message=f"Failed to submit research: {e!s}",
                     provider="openai",
                     original_error=e,
                 )
@@ -227,7 +227,7 @@ class OpenAIProvider(DeepResearchProvider):
             )
 
         except openai.OpenAIError as e:
-            raise ProviderError(message=f"Failed to get status: {str(e)}", provider="openai", original_error=e)
+            raise ProviderError(message=f"Failed to get status: {e!s}", provider="openai", original_error=e)
 
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel OpenAI research job."""
@@ -235,7 +235,7 @@ class OpenAIProvider(DeepResearchProvider):
             await self.client.responses.cancel(job_id)
             return True
         except openai.OpenAIError as e:
-            raise ProviderError(message=f"Failed to cancel job: {str(e)}", provider="openai", original_error=e)
+            raise ProviderError(message=f"Failed to cancel job: {e!s}", provider="openai", original_error=e)
 
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload document to OpenAI."""
@@ -245,12 +245,12 @@ class OpenAIProvider(DeepResearchProvider):
             return file_obj.id
         except (OSError, openai.OpenAIError) as e:
             raise ProviderError(
-                message=f"Failed to upload document: {str(e)}",
+                message=f"Failed to upload document: {e!s}",
                 provider="openai",
                 original_error=e,
             )
 
-    async def create_vector_store(self, name: str, file_ids: List[str]) -> VectorStore:
+    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in OpenAI."""
         try:
             # Create vector store
@@ -264,7 +264,7 @@ class OpenAIProvider(DeepResearchProvider):
 
         except openai.OpenAIError as e:
             raise ProviderError(
-                message=f"Failed to create vector store: {str(e)}",
+                message=f"Failed to create vector store: {e!s}",
                 provider="openai",
                 original_error=e,
             )
@@ -296,12 +296,12 @@ class OpenAIProvider(DeepResearchProvider):
             raise
         except openai.OpenAIError as e:
             raise ProviderError(
-                message=f"Failed to wait for vector store: {str(e)}",
+                message=f"Failed to wait for vector store: {e!s}",
                 provider="openai",
                 original_error=e,
             )
 
-    async def list_vector_stores(self, limit: int = 100) -> List[VectorStore]:
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """List all OpenAI vector stores."""
         try:
             vector_stores = []
@@ -318,7 +318,7 @@ class OpenAIProvider(DeepResearchProvider):
 
         except openai.OpenAIError as e:
             raise ProviderError(
-                message=f"Failed to list vector stores: {str(e)}",
+                message=f"Failed to list vector stores: {e!s}",
                 provider="openai",
                 original_error=e,
             )
@@ -330,7 +330,7 @@ class OpenAIProvider(DeepResearchProvider):
             return True
         except openai.OpenAIError as e:
             raise ProviderError(
-                message=f"Failed to delete vector store: {str(e)}",
+                message=f"Failed to delete vector store: {e!s}",
                 provider="openai",
                 original_error=e,
             )
