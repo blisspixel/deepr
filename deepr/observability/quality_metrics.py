@@ -388,6 +388,8 @@ class QualityMetrics:
         for category in categories:
             cat_results = [r for r in self.results if r.category == category]
             cat_n = len(cat_results)
+            if cat_n == 0:
+                continue
 
             by_category[category] = {
                 "count": cat_n,
