@@ -288,98 +288,14 @@ After installation:
 3. Review [Best Practices](../README.md#best-practices-for-research-prompts) for effective prompts
 4. Check [ROADMAP.md](ROADMAP.md) for upcoming features
 
-## Getting Help
-
-- Documentation: All markdown files in `docs/`
-- Issues: https://github.com/blisspixel/deepr/issues
-- Questions: Create a GitHub discussion
-
-# Check help
-deepr --help
-deepr research --help
-```
-
-## Platform-Specific Notes
-
-### Linux
-
-- Python 3.9+ required
-- Works on Ubuntu 20.04+, Debian 11+, Fedora 35+, and most modern distributions
-- May need to install python3-dev: `sudo apt install python3-dev`
-
-### macOS
-
-- Python 3.9+ required
-- Works on macOS 11 (Big Sur) and later
-- Install via Homebrew: `brew install python@3.11`
-
-### Windows
-
-- Python 3.9+ required
-- Windows 10/11 supported
-- Use PowerShell or Windows Terminal
-- May need to enable long paths: `git config --system core.longpaths true`
-
-## Docker Installation (Alternative)
-
-```bash
-# Build image
-docker build -t deepr:latest .
-
-# Run with environment file
-docker run --env-file .env deepr:latest deepr research submit "Your prompt"
-
-# Or run interactively
-docker run -it --env-file .env deepr:latest bash
-```
-
-## Troubleshooting
-
-### Command not found: deepr
-
-After installation, if `deepr` command is not found:
-
-**Linux/macOS:**
-```bash
-# Add to PATH
-export PATH="$HOME/.local/bin:$PATH"
-# Add to ~/.bashrc or ~/.zshrc to make permanent
-```
-
-**Windows:**
-```powershell
-# Pip install location
-python -m site --user-site
-# Add Scripts directory to PATH via System Properties > Environment Variables
-```
-
-### Import errors
-
-```bash
-# Reinstall dependencies
-pip install --upgrade -e .
-```
-
-### Permission errors on Linux/macOS
-
-```bash
-# Use --user flag
-pip install --user -e .
-```
-
 ## Uninstall
 
 ```bash
 pip uninstall deepr
 ```
 
-## Next Steps
+## Getting Help
 
-After installation:
-
-1. Configure your API keys in `.env`
-2. Read the [Quick Start](README.md#quick-start) guide
-3. Try your first research job: `deepr research submit "Your question" --yes`
-4. Explore commands: `deepr --help`
-
-For more information, see [README.md](README.md) and [ROADMAP.md](ROADMAP.md).
+- Documentation: All markdown files in `docs/`
+- Issues: https://github.com/blisspixel/deepr/issues
+- Questions: Create a GitHub discussion
