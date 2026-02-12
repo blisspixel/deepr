@@ -23,7 +23,7 @@ Recommendation: Only use for factual/API docs, never for comprehensive research.
 import glob
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 try:
@@ -82,7 +82,7 @@ class DocReviewer:
         for file_path in files:
             try:
                 stat = os.stat(file_path)
-                modified = datetime.fromtimestamp(stat.st_mtime)
+                modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
                 size = stat.st_size
 
                 # Read first few lines for preview

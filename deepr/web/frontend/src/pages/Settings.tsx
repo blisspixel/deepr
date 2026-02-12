@@ -79,7 +79,12 @@ export default function Settings() {
       setFormData(prev => ({
         ...prev,
         default_model: config.default_model || prev.default_model,
+        default_priority: config.default_priority?.toString() || prev.default_priority,
         enable_web_search: config.enable_web_search ?? prev.enable_web_search,
+        daily_limit: config.daily_limit?.toString() || prev.daily_limit,
+        monthly_limit: config.monthly_limit?.toString() || prev.monthly_limit,
+        max_concurrent_jobs: config.max_concurrent_jobs?.toString() || prev.max_concurrent_jobs,
+        storage_type: config.storage_type || prev.storage_type,
       }))
     }
   }, [config])
@@ -89,13 +94,24 @@ export default function Settings() {
   }
 
   const handleSave = () => {
-    updateMutation.mutate({
-      ...formData,
-      default_priority: parseInt(formData.default_priority),
-      daily_limit: parseFloat(formData.daily_limit),
-      monthly_limit: parseFloat(formData.monthly_limit),
-      max_concurrent_jobs: parseInt(formData.max_concurrent_jobs),
-    })
+    const updates: Record<string, unknown> = {}
+    if (activeSection === 'general') {
+      updates.default_model = formData.default_model
+      updates.default_priority = parseInt(formData.default_priority)
+      updates.enable_web_search = formData.enable_web_search
+    } else if (activeSection === 'api') {
+      if (formData.openai_api_key) updates.openai_api_key = formData.openai_api_key
+      if (formData.azure_api_key) updates.azure_api_key = formData.azure_api_key
+      if (formData.azure_endpoint) updates.azure_endpoint = formData.azure_endpoint
+    } else if (activeSection === 'limits') {
+      updates.daily_limit = parseFloat(formData.daily_limit)
+      updates.monthly_limit = parseFloat(formData.monthly_limit)
+      updates.max_concurrent_jobs = parseInt(formData.max_concurrent_jobs)
+    } else if (activeSection === 'storage') {
+      updates.storage_type = formData.storage_type
+      if (formData.azure_connection_string) updates.azure_connection_string = formData.azure_connection_string
+    }
+    updateMutation.mutate(updates)
   }
 
   const sections = [
@@ -115,7 +131,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Configure Deepr for your environment</p>

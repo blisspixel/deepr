@@ -65,8 +65,8 @@ def save(name: str, prompt: str, model: str, description: str):
         raise click.Abort()
 
 
-@templates.command()
-def list():
+@templates.command("list")
+def list_templates():
     """
     List all saved templates.
 
@@ -85,7 +85,7 @@ def list():
             click.echo('\nCreate one: deepr templates save <name> "<prompt>"')
             return
 
-        template_files = list(templates_dir.glob("*.json"))
+        template_files = sorted(templates_dir.glob("*.json"))
 
         if not template_files:
             click.echo("\nNo templates found")
@@ -204,12 +204,12 @@ def delete(name: str, yes: bool):
         raise click.Abort()
 
 
-@templates.command()
+@templates.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
 @click.argument("name")
-@click.argument("values", nargs=-1)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--model", "-m", help="Override template model")
-def use(name: str, values: tuple, yes: bool, model: str):
+@click.pass_context
+def use(ctx, name: str, yes: bool, model: str):
     """
     Use a template to submit research.
 
@@ -234,8 +234,9 @@ def use(name: str, values: tuple, yes: bool, model: str):
         with open(template_file, encoding="utf-8") as f:
             template = json.load(f)
 
-        # Parse values
+        # Parse values from extra args
         placeholders = {}
+        values = ctx.args
         i = 0
         while i < len(values):
             if values[i].startswith("--"):

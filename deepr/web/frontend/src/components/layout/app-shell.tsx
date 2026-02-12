@@ -57,6 +57,7 @@ export default function AppShell() {
               document.dispatchEvent(
                 new KeyboardEvent('keydown', {
                   key: 'k',
+                  ctrlKey: true,
                   metaKey: true,
                   bubbles: true,
                 })
@@ -91,7 +92,7 @@ export default function AppShell() {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
 
