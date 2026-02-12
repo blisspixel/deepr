@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { cn, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
+  AlertTriangle,
   ArrowLeft,
   BookOpen,
   ChevronDown,
@@ -42,7 +43,7 @@ export default function ResultDetail() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showExport])
 
-  const { data: result, isLoading } = useQuery({
+  const { data: result, isLoading, isError, refetch } = useQuery({
     queryKey: ['results', 'detail', id],
     queryFn: () => resultsApi.getById(id!),
     enabled: !!id,
@@ -71,6 +72,22 @@ export default function ResultDetail() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Failed to load result</p>
+        <p className="text-sm text-muted-foreground mb-4">Something went wrong fetching this result.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }
