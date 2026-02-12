@@ -16,6 +16,17 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { wsClient } from '@/api/websocket'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 export default function ResearchLive() {
   const { id } = useParams<{ id: string }>()
@@ -231,18 +242,38 @@ export default function ResearchLive() {
       {/* Actions */}
       {isActive && (
         <div className="flex justify-center gap-3">
-          <button
-            onClick={() => cancelMutation.mutate()}
-            disabled={cancelMutation.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-          >
-            {cancelMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Square className="w-4 h-4" />
-            )}
-            Cancel
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                disabled={cancelMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+              >
+                {cancelMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                Cancel
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel this research job?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will stop the job immediately. Any partial results will be lost and cannot be recovered.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep Running</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => cancelMutation.mutate()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Cancel Job
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </div>
