@@ -1099,9 +1099,12 @@ def get_expert_history(name):
 def get_trace(job_id):
     """Get trace data for a job."""
     try:
-        if ".." in job_id or "/" in job_id or "\\" in job_id:
+        if not all(c in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in job_id.lower()):
             return jsonify({"error": "Invalid job_id"}), 400
-        trace_path = Path("data/traces") / f"{job_id}_trace.json"
+        trace_dir = Path("data/traces").resolve()
+        trace_path = (trace_dir / f"{job_id}_trace.json").resolve()
+        if not str(trace_path).startswith(str(trace_dir)):
+            return jsonify({"error": "Invalid job_id"}), 400
         if trace_path.exists():
             import json
 
@@ -1111,16 +1114,19 @@ def get_trace(job_id):
         return jsonify({"trace": None})
     except Exception as e:
         logger.error(f"Error getting trace {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal error"}), 500
 
 
 @app.route("/api/traces/<job_id>/temporal", methods=["GET"])
 def get_trace_temporal(job_id):
     """Get temporal findings for a trace."""
     try:
-        if ".." in job_id or "/" in job_id or "\\" in job_id:
+        if not all(c in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in job_id.lower()):
             return jsonify({"error": "Invalid job_id"}), 400
-        trace_path = Path("data/traces") / f"{job_id}_trace.json"
+        trace_dir = Path("data/traces").resolve()
+        trace_path = (trace_dir / f"{job_id}_trace.json").resolve()
+        if not str(trace_path).startswith(str(trace_dir)):
+            return jsonify({"error": "Invalid job_id"}), 400
         if trace_path.exists():
             import json
 
@@ -1131,7 +1137,7 @@ def get_trace_temporal(job_id):
         return jsonify({"findings": []})
     except Exception as e:
         logger.error(f"Error getting temporal data for {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal error"}), 500
 
 
 # =============================================================================

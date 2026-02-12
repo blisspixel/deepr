@@ -195,9 +195,9 @@ class AnthropicProvider(DeepResearchProvider):
             return job_id
 
         except AnthropicError as e:
-            raise ProviderError(f"Anthropic API error: {e}") from e
+            raise ProviderError(message=f"Anthropic API error: {e}", provider="anthropic", original_error=e) from e
         except Exception as e:
-            raise ProviderError(f"Research submission failed: {e}") from e
+            raise ProviderError(message=f"Research submission failed: {e}", provider="anthropic", original_error=e) from e
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """
