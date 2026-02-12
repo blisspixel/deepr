@@ -408,6 +408,7 @@ class CurriculumGenerator:
         )
 
         last_error = None
+        attempt = 0
 
         for attempt in range(max_retries):
             try:

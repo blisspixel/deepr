@@ -236,6 +236,8 @@ def submit_job():
     """Submit a new research job."""
     try:
         data = request.json
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
         prompt = data.get("prompt")
         model = data.get("model", "o4-mini-deep-research")
         priority = data.get("priority", 3)
@@ -332,7 +334,7 @@ def batch_submit():
 
         results = []
         for job_input in jobs_data:
-            prompt = job_input.get("prompt", "").strip()
+            prompt = str(job_input.get("prompt", "")).strip()
             if not prompt:
                 continue  # Skip empty prompts
             job_id = str(uuid.uuid4())
@@ -536,7 +538,7 @@ def get_cost_history():
         history = [
             {
                 "id": job.id,
-                "prompt": job.prompt[:100],
+                "prompt": (job.prompt or "")[:100],
                 "model": job.model,
                 "cost": round(job.cost or 0, 2),
                 "tokens": job.tokens_used or 0,
@@ -557,6 +559,8 @@ def estimate_cost():
     """Estimate cost for a research prompt."""
     try:
         data = request.json
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
         prompt = data.get("prompt", "")
         model = data.get("model", "o4-mini-deep-research")
 
@@ -698,7 +702,7 @@ def list_results():
         elif sort_by == "model":
             completed.sort(key=lambda j: j.model or "")
         else:  # date
-            completed.sort(key=lambda j: j.completed_at or j.submitted_at, reverse=True)
+            completed.sort(key=lambda j: j.completed_at or j.submitted_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
         # Paginate
         total = len(completed)
@@ -914,9 +918,15 @@ def update_config():
         # Update cost limits if provided
         if cost_controller:
             if "daily_limit" in data:
-                cost_controller.max_daily_cost = float(data["daily_limit"])
+                try:
+                    cost_controller.max_daily_cost = float(data["daily_limit"])
+                except (TypeError, ValueError):
+                    return jsonify({"error": "daily_limit must be a number"}), 400
             if "monthly_limit" in data:
-                cost_controller.max_monthly_cost = float(data["monthly_limit"])
+                try:
+                    cost_controller.max_monthly_cost = float(data["monthly_limit"])
+                except (TypeError, ValueError):
+                    return jsonify({"error": "monthly_limit must be a number"}), 400
 
         return jsonify({"config": _config})
 
@@ -1238,4 +1248,7 @@ if __name__ == "__main__":
     print("  Deepr Research Dashboard")
     print("  Running on http://localhost:5000")
     print("=" * 70 + "\n")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    import os as _os
+
+    debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug, host="0.0.0.0", port=5000)

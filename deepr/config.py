@@ -371,7 +371,7 @@ class AppConfig(BaseModel):
             lines.extend(
                 [
                     "# OpenAI Configuration",
-                    f"OPENAI_API_KEY={self.provider.openai_api_key or 'your-openai-api-key'}",
+                    f"OPENAI_API_KEY={'***' if self.provider.openai_api_key else 'your-openai-api-key'}",
                     "# OPENAI_BASE_URL=https://api.openai.com/v1",
                     "# OPENAI_ORGANIZATION=your-org-id",
                     "",
@@ -381,7 +381,7 @@ class AppConfig(BaseModel):
             lines.extend(
                 [
                     "# Azure OpenAI Configuration",
-                    f"AZURE_OPENAI_KEY={self.provider.azure_api_key or 'your-azure-api-key'}",
+                    f"AZURE_OPENAI_KEY={'***' if self.provider.azure_api_key else 'your-azure-api-key'}",
                     f"AZURE_OPENAI_ENDPOINT={self.provider.azure_endpoint or 'https://your-resource.openai.azure.com/'}",
                     f"AZURE_API_VERSION={self.provider.azure_api_version}",
                     f"AZURE_USE_MANAGED_IDENTITY={str(self.provider.azure_use_managed_identity).lower()}",
@@ -405,7 +405,7 @@ class AppConfig(BaseModel):
             lines.extend(
                 [
                     "# Azure Blob Storage Configuration",
-                    f"AZURE_STORAGE_CONNECTION_STRING={self.storage.azure_connection_string or 'your-connection-string'}",
+                    f"AZURE_STORAGE_CONNECTION_STRING={'***' if self.storage.azure_connection_string else 'your-connection-string'}",
                     f"AZURE_STORAGE_CONTAINER={self.storage.azure_container}",
                     f"AZURE_STORAGE_USE_MANAGED_IDENTITY={str(self.storage.azure_use_managed_identity).lower()}",
                     "",
