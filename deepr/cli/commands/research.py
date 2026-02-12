@@ -938,7 +938,7 @@ def _render_budget_utilization(emitter):
 
     budget = TOKEN_BUDGET_DEFAULT
 
-    used_pct = min(total_tokens / budget * 100, 100)
+    used_pct = min(total_tokens / budget * 100, 100) if budget > 0 else 0
     bar_width = 40
     filled = int(used_pct / 100 * bar_width)
 
