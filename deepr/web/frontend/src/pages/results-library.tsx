@@ -123,7 +123,7 @@ export default function ResultsLibrary() {
           {results.map((result) => (
             <div
               key={result.id}
-              className="rounded-lg border bg-card hover:border-primary/20 transition-all cursor-pointer group"
+              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all cursor-pointer group"
               onClick={() => navigate(`/results/${result.id}`)}
             >
               <div className="p-4 space-y-3">

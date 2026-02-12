@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  AlertTriangle,
   Database,
   DollarSign,
   Eye,
@@ -32,7 +33,7 @@ export default function Settings() {
   const queryClient = useQueryClient()
   const { theme, setTheme } = useUIStore()
 
-  const { data: config, isLoading } = useQuery({
+  const { data: config, isLoading, isError, refetch } = useQuery({
     queryKey: ['config'],
     queryFn: () => configApi.get(),
   })
@@ -126,6 +127,22 @@ export default function Settings() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Failed to load settings</p>
+        <p className="text-sm text-muted-foreground mb-4">Could not fetch configuration from the server.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }

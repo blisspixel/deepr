@@ -6,6 +6,7 @@ import { expertsApi } from '@/api/experts'
 import { toast } from 'sonner'
 import type { ExpertChat } from '@/types'
 import {
+  AlertTriangle,
   ArrowLeft,
   DollarSign,
   FileText,
@@ -29,7 +30,7 @@ export default function ExpertProfile() {
   const decodedName = decodeURIComponent(name || '')
   const encodedName = encodeURIComponent(decodedName)
 
-  const { data: expert, isLoading } = useQuery({
+  const { data: expert, isLoading, isError, refetch } = useQuery({
     queryKey: ['experts', decodedName],
     queryFn: () => expertsApi.get(encodedName),
     enabled: !!decodedName,
@@ -75,6 +76,22 @@ export default function ExpertProfile() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Failed to load expert</p>
+        <p className="text-sm text-muted-foreground mb-4">Something went wrong fetching this expert profile.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }
