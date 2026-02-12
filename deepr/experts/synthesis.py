@@ -19,7 +19,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from deepr.core.contracts import Claim, Gap
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +51,7 @@ class Belief:
         """
         from deepr.core.contracts import Claim, Source, TrustClass
 
-        sources = [
-            Source.create(title=ref, trust_class=TrustClass.TERTIARY)
-            for ref in self.evidence
-        ]
+        sources = [Source.create(title=ref, trust_class=TrustClass.TERTIARY) for ref in self.evidence]
         return Claim.create(
             statement=self.statement,
             domain=self.topic,

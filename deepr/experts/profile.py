@@ -17,7 +17,10 @@ Requirements: 1.2 - ExpertProfile Refactoring
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from deepr.core.contracts import ExpertManifest
 
 from deepr.experts.activity_tracker import ActivityTracker
 from deepr.experts.budget_manager import BudgetManager
@@ -353,6 +356,7 @@ class ExpertProfile:
         # Load beliefs from BeliefStore
         try:
             from deepr.experts.beliefs import BeliefStore
+
             store = BeliefStore(self.name)
             for belief in store.beliefs.values():
                 claim = belief.to_claim()
@@ -365,6 +369,7 @@ class ExpertProfile:
         # Load worldview beliefs from synthesis
         try:
             from deepr.experts.synthesis import Worldview
+
             wv_path = Path(f"data/experts/{self.name}/worldview.json")
             if wv_path.exists():
                 wv = Worldview.load(wv_path)
@@ -383,6 +388,7 @@ class ExpertProfile:
         # Load gaps from metacognition
         try:
             from deepr.experts.metacognition import MetaCognitionTracker
+
             tracker = MetaCognitionTracker(self.name)
             for kg in tracker.knowledge_gaps.values():
                 gap = kg.to_gap()
@@ -396,6 +402,7 @@ class ExpertProfile:
         # Load gaps from synthesis worldview
         try:
             from deepr.experts.synthesis import Worldview
+
             wv_path = Path(f"data/experts/{self.name}/worldview.json")
             if wv_path.exists():
                 wv = Worldview.load(wv_path)
@@ -412,7 +419,9 @@ class ExpertProfile:
         decisions = []
         try:
             import json as _json
+
             from deepr.core.contracts import DecisionRecord
+
             log_dir = Path(f"data/experts/{self.name}/logs")
             if log_dir.exists():
                 for json_file in sorted(log_dir.glob("decisions*.json"), reverse=True):

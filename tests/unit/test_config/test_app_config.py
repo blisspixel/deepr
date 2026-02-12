@@ -271,7 +271,7 @@ class TestAppConfigToEnvFile:
         env_path = str(tmp_path / ".env.example")
         ac.to_env_file(env_path)
         content = (tmp_path / ".env.example").read_text()
-        assert "OPENAI_API_KEY=sk-test" in content
+        assert "OPENAI_API_KEY=***" in content
         assert "DEEPR_PROVIDER=openai" in content
 
     def test_to_env_file_azure(self, tmp_path):
@@ -286,7 +286,7 @@ class TestAppConfigToEnvFile:
         env_path = str(tmp_path / ".env.example")
         ac.to_env_file(env_path)
         content = (tmp_path / ".env.example").read_text()
-        assert "AZURE_OPENAI_KEY=az-key" in content
+        assert "AZURE_OPENAI_KEY=***" in content
         assert "DEEPR_PROVIDER=azure" in content
 
 

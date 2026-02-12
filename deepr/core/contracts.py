@@ -70,13 +70,13 @@ class Source:
     retrieved_at: datetime = field(default_factory=_utc_now)
 
     @classmethod
-    def create(cls, title: str, trust_class: TrustClass = TrustClass.TERTIARY,
-               extraction_method: str = "llm", **kwargs) -> "Source":
+    def create(
+        cls, title: str, trust_class: TrustClass = TrustClass.TERTIARY, extraction_method: str = "llm", **kwargs
+    ) -> "Source":
         """Create a Source with content-hash ID."""
         content = f"{title}:{kwargs.get('url', '')}:{kwargs.get('content_hash', '')}"
         id_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
-        return cls(id=id_hash, title=title, trust_class=trust_class,
-                   extraction_method=extraction_method, **kwargs)
+        return cls(id=id_hash, title=title, trust_class=trust_class, extraction_method=extraction_method, **kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -100,8 +100,7 @@ class Source:
             trust_class=TrustClass(data["trust_class"]),
             content_hash=data.get("content_hash", ""),
             extraction_method=data.get("extraction_method", "llm"),
-            retrieved_at=datetime.fromisoformat(data["retrieved_at"])
-            if data.get("retrieved_at") else _utc_now(),
+            retrieved_at=datetime.fromisoformat(data["retrieved_at"]) if data.get("retrieved_at") else _utc_now(),
         )
 
 
@@ -138,8 +137,7 @@ class Claim:
         """Create a Claim with content-hash ID."""
         content = f"{statement}:{domain}"
         id_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
-        return cls(id=id_hash, statement=statement, domain=domain,
-                   confidence=confidence, **kwargs)
+        return cls(id=id_hash, statement=statement, domain=domain, confidence=confidence, **kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -165,10 +163,8 @@ class Claim:
             domain=data["domain"],
             confidence=data["confidence"],
             sources=[Source.from_dict(s) for s in data.get("sources", [])],
-            created_at=datetime.fromisoformat(data["created_at"])
-            if data.get("created_at") else _utc_now(),
-            updated_at=datetime.fromisoformat(data["updated_at"])
-            if data.get("updated_at") else _utc_now(),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else _utc_now(),
             contradicts=data.get("contradicts", []),
             supersedes=data.get("supersedes"),
             tags=data.get("tags", []),
@@ -242,11 +238,9 @@ class Gap:
             expected_value=data.get("expected_value", 0.0),
             ev_cost_ratio=data.get("ev_cost_ratio", 0.0),
             times_asked=data.get("times_asked", 0),
-            identified_at=datetime.fromisoformat(data["identified_at"])
-            if data.get("identified_at") else _utc_now(),
+            identified_at=datetime.fromisoformat(data["identified_at"]) if data.get("identified_at") else _utc_now(),
             filled=data.get("filled", False),
-            filled_at=datetime.fromisoformat(data["filled_at"])
-            if data.get("filled_at") else None,
+            filled_at=datetime.fromisoformat(data["filled_at"]) if data.get("filled_at") else None,
             filled_by_job=data.get("filled_by_job"),
         )
 
@@ -280,11 +274,9 @@ class DecisionRecord:
     context: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def create(cls, decision_type: DecisionType, title: str, rationale: str,
-               **kwargs) -> "DecisionRecord":
+    def create(cls, decision_type: DecisionType, title: str, rationale: str, **kwargs) -> "DecisionRecord":
         """Create a DecisionRecord with a UUID."""
-        return cls(id=str(uuid.uuid4()), decision_type=decision_type,
-                   title=title, rationale=rationale, **kwargs)
+        return cls(id=str(uuid.uuid4()), decision_type=decision_type, title=title, rationale=rationale, **kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -313,8 +305,7 @@ class DecisionRecord:
             alternatives=data.get("alternatives", []),
             evidence_refs=data.get("evidence_refs", []),
             cost_impact=data.get("cost_impact", 0.0),
-            timestamp=datetime.fromisoformat(data["timestamp"])
-            if data.get("timestamp") else _utc_now(),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else _utc_now(),
             context=data.get("context", {}),
         )
 
@@ -387,6 +378,5 @@ class ExpertManifest:
             gaps=[Gap.from_dict(g) for g in data.get("gaps", [])],
             decisions=[DecisionRecord.from_dict(d) for d in data.get("decisions", [])],
             policies=data.get("policies", {}),
-            generated_at=datetime.fromisoformat(data["generated_at"])
-            if data.get("generated_at") else _utc_now(),
+            generated_at=datetime.fromisoformat(data["generated_at"]) if data.get("generated_at") else _utc_now(),
         )

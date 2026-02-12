@@ -1083,7 +1083,12 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
     # Validate job_id is not empty for tools that require it
     if name in ("deepr_cancel_job", "deepr_check_status", "deepr_get_result") and not arguments.get("job_id"):
         return {
-            "content": [{"type": "text", "text": json.dumps(_make_error("INVALID_PARAMS", "job_id is required and must not be empty"))}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(_make_error("INVALID_PARAMS", "job_id is required and must not be empty")),
+                }
+            ],
             "isError": True,
         }
 
@@ -1267,6 +1272,7 @@ async def run_stdio_server():
     def make_legacy_handler(tool_name):
         async def _make_legacy(params):
             return await _handle_tools_call(deepr_server, {"name": tool_name, "arguments": params})
+
         return _make_legacy
 
     for legacy_name, new_name in _LEGACY_METHOD_MAP.items():

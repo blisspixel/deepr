@@ -34,17 +34,15 @@ from .settings import Settings, get_settings, load_config
 __all__ = [
     "BudgetError",
     "BudgetExceededError",
-    # Contracts
     "Claim",
     "ConfigurationError",
     "CostController",
     "CostEstimate",
     "CostEstimator",
     "DailyLimitError",
-    # Errors
-    "DeeprError",
     "DecisionRecord",
     "DecisionType",
+    "DeeprError",
     "DocumentManager",
     "ExpertManifest",
     "Gap",
@@ -57,7 +55,6 @@ __all__ = [
     "ProviderTimeoutError",
     "ReportGenerator",
     "ResearchOrchestrator",
-    # Settings
     "Settings",
     "Source",
     "StorageError",

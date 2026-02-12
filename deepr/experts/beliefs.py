@@ -25,15 +25,16 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from deepr.core.contracts import Claim
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
     return datetime.now(timezone.utc)
-
-
-from pathlib import Path
-from typing import Any, Optional
 
 
 class ConflictResolution(Enum):
@@ -147,10 +148,7 @@ class Belief:
         """
         from deepr.core.contracts import Claim, Source, TrustClass
 
-        sources = [
-            Source.create(title=ref, trust_class=TrustClass.TERTIARY)
-            for ref in self.evidence_refs
-        ]
+        sources = [Source.create(title=ref, trust_class=TrustClass.TERTIARY) for ref in self.evidence_refs]
         return Claim(
             id=self.id,
             statement=self.claim,

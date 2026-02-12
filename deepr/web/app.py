@@ -702,7 +702,10 @@ def list_results():
         elif sort_by == "model":
             completed.sort(key=lambda j: j.model or "")
         else:  # date
-            completed.sort(key=lambda j: j.completed_at or j.submitted_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+            completed.sort(
+                key=lambda j: j.completed_at or j.submitted_at or datetime.min.replace(tzinfo=timezone.utc),
+                reverse=True,
+            )
 
         # Paginate
         total = len(completed)

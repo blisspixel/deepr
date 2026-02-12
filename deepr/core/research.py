@@ -464,7 +464,9 @@ class ResearchOrchestrator:
             except Exception as e:
                 # Provider cleanup may fail for many reasons (network, auth, already
                 # deleted, etc.); log and continue -- this is fire-and-forget.
-                logger.error("ORPHANED vector store %s for job %s - manual cleanup required: %s", vector_store_id, job_id, e)
+                logger.error(
+                    "ORPHANED vector store %s for job %s - manual cleanup required: %s", vector_store_id, job_id, e
+                )
 
     async def cancel_job(self, job_id: str) -> bool:
         """

@@ -283,9 +283,7 @@ class ContextIndex:
         conn.commit()
 
         # Verify embedding index consistency
-        embedded_count = cursor.execute(
-            "SELECT COUNT(*) FROM reports WHERE embedding_idx IS NOT NULL"
-        ).fetchone()[0]
+        embedded_count = cursor.execute("SELECT COUNT(*) FROM reports WHERE embedding_idx IS NOT NULL").fetchone()[0]
         total_embeddings = len(new_embeddings) + (len(self.embeddings) if self.embeddings is not None else 0)
         if embedded_count != total_embeddings:
             logger.warning(

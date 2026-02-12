@@ -330,6 +330,8 @@ class TestLegacyMethods:
             "deepr_list_experts",
             "deepr_get_expert_info",
             "deepr_query_expert",
+            "deepr_expert_manifest",
+            "deepr_rank_gaps",
         }
         for legacy, new in _LEGACY_METHOD_MAP.items():
             assert new in valid_tools, f"Legacy '{legacy}' maps to unknown tool '{new}'"

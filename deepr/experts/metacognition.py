@@ -8,7 +8,10 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from deepr.core.contracts import Gap
 
 logger = logging.getLogger(__name__)
 

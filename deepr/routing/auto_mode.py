@@ -285,7 +285,9 @@ class AutoModeRouter:
             if self._is_provider_usable(fb):
                 return fb
         if not self._available_providers:
-            raise ValueError("No API keys configured. Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY")
+            raise ValueError(
+                "No API keys configured. Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY"
+            )
         return preferred  # Has key but circuit may be open
 
     def _apply_auto_rules(
