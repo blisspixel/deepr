@@ -487,7 +487,7 @@ Budget remaining: ${budget_remaining:.2f}
             "api",
         ]
 
-        domain_lower = self.expert.domain.lower()
+        domain_lower = (self.expert.domain or "").lower()
         desc_lower = self.expert.description.lower() if self.expert.description else ""
 
         return any(kw.lower() in domain_lower or kw.lower() in desc_lower for kw in fast_moving_keywords)
@@ -924,7 +924,7 @@ Budget remaining: ${budget_remaining:.2f}
                     try:
                         with open(filepath, encoding="utf-8") as f:
                             content = f.read()
-                        new_documents.append({"filename": filepath.name, "content": content})
+                        new_documents.append({"path": filepath.name, "content": content})
                     except Exception:
                         continue
 
@@ -938,7 +938,7 @@ Budget remaining: ${budget_remaining:.2f}
                 }
 
             # Run synthesis
-            synthesizer = KnowledgeSynthesizer()
+            synthesizer = KnowledgeSynthesizer(client=self.client)
             result = await synthesizer.synthesize_new_knowledge(
                 expert_name=self.expert.name,
                 domain=self.expert.domain or self.expert.description or "general",
@@ -1479,7 +1479,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.thought_stream.decision(
                 decision_text="Response ready",
                 confidence=0.9
-                if not any(phrase in final_message.lower() for phrase in ["i don't know", "i'm not sure", "uncertain"])
+                if not any(phrase in (final_message or "").lower() for phrase in ["i don't know", "i'm not sure", "uncertain"])
                 else 0.5,
                 reasoning="Synthesized answer from available knowledge and research",
             )

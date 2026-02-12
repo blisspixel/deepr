@@ -20,7 +20,7 @@ def scrape_website(
     purpose: str = "company research",
     company_name: Optional[str] = None,
     config: Optional[ScrapeConfig] = None,
-    synthesize: bool = True,
+    synthesize: bool = False,
     save_to: Optional[str] = None,
 ) -> dict[str, Any]:
     """

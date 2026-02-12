@@ -120,11 +120,15 @@ class Worldview:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Worldview":
+        data = dict(data)  # Don't mutate caller's dict
         data["beliefs"] = [Belief.from_dict(b) for b in data.get("beliefs", [])]
         data["knowledge_gaps"] = [KnowledgeGap.from_dict(g) for g in data.get("knowledge_gaps", [])]
         if data.get("last_synthesis"):
             data["last_synthesis"] = datetime.fromisoformat(data["last_synthesis"])
-        return cls(**data)
+        # Filter to known fields to avoid TypeError on extra keys
+        known_fields = {"expert_name", "domain", "beliefs", "knowledge_gaps", "last_synthesis", "synthesis_count"}
+        filtered = {k: v for k, v in data.items() if k in known_fields}
+        return cls(**filtered)
 
     def save(self, path: Path):
         """Save worldview to JSON file."""

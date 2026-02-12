@@ -6,6 +6,7 @@ including OpenAPI documentation via Swagger UI at /api/docs.
 """
 
 import asyncio
+import hmac
 import logging
 import os
 
@@ -43,12 +44,12 @@ def _check_auth():
     if not _api_token:
         return  # No token configured -- allow all (local dev)
     # Skip auth for health check and docs
-    if request.path in ("/health", "/api/docs", "/apispec_1.json"):
+    if request.path in ("/health", "/api/health", "/api/docs", "/apispec_1.json"):
         return
     if request.path.startswith("/flasgger_static"):
         return
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or len(auth) <= 7 or auth[7:] != _api_token:
+    if not auth.startswith("Bearer ") or len(auth) <= 7 or not hmac.compare_digest(auth[7:], _api_token):
         return jsonify({"error": "Unauthorized"}), 401
 
 
