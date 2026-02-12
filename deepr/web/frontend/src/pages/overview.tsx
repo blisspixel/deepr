@@ -151,7 +151,7 @@ export default function Overview() {
                 {liveJobs.map((job) => (
                   <div
                     key={job.id}
-                    className="rounded-lg border bg-card p-4 cursor-pointer hover:border-primary/30 transition-colors"
+                    className="rounded-lg border bg-card p-4 cursor-pointer hover:border-primary/30 hover:shadow-md transition-all"
                     onClick={() => navigate(`/research/${job.id}`)}
                   >
                     <div className="flex justify-between items-start gap-3">

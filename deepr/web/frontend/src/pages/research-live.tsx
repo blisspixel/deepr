@@ -4,6 +4,7 @@ import { jobsApi } from '@/api/jobs'
 import { cn, formatCurrency, formatDuration } from '@/lib/utils'
 import { ProgressPhases, type Phase } from '@/components/charts/progress-phases'
 import {
+  AlertTriangle,
   ArrowLeft,
   Clock,
   DollarSign,
@@ -22,7 +23,7 @@ export default function ResearchLive() {
   const queryClient = useQueryClient()
   const [elapsed, setElapsed] = useState(0)
 
-  const { data: job, isLoading } = useQuery({
+  const { data: job, isLoading, isError, refetch } = useQuery({
     queryKey: ['jobs', id],
     queryFn: () => jobsApi.get(id!),
     enabled: !!id,
@@ -65,6 +66,22 @@ export default function ResearchLive() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Failed to load job</p>
+        <p className="text-sm text-muted-foreground mb-4">Something went wrong fetching this research job.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }

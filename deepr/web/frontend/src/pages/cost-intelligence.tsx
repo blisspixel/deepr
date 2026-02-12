@@ -18,7 +18,7 @@ export default function CostIntelligence() {
   const [timeRange, setTimeRange] = useState<TimeRange>('30d')
   const days = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30
 
-  const { data: summary } = useQuery({
+  const { data: summary, isError: isSummaryError, refetch: refetchSummary } = useQuery({
     queryKey: ['cost', 'summary'],
     queryFn: () => costApi.getSummary(),
     refetchInterval: 30000,
@@ -135,6 +135,20 @@ export default function CostIntelligence() {
           ))}
         </div>
       </div>
+
+      {/* Error Banner */}
+      {isSummaryError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+          <p className="text-sm text-foreground flex-1">Failed to load cost data.</p>
+          <button
+            onClick={() => refetchSummary()}
+            className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
