@@ -66,12 +66,14 @@ export const useUIStore = create<UIState>()(
 )
 
 // Listen for system theme changes when theme is 'system'
+// Single listener at module scope - safe since this module is only loaded once by the bundler
 if (typeof window !== 'undefined') {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  mediaQuery.addEventListener('change', () => {
+  const handleSystemThemeChange = () => {
     const { theme } = useUIStore.getState()
     if (theme === 'system') {
       applyThemeToDocument('system')
     }
-  })
+  }
+  mediaQuery.addEventListener('change', handleSystemThemeChange)
 }
