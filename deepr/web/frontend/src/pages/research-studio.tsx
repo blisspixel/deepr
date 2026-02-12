@@ -111,7 +111,7 @@ export default function ResearchStudio() {
   const isAllowed = costEstimate?.allowed ?? true
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="max-w-3xl mx-auto p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Research Studio</h1>
