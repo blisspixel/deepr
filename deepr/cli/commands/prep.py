@@ -448,10 +448,10 @@ def execute(yes: bool):
         results = asyncio.run(run_campaign())
 
         # Save campaign_id to plan for continue command
-        plan["last_campaign_id"] = campaign_id
-        plan["current_phase"] = 1
+        plan_data["last_campaign_id"] = campaign_id
+        plan_data["current_phase"] = 1
         with open(plan_file, "w", encoding="utf-8") as f:
-            json.dump(plan, f, indent=2)
+            json.dump(plan_data, f, indent=2)
 
         # Show results
         print_success("Campaign completed!")

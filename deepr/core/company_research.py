@@ -11,7 +11,7 @@ intelligence, strategic planning, and due diligence.
 import logging
 import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from deepr.config import load_config
@@ -179,7 +179,7 @@ class CompanyResearchOrchestrator:
                 }
 
             # Save scraped content to temporary file for upload
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             temp_file = tempfile.NamedTemporaryFile(
                 mode="w",
                 suffix=".md",
@@ -188,27 +188,26 @@ class CompanyResearchOrchestrator:
                 encoding="utf-8",
             )
 
-            # Write scraped content
-            temp_file.write(f"# Company Research: {company_name}\n\n")
-            temp_file.write(f"**Website**: {company_url}\n")
-            temp_file.write(f"**Scraped**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            temp_file.write(f"**Pages Captured**: {results['pages_scraped']}\n\n")
-            temp_file.write("---\n\n")
+            with temp_file:
+                # Write scraped content
+                temp_file.write(f"# Company Research: {company_name}\n\n")
+                temp_file.write(f"**Website**: {company_url}\n")
+                temp_file.write(f"**Scraped**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+                temp_file.write(f"**Pages Captured**: {results['pages_scraped']}\n\n")
+                temp_file.write("---\n\n")
 
-            # Write synthesis if available
-            if results.get("synthesis"):
-                temp_file.write("## Synthesis\n\n")
-                temp_file.write(results["synthesis"])
-                temp_file.write("\n\n---\n\n")
+                # Write synthesis if available
+                if results.get("synthesis"):
+                    temp_file.write("## Synthesis\n\n")
+                    temp_file.write(results["synthesis"])
+                    temp_file.write("\n\n---\n\n")
 
-            # Write individual page contents
-            temp_file.write("## Scraped Pages\n\n")
-            for url, content in results.get("scraped_data", {}).items():
-                temp_file.write(f"### Source: {url}\n\n")
-                temp_file.write(content)
-                temp_file.write("\n\n---\n\n")
-
-            temp_file.close()
+                # Write individual page contents
+                temp_file.write("## Scraped Pages\n\n")
+                for url, content in results.get("scraped_data", {}).items():
+                    temp_file.write(f"### Source: {url}\n\n")
+                    temp_file.write(content)
+                    temp_file.write("\n\n---\n\n")
 
             return {
                 "success": True,
