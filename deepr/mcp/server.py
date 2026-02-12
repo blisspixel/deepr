@@ -309,7 +309,7 @@ class DeeprMCPServer:
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            return {
+            result = {
                 "name": expert.name,
                 "domain": expert.domain,
                 "description": expert.description,
@@ -325,6 +325,15 @@ class DeeprMCPServer:
                     expert.last_knowledge_refresh.isoformat() if expert.last_knowledge_refresh else None
                 ),
             }
+            # Include manifest summary if available
+            try:
+                manifest = expert.get_manifest()
+                result["claim_count"] = manifest.claim_count
+                result["open_gap_count"] = manifest.open_gap_count
+                result["avg_confidence"] = manifest.avg_confidence
+            except Exception:
+                pass
+            return result
         except (OSError, KeyError, ValueError) as e:
             return _make_error("EXPERT_INFO_FAILED", str(e))
 
@@ -368,6 +377,39 @@ class DeeprMCPServer:
             }
         except (OSError, KeyError, ValueError, DeeprError) as e:
             return _make_error("EXPERT_QUERY_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_expert_manifest
+    # ------------------------------------------------------------------ #
+    async def expert_manifest(self, expert_name: str) -> dict:
+        """Get full ExpertManifest for an expert."""
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            manifest = expert.get_manifest()
+            return manifest.to_dict()
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("MANIFEST_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_rank_gaps
+    # ------------------------------------------------------------------ #
+    async def rank_gaps(self, expert_name: str, top_n: int = 5) -> dict:
+        """Get top N scored knowledge gaps for an expert."""
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            manifest = expert.get_manifest()
+            top_gaps = manifest.top_gaps(top_n)
+            return {
+                "expert_name": expert_name,
+                "gaps": [g.to_dict() for g in top_gaps],
+                "total_open_gaps": manifest.open_gap_count,
+            }
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("RANK_GAPS_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_research
@@ -1016,6 +1058,13 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
         "deepr_get_expert_info": lambda args: server.get_expert_info(
             expert_name=args.get("expert_name", ""),
         ),
+        "deepr_expert_manifest": lambda args: server.expert_manifest(
+            expert_name=args.get("expert_name", ""),
+        ),
+        "deepr_rank_gaps": lambda args: server.rank_gaps(
+            expert_name=args.get("expert_name", ""),
+            top_n=args.get("top_n", 5),
+        ),
         # Task durability endpoints
         "deepr_get_task_progress": lambda args: server.deepr_get_task_progress(
             task_id=args.get("task_id", ""),
@@ -1157,6 +1206,8 @@ _LEGACY_METHOD_MAP = {
     "list_experts": "deepr_list_experts",
     "get_expert_info": "deepr_get_expert_info",
     "query_expert": "deepr_query_expert",
+    "expert_manifest": "deepr_expert_manifest",
+    "rank_gaps": "deepr_rank_gaps",
 }
 
 

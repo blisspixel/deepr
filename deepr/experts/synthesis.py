@@ -40,6 +40,27 @@ class Belief:
     formed_at: datetime
     last_updated: datetime
 
+    def to_claim(self) -> "Claim":
+        """Convert to canonical Claim type.
+
+        Returns:
+            Claim populated from this synthesis Belief.
+        """
+        from deepr.core.contracts import Claim, Source, TrustClass
+
+        sources = [
+            Source.create(title=ref, trust_class=TrustClass.TERTIARY)
+            for ref in self.evidence
+        ]
+        return Claim.create(
+            statement=self.statement,
+            domain=self.topic,
+            confidence=self.confidence,
+            sources=sources,
+            created_at=self.formed_at,
+            updated_at=self.last_updated,
+        )
+
     def to_dict(self) -> dict:
         return {
             "topic": self.topic,
@@ -72,6 +93,21 @@ class KnowledgeGap:
     questions: list[str]
     priority: int  # 1-5, higher is more important
     identified_at: datetime
+
+    def to_gap(self) -> "Gap":
+        """Convert to canonical Gap type.
+
+        Returns:
+            Gap populated from this synthesis KnowledgeGap.
+        """
+        from deepr.core.contracts import Gap
+
+        return Gap.create(
+            topic=self.topic,
+            questions=list(self.questions),
+            priority=self.priority,
+            identified_at=self.identified_at,
+        )
 
     def to_dict(self) -> dict:
         return {
