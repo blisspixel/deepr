@@ -60,7 +60,10 @@ export default function ResearchStudio() {
           reader.onload = (event) => resolve({ name: file.name, content: event.target?.result as string })
           reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
           reader.readAsText(file)
-        }).catch(() => null)
+        }).catch((err) => {
+          console.warn(`Failed to read file ${file.name}:`, err)
+          return null
+        })
       )
     )
     const successful = readResults.filter((r): r is { name: string; content: string } => r !== null)
@@ -68,7 +71,7 @@ export default function ResearchStudio() {
       setUploadedFileContents(prev => [...prev, ...successful])
     }
     if (successful.length < files.length) {
-      toast.error(`Failed to read ${files.length - successful.length} file(s)`)
+      toast.warning(`Failed to read ${files.length - successful.length} file(s)`)
     }
   }, [])
 

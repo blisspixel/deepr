@@ -29,6 +29,7 @@ Usage:
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -89,6 +90,9 @@ class CircuitBreaker:
     failure_threshold: int = CIRCUIT_BREAKER_FAILURE_THRESHOLD
     recovery_timeout: int = CIRCUIT_BREAKER_RECOVERY_TIMEOUT
 
+    def __post_init__(self):
+        self._lock = threading.Lock()
+
     @property
     def key(self) -> tuple:
         """Get unique key for this circuit.
@@ -131,13 +135,14 @@ class CircuitBreaker:
         If in HALF_OPEN state, transitions to CLOSED (recovery successful).
         Resets failure count in all cases.
         """
-        if self.state == CircuitState.HALF_OPEN:
-            # Recovery successful - close the circuit
-            self._transition_to(CircuitState.CLOSED)
-            logger.info(f"Circuit CLOSED for {self.provider}/{self.model} - recovery successful")
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                # Recovery successful - close the circuit
+                self._transition_to(CircuitState.CLOSED)
+                logger.info(f"Circuit CLOSED for {self.provider}/{self.model} - recovery successful")
 
-        # Reset failure count on any success
-        self.failure_count = 0
+            # Reset failure count on any success
+            self.failure_count = 0
 
     def record_failure(self, error: str = "") -> None:
         """Record a failed request.
@@ -149,21 +154,22 @@ class CircuitBreaker:
             - HALF_OPEN -> OPEN: Recovery failed
             - CLOSED -> OPEN: If failure_count >= failure_threshold
         """
-        self.failure_count += 1
-        self.last_failure_time = datetime.now(timezone.utc)
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = datetime.now(timezone.utc)
 
-        if self.state == CircuitState.HALF_OPEN:
-            # Recovery failed - reopen the circuit
-            self._transition_to(CircuitState.OPEN)
-            logger.warning(f"Circuit OPEN (recovery failed) for {self.provider}/{self.model}: {error}")
-        elif self.state == CircuitState.CLOSED:
-            if self.failure_count >= self.failure_threshold:
-                # Threshold reached - open the circuit
+            if self.state == CircuitState.HALF_OPEN:
+                # Recovery failed - reopen the circuit
                 self._transition_to(CircuitState.OPEN)
-                logger.warning(
-                    f"Circuit OPEN (threshold {self.failure_threshold} reached) "
-                    f"for {self.provider}/{self.model}: {error}"
-                )
+                logger.warning(f"Circuit OPEN (recovery failed) for {self.provider}/{self.model}: {error}")
+            elif self.state == CircuitState.CLOSED:
+                if self.failure_count >= self.failure_threshold:
+                    # Threshold reached - open the circuit
+                    self._transition_to(CircuitState.OPEN)
+                    logger.warning(
+                        f"Circuit OPEN (threshold {self.failure_threshold} reached) "
+                        f"for {self.provider}/{self.model}: {error}"
+                    )
 
     def _check_recovery(self) -> None:
         """Check if circuit should transition to half-open.

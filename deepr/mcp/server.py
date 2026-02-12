@@ -35,6 +35,7 @@ Resources:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -343,7 +344,7 @@ class DeeprMCPServer:
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            session_key = f"{expert_name}_{id(question)}"
+            session_key = f"{expert_name}_{hashlib.md5(question.encode()).hexdigest()[:12]}"
             if session_key not in self.sessions:
                 self.sessions[session_key] = ExpertChatSession(
                     expert,
@@ -352,10 +353,11 @@ class DeeprMCPServer:
                 )
 
             session = self.sessions[session_key]
-            response_text = await session.send_message(question)
-            summary = session.get_session_summary()
-
-            del self.sessions[session_key]
+            try:
+                response_text = await session.send_message(question)
+                summary = session.get_session_summary()
+            finally:
+                self.sessions.pop(session_key, None)
 
             return {
                 "answer": response_text,
@@ -555,10 +557,8 @@ class DeeprMCPServer:
                         "cost_so_far": status.get("cost", 0.0),
                         "submitted_at": job_cache.get("submitted_at"),
                     }
-                except Exception:
-                    # Provider status check may fail transiently; fall through
-                    # to JobManager state below.
-                    pass
+                except Exception as e:
+                    logger.warning("Provider status check failed for job %s: %s", job_id, e)
 
             # Fallback to JobManager state
             if state:
@@ -614,7 +614,7 @@ class DeeprMCPServer:
             self.resource_handler.persist_job(job_id)
 
             # Clean up
-            del self.active_jobs[job_id]
+            self.active_jobs.pop(job_id, None)
 
             report = result.get("report", "")
             cost_final = result.get("cost", 0.0)
@@ -623,7 +623,10 @@ class DeeprMCPServer:
 
             # Lazy loading: if report is large, return summary + resource URI
             # so agents can fetch the full report on demand
-            max_inline = int(os.environ.get("DEEPR_MAX_INLINE_CHARS", "8000"))
+            try:
+                max_inline = int(os.environ.get("DEEPR_MAX_INLINE_CHARS", "8000"))
+            except (ValueError, TypeError):
+                max_inline = 8000
             if len(report) > max_inline:
                 # Build a truncated summary with key sections
                 summary_text = report[:2000]
@@ -1028,6 +1031,13 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
         ),
     }
 
+    # Validate job_id is not empty for tools that require it
+    if name in ("deepr_cancel_job", "deepr_check_status", "deepr_get_result") and not arguments.get("job_id"):
+        return {
+            "content": [{"type": "text", "text": json.dumps(_make_error("INVALID_PARAMS", "job_id is required and must not be empty"))}],
+            "isError": True,
+        }
+
     handler = tool_dispatch.get(name)
     if not handler:
         return {
@@ -1203,12 +1213,13 @@ async def run_stdio_server():
     stdio.register_method("prompts/get", handle_prompts_get)
 
     # Register legacy method names for backward compatibility
-    for legacy_name, new_name in _LEGACY_METHOD_MAP.items():
-
-        async def _make_legacy(params, tool_name=new_name):
+    def make_legacy_handler(tool_name):
+        async def _make_legacy(params):
             return await _handle_tools_call(deepr_server, {"name": tool_name, "arguments": params})
+        return _make_legacy
 
-        stdio.register_method(legacy_name, _make_legacy)
+    for legacy_name, new_name in _LEGACY_METHOD_MAP.items():
+        stdio.register_method(legacy_name, make_legacy_handler(new_name))
 
     logger.info("Deepr MCP Server v%s started (stdio transport)", SERVER_VERSION)
     logger.info("Registered %d tools, gateway discovery enabled", deepr_server.registry.count())

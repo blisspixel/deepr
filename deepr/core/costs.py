@@ -1,8 +1,11 @@
 """Cost estimation, tracking, and control for research operations."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -98,7 +101,10 @@ class CostEstimator:
             Cost estimate with min/max/expected
         """
         # Get base model pricing
-        pricing = cls.PRICING.get(model, cls.PRICING["o3-deep-research"])
+        pricing = cls.PRICING.get(model)
+        if pricing is None:
+            logger.warning("Unknown model '%s' for cost estimation, using o3-deep-research pricing as default", model)
+            pricing = cls.PRICING["o3-deep-research"]
 
         # Estimate input tokens
         input_tokens = cls.estimate_prompt_tokens(prompt, documents)
@@ -182,7 +188,10 @@ class CostEstimator:
         Returns:
             Total cost in USD
         """
-        pricing = cls.PRICING.get(model, cls.PRICING["o3-deep-research"])
+        pricing = cls.PRICING.get(model)
+        if pricing is None:
+            logger.warning("Unknown model '%s' for cost estimation, using o3-deep-research pricing as default", model)
+            pricing = cls.PRICING["o3-deep-research"]
 
         input_cost = (input_tokens / 1_000_000) * pricing["input"]
         output_cost = (output_tokens / 1_000_000) * pricing["output"]

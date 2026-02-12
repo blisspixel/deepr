@@ -35,7 +35,7 @@ export default function ExpertProfile() {
     enabled: !!decodedName,
   })
 
-  const { data: gaps } = useQuery({
+  const { data: gaps, isLoading: isGapsLoading } = useQuery({
     queryKey: ['experts', decodedName, 'gaps'],
     queryFn: () => expertsApi.getGaps(encodedName),
     enabled: !!decodedName && activeTab === 'gaps',
@@ -205,7 +205,11 @@ export default function ExpertProfile() {
 
         {activeTab === 'gaps' && (
           <div className="p-6 space-y-3">
-            {!gaps || gaps.length === 0 ? (
+            {isGapsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : !gaps || gaps.length === 0 ? (
               <div className="text-center text-muted-foreground text-sm py-12">
                 No knowledge gaps identified yet.
               </div>
