@@ -89,13 +89,13 @@ deepr budget set 50
 
 ```bash
 # Simple test query
-deepr run single "What is 2+2?"
+deepr research "What is 2+2?" --auto
 
 # Real research query
-deepr run single "What are the latest developments in quantum computing as of 2025?"
+deepr research "What are the latest developments in quantum computing?"
 
 # With specific provider
-deepr run single "Explain transformer architecture" --provider gemini -m gemini-2.5-flash
+deepr research "Explain transformer architecture" --provider gemini -m gemini-2.5-flash
 ```
 
 That's it! You're ready to use Deepr.
@@ -141,7 +141,7 @@ pytest
 docker build -t deepr .
 
 # Run with environment variables
-docker run -e OPENAI_API_KEY=sk-... deepr run single "Your query"
+docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --auto
 ```
 
 ## Configuration Details
@@ -249,10 +249,10 @@ deepr --version
 
 # Test help system
 deepr --help
-deepr run --help
+deepr research --help
 
 # Test basic functionality (with API key configured)
-deepr run single "What is 2+2?" -y
+deepr research "What is 2+2?" --auto
 
 # Check budget status
 deepr budget status

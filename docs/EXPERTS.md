@@ -190,16 +190,21 @@ deepr expert import "New Expert" --corpus ./exports/azure_architect/
 ### Components
 
 ```
+deepr/core/
+├── contracts.py    # Canonical types: Claim, Gap, DecisionRecord, ExpertManifest, Source
+
 deepr/experts/
-├── profile.py      # Expert metadata, usage tracking
+├── profile.py      # Expert metadata, usage tracking, get_manifest()
 ├── curriculum.py   # Learning plan generation
 ├── learner.py      # Autonomous learning execution
 ├── chat.py         # Interactive Q&A
 ├── router.py       # Model selection
-├── beliefs.py      # Belief formation
-├── metacognition.py # Gap awareness
+├── beliefs.py      # Belief formation, to_claim() adapter
+├── metacognition.py # Gap awareness, to_gap() adapter
 ├── memory.py       # Conversation memory
-├── synthesis.py    # Knowledge synthesis
+├── synthesis.py    # Knowledge synthesis, to_claim()/to_gap() adapters
+├── gap_scorer.py   # EV/cost ranking for knowledge gaps
+├── thought_stream.py # Decision records, reasoning traces
 └── cost_safety.py  # Budget controls
 ```
 
@@ -251,12 +256,53 @@ See [ARCHITECTURE.md](ARCHITECTURE.md#security) for full budget protection detai
 
 ## Advanced Features
 
-### Knowledge Synthesis (Experimental)
+### Claims and Confidence
 
-Experts can synthesize documents into structured beliefs:
-- Confidence levels per belief
-- Evidence citations
-- Gap awareness
+Experts track structured **claims** — atomic assertions with confidence scores, source provenance, and contradiction tracking. Claims are canonical types defined in `core/contracts.py`:
+
+- Each claim has a confidence score (0.0-1.0) with time-based decay
+- Sources carry a `TrustClass` (primary, secondary, tertiary, self_generated) and content hash
+- Claims track contradictions and supersession chains
+- View claims via web API: `GET /api/experts/<name>/claims?min_confidence=0.7`
+
+### Knowledge Gap Scoring
+
+Gaps are prioritized by **EV/cost ratio** — expected value relative to the estimated cost to fill:
+
+```
+ev_cost_ratio = expected_value / estimated_cost
+expected_value = (priority / 5.0) + frequency_boost
+estimated_cost = domain velocity lookup (fast=$0.25, medium=$1.00, slow=$2.00)
+```
+
+Higher-ratio gaps are filled first, making `expert fill-gaps --top N` a rational allocation rather than arbitrary ordering.
+
+### Decision Records
+
+Every autonomous action — routing decisions, source trust evaluations, stop conditions, gap fills — is captured as a structured **decision record**:
+
+- Type: routing, stop, pivot, budget, belief_revision, gap_fill, conflict_resolution, source_selection
+- Includes: title, rationale, confidence, alternatives considered, evidence refs, cost impact
+- Viewable via `--explain` flag in CLI (Rich table) and decision sidebar in Trace Explorer
+- Queryable via web API: `GET /api/experts/<name>/decisions`
+- Stored as `decisions.json` alongside `decisions.md` in expert logs
+
+### Expert Manifests
+
+An expert's full state is available as a typed **manifest** — a snapshot composing claims, scored gaps, decision records, and policies:
+
+```bash
+# Via MCP (for AI agents)
+deepr_expert_manifest(expert_name="AI Policy Expert")
+deepr_rank_gaps(expert_name="AI Policy Expert", top_n=5)
+```
+
+```bash
+# Via web API
+GET /api/experts/AI%20Policy%20Expert/manifest
+```
+
+The manifest includes computed properties: `claim_count`, `open_gap_count`, `avg_confidence`, and `top_gaps(n)`.
 
 ### Continuous Learning
 
@@ -273,10 +319,10 @@ deepr council "Build vs buy?" \
 
 ## Limitations
 
-- Early-stage software - more testing needed
-- "Consciousness" and "belief" describe architecture goals, not AI capabilities
+- Early-stage software — more testing needed
 - Vector search quality depends on document quality
 - Research costs can add up with agentic mode
+- Decision records are generated during agentic operations; non-agentic queries produce reports but not decisions
 
 ## See Also
 
