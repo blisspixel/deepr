@@ -16,6 +16,7 @@ Requirements: 1.2 - ExpertProfile Refactoring
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 from deepr.experts.activity_tracker import ActivityTracker
@@ -329,6 +330,112 @@ class ExpertProfile:
         self.total_research_cost = self.budget_manager.total_spending
         self.monthly_spending_reset_date = self.budget_manager.reset_date
         self.refresh_history = self.budget_manager.refresh_history
+
+    # =========================================================================
+    # Manifest generation
+    # =========================================================================
+
+    def get_manifest(self) -> "ExpertManifest":
+        """Build a complete ExpertManifest snapshot.
+
+        Loads beliefs from BeliefStore, worldview from synthesis, gaps from
+        metacognition + synthesis, and decision records from ThoughtStream logs.
+
+        Returns:
+            ExpertManifest composing all expert state.
+        """
+        from deepr.core.contracts import ExpertManifest, Gap
+        from deepr.experts.gap_scorer import score_gap
+
+        claims = []
+        seen_statements: set[str] = set()
+
+        # Load beliefs from BeliefStore
+        try:
+            from deepr.experts.beliefs import BeliefStore
+            store = BeliefStore(self.name)
+            for belief in store.beliefs.values():
+                claim = belief.to_claim()
+                if claim.statement not in seen_statements:
+                    claims.append(claim)
+                    seen_statements.add(claim.statement)
+        except Exception:
+            pass
+
+        # Load worldview beliefs from synthesis
+        try:
+            from deepr.experts.synthesis import Worldview
+            wv_path = Path(f"data/experts/{self.name}/worldview.json")
+            if wv_path.exists():
+                wv = Worldview.load(wv_path)
+                for belief in wv.beliefs:
+                    claim = belief.to_claim()
+                    if claim.statement not in seen_statements:
+                        claims.append(claim)
+                        seen_statements.add(claim.statement)
+        except Exception:
+            pass
+
+        gaps: list[Gap] = []
+        seen_topics: set[str] = set()
+        velocity = self.domain_velocity or "medium"
+
+        # Load gaps from metacognition
+        try:
+            from deepr.experts.metacognition import MetaCognitionTracker
+            tracker = MetaCognitionTracker(self.name)
+            for kg in tracker.knowledge_gaps.values():
+                gap = kg.to_gap()
+                if gap.topic not in seen_topics:
+                    score_gap(gap, domain_velocity=velocity)
+                    gaps.append(gap)
+                    seen_topics.add(gap.topic)
+        except Exception:
+            pass
+
+        # Load gaps from synthesis worldview
+        try:
+            from deepr.experts.synthesis import Worldview
+            wv_path = Path(f"data/experts/{self.name}/worldview.json")
+            if wv_path.exists():
+                wv = Worldview.load(wv_path)
+                for kg in wv.knowledge_gaps:
+                    gap = kg.to_gap()
+                    if gap.topic not in seen_topics:
+                        score_gap(gap, domain_velocity=velocity)
+                        gaps.append(gap)
+                        seen_topics.add(gap.topic)
+        except Exception:
+            pass
+
+        # Load decision records from ThoughtStream logs
+        decisions = []
+        try:
+            import json as _json
+            from deepr.core.contracts import DecisionRecord
+            log_dir = Path(f"data/experts/{self.name}/logs")
+            if log_dir.exists():
+                for json_file in sorted(log_dir.glob("decisions*.json"), reverse=True):
+                    with open(json_file, encoding="utf-8") as f:
+                        records = _json.load(f)
+                    for rec_data in records:
+                        decisions.append(DecisionRecord.from_dict(rec_data))
+                    break  # Only load most recent
+        except Exception:
+            pass
+
+        return ExpertManifest(
+            expert_name=self.name,
+            domain=self.domain or "",
+            claims=claims,
+            gaps=gaps,
+            decisions=decisions,
+            policies={
+                "refresh_days": self.refresh_frequency_days,
+                "budget_cap": self.monthly_learning_budget,
+                "velocity": self.domain_velocity,
+            },
+        )
 
     # =========================================================================
     # Serialization (uses serializer module)

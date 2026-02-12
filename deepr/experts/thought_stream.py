@@ -254,6 +254,7 @@ class ThoughtStream:
 
         # Track thoughts for this session
         self.thoughts: list[Thought] = []
+        self.decision_records: list = []  # list[DecisionRecord]
 
         # Current phase for grouping
         self._current_phase: Optional[str] = None
@@ -471,6 +472,62 @@ class ThoughtStream:
         """
         self.emit(ThoughtType.ERROR, f"Error: {message}", private_payload=details)
 
+    def record_decision(
+        self,
+        decision_type: str,
+        title: str,
+        rationale: str,
+        confidence: float = 0.0,
+        alternatives: Optional[list[str]] = None,
+        evidence_refs: Optional[list[str]] = None,
+        cost_impact: float = 0.0,
+        **context,
+    ) -> None:
+        """Record a structured DecisionRecord alongside a Thought.
+
+        Creates a DecisionRecord, appends to self.decision_records,
+        AND calls self.decision() for backward compatibility.
+
+        Args:
+            decision_type: DecisionType value string (e.g. "routing", "stop")
+            title: Short label (< 80 chars)
+            rationale: Why this was chosen
+            confidence: 0.0-1.0
+            alternatives: Other options considered
+            evidence_refs: Source/span IDs
+            cost_impact: USD impact
+            **context: Additional context (job_id, expert_name, span_id)
+        """
+        from deepr.core.contracts import DecisionRecord, DecisionType
+
+        try:
+            dtype = DecisionType(decision_type)
+        except ValueError:
+            dtype = DecisionType.ROUTING
+
+        record = DecisionRecord.create(
+            decision_type=dtype,
+            title=title,
+            rationale=rationale,
+            confidence=confidence,
+            alternatives=alternatives or [],
+            evidence_refs=evidence_refs or [],
+            cost_impact=cost_impact,
+            context=context,
+        )
+        self.decision_records.append(record)
+
+        # Backward compat: also emit as a Thought
+        self.decision(title, confidence=confidence, evidence=evidence_refs, reasoning=rationale)
+
+    def get_decision_records(self) -> list[dict[str, Any]]:
+        """Return serialized decision records.
+
+        Returns:
+            List of DecisionRecord dictionaries.
+        """
+        return [r.to_dict() for r in self.decision_records]
+
     def get_trace(self) -> list[dict[str, Any]]:
         """Get the full thought trace for this session.
 
@@ -559,6 +616,19 @@ class ThoughtStream:
             elif thought.thought_type == ThoughtType.ERROR:
                 lines.append(f"- ❌ {thought.public_text}")
 
+        # Add typed decisions section if available
+        if self.decision_records:
+            lines.extend(["", "## Typed Decisions", ""])
+            for rec in self.decision_records:
+                lines.append(
+                    f"- **[{rec.decision_type.value}]** {rec.title} "
+                    f"(confidence: {rec.confidence:.0%}, cost: ${rec.cost_impact:.4f})"
+                )
+                if rec.rationale:
+                    lines.append(f"  - Rationale: {rec.rationale}")
+                if rec.alternatives:
+                    lines.append(f"  - Alternatives: {', '.join(rec.alternatives)}")
+
         # Add summary section
         lines.extend(
             [
@@ -597,7 +667,7 @@ class ThoughtStream:
         return "\n".join(lines)
 
     def save_decision_log(self, path: Path) -> None:
-        """Save decision log as markdown file.
+        """Save decision log as markdown + JSON files.
 
         Args:
             path: Path to save the decision log (e.g., reports/{job_id}/decisions.md)
@@ -608,6 +678,12 @@ class ThoughtStream:
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(summary)
+
+        # Also save structured decisions as JSON alongside the markdown
+        if self.decision_records:
+            json_path = path.with_suffix(".json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(self.get_decision_records(), f, indent=2)
 
     def get_why_summary(self) -> str:
         """Get a concise one-line summary for --why flag output.
