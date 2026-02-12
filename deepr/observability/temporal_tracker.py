@@ -306,7 +306,7 @@ class TemporalKnowledgeTracker:
         triggering_finding_id: Optional[str] = None,
         add_supporting: Optional[list[str]] = None,
         add_contradicting: Optional[list[str]] = None,
-    ) -> HypothesisEvolution:
+    ) -> Optional[HypothesisEvolution]:
         """Update an existing hypothesis.
 
         Args:
@@ -320,7 +320,7 @@ class TemporalKnowledgeTracker:
             add_contradicting: New contradicting finding IDs
 
         Returns:
-            HypothesisEvolution record
+            HypothesisEvolution record, or None if no actual change
 
         Raises:
             KeyError: If hypothesis not found
@@ -352,7 +352,7 @@ class TemporalKnowledgeTracker:
             elif new_text != old_state.text:
                 evolution_type = EvolutionType.MODIFIED
             else:
-                evolution_type = EvolutionType.MODIFIED
+                return None  # No actual change, skip recording
 
         # Create new state
         new_state = HypothesisState(

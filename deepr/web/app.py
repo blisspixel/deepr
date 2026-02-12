@@ -123,7 +123,7 @@ def get_jobs():
             jobs_data.append(
                 {
                     "id": job.id,
-                    "prompt": job.prompt[:200] if len(job.prompt) > 200 else job.prompt,
+                    "prompt": (job.prompt[:200] if len(job.prompt) > 200 else job.prompt) if job.prompt else "",
                     "model": job.model,
                     "status": job.status.value,
                     "priority": job.priority,
@@ -150,10 +150,7 @@ def get_jobs():
 def get_stats():
     """Get queue statistics."""
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        all_jobs = loop.run_until_complete(queue.list_jobs(limit=1000))
+        all_jobs = run_async(queue.list_jobs(limit=1000))
 
         stats = {
             "total": len(all_jobs),
@@ -640,14 +637,25 @@ def update_cost_limits():
     """Update budget limits."""
     try:
         data = request.json
+        if not data:
+            return jsonify({"error": "Request body required"}), 400
 
         if cost_controller:
             if "per_job" in data:
-                cost_controller.max_cost_per_job = float(data["per_job"])
+                val = data["per_job"]
+                if not isinstance(val, (int, float)) or val < 0:
+                    return jsonify({"error": "per_job must be a non-negative number"}), 400
+                cost_controller.max_cost_per_job = float(val)
             if "daily" in data:
-                cost_controller.max_daily_cost = float(data["daily"])
+                val = data["daily"]
+                if not isinstance(val, (int, float)) or val < 0:
+                    return jsonify({"error": "daily must be a non-negative number"}), 400
+                cost_controller.max_daily_cost = float(val)
             if "monthly" in data:
-                cost_controller.max_monthly_cost = float(data["monthly"])
+                val = data["monthly"]
+                if not isinstance(val, (int, float)) or val < 0:
+                    return jsonify({"error": "monthly must be a non-negative number"}), 400
+                cost_controller.max_monthly_cost = float(val)
 
         limits = {
             "per_job": cost_controller.max_cost_per_job if cost_controller else 20.0,
@@ -967,6 +975,8 @@ def get_expert(name):
 
         decoded_name = unquote(name)
         experts_dir = config_path / "experts"
+        if not experts_dir.exists():
+            return jsonify({"error": "Expert not found"}), 404
         # Find by name
         for profile_dir in experts_dir.iterdir():
             if profile_dir.is_dir():
@@ -987,7 +997,8 @@ def get_expert(name):
                                 }
                             }
                         )
-                except Exception:
+                except Exception as e:
+                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
                     continue
         return jsonify({"error": "Expert not found"}), 404
     except ImportError:
@@ -1029,6 +1040,8 @@ def get_expert_gaps(name):
 
         decoded_name = unquote(name)
         experts_dir = config_path / "experts"
+        if not experts_dir.exists():
+            return jsonify({"gaps": []})
         for profile_dir in experts_dir.iterdir():
             if profile_dir.is_dir():
                 try:
@@ -1046,7 +1059,8 @@ def get_expert_gaps(name):
                                 }
                             )
                         return jsonify({"gaps": gaps})
-                except Exception:
+                except Exception as e:
+                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
                     continue
         return jsonify({"gaps": []})
     except ImportError:
@@ -1075,6 +1089,8 @@ def get_expert_history(name):
 def get_trace(job_id):
     """Get trace data for a job."""
     try:
+        if ".." in job_id or "/" in job_id or "\\" in job_id:
+            return jsonify({"error": "Invalid job_id"}), 400
         trace_path = Path("data/traces") / f"{job_id}_trace.json"
         if trace_path.exists():
             import json
@@ -1092,6 +1108,8 @@ def get_trace(job_id):
 def get_trace_temporal(job_id):
     """Get temporal findings for a trace."""
     try:
+        if ".." in job_id or "/" in job_id or "\\" in job_id:
+            return jsonify({"error": "Invalid job_id"}), 400
         trace_path = Path("data/traces") / f"{job_id}_trace.json"
         if trace_path.exists():
             import json
