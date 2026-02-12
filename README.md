@@ -5,13 +5,15 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-2.8-orange)](ROADMAP.md)
 
-**Deep research agents for automation — the same technology behind ChatGPT and Gemini, but scriptable.**
+**Deep research that produces experts, not just answers.**
+
+Deepr produces two artifacts: **reports** (markdown with citations) and **experts**. Experts are persistent, versionable knowledge bases that track claims with confidence scores and detect their own gaps. They autonomously research to fill those gaps within budgeted limits. Every action — routing, source selection, stop conditions — is captured as a structured **decision record**, not a log line. Experts are queryable by other agents via MCP, so your AI workflows consume living knowledge instead of stale documents.
 
 ```bash
-deepr research "What are the security implications of AWS Bedrock vs Azure OpenAI for enterprise RAG?"
+deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3 --explain
 ```
 
-ChatGPT and Gemini have powerful deep research, but it's trapped in a chat window. You can't script it, schedule it, or call it from your AI agents. Deepr fixes that.
+Scriptable. Schedulable. Callable from your AI agents via MCP. Multi-provider (OpenAI, Gemini, Grok, Anthropic). Reports and experts saved locally as artifacts you own.
 
 **Stack:** Python · Flask · Click · React · TypeScript · Tailwind CSS · SQLite · WebSocket · Docker · AWS/Azure/GCP
 
@@ -78,12 +80,13 @@ graph TB
 
 Deepr wraps the same underlying APIs (OpenAI's o3/o4-mini-deep-research, Gemini's Deep Research Agent) and adds what they're missing:
 
-- **Automation** — Run from scripts, cron jobs, CI pipelines. No browser required. Schedule competitive intel weekly. Run 30 due diligence queries overnight.
-- **Domain experts** — Build persistent experts from your docs that recognize knowledge gaps and research autonomously to fill them. Institutional knowledge that learns, improves, and doesn't quit.
-- **MCP integration** — Your AI agents (Claude Code, Cursor, VS Code, Zed) can call deep research mid-task. Not hallucinations — actual research with citations.
+- **Domain experts** — Persistent, versionable artifacts that accumulate knowledge, track beliefs with confidence, and autonomously research their own gaps. Not RAG — institutional memory that improves.
+- **Decision records** — Every routing choice, source trust decision, stop condition, and gap fill is captured as a queryable record. Not logs. Auditable artifacts.
+- **Budgeted autonomy** — Per-job budgets, daily limits, cost tracking. Experts act within constraints you set. Auto-mode routes simple queries to $0.01 models instead of $2 ones.
+- **MCP integration** — Your AI agents (Claude Code, Cursor, VS Code, Zed) can query experts and trigger research mid-task. Living knowledge, not hallucinations.
 - **Multi-provider** — Same interface across OpenAI, Gemini, Grok, and Anthropic. Auto-fallback on failures. Switch providers without changing code.
-- **Cost controls** — Per-job budgets, daily limits, cost tracking. Auto-mode routes simple queries to $0.01 models instead of $2 ones.
-- **Local storage** — Reports saved as markdown files you own. No vendor lock-in.
+- **Automation** — Run from scripts, cron jobs, CI pipelines. No browser required. Schedule competitive intel weekly. Batch 50 queries overnight.
+- **Local artifacts** — Reports and experts saved as files you own. No vendor lock-in.
 
 ## Quick Start
 
@@ -110,18 +113,23 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for a guided setup.
 
 ### Deep Research via CLI
 
-Submit research queries that use the same deep research agents as ChatGPT and Gemini. They search the web, synthesize sources, and produce structured reports with citations. Results saved locally as markdown.
+Orchestrates deep research across OpenAI, Gemini, Grok, and Anthropic. Auto mode routes by complexity — simple lookups hit fast models at $0.01, hard questions hit deep research at $2. Reports saved locally as markdown with citations.
 
 ```bash
-deepr research "Kubernetes vs ECS Fargate for multi-tenant SaaS: tradeoffs"  # Deep research
-deepr check "Does SOC 2 Type II require encryption at rest for all PII?"     # Compliance
-deepr learn "Service mesh options for hybrid cloud" --phases 3               # Multi-phase
-deepr team "Build internal ML platform or use SageMaker?"                    # Strategy
+# AI + Strategy
+deepr research "Are foundation model training runs approaching diminishing returns beyond 10T tokens?" --auto --explain
+deepr research "How will AI copilots change junior software hiring over the next 5 years?" --auto --prefer-cost
 
-# Auto mode — routes by complexity (10-20x cost savings)
-deepr research --auto "What is Python?"                      # → grok-4-fast ($0.01)
-deepr research --auto "Analyze Tesla's competitive position" # → o3-deep-research ($0.50)
-deepr research --auto --batch queries.txt --dry-run          # Preview routing for batch
+# Hardware + Energy
+deepr research "What bottlenecks could constrain NVIDIA Blackwell deployment at hyperscale in 2026?" --auto --full-trace
+deepr research "Will grid-scale battery storage outcompete peaker plants in major US markets by 2030?" --auto --progress
+
+# Biotech + Finance
+deepr research "How will AI-driven drug discovery change pharma R&D timelines by 2030?" --budget 3 --explain
+deepr research "How exposed are major banks to quantum decryption risk over the next 15 years?" --auto --timeline
+
+# Batch + preview
+deepr research --auto --batch queries.txt --dry-run          # Preview routing for 50 queries, no cost
 ```
 
 See [docs/FEATURES.md](docs/FEATURES.md) for the full command reference including progress tracking, tracing, and observability.
@@ -141,25 +149,23 @@ This is where Deepr goes beyond "ChatGPT but CLI."
 - **Portable** — Export an expert and share it across your organization
 
 ```bash
-# Create an expert from your architecture docs, runbooks, ADRs
+# Create an expert seeded with a research question
+deepr expert make "AI Policy Expert" --seed "EU AI Act enforcement timeline 2026-2030" --budget 5
+
+# Chat with it — when it hits a gap, it researches autonomously
+deepr expert chat "AI Policy Expert" "Will model eval transparency requirements affect US startups?" --agentic --budget 3
+
+# Proactively fill the highest-value knowledge gaps
+deepr expert fill-gaps "Energy Transition Expert" --top 2 --budget 4
+
+# Create from your own docs, runbooks, ADRs
 deepr expert make "Platform Team Expert" --files docs/*.md confluence-export/*.html
 
-# Chat with it — when it hits a knowledge gap, it researches
-deepr expert chat "Platform Team Expert" --agentic --budget 5
-
-# Proactively fill knowledge gaps (e.g., new AWS services)
-deepr expert fill-gaps "Platform Team Expert" --budget 5 --top 3
-
-# Preview what an expert would learn (no cost, no expert created)
-deepr expert plan "Cloud Architecture" --budget 10
-
 # Export for the whole team
-deepr expert export "Platform Team Expert" --output ./team-experts/
+deepr expert export "AI Policy Expert" --output ./team-experts/
 ```
 
-**Example:** You create a "Cloud Architecture" expert from your internal docs. Someone asks about AWS Bedrock Guardrails (released last month). Instead of hallucinating, the expert says "I don't have information on that" and (in agentic mode) researches it, then integrates the findings permanently. Next time anyone asks, it knows.
-
-This is institutional knowledge that learns, improves, and doesn't quit.
+**Example:** You seed an "AI Policy Expert" with EU AI Act research. A colleague asks about US implications. The expert identifies a gap, researches it within budget, logs the decision, and integrates the findings permanently. Next time anyone asks, it knows.
 
 See [docs/EXPERTS.md](docs/EXPERTS.md) for details.
 
@@ -171,15 +177,15 @@ If you use Claude Code, Cursor, VS Code, or Zed, your AI agents can call Deepr a
 
 **The workflow:**
 ```
-You (in Cursor): "Design a multi-region failover system for DynamoDB"
+You (in Cursor): "Draft a compliance checklist for our EU customers before the AI Act deadline"
 
 Claude Code:
-  1. Realizes it needs current AWS documentation (not 2023 training data)
-  2. Calls deepr_query_expert("Cloud Architecture Expert", "DynamoDB multi-region patterns")
-  3. Expert identifies knowledge gap: "I don't have info on DynamoDB Global Tables v2"
-  4. Agent triggers deepr_agentic_research to fill the gap
-  5. Expert learns the new information permanently
-  6. Claude continues with accurate, cited architecture recommendations
+  1. Calls deepr_query_expert("AI Policy Expert", "AI Act compliance requirements for SaaS")
+  2. Expert answers from accumulated knowledge with confidence scores and citations
+  3. Expert flags a gap: "I lack detail on the August 2026 general-purpose AI provisions"
+  4. Agent triggers deepr_agentic_research to fill the gap within budget
+  5. Expert learns permanently — decision record logged with cost and rationale
+  6. Claude continues with an accurate, cited compliance checklist
 ```
 
 **What the skill teaches agents:**
@@ -346,12 +352,10 @@ See [ROADMAP.md](ROADMAP.md) for planned work and priorities.
 
 ## A Note on This Project
 
-Deepr is a nights-and-weekends passion project by [Nick Seal](mailto:nick@pueo.io). It started as a weekend experiment with OpenAI's deep research API and grew from there.
+Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained in spare time. It started as a weekend experiment with OpenAI's deep research API and grew into an exploration of how autonomous research systems should be built.
 
 I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. Building Deepr is also an exercise in a broader question: what does it take to run AI agents *continuously* — with budgets, reliability, memory, and auditability? The patterns here (economic governance, provider routing, persistent expertise, decision observability) are transferable well beyond research. At minimum, it's a way to learn the space deeply. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
 
-This is not a commercial product. There's no company behind it, no SLA, and no guarantees. It's maintained in my spare time because I find the problem space fascinating. If you find it useful, that's great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions) — I'm happy to help when I can.
-
-Use at your own risk, especially around cost controls and API spending. The budget guardrails are well-tested (3600+ tests), but you're ultimately responsible for your own API keys and usage.
+There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (3600+ tests), but you're ultimately responsible for your own API keys and usage.
 
 [GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)
