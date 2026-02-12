@@ -341,7 +341,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
             "status": "ready",
         }
 
-        with open(plan_path, "w") as f:
+        with open(plan_path, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Team research plan saved to {plan_path}")
@@ -366,7 +366,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
         # Update plan with results
         plan_data["results"] = results
         plan_data["status"] = "researched"
-        with open(plan_path, "w") as f:
+        with open(plan_path, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Research complete! {len(results)} team members finished.")
@@ -379,7 +379,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
 
         # Save report
         report_path = Path(".deepr") / "team_research_report.md"
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write(report)
 
         click.echo(report)
@@ -409,7 +409,7 @@ def status():
         click.echo("No team research in progress")
         return
 
-    with open(plan_path) as f:
+    with open(plan_path, encoding="utf-8") as f:
         plan = json.load(f)
 
     click.echo(f"\nQuestion: {plan['question']}")
