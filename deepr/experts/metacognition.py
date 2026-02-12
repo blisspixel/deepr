@@ -25,6 +25,24 @@ class KnowledgeGap:
     confidence_before: float = 0.0
     confidence_after: Optional[float] = None
 
+    def to_gap(self) -> "Gap":
+        """Convert to canonical Gap type.
+
+        Returns:
+            Gap populated from this metacognition KnowledgeGap.
+        """
+        from deepr.core.contracts import Gap
+
+        return Gap.create(
+            topic=self.topic,
+            questions=[],
+            priority=min(self.times_asked, 5),
+            times_asked=self.times_asked,
+            identified_at=self.first_encountered,
+            filled=self.research_triggered and self.confidence_after is not None,
+            filled_at=self.research_date if (self.research_triggered and self.confidence_after is not None) else None,
+        )
+
 
 @dataclass
 class DomainConfidence:

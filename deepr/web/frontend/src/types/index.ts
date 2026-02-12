@@ -186,3 +186,81 @@ export interface CostAnomaly {
   deviation: number
   message: string
 }
+
+// Contract types (canonical expert system types)
+
+export type TrustClass = 'primary' | 'secondary' | 'tertiary' | 'self_generated'
+
+export interface Source {
+  id: string
+  url?: string
+  title: string
+  trust_class: TrustClass
+  content_hash: string
+  extraction_method: string
+  retrieved_at: string
+}
+
+export interface Claim {
+  id: string
+  statement: string
+  domain: string
+  confidence: number
+  sources: Source[]
+  created_at: string
+  updated_at: string
+  contradicts: string[]
+  supersedes?: string
+  tags: string[]
+}
+
+export type DecisionType =
+  | 'routing'
+  | 'stop'
+  | 'pivot'
+  | 'budget'
+  | 'belief_revision'
+  | 'gap_fill'
+  | 'conflict_resolution'
+  | 'source_selection'
+
+export interface DecisionRecord {
+  id: string
+  decision_type: DecisionType
+  title: string
+  rationale: string
+  confidence: number
+  alternatives: string[]
+  evidence_refs: string[]
+  cost_impact: number
+  timestamp: string
+  context: Record<string, unknown>
+}
+
+export interface ScoredGap {
+  id: string
+  topic: string
+  questions: string[]
+  priority: number
+  estimated_cost: number
+  expected_value: number
+  ev_cost_ratio: number
+  times_asked: number
+  identified_at: string
+  filled: boolean
+  filled_at?: string
+  filled_by_job?: string
+}
+
+export interface ExpertManifest {
+  expert_name: string
+  domain: string
+  claims: Claim[]
+  gaps: ScoredGap[]
+  decisions: DecisionRecord[]
+  policies: Record<string, unknown>
+  generated_at: string
+  claim_count: number
+  open_gap_count: number
+  avg_confidence: number
+}

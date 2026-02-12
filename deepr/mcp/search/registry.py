@@ -427,6 +427,51 @@ def create_default_registry() -> ToolRegistry:
         )
     )
 
+    registry.register(
+        ToolSchema(
+            name="deepr_expert_manifest",
+            description=(
+                "Get the full ExpertManifest for an expert: all claims (beliefs with "
+                "confidence and sources), knowledge gaps (scored by EV/cost), decision "
+                "records, and policies. Use for comprehensive expert state inspection."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
+            name="deepr_rank_gaps",
+            description=(
+                "Get the top N knowledge gaps for an expert ranked by expected value "
+                "relative to estimated research cost. Use to decide which gaps to fill "
+                "first for maximum impact."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "top_n": {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Number of top gaps to return",
+                    },
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
     # Agentic tools
     registry.register(
         ToolSchema(

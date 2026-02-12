@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Expert, ExpertChat, KnowledgeGap } from '../types'
+import type { Expert, ExpertChat, ExpertManifest, Claim, DecisionRecord, ScoredGap } from '../types'
 
 export const expertsApi = {
   list: async () => {
@@ -15,7 +15,7 @@ export const expertsApi = {
     return response.data.response
   },
   getGaps: async (name: string) => {
-    const response = await apiClient.get<{ gaps: KnowledgeGap[] }>(`/experts/${name}/gaps`)
+    const response = await apiClient.get<{ gaps: ScoredGap[] }>(`/experts/${name}/gaps`)
     return response.data.gaps
   },
   learnGap: async (name: string, gapId: string) => {
@@ -25,5 +25,17 @@ export const expertsApi = {
   getHistory: async (name: string) => {
     const response = await apiClient.get(`/experts/${name}/history`)
     return response.data.events
+  },
+  getManifest: async (name: string) => {
+    const response = await apiClient.get<{ manifest: ExpertManifest }>(`/experts/${name}/manifest`)
+    return response.data.manifest
+  },
+  getClaims: async (name: string, params?: { domain?: string; min_confidence?: number }) => {
+    const response = await apiClient.get<{ claims: Claim[] }>(`/experts/${name}/claims`, { params })
+    return response.data.claims
+  },
+  getDecisions: async (name: string, params?: { type?: string; job_id?: string; limit?: number }) => {
+    const response = await apiClient.get<{ decisions: DecisionRecord[] }>(`/experts/${name}/decisions`, { params })
+    return response.data.decisions
   },
 }

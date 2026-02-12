@@ -8,24 +8,71 @@ import type { ExpertChat } from '@/types'
 import {
   AlertTriangle,
   ArrowLeft,
+  CheckCircle,
   Clock,
   DollarSign,
   FileText,
+  GitBranch,
   Lightbulb,
   Loader2,
   MessageSquare,
   Search,
   SearchX,
   Send,
+  Shield,
   Users,
 } from 'lucide-react'
+
+type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history'
+
+function ConfidenceBar({ value }: { value: number }) {
+  const pct = Math.round(value * 100)
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            value >= 0.8 ? 'bg-green-500' : value >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs text-muted-foreground tabular-nums">{pct}%</span>
+    </div>
+  )
+}
+
+function EvScoreBadge({ ratio }: { ratio: number }) {
+  return (
+    <span className={cn(
+      'px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums',
+      ratio > 1.0 ? 'bg-green-500/10 text-green-600' :
+      ratio >= 0.5 ? 'bg-yellow-500/10 text-yellow-600' :
+      'bg-red-500/10 text-red-600'
+    )}>
+      {ratio.toFixed(2)}
+    </span>
+  )
+}
+
+const DECISION_TYPE_ICONS: Record<string, typeof GitBranch> = {
+  routing: GitBranch,
+  stop: CheckCircle,
+  pivot: GitBranch,
+  budget: DollarSign,
+  belief_revision: Lightbulb,
+  gap_fill: Search,
+  conflict_resolution: Shield,
+  source_selection: FileText,
+}
 
 export default function ExpertProfile() {
   const { name } = useParams<{ name: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const initialTab = (searchParams.get('tab') as 'chat' | 'gaps' | 'history') || 'chat'
-  const [activeTab, setActiveTab] = useState<'chat' | 'gaps' | 'history'>(initialTab)
+  const initialTab = (searchParams.get('tab') as TabKey) || 'chat'
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState<ExpertChat[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -45,6 +92,18 @@ export default function ExpertProfile() {
     enabled: !!decodedName && activeTab === 'gaps',
   })
 
+  const { data: claims, isLoading: isClaimsLoading } = useQuery({
+    queryKey: ['experts', decodedName, 'claims'],
+    queryFn: () => expertsApi.getClaims(encodedName),
+    enabled: !!decodedName && activeTab === 'claims',
+  })
+
+  const { data: decisions, isLoading: isDecisionsLoading } = useQuery({
+    queryKey: ['experts', decodedName, 'decisions'],
+    queryFn: () => expertsApi.getDecisions(encodedName),
+    enabled: !!decodedName && activeTab === 'decisions',
+  })
+
   const { data: history } = useQuery({
     queryKey: ['experts', decodedName, 'history'],
     queryFn: () => expertsApi.getHistory(encodedName) as Promise<{ id: string; type: string; description: string; timestamp: string; cost?: number }[]>,
@@ -57,7 +116,6 @@ export default function ExpertProfile() {
       setChatMessages(prev => [...prev, data])
     },
     onError: () => {
-      // Remove the user message that was optimistically added
       setChatMessages(prev => prev.slice(0, -1))
       toast.error('Failed to get response from expert')
     },
@@ -111,11 +169,21 @@ export default function ExpertProfile() {
     )
   }
 
-  const tabs = [
-    { key: 'chat' as const, label: 'Chat' },
-    { key: 'gaps' as const, label: 'Knowledge Gaps' },
-    { key: 'history' as const, label: 'History' },
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'chat', label: 'Chat' },
+    { key: 'claims', label: 'Claims' },
+    { key: 'gaps', label: 'Knowledge Gaps' },
+    { key: 'decisions', label: 'Decisions' },
+    { key: 'history', label: 'History' },
   ]
+
+  const sortedClaims = claims
+    ? [...claims].sort((a, b) => b.confidence - a.confidence)
+    : []
+
+  const sortedDecisions = decisions
+    ? [...decisions].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    : []
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] animate-fade-in">
@@ -230,6 +298,57 @@ export default function ExpertProfile() {
           </div>
         )}
 
+        {activeTab === 'claims' && (
+          <div className="p-6">
+            {isClaimsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : !sortedClaims.length ? (
+              <div className="flex flex-col items-center justify-center text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                  <Lightbulb className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <h3 className="text-sm font-medium text-foreground mb-1">No claims yet</h3>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Claims will appear here as the expert forms beliefs from evidence.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-card overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 font-medium text-muted-foreground">Statement</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-32">Confidence</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-20">Sources</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-28">Domain</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedClaims.map((claim) => (
+                      <tr key={claim.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="p-3 text-foreground">{claim.statement}</td>
+                        <td className="p-3"><ConfidenceBar value={claim.confidence} /></td>
+                        <td className="p-3">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-secondary text-xs font-medium text-foreground">
+                            {claim.sources.length}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded bg-secondary text-xs text-muted-foreground">
+                            {claim.domain}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'gaps' && (
           <div className="p-6 space-y-3">
             {isGapsLoading ? (
@@ -250,18 +369,28 @@ export default function ExpertProfile() {
               gaps.map((gap) => (
                 <div key={gap.id} className="rounded-lg border bg-card p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-sm font-medium text-foreground">{gap.topic}</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">{gap.description}</p>
+                      {gap.questions.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {gap.questions.map((q, i) => (
+                            <li key={i} className="text-xs text-muted-foreground">- {q}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    <span className={cn(
-                      'px-2 py-0.5 rounded text-[10px] font-semibold uppercase',
-                      gap.priority === 'high' && 'bg-destructive/10 text-destructive',
-                      gap.priority === 'medium' && 'bg-warning/10 text-warning',
-                      gap.priority === 'low' && 'bg-muted text-muted-foreground'
-                    )}>
-                      {gap.priority}
-                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <EvScoreBadge ratio={gap.ev_cost_ratio} />
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-secondary text-muted-foreground">
+                        P{gap.priority}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <span>EV: {gap.expected_value.toFixed(2)}</span>
+                    <span>Cost: {formatCurrency(gap.estimated_cost)}</span>
+                    {gap.times_asked > 0 && <span>Asked {gap.times_asked}x</span>}
+                    {gap.filled && <span className="text-green-600">Filled</span>}
                   </div>
                   <button
                     className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
@@ -272,6 +401,60 @@ export default function ExpertProfile() {
                   </button>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'decisions' && (
+          <div className="p-6 space-y-3">
+            {isDecisionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : !sortedDecisions.length ? (
+              <div className="flex flex-col items-center justify-center text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                  <GitBranch className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <h3 className="text-sm font-medium text-foreground mb-1">No decisions yet</h3>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Decision records will appear here as the expert makes research decisions.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sortedDecisions.map((dec) => {
+                  const Icon = DECISION_TYPE_ICONS[dec.decision_type] || GitBranch
+                  return (
+                    <div key={dec.id} className="rounded-lg border bg-card p-4 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Icon className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-medium text-foreground">{dec.title}</h3>
+                            <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] font-medium text-muted-foreground">
+                              {dec.decision_type}
+                            </span>
+                            <ConfidenceBar value={dec.confidence} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{dec.rationale}</p>
+                          <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                            <span>{formatRelativeTime(dec.timestamp)}</span>
+                            {dec.cost_impact !== 0 && (
+                              <span>Cost: {formatCurrency(Math.abs(dec.cost_impact))}</span>
+                            )}
+                            {dec.alternatives.length > 0 && (
+                              <span>{dec.alternatives.length} alternatives</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}
