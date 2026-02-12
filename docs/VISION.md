@@ -6,10 +6,10 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.6)
+## Current State (v2.8)
 
 What works today:
-- Multi-provider deep research (OpenAI, Gemini, Grok, Azure)
+- Multi-provider deep research (OpenAI, Gemini, Grok, Anthropic, Azure)
 - Gemini Deep Research Agent via Interactions API
 - Multi-phase research with context chaining
 - Domain experts from documents with autonomous learning
@@ -17,8 +17,12 @@ What works today:
 - Knowledge synthesis and gap awareness
 - MCP server with 10 tools, persistence, security
 - CLI observability (--explain, --timeline, --full-trace)
-- Auto-fallback on provider failures
+- Auto-fallback on provider failures with circuit breakers
 - Cost dashboard with per-expert tracking
+- Smart query routing (--auto, --batch) with complexity-based model selection
+- Context discovery with semantic search and temporal tracking
+- Web dashboard (10 pages) with real-time progress updates
+- 3600+ tests
 
 ## Near-Term Vision (v2.7-2.9)
 
