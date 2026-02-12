@@ -123,7 +123,7 @@ export default function TraceExplorer() {
   const waterfallSpans = traceData ? flattenSpans(traceData.spans) : []
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
         <button
