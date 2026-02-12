@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { jobsApi } from '@/api/jobs'
@@ -29,11 +29,18 @@ export default function ResearchStudio() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadedFileContents, setUploadedFileContents] = useState<{ name: string; content: string }[]>([])
 
+  // Debounce prompt to avoid firing cost estimate on every keystroke
+  const [debouncedPrompt, setDebouncedPrompt] = useState(prompt)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedPrompt(prompt), 500)
+    return () => clearTimeout(timer)
+  }, [prompt])
+
   // Cost estimate
   const { data: costEstimate, isLoading: isEstimating } = useQuery({
-    queryKey: ['cost', 'estimate', prompt, model, enableWebSearch],
-    queryFn: () => costApi.estimate({ prompt, model, enable_web_search: enableWebSearch }),
-    enabled: prompt.length > 10,
+    queryKey: ['cost', 'estimate', debouncedPrompt, model, enableWebSearch],
+    queryFn: () => costApi.estimate({ prompt: debouncedPrompt, model, enable_web_search: enableWebSearch }),
+    enabled: debouncedPrompt.length > 10,
   })
 
   // Submit

@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -105,7 +105,7 @@ def scrape_website(
         "pages_scraped": len(scraped_data),
         "scraped_urls": list(scraped_data.keys()),
         "scraped_data": scraped_data,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     # Synthesize if requested
@@ -187,7 +187,7 @@ def scrape_for_company_research(
     save_to = None
     if save_dir:
         safe_name = company_name.replace(" ", "_").lower()
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         save_to = f"{save_dir}/{safe_name}_{timestamp}.json"
 
     return scrape_website(
@@ -233,7 +233,7 @@ def scrape_for_documentation(
     save_to = None
     if save_dir:
         safe_name = project_name.replace(" ", "_").lower()
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         save_to = f"{save_dir}/{safe_name}_docs_{timestamp}.json"
 
     return scrape_website(

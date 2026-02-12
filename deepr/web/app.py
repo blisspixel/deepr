@@ -43,9 +43,9 @@ provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
 # Initialize cost tracking
 try:
     cost_controller = CostController(
-        max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "20")),
-        max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "100")),
-        max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000")),
+        max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "20") or "20"),
+        max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "100") or "100"),
+        max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000") or "1000"),
     )
     cost_estimator = CostEstimator()
 except Exception as e:
@@ -1095,7 +1095,7 @@ def get_trace(job_id):
         if trace_path.exists():
             import json
 
-            with open(trace_path) as f:
+            with open(trace_path, encoding="utf-8") as f:
                 trace_data = json.load(f)
             return jsonify({"trace": trace_data})
         return jsonify({"trace": None})
@@ -1114,7 +1114,7 @@ def get_trace_temporal(job_id):
         if trace_path.exists():
             import json
 
-            with open(trace_path) as f:
+            with open(trace_path, encoding="utf-8") as f:
                 trace_data = json.load(f)
             findings = trace_data.get("temporal_findings", [])
             return jsonify({"findings": findings})

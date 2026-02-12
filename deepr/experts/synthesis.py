@@ -199,7 +199,7 @@ class KnowledgeSynthesizer:
             # Note: GPT-5 only supports default temperature (1.0)
         )
 
-        reflection_text = response.choices[0].message.content
+        reflection_text = response.choices[0].message.content or ""
 
         # Parse structured beliefs from reflection
         beliefs, gaps = await self._extract_structured_knowledge(reflection_text, doc_contents, expert_name)
@@ -338,7 +338,7 @@ Output ONLY the JSON, no other text.
         )
 
         try:
-            parsed = json.loads(response.choices[0].message.content)
+            parsed = json.loads(response.choices[0].message.content or "{}")
 
             # Convert to Belief objects
             beliefs = []

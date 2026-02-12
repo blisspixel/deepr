@@ -28,7 +28,7 @@ def save(name: str, prompt: str, model: str, description: str):
 
     try:
         import json
-        from datetime import datetime
+        from datetime import datetime, timezone
         from pathlib import Path
 
         # Create templates directory
@@ -41,13 +41,13 @@ def save(name: str, prompt: str, model: str, description: str):
             "prompt": prompt,
             "model": model,
             "description": description,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "usage_count": 0,
         }
 
         # Save
         template_file = templates_dir / f"{name}.json"
-        with open(template_file, "w") as f:
+        with open(template_file, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
 
         print_success(f"Template saved: {name}")
@@ -94,7 +94,7 @@ def list():
         click.echo(f"\nFound {len(template_files)} template(s):\n")
 
         for tf in sorted(template_files):
-            with open(tf) as f:
+            with open(tf, encoding="utf-8") as f:
                 template = json.load(f)
 
             click.echo(f"  {template['name']}")
@@ -143,7 +143,7 @@ def show(name: str):
                     console.print(f"  - {tf.stem}")
             raise click.Abort()
 
-        with open(template_file) as f:
+        with open(template_file, encoding="utf-8") as f:
             template = json.load(f)
 
         console.print(f"\nName: {template['name']}")
@@ -231,7 +231,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
             print_error(f"Template not found: {name}")
             raise click.Abort()
 
-        with open(template_file) as f:
+        with open(template_file, encoding="utf-8") as f:
             template = json.load(f)
 
         # Parse values
@@ -281,7 +281,7 @@ def use(name: str, values: tuple, yes: bool, model: str):
 
         # Update usage count
         template["usage_count"] = template.get("usage_count", 0) + 1
-        with open(template_file, "w") as f:
+        with open(template_file, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
 
         # Submit research

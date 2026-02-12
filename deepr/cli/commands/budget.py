@@ -27,7 +27,7 @@ def load_budget_config():
             "history": [],
         }
 
-    with open(budget_file) as f:
+    with open(budget_file, encoding="utf-8") as f:
         config = json.load(f)
 
     # Reset if new month
@@ -42,7 +42,7 @@ def load_budget_config():
 def save_budget_config(config):
     """Save budget configuration."""
     budget_file = get_budget_file()
-    with open(budget_file, "w") as f:
+    with open(budget_file, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
 

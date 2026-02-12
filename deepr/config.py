@@ -320,7 +320,7 @@ class AppConfig(BaseModel):
 
         webhook = WebhookConfig(
             enabled=os.getenv("DEEPR_WEBHOOK_ENABLED", "true").lower() == "true",
-            port=int(os.getenv("DEEPR_WEBHOOK_PORT", "5000")),
+            port=int(os.getenv("DEEPR_WEBHOOK_PORT", "5000") or "5000"),
             use_ngrok=environment == "local",
             ngrok_path=os.getenv("NGROK_PATH", "ngrok"),
             public_url=os.getenv("DEEPR_WEBHOOK_URL"),
@@ -439,7 +439,7 @@ def load_config() -> dict:
         "queue_db_path": "queue/research_queue.db",
         "storage": config.storage.type,
         "results_dir": config.storage.local_path,
-        "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "5.0")),
-        "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0")),
-        "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0")),
+        "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "5.0") or "5.0"),
+        "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0") or "25.0"),
+        "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0") or "200.0"),
     }

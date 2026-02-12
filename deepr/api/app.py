@@ -903,7 +903,7 @@ def get_cost_summary():
 if __name__ == "__main__":
     debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes")
     host = os.getenv("DEEPR_HOST", "127.0.0.1")
-    port = int(os.getenv("DEEPR_PORT", "5000"))
+    port = int(os.getenv("DEEPR_PORT", "5000") or "5000")
     print("\n" + "=" * 70)
     print("  Deepr API Server")
     print(f"  Running on http://{host}:{port}")

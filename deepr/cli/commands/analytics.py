@@ -34,7 +34,7 @@ def report(period: str):
     try:
         import asyncio
         from collections import defaultdict
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         from deepr.config import load_config
         from deepr.queue import create_queue
@@ -48,7 +48,7 @@ def report(period: str):
         all_jobs = asyncio.run(get_jobs())
 
         # Filter by time period
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if period == "today":
             cutoff = now - timedelta(days=1)
         elif period == "week":
@@ -182,7 +182,7 @@ def trends():
     try:
         import asyncio
         from collections import defaultdict
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         from deepr.config import load_config
         from deepr.queue import create_queue
@@ -196,7 +196,7 @@ def trends():
         all_jobs = asyncio.run(get_jobs())
 
         # Group by day
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=7)
 
         jobs = [j for j in all_jobs if j.submitted_at and j.submitted_at >= cutoff]

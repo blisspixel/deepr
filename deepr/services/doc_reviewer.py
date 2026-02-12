@@ -152,7 +152,7 @@ class DocReviewer:
         )
 
         # Parse response
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content or "{}")
         return result
 
     def _build_evaluation_prompt(self, scenario: str, context: Optional[str], docs: list[dict[str, Any]]) -> str:

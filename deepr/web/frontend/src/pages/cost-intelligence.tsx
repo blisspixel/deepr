@@ -64,6 +64,11 @@ export default function CostIntelligence() {
 
   // Debounce slider changes to avoid excessive API calls
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
   const handleSliderChange = useCallback((key: 'per_job' | 'daily' | 'monthly', value: number) => {
     setLocalLimits(prev => prev ? { ...prev, [key]: value } : { per_job: 20, daily: 100, monthly: 1000, [key]: value })
     if (debounceRef.current) clearTimeout(debounceRef.current)

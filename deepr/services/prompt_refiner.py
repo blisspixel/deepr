@@ -92,7 +92,7 @@ Key considerations:
 
         import json
 
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content or "{}")
         result["original_prompt"] = prompt
 
         return result

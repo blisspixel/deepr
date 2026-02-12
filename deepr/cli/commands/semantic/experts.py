@@ -1360,6 +1360,10 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
     sorted_gaps = sorted(worldview.knowledge_gaps, key=lambda g: g.priority, reverse=True)
     gaps_to_fill = sorted_gaps[:top]
 
+    if not gaps_to_fill:
+        console.print("No knowledge gaps found to fill.")
+        return
+
     # Calculate budget per gap
     budget_per_gap = budget / len(gaps_to_fill)
 

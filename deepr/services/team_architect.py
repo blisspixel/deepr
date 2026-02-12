@@ -103,7 +103,7 @@ class TeamArchitect:
             response_format={"type": "json_object"},
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content or "{}")
         return result.get("team", [])
 
     def _research_company_people(self, company: str) -> Optional[dict[str, Any]]:
@@ -165,7 +165,7 @@ Only include people you find with actual research. If unable to find information
                 response_format={"type": "json_object"},
             )
 
-            return json.loads(response.choices[0].message.content)
+            return json.loads(response.choices[0].message.content or "{}")
         except Exception as e:
             logger.warning("Could not research company people: %s", e)
             return None
@@ -337,7 +337,7 @@ class TeamSynthesizer:
             ],
         )
 
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
 
     def _build_synthesis_prompt(self, question: str, team_results: list[dict[str, Any]]) -> str:
         """Build synthesis prompt."""
