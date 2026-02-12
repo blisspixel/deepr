@@ -47,6 +47,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Outputs as Rich table (default), JSON (`--json`), CSV (`--csv`), or prompts only (`-q`)
 - Supports `--budget`, `--topics`, and `--no-discovery` options
 
+**Expert & Decision Formalization (Phase 5)**
+- Canonical types in `core/contracts.py`: `Source`, `Claim`, `Gap`, `DecisionRecord`, `ExpertManifest` with full serialization (`to_dict()`/`from_dict()`)
+- `TrustClass` enum (primary, secondary, tertiary, self_generated) and `DecisionType` enum (routing, stop, pivot, budget, belief_revision, gap_fill, conflict_resolution, source_selection)
+- `gap_scorer.py` with EV/cost ranking: `score_gap()` and `rank_gaps()` for rational gap prioritization
+- Adapter methods: `Belief.to_claim()`, `KnowledgeGap.to_gap()` on existing classes for backward compatibility
+- `ExpertProfile.get_manifest()` composes claims, scored gaps, and decision records into a typed snapshot
+- `ThoughtStream.record_decision()` creates structured `DecisionRecord` objects alongside existing thought logging
+- `--explain` flag now shows decision table (type, decision, confidence, cost impact) in CLI
+- Web: Expert Profile page gains Claims tab, Decisions tab, and scored Gaps tab with EV/cost badges
+- Web: Trace Explorer gains collapsible decision sidebar for the current job
+- Web API: `GET /api/experts/<name>/manifest`, `/claims`, `/decisions` endpoints
+- MCP: `deepr_expert_manifest` and `deepr_rank_gaps` tools for agent consumption
+- 69 new unit tests (contracts, gap scorer, adapters)
+
 **Real-Time Progress (7.3)**
 - `ResearchProgressTracker` for live progress updates during research
 - `--progress` flag in `deepr research wait` shows phase tracking with progress bar
