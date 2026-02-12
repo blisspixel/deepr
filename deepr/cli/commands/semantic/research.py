@@ -669,7 +669,7 @@ def _run_batch_research(
     routing = executor.preview_batch(
         file_path=batch_file,
         budget_total=budget_total,
-        prefer_cost=prefer_cost or prefer_speed,  # Speed implies cost awareness
+        prefer_cost=prefer_cost,
     )
 
     # Display preview

@@ -249,7 +249,7 @@ class FindingsStore:
                 self._token_index[token] = {}
             self._token_index[token][finding.id] = count
 
-        self._doc_lengths[finding.id] = len(finding.tokens)
+        self._doc_lengths[finding.id] = sum(token_counts.values())
         self._conn.commit()
 
         return finding

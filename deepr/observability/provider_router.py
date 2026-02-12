@@ -395,10 +395,10 @@ class AutonomousProviderRouter:
     # Task-specific preferences (only supported providers)
     TASK_PREFERENCES = {
         "research": [("openai", "o3-deep-research"), ("openai", "o4-mini-deep-research")],
-        "chat": [("openai", "gpt-4o"), ("xai", "grok-4-fast")],
-        "synthesis": [("openai", "gpt-4o"), ("xai", "grok-4-fast")],
-        "fact_check": [("xai", "grok-4-fast"), ("openai", "gpt-4o-mini")],
-        "quick": [("xai", "grok-4-fast"), ("openai", "gpt-4o-mini")],
+        "chat": [("openai", "o4-mini-deep-research"), ("xai", "grok-4-fast"), ("anthropic", "claude-sonnet-4-5")],
+        "synthesis": [("openai", "o4-mini-deep-research"), ("xai", "grok-4-fast"), ("anthropic", "claude-sonnet-4-5")],
+        "fact_check": [("xai", "grok-4-fast"), ("openai", "o4-mini-deep-research")],
+        "quick": [("xai", "grok-4-fast"), ("openai", "o4-mini-deep-research")],
     }
 
     # Auto-disable settings
@@ -659,6 +659,10 @@ class AutonomousProviderRouter:
 
             # Check circuit breaker first (fail-fast)
             if not self.circuit_breaker.is_available(provider, model):
+                continue
+
+            # Skip auto-disabled providers
+            if self.is_auto_disabled(provider, model)[0]:
                 continue
 
             metrics = self.metrics.get(key)

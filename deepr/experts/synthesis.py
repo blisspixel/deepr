@@ -15,10 +15,13 @@ contradiction detection, belief revision, and richer knowledge graphs.
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -49,8 +52,15 @@ class Belief:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Belief":
-        data["formed_at"] = datetime.fromisoformat(data["formed_at"])
-        data["last_updated"] = datetime.fromisoformat(data["last_updated"])
+        data = dict(data)
+        if "formed_at" in data:
+            data["formed_at"] = datetime.fromisoformat(data["formed_at"])
+        else:
+            data["formed_at"] = datetime.now(timezone.utc)
+        if "last_updated" in data:
+            data["last_updated"] = datetime.fromisoformat(data["last_updated"])
+        else:
+            data["last_updated"] = datetime.now(timezone.utc)
         return cls(**data)
 
 
@@ -73,7 +83,11 @@ class KnowledgeGap:
 
     @classmethod
     def from_dict(cls, data: dict) -> "KnowledgeGap":
-        data["identified_at"] = datetime.fromisoformat(data["identified_at"])
+        data = dict(data)
+        if "identified_at" in data:
+            data["identified_at"] = datetime.fromisoformat(data["identified_at"])
+        else:
+            data["identified_at"] = datetime.now(timezone.utc)
         return cls(**data)
 
 
@@ -114,15 +128,21 @@ class Worldview:
 
     def save(self, path: Path):
         """Save worldview to JSON file."""
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.to_dict(), f, indent=2)
+        except OSError as e:
+            logger.warning("Failed to save worldview to %s: %s", path, e)
 
     @classmethod
     def load(cls, path: Path) -> "Worldview":
         """Load worldview from JSON file."""
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-            return cls.from_dict(data)
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+                return cls.from_dict(data)
+        except (OSError, json.JSONDecodeError) as e:
+            raise ValueError(f"Failed to load worldview from {path}: {e}") from e
 
 
 class KnowledgeSynthesizer:
