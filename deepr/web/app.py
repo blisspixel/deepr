@@ -1042,7 +1042,7 @@ def chat_with_expert(name):
 
 @app.route("/api/experts/<name>/gaps", methods=["GET"])
 def get_expert_gaps(name):
-    """Get knowledge gaps for an expert."""
+    """Get scored knowledge gaps for an expert."""
     try:
         from urllib.parse import unquote
 
@@ -1057,17 +1057,8 @@ def get_expert_gaps(name):
                 try:
                     profile = ExpertProfile.load(str(profile_dir))
                     if profile.name == decoded_name:
-                        gaps = []
-                        for gap in getattr(profile, "knowledge_gaps", []):
-                            gaps.append(
-                                {
-                                    "id": getattr(gap, "id", str(uuid.uuid4())),
-                                    "topic": getattr(gap, "topic", ""),
-                                    "description": getattr(gap, "description", ""),
-                                    "priority": getattr(gap, "priority", "medium"),
-                                    "created_at": getattr(gap, "created_at", ""),
-                                }
-                            )
+                        manifest = profile.get_manifest()
+                        gaps = [g.to_dict() for g in manifest.gaps]
                         return jsonify({"gaps": gaps})
                 except Exception as e:
                     logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
@@ -1087,6 +1078,114 @@ def get_expert_history(name):
         return jsonify({"events": []})
     except Exception as e:
         logger.error(f"Error getting history for expert {name}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/experts/<name>/manifest", methods=["GET"])
+def get_expert_manifest(name):
+    """Get full ExpertManifest as JSON."""
+    try:
+        from urllib.parse import unquote
+
+        from deepr.experts.profile import ExpertProfile
+
+        decoded_name = unquote(name)
+        experts_dir = config_path / "experts"
+        if not experts_dir.exists():
+            return jsonify({"error": "Expert not found"}), 404
+        for profile_dir in experts_dir.iterdir():
+            if profile_dir.is_dir():
+                try:
+                    profile = ExpertProfile.load(str(profile_dir))
+                    if profile.name == decoded_name:
+                        manifest = profile.get_manifest()
+                        return jsonify({"manifest": manifest.to_dict()})
+                except Exception as e:
+                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
+                    continue
+        return jsonify({"error": "Expert not found"}), 404
+    except ImportError:
+        return jsonify({"error": "Expert system not available"}), 404
+    except Exception as e:
+        logger.error(f"Error getting manifest for expert {name}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/experts/<name>/claims", methods=["GET"])
+def get_expert_claims(name):
+    """Get claims for an expert with optional filtering."""
+    try:
+        from urllib.parse import unquote
+
+        from deepr.experts.profile import ExpertProfile
+
+        decoded_name = unquote(name)
+        domain_filter = request.args.get("domain")
+        min_confidence = float(request.args.get("min_confidence", 0.0))
+
+        experts_dir = config_path / "experts"
+        if not experts_dir.exists():
+            return jsonify({"claims": []})
+        for profile_dir in experts_dir.iterdir():
+            if profile_dir.is_dir():
+                try:
+                    profile = ExpertProfile.load(str(profile_dir))
+                    if profile.name == decoded_name:
+                        manifest = profile.get_manifest()
+                        claims = manifest.claims
+                        if domain_filter:
+                            claims = [c for c in claims if c.domain == domain_filter]
+                        if min_confidence > 0:
+                            claims = [c for c in claims if c.confidence >= min_confidence]
+                        return jsonify({"claims": [c.to_dict() for c in claims]})
+                except Exception as e:
+                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
+                    continue
+        return jsonify({"claims": []})
+    except ImportError:
+        return jsonify({"claims": []})
+    except Exception as e:
+        logger.error(f"Error getting claims for expert {name}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/experts/<name>/decisions", methods=["GET"])
+def get_expert_decisions(name):
+    """Get decision records for an expert with optional filtering."""
+    try:
+        from urllib.parse import unquote
+
+        from deepr.experts.profile import ExpertProfile
+
+        decoded_name = unquote(name)
+        type_filter = request.args.get("type")
+        job_id_filter = request.args.get("job_id")
+        limit = int(request.args.get("limit", 50))
+
+        experts_dir = config_path / "experts"
+        if not experts_dir.exists():
+            return jsonify({"decisions": []})
+        for profile_dir in experts_dir.iterdir():
+            if profile_dir.is_dir():
+                try:
+                    profile = ExpertProfile.load(str(profile_dir))
+                    if profile.name == decoded_name:
+                        manifest = profile.get_manifest()
+                        decisions = manifest.decisions
+                        if type_filter:
+                            decisions = [d for d in decisions if d.decision_type.value == type_filter]
+                        if job_id_filter:
+                            decisions = [d for d in decisions if d.context.get("job_id") == job_id_filter]
+                        decisions = decisions[:limit]
+                        return jsonify({"decisions": [d.to_dict() for d in decisions]})
+                except Exception as e:
+                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
+                    continue
+        return jsonify({"decisions": []})
+    except ImportError:
+        return jsonify({"decisions": []})
+    except Exception as e:
+        logger.error(f"Error getting decisions for expert {name}: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -125,6 +125,33 @@ def _show_trace_explain(emitter) -> None:
             console.print(f"    [dim]Reason: {attrs.get('reason', 'unknown')}[/dim]")
 
 
+def _show_decision_records(emitter) -> None:
+    """Show structured decision records if ThoughtStream has them."""
+    from rich.table import Table
+
+    # Check if emitter has a thought_stream with decision_records
+    thought_stream = getattr(emitter, "thought_stream", None)
+    if thought_stream is None:
+        return
+    records = getattr(thought_stream, "decision_records", [])
+    if not records:
+        return
+
+    console.print()
+    table = Table(title="Decision Records", border_style="dim", show_lines=False)
+    table.add_column("Type", style="cyan", width=18)
+    table.add_column("Decision", style="white")
+    table.add_column("Confidence", style="yellow", width=12, justify="right")
+    table.add_column("Cost Impact", style="green", width=12, justify="right")
+
+    for rec in records:
+        conf_str = f"{rec.confidence:.0%}" if rec.confidence else "-"
+        cost_str = format_cost(rec.cost_impact) if rec.cost_impact else "-"
+        table.add_row(rec.decision_type.value, rec.title, conf_str, cost_str)
+
+    console.print(table)
+
+
 def _show_trace_timeline(emitter) -> None:
     """Show phase timeline from trace data."""
     from rich.table import Table
@@ -605,6 +632,7 @@ async def _run_single(
     if trace_flags.any_enabled and output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
         if trace_flags.explain:
             _show_trace_explain(emitter)
+            _show_decision_records(emitter)
         if trace_flags.timeline:
             _show_trace_timeline(emitter)
         if trace_flags.full_trace:
