@@ -71,7 +71,7 @@ class BatchQueryResult:
     """
 
     query: str
-    decision: AutoModeDecision
+    decision: Optional[AutoModeDecision] = None
     job_id: Optional[str] = None
     success: bool = False
     error: Optional[str] = None
@@ -340,14 +340,13 @@ class AutoBatchExecutor:
         failure_count = 0
         total_actual = 0.0
 
-        for result in results:
+        for i, result in enumerate(results):
             if isinstance(result, Exception):
-                # Task raised exception
                 failure_count += 1
                 final_results.append(
                     BatchQueryResult(
-                        query="unknown",
-                        decision=routing.decisions[0] if routing.decisions else None,
+                        query=items[i].query,
+                        decision=routing.decisions[i] if i < len(routing.decisions) else None,
                         success=False,
                         error=str(result),
                     )
@@ -393,8 +392,8 @@ class AutoBatchExecutor:
         from deepr.cli.output import OutputContext, OutputMode
 
         # Override routing if forced
-        provider = item.force_provider or decision.provider
-        model = item.force_model or decision.model
+        provider = item.force_provider or (decision.provider if decision else "openai")
+        model = item.force_model or (decision.model if decision else "o4-mini-deep-research")
 
         if progress_callback:
             progress_callback(f"Starting: {item.query[:40]}... → {provider}/{model}")
@@ -425,7 +424,7 @@ class AutoBatchExecutor:
                 query=item.query,
                 decision=decision,
                 success=True,
-                cost_actual=decision.cost_estimate,  # Use estimate as actual for now
+                cost_actual=0.0,  # TODO: extract actual cost from _run_single result
             )
 
         except Exception as e:

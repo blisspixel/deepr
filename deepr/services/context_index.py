@@ -281,6 +281,19 @@ class ContextIndex:
                 logger.error("Failed to index report %s: %s", job_id, e)
 
         conn.commit()
+
+        # Verify embedding index consistency
+        embedded_count = cursor.execute(
+            "SELECT COUNT(*) FROM reports WHERE embedding_idx IS NOT NULL"
+        ).fetchone()[0]
+        total_embeddings = len(new_embeddings) + (len(self.embeddings) if self.embeddings is not None else 0)
+        if embedded_count != total_embeddings:
+            logger.warning(
+                "Embedding index desync: %d DB entries with embedding_idx vs %d embeddings",
+                embedded_count,
+                total_embeddings,
+            )
+
         conn.close()
 
         # Update embeddings
@@ -352,8 +365,8 @@ class ContextIndex:
             return []
 
         # Cosine similarity
-        query_norm = query_embedding / np.linalg.norm(query_embedding)
-        doc_norms = self.embeddings / np.linalg.norm(self.embeddings, axis=1, keepdims=True)
+        query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-8)
+        doc_norms = self.embeddings / (np.linalg.norm(self.embeddings, axis=1, keepdims=True) + 1e-8)
         similarities = np.dot(doc_norms, query_norm)
 
         # Get top results above threshold
@@ -370,6 +383,10 @@ class ContextIndex:
 
             similarity = float(similarities[idx])
             if similarity < threshold:
+                continue
+
+            # Validate idx is within bounds
+            if int(idx) < 0 or int(idx) >= len(self.embeddings):
                 continue
 
             # Find report with this embedding index
@@ -612,4 +629,4 @@ class ContextIndex:
             return True  # Unknown = treat as stale
 
         age = datetime.now(timezone.utc) - result.created_at.replace(tzinfo=timezone.utc)
-        return age.days > max_age_days
+        return age.total_seconds() > (max_age_days * 86400)

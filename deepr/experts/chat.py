@@ -755,6 +755,7 @@ Budget remaining: ${budget_remaining:.2f}
 
                 # Save expert profile
                 store = ExpertStore()
+                self.expert._sync_budget_from_manager()
                 store.save(self.expert)
 
             # Record cost in BOTH session tracker AND global cost safety

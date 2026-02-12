@@ -452,7 +452,7 @@ def create_default_registry() -> ToolRegistry:
                     },
                     "budget": {"type": "number", "default": 5.0, "description": "Total budget for workflow ($1-$10)"},
                 },
-                "required": ["goal"],
+                "required": ["goal", "expert_name"],
             },
             category="agentic",
             cost_tier="high",

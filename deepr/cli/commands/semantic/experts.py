@@ -114,7 +114,7 @@ def make_expert(
       deepr expert make "AI Expert" -f docs/*.md --learn --budget 10
     """
     import asyncio
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     from deepr.cli.validation import validate_budget, validate_expert_name, validate_upload_files
     from deepr.config import load_config
@@ -191,7 +191,7 @@ def make_expert(
 
         # Create expert profile with programmatic system message
         # Set initial knowledge cutoff to now (will be updated when learning is added)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         profile = ExpertProfile(
             name=name,
@@ -725,7 +725,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
     """
     import asyncio
     import os
-    from datetime import datetime
+    from datetime import datetime, timezone
     from pathlib import Path
 
     from deepr.cli.validation import validate_budget
@@ -864,7 +864,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
                     # Update profile
                     profile.total_documents += len(uploaded_files)
                     profile.source_files.extend([str(f) for f in uploaded_files])
-                    profile.updated_at = datetime.utcnow()
+                    profile.updated_at = datetime.now(timezone.utc)
                     store.save(profile)
 
                 except Exception as e:
@@ -1606,7 +1606,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 console.print(f"Processing {len(docs_to_process)} documents...\n")
 
                 # Synthesize
-                from datetime import datetime
+                from datetime import datetime, timezone
 
                 synthesis_result = await synthesizer.synthesize_new_knowledge(
                     expert_name=profile.name,
@@ -1625,7 +1625,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     # Generate and save worldview document
                     worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
 
-                    worldview_doc_path = knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+                    worldview_doc_path = knowledge_dir / f"worldview_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
                     with open(worldview_doc_path, "w", encoding="utf-8") as f:
                         f.write(worldview_doc)
 
@@ -1890,12 +1890,12 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                             worldview.save(worldview_path)
 
                             # Generate and save worldview document
-                            from datetime import datetime
+                            from datetime import datetime, timezone
 
                             worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
 
                             worldview_doc_path = (
-                                knowledge_dir / f"worldview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+                                knowledge_dir / f"worldview_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
                             )
                             with open(worldview_doc_path, "w", encoding="utf-8") as f:
                                 f.write(worldview_doc)
