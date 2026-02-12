@@ -148,7 +148,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-6 space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Configure Deepr for your environment</p>
@@ -261,6 +261,7 @@ export default function Settings() {
                     <button
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
+                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

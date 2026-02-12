@@ -183,6 +183,7 @@ export default function Sidebar() {
                   href="https://docs.deepr.dev"
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label="Help"
                   className="flex items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 >
                   <HelpCircle className="h-4 w-4 shrink-0" />
@@ -209,6 +210,7 @@ export default function Sidebar() {
               <TooltipTrigger asChild>
                 <button
                   onClick={toggleSidebar}
+                  aria-label="Expand sidebar"
                   className="flex w-full items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 >
                   <PanelLeftOpen className="h-4 w-4" />

@@ -8,11 +8,14 @@ import type { ExpertChat } from '@/types'
 import {
   AlertTriangle,
   ArrowLeft,
+  Clock,
   DollarSign,
   FileText,
   Lightbulb,
   Loader2,
+  MessageSquare,
   Search,
+  SearchX,
   Send,
   Users,
 } from 'lucide-react'
@@ -115,7 +118,7 @@ export default function ExpertProfile() {
   ]
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)]">
+    <div className="flex flex-col h-[calc(100vh-7rem)] animate-fade-in">
       {/* Header */}
       <div className="p-6 border-b space-y-4 flex-shrink-0">
         <button
@@ -168,8 +171,14 @@ export default function ExpertProfile() {
             {/* Messages */}
             <div className="flex-1 overflow-auto p-6 space-y-4">
               {chatMessages.length === 0 && (
-                <div className="text-center text-muted-foreground text-sm py-12">
-                  Start a conversation with {expert.name}. Ask questions about their domain expertise.
+                <div className="flex flex-col items-center justify-center text-center py-12">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <MessageSquare className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-sm font-medium text-foreground mb-1">Start a conversation</h3>
+                  <p className="text-xs text-muted-foreground max-w-xs">
+                    Ask {expert.name} questions about their domain expertise.
+                  </p>
                 </div>
               )}
               {chatMessages.map((msg, index) => (
@@ -212,6 +221,7 @@ export default function ExpertProfile() {
               <button
                 type="submit"
                 disabled={!chatInput.trim() || chatMutation.isPending}
+                aria-label="Send message"
                 className="px-3 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50 transition-colors hover:bg-primary/90"
               >
                 <Send className="w-4 h-4" />
@@ -227,8 +237,14 @@ export default function ExpertProfile() {
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             ) : !gaps || gaps.length === 0 ? (
-              <div className="text-center text-muted-foreground text-sm py-12">
-                No knowledge gaps identified yet.
+              <div className="flex flex-col items-center justify-center text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                  <SearchX className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <h3 className="text-sm font-medium text-foreground mb-1">No knowledge gaps</h3>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Knowledge gaps will appear here as the expert identifies areas needing more research.
+                </p>
               </div>
             ) : (
               gaps.map((gap) => (
@@ -263,8 +279,14 @@ export default function ExpertProfile() {
         {activeTab === 'history' && (
           <div className="p-6 space-y-3">
             {!history || history.length === 0 ? (
-              <div className="text-center text-muted-foreground text-sm py-12">
-                No learning history yet.
+              <div className="flex flex-col items-center justify-center text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                  <Clock className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <h3 className="text-sm font-medium text-foreground mb-1">No activity yet</h3>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Learning events and research activity will be logged here.
+                </p>
               </div>
             ) : (
               history.map((event) => (

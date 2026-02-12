@@ -149,7 +149,7 @@ export default function ResearchLive() {
   ]
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
         <button

@@ -106,7 +106,7 @@ export default function ResultDetail() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)]">
+    <div className="flex h-[calc(100vh-7rem)] animate-fade-in">
       {/* Main content */}
       <div className="flex-1 overflow-auto p-6 space-y-6">
         {/* Header */}
