@@ -232,11 +232,16 @@ Works across OpenAI, Google Gemini, xAI Grok, Anthropic Claude, and Azure OpenAI
 
 ## Technical Highlights
 
-A few design decisions that shaped the project:
+Agent systems need more than prompts — they need infrastructure for running repeatedly, safely, and cheaply. Two design patterns run through Deepr:
+
+- **Budgeted autonomy** — Every autonomous job runs under a contract: max spend, stop conditions, acceptable uncertainty, required citations, audit trail. This makes autonomous operation safe by default.
+- **Decision records as artifacts** — The system captures *why* it chose a model, trusted a source, stopped searching, or flagged a knowledge gap. These aren't debug logs — they're queryable records that feed back into routing, expert learning, and cost optimization across runs.
+
+Specific design decisions:
 
 - **Local-first with SQLite, not Postgres.** Research results, expert profiles, job queues, and cost tracking all use SQLite. No database server to run, no connection strings to manage. Users `pip install` and go. Cloud deployment swaps in DynamoDB/CosmosDB/Firestore via storage abstractions, but the local experience stays zero-config.
 
-- **Experts are not just RAG.** Most "chat with your docs" tools do retrieval → generation and stop there. Deepr experts have a metacognition layer — they track what they know, recognize gaps, form beliefs with confidence levels, and (in agentic mode) autonomously research to fill those gaps. The knowledge persists permanently, so the expert improves over time rather than resetting each session.
+- **Experts are not just RAG.** Most "chat with your docs" tools do retrieval → generation and stop there. Deepr experts have a metacognition layer — they track what they know (claims with confidence), recognize what they don't know (gaps with priority), and (in agentic mode) autonomously research to fill those gaps. The knowledge persists permanently, so the expert improves over time rather than resetting each session.
 
 - **Auto-mode routing analyzes query complexity before choosing a model.** Simple factual questions go to grok-4-fast at $0.01. Complex multi-faceted research goes to o3-deep-research at $0.50. This isn't just keyword matching — it uses a lightweight classifier to estimate complexity, then factors in which API keys are configured, current budget, and provider health scores. Batch processing 20 queries this way costs $1-2 instead of $20-40.
 
@@ -343,7 +348,7 @@ See [ROADMAP.md](ROADMAP.md) for planned work and priorities.
 
 Deepr is a nights-and-weekends passion project by [Nick Seal](mailto:nick@pueo.io). It started as a weekend experiment with OpenAI's deep research API and grew from there.
 
-I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. At minimum, building Deepr is a way to learn the space deeply and explore what's possible. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
+I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. Building Deepr is also an exercise in a broader question: what does it take to run AI agents *continuously* — with budgets, reliability, memory, and auditability? The patterns here (economic governance, provider routing, persistent expertise, decision observability) are transferable well beyond research. At minimum, it's a way to learn the space deeply. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
 
 This is not a commercial product. There's no company behind it, no SLA, and no guarantees. It's maintained in my spare time because I find the problem space fascinating. If you find it useful, that's great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions) — I'm happy to help when I can.
 

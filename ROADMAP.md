@@ -14,6 +14,20 @@
 
 ---
 
+## Architecture Layers
+
+Deepr is organized in three layers. When contributing, it helps to know which layer you're working in:
+
+| Layer | What lives here | Examples |
+|-------|----------------|----------|
+| **Kernel** — reusable agent infrastructure | Task execution, budget enforcement, provider routing, trace/decision logging | `core/`, `observability/`, `providers/`, `queue/`, `routing/` |
+| **Primitives** — swappable domain modules | Web search, citation extraction, expert memory, summarization, gap detection | `experts/`, `services/`, `tools/`, `storage/` |
+| **Interfaces** — user-facing surfaces | CLI for scripting and experiments, web dashboard for operations and analytics | `cli/`, `web/`, `mcp/` |
+
+The kernel is designed to be embeddable in other agent projects. The primitives are specific to research but follow patterns (belief states, gap backlogs, refresh policies) that generalize. The interfaces are thin wrappers over the lower layers.
+
+---
+
 ## Current Status (v2.8)
 
 Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. Pre-commit hooks with ruff.
@@ -154,6 +168,14 @@ sam build && sam deploy --guided
 - [x] Information gain tracking per research phase (`InformationGainTracker` in `observability/information_gain.py`)
 - [x] Auto-pivot detection (`StoppingDecision.pivot_suggestion` in stopping_criteria.py)
 - [x] Quality score in research output (`QualityMetrics` in `observability/quality_metrics.py`)
+
+#### 4.6 Decision Record Schema
+Promote decision records from log-like objects into a typed, queryable schema. This makes `--why` output, UI decision sidebars, and MCP queries all render the same underlying structure.
+
+- [ ] Define `DecisionRecord` type: `type` (routing | source-trust | stop | pivot | budget), `inputs`, `options_considered`, `choice`, `why`, `evidence` (span/source refs), `confidence`
+- [ ] Migrate ThoughtStream decision summaries to emit `DecisionRecord` objects
+- [ ] Surface decision records in Trace Explorer as a collapsible sidebar alongside the span waterfall
+- [ ] Expose via MCP: `decisions.list(job_id)` for downstream agent queries
 
 ---
 
@@ -353,6 +375,15 @@ Local research management interface for monitoring batch operations. CLI remains
 - [x] Cost intelligence page with per-model breakdown, budget sliders, anomaly detection
 - [x] Command palette (Ctrl+K) for quick navigation
 - [x] Toast notifications for user feedback (Sonner)
+
+#### Operational Analytics
+The dashboard should show *posture* (what's working, what's failing, what we're learning) rather than just counts. These surface the decision records and quality metrics that the kernel already tracks.
+
+- [ ] Cost vs quality trend (last N runs) — are we spending more for diminishing returns?
+- [ ] Top failure modes breakdown (provider, prompt, tool, stopping) — where to focus reliability work
+- [ ] Routing decisions summary — which models are being selected and why
+- [ ] Expert gap velocity — gaps created vs closed over time
+- [ ] Citation density and freshness — are sources getting stale?
 
 #### Core Improvements
 - [ ] Export results (PDF, DOCX in addition to Markdown)
