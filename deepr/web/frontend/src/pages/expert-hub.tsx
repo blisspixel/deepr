@@ -132,9 +132,15 @@ export default function ExpertHub() {
             Create Your First Expert
           </Button>
         </div>
+      ) : filteredExperts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Search className="w-10 h-10 text-muted-foreground/40 mb-3" />
+          <h3 className="text-base font-medium text-foreground mb-1">No matches</h3>
+          <p className="text-sm text-muted-foreground">No experts match "{debouncedSearch}".</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {experts.map((expert) => (
+          {filteredExperts.map((expert) => (
             <div
               key={expert.name}
               className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all cursor-pointer group"
