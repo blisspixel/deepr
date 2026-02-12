@@ -1479,7 +1479,9 @@ Budget remaining: ${budget_remaining:.2f}
             self.thought_stream.decision(
                 decision_text="Response ready",
                 confidence=0.9
-                if not any(phrase in (final_message or "").lower() for phrase in ["i don't know", "i'm not sure", "uncertain"])
+                if not any(
+                    phrase in (final_message or "").lower() for phrase in ["i don't know", "i'm not sure", "uncertain"]
+                )
                 else 0.5,
                 reasoning="Synthesized answer from available knowledge and research",
             )
