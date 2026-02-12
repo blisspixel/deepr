@@ -6,6 +6,7 @@ import { WaterfallChart } from '@/components/charts/waterfall'
 import { TemporalTimeline } from '@/components/charts/timeline'
 import apiClient from '@/api/client'
 import {
+  AlertTriangle,
   ArrowLeft,
   Clock,
   DollarSign,
@@ -42,22 +43,18 @@ export default function TraceExplorer() {
   const navigate = useNavigate()
   const [selectedSpan, setSelectedSpan] = useState<SpanData | null>(null)
 
-  const { data: traceData, isLoading } = useQuery({
+  const { data: traceData, isLoading, isError } = useQuery({
     queryKey: ['traces', id],
     queryFn: async () => {
-      try {
-        const response = await apiClient.get(`/traces/${id}`)
-        return response.data.trace as {
-          job_id: string
-          spans: SpanData[]
-          total_duration_ms: number
-          total_cost: number
-          total_tokens: number
-          prompt: string
-          model: string
-        }
-      } catch {
-        return null
+      const response = await apiClient.get(`/traces/${id}`)
+      return response.data.trace as {
+        job_id: string
+        spans: SpanData[]
+        total_duration_ms: number
+        total_cost: number
+        total_tokens: number
+        prompt: string
+        model: string
       }
     },
     enabled: !!id,
@@ -80,6 +77,22 @@ export default function TraceExplorer() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-destructive" />
+        <p className="text-base font-medium text-foreground">Failed to load trace data</p>
+        <p className="text-sm text-muted-foreground">There was an error fetching the trace. Please try again.</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
+        >
+          Go Back
+        </button>
       </div>
     )
   }

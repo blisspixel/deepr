@@ -38,6 +38,8 @@ class BudgetManager:
 
     def __post_init__(self):
         """Initialize reset date if not set."""
+        if isinstance(self.reset_date, str):
+            self.reset_date = datetime.fromisoformat(self.reset_date)
         if self.reset_date is None:
             self._initialize_reset_date()
 

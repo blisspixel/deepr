@@ -174,20 +174,25 @@ class SQLiteQueue(QueueBackend):
     def _enqueue_sync(self, job: ResearchJob):
         """Synchronous enqueue operation."""
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        job_dict = self._job_to_dict(job)
+            job_dict = self._job_to_dict(job)
 
-        columns = ", ".join(job_dict.keys())
-        placeholders = ", ".join("?" * len(job_dict))
+            columns = ", ".join(job_dict.keys())
+            placeholders = ", ".join("?" * len(job_dict))
 
-        cursor.execute(
-            f"INSERT INTO research_queue ({columns}) VALUES ({placeholders})",
-            tuple(job_dict.values()),
-        )
+            cursor.execute(
+                f"INSERT INTO research_queue ({columns}) VALUES ({placeholders})",
+                tuple(job_dict.values()),
+            )
 
-        conn.commit()
-        conn.close()
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     async def dequeue(self, worker_id: str) -> Optional[ResearchJob]:
         """Get next job from queue (highest priority, oldest first)."""
@@ -196,52 +201,54 @@ class SQLiteQueue(QueueBackend):
     def _dequeue_sync(self, worker_id: str) -> Optional[ResearchJob]:
         """Synchronous dequeue operation."""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        try:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
 
-        # Select job with highest priority
-        cursor.execute("""
-            SELECT * FROM research_queue
-            WHERE status = 'queued'
-            ORDER BY priority DESC, submitted_at ASC
-            LIMIT 1
-        """)
+            # Select job with highest priority
+            cursor.execute("""
+                SELECT * FROM research_queue
+                WHERE status = 'queued'
+                ORDER BY priority DESC, submitted_at ASC
+                LIMIT 1
+            """)
 
-        row = cursor.fetchone()
+            row = cursor.fetchone()
 
-        if not row:
+            if not row:
+                return None
+
+            job_id = row["id"]
+
+            # Claim the job (atomic update)
+            cursor.execute(
+                """
+                UPDATE research_queue
+                SET status = 'processing',
+                    worker_id = ?,
+                    started_at = ?,
+                    attempts = attempts + 1
+                WHERE id = ? AND status = 'queued'
+            """,
+                (worker_id, datetime.now(timezone.utc).isoformat(), job_id),
+            )
+
+            if cursor.rowcount == 0:
+                # Job was claimed by another worker
+                return None
+
+            conn.commit()
+
+            # Fetch updated job
+            cursor.execute("SELECT * FROM research_queue WHERE id = ?", (job_id,))
+            row = cursor.fetchone()
+
+            return self._dict_to_job(dict(row))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
             conn.close()
-            return None
-
-        job_id = row["id"]
-
-        # Claim the job (atomic update)
-        cursor.execute(
-            """
-            UPDATE research_queue
-            SET status = 'processing',
-                worker_id = ?,
-                started_at = ?,
-                attempts = attempts + 1
-            WHERE id = ? AND status = 'queued'
-        """,
-            (worker_id, datetime.now(timezone.utc).isoformat(), job_id),
-        )
-
-        if cursor.rowcount == 0:
-            # Job was claimed by another worker
-            conn.close()
-            return None
-
-        conn.commit()
-
-        # Fetch updated job
-        cursor.execute("SELECT * FROM research_queue WHERE id = ?", (job_id,))
-        row = cursor.fetchone()
-
-        conn.close()
-
-        return self._dict_to_job(dict(row))
 
     async def get_job(self, job_id: str) -> Optional[ResearchJob]:
         """Get job by ID."""
@@ -288,32 +295,37 @@ class SQLiteQueue(QueueBackend):
     ) -> bool:
         """Synchronous status update."""
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        updates = ["status = ?"]
-        values = [status.value]
+            updates = ["status = ?"]
+            values = [status.value]
 
-        if error:
-            updates.append("last_error = ?")
-            values.append(error)
+            if error:
+                updates.append("last_error = ?")
+                values.append(error)
 
-        if provider_job_id:
-            updates.append("provider_job_id = ?")
-            values.append(provider_job_id)
+            if provider_job_id:
+                updates.append("provider_job_id = ?")
+                values.append(provider_job_id)
 
-        if status == JobStatus.COMPLETED:
-            updates.append("completed_at = ?")
-            values.append(datetime.now(timezone.utc).isoformat())
+            if status == JobStatus.COMPLETED:
+                updates.append("completed_at = ?")
+                values.append(datetime.now(timezone.utc).isoformat())
 
-        values.append(job_id)
+            values.append(job_id)
 
-        cursor.execute(f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ?", values)
+            cursor.execute(f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ?", values)
 
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
+            success = cursor.rowcount > 0
+            conn.commit()
 
-        return success
+            return success
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     async def update_results(
         self,
@@ -330,22 +342,27 @@ class SQLiteQueue(QueueBackend):
     ) -> bool:
         """Synchronous results update."""
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            UPDATE research_queue
-            SET report_paths = ?, cost = ?, tokens_used = ?
-            WHERE id = ?
-        """,
-            (json.dumps(report_paths), cost, tokens_used, job_id),
-        )
+            cursor.execute(
+                """
+                UPDATE research_queue
+                SET report_paths = ?, cost = ?, tokens_used = ?
+                WHERE id = ?
+            """,
+                (json.dumps(report_paths), cost, tokens_used, job_id),
+            )
 
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
+            success = cursor.rowcount > 0
+            conn.commit()
 
-        return success
+            return success
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     async def list_jobs(
         self,
@@ -362,29 +379,30 @@ class SQLiteQueue(QueueBackend):
     ) -> list[ResearchJob]:
         """Synchronous list jobs."""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        try:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
 
-        query = "SELECT * FROM research_queue WHERE 1=1"
-        params = []
+            query = "SELECT * FROM research_queue WHERE 1=1"
+            params = []
 
-        if status:
-            query += " AND status = ?"
-            params.append(status.value)
+            if status:
+                query += " AND status = ?"
+                params.append(status.value)
 
-        if tenant_id:
-            query += " AND tenant_id = ?"
-            params.append(tenant_id)
+            if tenant_id:
+                query += " AND tenant_id = ?"
+                params.append(tenant_id)
 
-        query += " ORDER BY submitted_at DESC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
+            query += " ORDER BY submitted_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
 
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
 
-        conn.close()
-
-        return [self._dict_to_job(dict(row)) for row in rows]
+            return [self._dict_to_job(dict(row)) for row in rows]
+        finally:
+            conn.close()
 
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel a job."""
@@ -397,29 +415,30 @@ class SQLiteQueue(QueueBackend):
     def _get_stats_sync(self) -> dict[str, Any]:
         """Synchronous stats calculation."""
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT status, COUNT(*) as count
-            FROM research_queue
-            GROUP BY status
-        """)
+            cursor.execute("""
+                SELECT status, COUNT(*) as count
+                FROM research_queue
+                GROUP BY status
+            """)
 
-        stats = {row[0]: row[1] for row in cursor.fetchall()}
+            stats = {row[0]: row[1] for row in cursor.fetchall()}
 
-        cursor.execute("SELECT COUNT(*) FROM research_queue")
-        total = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM research_queue")
+            total = cursor.fetchone()[0]
 
-        conn.close()
-
-        return {
-            "total": total,
-            "by_status": stats,
-            "queued": stats.get("queued", 0),
-            "processing": stats.get("processing", 0),
-            "completed": stats.get("completed", 0),
-            "failed": stats.get("failed", 0),
-        }
+            return {
+                "total": total,
+                "by_status": stats,
+                "queued": stats.get("queued", 0),
+                "processing": stats.get("processing", 0),
+                "completed": stats.get("completed", 0),
+                "failed": stats.get("failed", 0),
+            }
+        finally:
+            conn.close()
 
     async def cleanup_old_jobs(self, days: int = 30) -> int:
         """Remove old completed/failed jobs."""
@@ -428,21 +447,26 @@ class SQLiteQueue(QueueBackend):
     def _cleanup_sync(self, days: int) -> int:
         """Synchronous cleanup."""
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-        cursor.execute(
-            """
-            DELETE FROM research_queue
-            WHERE status IN ('completed', 'failed', 'cancelled')
-            AND completed_at < ?
-        """,
-            (cutoff,),
-        )
+            cursor.execute(
+                """
+                DELETE FROM research_queue
+                WHERE status IN ('completed', 'failed', 'cancelled')
+                AND completed_at < ?
+            """,
+                (cutoff,),
+            )
 
-        deleted = cursor.rowcount
-        conn.commit()
-        conn.close()
+            deleted = cursor.rowcount
+            conn.commit()
 
-        return deleted
+            return deleted
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()

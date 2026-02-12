@@ -196,6 +196,8 @@ class ExpertProfile:
 
     def is_knowledge_stale(self) -> bool:
         """Check if knowledge needs refreshing based on domain velocity."""
+        if self.knowledge_cutoff_date is None:
+            return True
         return self.freshness_checker.is_stale(last_learning=self.knowledge_cutoff_date)
 
     def get_freshness_status(self) -> dict[str, Any]:

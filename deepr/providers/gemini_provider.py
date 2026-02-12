@@ -72,9 +72,8 @@ class GeminiProvider(DeepResearchProvider):
         if not self.api_key:
             raise ValueError("Gemini API key is required (set GEMINI_API_KEY)")
 
-        # Initialize client with API key
-        os.environ["GEMINI_API_KEY"] = self.api_key
-        self.client = genai.Client()
+        # Initialize client with API key passed directly (thread-safe)
+        self.client = genai.Client(api_key=self.api_key)
 
         # Model mappings for convenience
         self.model_mappings = model_mappings or {
