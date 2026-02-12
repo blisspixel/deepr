@@ -201,7 +201,7 @@ def submit(
     try:
         import asyncio
         import uuid
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         # Initialize metadata emitter for tracing
         from deepr.observability.metadata import MetadataEmitter
@@ -256,7 +256,7 @@ def submit(
             provider=resolved_provider,
             status=JobStatus.QUEUED,
             priority=priority,
-            submitted_at=datetime.utcnow(),
+            submitted_at=datetime.now(timezone.utc),
             cost_limit=cost_limit if cost_limit is not None else config.get("max_cost_per_job", 10.0),
             enable_web_search=web_search,
             metadata=job_metadata,

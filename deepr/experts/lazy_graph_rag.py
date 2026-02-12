@@ -954,7 +954,7 @@ class SufficiencyScorer:
                 if word in content:
                     covered.add(word)
 
-        return len(covered) / len(query_words)
+        return len(covered) / max(len(query_words), 1)
 
     def _calculate_redundancy(self, chunks: list[dict[str, Any]]) -> float:
         """Calculate redundancy between chunks.

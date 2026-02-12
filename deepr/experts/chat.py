@@ -543,7 +543,7 @@ Budget remaining: ${budget_remaining:.2f}
                 reasoning_effort="high",  # High reasoning for quality
             )
 
-            answer = response.choices[0].message.content
+            answer = response.choices[0].message.content or ""
 
             # Track cost (GPT-5.2: $1.75 input, $14 output per 1M tokens)
             if response.usage:
@@ -668,7 +668,7 @@ Budget remaining: ${budget_remaining:.2f}
                     reasoning_effort="high",
                 )
 
-                answer = f"{response.choices[0].message.content}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
+                answer = f"{response.choices[0].message.content or ''}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
 
                 cost = 0.01
                 if response.usage:
