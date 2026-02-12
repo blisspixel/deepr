@@ -35,7 +35,7 @@ export default function ResultsLibrary() {
   const results = resultsData?.results || []
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -82,6 +82,7 @@ export default function ResultsLibrary() {
         <div className="flex gap-1 p-1 bg-secondary rounded-lg">
           <button
             onClick={() => setViewMode('grid')}
+            aria-label="Grid view"
             className={cn(
               'p-1.5 rounded-md transition-all',
               viewMode === 'grid' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
@@ -91,6 +92,7 @@ export default function ResultsLibrary() {
           </button>
           <button
             onClick={() => setViewMode('list')}
+            aria-label="List view"
             className={cn(
               'p-1.5 rounded-md transition-all',
               viewMode === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
