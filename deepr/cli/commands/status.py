@@ -229,7 +229,7 @@ async def _get_results(job_id: str, output_context: Optional[OutputContext] = No
                     click.echo("Results downloaded successfully!")
 
             elif response.status == "failed":
-                error_msg = response.error.message if response.error else "Unknown error"
+                error_msg = response.error if response.error else "Unknown error"
                 if output_context.mode == OutputMode.JSON:
                     print(json.dumps({"status": "error", "error": f"Job failed at provider: {error_msg}"}))
                 elif output_context.mode != OutputMode.QUIET:
@@ -411,7 +411,7 @@ async def _refresh_job_statuses(queue, jobs):
                         )
 
                 elif response.status == "failed":
-                    error_msg = response.error.message if response.error else "Unknown error"
+                    error_msg = response.error if response.error else "Unknown error"
                     await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
 
                 # If still queued/processing, leave it (no update needed)
@@ -456,9 +456,9 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
 
     # Refresh stale jobs (>30 minutes old and not completed/failed) - only in verbose mode
     if output_context.mode == OutputMode.VERBOSE:
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        stale_threshold = datetime.utcnow() - timedelta(minutes=30)
+        stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
         stale_jobs = [
             job
             for job in jobs

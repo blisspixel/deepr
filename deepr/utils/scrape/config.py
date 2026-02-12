@@ -61,11 +61,11 @@ class ScrapeConfig:
         """Load configuration from environment variables."""
         return cls(
             respect_robots=os.getenv("SCRAPE_RESPECT_ROBOTS", "false").lower() == "true",
-            rate_limit=float(os.getenv("SCRAPE_RATE_LIMIT", "1.0")),
-            max_depth=int(os.getenv("SCRAPE_MAX_DEPTH", "2")),
-            max_pages=int(os.getenv("SCRAPE_MAX_PAGES", "20")),
-            timeout=int(os.getenv("SCRAPE_TIMEOUT", "30")),
-            max_retries=int(os.getenv("SCRAPE_MAX_RETRIES", "3")),
+            rate_limit=float(os.getenv("SCRAPE_RATE_LIMIT", "1.0") or "1.0"),
+            max_depth=int(os.getenv("SCRAPE_MAX_DEPTH", "2") or "2"),
+            max_pages=int(os.getenv("SCRAPE_MAX_PAGES", "20") or "20"),
+            timeout=int(os.getenv("SCRAPE_TIMEOUT", "30") or "30"),
+            max_retries=int(os.getenv("SCRAPE_MAX_RETRIES", "3") or "3"),
             try_http=os.getenv("SCRAPE_TRY_HTTP", "true").lower() == "true",
             try_selenium=os.getenv("SCRAPE_TRY_SELENIUM", "true").lower() == "true",
             try_pdf=os.getenv("SCRAPE_TRY_PDF", "false").lower() == "true",

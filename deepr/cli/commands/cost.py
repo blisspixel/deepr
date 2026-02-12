@@ -72,7 +72,7 @@ def summary(period: str):
 
     try:
         import asyncio
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         from deepr.config import load_config
         from deepr.queue import create_queue
@@ -86,7 +86,7 @@ def summary(period: str):
         all_jobs = asyncio.run(get_jobs())
 
         # Filter by time period
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if period == "today":
             cutoff = now - timedelta(days=1)
         elif period == "week":

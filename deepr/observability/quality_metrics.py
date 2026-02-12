@@ -191,7 +191,7 @@ class QualityMetrics:
         brier_score = self._calculate_brier_score(confidence, is_correct)
 
         # Track for calibration error calculation
-        bin_idx = int(confidence * 10)  # 10 bins
+        bin_idx = min(int(confidence * 10), 9)  # 10 bins [0-9]
         self._calibration_bins[bin_idx].append((confidence, is_correct))
 
         # Overall quality score

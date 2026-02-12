@@ -89,7 +89,7 @@ Summary (bullet list, ~{target_words} words):"""
             max_completion_tokens=max_tokens + 100,  # Allow some buffer
         )
 
-        return response.choices[0].message.content.strip()
+        return (response.choices[0].message.content or "").strip()
 
     async def build_phase_context(
         self,
