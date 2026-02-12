@@ -139,6 +139,30 @@ class Belief:
         """
         return self.get_current_confidence() < threshold
 
+    def to_claim(self) -> "Claim":
+        """Convert to canonical Claim type.
+
+        Returns:
+            Claim with confidence decay applied.
+        """
+        from deepr.core.contracts import Claim, Source, TrustClass
+
+        sources = [
+            Source.create(title=ref, trust_class=TrustClass.TERTIARY)
+            for ref in self.evidence_refs
+        ]
+        return Claim(
+            id=self.id,
+            statement=self.claim,
+            domain=self.domain,
+            confidence=self.get_current_confidence(),
+            sources=sources,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            contradicts=list(self.contradictions_with),
+            tags=[self.source_type] if self.source_type else [],
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
