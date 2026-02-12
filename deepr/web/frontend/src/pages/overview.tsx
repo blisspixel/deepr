@@ -197,8 +197,37 @@ export default function Overview() {
             </div>
             <div className="rounded-lg border bg-card divide-y">
               {jobs.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground text-sm">
-                  No activity yet. Start by submitting a research task.
+                <div className="p-8 space-y-4">
+                  <p className="text-sm font-medium text-foreground text-center mb-4">Get started in 3 steps</p>
+                  <div className="space-y-3 max-w-sm mx-auto">
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                      <div>
+                        <p className="text-sm text-foreground">Set a budget</p>
+                        <p className="text-xs text-muted-foreground">
+                          Run <code className="px-1 py-0.5 bg-muted rounded text-[11px]">deepr budget set 5</code> to cap spending at $5
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                      <div>
+                        <p className="text-sm text-foreground">Run a research job</p>
+                        <p className="text-xs text-muted-foreground">
+                          Use the <button onClick={() => navigate('/research')} className="text-primary hover:underline">Research Studio</button> or CLI to submit a query
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                      <div>
+                        <p className="text-sm text-foreground">Review results with citations</p>
+                        <p className="text-xs text-muted-foreground">
+                          Completed reports appear in <button onClick={() => navigate('/results')} className="text-primary hover:underline">Results</button> with full source attribution
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 jobs.slice(0, 8).map((job) => (
