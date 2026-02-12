@@ -18,9 +18,9 @@ from deepr.cli.colors import (
 
 
 @click.group(invoke_without_command=True)
-@click.option("--list", "-l", is_flag=True, help="List all experts")
+@click.option("--list", "list_flag", "-l", is_flag=True, help="List all experts")
 @click.pass_context
-def expert(ctx, list):
+def expert(ctx, list_flag):
     """Create and interact with domain experts.
 
     Experts combine knowledge bases with agentic research capabilities.
@@ -47,7 +47,7 @@ def expert(ctx, list):
       deepr chat expert "Python Expert" --message "What are decorators?"
     """
     # If --list flag is used, invoke list command
-    if list:
+    if list_flag:
         ctx.invoke(list_experts)
     # If no subcommand provided, show help
     elif ctx.invoked_subcommand is None:
@@ -1691,7 +1691,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
         /synthesize - Trigger consciousness synthesis (form beliefs from recent learning)
     """
     import asyncio
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     from deepr.cli import ui
     from deepr.cli.validation import validate_budget
@@ -1722,7 +1722,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     # Calculate knowledge age
     knowledge_age_days = 0
     if session.expert.knowledge_cutoff_date:
-        age_delta = datetime.now().date() - session.expert.knowledge_cutoff_date.date()
+        age_delta = datetime.now(timezone.utc).date() - session.expert.knowledge_cutoff_date.date()
         knowledge_age_days = age_delta.days
 
     # Display modern welcome message

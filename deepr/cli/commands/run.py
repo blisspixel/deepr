@@ -637,8 +637,9 @@ def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContex
         if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
             click.echo("Cancelled.")
             return False
+        return True
 
-    return True
+    return False
 
 
 async def _create_and_enqueue_job(

@@ -246,7 +246,7 @@ class QualityMetrics:
         if expected_count > 0:
             recall = min(len(actual_citations) / expected_count, 1.0)
         else:
-            recall = 1.0 if not actual_citations else 0.0
+            recall = 1.0  # No citations expected; any provided are bonus
 
         # F1
         if precision + recall > 0:

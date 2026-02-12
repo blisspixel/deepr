@@ -59,12 +59,11 @@ export default function ResearchStudio() {
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
-    setUploadedFiles(prev => [...prev, ...files])
     const readResults = await Promise.all(
       files.map(file =>
-        new Promise<{ name: string; content: string }>((resolve, reject) => {
+        new Promise<{ file: File; name: string; content: string }>((resolve, reject) => {
           const reader = new FileReader()
-          reader.onload = (event) => resolve({ name: file.name, content: event.target?.result as string })
+          reader.onload = (event) => resolve({ file, name: file.name, content: event.target?.result as string })
           reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
           reader.readAsText(file)
         }).catch((err) => {
@@ -73,9 +72,10 @@ export default function ResearchStudio() {
         })
       )
     )
-    const successful = readResults.filter((r): r is { name: string; content: string } => r !== null)
+    const successful = readResults.filter((r): r is { file: File; name: string; content: string } => r !== null)
     if (successful.length > 0) {
-      setUploadedFileContents(prev => [...prev, ...successful])
+      setUploadedFiles(prev => [...prev, ...successful.map(s => s.file)])
+      setUploadedFileContents(prev => [...prev, ...successful.map(s => ({ name: s.name, content: s.content }))])
     }
     if (successful.length < files.length) {
       toast.warning(`Failed to read ${files.length - successful.length} file(s)`)
@@ -242,7 +242,7 @@ export default function ResearchStudio() {
                   {uploadedFiles.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {uploadedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between px-3 py-1.5 bg-secondary rounded">
+                        <div key={`${file.name}-${index}`} className="flex items-center justify-between px-3 py-1.5 bg-secondary rounded">
                           <span className="text-xs text-foreground truncate">{file.name} ({(file.size / 1024).toFixed(1)} KB)</span>
                           <button type="button" onClick={() => removeFile(index)} className="ml-2 text-muted-foreground hover:text-foreground">
                             <X className="w-3.5 h-3.5" />

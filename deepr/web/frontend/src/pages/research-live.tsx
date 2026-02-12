@@ -46,6 +46,7 @@ export default function ResearchLive() {
   useEffect(() => {
     if (!job?.started_at || job.status === 'completed' || job.status === 'failed') return
     const start = new Date(job.started_at).getTime()
+    setElapsed(Math.floor((Date.now() - start) / 1000))
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000))
     }, 1000)

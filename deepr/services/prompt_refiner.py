@@ -29,7 +29,10 @@ class PromptRefiner:
             model: Model to use for refinement (gpt-5-mini recommended for speed/cost)
         """
         self.model = model
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required for PromptRefiner")
+        self.client = OpenAI(api_key=api_key)
 
     def refine(self, prompt: str, has_files: bool = False) -> dict:
         """

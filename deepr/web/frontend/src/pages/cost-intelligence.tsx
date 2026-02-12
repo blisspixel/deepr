@@ -69,11 +69,20 @@ export default function CostIntelligence() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
+  const localLimitsRef = useRef(localLimits)
+  localLimitsRef.current = localLimits
+
   const handleSliderChange = useCallback((key: 'per_job' | 'daily' | 'monthly', value: number) => {
-    setLocalLimits(prev => prev ? { ...prev, [key]: value } : { per_job: 20, daily: 100, monthly: 1000, [key]: value })
+    setLocalLimits(prev => {
+      const next = prev ? { ...prev, [key]: value } : { per_job: 20, daily: 100, monthly: 1000, [key]: value }
+      localLimitsRef.current = next
+      return next
+    })
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      updateLimitsMutation.mutate({ [key]: value })
+      if (localLimitsRef.current) {
+        updateLimitsMutation.mutate(localLimitsRef.current)
+      }
     }, 500)
   }, [updateLimitsMutation])
 

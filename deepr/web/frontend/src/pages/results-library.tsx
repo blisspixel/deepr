@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { resultsApi } from '@/api/results'
@@ -18,11 +18,17 @@ export default function ResultsLibrary() {
   const navigate = useNavigate()
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
   const { data: resultsData, isLoading } = useQuery({
-    queryKey: ['results', 'list', searchQuery, sortBy],
-    queryFn: () => resultsApi.list({ search: searchQuery || undefined, sort_by: sortBy }),
+    queryKey: ['results', 'list', debouncedSearch, sortBy],
+    queryFn: () => resultsApi.list({ search: debouncedSearch || undefined, sort_by: sortBy }),
     refetchInterval: 10000,
   })
 
