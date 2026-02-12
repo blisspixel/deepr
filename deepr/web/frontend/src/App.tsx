@@ -15,7 +15,7 @@ const ExpertHub = lazy(() => import('@/pages/expert-hub'))
 const ExpertProfile = lazy(() => import('@/pages/expert-profile'))
 const CostIntelligence = lazy(() => import('@/pages/cost-intelligence'))
 const TraceExplorer = lazy(() => import('@/pages/trace-explorer'))
-const Settings = lazy(() => import('@/pages/Settings'))
+const Settings = lazy(() => import('@/pages/settings'))
 
 const queryClient = new QueryClient({
   defaultOptions: {

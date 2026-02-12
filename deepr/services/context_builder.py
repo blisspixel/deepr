@@ -12,6 +12,7 @@ Based on research findings (docs/research and documentation/context_chaining_bes
 Includes token budget management and intelligent context pruning.
 """
 
+import asyncio
 import os
 from typing import Optional
 
@@ -82,7 +83,8 @@ Research Report:
 
 Summary (bullet list, ~{target_words} words):"""
 
-        response = self.client.chat.completions.create(
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create,
             model="gpt-5-mini",  # Fast and cheap reasoning model for summarization
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,  # Lower temp for factual extraction
