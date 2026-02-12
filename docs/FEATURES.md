@@ -336,7 +336,7 @@ deepr research trace abc123 --full-trace -o trace.json
 
 ### Understanding Traces
 
-**--explain:** Shows task hierarchy with model, cost, and context sources per operation
+**--explain:** Shows task hierarchy with model, cost, and context sources per operation. Also displays a **decision table** (type, decision, confidence, cost impact) when decision records are available.
 
 **--timeline:** Rich table showing offset, task type, status, duration, and cost
 
@@ -451,7 +451,7 @@ deepr expert chat "Azure Architect" --agentic --budget 5
 # Add knowledge via topic research
 deepr expert learn "Azure Architect" "Azure AI Agent Service 2026"
 
-# Fill knowledge gaps proactively
+# Fill knowledge gaps proactively (ranked by EV/cost ratio)
 deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
 
 # Resume paused learning

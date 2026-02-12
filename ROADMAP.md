@@ -62,7 +62,7 @@ These features work but APIs or behavior may change:
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
-- MCP server with 10 tools, persistence, security, multi-runtime configs
+- MCP server with 12 tools, persistence, security, multi-runtime configs
 - Web dashboard (10 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, trace explorer, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -111,6 +111,10 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | 6.5 | Dynamic Context Management (pruning, token budgets, findings storage) | v2.8 |
 | 7.3 | Real-Time Progress (phase tracking, progress bar, partial results streaming) | v2.8 |
 | 5.5 | Auto Mode: Smart Query Routing (`--auto`, `--batch`, `--dry-run`, complexity-based routing) | v2.8 |
+| 4.6 | Decision Record Schema (`DecisionRecord` type, CLI table, trace sidebar, MCP queries) | v2.8 |
+| Phase 5 | Expert Contract (`ExpertManifest`, `Claim`, `Gap`, `Source` types in `core/contracts.py`) | v2.8 |
+| Phase 5 | Gap EV/Cost Ranking (`gap_scorer.py`, scored gaps in web + MCP) | v2.8 |
+| Phase 5 | Source Provenance (`TrustClass` enum, content hashes, extraction method) | v2.8 |
 
 ---
 
@@ -170,12 +174,11 @@ sam build && sam deploy --guided
 - [x] Quality score in research output (`QualityMetrics` in `observability/quality_metrics.py`)
 
 #### 4.6 Decision Record Schema
-Promote decision records from log-like objects into a typed, queryable schema. This makes `--why` output, UI decision sidebars, and MCP queries all render the same underlying structure.
-
-- [ ] Define `DecisionRecord` type: `type` (routing | source-trust | stop | pivot | budget), `inputs`, `options_considered`, `choice`, `why`, `evidence` (span/source refs), `confidence`
-- [ ] Migrate ThoughtStream decision summaries to emit `DecisionRecord` objects
-- [ ] Surface decision records in Trace Explorer as a collapsible sidebar alongside the span waterfall
-- [ ] Expose via MCP: `decisions.list(job_id)` for downstream agent queries
+- [x] `DecisionRecord` type with `DecisionType` enum (routing, stop, pivot, budget, belief_revision, gap_fill, conflict_resolution, source_selection) in `core/contracts.py`
+- [x] ThoughtStream emits `DecisionRecord` objects via `record_decision()`, saves `decisions.json` alongside `decisions.md`
+- [x] Decision records in Trace Explorer as a collapsible sidebar alongside the span waterfall
+- [x] CLI `--explain` shows decision table (type, decision, confidence, cost impact)
+- [x] MCP: `deepr_expert_manifest` returns decisions; web API: `GET /api/experts/<name>/decisions`
 
 ---
 
@@ -247,29 +250,29 @@ Promote decision records from log-like objects into a typed, queryable schema. T
 
 ### Expert System Formalization
 
-**What exists:** ExpertProfile with beliefs, gaps, budget manager, activity tracker, curriculum, metacognition, serializer, autonomous learning, gap-filling.
-
-The expert system works, but its internal model is implicit. Formalizing it makes experts composable — other agents can query, verify, and build on expert knowledge programmatically.
+**What exists:** ExpertProfile with beliefs, gaps, budget manager, activity tracker, curriculum, metacognition, serializer, autonomous learning, gap-filling. Canonical types (`Claim`, `Gap`, `DecisionRecord`, `ExpertManifest`) in `core/contracts.py` with adapters on existing classes. Gap scoring via `gap_scorer.py`. Manifests queryable via MCP and web API.
 
 #### Expert Contract
-- [ ] Define `ExpertManifest`: id, name, scope, boundaries, version, created_at, updated_at
-- [ ] Normalize `Claim`: atomic assertion + confidence + sources[] + observed_at + extraction_method
-- [ ] Normalize `Gap`: question + priority + estimated_cost + expected_value + query_frequency (how often this gap blocks tasks)
-- [ ] Define `ExpertPolicy`: refresh cadence, allowed tools, budget caps, trust requirements
+- [x] `ExpertManifest` dataclass: expert_name, domain, claims, gaps, decisions, policies, generated_at, computed properties (claim_count, open_gap_count, avg_confidence, top_gaps) in `core/contracts.py`
+- [x] `Claim` type: atomic assertion + confidence + sources[] + created_at + updated_at + contradicts + tags
+- [x] `Gap` type: topic + questions + priority + estimated_cost + expected_value + ev_cost_ratio + times_asked + filled status
+- [x] Adapter methods: `Belief.to_claim()` in beliefs.py and synthesis.py, `KnowledgeGap.to_gap()` in synthesis.py and metacognition.py
+- [x] `ExpertProfile.get_manifest()` composes claims, scored gaps, decisions, and policies into typed snapshot
 - [ ] Generate `Delta` on expert updates: claims added/changed/removed between versions
+- [ ] Define `ExpertPolicy` as explicit type (currently dict in manifest)
 
 #### Gap Prioritization
-Make "fill top N gaps" a rational allocation rather than arbitrary ordering:
-- [ ] Gap score = `(uncertainty × utility) / estimated_cost` where utility reflects how often the gap blocks downstream tasks
-- [ ] Estimated cost per gap from model pricing + expected phase count
-- [ ] Show gap EV/cost ranking in Expert Profile gaps tab and CLI `expert fill-gaps`
+- [x] `gap_scorer.py` with `score_gap()` and `rank_gaps()` functions
+- [x] Formula: `ev_cost_ratio = expected_value / estimated_cost` where expected_value = `(priority/5 + frequency_boost)`
+- [x] Domain velocity cost lookup: fast=$0.25, medium=$1.00, slow=$2.00
+- [x] EV/cost ratio displayed in Expert Profile gaps tab (color-coded badge) and web API
+- [x] `deepr_rank_gaps` MCP tool returns top N scored gaps
 
 #### Source Provenance
-Store provenance metadata on expert claims for auditability and trust:
-- [ ] Trust class on sources: official_docs | paper | blog | forum | unknown
-- [ ] Store source hashes + retrieval method per claim
-- [ ] Store extraction method (which model/tool created the claim)
-- [ ] Optional `--high-trust-only` mode that restricts expert to official_docs and paper sources
+- [x] `Source` type with `TrustClass` enum (primary, secondary, tertiary, self_generated) in `core/contracts.py`
+- [x] Content hash + extraction method stored per source
+- [x] `Belief.to_claim()` converts evidence_refs to Source objects with trust classification
+- [ ] Optional `--high-trust-only` mode that restricts expert to primary/secondary sources
 
 ---
 
@@ -314,7 +317,7 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ### MCP Ecosystem (remaining)
 
-**What exists:** Full MCP server with 10 tools, persistence, security, skill packaging, Docker, multi-runtime configs.
+**What exists:** Full MCP server with 12 tools, persistence, security, skill packaging, Docker, multi-runtime configs.
 
 #### MCP Client Mode (Deepr as Tool Consumer)
 - Design complete (SearchBackend, BrowserBackend protocols, architecture doc)
@@ -341,10 +344,11 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 - [ ] Rate limiting for external requests
 
 #### MCP Composability
-Make tool outputs structured enough for downstream agent composition:
+- [x] `deepr_expert_manifest` tool returns full expert state (claims, gaps, decisions, policies)
+- [x] `deepr_rank_gaps` tool returns top N scored gaps for proactive filling
+- [x] `deepr_get_expert_info` includes claim_count, open_gap_count, avg_confidence
 - [ ] All tool responses include artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) alongside summaries
-- [ ] Expose expert resources: `experts.query`, `experts.gaps`, `experts.diff(version_a, version_b)`
-- [ ] Expose decision records: `decisions.list(job_id)` for downstream "why" queries
+- [ ] Expose `experts.diff(version_a, version_b)` for versioned comparison
 
 #### Skill System Enhancements
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
@@ -473,16 +477,16 @@ The dashboard should show *posture* (what's working, what's failing, what we're 
 
 Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligence, advanced context, real-time progress) are complete — see [Changelog](docs/CHANGELOG.md) for details.
 
-### Phase 5: Expert & Decision Formalization
-*Type the core abstractions so they're composable across CLI/web/MCP*
+### Phase 5: Expert & Decision Formalization (Done — v2.8)
+*Typed core abstractions composable across CLI/web/MCP*
 
-| Item | Description | Effort |
+| Item | Description | Status |
 |------|-------------|--------|
-| - | Expert contract: manifest, normalized claims, gaps, policies, deltas | Medium |
-| - | Gap EV/cost ranking for rational "fill top N" allocation | Medium |
-| - | Source provenance: trust classes, hashes, extraction method on claims | Medium |
-| - | Decision record schema: typed, queryable, rendered in CLI + web + MCP | Medium |
-| - | MCP composability: artifact IDs in all responses, expert/decision queries | Small |
+| Expert contract | `ExpertManifest`, `Claim`, `Gap` types in `core/contracts.py` with `to_dict()`/`from_dict()` | Done |
+| Gap EV/cost ranking | `gap_scorer.py` with `score_gap()` and `rank_gaps()`, EV/cost ratio in web + MCP | Done |
+| Source provenance | `Source` with `TrustClass` enum, content hashes, extraction method | Done |
+| Decision record schema | `DecisionRecord` with `DecisionType` enum, CLI table, trace sidebar, MCP | Done |
+| MCP composability | `deepr_expert_manifest` and `deepr_rank_gaps` tools, web API endpoints | Done |
 
 ### Phase 6: MCP Client Mode
 *Deepr as tool consumer, not just provider*
@@ -504,7 +508,7 @@ Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligen
 | - | Trace explorer | Medium | Done |
 | - | Cost intelligence with charts | Medium | Done |
 | - | Operational analytics (posture cards, cost-quality frontier, alerts) | Medium | Pending |
-| - | Decision sidebar in trace explorer | Medium | Pending |
+| - | Decision sidebar in trace explorer | Medium | Done |
 | - | Expert diff view (claim-level changes after refresh) | Medium | Pending |
 | - | Tags and folders for organizing research | Medium | Pending |
 | - | Export results (PDF, DOCX) | Medium | Pending |
@@ -556,7 +560,7 @@ We welcome contributions. Here's where help is most valuable:
 
 | Area | Examples | Impact |
 |------|----------|--------|
-| **Expert formalization** | Typed claims, gap prioritization, source provenance | High |
+| **Expert formalization** | Expert diffs, policy types, high-trust-only mode | Medium |
 | **MCP client mode** | Client connections, async tasks, elicitation | High |
 | **Testing** | Integration tests, provider mocks, 80% coverage | High |
 | **Web dashboard** | Operational analytics, expert diff, comparison view | High |
@@ -583,8 +587,8 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.4-2.5 | MCP integration, agentic experts | Complete |
 | v2.6 | Observability, fallback, cost dashboard | Complete |
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
-| v2.8 | Provider intelligence, advanced context, real-time progress | Complete |
-| v2.9 | Expert formalization, decision records, web analytics | Planned |
+| v2.8 | Provider intelligence, advanced context, real-time progress, expert formalization | Complete |
+| v2.9 | Web analytics, expert diffs, team features | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |
 

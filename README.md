@@ -10,7 +10,11 @@
 Deepr produces two artifacts: **reports** (markdown with citations) and **experts**. Experts are persistent, versionable knowledge bases that track claims with confidence scores and detect their own gaps. They autonomously research to fill those gaps within budgeted limits. Every action — routing, source selection, stop conditions — is captured as a structured **decision record**, not a log line. Experts are queryable by other agents via MCP, so your AI workflows consume living knowledge instead of stale documents.
 
 ```bash
+# Research produces a report — and feeds the expert
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3 --explain
+
+# Expert accumulates knowledge across queries, fills its own gaps
+deepr expert chat "AI Strategy Expert" --agentic --budget 3
 ```
 
 Scriptable. Schedulable. Callable from your AI agents via MCP. Multi-provider (OpenAI, Gemini, Grok, Anthropic). Reports and experts saved locally as artifacts you own.
