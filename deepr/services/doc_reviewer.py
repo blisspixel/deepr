@@ -152,7 +152,12 @@ class DocReviewer:
         )
 
         # Parse response
-        result = json.loads(response.choices[0].message.content or "{}")
+        try:
+            content = response.choices[0].message.content if response.choices else "{}"
+            result = json.loads(content or "{}")
+        except (json.JSONDecodeError, IndexError) as e:
+            logger.warning("Failed to parse doc review response: %s", e)
+            result = {"sufficient": [], "needs_update": [], "gaps": [scenario], "recommendations": []}
         return result
 
     def _build_evaluation_prompt(self, scenario: str, context: Optional[str], docs: list[dict[str, Any]]) -> str:
