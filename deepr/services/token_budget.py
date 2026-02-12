@@ -171,7 +171,10 @@ class TokenBudgetAllocator:
 
         # Normalize weights
         total_weight = sum(weights.values())
-        weights = {k: v / total_weight for k, v in weights.items()}
+        if total_weight == 0:
+            weights = {k: 1.0 / len(weights) for k in weights}
+        else:
+            weights = {k: v / total_weight for k, v in weights.items()}
 
         # Create phase allocations
         phases = {}

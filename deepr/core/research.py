@@ -224,6 +224,14 @@ class ResearchOrchestrator:
             job_id = str(uuid.uuid4())
             op.set_attribute("job_id", job_id)
 
+            # OpenAI metadata fields have 512 char limit - validate prompt length
+            if len(prompt) > 300:
+                raise ValueError(
+                    f"Research prompt too long ({len(prompt)} chars). "
+                    f"Must be under 300 characters for API compatibility. "
+                    f"Please use a more concise prompt."
+                )
+
             # Initialize temporal tracking for this job (6.4)
             if self._enable_temporal:
                 tracker = TemporalKnowledgeTracker(job_id=job_id)
@@ -234,13 +242,6 @@ class ResearchOrchestrator:
             # Prepare metadata
             job_metadata = metadata or {}
             job_metadata["job_id"] = job_id
-            # OpenAI metadata fields have 512 char limit - validate prompt length
-            if len(prompt) > 300:
-                raise ValueError(
-                    f"Research prompt too long ({len(prompt)} chars). "
-                    f"Must be under 300 characters for API compatibility. "
-                    f"Please use a more concise prompt."
-                )
             job_metadata["original_prompt"] = prompt
 
             # Use provided vector_store_id or create one from documents
@@ -463,7 +464,7 @@ class ResearchOrchestrator:
             except Exception as e:
                 # Provider cleanup may fail for many reasons (network, auth, already
                 # deleted, etc.); log and continue -- this is fire-and-forget.
-                logger.warning("Failed to cleanup vector store %s: %s", vector_store_id, e)
+                logger.error("ORPHANED vector store %s for job %s - manual cleanup required: %s", vector_store_id, job_id, e)
 
     async def cancel_job(self, job_id: str) -> bool:
         """

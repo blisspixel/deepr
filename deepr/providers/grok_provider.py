@@ -185,8 +185,7 @@ class GrokProvider(DeepResearchProvider):
                     "completed_at": datetime.now(timezone.utc),
                 }
             )
-            # Don't raise - store error in job status instead
-            # This matches the behavior expected for immediate-completion providers
+            raise
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """Get research job status."""

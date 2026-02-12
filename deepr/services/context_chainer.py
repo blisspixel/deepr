@@ -203,7 +203,7 @@ class ContextChainer:
 
         # Track token budget
         budget_used = 50  # Header overhead
-        budget_per_phase = (max_tokens - budget_used) // max(len(prior_phases), 1)
+        budget_per_phase = max_tokens // max(len(prior_phases), 1)
 
         for phase_output in prior_phases:
             phase_section, tokens_used = self._format_phase_context(

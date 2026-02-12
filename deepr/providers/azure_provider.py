@@ -146,12 +146,16 @@ class AzureProvider(DeepResearchProvider):
             # Parse usage stats
             usage = None
             if hasattr(response, "usage") and response.usage:
+                input_tokens = getattr(response.usage, "input_tokens", 0)
+                output_tokens = getattr(response.usage, "output_tokens", 0)
+                model = getattr(response, "model", None)
                 usage = UsageStats(
-                    input_tokens=getattr(response.usage, "input_tokens", 0),
-                    output_tokens=getattr(response.usage, "output_tokens", 0),
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                     total_tokens=getattr(response.usage, "total_tokens", 0),
                     reasoning_tokens=getattr(response.usage, "reasoning_tokens", 0),
                 )
+                usage.cost = UsageStats.calculate_cost(input_tokens, output_tokens, model)
 
             # Parse output
             output = None

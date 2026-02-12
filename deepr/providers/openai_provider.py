@@ -148,12 +148,13 @@ class OpenAIProvider(DeepResearchProvider):
                     logger.warning("Retrying in %ss...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
-                elif fallback_model and attempt == max_retries - 1:
-                    # Last attempt: try fallback model
+                elif fallback_model:
+                    # All retries exhausted: try fallback model with fresh retries
                     logger.warning("Max retries reached for %s", request.model)
                     logger.warning("Graceful degradation: Falling back to %s", fallback_model)
                     request.model = fallback_model
-                    continue
+                    fallback_model = None  # Prevent infinite fallback loop
+                    return await self.submit_research(request)
                 else:
                     raise ProviderError(
                         message=f"Failed after {max_retries} retries: {e}",

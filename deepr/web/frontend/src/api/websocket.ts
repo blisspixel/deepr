@@ -26,6 +26,14 @@ class WebSocketClient {
       console.log('WebSocket disconnected')
     })
 
+    this.socket.on('connect_error', (err: Error) => {
+      console.warn('WebSocket connection error:', err.message)
+    })
+
+    this.socket.on('reconnect_failed' as any, () => {
+      console.error('WebSocket reconnection failed after max attempts')
+    })
+
     this.socket.on('job_created', (job: Job) => {
       this.emit('job_created', job)
     })

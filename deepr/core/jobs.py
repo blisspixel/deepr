@@ -1,6 +1,7 @@
 """Job management and tracking."""
 
 import json
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -166,8 +167,10 @@ class JobManager:
                     pass
                 updated_lines.append(line if line.endswith("\n") else line + "\n")
 
-        with open(self.log_path, "w", encoding="utf-8") as f:
+        tmp_path = str(self.log_path) + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             f.writelines(updated_lines)
+        os.replace(tmp_path, str(self.log_path))
 
     async def _get_jsonl_job(self, response_id: str) -> Optional[JobRecord]:
         """Get job from JSONL file."""

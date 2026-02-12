@@ -201,6 +201,8 @@ class MCPResourceHandler:
             summary.json - Report metadata (cost, model, sources)
         """
         job_dir = self._reports_base / job_id
+        if not job_dir.resolve().is_relative_to(self._reports_base.resolve()):
+            return ResourceResponse(uri=uri, data=None, error=f"Invalid job_id: {job_id}")
 
         if subresource == "final.md":
             # Try common report filenames
@@ -247,6 +249,8 @@ class MCPResourceHandler:
             decisions.md - Human-readable decision log
         """
         job_dir = self._reports_base / job_id
+        if not job_dir.resolve().is_relative_to(self._reports_base.resolve()):
+            return ResourceResponse(uri=uri, data=None, error=f"Invalid job_id: {job_id}")
 
         file_map = {
             "search_trace.json": ("search_trace.json", "trace.json"),
