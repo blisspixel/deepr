@@ -350,6 +350,5 @@ Create persistent knowledge bases from documents and past research. Query them s
 ---
 
 See also:
-- [LEARNING_WORKFLOW.md](LEARNING_WORKFLOW.md) - Structured learning strategies
-- [MODEL_SELECTION.md](MODEL_SELECTION.md) - Choosing the right model for your task
-- [EXPERT_SYSTEM.md](EXPERT_SYSTEM.md) - Creating and using domain experts
+- [MODELS.md](MODELS.md) - Provider comparison, costs, model selection
+- [EXPERTS.md](EXPERTS.md) - Creating and using domain experts
