@@ -30,6 +30,7 @@ dist/
 .pytest_cache/
 .coverage
 .coverage.*
+coverage.json
 htmlcov/
 .tox/
 .nox/
@@ -77,6 +78,9 @@ logs/
 last_response.json
 CODE_QUALITY_REVIEW.md
 nul
+
+# Personal notes / scratch
+scripts/expert_deepr_discussion.txt
 
 # ==============================================================================
 # Frontend
