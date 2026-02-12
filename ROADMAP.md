@@ -245,6 +245,34 @@ Promote decision records from log-like objects into a typed, queryable schema. T
 
 ---
 
+### Expert System Formalization
+
+**What exists:** ExpertProfile with beliefs, gaps, budget manager, activity tracker, curriculum, metacognition, serializer, autonomous learning, gap-filling.
+
+The expert system works, but its internal model is implicit. Formalizing it makes experts composable — other agents can query, verify, and build on expert knowledge programmatically.
+
+#### Expert Contract
+- [ ] Define `ExpertManifest`: id, name, scope, boundaries, version, created_at, updated_at
+- [ ] Normalize `Claim`: atomic assertion + confidence + sources[] + observed_at + extraction_method
+- [ ] Normalize `Gap`: question + priority + estimated_cost + expected_value + query_frequency (how often this gap blocks tasks)
+- [ ] Define `ExpertPolicy`: refresh cadence, allowed tools, budget caps, trust requirements
+- [ ] Generate `Delta` on expert updates: claims added/changed/removed between versions
+
+#### Gap Prioritization
+Make "fill top N gaps" a rational allocation rather than arbitrary ordering:
+- [ ] Gap score = `(uncertainty × utility) / estimated_cost` where utility reflects how often the gap blocks downstream tasks
+- [ ] Estimated cost per gap from model pricing + expected phase count
+- [ ] Show gap EV/cost ranking in Expert Profile gaps tab and CLI `expert fill-gaps`
+
+#### Source Provenance
+Store provenance metadata on expert claims for auditability and trust:
+- [ ] Trust class on sources: official_docs | paper | blog | forum | unknown
+- [ ] Store source hashes + retrieval method per claim
+- [ ] Store extraction method (which model/tool created the claim)
+- [ ] Optional `--high-trust-only` mode that restricts expert to official_docs and paper sources
+
+---
+
 ### Priority 7: Modern CLI UX (remaining)
 
 #### 7.2 Interactive Mode
@@ -311,6 +339,12 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 - [ ] GitHub release workflow for skill distribution
 - [ ] Wire sampling into web scraper (CAPTCHA/paywall detection)
 - [ ] Rate limiting for external requests
+
+#### MCP Composability
+Make tool outputs structured enough for downstream agent composition:
+- [ ] All tool responses include artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) alongside summaries
+- [ ] Expose expert resources: `experts.query`, `experts.gaps`, `experts.diff(version_a, version_b)`
+- [ ] Expose decision records: `decisions.list(job_id)` for downstream "why" queries
 
 #### Skill System Enhancements
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
@@ -379,11 +413,12 @@ Local research management interface for monitoring batch operations. CLI remains
 #### Operational Analytics
 The dashboard should show *posture* (what's working, what's failing, what we're learning) rather than just counts. These surface the decision records and quality metrics that the kernel already tracks.
 
-- [ ] Cost vs quality trend (last N runs) — are we spending more for diminishing returns?
+- [ ] Cost vs quality frontier — scatter plot (x=cost, y=quality score, color=model) as the platform's north star chart
 - [ ] Top failure modes breakdown (provider, prompt, tool, stopping) — where to focus reliability work
 - [ ] Routing decisions summary — which models are being selected and why
 - [ ] Expert gap velocity — gaps created vs closed over time
 - [ ] Citation density and freshness — are sources getting stale?
+- [ ] Recommended actions — actionable alerts: "Provider X degraded", "N experts stale (>30d) used recently", "Budget circuit breaker triggered", "Top gap worth filling (EV/cost)"
 
 #### Core Improvements
 - [ ] Export results (PDF, DOCX in addition to Markdown)
@@ -399,9 +434,11 @@ The dashboard should show *posture* (what's working, what's failing, what we're 
 #### Advanced Features
 - [ ] Scheduled/recurring research (cron-like)
 - [ ] Webhooks for external integrations (Slack, email)
-- [ ] Comparison view (side-by-side research results)
+- [ ] Comparison view (side-by-side research results with citation overlap)
 - [ ] Research templates (save and reuse prompts)
 - [ ] Bulk operations UI (batch submit, bulk cancel, bulk export)
+- [ ] Expert diff view — claim-level changes after gap-fill or refresh, with new sources highlighted
+- [ ] "Reuse" button on results — start new job seeded from existing report as context
 
 ---
 
@@ -434,52 +471,20 @@ The dashboard should show *posture* (what's working, what's failing, what we're 
 
 ## Build Order
 
-Recommended sequence for remaining work (updated 2026-02-04):
+Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligence, advanced context, real-time progress) are complete — see [Changelog](docs/CHANGELOG.md) for details.
 
-### Phase 1: Polish & Quick Wins
-*Low effort, immediate value, cleans up loose ends*
+### Phase 5: Expert & Decision Formalization
+*Type the core abstractions so they're composable across CLI/web/MCP*
 
-| Item | Description | Effort | Status |
-|------|-------------|--------|--------|
-| 4.4 | Wire `--why` flag to CLI (alias for `--explain`) | Small | Done |
-| 6.3 | Cost savings estimate when using `--context` | Small | Done |
-| 7.5 | Command consolidation (remove `run single`, `run campaign`) | Small | Done |
-| 7.6 | Output improvements (truncation, hyperlinks) | Small | Done |
-| Tests | Integration tests, 80% coverage target | Medium | In Progress |
-| - | README demo GIF (CLI research query + web dashboard) | Small | Pending |
-| - | Architecture diagram in README (Mermaid) | Small | Done |
-| - | `deepr expert plan` — preview curriculum without creating expert | Small | Done |
+| Item | Description | Effort |
+|------|-------------|--------|
+| - | Expert contract: manifest, normalized claims, gaps, policies, deltas | Medium |
+| - | Gap EV/cost ranking for rational "fill top N" allocation | Medium |
+| - | Source provenance: trust classes, hashes, extraction method on claims | Medium |
+| - | Decision record schema: typed, queryable, rendered in CLI + web + MCP | Medium |
+| - | MCP composability: artifact IDs in all responses, expert/decision queries | Small |
 
-### Phase 2: Provider Intelligence
-*Data-driven routing, reliability metrics, cost optimization*
-
-| Item | Description | Effort | Status |
-|------|-------------|--------|--------|
-| 5.1 | Real-time benchmarking (latency percentiles, success rates) | Medium | Done |
-| 5.3 | Continuous optimization (exploration/exploitation, auto-disable) | Medium | Done |
-| 5.5 | Auto mode: smart query routing (`--auto`, `--batch`, `--dry-run`) | Medium | Done |
-| - | `deepr providers status` and `deepr providers benchmark` | Small | Done |
-| - | `deepr providers list` - show available models | Small | Done |
-
-### Phase 3: Advanced Context
-*Builds on completed 6.1-6.3, for long research sessions*
-
-| Item | Description | Effort | Status |
-|------|-------------|--------|--------|
-| 6.4 | Temporal knowledge tracking (when findings discovered) | Medium | Done |
-| 6.5 | Dynamic context management (pruning, token budgets) | Medium | Done |
-| - | Context lineage tracking and visualization | Medium | Done |
-
-### Phase 4: Real-Time Progress
-*Better UX for long-running operations*
-
-| Item | Description | Effort | Status |
-|------|-------------|--------|--------|
-| 7.3 | Poll provider status API, show phase progress | Medium | Done |
-| - | Stream partial results when supported | Medium | Done |
-| - | WebSocket updates for web dashboard | Medium | Done |
-
-### Phase 5: MCP Client Mode
+### Phase 6: MCP Client Mode
 *Deepr as tool consumer, not just provider*
 
 | Item | Description | Effort |
@@ -489,8 +494,8 @@ Recommended sequence for remaining work (updated 2026-02-04):
 | - | Async task handling with progress monitoring | Large |
 | - | Enhanced elicitation (human-in-the-loop) | Medium |
 
-### Phase 6: Web Dashboard
-*Improve the visual interface*
+### Phase 7: Web Dashboard
+*Operational analytics and advanced features*
 
 | Item | Description | Effort | Status |
 |------|-------------|--------|--------|
@@ -498,10 +503,14 @@ Recommended sequence for remaining work (updated 2026-02-04):
 | - | Expert management UI | Medium | Done |
 | - | Trace explorer | Medium | Done |
 | - | Cost intelligence with charts | Medium | Done |
+| - | Operational analytics (posture cards, cost-quality frontier, alerts) | Medium | Pending |
+| - | Decision sidebar in trace explorer | Medium | Pending |
+| - | Expert diff view (claim-level changes after refresh) | Medium | Pending |
 | - | Tags and folders for organizing research | Medium | Pending |
 | - | Export results (PDF, DOCX) | Medium | Pending |
+| - | Comparison view (side-by-side reports) | Medium | Pending |
 
-### Phase 7: Team Features
+### Phase 8: Team Features
 *Multi-user deployment*
 
 | Item | Description | Effort |
@@ -510,7 +519,7 @@ Recommended sequence for remaining work (updated 2026-02-04):
 | - | Team workspaces with shared libraries | Large |
 | - | Role-based access and audit log | Medium |
 
-### Phase 8: Security Hardening
+### Phase 9: Security Hardening
 *For production agentic deployments*
 
 | Item | Description | Effort |
@@ -522,6 +531,7 @@ Recommended sequence for remaining work (updated 2026-02-04):
 ### Stretch Goals
 *Nice to have, lower priority*
 
+- README demo GIF (CLI research query + web dashboard)
 - 7.4 TUI Dashboard (Textual-based)
 - 8.x NVIDIA NIM Provider
 - Skill marketplace and meta-skills
@@ -546,14 +556,10 @@ We welcome contributions. Here's where help is most valuable:
 
 | Area | Examples | Impact |
 |------|----------|--------|
-| **Provider intelligence** | Benchmarking, latency tracking, auto mode routing | High |
-| **Advanced context** | Temporal tracking, context pruning, lineage | High |
+| **Expert formalization** | Typed claims, gap prioritization, source provenance | High |
 | **MCP client mode** | Client connections, async tasks, elicitation | High |
-| **Real-time progress** | Provider polling, WebSocket updates, streaming | High |
-| **Expert system** | Knowledge synthesis, gap detection, learning | High |
 | **Testing** | Integration tests, provider mocks, 80% coverage | High |
-| **Web dashboard** | Report viewer, expert UI, real-time updates | Medium |
-| **CLI polish** | Output formatting, command consolidation | Medium |
+| **Web dashboard** | Operational analytics, expert diff, comparison view | High |
 | **Security** | Permission boundaries, sandboxing, isolation | Medium |
 | **Documentation** | Examples, tutorials, API docs | Medium |
 
@@ -577,8 +583,8 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.4-2.5 | MCP integration, agentic experts | Complete |
 | v2.6 | Observability, fallback, cost dashboard | Complete |
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
-| v2.8 | Provider intelligence, advanced context | In Progress |
-| v2.9 | MCP client mode, real-time progress | Planned |
+| v2.8 | Provider intelligence, advanced context, real-time progress | Complete |
+| v2.9 | Expert formalization, decision records, web analytics | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |
 
