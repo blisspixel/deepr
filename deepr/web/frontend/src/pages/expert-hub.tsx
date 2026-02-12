@@ -1,3 +1,4 @@
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
@@ -16,6 +17,14 @@ import {
 
 export default function ExpertHub() {
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name')
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const { data: experts, isLoading, isError, refetch } = useQuery({
     queryKey: ['experts'],
@@ -28,6 +37,27 @@ export default function ExpertHub() {
       duration: 6000,
     })
   }
+
+  const filteredExperts = useMemo(() => {
+    if (!experts) return []
+    let filtered = [...experts]
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
+      filtered = filtered.filter(e =>
+        e.name.toLowerCase().includes(q) ||
+        e.description?.toLowerCase().includes(q)
+      )
+    }
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'docs': return b.document_count - a.document_count
+        case 'cost': return b.total_cost - a.total_cost
+        case 'recent': return (b.last_active || '').localeCompare(a.last_active || '')
+        default: return a.name.localeCompare(b.name)
+      }
+    })
+    return filtered
+  }, [experts, debouncedSearch, sortBy])
 
   if (isError) {
     return (
@@ -59,6 +89,32 @@ export default function ExpertHub() {
         </Button>
       </div>
 
+      {/* Search + Sort */}
+      {experts && experts.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search experts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            />
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="name">Name</option>
+            <option value="docs">Most Documents</option>
+            <option value="cost">Highest Cost</option>
+            <option value="recent">Most Recent</option>
+          </select>
+        </div>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -81,7 +137,7 @@ export default function ExpertHub() {
           {experts.map((expert) => (
             <div
               key={expert.name}
-              className="rounded-lg border bg-card hover:border-primary/20 transition-all cursor-pointer group"
+              className="rounded-lg border bg-card hover:border-primary/20 hover:shadow-md transition-all cursor-pointer group"
               onClick={() => navigate(`/experts/${encodeURIComponent(expert.name)}`)}
             >
               <div className="p-5 space-y-4">
