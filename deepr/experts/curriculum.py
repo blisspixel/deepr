@@ -262,7 +262,7 @@ class CurriculumGenerator:
             LearningCurriculum with topics ordered by priority and dependencies
         """
         # Check for environment variable override
-        timeout = int(os.getenv("DEEPR_CURRICULUM_TIMEOUT", str(timeout)))
+        timeout = int(os.getenv("DEEPR_CURRICULUM_TIMEOUT", str(timeout)) or str(timeout))
 
         # Create progress tracker
         progress = CurriculumGenerationProgress()
@@ -453,7 +453,7 @@ class CurriculumGenerator:
                     )
 
                     # Extract response from chat completion
-                    response = response_obj.choices[0].message.content
+                    response = response_obj.choices[0].message.content or ""
 
                     if progress:
                         progress.complete("Done")
@@ -544,7 +544,7 @@ class CurriculumGenerator:
             List of SourceReference objects with URLs, titles, and types
         """
         # Check for environment variable override
-        timeout = int(os.getenv("DEEPR_DISCOVERY_TIMEOUT", str(timeout)))
+        timeout = int(os.getenv("DEEPR_DISCOVERY_TIMEOUT", str(timeout)) or str(timeout))
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         discovery_prompt = f"""You are a research librarian helping to identify the best sources for building domain expertise.

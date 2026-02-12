@@ -5,7 +5,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -667,7 +667,7 @@ async def _create_and_enqueue_job(
         model=model,
         provider=provider,
         status=JobStatus.QUEUED,
-        submitted_at=datetime.utcnow(),
+        submitted_at=datetime.now(timezone.utc),
         enable_web_search=not no_web,
         enable_code_interpreter=not no_code,
         documents=document_ids,

@@ -221,7 +221,7 @@ def plan(
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        with open(plan_file, "w") as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         console.print(f"\nPlan saved: {plan_file}")
@@ -272,7 +272,7 @@ def review():
 
         plan_file = plan_files[0]
 
-        with open(plan_file) as f:
+        with open(plan_file, encoding="utf-8") as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -319,7 +319,7 @@ def review():
                 break
 
         # Save updated plan
-        with open(plan_file, "w") as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success("Review complete!")
@@ -374,7 +374,7 @@ def execute(yes: bool):
 
         plan_file = plan_files[0]
 
-        with open(plan_file) as f:
+        with open(plan_file, encoding="utf-8") as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -450,7 +450,7 @@ def execute(yes: bool):
         # Save campaign_id to plan for continue command
         plan["last_campaign_id"] = campaign_id
         plan["current_phase"] = 1
-        with open(plan_file, "w") as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan, f, indent=2)
 
         # Show results
@@ -581,7 +581,7 @@ def pause(plan_id: Optional[str]):
             plan_file = plan_files[0]
 
         # Load plan data
-        with open(plan_file) as f:
+        with open(plan_file, encoding="utf-8") as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -598,7 +598,7 @@ def pause(plan_id: Optional[str]):
         plan_data["paused_at"] = datetime.now(timezone.utc).isoformat()
 
         # Save
-        with open(plan_file, "w") as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Campaign paused: {scenario}")
@@ -656,7 +656,7 @@ def resume(plan_id: Optional[str]):
             # Find first paused plan
             plan_file = None
             for pf in plan_files:
-                with open(pf) as f:
+                with open(pf, encoding="utf-8") as f:
                     pd = json.load(f)
                 if pd.get("status") == "paused":
                     plan_file = pf
@@ -668,7 +668,7 @@ def resume(plan_id: Optional[str]):
                 raise click.Abort()
 
         # Load plan data
-        with open(plan_file) as f:
+        with open(plan_file, encoding="utf-8") as f:
             plan_data = json.load(f)
 
         scenario = plan_data["scenario"]
@@ -685,7 +685,7 @@ def resume(plan_id: Optional[str]):
         plan_data["resumed_at"] = datetime.now(timezone.utc).isoformat()
 
         # Save
-        with open(plan_file, "w") as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Campaign resumed: {scenario}")
@@ -742,7 +742,7 @@ def continue_research(topics: int, yes: bool):
             raise click.Abort()
 
         plan_file = plan_files[0]
-        with open(plan_file) as f:
+        with open(plan_file, encoding="utf-8") as f:
             plan = json.load(f)
 
         scenario = plan.get("scenario", "Unknown")
@@ -836,7 +836,7 @@ def continue_research(topics: int, yes: bool):
             for i, task in enumerate(next_tasks, 1)
         ]
 
-        with open(plan_file, "w") as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             json.dump(plan, f, indent=2)
 
         print_success(f"Plan updated: {plan_file.name}")
@@ -927,7 +927,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         # Save plan
         plan_path = Path("data/campaigns/research_plan.json")
         plan_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(plan_path, "w") as f:
+        with open(plan_path, "w", encoding="utf-8") as f:
             json.dump(plan_data, f, indent=2)
 
         print_success(f"Plan created: {len(plan_data['tasks'])} tasks")
@@ -970,7 +970,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             plan_data["tasks"].extend(new_tasks)
 
             # Save updated plan
-            with open(plan_path, "w") as f:
+            with open(plan_path, "w", encoding="utf-8") as f:
                 json.dump(plan_data, f, indent=2)
 
             print_success(f"Phase {round_num} planned: {len(new_tasks)} tasks")
@@ -984,7 +984,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
             plan_data[f"phase_{round_num}_results"] = phase_results
 
             # Save updated plan with results
-            with open(plan_path, "w") as f:
+            with open(plan_path, "w", encoding="utf-8") as f:
                 json.dump(plan_data, f, indent=2)
 
         print_header("AUTONOMOUS RESEARCH COMPLETE")
@@ -1072,7 +1072,7 @@ def _load_completed_results() -> list:
     if not plan_path.exists():
         return results
 
-    with open(plan_path) as f:
+    with open(plan_path, encoding="utf-8") as f:
         plan_data = json.load(f)
 
     # Load results from all completed phases

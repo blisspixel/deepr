@@ -366,7 +366,7 @@ async def _refresh_job_statuses(queue, jobs):
                         )
 
                 elif response.status == "failed":
-                    error_msg = response.error.message if response.error else "Unknown error"
+                    error_msg = response.error if response.error else "Unknown error"
                     await queue.update_status(job.id, JobStatus.FAILED, error=error_msg)
 
                 # If still queued/processing, leave it (no update needed)
@@ -382,7 +382,7 @@ async def _refresh_job_statuses(queue, jobs):
 
 async def _list_jobs(status_filter: str, limit: int):
     """List jobs from queue with automatic status refresh for stale jobs."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     queue = SQLiteQueue()
     jobs = await queue.list_jobs(limit=limit)
@@ -393,7 +393,7 @@ async def _list_jobs(status_filter: str, limit: int):
         jobs = [j for j in jobs if j.status == target_status]
 
     # Refresh stale jobs (>30 minutes old and not completed/failed)
-    stale_threshold = datetime.utcnow() - timedelta(minutes=30)
+    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
     stale_jobs = [
         job
         for job in jobs
