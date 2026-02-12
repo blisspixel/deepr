@@ -22,9 +22,12 @@ Recommendation: Only use for factual/API docs, never for comprehensive research.
 
 import glob
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from openai import OpenAI

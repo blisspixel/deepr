@@ -1629,7 +1629,9 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     # Generate and save worldview document
                     worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
 
-                    worldview_doc_path = knowledge_dir / f"worldview_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
+                    worldview_doc_path = (
+                        knowledge_dir / f"worldview_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
+                    )
                     with open(worldview_doc_path, "w", encoding="utf-8") as f:
                         f.write(worldview_doc)
 
