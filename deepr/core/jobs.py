@@ -1,11 +1,15 @@
 """Job management and tracking."""
 
 import json
+import logging
 import os
+import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -164,13 +168,25 @@ class JobManager:
                         record["status"] = new_status
                         line = json.dumps(record)
                 except (json.JSONDecodeError, KeyError):
-                    pass
+                    logger.warning("Skipping corrupted JSONL line in %s", self.log_path)
+                    continue  # drop corrupted lines instead of silently preserving
                 updated_lines.append(line if line.endswith("\n") else line + "\n")
 
-        tmp_path = str(self.log_path) + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            f.writelines(updated_lines)
-        os.replace(tmp_path, str(self.log_path))
+        # Use secure temp file to avoid predictable-name TOCTOU race
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.log_path.parent), prefix=".job_log_", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.writelines(updated_lines)
+            os.replace(tmp_path, str(self.log_path))
+        except BaseException:
+            # Clean up temp file on any failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     async def _get_jsonl_job(self, response_id: str) -> Optional[JobRecord]:
         """Get job from JSONL file."""

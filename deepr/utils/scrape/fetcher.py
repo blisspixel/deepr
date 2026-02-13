@@ -6,7 +6,7 @@ import logging
 import random
 import time
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import requests
 
@@ -455,7 +455,7 @@ class ContentFetcher:
         """
         try:
             # Try to get latest snapshot
-            archive_url = f"https://archive.org/wayback/available?url={url}"
+            archive_url = f"https://archive.org/wayback/available?{urlencode({'url': url})}"
             response = requests.get(archive_url, timeout=10)
             response.raise_for_status()
 
