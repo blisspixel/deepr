@@ -1,9 +1,10 @@
 """Abstract base classes for queue backends."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, Optional
 
 
@@ -67,6 +68,20 @@ class ResearchJob:
     auto_routed: bool = False
     routing_decision: Optional[dict[str, Any]] = None  # Serialized AutoModeDecision
     batch_id: Optional[str] = None  # For batch processing
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-serializable dict for WebSocket events."""
+        result = {}
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if isinstance(value, Enum):
+                value = value.value
+            elif isinstance(value, datetime):
+                value = value.isoformat()
+            elif isinstance(value, Path):
+                value = str(value)
+            result[f.name] = value
+        return result
 
 
 class QueueBackend(ABC):

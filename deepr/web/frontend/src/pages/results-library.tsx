@@ -3,14 +3,25 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { resultsApi } from '@/api/results'
 import { cn, formatCurrency, formatRelativeTime, truncateText } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  ChevronLeft,
+  ChevronRight,
   FileText,
   Grid3X3,
   List,
-  Loader2,
   Plus,
   Search,
 } from 'lucide-react'
+import { CardGridSkeleton } from '@/components/ui/skeleton'
 
 type ViewMode = 'grid' | 'list'
 
@@ -20,19 +31,33 @@ export default function ResultsLibrary() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
+  const [page, setPage] = useState(0)
+  const pageSize = 12
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setPage(0)
+    }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
 
   const { data: resultsData, isLoading } = useQuery({
-    queryKey: ['results', 'list', debouncedSearch, sortBy],
-    queryFn: () => resultsApi.list({ search: debouncedSearch || undefined, sort_by: sortBy }),
+    queryKey: ['results', 'list', debouncedSearch, sortBy, page],
+    queryFn: () => resultsApi.list({
+      search: debouncedSearch || undefined,
+      sort_by: sortBy,
+      limit: pageSize,
+      offset: page * pageSize,
+    }),
     refetchInterval: 10000,
   })
 
   const results = resultsData?.results || []
+  const total = resultsData?.total ?? results.length
+  const totalPages = Math.ceil(total / pageSize)
+
+  if (isLoading) return <CardGridSkeleton />
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -41,16 +66,13 @@ export default function ResultsLibrary() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Results</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {results.length} result{results.length !== 1 ? 's' : ''}
+            {total} result{total !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={() => navigate('/research')}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
+        <Button onClick={() => navigate('/research')}>
           <Plus className="w-4 h-4" />
           New Research
-        </button>
+        </Button>
       </div>
 
       {/* Toolbar */}
@@ -58,25 +80,26 @@ export default function ResultsLibrary() {
         {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Search results..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            className="pl-9"
           />
         </div>
 
         {/* Sort */}
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="px-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="date">Newest First</option>
-          <option value="cost">Highest Cost</option>
-          <option value="model">Model</option>
-        </select>
+        <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setPage(0) }}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date">Newest First</SelectItem>
+            <SelectItem value="cost">Highest Cost</SelectItem>
+            <SelectItem value="model">Model</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* View Toggle */}
         <div className="flex gap-1 p-1 bg-secondary rounded-lg">
@@ -104,11 +127,7 @@ export default function ResultsLibrary() {
       </div>
 
       {/* Content */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : results.length === 0 ? (
+      {results.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <FileText className="w-10 h-10 text-muted-foreground/40 mb-3" />
           <h3 className="text-base font-medium text-foreground mb-1">No results yet</h3>
@@ -172,20 +191,47 @@ export default function ResultsLibrary() {
         </div>
       )}
 
-      {/* Stats Footer */}
-      {results.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Results', value: results.length.toString() },
-            { label: 'Total Cost', value: formatCurrency(results.reduce((sum, r) => sum + r.cost, 0)) },
-            { label: 'Total Citations', value: results.reduce((sum, r) => sum + (r.citations_count || 0), 0).toString() },
-            { label: 'Avg Length', value: `${Math.round(results.reduce((sum, r) => sum + (r.content?.length || 0), 0) / results.length / 1000)}k chars` },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-lg border bg-card p-3 text-center">
-              <p className="text-lg font-semibold text-foreground tabular-nums">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
-            </div>
-          ))}
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} of {total}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page === 0}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              const start = Math.max(0, Math.min(page - 2, totalPages - 5))
+              const pageNum = start + i
+              return (
+                <Button
+                  key={pageNum}
+                  variant={pageNum === page ? 'default' : 'outline'}
+                  size="icon"
+                  className="h-8 w-8 text-xs"
+                  onClick={() => setPage(pageNum)}
+                >
+                  {pageNum + 1}
+                </Button>
+              )
+            })}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage(p => p + 1)}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

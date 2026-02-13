@@ -14,11 +14,11 @@ import {
   DollarSign,
   GitBranch,
   Hash,
-  Loader2,
   PanelRightClose,
   PanelRightOpen,
   Zap,
 } from 'lucide-react'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 
 interface SpanData {
   id: string
@@ -82,9 +82,9 @@ export default function TraceExplorer() {
   })
 
   const { data: decisionsData } = useQuery({
-    queryKey: ['traces', id, 'decisions'],
+    queryKey: ['traces', id, 'decisions', traceData?.expert_name, traceData?.job_id],
     queryFn: async () => {
-      if (!traceData?.expert_name) return [] as DecisionRecord[]
+      if (!traceData?.expert_name || !traceData?.job_id) return [] as DecisionRecord[]
       try {
         const name = encodeURIComponent(traceData.expert_name)
         const response = await apiClient.get(`/experts/${name}/decisions`, {
@@ -95,16 +95,10 @@ export default function TraceExplorer() {
         return [] as DecisionRecord[]
       }
     },
-    enabled: !!traceData?.expert_name,
+    enabled: !!traceData?.expert_name && !!traceData?.job_id,
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (isLoading) return <DetailSkeleton />
 
   if (isError) {
     return (
