@@ -10,7 +10,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### OpenAI
 - **Deep Research**: Turnkey async Deep Research API via Responses endpoint
-- **Models**: GPT-5.2, GPT-5.1, gpt-5-mini, gpt-5-nano, o3-deep-research, o4-mini-deep-research
+- **Models**: GPT-5.2, o3-deep-research, o4-mini-deep-research
 - **Best for**: Planning, curriculum generation, deep research
 
 ### Azure OpenAI
@@ -19,9 +19,9 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Note**: Requires Azure AD credentials or managed identity; set `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` in `.env`
 
 ### xAI (Grok)
-- **Models**: Grok 4, Grok 4 Fast, Grok 4 Heavy
+- **Models**: Grok 4, Grok 4 Fast
 - **Best for**: Cost-effective general operations, real-time X/Twitter integration
-- **Note**: 47x cheaper than GPT-5.2 for comparable tasks
+- **Note**: ~25x cheaper than GPT-5.2 for comparable tasks
 
 ### Google (Gemini)
 - **Deep Research**: Native Deep Research Agent via Interactions API (async background jobs)

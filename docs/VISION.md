@@ -15,14 +15,14 @@ What works today:
 - Domain experts from documents with autonomous learning
 - Agentic research (experts can trigger research)
 - Knowledge synthesis and gap awareness
-- MCP server with 10 tools, persistence, security
+- MCP server with 16 tools, persistence, security
 - CLI observability (--explain, --timeline, --full-trace)
 - Auto-fallback on provider failures with circuit breakers
 - Cost dashboard with per-expert tracking
 - Smart query routing (--auto, --batch) with complexity-based model selection
 - Context discovery with semantic search and temporal tracking
 - Web dashboard (10 pages) with real-time progress updates
-- 3600+ tests
+- 1200+ tests
 
 ## Near-Term Vision (v2.7-2.9)
 

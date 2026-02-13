@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-**Status**: 10 tools, dynamic discovery, resource subscriptions, prompt templates
+**Status**: 16 tools, dynamic discovery, resource subscriptions, prompt templates
 
 Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed.
 

@@ -15,7 +15,7 @@ Deepr is designed for research workflows, not high-throughput production systems
 
 | Operation | Typical Time | Cost | Notes |
 |-----------|-------------|------|-------|
-| Standard research (Grok) | 5-15 sec | FREE (beta) | Web search + synthesis |
+| Standard research (Grok) | 5-15 sec | $0.01 | Web search + synthesis |
 | Deep research (o4-mini) | 5-20 min | $0.10-0.30 | Multi-step reasoning |
 | Expert chat response | 2-5 sec | $0.001-0.01 | Depends on tool calls |
 | Knowledge base search | 0.5-2 sec | $0.0001 | Single embedding call |
@@ -84,9 +84,8 @@ Search complexity: O(1) API call + O(n) local computation
 | Provider | Model | Input Cost | Output Cost | Typical Query |
 |----------|-------|------------|-------------|---------------|
 | OpenAI | gpt-5.2 | $1.75/M | $14.00/M | $0.01-0.05 |
-| OpenAI | gpt-5-mini | $0.30/M | $1.20/M | $0.002-0.01 |
 | OpenAI | o4-mini-deep | N/A | N/A | $0.10-0.30 |
-| xAI | grok-4-fast | FREE | FREE | $0.00 (beta) |
+| xAI | grok-4-fast | $0.20/M | $0.50/M | $0.01 |
 | Google | gemini-2.5-flash | $0.075/M | $0.30/M | $0.001-0.005 |
 
 ### By Operation
@@ -94,7 +93,7 @@ Search complexity: O(1) API call + O(n) local computation
 | Operation | Typical Cost | Notes |
 |-----------|-------------|-------|
 | Research planning | $0.01-0.05 | GPT-5.2 |
-| Standard research | FREE | Grok beta |
+| Standard research | $0.01 | Grok 4 Fast |
 | Deep research | $0.10-0.30 | o4-mini |
 | Expert chat (simple) | $0.001-0.005 | No tool calls |
 | Expert chat (with search) | $0.005-0.02 | 1-3 tool calls |
@@ -106,10 +105,10 @@ Search complexity: O(1) API call + O(n) local computation
 
 ### For Cost
 
-1. **Use Grok for standard research** - FREE during beta
+1. **Use Grok for standard research** - $0.01 per query
 2. **Cache embeddings** - Avoid re-embedding documents
 3. **Set session budgets** - Prevent runaway costs
-4. **Use gpt-5-mini for simple tasks** - 10x cheaper than gpt-5.2
+4. **Use Grok 4 Fast for simple tasks** - 25x cheaper than gpt-5.2
 
 ### For Speed
 
@@ -130,7 +129,7 @@ Search complexity: O(1) API call + O(n) local computation
 ### Rate Limits
 
 - OpenAI: 10,000 tokens/min (tier 1), higher for paid tiers
-- xAI Grok: Unknown limits during beta
+- xAI Grok: Standard rate limits apply
 - Embedding API: 3,000 requests/min
 
 ### Memory
