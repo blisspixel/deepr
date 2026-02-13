@@ -14,16 +14,18 @@ def register_socketio_events(socketio):
     """Register Socket.IO event handlers."""
 
     @socketio.on("connect")
-    def handle_connect():
+    def handle_connect(auth=None):
         """Handle client connection (with auth when DEEPR_API_KEY is set)."""
         api_key = os.getenv("DEEPR_API_KEY", "")
         if api_key:
-            # Check auth query param or header
-            token = flask_request.args.get("token", "")
+            # Check socketio auth object (preferred), then headers as fallback
+            token = ""
+            if isinstance(auth, dict):
+                token = auth.get("token", "")
             if not token:
-                auth = flask_request.headers.get("Authorization", "")
-                if auth.startswith("Bearer "):
-                    token = auth[7:]
+                auth_header = flask_request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    token = auth_header[7:]
             if not token or not hmac.compare_digest(token, api_key):
                 logger.warning("WebSocket auth rejected")
                 return False  # reject connection
