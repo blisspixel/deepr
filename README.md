@@ -14,7 +14,7 @@ Deepr produces two artifacts: **reports** (markdown with citations) and **expert
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3 --explain
 
 # Expert accumulates knowledge across queries, fills its own gaps
-deepr expert chat "AI Strategy Expert" --agentic --budget 3
+deepr expert chat "AI Strategy Expert" --budget 3
 ```
 
 Scriptable. Schedulable. Callable from your AI agents via MCP. Multi-provider (OpenAI, Gemini, Grok, Anthropic). Reports and experts saved locally as artifacts you own.
@@ -42,9 +42,9 @@ graph TB
 
     subgraph Providers
         OpenAI["OpenAI<br/>o3 / o4-mini deep research, GPT-5.2"]
-        Gemini["Gemini<br/>Deep Research Agent, 2.5 Flash"]
-        Grok["Grok<br/>4, 4 Fast"]
-        Anthropic["Anthropic<br/>Claude 4.5 + Extended Thinking"]
+        Gemini["Gemini<br/>Deep Research Agent, 3 Pro, 2.5 Flash"]
+        Grok["Grok<br/>4 Fast"]
+        Anthropic["Anthropic<br/>Claude Opus / Sonnet / Haiku 4.5"]
     end
 
     subgraph Infrastructure
@@ -155,11 +155,11 @@ This is where Deepr goes beyond "ChatGPT but CLI."
 - **Portable** — Export an expert and share it across your organization
 
 ```bash
-# Create an expert seeded with a research question
-deepr expert make "AI Policy Expert" --seed "EU AI Act enforcement timeline 2026-2030" --budget 5
+# Create an expert with autonomous learning
+deepr expert make "AI Policy Expert" -d "EU AI Act enforcement timeline 2026-2030" --learn --budget 5
 
 # Chat with it — when it hits a gap, it researches autonomously
-deepr expert chat "AI Policy Expert" "Will model eval transparency requirements affect US startups?" --agentic --budget 3
+deepr expert chat "AI Policy Expert" --budget 3
 
 # Proactively fill the highest-value knowledge gaps
 deepr expert fill-gaps "Energy Transition Expert" --top 2 --budget 4
@@ -263,7 +263,7 @@ Specific design decisions:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI and Gemini providers, local SQLite storage. 1200+ tests.
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI and Gemini providers, local SQLite storage. 3600+ tests.
 
 **Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
@@ -290,8 +290,8 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 | Depth | Estimated Cost | Output |
 |-------|---------------|--------|
 | Auto mode (simple) | $0.01-$0.02 | Fast answer via grok-4-fast or gpt-5.2 |
-| Auto mode (moderate) | $0.10 | o4-mini-deep-research |
-| Auto mode (complex) | $0.10-$0.50 | o4-mini or o3-deep-research |
+| Auto mode (moderate) | $0.50 | o3-deep-research |
+| Auto mode (complex) | $0.50-$2.00 | o3 or o4-mini-deep-research |
 | Quick insight | $1-$2 | Focused summary with citations |
 | Comprehensive | $2-$5 | Detailed structured report |
 | Multi-phase | $5-$15 | Context-linked analysis |
@@ -329,7 +329,7 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 - Budget controls to prevent runaway costs
 - Optional Docker isolation for untrusted workloads
 
-1200+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
+3600+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
 **Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
@@ -362,6 +362,6 @@ Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained 
 
 I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. Building Deepr is also an exercise in a broader question: what does it take to run AI agents *continuously* — with budgets, reliability, memory, and auditability? The patterns here (economic governance, provider routing, persistent expertise, decision observability) are transferable well beyond research. At minimum, it's a way to learn the space deeply. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
 
-There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (1200+ tests), but you're ultimately responsible for your own API keys and usage.
+There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (3600+ tests), but you're ultimately responsible for your own API keys and usage.
 
 [GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)

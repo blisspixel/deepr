@@ -38,14 +38,14 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 | Task | Recommended Model | Cost | Latency | Notes |
 |------|-------------------|------|---------|-------|
-| Deep Research (OpenAI) | o4-mini-deep-research | $0.50-2.00 | 5-20 min | Async, comprehensive |
-| Deep Research (Gemini) | deep-research-pro-preview | ~$0.80-1.00 | 5-20 min | Async, Google Search built-in |
-| Complex Research | o3-deep-research | $2.00-5.00 | 10-30 min | Maximum depth |
-| Planning/Curriculum | GPT-5.2 | $0.20-0.30 | 2-5s | Best reasoning |
-| Quick Lookups | Grok 4 Fast | $0.01 | <1s | Cost-effective |
-| Large Documents | Gemini 3 Pro | $0.15 | 3-5s | 1M token context |
-| Coding Tasks | Claude Sonnet 4.5 | $0.25 | 2-4s | Best for code |
-| Complex Reasoning | Claude Opus 4.5 | $0.80 | 10-15s | Extended Thinking |
+| Deep Research (OpenAI) | o4-mini-deep-research | $2.00 | 5-20 min | Async, comprehensive |
+| Deep Research (Gemini) | deep-research-pro-preview | ~$1.00 | 5-20 min | Async, Google Search built-in |
+| Complex Research | o3-deep-research | $0.50 | 2-5 min | Extended reasoning chains |
+| Planning/Curriculum | GPT-5.2 | $0.25 | ~2s | Best reasoning |
+| Quick Lookups | Grok 4 Fast | $0.01 | ~1s | Cost-effective |
+| Large Documents | Gemini 3 Pro | $0.15 | ~4s | 1M token context |
+| Coding Tasks | Claude Sonnet 4.5 | $0.48 | ~3s | Best for code |
+| Complex Reasoning | Claude Opus 4.5 | $0.80 | ~15s | Extended Thinking |
 
 ## Cost Optimization Strategy
 
@@ -53,7 +53,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### Deep Research (~20% of operations)
 - **Models**: o4-mini-deep-research, o3-deep-research, Gemini Deep Research Agent
-- **Cost**: $0.50-$5.00 per query (OpenAI), ~$0.80-1.00 (Gemini)
+- **Cost**: $0.50-$2.00 per query (OpenAI), ~$1.00 (Gemini)
 - **Use for**: Novel problem-solving, critical decisions, complex synthesis
 - **Note**: Both OpenAI and Gemini deep research use async background jobs with polling
 
