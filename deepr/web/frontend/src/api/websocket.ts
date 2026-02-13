@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client'
 import type { Job } from '../types'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}`
+const isDev = import.meta.env.DEV
 
 class WebSocketClient {
   private socket: Socket | null = null
@@ -21,30 +22,30 @@ class WebSocketClient {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
-      query: token ? { token } : undefined,
+      auth: token ? { token } : undefined,
     })
 
     this.socket.on('connect', () => {
-      console.log('WebSocket connected')
+      if (isDev) console.log('WebSocket connected')
       this._connected = true
       this.emit('ws_status', { connected: true })
       this.subscribeToJobs()
     })
 
     this.socket.on('disconnect', () => {
-      console.log('WebSocket disconnected')
+      if (isDev) console.log('WebSocket disconnected')
       this._connected = false
       this.emit('ws_status', { connected: false })
     })
 
-    this.socket.on('connect_error', (err: Error) => {
-      console.warn('WebSocket connection error:', err.message)
+    this.socket.on('connect_error', () => {
+      if (isDev) console.warn('WebSocket connection error')
       this._connected = false
       this.emit('ws_status', { connected: false })
     })
 
     this.socket.on('reconnect_failed' as any, () => {
-      console.error('WebSocket reconnection failed after max attempts')
+      if (isDev) console.warn('WebSocket reconnection failed')
       this._connected = false
       this.emit('ws_status', { connected: false })
     })
