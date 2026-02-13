@@ -10,8 +10,8 @@ This document provides detailed cost information and budget management guidance 
 |-----------|-------|--------------|-------|
 | Web Search | N/A | FREE | $0 |
 | Standard Research | grok-4-fast | $0.005 | $0.001-0.01 |
-| Deep Research Mini | o4-mini-deep-research | $0.15 | $0.10-0.30 |
-| Deep Research Full | o3-deep-research | $0.40 | $0.30-0.50 |
+| Deep Research Mini | o4-mini-deep-research | $2.00 | $1.50-2.50 |
+| Deep Research Full | o3-deep-research | $0.50 | $0.30-0.70 |
 | Agentic Research | Multi-model | $3.00 | $1-10 |
 
 ### Expert Operations

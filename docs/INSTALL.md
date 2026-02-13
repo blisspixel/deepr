@@ -175,7 +175,7 @@ DEEPR_QUEUE_DB=queue/research_queue.db  # Job queue database
 ### Recommended Provider Setup
 
 **For most users:**
-- Start with OpenAI (o4-mini-deep-research, ~$0.10 per query)
+- Start with OpenAI (o4-mini-deep-research, ~$2.00 per query)
 - Add Gemini for cost optimization (gemini-2.5-flash, ~$0.02 per query)
 
 **For cost-conscious users:**
