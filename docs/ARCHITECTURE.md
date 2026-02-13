@@ -9,9 +9,11 @@ Deepr is an agentic research platform that uses AI models to conduct deep resear
 ### 1. Research Engine
 - **Location**: `deepr/research_agent/`
 - **Purpose**: Conducts multi-step research using AI models
-- **Modes**:
-  - `FOCUS`: Quick research (5-10 min, ~$0.25)
-  - `CAMPAIGN`: Deep research (30-60 min, ~$2.00)
+- **Modes** (via `ResearchMode` enum in `core/settings.py`):
+  - `READ_ONLY`: Browse existing knowledge only
+  - `STANDARD`: Standard research with web search (~$0.25)
+  - `EXTENDED`: Deep research with multi-step analysis (~$2.00)
+  - `UNRESTRICTED`: Full autonomous research
 
 ### 2. Expert System
 - **Location**: `deepr/experts/`
@@ -35,7 +37,7 @@ Deepr is an agentic research platform that uses AI models to conduct deep resear
 - **Providers**:
   - OpenAI (GPT-5.2, o3-deep-research, o4-mini-deep-research)
   - Azure OpenAI (same models, Azure-hosted)
-  - xAI (Grok 4 Fast, Grok 4)
+  - xAI (Grok 4 Fast)
   - Google (Gemini 2.5 Flash, Gemini 3 Pro, Deep Research Agent)
   - Anthropic (Claude Opus 4.5, Sonnet 4.5, Haiku 4.5)
 
@@ -101,11 +103,15 @@ Expert ready to answer questions
 ### Current Models
 
 - **GPT-5.2** (OpenAI): $0.25, 2s, best for planning/curriculum
-- **o4-mini-deep-research** (OpenAI): $2.00, 60s, best for deep research
+- **o3-deep-research** (OpenAI): $0.50, 2-5min, comprehensive multi-step research
+- **o4-mini-deep-research** (OpenAI): $2.00, 60s, deep research with extended reasoning
 - **Grok 4 Fast** (xAI): $0.01, 1s, best for quick lookups
 - **Gemini 3 Pro** (Google): $0.15, 4s, 1M context for large docs
+- **Gemini Deep Research** (Google): $1.00, 5-20min, async research with Google Search
+- **Gemini 2.5 Flash** (Google): $0.002, 1.5s, cheapest option for general queries
 - **Claude Opus 4.5** (Anthropic): $0.80, 15s, best for complex reasoning with Extended Thinking
 - **Claude Sonnet 4.5** (Anthropic): $0.48, 3s, balanced quality/cost for coding
+- **Claude Haiku 4.5** (Anthropic): $0.05, 1.5s, fast and cheap for simple queries
 
 Models are selected based on:
 - **Task complexity**: Simple vs complex reasoning
@@ -147,6 +153,7 @@ deepr/
 ├── providers/        # AI provider integrations
 ├── queue/            # Job queue system
 ├── research_agent/   # Research execution
+├── routing/          # Auto mode query routing
 ├── services/         # Business logic services
 ├── storage/          # Data persistence
 ├── templates/        # Prompt templates

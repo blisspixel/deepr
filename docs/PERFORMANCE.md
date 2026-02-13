@@ -16,7 +16,7 @@ Deepr is designed for research workflows, not high-throughput production systems
 | Operation | Typical Time | Cost | Notes |
 |-----------|-------------|------|-------|
 | Standard research (Grok) | 5-15 sec | $0.01 | Web search + synthesis |
-| Deep research (o4-mini) | 5-20 min | $0.10-0.30 | Multi-step reasoning |
+| Deep research (o4-mini) | 5-20 min | $2.00 | Multi-step reasoning |
 | Expert chat response | 2-5 sec | $0.001-0.01 | Depends on tool calls |
 | Knowledge base search | 0.5-2 sec | $0.0001 | Single embedding call |
 | Document embedding | 0.5 sec/doc | $0.0001/doc | One-time per document |
@@ -83,10 +83,14 @@ Search complexity: O(1) API call + O(n) local computation
 
 | Provider | Model | Input Cost | Output Cost | Typical Query |
 |----------|-------|------------|-------------|---------------|
-| OpenAI | gpt-5.2 | $1.75/M | $14.00/M | $0.01-0.05 |
-| OpenAI | o4-mini-deep | N/A | N/A | $0.10-0.30 |
+| OpenAI | gpt-5.2 | $2.50/M | $10.00/M | $0.01-0.25 |
+| OpenAI | o3-deep-research | $11.00/M | $44.00/M | $0.50 |
+| OpenAI | o4-mini-deep-research | $1.10/M | $4.40/M | $2.00 |
 | xAI | grok-4-fast | $0.20/M | $0.50/M | $0.01 |
-| Google | gemini-2.5-flash | $0.075/M | $0.30/M | $0.001-0.005 |
+| Google | gemini-2.5-flash | $0.075/M | $0.30/M | $0.002 |
+| Google | gemini-3-pro | $1.25/M | $5.00/M | $0.15 |
+| Anthropic | claude-opus-4-5 | $5.00/M | $25.00/M | $0.80 |
+| Anthropic | claude-sonnet-4-5 | $3.00/M | $15.00/M | $0.48 |
 
 ### By Operation
 
@@ -94,7 +98,8 @@ Search complexity: O(1) API call + O(n) local computation
 |-----------|-------------|-------|
 | Research planning | $0.01-0.05 | GPT-5.2 |
 | Standard research | $0.01 | Grok 4 Fast |
-| Deep research | $0.10-0.30 | o4-mini |
+| Deep research (o4-mini) | $2.00 | Full deep research query |
+| Deep research (o3) | $0.50 | Comprehensive multi-step |
 | Expert chat (simple) | $0.001-0.005 | No tool calls |
 | Expert chat (with search) | $0.005-0.02 | 1-3 tool calls |
 | Expert chat (with research) | $0.01-0.35 | Triggers research |
