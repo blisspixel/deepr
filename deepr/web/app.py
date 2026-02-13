@@ -5,8 +5,10 @@ Monitor jobs, view results, submit new research, track costs.
 """
 
 import asyncio
+import json as _json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -22,18 +24,84 @@ load_dotenv()
 # Serve the Vite-built frontend from frontend/dist/
 _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 
+# ---------------------------------------------------------------------------
+# Security configuration
+# ---------------------------------------------------------------------------
+_API_KEY = os.getenv("DEEPR_API_KEY", "")  # empty = auth disabled (local dev)
+_CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
+_MAX_PROMPT_LENGTH = 50_000  # characters
+
 app = Flask(
     __name__,
     template_folder=str(_frontend_dist),
     static_folder=str(_frontend_dist / "assets"),
     static_url_path="/assets",
 )
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB request body limit
+
+CORS(app, origins=_CORS_ORIGINS)
+socketio = SocketIO(app, cors_allowed_origins=_CORS_ORIGINS, async_mode="threading")
+
+# ---------------------------------------------------------------------------
+# Rate limiting (requires flask-limiter)
+# ---------------------------------------------------------------------------
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["120 per minute"],
+        storage_uri="memory://",
+    )
+except ImportError:
+    limiter = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Authentication middleware
+# ---------------------------------------------------------------------------
+@app.before_request
+def _check_auth():
+    """Require API key on /api/ routes when DEEPR_API_KEY is set."""
+    if not _API_KEY:
+        return  # Auth disabled — local dev mode
+
+    # Skip auth for non-API routes (SPA, static assets, health check)
+    if not request.path.startswith("/api/"):
+        return
+    if request.path == "/api/health":
+        return
+
+    # Accept via Authorization: Bearer <key> or X-Api-Key: <key>
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    if not token:
+        token = request.headers.get("X-Api-Key", "")
+
+    if not token or token != _API_KEY:
+        return jsonify({"error": "Unauthorized"}), 401
+
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+@app.after_request
+def _set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if request.is_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 
 # Initialize services
 import uuid
@@ -59,12 +127,45 @@ provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
 _experts_dir = Path("data") / "experts"
 
 
+# ---------------------------------------------------------------------------
+# Persistent budget limits
+# ---------------------------------------------------------------------------
+_LIMITS_FILE = config_path / "budget_limits.json"
+
+
+def _load_persisted_limits() -> dict:
+    """Load budget limits from disk, falling back to env vars / defaults."""
+    defaults = {
+        "per_job": float(os.getenv("DEEPR_PER_JOB_LIMIT", "20") or "20"),
+        "daily": float(os.getenv("DEEPR_DAILY_LIMIT", "100") or "100"),
+        "monthly": float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000") or "1000"),
+    }
+    if _LIMITS_FILE.exists():
+        try:
+            with open(_LIMITS_FILE, encoding="utf-8") as f:
+                saved = _json.load(f)
+            defaults.update({k: float(v) for k, v in saved.items() if k in defaults})
+        except Exception:
+            logger.warning("Could not read %s, using defaults", _LIMITS_FILE)
+    return defaults
+
+
+def _save_limits(per_job: float, daily: float, monthly: float):
+    """Persist budget limits to disk."""
+    try:
+        with open(_LIMITS_FILE, "w", encoding="utf-8") as f:
+            _json.dump({"per_job": per_job, "daily": daily, "monthly": monthly}, f)
+    except Exception:
+        logger.warning("Could not write %s", _LIMITS_FILE)
+
+
 # Initialize cost tracking
 try:
+    _limits = _load_persisted_limits()
     cost_controller = CostController(
-        max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "20") or "20"),
-        max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "100") or "100"),
-        max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000") or "1000"),
+        max_cost_per_job=_limits["per_job"],
+        max_daily_cost=_limits["daily"],
+        max_monthly_cost=_limits["monthly"],
     )
     cost_estimator = CostEstimator()
 except Exception as e:
@@ -252,6 +353,31 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt
 
 
+_SAFE_NAME_RE = re.compile(r"^[\w\s\-().,']+$")  # letters, digits, spaces, basic punctuation
+
+
+def _validate_expert_name(name: str) -> str | None:
+    """Validate an expert name. Returns error message or None if valid."""
+    if not name or len(name) > 200:
+        return "Name must be 1-200 characters"
+    if ".." in name or "/" in name or "\\" in name:
+        return "Name contains invalid characters"
+    if not _SAFE_NAME_RE.match(name):
+        return "Name contains invalid characters"
+    return None
+
+
+def _decode_expert_name(name: str):
+    """Decode and validate a URL-encoded expert name. Returns (decoded, error_response)."""
+    from urllib.parse import unquote
+
+    decoded = unquote(name)
+    err = _validate_expert_name(decoded)
+    if err:
+        return None, (jsonify({"error": err}), 400)
+    return decoded, None
+
+
 def _safe_int(value, default: int = 0) -> int:
     """Safely parse an integer from query params."""
     try:
@@ -327,7 +453,7 @@ def get_jobs():
 
     except Exception as e:
         logger.error(f"Error listing jobs: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/stats", methods=["GET"])
@@ -349,8 +475,9 @@ def get_stats():
 
         return jsonify(stats)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error getting stats")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/<job_id>", methods=["GET"])
@@ -391,7 +518,7 @@ def get_job(job_id):
 
     except Exception as e:
         logger.error(f"Error getting job {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/<job_id>", methods=["DELETE"])
@@ -412,23 +539,26 @@ def delete_job(job_id):
 
     except Exception as e:
         logger.error(f"Error deleting job {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs", methods=["POST"])
+@(limiter.limit("10 per minute") if limiter else (lambda f: f))
 def submit_job():
     """Submit a new research job."""
     try:
         data = request.json
         if not data:
             return jsonify({"error": "JSON body required"}), 400
-        prompt = data.get("prompt")
+        prompt = str(data.get("prompt", "")).strip()
         model = data.get("model", "o4-mini-deep-research")
         priority = data.get("priority", 3)
         enable_web_search = data.get("enable_web_search", True)
 
         if not prompt:
             return jsonify({"error": "Prompt required"}), 400
+        if len(prompt) > _MAX_PROMPT_LENGTH:
+            return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
 
         # Estimate cost first
         estimated_cost = None
@@ -519,7 +649,7 @@ def submit_job():
 
     except Exception as e:
         logger.error(f"Error submitting job: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/batch", methods=["POST"])
@@ -539,6 +669,8 @@ def batch_submit():
             prompt = str(job_input.get("prompt", "")).strip()
             if not prompt:
                 continue  # Skip empty prompts
+            if len(prompt) > _MAX_PROMPT_LENGTH:
+                continue  # Skip oversized prompts
             job_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
             metadata = job_input.get("metadata", {})
@@ -562,7 +694,7 @@ def batch_submit():
 
     except Exception as e:
         logger.error(f"Error batch submitting: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/bulk-cancel", methods=["POST"])
@@ -590,7 +722,7 @@ def bulk_cancel():
 
     except Exception as e:
         logger.error(f"Error bulk cancelling: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/<job_id>/cancel", methods=["POST"])
@@ -602,7 +734,7 @@ def cancel_job(job_id):
 
     except Exception as e:
         logger.error(f"Error cancelling job {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/jobs/cleanup-stale", methods=["POST"])
@@ -647,7 +779,7 @@ def cleanup_stale_jobs():
 
     except Exception as e:
         logger.error(f"Error cleaning up stale jobs: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -694,7 +826,7 @@ def get_cost_summary():
 
     except Exception as e:
         logger.error(f"Error getting cost summary: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/cost/trends", methods=["GET"])
@@ -727,7 +859,7 @@ def get_cost_trends():
 
     except Exception as e:
         logger.error(f"Error getting cost trends: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/cost/breakdown", methods=["GET"])
@@ -767,7 +899,7 @@ def get_cost_breakdown():
 
     except Exception as e:
         logger.error(f"Error getting cost breakdown: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/cost/history", methods=["GET"])
@@ -802,7 +934,7 @@ def get_cost_history():
 
     except Exception as e:
         logger.error(f"Error getting cost history: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/cost/estimate", methods=["POST"])
@@ -868,7 +1000,7 @@ def estimate_cost():
 
     except Exception as e:
         logger.error(f"Error estimating cost: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/cost/limits", methods=["GET"])
@@ -884,7 +1016,7 @@ def get_cost_limits():
 
     except Exception as e:
         logger.error(f"Error getting limits: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/cost/limits", methods=["PATCH"])
@@ -918,11 +1050,12 @@ def update_cost_limits():
             "daily": cost_controller.max_daily_cost if cost_controller else 100.0,
             "monthly": cost_controller.max_monthly_cost if cost_controller else 1000.0,
         }
+        _save_limits(limits["per_job"], limits["daily"], limits["monthly"])
         return jsonify({"limits": limits, "updated": True})
 
     except Exception as e:
         logger.error(f"Error updating limits: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -997,7 +1130,7 @@ def list_results():
 
     except Exception as e:
         logger.error(f"Error listing results: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/results/<job_id>", methods=["GET"])
@@ -1041,7 +1174,7 @@ def get_result(job_id):
 
     except Exception as e:
         logger.error(f"Error getting result {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/results/<job_id>/export/<format>", methods=["GET"])
@@ -1084,7 +1217,7 @@ def export_result(job_id, format):
 
     except Exception as e:
         logger.error(f"Error exporting result {job_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/results/search", methods=["GET"])
@@ -1120,7 +1253,7 @@ def search_results():
 
     except Exception as e:
         logger.error(f"Error searching results: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -1155,7 +1288,7 @@ def get_config():
 
     except Exception as e:
         logger.error(f"Error getting config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/config", methods=["PATCH"])
@@ -1185,12 +1318,17 @@ def update_config():
                     cost_controller.max_monthly_cost = float(data["monthly_limit"])
                 except (TypeError, ValueError):
                     return jsonify({"error": "monthly_limit must be a number"}), 400
+            _save_limits(
+                cost_controller.max_cost_per_job,
+                cost_controller.max_daily_cost,
+                cost_controller.max_monthly_cost,
+            )
 
         return jsonify({"config": _config})
 
     except Exception as e:
         logger.error(f"Error updating config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -1231,7 +1369,7 @@ def list_experts():
         return jsonify({"experts": []})
     except Exception as e:
         logger.error(f"Error listing experts: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts", methods=["POST"])
@@ -1248,6 +1386,9 @@ def create_expert():
         name = str(data.get("name", "")).strip()
         if not name:
             return jsonify({"error": "Name required"}), 400
+        name_err = _validate_expert_name(name)
+        if name_err:
+            return jsonify({"error": name_err}), 400
 
         store = ExpertStore(str(_experts_dir))
         if store.exists(name):
@@ -1279,18 +1420,18 @@ def create_expert():
         return jsonify({"error": "Expert system not available"}), 500
     except Exception as e:
         logger.error(f"Error creating expert: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>", methods=["GET"])
 def get_expert(name):
     """Get expert details."""
     try:
-        from urllib.parse import unquote
-
         from deepr.experts.profile_store import ExpertStore
 
-        decoded_name = unquote(name)
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
         store = ExpertStore(str(_experts_dir))
         if not store.exists(decoded_name):
             return jsonify({"error": "Expert not found"}), 404
@@ -1321,7 +1462,7 @@ def get_expert(name):
         return jsonify({"error": "Expert system not available"}), 404
     except Exception as e:
         logger.error(f"Error getting expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>/chat", methods=["POST"])
@@ -1332,9 +1473,9 @@ def chat_with_expert(name):
         if not data or not data.get("message"):
             return jsonify({"error": "Message required"}), 400
         # Stub — interactive chat requires the full expert system
-        from urllib.parse import unquote
-
-        decoded_name = unquote(name)
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
         return jsonify(
             {
                 "response": {
@@ -1353,18 +1494,18 @@ def chat_with_expert(name):
         )
     except Exception as e:
         logger.error(f"Error chatting with expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>/gaps", methods=["GET"])
 def get_expert_gaps(name):
     """Get scored knowledge gaps for an expert."""
     try:
-        from urllib.parse import unquote
-
         from deepr.experts.profile_store import ExpertStore
 
-        decoded_name = unquote(name)
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)
         if not profile:
@@ -1375,7 +1516,7 @@ def get_expert_gaps(name):
         return jsonify({"gaps": []})
     except Exception as e:
         logger.error(f"Error getting gaps for expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>/history", methods=["GET"])
@@ -1385,18 +1526,18 @@ def get_expert_history(name):
         return jsonify({"events": []})
     except Exception as e:
         logger.error(f"Error getting history for expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>/manifest", methods=["GET"])
 def get_expert_manifest(name):
     """Get full ExpertManifest as JSON."""
     try:
-        from urllib.parse import unquote
-
         from deepr.experts.profile_store import ExpertStore
 
-        decoded_name = unquote(name)
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)
         if not profile:
@@ -1407,18 +1548,18 @@ def get_expert_manifest(name):
         return jsonify({"error": "Expert system not available"}), 404
     except Exception as e:
         logger.error(f"Error getting manifest for expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>/claims", methods=["GET"])
 def get_expert_claims(name):
     """Get claims for an expert with optional filtering."""
     try:
-        from urllib.parse import unquote
-
         from deepr.experts.profile_store import ExpertStore
 
-        decoded_name = unquote(name)
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
         domain_filter = request.args.get("domain")
         min_confidence = float(request.args.get("min_confidence", 0.0))
 
@@ -1437,18 +1578,18 @@ def get_expert_claims(name):
         return jsonify({"claims": []})
     except Exception as e:
         logger.error(f"Error getting claims for expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/experts/<name>/decisions", methods=["GET"])
 def get_expert_decisions(name):
     """Get decision records for an expert with optional filtering."""
     try:
-        from urllib.parse import unquote
-
         from deepr.experts.profile_store import ExpertStore
 
-        decoded_name = unquote(name)
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
         type_filter = request.args.get("type")
         job_id_filter = request.args.get("job_id")
         limit = _safe_int(request.args.get("limit", 50), 50)
@@ -1469,7 +1610,7 @@ def get_expert_decisions(name):
         return jsonify({"decisions": []})
     except Exception as e:
         logger.error(f"Error getting decisions for expert {name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -1567,7 +1708,7 @@ def get_activity():
 
     except Exception as e:
         logger.error(f"Error getting activity: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -1602,7 +1743,7 @@ def test_connection():
 
     except Exception as e:
         logger.error(f"Error testing connection: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # =============================================================================
@@ -1620,7 +1761,7 @@ def health_check():
         return jsonify(
             {
                 "status": "healthy",
-                "version": "2.8.0",
+                "version": "2.8.1",
                 "provider": "openai",
                 "queue": "sqlite",
                 "storage": "local",
