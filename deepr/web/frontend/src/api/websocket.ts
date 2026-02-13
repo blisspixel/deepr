@@ -15,11 +15,13 @@ class WebSocketClient {
   connect() {
     if (this.socket?.connected) return
 
+    const token = localStorage.getItem('api_token') || ''
     this.socket = io(WS_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
+      query: token ? { token } : undefined,
     })
 
     this.socket.on('connect', () => {
