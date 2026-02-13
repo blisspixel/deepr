@@ -281,12 +281,20 @@ class SQLiteQueue(QueueBackend):
 
         # If no exact match and ID is short (< 36 chars), try prefix match
         if not row and len(job_id) < 36:
-            cursor.execute("SELECT * FROM research_queue WHERE id LIKE ?", (f"{job_id}%",))
+            # Escape SQL wildcards in user input before using in LIKE
+            escaped_id = job_id.replace("%", r"\%").replace("_", r"\_")
+            cursor.execute(
+                "SELECT * FROM research_queue WHERE id LIKE ? ESCAPE '\\'",
+                (f"{escaped_id}%",),
+            )
             rows = cursor.fetchall()
 
-            # If multiple matches, take first one (ambiguous but functional)
-            if rows:
+            if len(rows) == 1:
                 row = rows[0]
+            elif len(rows) > 1:
+                # Ambiguous prefix — refuse to guess
+                conn.close()
+                return None
 
         conn.close()
 

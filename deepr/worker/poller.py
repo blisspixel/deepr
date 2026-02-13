@@ -62,8 +62,8 @@ class JobPoller:
         while self.running:
             try:
                 await self._poll_cycle()
-            except Exception as e:
-                logger.error(f"Error in poll cycle: {e}")
+            except Exception:
+                logger.exception("Error in poll cycle")
 
             await asyncio.sleep(self.poll_interval)
 
@@ -89,8 +89,8 @@ class JobPoller:
         for job in jobs:
             try:
                 await self._check_job_status(job)
-            except Exception as e:
-                logger.error(f"Error checking job {job.id}: {e}")
+            except Exception:
+                logger.error("Error checking job %s", job.id)
 
     async def _check_job_status(self, job):
         """Check status of a single job."""
@@ -140,8 +140,8 @@ class JobPoller:
                         try:
                             await self.provider.cancel_job(job.provider_job_id)
                             logger.info(f"Cancelled stuck job {job.id} at provider")
-                        except Exception as cancel_error:
-                            logger.warning(f"Could not cancel at provider: {cancel_error}")
+                        except Exception:
+                            logger.warning("Could not cancel job %s at provider", job.id)
 
                         # Mark as failed in queue
                         await self._handle_failure(
@@ -150,8 +150,8 @@ class JobPoller:
                     else:
                         logger.debug(f"Job {job.id} queued for {queue_time_minutes:.1f} minutes")
 
-        except Exception as e:
-            logger.error(f"Error checking job {job.id}: {e}")
+        except Exception:
+            logger.error("Error checking job %s", job.id)
             # Don't mark as failed yet, might be temporary network issue
 
     async def _handle_completion(self, job, response):
@@ -199,22 +199,22 @@ class JobPoller:
 
             logger.info(f"Job {job.id} completed successfully (cost: ${cost:.4f})")
 
-        except Exception as e:
-            logger.error(f"Error handling completion for job {job.id}: {e}")
-            await self._handle_failure(job, str(e))
+        except Exception:
+            logger.error("Error handling completion for job %s", job.id)
+            await self._handle_failure(job, "Result processing failed")
 
     async def _handle_failure(self, job, error: str):
         """Handle job failure."""
         from ..queue.base import JobStatus
 
         try:
-            logger.error(f"Job {job.id} failed: {error}")
+            logger.error("Job %s failed: %s", job.id, error)
 
             # Update queue with failure status
             await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
 
-        except Exception as e:
-            logger.error(f"Error handling failure for job {job.id}: {e}")
+        except Exception:
+            logger.error("Error handling failure for job %s", job.id)
 
 
 async def run_poller(poll_interval: int = 30):

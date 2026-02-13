@@ -273,6 +273,7 @@ export default function ExpertHub() {
                   placeholder="e.g. Climate Science"
                   value={newExpert.name}
                   onChange={(e) => setNewExpert(prev => ({ ...prev, name: e.target.value }))}
+                  maxLength={200}
                   autoFocus
                 />
               </div>
@@ -283,6 +284,7 @@ export default function ExpertHub() {
                   placeholder="What this expert knows about"
                   value={newExpert.description}
                   onChange={(e) => setNewExpert(prev => ({ ...prev, description: e.target.value }))}
+                  maxLength={1000}
                 />
               </div>
               <div className="space-y-1.5">
@@ -292,6 +294,7 @@ export default function ExpertHub() {
                   placeholder="e.g. science, engineering, economics"
                   value={newExpert.domain}
                   onChange={(e) => setNewExpert(prev => ({ ...prev, domain: e.target.value }))}
+                  maxLength={200}
                 />
               </div>
             </div>
