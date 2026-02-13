@@ -227,11 +227,12 @@ def timeline(days: int, weekly: bool):
         # Aggregate daily data into weekly buckets
         from collections import OrderedDict
         from datetime import date as date_type
+        from datetime import timedelta
 
         weeks: dict = OrderedDict()
         for day in hist:
             d = date_type.fromisoformat(day["date"])
-            week_start = d - __import__("datetime").timedelta(days=d.weekday())
+            week_start = d - timedelta(days=d.weekday())
             key = week_start.isoformat()
             if key not in weeks:
                 weeks[key] = 0.0

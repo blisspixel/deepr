@@ -87,8 +87,7 @@ export default function ResearchStudio() {
           }
           reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
           reader.readAsText(file)
-        }).catch((err) => {
-          console.warn(`Failed to read file ${file.name}:`, err)
+        }).catch(() => {
           return null
         })
       )
@@ -170,6 +169,7 @@ export default function ResearchStudio() {
               }}
               placeholder="Describe your research question in detail. Be specific about what information you need, sources to prioritize, and desired output format..."
               rows={6}
+              maxLength={50000}
               className="w-full px-3 py-2 bg-background border rounded-lg text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
             <div className="flex justify-between text-xs text-muted-foreground mt-1">
