@@ -1,25 +1,5 @@
 import apiClient from './client'
-
-export interface Config {
-  // General
-  default_model: string
-  default_priority: number
-  enable_web_search: boolean
-
-  // API
-  openai_api_key: string
-  azure_api_key: string
-  azure_endpoint: string
-
-  // Limits
-  daily_limit: number
-  monthly_limit: number
-  max_concurrent_jobs: number
-
-  // Storage
-  storage_type: 'local' | 'azure'
-  azure_connection_string: string
-}
+import type { Config } from '../types'
 
 export const configApi = {
   // Get current configuration

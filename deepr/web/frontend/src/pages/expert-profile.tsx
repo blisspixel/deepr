@@ -4,6 +4,8 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { cn, formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { expertsApi } from '@/api/experts'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import type { ExpertChat } from '@/types'
 import {
   AlertTriangle,
@@ -22,6 +24,7 @@ import {
   Shield,
   Users,
 } from 'lucide-react'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 
 type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history'
 
@@ -74,11 +77,17 @@ export default function ExpertProfile() {
   const initialTab = (searchParams.get('tab') as TabKey) || 'chat'
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
   const [chatInput, setChatInput] = useState('')
-  const [chatMessages, setChatMessages] = useState<ExpertChat[]>([])
+  const [chatMessages, setChatMessages] = useState<(ExpertChat & { error?: boolean })[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   const decodedName = decodeURIComponent(name || '')
   const encodedName = encodeURIComponent(decodedName)
+
+  // Reset chat when switching experts
+  useEffect(() => {
+    setChatMessages([])
+    setChatInput('')
+  }, [decodedName])
 
   const { data: expert, isLoading, isError, refetch } = useQuery({
     queryKey: ['experts', decodedName],
@@ -116,7 +125,13 @@ export default function ExpertProfile() {
       setChatMessages(prev => [...prev, data])
     },
     onError: () => {
-      setChatMessages(prev => prev.slice(0, -1))
+      setChatMessages(prev => {
+        const updated = [...prev]
+        if (updated.length > 0) {
+          updated[updated.length - 1] = { ...updated[updated.length - 1], error: true }
+        }
+        return updated
+      })
       toast.error('Failed to get response from expert')
     },
   })
@@ -133,13 +148,7 @@ export default function ExpertProfile() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (isLoading) return <DetailSkeleton />
 
   if (isError) {
     return (
@@ -254,16 +263,17 @@ export default function ExpertProfile() {
                   <div className={cn(
                     'max-w-[70%] rounded-lg p-3 text-sm',
                     msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
+                      ? msg.error ? 'bg-destructive/10 text-foreground border border-destructive/30' : 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-foreground'
                   )}>
                     <p className="whitespace-pre-wrap">{msg.content}</p>
-                    <p className={cn(
-                      'text-[10px] mt-1',
-                      msg.role === 'user' ? 'text-primary-foreground/60' : 'text-muted-foreground'
+                    <div className={cn(
+                      'flex items-center gap-2 text-[10px] mt-1',
+                      msg.role === 'user' ? (msg.error ? 'text-destructive' : 'text-primary-foreground/60') : 'text-muted-foreground'
                     )}>
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </p>
+                      <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                      {msg.error && <span>Failed to send</span>}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -279,21 +289,21 @@ export default function ExpertProfile() {
 
             {/* Input */}
             <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
-              <input
-                type="text"
+              <Input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={`Ask ${expert.name} a question...`}
-                className="flex-1 px-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+                className="flex-1"
               />
-              <button
+              <Button
                 type="submit"
-                disabled={!chatInput.trim() || chatMutation.isPending}
+                size="icon"
+                disabled={!chatInput.trim()}
+                loading={chatMutation.isPending}
                 aria-label="Send message"
-                className="px-3 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50 transition-colors hover:bg-primary/90"
               >
                 <Send className="w-4 h-4" />
-              </button>
+              </Button>
             </form>
           </div>
         )}

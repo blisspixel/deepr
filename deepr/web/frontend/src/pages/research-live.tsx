@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { wsClient } from '@/api/websocket'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +39,10 @@ export default function ResearchLive() {
     queryKey: ['jobs', id],
     queryFn: () => jobsApi.get(id!),
     enabled: !!id,
-    refetchInterval: 3000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return (status === 'completed' || status === 'failed') ? false : 3000
+    },
   })
 
   // Subscribe to job-specific updates
@@ -73,13 +77,7 @@ export default function ResearchLive() {
     },
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (isLoading) return <DetailSkeleton />
 
   if (isError) {
     return (
@@ -112,40 +110,91 @@ export default function ResearchLive() {
     )
   }
 
-  // If completed, redirect to result
+  // If completed, show summary with details
   if (job.status === 'completed') {
     return (
-      <div className="max-w-3xl mx-auto p-6 space-y-6">
-        <div className="rounded-lg border bg-card p-8 text-center space-y-4">
-          <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center mx-auto">
-            <Zap className="w-6 h-6 text-success" />
+      <div className="max-w-3xl mx-auto p-6 space-y-6 animate-fade-in">
+        {/* Back nav */}
+        <button
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+
+        {/* Success banner */}
+        <div className="rounded-lg border bg-card p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-success/10 rounded-full flex items-center justify-center flex-shrink-0">
+              <Zap className="w-5 h-5 text-success" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold text-foreground">Research Complete</h2>
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{job.prompt}</p>
+            </div>
+            <button
+              onClick={() => navigate(`/results/${job.id}`)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 flex-shrink-0"
+            >
+              View Result
+              <ExternalLink className="w-4 h-4" />
+            </button>
           </div>
-          <h2 className="text-xl font-semibold text-foreground">Research Complete</h2>
-          <p className="text-sm text-muted-foreground">
-            {formatCurrency(job.cost)} · {job.tokens_used?.toLocaleString() || 0} tokens
-          </p>
-          <button
-            onClick={() => navigate(`/results/${job.id}`)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
-          >
-            View Result
-            <ExternalLink className="w-4 h-4" />
-          </button>
         </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="rounded-lg border bg-card p-4 space-y-1">
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><DollarSign className="w-3 h-3" />Cost</p>
+            <p className="text-lg font-semibold text-foreground">{formatCurrency(job.cost)}</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4 space-y-1">
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Hash className="w-3 h-3" />Tokens</p>
+            <p className="text-lg font-semibold text-foreground">{(job.tokens_used || 0).toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4 space-y-1">
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Clock className="w-3 h-3" />Completed</p>
+            <p className="text-sm font-semibold text-foreground mt-1">{job.completed_at ? new Date(job.completed_at).toLocaleDateString() : 'N/A'}</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4 space-y-1">
+            <p className="text-xs text-muted-foreground">Model</p>
+            <p className="text-sm font-medium text-foreground mt-1">{job.model}</p>
+          </div>
+        </div>
+
+        {/* Result preview */}
+        {job.result && (
+          <div className="rounded-lg border bg-card p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Preview</h3>
+            <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">
+              {job.result
+                .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+                .replace(/https?:\/\/\S+/g, '')
+                .replace(/[#*`]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .substring(0, 400)}
+            </p>
+            <button
+              onClick={() => navigate(`/results/${job.id}`)}
+              className="text-sm text-primary hover:underline font-medium"
+            >
+              Read full result →
+            </button>
+          </div>
+        )}
       </div>
     )
   }
 
   const isActive = ['queued', 'processing'].includes(job.status)
 
-  // Determine phases
+  // Determine phases based on actual job status
   const phases: Phase[] = [
-    { name: 'Queued', status: job.started_at ? 'completed' : job.status === 'queued' ? 'active' : 'pending' },
-    { name: 'Init', status: job.status === 'processing' && elapsed < 10 ? 'active' : elapsed >= 10 ? 'completed' : 'pending' },
-    { name: 'Searching', status: elapsed >= 10 && elapsed < 60 ? 'active' : elapsed >= 60 ? 'completed' : 'pending' },
-    { name: 'Analyzing', status: elapsed >= 60 && elapsed < 180 ? 'active' : elapsed >= 180 ? 'completed' : 'pending' },
-    { name: 'Synthesizing', status: elapsed >= 180 && elapsed < 240 ? 'active' : elapsed >= 240 ? 'completed' : 'pending' },
-    { name: 'Finalizing', status: elapsed >= 240 ? 'active' : 'pending' },
+    { name: 'Queued', status: job.started_at ? 'completed' : 'active' },
+    { name: 'Processing', status: job.status === 'processing' ? 'active' : 'pending' },
+    { name: 'Complete', status: 'pending' },
   ]
 
   return (

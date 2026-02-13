@@ -77,7 +77,10 @@ class SQLiteQueue(QueueBackend):
                 submitted_by TEXT,
                 tags TEXT,  -- JSON array
                 callback_url TEXT,
-                metadata TEXT  -- JSON object
+                metadata TEXT,  -- JSON object
+                auto_routed INTEGER DEFAULT 0,
+                routing_decision TEXT,  -- JSON object
+                batch_id TEXT
             )
         """)
 
@@ -92,13 +95,19 @@ class SQLiteQueue(QueueBackend):
             ON research_queue(tenant_id, status)
         """)
 
-        # Migration: Add provider column if it doesn't exist (for existing databases)
-        try:
-            cursor.execute("SELECT provider FROM research_queue LIMIT 1")
-        except sqlite3.OperationalError:
-            # Column doesn't exist, add it
-            cursor.execute("ALTER TABLE research_queue ADD COLUMN provider TEXT DEFAULT 'openai'")
-            conn.commit()
+        # Migrations: Add columns that may not exist in older databases
+        _migrations = [
+            ("provider", "ALTER TABLE research_queue ADD COLUMN provider TEXT DEFAULT 'openai'"),
+            ("auto_routed", "ALTER TABLE research_queue ADD COLUMN auto_routed INTEGER DEFAULT 0"),
+            ("routing_decision", "ALTER TABLE research_queue ADD COLUMN routing_decision TEXT"),
+            ("batch_id", "ALTER TABLE research_queue ADD COLUMN batch_id TEXT"),
+        ]
+        for col_name, alter_sql in _migrations:
+            try:
+                cursor.execute(f"SELECT {col_name} FROM research_queue LIMIT 1")
+            except sqlite3.OperationalError:
+                cursor.execute(alter_sql)
+                conn.commit()
 
         conn.commit()
         conn.close()
@@ -132,6 +141,9 @@ class SQLiteQueue(QueueBackend):
             "tags": json.dumps(job.tags),
             "callback_url": job.callback_url,
             "metadata": json.dumps(job.metadata),
+            "auto_routed": 1 if job.auto_routed else 0,
+            "routing_decision": json.dumps(job.routing_decision) if job.routing_decision else None,
+            "batch_id": job.batch_id,
         }
 
     def _dict_to_job(self, row: dict[str, Any]) -> ResearchJob:
@@ -164,6 +176,9 @@ class SQLiteQueue(QueueBackend):
             tags=_safe_json_loads(row["tags"], [], f"job {job_id} tags"),
             callback_url=row["callback_url"],
             metadata=_safe_json_loads(row["metadata"], {}, f"job {job_id} metadata"),
+            auto_routed=bool(row.get("auto_routed", 0)),
+            routing_decision=_safe_json_loads(row.get("routing_decision"), None, f"job {job_id} routing_decision"),
+            batch_id=row.get("batch_id"),
         )
 
     async def enqueue(self, job: ResearchJob) -> str:
@@ -308,6 +323,11 @@ class SQLiteQueue(QueueBackend):
             if provider_job_id:
                 updates.append("provider_job_id = ?")
                 values.append(provider_job_id)
+
+            if status == JobStatus.PROCESSING:
+                # Set started_at if not already set (e.g. web submit bypasses dequeue)
+                updates.append("started_at = COALESCE(started_at, ?)")
+                values.append(datetime.now(timezone.utc).isoformat())
 
             if status == JobStatus.COMPLETED:
                 updates.append("completed_at = ?")

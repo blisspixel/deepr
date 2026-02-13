@@ -10,17 +10,19 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
+  Check,
   ChevronDown,
   Clock,
+  ClipboardCopy,
   Code2,
   DollarSign,
   Download,
   ExternalLink,
   FileText,
   Hash,
-  Loader2,
   Search,
 } from 'lucide-react'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 
 export default function ResultDetail() {
   const { id } = useParams<{ id: string }>()
@@ -29,6 +31,7 @@ export default function ResultDetail() {
   const [showExport, setShowExport] = useState(false)
   const [showMobileCitations, setShowMobileCitations] = useState(false)
   const [activeCitation, setActiveCitation] = useState<number | null>(null)
+  const [copied, setCopied] = useState(false)
   const exportRef = useRef<HTMLDivElement>(null)
 
   // Close export dropdown on click outside
@@ -50,7 +53,7 @@ export default function ResultDetail() {
   })
 
   const exportMutation = useMutation({
-    mutationFn: (format: 'markdown' | 'pdf' | 'json') => resultsApi.export(id!, format),
+    mutationFn: (format: 'markdown' | 'json') => resultsApi.export(id!, format),
     onSuccess: (blob, format) => {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -68,13 +71,7 @@ export default function ResultDetail() {
     },
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (isLoading) return <DetailSkeleton />
 
   if (isError) {
     return (
@@ -106,9 +103,9 @@ export default function ResultDetail() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] animate-fade-in">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-7rem)] animate-fade-in">
       {/* Main content */}
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-auto p-6 space-y-6">
         {/* Header */}
         <div className="space-y-3">
           <button
@@ -119,7 +116,7 @@ export default function ResultDetail() {
             Results
           </button>
 
-          <h1 className="text-xl font-semibold text-foreground">{result.prompt}</h1>
+          <h1 className="text-xl font-semibold text-foreground">{result.title || result.prompt}</h1>
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span className="px-2 py-0.5 bg-secondary rounded text-xs font-medium">{result.model}</span>
@@ -164,6 +161,18 @@ export default function ResultDetail() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(result.content)
+                setCopied(true)
+                toast.success('Copied to clipboard')
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
             <div className="relative" ref={exportRef}>
               <button
                 onClick={() => setShowExport(!showExport)}
@@ -175,7 +184,7 @@ export default function ResultDetail() {
               </button>
               {showExport && (
                 <div className="absolute right-0 mt-1 w-40 bg-popover border rounded-lg shadow-lg z-10 py-1">
-                  {(['markdown', 'pdf', 'json'] as const).map((format) => (
+                  {(['markdown', 'json'] as const).map((format) => (
                     <button
                       key={format}
                       onClick={() => exportMutation.mutate(format)}
@@ -233,6 +242,9 @@ export default function ResultDetail() {
                       <ExternalLink className="w-2.5 h-2.5" />
                       {(() => { try { return new URL(citation.url).hostname } catch { return citation.url } })()}
                     </a>
+                  )}
+                  {citation.snippet && (
+                    <p className="text-xs text-muted-foreground mt-1.5">{citation.snippet}</p>
                   )}
                 </div>
               ))}

@@ -7,17 +7,29 @@ Monitor jobs, view results, submit new research, track costs.
 import asyncio
 import logging
 import os
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
+from flask_socketio import SocketIO
 
 load_dotenv()
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+# Serve the Vite-built frontend from frontend/dist/
+_frontend_dist = Path(__file__).parent / "frontend" / "dist"
+
+app = Flask(
+    __name__,
+    template_folder=str(_frontend_dist),
+    static_folder=str(_frontend_dist / "assets"),
+    static_url_path="/assets",
+)
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +38,8 @@ logger = logging.getLogger(__name__)
 # Initialize services
 import uuid
 
+# Load project config for correct paths
+from deepr.config import load_config
 from deepr.core.costs import CostController, CostEstimator
 from deepr.providers.base import ResearchRequest, ToolConfig
 from deepr.providers.openai_provider import OpenAIProvider
@@ -33,12 +47,17 @@ from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.storage.local import LocalStorage
 
+_cfg = load_config()
 config_path = Path(".deepr")
 config_path.mkdir(exist_ok=True)
 
-queue = SQLiteQueue(str(config_path / "queue.db"))
-storage = LocalStorage(str(config_path / "storage"))
+queue = SQLiteQueue(_cfg.get("queue_db_path", str(config_path / "queue.db")))
+storage = LocalStorage(_cfg.get("results_dir", str(config_path / "storage")))
 provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Experts live under the data directory, not .deepr
+_experts_dir = Path("data") / "experts"
+
 
 # Initialize cost tracking
 try:
@@ -53,21 +72,184 @@ except Exception as e:
     cost_controller = None
     cost_estimator = None
 
+# Register WebSocket event handlers
+from deepr.api.websockets.events import (
+    emit_job_completed,
+    emit_job_created,
+    emit_job_failed,
+    register_socketio_events,
+)
+
+register_socketio_events(socketio)
+
+# ---------------------------------------------------------------------------
+# Background poller — checks provider status for PROCESSING jobs
+# ---------------------------------------------------------------------------
+_poller_lock = threading.Lock()
+_poller_started = False
+_POLL_INTERVAL = 15  # seconds
+_STUCK_THRESHOLD = timedelta(minutes=30)
+
+
+def _run_poller_loop():
+    """Infinite loop that polls provider for job status updates."""
+    logger.info("Background poller started (interval=%ds)", _POLL_INTERVAL)
+    while True:
+        try:
+            _poll_once()
+        except Exception:
+            logger.exception("Poller cycle error")
+        time.sleep(_POLL_INTERVAL)
+
+
+def _poll_once():
+    """One poll cycle: check all PROCESSING jobs using a single event loop."""
+    loop = asyncio.new_event_loop()
+    try:
+        jobs = loop.run_until_complete(queue.list_jobs(status=JobStatus.PROCESSING, limit=100))
+        if not jobs:
+            return
+        logger.info("Poller: checking %d processing jobs", len(jobs))
+        for job in jobs:
+            try:
+                _check_job(loop, job)
+            except Exception:
+                logger.exception("Poller: error checking job %s", job.id)
+    finally:
+        loop.close()
+
+
+def _check_job(loop, job):
+    """Check a single job's provider status."""
+    if not job.provider_job_id:
+        _check_stuck(loop, job)
+        return
+
+    try:
+        response = loop.run_until_complete(provider.get_status(job.provider_job_id))
+    except Exception as exc:
+        logger.warning("Poller: provider error for job %s: %s", job.id, exc)
+        _check_stuck(loop, job)
+        return
+
+    if response.status == "completed":
+        _handle_completion(loop, job, response)
+    elif response.status in ("failed", "cancelled", "expired"):
+        _handle_failure(loop, job, response.error or f"Provider status: {response.status}")
+    else:
+        _check_stuck(loop, job)
+
+
+def _handle_completion(loop, job, response):
+    """Save results and emit completion event."""
+    # Extract report text from provider output
+    report_text = ""
+    if response.output:
+        for block in response.output:
+            if block.get("type") == "message":
+                for content in block.get("content", []):
+                    if content.get("type") == "output_text":
+                        report_text += content.get("text", "")
+                    elif content.get("type") == "text":
+                        report_text += content.get("text", "")
+
+    if report_text:
+        loop.run_until_complete(
+            storage.save_report(
+                job_id=job.id,
+                filename="report.md",
+                content=report_text.encode("utf-8"),
+                content_type="text/markdown",
+                metadata={"prompt": job.prompt, "model": job.model},
+            )
+        )
+
+    cost = response.usage.cost if response.usage else None
+    tokens = response.usage.total_tokens if response.usage else None
+
+    loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.COMPLETED))
+    if cost is not None or tokens is not None:
+        loop.run_until_complete(
+            queue.update_results(
+                job_id=job.id,
+                report_paths={"markdown": "report.md"},
+                cost=cost,
+                tokens_used=tokens,
+            )
+        )
+
+    # Re-fetch to get updated job for the event payload
+    updated_job = loop.run_until_complete(queue.get_job(job.id))
+    if updated_job:
+        emit_job_completed(socketio, updated_job)
+    else:
+        logger.error("Poller: job %s vanished after completion update — WebSocket notification lost", job.id)
+    logger.info("Poller: job %s completed (cost=%.4f)", job.id, cost or 0)
+
+
+def _handle_failure(loop, job, error):
+    """Mark job as failed and emit failure event."""
+    loop.run_until_complete(queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=str(error)))
+    updated_job = loop.run_until_complete(queue.get_job(job.id))
+    if updated_job:
+        emit_job_failed(socketio, updated_job, str(error))
+    else:
+        logger.error("Poller: job %s vanished after failure update — WebSocket notification lost", job.id)
+    logger.info("Poller: job %s failed: %s", job.id, error)
+
+
+def _check_stuck(loop, job):
+    """If a job has been PROCESSING for too long, mark it failed."""
+    if not job.started_at:
+        return
+    if datetime.now(timezone.utc) - _ensure_utc(job.started_at) > _STUCK_THRESHOLD:
+        _handle_failure(loop, job, "Job stuck — exceeded 30 minute processing threshold")
+
+
+@app.before_request
+def _start_poller():
+    """Start the background poller thread on first request (runs once)."""
+    global _poller_started
+    if _poller_started:
+        return
+    with _poller_lock:
+        if _poller_started:
+            return
+        _poller_started = True
+        t = threading.Thread(target=_run_poller_loop, daemon=True, name="job-poller")
+        t.start()
+        logger.info("Background job poller thread launched")
+
 
 def run_async(coro):
     """Helper to run async code in sync Flask context."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    return asyncio.run(coro)
 
 
 @app.route("/")
 def index():
     """Main dashboard."""
     return render_template("index.html")
+
+
+@app.errorhandler(404)
+def fallback_to_spa(e):
+    """Serve index.html for unknown routes so client-side routing works."""
+    # Don't catch missing API routes — return 404 JSON for those
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not found"}), 404
+    # Serve static files from dist if they exist
+    file_path = _frontend_dist / request.path.lstrip("/")
+    if file_path.is_file():
+        return send_from_directory(str(_frontend_dist), request.path.lstrip("/"))
+    return render_template("index.html")
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware (UTC)."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _safe_int(value, default: int = 0) -> int:
@@ -92,8 +274,10 @@ def _parse_time_range(time_range: str, default_days: int = 30) -> int:
         return default_days
     try:
         if time_range.endswith("d"):
-            return int(time_range[:-1])
-        return int(time_range)
+            days = int(time_range[:-1])
+        else:
+            days = int(time_range)
+        return max(1, min(days, 365))
     except (ValueError, TypeError):
         return default_days
 
@@ -158,6 +342,7 @@ def get_stats():
             "processing": sum(1 for j in all_jobs if j.status == JobStatus.PROCESSING),
             "completed": sum(1 for j in all_jobs if j.status == JobStatus.COMPLETED),
             "failed": sum(1 for j in all_jobs if j.status == JobStatus.FAILED),
+            "cancelled": sum(1 for j in all_jobs if j.status == JobStatus.CANCELLED),
             "total_cost": sum(j.cost or 0 for j in all_jobs),
             "total_tokens": sum(j.tokens_used or 0 for j in all_jobs),
         }
@@ -217,12 +402,11 @@ def delete_job(job_id):
         if not job:
             return jsonify({"error": "Job not found"}), 404
 
-        # Cancel if still running
+        # Mark as cancelled
         if job.status in [JobStatus.QUEUED, JobStatus.PROCESSING]:
             run_async(queue.cancel_job(job_id))
-
-        # Delete from queue (mark as deleted)
-        run_async(queue.update_status(job_id, JobStatus.FAILED))
+        elif job.status not in [JobStatus.CANCELLED]:
+            run_async(queue.update_status(job_id, JobStatus.CANCELLED))
 
         return jsonify({"success": True})
 
@@ -263,6 +447,10 @@ def submit_job():
         # Create job
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
+        metadata = data.get("metadata", {})
+        mode = data.get("mode")
+        if mode:
+            metadata["mode"] = mode
         job = ResearchJob(
             id=job_id,
             prompt=prompt,
@@ -271,7 +459,7 @@ def submit_job():
             enable_web_search=enable_web_search,
             status=JobStatus.QUEUED,
             submitted_at=now,
-            metadata=data.get("metadata", {}),
+            metadata=metadata,
         )
 
         run_async(queue.enqueue(job))
@@ -292,8 +480,22 @@ def submit_job():
             run_async(queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id))
         except Exception as e:
             logger.error(f"Provider submission failed: {e}")
-            run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED))
-            return jsonify({"error": f"Provider error: {e!s}"}), 500
+            run_async(queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=str(e)))
+            # Notify WebSocket clients so the job shows up as failed
+            job.status = JobStatus.FAILED
+            job.last_error = str(e)
+            emit_job_failed(socketio, job, str(e))
+            return jsonify(
+                {
+                    "error": f"Provider error: {e!s}",
+                    "job_id": job_id,
+                }
+            ), 500
+
+        # Notify connected clients via WebSocket
+        job.status = JobStatus.PROCESSING
+        job.provider_job_id = provider_job_id
+        emit_job_created(socketio, job)
 
         # Return job data matching frontend expectations
         job_response = {
@@ -339,6 +541,10 @@ def batch_submit():
                 continue  # Skip empty prompts
             job_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
+            metadata = job_input.get("metadata", {})
+            mode = job_input.get("mode")
+            if mode:
+                metadata["mode"] = mode
             job = ResearchJob(
                 id=job_id,
                 prompt=prompt,
@@ -347,7 +553,7 @@ def batch_submit():
                 enable_web_search=job_input.get("enable_web_search", True),
                 status=JobStatus.QUEUED,
                 submitted_at=now,
-                metadata=job_input.get("metadata", {}),
+                metadata=metadata,
             )
             run_async(queue.enqueue(job))
             results.append({"job_id": job_id, "status": "queued"})
@@ -399,6 +605,51 @@ def cancel_job(job_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/jobs/cleanup-stale", methods=["POST"])
+def cleanup_stale_jobs():
+    """Mark stale PROCESSING/QUEUED jobs as FAILED.
+
+    A job is considered stale if it has been PROCESSING or QUEUED for over
+    30 minutes (matching poller threshold), or PROCESSING with no provider_job_id.
+    """
+    try:
+        all_jobs = run_async(queue.list_jobs(limit=10000))
+        now = datetime.now(timezone.utc)
+        stale_threshold = _STUCK_THRESHOLD  # 30 minutes, same as poller
+        cleaned = 0
+
+        for job in all_jobs:
+            if job.status not in (JobStatus.QUEUED, JobStatus.PROCESSING):
+                continue
+
+            started = job.started_at or job.submitted_at
+            if not started:
+                continue
+
+            started = _ensure_utc(started)
+            is_old = (now - started) > stale_threshold
+            is_no_provider = job.status == JobStatus.PROCESSING and not job.provider_job_id
+
+            if is_old or is_no_provider:
+                run_async(
+                    queue.update_status(
+                        job_id=job.id,
+                        status=JobStatus.FAILED,
+                        error="Cleaned up: stale job",
+                    )
+                )
+                updated_job = run_async(queue.get_job(job.id))
+                if updated_job:
+                    emit_job_failed(socketio, updated_job, "Cleaned up: stale job")
+                cleaned += 1
+
+        return jsonify({"cleaned": cleaned})
+
+    except Exception as e:
+        logger.error(f"Error cleaning up stale jobs: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # =============================================================================
 # COST API ENDPOINTS
 # =============================================================================
@@ -415,8 +666,8 @@ def get_cost_summary():
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         # Calculate spending
-        daily_spending = sum((j.cost or 0) for j in all_jobs if j.completed_at and j.completed_at >= today_start)
-        monthly_spending = sum((j.cost or 0) for j in all_jobs if j.completed_at and j.completed_at >= month_start)
+        daily_spending = sum((j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start)
+        monthly_spending = sum((j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= month_start)
         total_spending = sum((j.cost or 0) for j in all_jobs)
 
         completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
@@ -459,7 +710,7 @@ def get_cost_trends():
         # Group by day
         daily_costs = {}
         for job in all_jobs:
-            if job.completed_at and job.completed_at >= cutoff and job.cost:
+            if job.completed_at and _ensure_utc(job.completed_at) >= cutoff and job.cost:
                 day_key = job.completed_at.strftime("%Y-%m-%d")
                 daily_costs[day_key] = daily_costs.get(day_key, 0) + job.cost
 
@@ -493,7 +744,7 @@ def get_cost_breakdown():
         # Group by model
         model_costs = {}
         for job in all_jobs:
-            if job.completed_at and job.completed_at >= cutoff:
+            if job.completed_at and _ensure_utc(job.completed_at) >= cutoff:
                 model = job.model or "unknown"
                 if model not in model_costs:
                     model_costs[model] = {"cost": 0, "count": 0, "tokens": 0}
@@ -532,7 +783,7 @@ def get_cost_history():
         cutoff = now - timedelta(days=days)
 
         # Filter and sort by completion date
-        completed = [j for j in all_jobs if j.completed_at and j.completed_at >= cutoff and j.cost]
+        completed = [j for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= cutoff and j.cost]
         completed.sort(key=lambda j: j.completed_at, reverse=True)
 
         history = [
@@ -595,7 +846,7 @@ def estimate_cost():
                     now = datetime.now(timezone.utc)
                     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     daily_actual = sum(
-                        (j.cost or 0) for j in all_jobs if j.completed_at and j.completed_at >= today_start
+                        (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start
                     )
                     if daily_actual + est_expected > cost_controller.max_daily_cost:
                         allowed = False
@@ -645,20 +896,21 @@ def update_cost_limits():
             return jsonify({"error": "Request body required"}), 400
 
         if cost_controller:
+            _MAX_LIMIT = 100_000.0
             if "per_job" in data:
                 val = data["per_job"]
-                if not isinstance(val, (int, float)) or val < 0:
-                    return jsonify({"error": "per_job must be a non-negative number"}), 400
+                if not isinstance(val, (int, float)) or val < 0 or val > _MAX_LIMIT:
+                    return jsonify({"error": f"per_job must be between 0 and {_MAX_LIMIT}"}), 400
                 cost_controller.max_cost_per_job = float(val)
             if "daily" in data:
                 val = data["daily"]
-                if not isinstance(val, (int, float)) or val < 0:
-                    return jsonify({"error": "daily must be a non-negative number"}), 400
+                if not isinstance(val, (int, float)) or val < 0 or val > _MAX_LIMIT:
+                    return jsonify({"error": f"daily must be between 0 and {_MAX_LIMIT}"}), 400
                 cost_controller.max_daily_cost = float(val)
             if "monthly" in data:
                 val = data["monthly"]
-                if not isinstance(val, (int, float)) or val < 0:
-                    return jsonify({"error": "monthly must be a non-negative number"}), 400
+                if not isinstance(val, (int, float)) or val < 0 or val > _MAX_LIMIT:
+                    return jsonify({"error": f"monthly must be between 0 and {_MAX_LIMIT}"}), 400
                 cost_controller.max_monthly_cost = float(val)
 
         limits = {
@@ -703,7 +955,7 @@ def list_results():
             completed.sort(key=lambda j: j.model or "")
         else:  # date
             completed.sort(
-                key=lambda j: j.completed_at or j.submitted_at or datetime.min.replace(tzinfo=timezone.utc),
+                key=lambda j: _ensure_utc(j.completed_at) or _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=timezone.utc),
                 reverse=True,
             )
 
@@ -876,6 +1128,7 @@ def search_results():
 # =============================================================================
 
 # In-memory config (would normally be persisted)
+_config_lock = threading.Lock()
 _config = {
     "default_model": "o4-mini-deep-research",
     "default_priority": 1,
@@ -891,12 +1144,13 @@ _config = {
 def get_config():
     """Get current configuration."""
     try:
-        config = {
-            **_config,
-            "daily_limit": cost_controller.max_daily_cost if cost_controller else 100.0,
-            "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 1000.0,
-            "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
-        }
+        with _config_lock:
+            config = {
+                **_config,
+                "daily_limit": cost_controller.max_daily_cost if cost_controller else 100.0,
+                "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 1000.0,
+                "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
+            }
         return jsonify({"config": config})
 
     except Exception as e:
@@ -914,9 +1168,10 @@ def update_config():
 
         # Update allowed fields
         allowed = ["default_model", "default_priority", "enable_web_search"]
-        for key in allowed:
-            if key in data:
-                _config[key] = data[key]
+        with _config_lock:
+            for key in allowed:
+                if key in data:
+                    _config[key] = data[key]
 
         # Update cost limits if provided
         if cost_controller:
@@ -947,34 +1202,83 @@ def update_config():
 def list_experts():
     """List all domain experts."""
     try:
-        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
 
-        experts_dir = config_path / "experts"
+        store = ExpertStore(str(_experts_dir))
+        profiles = store.list_all()
         experts = []
-        if experts_dir.exists():
-            for profile_dir in experts_dir.iterdir():
-                if profile_dir.is_dir():
-                    try:
-                        profile = ExpertProfile.load(str(profile_dir))
-                        experts.append(
-                            {
-                                "name": profile.name,
-                                "description": getattr(profile, "description", ""),
-                                "document_count": len(getattr(profile, "documents", [])),
-                                "finding_count": len(getattr(profile, "findings", [])),
-                                "gap_count": len(getattr(profile, "knowledge_gaps", [])),
-                                "total_cost": getattr(profile, "total_cost", 0),
-                                "last_active": getattr(profile, "last_active", ""),
-                                "created_at": getattr(profile, "created_at", ""),
-                            }
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to load expert {profile_dir.name}: {e}")
+        for profile in profiles:
+            gap_count = 0
+            try:
+                manifest = profile.get_manifest()
+                gap_count = len(manifest.gaps)
+            except Exception:
+                pass
+            experts.append(
+                {
+                    "name": profile.name,
+                    "description": getattr(profile, "description", "") or "",
+                    "document_count": len(getattr(profile, "source_files", [])),
+                    "finding_count": len(getattr(profile, "research_jobs", [])),
+                    "gap_count": gap_count,
+                    "total_cost": getattr(profile, "total_research_cost", 0.0),
+                    "last_active": getattr(profile, "updated_at", datetime.now(timezone.utc)).isoformat(),
+                    "created_at": getattr(profile, "created_at", datetime.now(timezone.utc)).isoformat(),
+                }
+            )
         return jsonify({"experts": experts})
     except ImportError:
         return jsonify({"experts": []})
     except Exception as e:
         logger.error(f"Error listing experts: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/experts", methods=["POST"])
+def create_expert():
+    """Create a new domain expert (no API calls, $0 cost)."""
+    try:
+        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
+
+        data = request.json
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        name = str(data.get("name", "")).strip()
+        if not name:
+            return jsonify({"error": "Name required"}), 400
+
+        store = ExpertStore(str(_experts_dir))
+        if store.exists(name):
+            return jsonify({"error": "Expert already exists"}), 409
+
+        profile = ExpertProfile(
+            name=name,
+            vector_store_id="",
+            description=data.get("description", ""),
+            domain=data.get("domain", ""),
+        )
+        store.save(profile)
+
+        return jsonify(
+            {
+                "expert": {
+                    "name": profile.name,
+                    "description": profile.description or "",
+                    "document_count": 0,
+                    "finding_count": 0,
+                    "gap_count": 0,
+                    "total_cost": 0,
+                    "last_active": profile.updated_at.isoformat(),
+                    "created_at": profile.created_at.isoformat(),
+                }
+            }
+        ), 201
+    except ImportError:
+        return jsonify({"error": "Expert system not available"}), 500
+    except Exception as e:
+        logger.error(f"Error creating expert: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -984,36 +1288,35 @@ def get_expert(name):
     try:
         from urllib.parse import unquote
 
-        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
 
         decoded_name = unquote(name)
-        experts_dir = config_path / "experts"
-        if not experts_dir.exists():
+        store = ExpertStore(str(_experts_dir))
+        if not store.exists(decoded_name):
             return jsonify({"error": "Expert not found"}), 404
-        # Find by name
-        for profile_dir in experts_dir.iterdir():
-            if profile_dir.is_dir():
-                try:
-                    profile = ExpertProfile.load(str(profile_dir))
-                    if profile.name == decoded_name:
-                        return jsonify(
-                            {
-                                "expert": {
-                                    "name": profile.name,
-                                    "description": getattr(profile, "description", ""),
-                                    "document_count": len(getattr(profile, "documents", [])),
-                                    "finding_count": len(getattr(profile, "findings", [])),
-                                    "gap_count": len(getattr(profile, "knowledge_gaps", [])),
-                                    "total_cost": getattr(profile, "total_cost", 0),
-                                    "last_active": getattr(profile, "last_active", ""),
-                                    "created_at": getattr(profile, "created_at", ""),
-                                }
-                            }
-                        )
-                except Exception as e:
-                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
-                    continue
-        return jsonify({"error": "Expert not found"}), 404
+
+        profile = store.load(decoded_name)
+        gap_count = 0
+        try:
+            manifest = profile.get_manifest()
+            gap_count = len(manifest.gaps)
+        except Exception:
+            pass
+
+        return jsonify(
+            {
+                "expert": {
+                    "name": profile.name,
+                    "description": getattr(profile, "description", "") or "",
+                    "document_count": len(getattr(profile, "source_files", [])),
+                    "finding_count": len(getattr(profile, "research_jobs", [])),
+                    "gap_count": gap_count,
+                    "total_cost": getattr(profile, "total_research_cost", 0.0),
+                    "last_active": getattr(profile, "updated_at", datetime.now(timezone.utc)).isoformat(),
+                    "created_at": getattr(profile, "created_at", datetime.now(timezone.utc)).isoformat(),
+                }
+            }
+        )
     except ImportError:
         return jsonify({"error": "Expert system not available"}), 404
     except Exception as e:
@@ -1028,12 +1331,22 @@ def chat_with_expert(name):
         data = request.json
         if not data or not data.get("message"):
             return jsonify({"error": "Message required"}), 400
-        # Stub - expert chat requires the full expert system
+        # Stub — interactive chat requires the full expert system
+        from urllib.parse import unquote
+
+        decoded_name = unquote(name)
         return jsonify(
             {
                 "response": {
                     "role": "assistant",
-                    "content": 'Expert chat requires the full expert system. Use: deepr expert chat "' + name + '"',
+                    "content": (
+                        f'Web chat with "{decoded_name}" is not yet available. '
+                        "You can explore this expert's knowledge using the tabs above:\n\n"
+                        "- **Claims** \u2014 verified facts the expert has learned\n"
+                        "- **Gaps** \u2014 topics where knowledge is missing\n"
+                        "- **Decisions** \u2014 audit trail of research choices\n\n"
+                        f'For interactive chat, use the CLI:\n`deepr expert chat "{decoded_name}"`'
+                    ),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             }
@@ -1049,24 +1362,15 @@ def get_expert_gaps(name):
     try:
         from urllib.parse import unquote
 
-        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
 
         decoded_name = unquote(name)
-        experts_dir = config_path / "experts"
-        if not experts_dir.exists():
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
             return jsonify({"gaps": []})
-        for profile_dir in experts_dir.iterdir():
-            if profile_dir.is_dir():
-                try:
-                    profile = ExpertProfile.load(str(profile_dir))
-                    if profile.name == decoded_name:
-                        manifest = profile.get_manifest()
-                        gaps = [g.to_dict() for g in manifest.gaps]
-                        return jsonify({"gaps": gaps})
-                except Exception as e:
-                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
-                    continue
-        return jsonify({"gaps": []})
+        manifest = profile.get_manifest()
+        return jsonify({"gaps": [g.to_dict() for g in manifest.gaps]})
     except ImportError:
         return jsonify({"gaps": []})
     except Exception as e:
@@ -1090,23 +1394,15 @@ def get_expert_manifest(name):
     try:
         from urllib.parse import unquote
 
-        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
 
         decoded_name = unquote(name)
-        experts_dir = config_path / "experts"
-        if not experts_dir.exists():
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
             return jsonify({"error": "Expert not found"}), 404
-        for profile_dir in experts_dir.iterdir():
-            if profile_dir.is_dir():
-                try:
-                    profile = ExpertProfile.load(str(profile_dir))
-                    if profile.name == decoded_name:
-                        manifest = profile.get_manifest()
-                        return jsonify({"manifest": manifest.to_dict()})
-                except Exception as e:
-                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
-                    continue
-        return jsonify({"error": "Expert not found"}), 404
+        manifest = profile.get_manifest()
+        return jsonify({"manifest": manifest.to_dict()})
     except ImportError:
         return jsonify({"error": "Expert system not available"}), 404
     except Exception as e:
@@ -1120,31 +1416,23 @@ def get_expert_claims(name):
     try:
         from urllib.parse import unquote
 
-        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
 
         decoded_name = unquote(name)
         domain_filter = request.args.get("domain")
         min_confidence = float(request.args.get("min_confidence", 0.0))
 
-        experts_dir = config_path / "experts"
-        if not experts_dir.exists():
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
             return jsonify({"claims": []})
-        for profile_dir in experts_dir.iterdir():
-            if profile_dir.is_dir():
-                try:
-                    profile = ExpertProfile.load(str(profile_dir))
-                    if profile.name == decoded_name:
-                        manifest = profile.get_manifest()
-                        claims = manifest.claims
-                        if domain_filter:
-                            claims = [c for c in claims if c.domain == domain_filter]
-                        if min_confidence > 0:
-                            claims = [c for c in claims if c.confidence >= min_confidence]
-                        return jsonify({"claims": [c.to_dict() for c in claims]})
-                except Exception as e:
-                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
-                    continue
-        return jsonify({"claims": []})
+        manifest = profile.get_manifest()
+        claims = manifest.claims
+        if domain_filter:
+            claims = [c for c in claims if c.domain == domain_filter]
+        if min_confidence > 0:
+            claims = [c for c in claims if c.confidence >= min_confidence]
+        return jsonify({"claims": [c.to_dict() for c in claims]})
     except ImportError:
         return jsonify({"claims": []})
     except Exception as e:
@@ -1158,33 +1446,25 @@ def get_expert_decisions(name):
     try:
         from urllib.parse import unquote
 
-        from deepr.experts.profile import ExpertProfile
+        from deepr.experts.profile_store import ExpertStore
 
         decoded_name = unquote(name)
         type_filter = request.args.get("type")
         job_id_filter = request.args.get("job_id")
-        limit = int(request.args.get("limit", 50))
+        limit = _safe_int(request.args.get("limit", 50), 50)
 
-        experts_dir = config_path / "experts"
-        if not experts_dir.exists():
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
             return jsonify({"decisions": []})
-        for profile_dir in experts_dir.iterdir():
-            if profile_dir.is_dir():
-                try:
-                    profile = ExpertProfile.load(str(profile_dir))
-                    if profile.name == decoded_name:
-                        manifest = profile.get_manifest()
-                        decisions = manifest.decisions
-                        if type_filter:
-                            decisions = [d for d in decisions if d.decision_type.value == type_filter]
-                        if job_id_filter:
-                            decisions = [d for d in decisions if d.context.get("job_id") == job_id_filter]
-                        decisions = decisions[:limit]
-                        return jsonify({"decisions": [d.to_dict() for d in decisions]})
-                except Exception as e:
-                    logger.warning("Failed to load expert profile from %s: %s", profile_dir, e)
-                    continue
-        return jsonify({"decisions": []})
+        manifest = profile.get_manifest()
+        decisions = manifest.decisions
+        if type_filter:
+            decisions = [d for d in decisions if d.decision_type.value == type_filter]
+        if job_id_filter:
+            decisions = [d for d in decisions if d.context.get("job_id") == job_id_filter]
+        decisions = decisions[:limit]
+        return jsonify({"decisions": [d.to_dict() for d in decisions]})
     except ImportError:
         return jsonify({"decisions": []})
     except Exception as e:
@@ -1255,7 +1535,7 @@ def get_activity():
         all_jobs = run_async(queue.list_jobs(limit=limit * 2))
 
         # Sort by most recent first
-        all_jobs.sort(key=lambda j: j.submitted_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        all_jobs.sort(key=lambda j: _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
         items = []
         for job in all_jobs[:limit]:
@@ -1359,4 +1639,4 @@ if __name__ == "__main__":
     import os as _os
 
     debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(debug=debug, host="0.0.0.0", port=5000)
+    socketio.run(app, debug=debug, host="0.0.0.0", port=5000)
