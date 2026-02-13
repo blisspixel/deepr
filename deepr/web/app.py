@@ -832,8 +832,12 @@ def get_cost_summary():
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         # Calculate spending
-        daily_spending = sum((j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start)
-        monthly_spending = sum((j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= month_start)
+        daily_spending = sum(
+            (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start
+        )
+        monthly_spending = sum(
+            (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= month_start
+        )
         total_spending = sum((j.cost or 0) for j in all_jobs)
 
         completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
@@ -1119,7 +1123,9 @@ def list_results():
             completed.sort(key=lambda j: j.model or "")
         else:  # date
             completed.sort(
-                key=lambda j: _ensure_utc(j.completed_at) or _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=timezone.utc),
+                key=lambda j: _ensure_utc(j.completed_at)
+                or _ensure_utc(j.submitted_at)
+                or datetime.min.replace(tzinfo=timezone.utc),
                 reverse=True,
             )
 
@@ -1710,7 +1716,9 @@ def get_activity():
         all_jobs = run_async(queue.list_jobs(limit=limit * 2))
 
         # Sort by most recent first
-        all_jobs.sort(key=lambda j: _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        all_jobs.sort(
+            key=lambda j: _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=timezone.utc), reverse=True
+        )
 
         items = []
         for job in all_jobs[:limit]:

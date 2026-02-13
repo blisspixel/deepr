@@ -173,9 +173,7 @@ class JobManager:
                 updated_lines.append(line if line.endswith("\n") else line + "\n")
 
         # Use secure temp file to avoid predictable-name TOCTOU race
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self.log_path.parent), prefix=".job_log_", suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self.log_path.parent), prefix=".job_log_", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.writelines(updated_lines)
