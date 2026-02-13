@@ -146,7 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Code Quality**
 - Configuration consolidation: single `Settings` class in `core/settings.py`
 - ExpertProfile refactoring with composed managers (`budget_manager.py`, `activity_tracker.py`)
-- 300+ new tests (3600+ total)
+- 300+ new tests (1200+ total)
 
 ### Changed
 

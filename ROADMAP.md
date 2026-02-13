@@ -30,7 +30,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.8.1)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, MCP integration, and observability. 1200+ tests passing. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -49,7 +49,7 @@ These features are well-tested and used regularly:
 These features work but APIs or behavior may change:
 
 - **Web dashboard**: Local research management UI - 10 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
-- **MCP server**: Functional with 10 tools, but MCP spec itself is still maturing
+- **MCP server**: Functional with 16 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -62,7 +62,7 @@ These features work but APIs or behavior may change:
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
-- MCP server with 12 tools, persistence, security, multi-runtime configs
+- MCP server with 16 tools, persistence, security, multi-runtime configs
 - Web dashboard (10 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, trace explorer, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -317,7 +317,7 @@ Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with exi
 
 ### MCP Ecosystem (remaining)
 
-**What exists:** Full MCP server with 12 tools, persistence, security, skill packaging, Docker, multi-runtime configs.
+**What exists:** Full MCP server with 16 tools, persistence, security, skill packaging, Docker, multi-runtime configs.
 
 #### MCP Client Mode (Deepr as Tool Consumer)
 - Design complete (SearchBackend, BrowserBackend protocols, architecture doc)
