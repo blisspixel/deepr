@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { resultsApi } from '@/api/results'
 import ReactMarkdown from 'react-markdown'
+import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { cn, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -23,6 +24,32 @@ import {
   Search,
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
+
+/** Return hostname for safe (http/https) URLs, or null for unsafe schemes. */
+function safeHostname(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.hostname
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Sanitize a URL: only allow http/https schemes. */
+function safeHref(url: string): string | undefined {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return url
+    }
+    return undefined
+  } catch {
+    return undefined
+  }
+}
 
 export default function ResultDetail() {
   const { id } = useParams<{ id: string }>()
@@ -216,7 +243,7 @@ export default function ResultDetail() {
             </pre>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-a:text-primary prose-strong:text-foreground prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{result.content}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -237,10 +264,10 @@ export default function ResultDetail() {
               {result.citations.map((citation, index) => (
                 <div key={index} className="p-3 rounded-lg border text-sm">
                   <p className="font-medium text-foreground text-xs">{citation.title}</p>
-                  {citation.url && (
-                    <a href={citation.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                  {citation.url && safeHref(citation.url) && (
+                    <a href={safeHref(citation.url)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5">
                       <ExternalLink className="w-2.5 h-2.5" />
-                      {(() => { try { return new URL(citation.url).hostname } catch { return citation.url } })()}
+                      {safeHostname(citation.url) ?? 'link'}
                     </a>
                   )}
                   {citation.snippet && (
@@ -277,16 +304,16 @@ export default function ResultDetail() {
                     </span>
                     <div className="min-w-0">
                       <p className="font-medium text-foreground text-xs line-clamp-2">{citation.title}</p>
-                      {citation.url && (
+                      {citation.url && safeHref(citation.url) && (
                         <a
-                          href={citation.url}
+                          href={safeHref(citation.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <ExternalLink className="w-2.5 h-2.5" />
-                          {(() => { try { return new URL(citation.url).hostname } catch { return citation.url } })()}
+                          {safeHostname(citation.url) ?? 'link'}
                         </a>
                       )}
                       {activeCitation === index && citation.snippet && (
