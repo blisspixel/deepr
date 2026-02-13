@@ -8,7 +8,7 @@ interface SparklineProps {
 }
 
 export function Sparkline({ data, color = 'hsl(var(--primary))', height = 32, className }: SparklineProps) {
-  if (!data.length) return null
+  if (!data?.length) return null
 
   return (
     <div className={className} style={{ height }}>

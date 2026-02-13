@@ -1,6 +1,7 @@
 """Cost estimation, tracking, and control for research operations."""
 
 import logging
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
@@ -227,6 +228,7 @@ class CostController:
         self.max_daily_cost = max_daily_cost
         self.max_monthly_cost = max_monthly_cost
 
+        self._lock = threading.Lock()
         self.daily_spending = 0.0
         self.monthly_spending = 0.0
         self.last_reset = datetime.now(timezone.utc)
@@ -268,35 +270,37 @@ class CostController:
 
     def record_cost(self, actual_cost: float):
         """Record actual cost after job completion."""
-        self.daily_spending += actual_cost
-        self.monthly_spending += actual_cost
+        with self._lock:
+            self.daily_spending += actual_cost
+            self.monthly_spending += actual_cost
 
     def reset_if_needed(self):
         """Reset daily/monthly counters if needed."""
         now = datetime.now(timezone.utc)
+        with self._lock:
+            # Reset daily
+            if now.date() > self.last_reset.date():
+                self.daily_spending = 0.0
 
-        # Reset daily
-        if now.date() > self.last_reset.date():
-            self.daily_spending = 0.0
+            # Reset monthly
+            if now.month != self.last_reset.month:
+                self.monthly_spending = 0.0
 
-        # Reset monthly
-        if now.month != self.last_reset.month:
-            self.monthly_spending = 0.0
-
-        self.last_reset = now
+            self.last_reset = now
 
     def get_spending_summary(self) -> dict[str, float]:
         """Get current spending summary."""
         self.reset_if_needed()
 
-        return {
-            "daily": self.daily_spending,
-            "daily_limit": self.max_daily_cost,
-            "daily_remaining": max(0, self.max_daily_cost - self.daily_spending),
-            "monthly": self.monthly_spending,
-            "monthly_limit": self.max_monthly_cost,
-            "monthly_remaining": max(0, self.max_monthly_cost - self.monthly_spending),
-        }
+        with self._lock:
+            return {
+                "daily": self.daily_spending,
+                "daily_limit": self.max_daily_cost,
+                "daily_remaining": max(0, self.max_daily_cost - self.daily_spending),
+                "monthly": self.monthly_spending,
+                "monthly_limit": self.max_monthly_cost,
+                "monthly_remaining": max(0, self.max_monthly_cost - self.monthly_spending),
+            }
 
 
 # Pre-defined safe test prompts (cheap to run)

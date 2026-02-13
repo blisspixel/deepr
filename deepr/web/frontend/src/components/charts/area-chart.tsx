@@ -34,6 +34,12 @@ export function AreaChartComponent({
   formatXAxis,
   className,
 }: AreaChartProps) {
+  if (!data?.length) {
+    return (
+      <div className={className} style={{ height }} />
+    )
+  }
+
   return (
     <div className={className} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
