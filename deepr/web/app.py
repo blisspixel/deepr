@@ -5,8 +5,10 @@ Monitor jobs, view results, submit new research, track costs.
 """
 
 import asyncio
+import hmac
 import json as _json
 import logging
+import math
 import os
 import re
 import threading
@@ -30,6 +32,17 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 _API_KEY = os.getenv("DEEPR_API_KEY", "")  # empty = auth disabled (local dev)
 _CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
 _MAX_PROMPT_LENGTH = 50_000  # characters
+_MAX_BATCH_SIZE = 50
+_MAX_QUERY_LIMIT = 1000
+_ALLOWED_MODELS = {
+    "o3-deep-research",
+    "o4-mini-deep-research",
+    "gpt-5.2",
+    "gemini-2.5-flash",
+    "grok-4",
+    "grok-4-fast",
+    "claude-sonnet-4-5-20250929",
+}
 
 app = Flask(
     __name__,
@@ -86,7 +99,7 @@ def _check_auth():
     if not token:
         token = request.headers.get("X-Api-Key", "")
 
-    if not token or token != _API_KEY:
+    if not token or not hmac.compare_digest(token, _API_KEY):
         return jsonify({"error": "Unauthorized"}), 401
 
 
@@ -339,10 +352,15 @@ def fallback_to_spa(e):
     # Don't catch missing API routes — return 404 JSON for those
     if request.path.startswith("/api/"):
         return jsonify({"error": "Not found"}), 404
-    # Serve static files from dist if they exist
-    file_path = _frontend_dist / request.path.lstrip("/")
-    if file_path.is_file():
-        return send_from_directory(str(_frontend_dist), request.path.lstrip("/"))
+    # Serve static files from dist if they exist (with path traversal protection)
+    relative = request.path.lstrip("/")
+    if relative:
+        try:
+            resolved = (_frontend_dist / relative).resolve()
+            if resolved.is_file() and str(resolved).startswith(str(_frontend_dist.resolve())):
+                return send_from_directory(str(_frontend_dist), relative)
+        except (OSError, ValueError):
+            pass
     return render_template("index.html")
 
 
@@ -412,15 +430,15 @@ def _parse_time_range(time_range: str, default_days: int = 30) -> int:
 def get_jobs():
     """Get all jobs with pagination."""
     try:
-        limit = _safe_int(request.args.get("limit", 100), 100)
-        offset = _safe_int(request.args.get("offset", 0), 0)
+        limit = min(_safe_int(request.args.get("limit", 100), 100), _MAX_QUERY_LIMIT)
+        offset = max(0, _safe_int(request.args.get("offset", 0), 0))
         status_filter = request.args.get("status", None)
 
         if status_filter and status_filter != "all":
             try:
                 status_enum = JobStatus(status_filter)
             except ValueError:
-                return jsonify({"error": f"Invalid status: {status_filter}"}), 400
+                return jsonify({"error": "Invalid status filter"}), 400
             jobs = run_async(queue.list_jobs(status=status_enum, limit=limit + offset))
         else:
             jobs = run_async(queue.list_jobs(limit=limit + offset))
@@ -551,14 +569,16 @@ def submit_job():
         if not data:
             return jsonify({"error": "JSON body required"}), 400
         prompt = str(data.get("prompt", "")).strip()
-        model = data.get("model", "o4-mini-deep-research")
-        priority = data.get("priority", 3)
+        model = str(data.get("model", "o4-mini-deep-research"))
+        priority = max(1, min(10, _safe_int(data.get("priority", 3), 3)))
         enable_web_search = data.get("enable_web_search", True)
 
         if not prompt:
             return jsonify({"error": "Prompt required"}), 400
         if len(prompt) > _MAX_PROMPT_LENGTH:
             return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
+        if model not in _ALLOWED_MODELS:
+            return jsonify({"error": "Invalid model"}), 400
 
         # Estimate cost first
         estimated_cost = None
@@ -617,7 +637,7 @@ def submit_job():
             emit_job_failed(socketio, job, str(e))
             return jsonify(
                 {
-                    "error": f"Provider error: {e!s}",
+                    "error": "Provider submission failed",
                     "job_id": job_id,
                 }
             ), 500
@@ -663,6 +683,8 @@ def batch_submit():
 
         if not jobs_data:
             return jsonify({"error": "No jobs provided"}), 400
+        if len(jobs_data) > _MAX_BATCH_SIZE:
+            return jsonify({"error": f"Batch size exceeds limit of {_MAX_BATCH_SIZE}"}), 400
 
         results = []
         for job_input in jobs_data:
@@ -833,7 +855,7 @@ def get_cost_summary():
 def get_cost_trends():
     """Get daily spending trends."""
     try:
-        days = _safe_int(request.args.get("days", 30), 30)
+        days = max(1, min(_safe_int(request.args.get("days", 30), 30), 365))
         all_jobs = run_async(queue.list_jobs(limit=10000))
 
         now = datetime.now(timezone.utc)
@@ -908,7 +930,7 @@ def get_cost_history():
     try:
         time_range = request.args.get("time_range", "30d")
         days = _parse_time_range(time_range, 30)
-        limit = _safe_int(request.args.get("limit", 100), 100)
+        limit = min(_safe_int(request.args.get("limit", 100), 100), _MAX_QUERY_LIMIT)
 
         all_jobs = run_async(queue.list_jobs(limit=10000))
         now = datetime.now(timezone.utc)
@@ -1029,21 +1051,18 @@ def update_cost_limits():
 
         if cost_controller:
             _MAX_LIMIT = 100_000.0
+            for field in ("per_job", "daily", "monthly"):
+                if field not in data:
+                    continue
+                val = data[field]
+                if not isinstance(val, (int, float)) or not math.isfinite(val) or val < 0 or val > _MAX_LIMIT:
+                    return jsonify({"error": f"{field} must be a finite number between 0 and {_MAX_LIMIT}"}), 400
             if "per_job" in data:
-                val = data["per_job"]
-                if not isinstance(val, (int, float)) or val < 0 or val > _MAX_LIMIT:
-                    return jsonify({"error": f"per_job must be between 0 and {_MAX_LIMIT}"}), 400
-                cost_controller.max_cost_per_job = float(val)
+                cost_controller.max_cost_per_job = float(data["per_job"])
             if "daily" in data:
-                val = data["daily"]
-                if not isinstance(val, (int, float)) or val < 0 or val > _MAX_LIMIT:
-                    return jsonify({"error": f"daily must be between 0 and {_MAX_LIMIT}"}), 400
-                cost_controller.max_daily_cost = float(val)
+                cost_controller.max_daily_cost = float(data["daily"])
             if "monthly" in data:
-                val = data["monthly"]
-                if not isinstance(val, (int, float)) or val < 0 or val > _MAX_LIMIT:
-                    return jsonify({"error": f"monthly must be between 0 and {_MAX_LIMIT}"}), 400
-                cost_controller.max_monthly_cost = float(val)
+                cost_controller.max_monthly_cost = float(data["monthly"])
 
         limits = {
             "per_job": cost_controller.max_cost_per_job if cost_controller else 20.0,
@@ -1069,7 +1088,7 @@ def list_results():
     try:
         search = request.args.get("search", "")
         sort_by = request.args.get("sort_by", "date")
-        limit = _safe_int(request.args.get("limit", 50), 50)
+        limit = min(_safe_int(request.args.get("limit", 50), 50), _MAX_QUERY_LIMIT)
         offset = _safe_int(request.args.get("offset", 0), 0)
 
         # Get completed jobs
@@ -1225,7 +1244,7 @@ def search_results():
     """Search results by query."""
     try:
         query = request.args.get("q", "")
-        limit = _safe_int(request.args.get("limit", 20), 20)
+        limit = min(_safe_int(request.args.get("limit", 20), 20), _MAX_QUERY_LIMIT)
 
         if not query:
             return jsonify({"results": [], "total": 0})
@@ -1561,7 +1580,10 @@ def get_expert_claims(name):
         if err:
             return err
         domain_filter = request.args.get("domain")
-        min_confidence = float(request.args.get("min_confidence", 0.0))
+        try:
+            min_confidence = float(request.args.get("min_confidence", 0.0))
+        except (ValueError, TypeError):
+            min_confidence = 0.0
 
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)
@@ -1592,7 +1614,7 @@ def get_expert_decisions(name):
             return err
         type_filter = request.args.get("type")
         job_id_filter = request.args.get("job_id")
-        limit = _safe_int(request.args.get("limit", 50), 50)
+        limit = min(_safe_int(request.args.get("limit", 50), 50), _MAX_QUERY_LIMIT)
 
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)
@@ -1672,7 +1694,7 @@ def get_trace_temporal(job_id):
 def get_activity():
     """Get recent activity items."""
     try:
-        limit = _safe_int(request.args.get("limit", 20), 20)
+        limit = min(_safe_int(request.args.get("limit", 20), 20), _MAX_QUERY_LIMIT)
         all_jobs = run_async(queue.list_jobs(limit=limit * 2))
 
         # Sort by most recent first
@@ -1737,9 +1759,10 @@ def test_connection():
                 client.models.list()
                 return jsonify({"success": True, "message": "Connection successful"})
             except Exception as e:
-                return jsonify({"success": False, "message": str(e)})
+                logger.warning("Connection test failed: %s", e)
+                return jsonify({"success": False, "message": "Connection failed"})
         else:
-            return jsonify({"success": False, "message": f"Provider {provider_name} test not implemented"})
+            return jsonify({"success": False, "message": "Provider test not implemented"})
 
     except Exception as e:
         logger.error(f"Error testing connection: {e}")
@@ -1769,7 +1792,8 @@ def health_check():
         )
 
     except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+        logger.error("Health check failed: %s", e)
+        return jsonify({"status": "unhealthy", "error": "Service unavailable"}), 500
 
 
 if __name__ == "__main__":

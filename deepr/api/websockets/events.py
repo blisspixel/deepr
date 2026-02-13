@@ -1,7 +1,10 @@
 """Socket.IO event handlers."""
 
+import hmac
 import logging
+import os
 
+from flask import request as flask_request
 from flask_socketio import emit, join_room, leave_room
 
 logger = logging.getLogger(__name__)
@@ -12,7 +15,18 @@ def register_socketio_events(socketio):
 
     @socketio.on("connect")
     def handle_connect():
-        """Handle client connection."""
+        """Handle client connection (with auth when DEEPR_API_KEY is set)."""
+        api_key = os.getenv("DEEPR_API_KEY", "")
+        if api_key:
+            # Check auth query param or header
+            token = flask_request.args.get("token", "")
+            if not token:
+                auth = flask_request.headers.get("Authorization", "")
+                if auth.startswith("Bearer "):
+                    token = auth[7:]
+            if not token or not hmac.compare_digest(token, api_key):
+                logger.warning("WebSocket auth rejected")
+                return False  # reject connection
         logger.info("Client connected")
         emit("connected", {"message": "Connected to Deepr API"})
 
