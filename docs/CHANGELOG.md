@@ -5,6 +5,42 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-02-12
+
+### Added
+
+**Background Job Polling + WebSocket Push**
+- Flask-SocketIO initialization with `cors_allowed_origins="*"` and threading async mode
+- Background poller thread that checks PROCESSING jobs every 15 seconds via provider API
+- WebSocket events: `job_created` on submit, `job_completed`/`job_failed` on poller detection
+- `to_dict()` method on `ResearchJob` dataclass (enum, datetime, Path serialization)
+- `POST /api/jobs/cleanup-stale` endpoint to mark stuck/orphaned jobs as failed
+- `socketio.run()` replaces `app.run()` for WebSocket support
+- Frontend already handled all events via `use-websocket.ts` — now actually connected
+
+**Web Dashboard UX Overhaul**
+- Skeleton loading states: `CardGridSkeleton`, `DetailSkeleton`, `FormSkeleton`, `DashboardSkeleton` replacing all spinner patterns
+- Honest progress phases: replaced fake time-based 6-phase progress with 3 status-based phases (Queued/Processing/Complete)
+- Standardized all form controls to shadcn/ui components (Input, Select, Button) across research-studio, expert-hub, results-library, expert-profile
+- Copy-to-clipboard button on result-detail page with toast feedback
+- Cmd+Enter / Ctrl+Enter keyboard shortcut to submit research from textarea
+- Drag-and-drop file upload on research studio with visual feedback and file type filtering
+- Pagination on results library (12 per page, page controls, total count)
+- Mobile hamburger navigation via Sheet component (sidebar hidden on small screens)
+- FOUC prevention: critical CSS inlined in index.html
+- Skip-to-content link for keyboard/screen-reader accessibility
+- Settings page: Environment info card showing provider, queue, storage, API key status
+- Research Live completed state: enriched with prompt text, 4-stat grid (cost, tokens, completed date, model), content preview with markdown stripping
+
+### Fixed
+- Timezone naive/aware datetime comparison errors across 10+ locations in app.py (`_ensure_utc()` helper)
+- JSX unicode escape `\u21B5` rendering as literal text in keyboard hint (moved to JS expression)
+- Flask serving stale asset hashes when restarted before rebuild
+- Results API sort crashing on naive datetime comparison
+- Activity feed sort crashing on naive datetime comparison
+
+---
+
 ## [2.8.0] - 2026-02-04
 
 ### Added

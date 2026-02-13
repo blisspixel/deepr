@@ -5,9 +5,11 @@ type Theme = 'light' | 'dark' | 'system'
 
 interface UIState {
   sidebarCollapsed: boolean
+  mobileMenuOpen: boolean
   theme: Theme
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
+  setMobileMenuOpen: (open: boolean) => void
   setTheme: (theme: Theme) => void
   cycleTheme: () => void
 }
@@ -29,11 +31,14 @@ export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
       sidebarCollapsed: false,
+      mobileMenuOpen: false,
       theme: 'system',
 
       setSidebarCollapsed: (collapsed: boolean) => set({ sidebarCollapsed: collapsed }),
 
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+      setMobileMenuOpen: (open: boolean) => set({ mobileMenuOpen: open }),
 
       setTheme: (theme: Theme) => {
         applyThemeToDocument(theme)

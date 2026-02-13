@@ -8,7 +8,7 @@ Requirements: 5.5 - Extract to_dict/from_dict logic
 """
 
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
@@ -46,19 +46,24 @@ def datetime_to_iso(dt: Optional[datetime]) -> Optional[str]:
 
 
 def iso_to_datetime(iso_str: Optional[str]) -> Optional[datetime]:
-    """Convert ISO format string to datetime.
+    """Convert ISO format string to timezone-aware datetime.
 
     Args:
         iso_str: ISO format string or None
 
     Returns:
-        Datetime object or None
+        Timezone-aware datetime object or None
     """
     if iso_str is None:
         return None
     if isinstance(iso_str, datetime):
-        return iso_str
-    return datetime.fromisoformat(iso_str)
+        dt = iso_str
+    else:
+        dt = datetime.fromisoformat(iso_str)
+    # Ensure timezone-aware (assume UTC for naive datetimes)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def profile_to_dict(profile: "ExpertProfile") -> dict[str, Any]:

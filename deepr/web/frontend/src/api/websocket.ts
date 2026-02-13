@@ -1,11 +1,16 @@
 import { io, Socket } from 'socket.io-client'
 import type { Job } from '../types'
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:5000'
+const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}`
 
 class WebSocketClient {
   private socket: Socket | null = null
   private listeners: Map<string, Set<(data: any) => void>> = new Map()
+  private _connected = false
+
+  get connected() {
+    return this._connected
+  }
 
   connect() {
     if (this.socket?.connected) return
@@ -19,19 +24,27 @@ class WebSocketClient {
 
     this.socket.on('connect', () => {
       console.log('WebSocket connected')
+      this._connected = true
+      this.emit('ws_status', { connected: true })
       this.subscribeToJobs()
     })
 
     this.socket.on('disconnect', () => {
       console.log('WebSocket disconnected')
+      this._connected = false
+      this.emit('ws_status', { connected: false })
     })
 
     this.socket.on('connect_error', (err: Error) => {
       console.warn('WebSocket connection error:', err.message)
+      this._connected = false
+      this.emit('ws_status', { connected: false })
     })
 
     this.socket.on('reconnect_failed' as any, () => {
       console.error('WebSocket reconnection failed after max attempts')
+      this._connected = false
+      this.emit('ws_status', { connected: false })
     })
 
     this.socket.on('job_created', (job: Job) => {
@@ -46,7 +59,7 @@ class WebSocketClient {
       this.emit('job_completed', job)
     })
 
-    this.socket.on('job_failed', (data: { job: Job; error: string }) => {
+    this.socket.on('job_failed', (data: Job & { error?: string }) => {
       this.emit('job_failed', data)
     })
 

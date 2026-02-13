@@ -18,6 +18,14 @@ export function DonutChart({
   className,
   formatValue = (v) => `$${v.toFixed(2)}`,
 }: DonutChartProps) {
+  if (!data?.length || data.every(d => d.value === 0)) {
+    return (
+      <div className={className} style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 13, opacity: 0.5 }}>No data</span>
+      </div>
+    )
+  }
+
   return (
     <div className={className} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">

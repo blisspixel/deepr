@@ -35,14 +35,6 @@ export const resultsApi = {
     return response.data
   },
 
-  // Download result
-  download: async (jobId: string, format: 'md' | 'docx' | 'txt' | 'json' | 'pdf') => {
-    const response = await apiClient.get(`/results/${jobId}/download/${format}`, {
-      responseType: 'blob',
-    })
-    return response.data
-  },
-
   // Search results
   search: async (query: string, limit = 20) => {
     const response = await apiClient.get<{ results: Result[]; total: number }>('/results/search', {
@@ -51,14 +43,4 @@ export const resultsApi = {
     return response.data
   },
 
-  // Add tags
-  addTags: async (jobId: string, tags: string[]) => {
-    const response = await apiClient.post(`/results/${jobId}/tags`, { tags })
-    return response.data
-  },
-
-  // Remove tag
-  removeTag: async (jobId: string, tag: string) => {
-    await apiClient.delete(`/results/${jobId}/tags/${tag}`)
-  },
 }

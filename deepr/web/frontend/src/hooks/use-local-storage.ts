@@ -16,7 +16,11 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     const valueToStore = value instanceof Function ? value(storedValueRef.current) : value
     storedValueRef.current = valueToStore
     setStoredValue(valueToStore)
-    window.localStorage.setItem(key, JSON.stringify(valueToStore))
+    try {
+      window.localStorage.setItem(key, JSON.stringify(valueToStore))
+    } catch (e) {
+      console.warn(`Failed to write to localStorage [${key}]:`, e)
+    }
   }, [key])
 
   return [storedValue, setValue]

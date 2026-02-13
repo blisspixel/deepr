@@ -6,6 +6,10 @@ export const expertsApi = {
     const response = await apiClient.get<{ experts: Expert[] }>('/experts')
     return response.data.experts
   },
+  create: async (data: { name: string; description?: string; domain?: string }) => {
+    const response = await apiClient.post<{ expert: Expert }>('/experts', data)
+    return response.data.expert
+  },
   get: async (name: string) => {
     const response = await apiClient.get<{ expert: Expert }>(`/experts/${name}`)
     return response.data.expert
@@ -17,10 +21,6 @@ export const expertsApi = {
   getGaps: async (name: string) => {
     const response = await apiClient.get<{ gaps: ScoredGap[] }>(`/experts/${name}/gaps`)
     return response.data.gaps
-  },
-  learnGap: async (name: string, gapId: string) => {
-    const response = await apiClient.post(`/experts/${name}/learn`, { gap_id: gapId })
-    return response.data
   },
   getHistory: async (name: string) => {
     const response = await apiClient.get(`/experts/${name}/history`)

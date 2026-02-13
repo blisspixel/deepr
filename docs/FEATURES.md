@@ -1,6 +1,6 @@
 # Deepr Features Guide
 
-Complete guide to all Deepr features as of v2.8
+Complete guide to all Deepr features as of v2.8.1
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ A local web interface for managing research operations visually. Built with Reac
 
 ```bash
 pip install -e ".[web]"
-python -m deepr.web.app
+python deepr/web/app.py
 # Open http://localhost:5000
 ```
 
@@ -35,36 +35,41 @@ python -m deepr.web.app
 
 **Overview** - Landing page with active jobs, recent activity feed, spending summary, and system health status.
 
-**Research Studio** - Submit new research with mode selection (research, check, learn, team, docs), model picker, priority, and web search toggle. Supports pre-filled prompts via URL query parameter.
+**Research Studio** - Submit research with mode selection (research, check, learn, team, docs), model picker, priority, and web search toggle. Drag-and-drop file upload with type filtering (.txt, .md, .json, .csv). Ctrl+Enter / Cmd+Enter keyboard shortcut to submit. Real-time cost estimation as you type. Supports pre-filled prompts via URL query parameter.
 
-**Research Live** - Real-time progress tracking for running jobs. Uses WebSocket for live status updates without polling.
+**Research Live** - Real-time progress tracking for running jobs via WebSocket push (no polling). Background poller checks provider API every 15 seconds. Completed jobs show enriched summary with cost, tokens, model, completion date, and content preview.
 
-**Results Library** - Browse and search completed research. Grid and list views with sorting and filtering by status.
+**Results Library** - Browse and search completed research with sorting (date, cost, model). Paginated grid view (12 per page). Total result count in header.
 
-**Result Detail** - Full markdown report viewer with a citation sidebar showing source URLs and snippets. Export dropdown for downloading results.
+**Result Detail** - Full markdown report viewer with citation sidebar showing source URLs and snippets. Copy-to-clipboard button for the full report content. Export dropdown for downloading results.
 
-**Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Navigate to individual expert profiles.
+**Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Search and sort controls. Navigate to individual expert profiles.
 
 **Expert Profile** - Three tabs: Chat (ask questions, get answers from the expert's knowledge), Knowledge Gaps (view gaps with priority, click to research), and History (learning timeline with costs).
 
-**Cost Intelligence** - Spending trends over configurable time ranges, per-model cost breakdown with charts, budget limit controls with sliders, and anomaly detection.
+**Cost Intelligence** - Spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, success rate, and average cost per job.
 
 **Trace Explorer** - Inspect research execution traces. View span hierarchy with timing, cost attribution, token counts, and model info for each operation.
 
-**Settings** - Theme selection (light/dark/system), default model, web search toggle, and budget limit configuration.
+**Settings** - Theme selection (light/dark/system), default model, web search toggle, budget limit configuration, and environment info (provider, queue, storage, API key status).
 
 ### Keyboard Shortcuts
 
 - **Ctrl+K** - Open command palette for quick navigation to any page
+- **Ctrl+Enter** / **Cmd+Enter** - Submit research from the Research Studio textarea
 - Theme cycles through light, dark, and system modes via the header button
 
 ### Technical Details
 
-- Code-split routing: each page loads independently via React.lazy
-- Real-time updates: WebSocket (Socket.io) connection managed in the app shell
-- State management: Zustand for UI state, React Query for server data
+- Code-split routing: each page loads independently via React.lazy and Suspense
+- Real-time updates: WebSocket (Socket.io) with Flask-SocketIO backend push for job events
+- Background poller: daemon thread checks provider API every 15s for PROCESSING jobs
+- State management: Zustand for UI state, React Query for server data with automatic cache invalidation on WebSocket events
 - Component library: Radix UI primitives (shadcn/ui pattern) with Tailwind CSS
+- Loading states: skeleton components (CardGridSkeleton, DetailSkeleton, FormSkeleton) instead of spinners
 - Charts: Recharts for cost trends, model breakdown, and utilization
+- Accessibility: skip-to-content link, mobile hamburger navigation via Sheet component
+- FOUC prevention: critical CSS inlined in index.html
 
 ## Semantic Commands
 
