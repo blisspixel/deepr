@@ -30,7 +30,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.8.1)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 1200+ tests passing. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -58,7 +58,7 @@ These features work but APIs or behavior may change:
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4, Anthropic Claude, Azure)
+- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4 Fast, Anthropic Claude, Azure)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
@@ -205,7 +205,7 @@ sam build && sam deploy --guided
 - [x] `--dry-run` flag to preview routing decisions and cost estimates without executing
 - [x] `--prefer-cost` and `--prefer-speed` optimization flags
 - [x] API key awareness: checks `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY` before routing to a provider
-- [x] Tiered deep research models: simple → grok-4-fast ($0.01), moderate → o4-mini-deep-research ($0.10), complex → o3-deep-research ($0.50)
+- [x] Tiered deep research models: simple → grok-4-fast ($0.01), moderate → o3-deep-research ($0.50), complex → o4-mini-deep-research ($2.00)
 - [x] Budget-aware routing (downgrades through o3 → o4-mini → gpt-5.2 → grok-4-fast)
 - [x] Auto-routed jobs in queue schema (`auto_routed`, `routing_decision`, `batch_id` fields)
 - [x] AWS worker respects `routing_decision` for provider/model selection
@@ -393,7 +393,7 @@ Defense-in-depth for autonomous research operations, especially when using agent
 
 Local research management interface for monitoring batch operations. CLI remains primary for scripting/automation; dashboard provides visibility when running many concurrent jobs.
 
-**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask + Flask-SocketIO backend. 10 pages with code-split routing, skeleton loading states, Radix UI (shadcn/ui) component library, Recharts charts, WebSocket real-time push via background poller. Drag-and-drop file upload, Ctrl+Enter submit, copy-to-clipboard, pagination, mobile hamburger nav, FOUC prevention, skip-to-content a11y. Light/dark/system theme. 23 API endpoints.
+**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask + Flask-SocketIO backend. 10 pages with code-split routing, skeleton loading states, Radix UI (shadcn/ui) component library, Recharts charts, WebSocket real-time push via background poller. Drag-and-drop file upload, Ctrl+Enter submit, copy-to-clipboard, pagination, mobile hamburger nav, FOUC prevention, skip-to-content a11y. Light/dark/system theme. 31 API endpoints.
 
 #### Completed
 - [x] Job submission and queue monitoring with real-time status
