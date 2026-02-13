@@ -63,16 +63,19 @@ export interface CostSummary {
 export interface CostTrend {
   date: string
   cost: number
-  jobs: number
+  cumulative: number
 }
 
 export interface Config {
   provider: string
   default_model: string
+  default_priority: number
   enable_web_search: boolean
   storage: string
   queue: string
   has_api_key: boolean
+  daily_limit: number
+  monthly_limit: number
 }
 
 export interface SystemStatus {
@@ -175,8 +178,9 @@ export interface ActivityItem {
 export interface CostBreakdown {
   model: string
   cost: number
-  percentage: number
-  job_count: number
+  count: number
+  tokens: number
+  avg_cost: number
 }
 
 export interface CostAnomaly {

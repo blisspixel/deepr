@@ -62,40 +62,60 @@ def register_socketio_events(socketio):
 
 def emit_job_created(socketio, job):
     """Emit job created event."""
-    socketio.emit("job_created", job.to_dict(), room="jobs")
-    logger.info(f"Emitted job_created for {job.id}")
+    try:
+        socketio.emit("job_created", job.to_dict(), room="jobs")
+        logger.info("Emitted job_created for %s", job.id)
+    except Exception:
+        logger.exception("Failed to emit job_created for %s", job.id)
 
 
 def emit_job_updated(socketio, job):
     """Emit job updated event."""
-    socketio.emit("job_updated", job.to_dict(), room="jobs")
-    socketio.emit("job_updated", job.to_dict(), room=f"job_{job.id}")
-    logger.info(f"Emitted job_updated for {job.id}")
+    try:
+        data = job.to_dict()
+        socketio.emit("job_updated", data, room="jobs")
+        socketio.emit("job_updated", data, room=f"job_{job.id}")
+        logger.info("Emitted job_updated for %s", job.id)
+    except Exception:
+        logger.exception("Failed to emit job_updated for %s", job.id)
 
 
 def emit_job_completed(socketio, job):
     """Emit job completed event."""
-    socketio.emit("job_completed", job.to_dict(), room="jobs")
-    socketio.emit("job_completed", job.to_dict(), room=f"job_{job.id}")
-    logger.info(f"Emitted job_completed for {job.id}")
+    try:
+        data = job.to_dict()
+        socketio.emit("job_completed", data, room="jobs")
+        socketio.emit("job_completed", data, room=f"job_{job.id}")
+        logger.info("Emitted job_completed for %s", job.id)
+    except Exception:
+        logger.exception("Failed to emit job_completed for %s", job.id)
 
 
 def emit_job_failed(socketio, job, error):
     """Emit job failed event."""
-    data = job.to_dict()
-    data["error"] = error
-    socketio.emit("job_failed", data, room="jobs")
-    socketio.emit("job_failed", data, room=f"job_{job.id}")
-    logger.info(f"Emitted job_failed for {job.id}")
+    try:
+        data = job.to_dict()
+        data["error"] = error
+        socketio.emit("job_failed", data, room="jobs")
+        socketio.emit("job_failed", data, room=f"job_{job.id}")
+        logger.info("Emitted job_failed for %s", job.id)
+    except Exception:
+        logger.exception("Failed to emit job_failed for %s", job.id)
 
 
 def emit_cost_warning(socketio, warning):
     """Emit cost warning event."""
-    socketio.emit("cost_warning", warning, room="jobs")
-    logger.warning(f"Emitted cost_warning: {warning}")
+    try:
+        socketio.emit("cost_warning", warning, room="jobs")
+        logger.warning("Emitted cost_warning: %s", warning)
+    except Exception:
+        logger.exception("Failed to emit cost_warning")
 
 
 def emit_cost_exceeded(socketio, exceeded):
     """Emit cost exceeded event."""
-    socketio.emit("cost_exceeded", exceeded, room="jobs")
-    logger.error(f"Emitted cost_exceeded: {exceeded}")
+    try:
+        socketio.emit("cost_exceeded", exceeded, room="jobs")
+        logger.error("Emitted cost_exceeded: %s", exceeded)
+    except Exception:
+        logger.exception("Failed to emit cost_exceeded")

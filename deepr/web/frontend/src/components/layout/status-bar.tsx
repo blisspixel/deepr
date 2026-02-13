@@ -1,11 +1,25 @@
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, DollarSign, Wifi, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
+import { wsClient } from '@/api/websocket'
 import { formatCurrency } from '@/lib/utils'
 
 export default function StatusBar() {
+  const [isOnline, setIsOnline] = useState(wsClient.connected)
+
+  useEffect(() => {
+    // Seed from current state
+    setIsOnline(wsClient.connected)
+    // Listen for WebSocket connection changes
+    const cleanup = wsClient.on('ws_status', (data: { connected: boolean }) => {
+      setIsOnline(data.connected)
+    })
+    return cleanup
+  }, [])
+
   const { data: jobsData } = useQuery({
     queryKey: ['jobs', 'active'],
     queryFn: () => jobsApi.list({ status: 'processing' }),
@@ -18,16 +32,8 @@ export default function StatusBar() {
     refetchInterval: 60000,
   })
 
-  const { isError: isOffline } = useQuery({
-    queryKey: ['health'],
-    queryFn: () => jobsApi.list({ limit: 1 }),
-    refetchInterval: 30000,
-    retry: false,
-  })
-
   const activeJobs = jobsData?.jobs?.length ?? 0
   const todaySpend = costSummary?.daily ?? 0
-  const isOnline = !isOffline
 
   return (
     <div className="flex h-8 items-center justify-between border-t bg-background px-4 text-[11px] text-muted-foreground">

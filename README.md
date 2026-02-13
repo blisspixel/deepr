@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.8-orange)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-2.8.1-orange)](ROADMAP.md)
 
 **Deep research that produces experts, not just answers.**
 
@@ -20,6 +20,8 @@ deepr expert chat "AI Strategy Expert" --agentic --budget 3
 Scriptable. Schedulable. Callable from your AI agents via MCP. Multi-provider (OpenAI, Gemini, Grok, Anthropic). Reports and experts saved locally as artifacts you own.
 
 **Stack:** Python · Flask · Click · React · TypeScript · Tailwind CSS · SQLite · WebSocket · Docker · AWS/Azure/GCP
+
+![Deepr Dashboard](assets/dashboard.png)
 
 ## Architecture
 
@@ -209,23 +211,23 @@ A local research management interface for when you want a visual view of your re
 
 ```bash
 pip install -e ".[web]"
-python -m deepr.web.app
+python deepr/web/app.py
 # Open http://localhost:5000
 ```
 
 **Pages:**
 - **Overview** - Active jobs, recent activity feed, spending summary, system health
-- **Research Studio** - Submit research with mode selection, model picker, and web search toggle
-- **Research Live** - Real-time progress tracking for running jobs via WebSocket
-- **Results Library** - Search, filter, and browse completed research with grid/list views
-- **Result Detail** - Full markdown report viewer with citation sidebar and export options
+- **Research Studio** - Submit research with mode selection, model picker, drag-and-drop file upload, Ctrl+Enter submit
+- **Research Live** - Real-time progress tracking via WebSocket push with background poller
+- **Results Library** - Search, sort, and paginate completed research (12 per page)
+- **Result Detail** - Full markdown report viewer with citation sidebar, copy-to-clipboard, export
 - **Expert Hub** - List and manage domain experts, view knowledge gaps and stats
 - **Expert Profile** - Chat with experts, browse knowledge gaps, view learning history
 - **Cost Intelligence** - Spending trends, per-model breakdown, budget controls with charts
 - **Trace Explorer** - Inspect research execution spans, timing, cost attribution
-- **Settings** - Theme, API keys, budget limits, default model preferences
+- **Settings** - Theme, budget limits, default model preferences, environment info
 
-The frontend uses code-split routing for fast initial loads, WebSocket for real-time job updates, and light/dark/system theme support. The UI is built on Radix UI primitives with Recharts for data visualization.
+The frontend uses code-split routing with skeleton loading states, Flask-SocketIO for real-time job push events, and light/dark/system theme support. Built on Radix UI primitives (shadcn/ui pattern) with Recharts for data visualization.
 
 **For team deployment**, the dashboard can be containerized and deployed to cloud infrastructure. See [deploy/README.md](deploy/README.md) for AWS, Azure, and GCP templates. Authentication and multi-user features are on the roadmap.
 
@@ -263,7 +265,7 @@ Specific design decisions:
 
 **Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI and Gemini providers, local SQLite storage. 3600+ tests.
 
-**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (functional for local use, recently overhauled), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
+**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
