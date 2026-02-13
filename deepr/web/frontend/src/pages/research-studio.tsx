@@ -6,6 +6,14 @@ import { costApi } from '@/api/cost'
 import { cn, formatCurrency } from '@/lib/utils'
 import { RESEARCH_MODES, MODELS, PRIORITIES } from '@/lib/constants'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   ChevronDown,
   ChevronUp,
@@ -26,6 +34,7 @@ export default function ResearchStudio() {
   const [priority, setPriority] = useState(1)
   const [enableWebSearch, setEnableWebSearch] = useState(true)
   const [showConfig, setShowConfig] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadedFileContents, setUploadedFileContents] = useState<{ name: string; content: string }[]>([])
 
@@ -56,14 +65,26 @@ export default function ResearchStudio() {
     },
   })
 
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
+  const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return
+    const allowed = ['.txt', '.md', '.json', '.csv']
+    const filtered = files.filter(f => allowed.some(ext => f.name.toLowerCase().endsWith(ext)))
+    if (filtered.length < files.length) {
+      toast.warning(`${files.length - filtered.length} file(s) skipped (unsupported type)`)
+    }
+    if (filtered.length === 0) return
     const readResults = await Promise.all(
-      files.map(file =>
+      filtered.map(file =>
         new Promise<{ file: File; name: string; content: string }>((resolve, reject) => {
           const reader = new FileReader()
-          reader.onload = (event) => resolve({ file, name: file.name, content: event.target?.result as string })
+          reader.onload = (event) => {
+            const result = event.target?.result
+            if (typeof result === 'string') {
+              resolve({ file, name: file.name, content: result })
+            } else {
+              reject(new Error(`FileReader returned non-string result for ${file.name}`))
+            }
+          }
           reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
           reader.readAsText(file)
         }).catch((err) => {
@@ -77,10 +98,20 @@ export default function ResearchStudio() {
       setUploadedFiles(prev => [...prev, ...successful.map(s => s.file)])
       setUploadedFileContents(prev => [...prev, ...successful.map(s => ({ name: s.name, content: s.content }))])
     }
-    if (successful.length < files.length) {
-      toast.warning(`Failed to read ${files.length - successful.length} file(s)`)
+    if (successful.length < filtered.length) {
+      toast.warning(`Failed to read ${filtered.length - successful.length} file(s)`)
     }
   }, [])
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    processFiles(Array.from(e.target.files || []))
+  }, [processFiles])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    processFiles(Array.from(e.dataTransfer.files))
+  }, [processFiles])
 
   const removeFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index))
@@ -129,6 +160,14 @@ export default function ResearchStudio() {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault()
+                  if (prompt.trim() && isAllowed && !submitMutation.isPending) {
+                    handleSubmit(e as unknown as React.FormEvent)
+                  }
+                }
+              }}
               placeholder="Describe your research question in detail. Be specific about what information you need, sources to prioritize, and desired output format..."
               rows={6}
               className="w-full px-3 py-2 bg-background border rounded-lg text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
@@ -177,29 +216,31 @@ export default function ResearchStudio() {
                   {/* Model */}
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
-                    <select
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      className="w-full px-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {MODELS.map((m) => (
-                        <option key={m.value} value={m.value}>{m.label} ({m.description})</option>
-                      ))}
-                    </select>
+                    <Select value={model} onValueChange={setModel}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MODELS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>{m.label} ({m.description})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Priority */}
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
-                    <select
-                      value={priority}
-                      onChange={(e) => setPriority(parseInt(e.target.value))}
-                      className="w-full px-3 py-2 bg-background border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {PRIORITIES.map((p) => (
-                        <option key={p.value} value={p.value}>{p.label}</option>
-                      ))}
-                    </select>
+                    <Select value={priority.toString()} onValueChange={(v) => setPriority(parseInt(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRIORITIES.map((p) => (
+                          <SelectItem key={p.value} value={p.value.toString()}>{p.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Web Search */}
@@ -223,19 +264,28 @@ export default function ResearchStudio() {
                 {/* File Upload */}
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">Context Files</label>
-                  <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary/30 transition-colors">
+                  <div
+                    className={cn(
+                      'border-2 border-dashed rounded-lg p-4 text-center transition-colors',
+                      isDragging ? 'border-primary bg-primary/5' : 'hover:border-primary/30'
+                    )}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                    onDragEnter={(e) => { e.preventDefault(); setIsDragging(true) }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                  >
                     <input
                       type="file"
                       id="file-upload"
                       multiple
-                      accept=".txt,.md,.json,.csv,.pdf"
+                      accept=".txt,.md,.json,.csv"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
                     <label htmlFor="file-upload" className="cursor-pointer">
-                      <FileUp className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
-                      <span className="text-sm text-foreground">Drop files or click to upload</span>
-                      <p className="text-xs text-muted-foreground mt-0.5">TXT, MD, JSON, CSV, PDF</p>
+                      <FileUp className={cn('w-5 h-5 mx-auto mb-1', isDragging ? 'text-primary' : 'text-muted-foreground')} />
+                      <span className="text-sm text-foreground">{isDragging ? 'Drop files here' : 'Drop files or click to upload'}</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">TXT, MD, JSON, CSV</p>
                     </label>
                   </div>
 
@@ -284,22 +334,19 @@ export default function ResearchStudio() {
               )}
             </div>
 
-            <button
-              type="submit"
-              disabled={!prompt.trim() || !isAllowed || submitMutation.isPending}
-              className={cn(
-                'inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all',
-                'bg-primary text-primary-foreground hover:bg-primary/90',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
-            >
-              {submitMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
+            <div className="flex items-center gap-2">
+              <kbd className="hidden sm:inline text-[10px] text-muted-foreground/60 font-mono">
+                {navigator.platform?.includes('Mac') ? '\u2318+\u21A9' : 'Ctrl+\u21B5'}
+              </kbd>
+              <Button
+                type="submit"
+                disabled={!prompt.trim() || !isAllowed}
+                loading={submitMutation.isPending}
+              >
                 <Send className="w-4 h-4" />
-              )}
-              Submit
-            </button>
+                Submit
+              </Button>
+            </div>
           </div>
         </div>
 

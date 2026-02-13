@@ -28,7 +28,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.8)
+## Current Status (v2.8.1)
 
 Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. Pre-commit hooks with ruff.
 
@@ -48,7 +48,7 @@ These features are well-tested and used regularly:
 
 These features work but APIs or behavior may change:
 
-- **Web dashboard**: Local research management UI - 10 pages with expert management, trace explorer, cost intelligence, real-time progress
+- **Web dashboard**: Local research management UI - 10 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
 - **MCP server**: Functional with 10 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
@@ -393,26 +393,33 @@ Defense-in-depth for autonomous research operations, especially when using agent
 
 Local research management interface for monitoring batch operations. CLI remains primary for scripting/automation; dashboard provides visibility when running many concurrent jobs.
 
-**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask backend. 10 pages with code-split routing, Radix UI component library, Recharts charts, WebSocket real-time updates. Light/dark/system theme. 22 API endpoints.
+**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask + Flask-SocketIO backend. 10 pages with code-split routing, skeleton loading states, Radix UI (shadcn/ui) component library, Recharts charts, WebSocket real-time push via background poller. Drag-and-drop file upload, Ctrl+Enter submit, copy-to-clipboard, pagination, mobile hamburger nav, FOUC prevention, skip-to-content a11y. Light/dark/system theme. 23 API endpoints.
 
 #### Completed
 - [x] Job submission and queue monitoring with real-time status
-- [x] Results library with search, sort, grid/list views
+- [x] Results library with search, sort, pagination (12/page)
 - [x] Cost analytics with daily/monthly trends, budget alerts
-- [x] Settings page (API keys, limits, defaults)
+- [x] Settings page (API keys, limits, defaults, environment info)
 - [x] Modern UI with light/dark/system mode toggle
 - [x] Full API coverage (jobs, costs, results, config)
 - [x] Frontend overhaul: Radix UI (shadcn/ui pattern) component library, Recharts, Zustand state, React Query
 - [x] Code-split lazy loading for all 10 routes (React.lazy + Suspense)
-- [x] Report viewer with markdown rendering, citation sidebar, export dropdown
+- [x] Report viewer with markdown rendering, citation sidebar, copy-to-clipboard, export dropdown
 - [x] Expert management UI (list experts, view stats, chat, knowledge gaps, learning history)
 - [x] Research live page with WebSocket real-time progress updates
 - [x] Trace explorer for inspecting execution spans, timing, and cost attribution
 - [x] Overview dashboard with activity feed, system health, spending summary
-- [x] Research studio with mode selector, model picker, web search toggle
+- [x] Research studio with mode selector, model picker, web search toggle, drag-and-drop file upload, Ctrl+Enter submit
 - [x] Cost intelligence page with per-model breakdown, budget sliders, anomaly detection
 - [x] Command palette (Ctrl+K) for quick navigation
 - [x] Toast notifications for user feedback (Sonner)
+- [x] Flask-SocketIO backend with background poller thread for real-time job status push
+- [x] Skeleton loading states replacing all spinners (CardGridSkeleton, DetailSkeleton, FormSkeleton)
+- [x] Standardized all form controls to shadcn/ui components (Input, Select, Button)
+- [x] Mobile hamburger navigation via Sheet component
+- [x] FOUC prevention with critical CSS inline
+- [x] Skip-to-content accessibility link
+- [x] Stale job cleanup endpoint (POST /api/jobs/cleanup-stale)
 
 #### Operational Analytics
 The dashboard should show *posture* (what's working, what's failing, what we're learning) rather than just counts. These surface the decision records and quality metrics that the kernel already tracks.
@@ -588,6 +595,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.6 | Observability, fallback, cost dashboard | Complete |
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
 | v2.8 | Provider intelligence, advanced context, real-time progress, expert formalization | Complete |
+| v2.8.1 | WebSocket push, background poller, UX overhaul (skeletons, shadcn, drag-drop, a11y) | Complete |
 | v2.9 | Web analytics, expert diffs, team features | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |

@@ -42,4 +42,20 @@ export const jobsApi = {
     const response = await apiClient.post('/jobs/bulk-cancel', { job_ids: jobIds })
     return response.data
   },
+
+  // Clean up stale PROCESSING/QUEUED jobs
+  cleanupStale: async () => {
+    const response = await apiClient.post<{ cleaned: number }>('/jobs/cleanup-stale')
+    return response.data
+  },
+
+  // Get job queue stats
+  getStats: async () => {
+    const response = await apiClient.get<{
+      total: number; queued: number; processing: number;
+      completed: number; failed: number; cancelled: number;
+      total_cost: number; total_tokens: number
+    }>('/jobs/stats')
+    return response.data
+  },
 }

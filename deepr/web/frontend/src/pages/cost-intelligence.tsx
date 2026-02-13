@@ -54,6 +54,8 @@ export default function CostIntelligence() {
     mutationFn: costApi.updateLimits,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cost'] })
+      // Allow server values to re-sync (e.g. if server clamped the values)
+      setLocalLimits(null)
     },
     onError: () => {
       toast.error('Failed to update budget limits')
@@ -287,7 +289,7 @@ export default function CostIntelligence() {
                 </div>
                 <input
                   type="range"
-                  min={0}
+                  min={1}
                   max={control.max}
                   step={control.max > 100 ? 10 : 1}
                   value={control.value}
