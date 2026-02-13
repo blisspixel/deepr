@@ -231,8 +231,8 @@ deepr run focus "Question" --model o3-deep-research --yes
 ```
 
 **Available models:**
-- `o4-mini-deep-research` (faster, cheaper, $0.50-2)
-- `o3-deep-research` (comprehensive, $5-15)
+- `o4-mini-deep-research` (faster, $2.00/query)
+- `o3-deep-research` (comprehensive, $0.50/query)
 
 ### Checking Results
 

@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.8)
+## Current State (v2.8.1)
 
 What works today:
 - Multi-provider deep research (OpenAI, Gemini, Grok, Anthropic, Azure)
@@ -22,9 +22,9 @@ What works today:
 - Smart query routing (--auto, --batch) with complexity-based model selection
 - Context discovery with semantic search and temporal tracking
 - Web dashboard (10 pages) with real-time progress updates
-- 1200+ tests
+- 3600+ tests
 
-## Near-Term Vision (v2.7-2.9)
+## Near-Term Vision (v2.9-3.0)
 
 ### Visible Thinking
 
