@@ -241,8 +241,9 @@ class LocalStorage(StorageBackend):
             # Create directory
             job_dir.mkdir(parents=True, exist_ok=True)
 
-            # Write report file
-            report_path = job_dir / filename
+            # Write report file (validate filename to prevent path traversal)
+            validated_filename = self._validate_filename(filename)
+            report_path = job_dir / validated_filename
             report_path.write_bytes(content)
 
             # Save metadata.json if metadata provided
