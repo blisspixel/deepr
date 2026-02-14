@@ -90,9 +90,9 @@ class TestModelCapabilities:
         for cap in MODEL_CAPABILITIES.values():
             assert largest.context_window >= cap.context_window
 
-        # Gemini should have largest context (1M tokens)
-        assert largest.provider == "gemini"
-        assert largest.context_window >= 1_000_000
+        # xAI Grok 4.1 has 2M context (largest in registry)
+        assert largest.provider == "xai"
+        assert largest.context_window >= 2_000_000
 
     def test_openai_models(self):
         """Test OpenAI model capabilities."""
@@ -116,7 +116,7 @@ class TestModelCapabilities:
 
     def test_gemini_models(self):
         """Test Gemini model capabilities."""
-        gemini_pro = get_model_capability("gemini", "gemini-3-pro")
+        gemini_pro = get_model_capability("gemini", "gemini-3-pro-preview")
         assert gemini_pro is not None
         assert "large_context" in gemini_pro.specializations
         assert gemini_pro.context_window >= 1_000_000

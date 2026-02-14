@@ -65,9 +65,9 @@ class TestGeminiProvider:
         # Test with Pro model (highest cost)
         cost_pro = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-pro")
         assert cost_pro > 0
-        # Pro: $1.25/M input + $5.00/M output = $6.25/M total
-        # 1000 tokens = 0.001M tokens = $0.00625
-        assert abs(cost_pro - 0.00625) < 0.0001
+        # Pro: $1.25/M input + $10.00/M output (includes thinking tokens)
+        # 1000 tokens = 0.001M tokens = $0.01125
+        assert abs(cost_pro - 0.01125) < 0.0001
 
         # Test with Flash model (balanced cost)
         cost_flash = provider._calculate_cost(input_tokens=1000, output_tokens=1000, model="gemini-2.5-flash")
