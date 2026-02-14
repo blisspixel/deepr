@@ -103,8 +103,8 @@ export default function ExpertHub() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
         <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
-        <p className="text-lg font-medium text-foreground mb-1">Failed to load experts</p>
-        <p className="text-sm text-muted-foreground mb-4">Check that the Deepr backend is running.</p>
+        <p className="text-lg font-medium text-foreground mb-1">Unable to load experts</p>
+        <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Experts will appear here once the server is running.</p>
         <button
           onClick={() => refetch()}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"

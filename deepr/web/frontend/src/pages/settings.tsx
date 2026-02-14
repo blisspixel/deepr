@@ -22,9 +22,11 @@ import {
   Database,
   DollarSign,
   HardDrive,
+  Loader2,
   Monitor,
   Moon,
   Palette,
+  Play,
   Server,
   Settings as SettingsIcon,
   Sun,
@@ -49,6 +51,20 @@ export default function Settings() {
     },
     onError: () => {
       toast.error('Failed to save settings')
+    },
+  })
+
+  const loadDemoMutation = useMutation({
+    mutationFn: () => configApi.loadDemo(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries()
+      toast.success(`Demo data loaded — ${data.created_jobs} sample jobs created`)
+      if (data.errors?.length) {
+        toast.warning(`Some demo data failed: ${data.errors[0]}`)
+      }
+    },
+    onError: () => {
+      toast.error('Failed to load demo data. Is the backend running?')
     },
   })
 
@@ -270,6 +286,24 @@ export default function Settings() {
                       </div>
                     </div>
                   )}
+                </div>
+                <div className="border-t pt-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Load Demo Data</p>
+                    <p className="text-xs text-muted-foreground">Create sample experts and research jobs to explore the UI</p>
+                  </div>
+                  <button
+                    onClick={() => loadDemoMutation.mutate()}
+                    disabled={loadDemoMutation.isPending}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                  >
+                    {loadDemoMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    {loadDemoMutation.isPending ? 'Loading...' : 'Load Demo Data'}
+                  </button>
                 </div>
               </div>
             </>
