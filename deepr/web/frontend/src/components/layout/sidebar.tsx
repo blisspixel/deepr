@@ -5,6 +5,7 @@ import {
   FileText,
   Users,
   DollarSign,
+  BarChart3,
   Settings,
   HelpCircle,
   PanelLeftClose,
@@ -36,9 +37,11 @@ const mainNavItems: NavItem[] = [
   { path: '/results', label: 'Results', icon: FileText },
   { path: '/experts', label: 'Experts', icon: Users },
   { path: '/costs', label: 'Costs', icon: DollarSign },
+  { path: '/models', label: 'Models', icon: BarChart3 },
 ]
 
 const bottomNavItems: NavItem[] = [
+  { path: '/help', label: 'Help', icon: HelpCircle },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -184,40 +187,6 @@ export default function Sidebar({ mobile }: { mobile?: boolean }) {
               collapsed={collapsed}
             />
           ))}
-
-          {/* Help link */}
-          {collapsed && !mobile ? (
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <a
-                  href="https://docs.deepr.dev"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Help"
-                  className={cn(
-                    'flex items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                    focusRing
-                  )}
-                >
-                  <HelpCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent side="right">Help</TooltipContent>
-            </Tooltip>
-          ) : (
-            <a
-              href="https://docs.deepr.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                focusRing
-              )}
-            >
-              <HelpCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="flex-1">Help</span>
-            </a>
-          )}
 
           {/* Collapse toggle (desktop only) */}
           {!mobile && (
