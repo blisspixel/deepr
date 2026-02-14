@@ -327,6 +327,14 @@ export interface ScoredGap {
   filled_by_job?: string
 }
 
+export interface ExpertHistoryEvent {
+  id: string
+  type: string
+  description: string
+  timestamp: string
+  cost?: number
+}
+
 export interface ExpertManifest {
   expert_name: string
   domain: string

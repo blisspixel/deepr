@@ -61,16 +61,23 @@ export default function ResultDetail() {
   const [copied, setCopied] = useState(false)
   const exportRef = useRef<HTMLDivElement>(null)
 
-  // Close export dropdown on click outside
+  // Close export dropdown on click outside or Escape key
   useEffect(() => {
     if (!showExport) return
-    const handler = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
         setShowExport(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowExport(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [showExport])
 
   const { data: result, isLoading, isError, refetch } = useQuery({
@@ -103,9 +110,9 @@ export default function ResultDetail() {
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
-        <p className="text-lg font-medium text-foreground mb-1">Failed to load result</p>
-        <p className="text-sm text-muted-foreground mb-4">Something went wrong fetching this result.</p>
+        <AlertTriangle className="w-10 h-10 text-muted-foreground/40 mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Unable to load result</p>
+        <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Result data will appear here once the server is running.</p>
         <button
           onClick={() => refetch()}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"

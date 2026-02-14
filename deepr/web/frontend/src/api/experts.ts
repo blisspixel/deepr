@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Expert, ExpertChat, ExpertManifest, Claim, DecisionRecord, ScoredGap } from '../types'
+import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertManifest, Claim, DecisionRecord, ScoredGap } from '../types'
 
 export const expertsApi = {
   list: async () => {
@@ -23,7 +23,7 @@ export const expertsApi = {
     return response.data.gaps
   },
   getHistory: async (name: string) => {
-    const response = await apiClient.get(`/experts/${name}/history`)
+    const response = await apiClient.get<{ events: ExpertHistoryEvent[] }>(`/experts/${name}/history`)
     return response.data.events
   },
   getManifest: async (name: string) => {

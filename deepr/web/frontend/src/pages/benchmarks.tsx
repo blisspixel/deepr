@@ -250,7 +250,7 @@ export default function Benchmarks() {
           <AlertCircle className="w-10 h-10 text-muted-foreground/40 mb-3" />
           <p className="text-lg font-medium text-foreground mb-1">Unable to load models</p>
           <p className="text-sm text-muted-foreground mb-4">
-            The backend server is not reachable. Model data and benchmarks will appear here once connected.
+            Could not connect to the backend. Model data and benchmarks will appear here once the server is running.
           </p>
           <button
             onClick={() => queryClient.invalidateQueries()}

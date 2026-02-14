@@ -115,7 +115,7 @@ export default function ExpertProfile() {
 
   const { data: history } = useQuery({
     queryKey: ['experts', decodedName, 'history'],
-    queryFn: () => expertsApi.getHistory(encodedName) as Promise<{ id: string; type: string; description: string; timestamp: string; cost?: number }[]>,
+    queryFn: () => expertsApi.getHistory(encodedName),
     enabled: !!decodedName && activeTab === 'history',
   })
 
@@ -153,9 +153,9 @@ export default function ExpertProfile() {
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
-        <p className="text-lg font-medium text-foreground mb-1">Failed to load expert</p>
-        <p className="text-sm text-muted-foreground mb-4">Something went wrong fetching this expert profile.</p>
+        <AlertTriangle className="w-10 h-10 text-muted-foreground/40 mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Unable to load expert</p>
+        <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Expert data will appear here once the server is running.</p>
         <button
           onClick={() => refetch()}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
@@ -223,7 +223,7 @@ export default function ExpertProfile() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-secondary rounded-lg w-fit">
+        <div className="flex gap-1 p-1 bg-secondary rounded-lg w-fit overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.key}
