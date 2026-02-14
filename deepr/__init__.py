@@ -37,4 +37,10 @@ def __getattr__(name: str) -> Any:
 
         return create_storage
 
+    # Backwards-compatible module exports used by tests and patch paths.
+    if name in {"providers", "storage", "core", "config"}:
+        import importlib
+
+        return importlib.import_module(f".{name}", __name__)
+
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
