@@ -242,7 +242,7 @@ export default function Benchmarks() {
 
   if (regError && benchError && !registry && !result) {
     return (
-      <div className="space-y-6">
+      <div className="p-6 space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Models</h1>
           <p className="text-sm text-muted-foreground mt-1">Model registry and benchmark results</p>
@@ -264,8 +264,25 @@ export default function Benchmarks() {
     )
   }
 
+  // Compute average report length per tier from results
+  const avgReportLengthByTier = useMemo(() => {
+    const map: Record<string, { total: number; count: number }> = {}
+    for (const r of results) {
+      if (r.report_length > 0) {
+        if (!map[r.tier]) map[r.tier] = { total: 0, count: 0 }
+        map[r.tier].total += r.report_length
+        map[r.tier].count++
+      }
+    }
+    const result: Record<string, number> = {}
+    for (const [tier, { total, count }] of Object.entries(map)) {
+      result[tier] = Math.round(total / count)
+    }
+    return result
+  }, [results])
+
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -423,19 +440,25 @@ export default function Benchmarks() {
                 </div>
                 <p className="text-lg font-semibold text-foreground">{modelName}</p>
                 <p className="text-xs text-muted-foreground mb-3">{provider}</p>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className={cn("grid gap-2 text-center", avgReportLengthByTier[tier] ? "grid-cols-4" : "grid-cols-3")}>
                   <div>
                     <p className="text-sm font-bold text-foreground">{(top.avg_quality * 100).toFixed(0)}%</p>
                     <p className="text-[10px] text-muted-foreground">Quality</p>
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">{formatLatency(top.avg_latency_ms)}</p>
-                    <p className="text-[10px] text-muted-foreground">Latency</p>
+                    <p className="text-[10px] text-muted-foreground">{tier === 'research' || tier === 'docs' ? 'Run Time' : 'Latency'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">{formatCurrency(top.total_cost)}</p>
                     <p className="text-[10px] text-muted-foreground">Cost</p>
                   </div>
+                  {avgReportLengthByTier[tier] && (
+                    <div>
+                      <p className="text-sm font-bold text-foreground">~{Math.round(avgReportLengthByTier[tier] / 500)}p</p>
+                      <p className="text-[10px] text-muted-foreground">Output</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -753,7 +776,7 @@ function ModelCard({
         <div className="border-t px-4 py-4 space-y-4 bg-muted/10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatBlock label="Quality" value={`${qualityPct.toFixed(1)}%`} icon={<Gauge className="h-3.5 w-3.5" />} />
-            <StatBlock label="Avg Latency" value={formatLatency(ranking.avg_latency_ms)} icon={<Clock className="h-3.5 w-3.5" />} />
+            <StatBlock label={ranking.tier === 'research' || ranking.tier === 'docs' ? 'Avg Run Time' : 'Avg Latency'} value={formatLatency(ranking.avg_latency_ms)} icon={<Clock className="h-3.5 w-3.5" />} />
             <StatBlock label="Total Cost" value={formatCurrency(ranking.total_cost)} icon={<DollarSign className="h-3.5 w-3.5" />} />
             <StatBlock
               label="Evals"

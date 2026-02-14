@@ -244,7 +244,13 @@ export default function ResultDetail() {
 
         {/* Content */}
         <div className="rounded-lg border bg-card p-6">
-          {showRaw ? (
+          {!result.content ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FileText className="w-8 h-8 text-muted-foreground/30 mb-2" />
+              <p className="text-sm font-medium text-muted-foreground">No report content available</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">The report may still be processing or was not saved.</p>
+            </div>
+          ) : showRaw ? (
             <pre className="whitespace-pre-wrap font-mono text-sm text-foreground overflow-x-auto">
               {result.content}
             </pre>
