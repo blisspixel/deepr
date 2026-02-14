@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { benchmarksApi } from '@/api/benchmarks'
+import { configApi } from '@/api/config'
 import { cn, formatCurrency } from '@/lib/utils'
 import { CHART_THEME } from '@/lib/chart-theme'
 import { toast } from 'sonner'
@@ -19,6 +20,8 @@ import {
   TrendingUp,
   Box,
   Cpu,
+  Key,
+  KeyRound,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -81,6 +84,19 @@ export default function Benchmarks() {
   const [showRunPanel, setShowRunPanel] = useState(false)
   const [runOpts, setRunOpts] = useState({ tier: 'all' as Tier, quick: false, no_judge: false })
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [showAvailableOnly, setShowAvailableOnly] = useState(true)
+  const [estimateData, setEstimateData] = useState<{
+    estimated_cost: number
+    model_count: number
+    provider_count: number
+    tier: string
+  } | null>(null)
+
+  const { data: config } = useQuery({
+    queryKey: ['config'],
+    queryFn: () => configApi.get(),
+  })
+  const providerKeys = config?.provider_keys ?? {}
 
   const { data: fileList } = useQuery({
     queryKey: ['benchmarks', 'list'],
@@ -115,9 +131,16 @@ export default function Benchmarks() {
     onSuccess: () => {
       toast.success('Benchmark started')
       setShowRunPanel(false)
+      setEstimateData(null)
       queryClient.invalidateQueries({ queryKey: ['benchmarks', 'status'] })
     },
     onError: (err: Error) => toast.error(err.message || 'Failed to start benchmark'),
+  })
+
+  const estimateMutation = useMutation({
+    mutationFn: benchmarksApi.estimate,
+    onSuccess: (data) => setEstimateData(data),
+    onError: (err: Error) => toast.error(err.message || 'Failed to estimate cost'),
   })
 
   const result = latestData?.result
@@ -188,6 +211,21 @@ export default function Benchmarks() {
     if (selectedTier === 'all') return unbenchmarked
     return unbenchmarked.filter((m) => m.tier === selectedTier)
   }, [unbenchmarked, selectedTier])
+
+  // Filter by provider availability
+  const availableSorted = useMemo(
+    () => showAvailableOnly
+      ? sorted.filter((r) => providerKeys[r.model_key.split('/')[0]] !== false)
+      : sorted,
+    [sorted, showAvailableOnly, providerKeys]
+  )
+
+  const availableUnbenchmarked = useMemo(
+    () => showAvailableOnly
+      ? tierUnbenchmarked.filter((m) => providerKeys[m.provider] !== false)
+      : tierUnbenchmarked,
+    [tierUnbenchmarked, showAvailableOnly, providerKeys]
+  )
 
   const isRunning = benchStatus?.status === 'running'
   const isLoading = benchLoading || regLoading
@@ -275,14 +313,42 @@ export default function Benchmarks() {
               Skip judge
             </label>
             <button
-              onClick={() => startMutation.mutate(runOpts)}
-              disabled={startMutation.isPending}
+              onClick={() => { setEstimateData(null); estimateMutation.mutate(runOpts) }}
+              disabled={estimateMutation.isPending || startMutation.isPending}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 ml-auto"
             >
-              {startMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-              Start
+              {estimateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <DollarSign className="h-3 w-3" />}
+              Estimate Cost
             </button>
           </div>
+          {estimateData && (
+            <div className="rounded-md border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20 p-3 space-y-2">
+              <div>
+                <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Estimated cost: {formatCurrency(estimateData.estimated_cost)}
+                </p>
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  {estimateData.model_count} models from {estimateData.provider_count} providers ({estimateData.tier} tier)
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { startMutation.mutate(runOpts); setEstimateData(null) }}
+                  disabled={startMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {startMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                  Confirm & Start
+                </button>
+                <button
+                  onClick={() => setEstimateData(null)}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border hover:bg-muted"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {isRunning && benchStatus?.output_lines && benchStatus.output_lines.length > 0 && (
             <pre className="text-xs text-muted-foreground bg-muted rounded p-2 max-h-24 overflow-y-auto font-mono">
               {benchStatus.output_lines.slice(-4).join('\n')}
@@ -352,40 +418,75 @@ export default function Benchmarks() {
         </div>
       )}
 
-      {/* Tier filter tabs */}
-      <div className="flex gap-1 border-b">
-        {tiers.map((tier) => {
-          const benchCount = tier === 'all'
-            ? rankings.filter(r => r.num_evals > 0).length
-            : rankings.filter(r => r.num_evals > 0 && r.tier === tier).length
-          const unbenchCount = tier === 'all'
-            ? unbenchmarked.length
-            : unbenchmarked.filter(m => m.tier === tier).length
-          const total = benchCount + unbenchCount
-          return (
-            <button
-              key={tier}
-              onClick={() => setSelectedTier(tier as Tier)}
-              className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize',
-                selectedTier === tier
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tier === 'all' ? `All (${total})` : `${tier} (${total})`}
-            </button>
-          )
-        })}
+      {/* Tier filter tabs + available toggle */}
+      <div className="flex items-center gap-2 border-b">
+        <div className="flex gap-1 flex-1">
+          {tiers.map((tier) => {
+            const benchCount = tier === 'all'
+              ? rankings.filter(r => r.num_evals > 0).length
+              : rankings.filter(r => r.num_evals > 0 && r.tier === tier).length
+            const unbenchCount = tier === 'all'
+              ? unbenchmarked.length
+              : unbenchmarked.filter(m => m.tier === tier).length
+            const total = benchCount + unbenchCount
+            return (
+              <button
+                key={tier}
+                onClick={() => setSelectedTier(tier as Tier)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize',
+                  selectedTier === tier
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tier === 'all' ? `All (${total})` : `${tier} (${total})`}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          onClick={() => setShowAvailableOnly(!showAvailableOnly)}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors border mb-px',
+            showAvailableOnly
+              ? 'bg-primary/10 text-primary border-primary/30'
+              : 'text-muted-foreground hover:text-foreground border-transparent hover:border-border'
+          )}
+          title={showAvailableOnly ? 'Showing models with configured API keys' : 'Showing all models'}
+        >
+          {showAvailableOnly ? <Key className="h-3 w-3" /> : <KeyRound className="h-3 w-3" />}
+          {showAvailableOnly ? 'Available' : 'All'}
+        </button>
       </div>
 
+      {/* Provider key status pills */}
+      {Object.keys(providerKeys).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(providerKeys).map(([provider, hasKey]) => (
+            <span
+              key={provider}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full',
+                hasKey
+                  ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+                  : 'bg-muted text-muted-foreground'
+              )}
+            >
+              <span className={cn('h-1.5 w-1.5 rounded-full', hasKey ? 'bg-green-500' : 'bg-muted-foreground/40')} />
+              {provider}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Quality chart — benchmarked models only */}
-      {sorted.length > 0 && (
+      {availableSorted.length > 0 && (
         <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-medium text-foreground mb-4">Quality Ranking</h3>
-          <div style={{ height: Math.max(220, sorted.length * 40) }}>
+          <div style={{ height: Math.max(220, availableSorted.length * 40) }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sorted.map((r, i) => ({
+              <BarChart data={availableSorted.map((r, i) => ({
                 model: `${(r.model_key.split('/').pop() || r.model_key)}${selectedTier === 'all' ? ` (${r.tier})` : ''}`,
                 quality: r.avg_quality,
                 fill: MODEL_COLORS[i % MODEL_COLORS.length],
@@ -418,7 +519,7 @@ export default function Benchmarks() {
                   formatter={(value: number) => [`${(value * 100).toFixed(1)}%`, 'Quality']}
                 />
                 <Bar dataKey="quality" radius={[0, 4, 4, 0]}>
-                  {sorted.map((_, i) => (
+                  {availableSorted.map((_, i) => (
                     <Cell key={i} fill={MODEL_COLORS[i % MODEL_COLORS.length]} />
                   ))}
                 </Bar>
@@ -429,11 +530,11 @@ export default function Benchmarks() {
       )}
 
       {/* Benchmarked model cards */}
-      {sorted.length > 0 && (
+      {availableSorted.length > 0 && (
         <div className="space-y-2">
-          {sorted.map((r, idx) => {
-            const showTierHeader = selectedTier === 'all' && (idx === 0 || sorted[idx - 1].tier !== r.tier)
-            const tierModels = sorted.filter((s) => s.tier === r.tier)
+          {availableSorted.map((r, idx) => {
+            const showTierHeader = selectedTier === 'all' && (idx === 0 || availableSorted[idx - 1].tier !== r.tier)
+            const tierModels = availableSorted.filter((s) => s.tier === r.tier)
             const tierRank = tierModels.indexOf(r) + 1
             return (
               <div key={`${r.model_key}-${r.tier}`}>
@@ -460,15 +561,15 @@ export default function Benchmarks() {
       )}
 
       {/* Unbenchmarked models from registry */}
-      {tierUnbenchmarked.length > 0 && (
+      {availableUnbenchmarked.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 pt-2 border-t">
             <Box className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">Available Models</h3>
-            <span className="text-xs text-muted-foreground">({tierUnbenchmarked.length} not yet benchmarked)</span>
+            <span className="text-xs text-muted-foreground">({availableUnbenchmarked.length} not yet benchmarked)</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {tierUnbenchmarked
+            {availableUnbenchmarked
               .sort((a, b) => (TIER_PRIORITY[a.tier] ?? 9) - (TIER_PRIORITY[b.tier] ?? 9) || a.cost_per_query - b.cost_per_query)
               .map((m) => (
                 <RegistryCard
