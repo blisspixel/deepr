@@ -279,7 +279,7 @@ Specific design decisions:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI/Gemini/Grok/Anthropic providers, local SQLite storage. 3600+ tests.
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI/Gemini/Grok/Anthropic providers, local SQLite storage. 3700+ tests.
 
 **Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (12 pages, polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
@@ -351,7 +351,7 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 - Budget controls to prevent runaway costs
 - Optional Docker isolation for untrusted workloads
 
-3600+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
+3700+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
 **Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
@@ -384,6 +384,6 @@ Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained 
 
 I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. Building Deepr is also an exercise in a broader question: what does it take to run AI agents *continuously* — with budgets, reliability, memory, and auditability? The patterns here (economic governance, provider routing, persistent expertise, decision observability) are transferable well beyond research. At minimum, it's a way to learn the space deeply. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
 
-There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (3600+ tests), but you're ultimately responsible for your own API keys and usage.
+There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (3700+ tests), but you're ultimately responsible for your own API keys and usage.
 
 [GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)
