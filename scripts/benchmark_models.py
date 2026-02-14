@@ -2208,7 +2208,7 @@ def print_report(summaries: list[ModelSummary], results: list[EvalResult], total
                 best = tier_summaries[0]
                 cost_per = best.total_cost / max(best.num_evals, 1)
                 label = {"chat": "Quick lookup", "news": "Live news", "research": "Deep research", "docs": "Documentation"}.get(tier, tier)
-                print(f"  {label:<20} → {best.model_key:<30} ${cost_per:.2f}/query")
+                print(f"  {label:<20} -> {best.model_key:<30} ${cost_per:.2f}/query")
     else:
         # Single-tier routing recommendations
         tier = tiers_present[0]
@@ -2893,16 +2893,7 @@ Examples:
     # Calculate actual cost
     total_cost = sum(s.total_cost for s in summaries)
 
-    if args.format == "json":
-        print_json_report(summaries, all_results, total_cost)
-    else:
-        print_report(summaries, all_results, total_cost)
-
-    # Compare against previous run
-    if args.compare:
-        compare_results(summaries, args.compare)
-
-    # Save results (also auto-emits routing config)
+    # Save results first (before report printing, which can fail on encoding)
     if args.save:
         out_file = save_results(summaries, all_results, total_cost)
         print(f"  Results saved to {out_file}")
@@ -2912,6 +2903,15 @@ Examples:
     if args.emit_routing_config and not args.save:
         config_file = emit_routing_config(summaries, all_results)
         print(f"  Routing config saved to {config_file}")
+
+    if args.format == "json":
+        print_json_report(summaries, all_results, total_cost)
+    else:
+        print_report(summaries, all_results, total_cost)
+
+    # Compare against previous run
+    if args.compare:
+        compare_results(summaries, args.compare)
 
     # Clear checkpoint on successful completion
     _clear_checkpoint()
