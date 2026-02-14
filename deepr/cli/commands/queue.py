@@ -2,6 +2,7 @@
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
@@ -32,8 +33,6 @@ def list(status: str, limit: int):
     print_section_header("Job Queue")
 
     try:
-        import asyncio
-
         from deepr.config import load_config
         from deepr.queue import create_queue
         from deepr.queue.base import JobStatus
@@ -46,7 +45,7 @@ def list(status: str, limit: int):
             filter_status = None if status == "all" else JobStatus(status)
             return await queue_svc.list_jobs(status=filter_status, limit=limit)
 
-        jobs = asyncio.run(get_jobs())
+        jobs = run_async_command(get_jobs())
 
         if not jobs:
             click.echo("\nQueue is empty")
@@ -92,8 +91,6 @@ def stats():
     print_section_header("Queue Statistics")
 
     try:
-        import asyncio
-
         from deepr.config import load_config
         from deepr.queue import create_queue
 
@@ -103,7 +100,7 @@ def stats():
         async def get_stats():
             return await queue_svc.get_queue_stats()
 
-        stats = asyncio.run(get_stats())
+        stats = run_async_command(get_stats())
 
         console.print("\nJob Statistics:")
         console.print(f"   Total Jobs: {stats['total']}")
@@ -225,8 +222,6 @@ def sync():
     print_section_header("Sync Queue with Provider")
 
     try:
-        import asyncio
-
         from deepr.config import load_config
         from deepr.providers import create_provider
         from deepr.queue import create_queue
@@ -296,7 +291,7 @@ def sync():
 
             return synced
 
-        synced = asyncio.run(sync_all())
+        synced = run_async_command(sync_all())
 
         if synced:
             print_success(f"Synced {len(synced)} job(s)")

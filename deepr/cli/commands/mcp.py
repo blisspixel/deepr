@@ -4,6 +4,8 @@ import sys
 
 import click
 
+from deepr.cli.async_runner import run_async_command
+
 
 @click.group()
 def mcp():
@@ -64,8 +66,6 @@ def test():
 
     Sends test requests to verify the server works correctly.
     """
-    import asyncio
-
     from deepr.mcp.server import DeeprMCPServer
 
     async def run_tests():
@@ -108,7 +108,7 @@ def test():
         click.echo("\n✓ MCP server tests completed")
 
     try:
-        asyncio.run(run_tests())
+        run_async_command(run_tests())
     except Exception as e:
         click.echo(f"Test failed: {e}", err=True)
         sys.exit(1)

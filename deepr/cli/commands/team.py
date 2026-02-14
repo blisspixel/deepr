@@ -1,10 +1,10 @@
 """Team commands - dynamic dream team research."""
 
-import asyncio
 from typing import Optional
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_section_header, print_success
 
 
@@ -361,7 +361,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
             )
             return results
 
-        results = asyncio.run(run_research())
+        results = run_async_command(run_research())
 
         # Update plan with results
         plan_data["results"] = results
