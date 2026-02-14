@@ -2,6 +2,7 @@
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
@@ -36,7 +37,6 @@ def create(name: str, files: tuple):
     print_section_header(f"Create Vector Store: {name}")
 
     try:
-        import asyncio
         import os
 
         from deepr.config import load_config
@@ -81,7 +81,7 @@ def create(name: str, files: tuple):
                 print_error("Indexing timed out")
                 raise click.Abort()
 
-        asyncio.run(create_store())
+        run_async_command(create_store())
 
     except Exception as e:
         print_error(f"Error: {e}")
@@ -106,8 +106,6 @@ def list(limit: int):
     print_section_header("Vector Stores")
 
     try:
-        import asyncio
-
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -118,7 +116,7 @@ def list(limit: int):
             stores = await provider.list_vector_stores(limit=limit)
             return stores
 
-        stores = asyncio.run(list_stores())
+        stores = run_async_command(list_stores())
 
         if not stores:
             click.echo("\nNo vector stores found.")
@@ -162,8 +160,6 @@ def delete(vector_store_id: str, yes: bool):
     print_section_header("Delete Vector Store")
 
     try:
-        import asyncio
-
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -183,7 +179,7 @@ def delete(vector_store_id: str, yes: bool):
             success = await provider.delete_vector_store(vector_store_id)
             return success
 
-        success = asyncio.run(delete_store())
+        success = run_async_command(delete_store())
 
         if success:
             print_success(f"Vector store deleted: {vector_store_id}")
@@ -216,7 +212,6 @@ def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
     print_section_header("Vector Store Cleanup")
 
     try:
-        import asyncio
         import fnmatch
 
         from deepr.config import load_config
@@ -292,7 +287,7 @@ def cleanup(pattern: str, all: bool, yes: bool, dry_run: bool):
 
             return deleted
 
-        asyncio.run(cleanup_stores())
+        run_async_command(cleanup_stores())
 
     except Exception as e:
         print_error(f"Error: {e}")
@@ -316,8 +311,6 @@ def info(vector_store_id: str):
     print_section_header("Vector Store Info")
 
     try:
-        import asyncio
-
         from deepr.config import load_config
         from deepr.providers.openai_provider import OpenAIProvider
 
@@ -334,7 +327,7 @@ def info(vector_store_id: str):
 
             return None
 
-        store = asyncio.run(get_info())
+        store = run_async_command(get_info())
 
         if not store:
             print_error(f"Vector store not found: {vector_store_id}")

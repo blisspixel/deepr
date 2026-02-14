@@ -11,8 +11,10 @@ from typing import Optional
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_warning
 from deepr.cli.commands.budget import check_budget_approval
+from deepr.cli.live_status import shimmer_status
 from deepr.cli.output import (
     OperationResult,
     OutputContext,
@@ -26,20 +28,6 @@ from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 
 MAX_FALLBACK_ATTEMPTS = 3
-
-
-def _run_async_command(coro):
-    """Run a coroutine for CLI commands and close leaked coroutines in tests.
-
-    When `asyncio.run` is mocked in unit tests, created coroutines can remain
-    unawaited and trigger noisy RuntimeWarnings. Closing an unconsumed coroutine
-    is safe and avoids those warnings while preserving runtime behavior.
-    """
-    try:
-        return asyncio.run(coro)
-    finally:
-        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
-            coro.close()
 
 
 def _classify_provider_error(exc: Exception, provider: str) -> None:
@@ -289,7 +277,7 @@ def focus(
         deepr run focus "AI trends" --explain --timeline
     """
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    _run_async_command(
+    run_async_command(
         _run_single(
             query,
             model,
@@ -302,7 +290,8 @@ def focus(
             output_context,
             trace_flags=trace_flags,
             no_fallback=no_fallback,
-        )
+        ),
+        runner=asyncio.run,
     )
 
 
@@ -409,209 +398,220 @@ async def _run_single(
     # Start operation feedback
     formatter.start_operation(f"Researching: {query[:50]}...")
 
-    # Budget check
-    if not _check_budget(yes, estimated_cost, output_context):
-        emitter.fail_task(op, "budget_declined")
-        return
+    with shimmer_status(
+        "Preparing research request...",
+        console=console,
+        enabled=output_context.mode == OutputMode.VERBOSE,
+    ) as live_status:
+        live_status.update("Checking budget...")
+        if not _check_budget(yes, estimated_cost, output_context):
+            emitter.fail_task(op, "budget_declined")
+            return
 
-    # Handle file uploads using refactored module
-    document_ids = []
-    vector_store_id = None
-    if upload:
-        from deepr.config import load_config
+        # Handle file uploads using refactored module
+        document_ids = []
+        vector_store_id = None
+        if upload:
+            live_status.update("Uploading context files...")
+            from deepr.config import load_config
 
-        config = load_config()
+            config = load_config()
 
-        upload_op = emitter.start_task(
-            "file_upload",
-            attributes={
-                "file_count": len(upload),
-            },
-        )
-
-        upload_result = await handle_file_uploads(provider, upload, formatter, config)
-
-        # Report errors in verbose mode
-        if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
-            for error in upload_result.errors:
-                print_warning(error)
-
-        # Extract results
-        vector_store_id = upload_result.vector_store_id
-        if not supports_vector_stores(provider):
-            document_ids = upload_result.uploaded_ids
-
-        upload_op.set_attribute("uploaded_count", len(upload_result.uploaded_ids))
-        emitter.complete_task(upload_op)
-
-    # Create and enqueue job
-    job_id, job = await _create_and_enqueue_job(
-        query, model, provider, no_web, no_code, document_ids, vector_store_id, limit, upload
-    )
-    op.set_attribute("job_id", job_id)
-    formatter.progress("Submitting research job...")
-
-    # === Fallback loop: submit to provider with automatic retry/fallback ===
-    current_provider = provider
-    current_model = model
-    attempted = []  # (provider, model) tuples that have failed
-    fallback_count = 0
-    last_error = None
-    success = False
-
-    while fallback_count <= MAX_FALLBACK_ATTEMPTS:
-        try:
-            # Handle vector_store degradation on fallback to non-supporting provider
-            effective_vector_store_id = vector_store_id
-            if vector_store_id and not supports_vector_stores(current_provider):
-                effective_vector_store_id = None
-                if output_context.mode == OutputMode.VERBOSE:
-                    print_warning(
-                        f"{current_provider} does not support file search; proceeding without uploaded file context"
-                    )
-
-            submit_start = time.time()
-            await _submit_to_provider(
-                job_id,
-                query,
-                current_model,
-                current_provider,
-                no_web,
-                no_code,
-                document_ids,
-                effective_vector_store_id,
-                output_context,
-                formatter,
-                start_time,
-                emitter,
+            upload_op = emitter.start_task(
+                "file_upload",
+                attributes={
+                    "file_count": len(upload),
+                },
             )
 
-            # Success — record metrics
-            submit_latency = (time.time() - submit_start) * 1000
+            upload_result = await handle_file_uploads(provider, upload, formatter, config)
+
+            # Report errors in verbose mode
+            if upload_result.has_errors and output_context.mode == OutputMode.VERBOSE:
+                for error in upload_result.errors:
+                    print_warning(error)
+
+            # Extract results
+            vector_store_id = upload_result.vector_store_id
+            if not supports_vector_stores(provider):
+                document_ids = upload_result.uploaded_ids
+
+            upload_op.set_attribute("uploaded_count", len(upload_result.uploaded_ids))
+            emitter.complete_task(upload_op)
+
+        live_status.update("Queueing job...")
+        # Create and enqueue job
+        job_id, job = await _create_and_enqueue_job(
+            query, model, provider, no_web, no_code, document_ids, vector_store_id, limit, upload
+        )
+        op.set_attribute("job_id", job_id)
+        formatter.progress("Submitting research job...")
+
+        # === Fallback loop: submit to provider with automatic retry/fallback ===
+        current_provider = provider
+        current_model = model
+        attempted = []  # (provider, model) tuples that have failed
+        fallback_count = 0
+        last_error = None
+        success = False
+
+        while fallback_count <= MAX_FALLBACK_ATTEMPTS:
             try:
-                router.record_result(
-                    current_provider,
+                live_status.update(f"Submitting to {current_provider}/{current_model}...")
+                # Handle vector_store degradation on fallback to non-supporting provider
+                effective_vector_store_id = vector_store_id
+                if vector_store_id and not supports_vector_stores(current_provider):
+                    effective_vector_store_id = None
+                    if output_context.mode == OutputMode.VERBOSE:
+                        print_warning(
+                            f"{current_provider} does not support file search; proceeding without uploaded file context"
+                        )
+
+                submit_start = time.time()
+                await _submit_to_provider(
+                    job_id,
+                    query,
                     current_model,
-                    success=True,
-                    latency_ms=submit_latency,
+                    current_provider,
+                    no_web,
+                    no_code,
+                    document_ids,
+                    effective_vector_store_id,
+                    output_context,
+                    formatter,
+                    start_time,
+                    emitter,
                 )
-            except Exception:
-                pass  # Non-critical
-            success = True
-            break
 
-        except ProviderAuthError as e:
-            # Auth errors: skip provider entirely, don't retry same provider
-            last_error = e
-            try:
-                router.record_result(current_provider, current_model, success=False, error=str(e))
-            except Exception:
-                pass
-            if output_context.mode == OutputMode.VERBOSE:
-                print_warning(f"{current_provider}: authentication failed, skipping")
-            attempted.append((current_provider, current_model))
+                # Success — record metrics
+                submit_latency = (time.time() - submit_start) * 1000
+                try:
+                    router.record_result(
+                        current_provider,
+                        current_model,
+                        success=True,
+                        latency_ms=submit_latency,
+                    )
+                except Exception:
+                    pass  # Non-critical
+                success = True
+                break
 
-        except ProviderRateLimitError as e:
-            # Rate limit: immediate fallback (provider already retried internally)
-            last_error = e
-            try:
-                router.record_result(current_provider, current_model, success=False, error=str(e))
-            except Exception:
-                pass
-            attempted.append((current_provider, current_model))
-
-        except ProviderTimeoutError as e:
-            # Timeout: retry same provider once, then fallback
-            last_error = e
-            if (current_provider, current_model) not in attempted:
-                # First timeout for this provider — retry once
-                attempted.append((current_provider, current_model))
+            except ProviderAuthError as e:
+                # Auth errors: skip provider entirely, don't retry same provider
+                last_error = e
+                try:
+                    router.record_result(current_provider, current_model, success=False, error=str(e))
+                except Exception:
+                    pass
                 if output_context.mode == OutputMode.VERBOSE:
-                    console.print(f"  [yellow]Timeout on {current_provider}/{current_model}, retrying...[/yellow]")
-                continue  # Retry same provider without incrementing fallback_count
+                    print_warning(f"{current_provider}: authentication failed, skipping")
+                attempted.append((current_provider, current_model))
 
-            # Second timeout — record and fall through to fallback
-            try:
-                router.record_result(current_provider, current_model, success=False, error=str(e))
-            except Exception:
-                pass
+            except ProviderRateLimitError as e:
+                # Rate limit: immediate fallback (provider already retried internally)
+                last_error = e
+                try:
+                    router.record_result(current_provider, current_model, success=False, error=str(e))
+                except Exception:
+                    pass
+                attempted.append((current_provider, current_model))
 
-        except CoreProviderError as e:
-            # Generic provider error or unavailable: immediate fallback
-            last_error = e
-            try:
-                router.record_result(current_provider, current_model, success=False, error=str(e))
-            except Exception:
-                pass
-            attempted.append((current_provider, current_model))
+            except ProviderTimeoutError as e:
+                # Timeout: retry same provider once, then fallback
+                last_error = e
+                if (current_provider, current_model) not in attempted:
+                    # First timeout for this provider — retry once
+                    attempted.append((current_provider, current_model))
+                    if output_context.mode == OutputMode.VERBOSE:
+                        console.print(f"  [yellow]Timeout on {current_provider}/{current_model}, retrying...[/yellow]")
+                    continue  # Retry same provider without incrementing fallback_count
 
-        # === Fallback selection ===
+                # Second timeout — record and fall through to fallback
+                try:
+                    router.record_result(current_provider, current_model, success=False, error=str(e))
+                except Exception:
+                    pass
 
-        # If --no-fallback, stop after first error
-        if no_fallback:
-            duration = time.time() - start_time
-            result = OperationResult(
-                success=False,
-                duration_seconds=duration,
-                cost_usd=0.0,
-                job_id=job_id,
-                error=f"Provider {current_provider}/{current_model} failed: {last_error}",
-                error_code="PROVIDER_ERROR",
-            )
-            formatter.complete(result)
-            emitter.fail_task(op, str(last_error))
-            return
+            except CoreProviderError as e:
+                # Generic provider error or unavailable: immediate fallback
+                last_error = e
+                try:
+                    router.record_result(current_provider, current_model, success=False, error=str(e))
+                except Exception:
+                    pass
+                attempted.append((current_provider, current_model))
 
-        # Get fallback from router
-        fallback = router.get_fallback(current_provider, current_model, reason=str(last_error))
+            # === Fallback selection ===
 
-        # If router returned an already-attempted provider, try select_provider with exclusions
-        if fallback and fallback in attempted:
-            try:
-                fallback = router.select_provider(task_type="research", exclude=attempted)
-                if fallback in attempted:
+            # If --no-fallback, stop after first error
+            if no_fallback:
+                duration = time.time() - start_time
+                result = OperationResult(
+                    success=False,
+                    duration_seconds=duration,
+                    cost_usd=0.0,
+                    job_id=job_id,
+                    error=f"Provider {current_provider}/{current_model} failed: {last_error}",
+                    error_code="PROVIDER_ERROR",
+                )
+                formatter.complete(result)
+                emitter.fail_task(op, str(last_error))
+                return
+
+            # Get fallback from router
+            fallback = router.get_fallback(current_provider, current_model, reason=str(last_error))
+
+            # If router returned an already-attempted provider, try select_provider with exclusions
+            if fallback and fallback in attempted:
+                try:
+                    fallback = router.select_provider(task_type="research", exclude=attempted)
+                    if fallback in attempted:
+                        fallback = None
+                except Exception:
                     fallback = None
-            except Exception:
-                fallback = None
 
-        if fallback is None:
-            # No more fallbacks available
-            duration = time.time() - start_time
-            result = OperationResult(
-                success=False,
-                duration_seconds=duration,
-                cost_usd=0.0,
-                job_id=job_id,
-                error=f"All providers failed. Last error: {last_error}",
-                error_code="ALL_PROVIDERS_FAILED",
-            )
-            formatter.complete(result)
-            emitter.fail_task(op, "all_providers_failed")
-            return
+            if fallback is None:
+                # No more fallbacks available
+                duration = time.time() - start_time
+                result = OperationResult(
+                    success=False,
+                    duration_seconds=duration,
+                    cost_usd=0.0,
+                    job_id=job_id,
+                    error=f"All providers failed. Last error: {last_error}",
+                    error_code="ALL_PROVIDERS_FAILED",
+                )
+                formatter.complete(result)
+                emitter.fail_task(op, "all_providers_failed")
+                return
 
-        fallback_provider, fallback_model = fallback
+            fallback_provider, fallback_model = fallback
+            live_status.update(f"Fallback to {fallback_provider}/{fallback_model}...")
 
-        # Emit fallback event to trace
-        op.add_event(
-            "fallback_triggered",
-            {
-                "from_provider": current_provider,
-                "from_model": current_model,
-                "to_provider": fallback_provider,
-                "to_model": fallback_model,
-                "reason": str(last_error),
-                "attempt": fallback_count + 1,
-            },
-        )
-
-        if output_context.mode == OutputMode.VERBOSE:
-            console.print(
-                f"  [yellow]Falling back: {current_provider}/{current_model} "
-                f"-> {fallback_provider}/{fallback_model}[/yellow]"
+            # Emit fallback event to trace
+            op.add_event(
+                "fallback_triggered",
+                {
+                    "from_provider": current_provider,
+                    "from_model": current_model,
+                    "to_provider": fallback_provider,
+                    "to_model": fallback_model,
+                    "reason": str(last_error),
+                    "attempt": fallback_count + 1,
+                },
             )
 
-        current_provider, current_model = fallback
-        fallback_count += 1
+            if output_context.mode == OutputMode.VERBOSE:
+                console.print(
+                    f"  [yellow]Falling back: {current_provider}/{current_model} "
+                    f"-> {fallback_provider}/{fallback_model}[/yellow]"
+                )
+
+            current_provider, current_model = fallback
+            fallback_count += 1
+
+        live_status.update("Finalizing trace...")
 
     if not success:
         duration = time.time() - start_time
@@ -991,7 +991,7 @@ def project(
         deepr run project "Market entry analysis" --phases 4
         deepr run project "Competitive landscape" -m o3-deep-research
     """
-    _run_async_command(_run_campaign(scenario, model, lead, phases, yes))
+    run_async_command(_run_campaign(scenario, model, lead, phases, yes), runner=asyncio.run)
 
 
 async def _run_campaign(
@@ -1118,7 +1118,7 @@ def team(
         deepr run team "Evaluate merger opportunity" --perspectives 8
         deepr run team "Technology decision" -m o3-deep-research
     """
-    _run_async_command(_run_team(question, model, perspectives, yes))
+    run_async_command(_run_team(question, model, perspectives, yes), runner=asyncio.run)
 
 
 async def _run_team(
@@ -1204,7 +1204,7 @@ def docs(
     # TODO: Add system_message parameter to _run_single for customization
 
     # Call _run_single with docs-specific parameters
-    _run_async_command(
+    run_async_command(
         _run_single(
             query=f"Create comprehensive documentation for: {topic}",
             model=model,
@@ -1216,7 +1216,8 @@ def docs(
             yes=yes,
             output_context=output_context,
             no_fallback=no_fallback,
-        )
+        ),
+        runner=asyncio.run,
     )
 
 
@@ -1234,10 +1235,11 @@ def docs(
 @output_options
 def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, no_fallback, output_context):
     """Quick alias for 'deepr run focus' - run a focused research job."""
-    _run_async_command(
+    run_async_command(
         _run_single(
             query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback
-        )
+        ),
+        runner=asyncio.run,
     )
 
 

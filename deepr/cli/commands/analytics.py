@@ -2,6 +2,7 @@
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success
 
 
@@ -32,7 +33,6 @@ def report(period: str):
     print_section_header(f"Analytics Report - {period.capitalize()}")
 
     try:
-        import asyncio
         from collections import defaultdict
         from datetime import datetime, timedelta, timezone
 
@@ -45,7 +45,7 @@ def report(period: str):
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
 
-        all_jobs = asyncio.run(get_jobs())
+        all_jobs = run_async_command(get_jobs())
 
         # Filter by time period
         now = datetime.now(timezone.utc)
@@ -180,7 +180,6 @@ def trends():
     print_section_header("Usage Trends")
 
     try:
-        import asyncio
         from collections import defaultdict
         from datetime import datetime, timedelta, timezone
 
@@ -193,7 +192,7 @@ def trends():
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
 
-        all_jobs = asyncio.run(get_jobs())
+        all_jobs = run_async_command(get_jobs())
 
         # Group by day
         now = datetime.now(timezone.utc)
@@ -244,7 +243,6 @@ def failures():
     print_section_header("Failure Analysis")
 
     try:
-        import asyncio
         from collections import Counter
 
         from deepr.config import load_config
@@ -256,7 +254,7 @@ def failures():
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
 
-        all_jobs = asyncio.run(get_jobs())
+        all_jobs = run_async_command(get_jobs())
 
         failed_jobs = [j for j in all_jobs if j.status.value == "failed"]
 

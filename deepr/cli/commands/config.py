@@ -2,7 +2,18 @@
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success
+
+_CLI_ENV_KEY_ALIASES = {
+    "cli.branding": "DEEPR_BRANDING",
+    "cli.animations": "DEEPR_ANIMATIONS",
+}
+
+_ALLOWED_CONFIG_VALUES = {
+    "DEEPR_BRANDING": {"off", "on", "auto"},
+    "DEEPR_ANIMATIONS": {"off", "light", "full"},
+}
 
 
 @click.group()
@@ -53,7 +64,6 @@ def validate():
     print_section_header("Configuration Validation")
 
     try:
-        import asyncio
         import os
         from pathlib import Path
 
@@ -137,7 +147,7 @@ def validate():
                     except Exception as e:
                         return str(e)
 
-                result = asyncio.run(test_api())
+                result = run_async_command(test_api())
                 if result is True:
                     console.print("[success]API connectivity verified[/success]")
                 else:
@@ -243,6 +253,7 @@ def set(key: str, value: str):
     try:
         from pathlib import Path
 
+        normalized_key, normalized_value = _normalize_config_key_value(key, value)
         env_file = Path(".env")
 
         if not env_file.exists():
@@ -256,21 +267,48 @@ def set(key: str, value: str):
         found = False
         new_lines = []
         for line in lines:
-            if line.startswith(f"{key}="):
-                new_lines.append(f"{key}={value}")
+            if line.startswith(f"{normalized_key}="):
+                new_lines.append(f"{normalized_key}={normalized_value}")
                 found = True
             else:
                 new_lines.append(line)
 
         if not found:
-            new_lines.append(f"{key}={value}")
+            new_lines.append(f"{normalized_key}={normalized_value}")
 
         # Write back
         env_file.write_text("\n".join(new_lines) + "\n")
 
-        print_success(f"Configuration updated: {key}={value}")
+        print_success(f"Configuration updated: {normalized_key}={normalized_value}")
         console.print("\nRestart any running services for changes to take effect")
 
+    except click.ClickException as e:
+        print_error(str(e))
+        raise click.Abort()
     except Exception as e:
         print_error(f"Error: {e}")
         raise click.Abort()
+
+
+def _normalize_config_key_value(key: str, value: str) -> tuple[str, str]:
+    """Normalize config aliases and validate constrained values."""
+    normalized_key = key.strip()
+    alias = normalized_key.lower()
+
+    if alias.startswith("cli.") and alias not in _CLI_ENV_KEY_ALIASES:
+        valid_keys = ", ".join(sorted(_CLI_ENV_KEY_ALIASES))
+        raise click.ClickException(f"Unknown CLI config key '{key}'. Valid keys: {valid_keys}")
+
+    normalized_key = _CLI_ENV_KEY_ALIASES.get(alias, normalized_key)
+    normalized_value = value.strip()
+
+    allowed_values = _ALLOWED_CONFIG_VALUES.get(normalized_key)
+    if allowed_values is not None:
+        normalized_value = normalized_value.lower()
+        if normalized_value not in allowed_values:
+            allowed_list = ", ".join(sorted(allowed_values))
+            raise click.ClickException(
+                f"Invalid value '{value}' for {normalized_key}. Allowed values: {allowed_list}"
+            )
+
+    return normalized_key, normalized_value
