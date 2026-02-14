@@ -1321,6 +1321,13 @@ def get_config():
                 "daily_limit": cost_controller.max_daily_cost if cost_controller else 100.0,
                 "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 1000.0,
                 "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
+                "provider_keys": {
+                    "openai": bool(os.getenv("OPENAI_API_KEY")),
+                    "xai": bool(os.getenv("XAI_API_KEY")),
+                    "gemini": bool(os.getenv("GEMINI_API_KEY")),
+                    "anthropic": bool(os.getenv("ANTHROPIC_API_KEY")),
+                    "azure-foundry": bool(os.getenv("AZURE_PROJECT_ENDPOINT")),
+                },
             }
         return jsonify({"config": config})
 
@@ -1899,6 +1906,68 @@ def get_benchmark(filename):
 
     except Exception as e:
         logger.error(f"Error getting benchmark {filename}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/benchmarks/estimate", methods=["POST"])
+def estimate_benchmark():
+    """Estimate cost for a benchmark run (dry-run)."""
+    import subprocess
+
+    try:
+        data = request.json or {}
+        tier = data.get("tier", "all")
+        quick = data.get("quick", False)
+        no_judge = data.get("no_judge", False)
+
+        if tier not in ("all", "chat", "news", "research", "docs"):
+            return jsonify({"error": "Invalid tier"}), 400
+
+        cmd = [sys.executable, "scripts/benchmark_models.py", "--dry-run", "--tier", tier]
+        if quick:
+            cmd.append("--quick")
+        if no_judge:
+            cmd.append("--no-judge")
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=str(Path(__file__).resolve().parent.parent.parent),
+        )
+
+        estimated_cost = 0.0
+        model_count = 0
+        provider_count = 0
+        for line in result.stdout.splitlines():
+            stripped = line.strip()
+            if "Estimated cost:" in stripped:
+                try:
+                    estimated_cost = float(stripped.split("$")[1])
+                except (IndexError, ValueError):
+                    pass
+            if "models selected" in stripped:
+                try:
+                    parts = stripped.split(",")
+                    provider_count = int(parts[0].strip().split()[0])
+                    model_count = int(parts[1].strip().split()[0])
+                except (IndexError, ValueError):
+                    pass
+
+        return jsonify(
+            {
+                "estimated_cost": estimated_cost,
+                "model_count": model_count,
+                "provider_count": provider_count,
+                "tier": tier,
+            }
+        )
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Estimation timed out"}), 504
+    except Exception as e:
+        logger.error(f"Error estimating benchmark: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
