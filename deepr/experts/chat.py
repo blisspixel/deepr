@@ -530,7 +530,7 @@ Budget remaining: ${budget_remaining:.2f}
             Dict with answer and sources
         """
         try:
-            # Use GPT-5.2 with high reasoning effort for better quality
+            # Use GPT-5.2 with low reasoning effort for knowledge lookups
             response = await self.client.chat.completions.create(
                 model="gpt-5.2",
                 messages=[
@@ -540,7 +540,7 @@ Budget remaining: ${budget_remaining:.2f}
                     },
                     {"role": "user", "content": query},
                 ],
-                reasoning_effort="high",  # High reasoning for quality
+                reasoning_effort="low",
             )
 
             answer = response.choices[0].message.content or ""
@@ -665,7 +665,7 @@ Budget remaining: ${budget_remaining:.2f}
                         },
                         {"role": "user", "content": query},
                     ],
-                    reasoning_effort="high",
+                    reasoning_effort="low",
                 )
 
                 answer = f"{response.choices[0].message.content or ''}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
