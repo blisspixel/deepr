@@ -1,11 +1,11 @@
 """Make and agentic command groups - artifact generation and autonomous research."""
 
-import asyncio
 import os
 from typing import Optional
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_header, print_key_value, print_section_header
 
 
@@ -105,7 +105,7 @@ def make_docs(
             click.echo(f"Error: {e}", err=True)
             return
 
-    asyncio.run(_generate_docs(topic, output_format, outline, files, provider, model, output, yes))
+    run_async_command(_generate_docs(topic, output_format, outline, files, provider, model, output, yes))
 
 
 async def _generate_docs(
@@ -400,7 +400,7 @@ def make_strategy(
         click.echo(f"Error: {e}", err=True)
         return
 
-    asyncio.run(_generate_strategy(topic, perspective, time_horizon, provider, model, output, yes))
+    run_async_command(_generate_strategy(topic, perspective, time_horizon, provider, model, output, yes))
 
 
 async def _generate_strategy(
@@ -657,7 +657,7 @@ def agentic_research(
             click.echo(f"Error: {e}", err=True)
             return
 
-    asyncio.run(_run_agentic_research(topic, goal, rounds, budget, provider, model, output, resume, yes))
+    run_async_command(_run_agentic_research(topic, goal, rounds, budget, provider, model, output, resume, yes))
 
 
 async def _run_agentic_research(

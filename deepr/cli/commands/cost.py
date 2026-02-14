@@ -2,6 +2,7 @@
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header
 
 
@@ -71,7 +72,6 @@ def summary(period: str):
     print_section_header(f"Cost Summary - {period.capitalize()}")
 
     try:
-        import asyncio
         from datetime import datetime, timedelta, timezone
 
         from deepr.config import load_config
@@ -83,7 +83,7 @@ def summary(period: str):
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
 
-        all_jobs = asyncio.run(get_jobs())
+        all_jobs = run_async_command(get_jobs())
 
         # Filter by time period
         now = datetime.now(timezone.utc)

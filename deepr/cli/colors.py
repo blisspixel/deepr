@@ -17,6 +17,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.theme import Theme
 
+from deepr.cli.effects import branding_enabled, gradient_text, resolve_animation_policy
+
 
 def _detect_unicode_support() -> bool:
     """Detect if terminal supports Unicode.
@@ -101,12 +103,28 @@ custom_theme = Theme(
 )
 
 console = Console(theme=custom_theme)
+_ANIMATION_POLICY = resolve_animation_policy(console)
 
 
 def print_header(text: str):
     """Print a section header with modern styling."""
     console.print()
-    console.print(f"[bold cyan]{text}[/bold cyan]")
+    if branding_enabled(console):
+        hue_shift = (os.times().elapsed % 12) / 12
+        console.print(gradient_text(text, hue_offset=hue_shift))
+    else:
+        console.print(f"[bold cyan]{text}[/bold cyan]")
+    console.print()
+
+
+def print_brand_header(text: str):
+    """Print a gradient brand-style header when advanced effects are enabled."""
+    console.print()
+    if branding_enabled(console):
+        hue_shift = (os.times().elapsed % 12) / 12
+        console.print(gradient_text(text, hue_offset=hue_shift))
+    else:
+        console.print(f"[bold cyan]{text}[/bold cyan]")
     console.print()
 
 

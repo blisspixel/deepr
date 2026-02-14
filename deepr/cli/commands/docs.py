@@ -2,6 +2,7 @@
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
 
 
@@ -47,9 +48,7 @@ def analyze(docs_path: str, scenario: str, topics: int, planner: str, model: str
     """
     print_section_header("Documentation Gap Analysis")
 
-    import asyncio
-
-    asyncio.run(
+    run_async_command(
         _analyze_and_queue(
             docs_path=docs_path,
             scenario=scenario,

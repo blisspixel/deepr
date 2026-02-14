@@ -4,10 +4,9 @@ Provides semantic and keyword search across research reports.
 Part of Context Discovery (6.1) feature.
 """
 
-import asyncio
-
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import (
     console,
     print_error,
@@ -52,7 +51,7 @@ def search_query(query: str, top: int, threshold: float, keyword_only: bool, jso
         deepr search query "authentication patterns" --top 10
         deepr search query "AWS security" --threshold 0.8
     """
-    asyncio.run(_search_query(query, top, threshold, keyword_only, json_output))
+    run_async_command(_search_query(query, top, threshold, keyword_only, json_output))
 
 
 async def _search_query(query: str, top: int, threshold: float, keyword_only: bool, json_output: bool):
@@ -125,7 +124,7 @@ def index_reports(force: bool):
         deepr search index
         deepr search index --force
     """
-    asyncio.run(_index_reports(force))
+    run_async_command(_index_reports(force))
 
 
 async def _index_reports(force: bool):

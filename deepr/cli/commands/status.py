@@ -1,25 +1,16 @@
 """Job status and management commands."""
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Optional
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_deprecation
 from deepr.cli.output import OutputContext, OutputMode, format_cost, format_duration, output_options
 from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
-
-
-def _run_async_command(coro):
-    """Run command coroutine and close it if a mocked runner doesn't consume it."""
-    try:
-        return asyncio.run(coro)
-    finally:
-        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
-            coro.close()
 
 
 @click.command()
@@ -34,7 +25,7 @@ def status(job_id: str, output_context: OutputContext):
     """
     if output_context.mode == OutputMode.VERBOSE:
         print_deprecation("deepr status <job-id>", "deepr jobs status <job-id>")
-    _run_async_command(_show_status(job_id, output_context))
+    run_async_command(_show_status(job_id, output_context))
 
 
 async def _show_status(job_id: str, output_context: Optional[OutputContext] = None):
@@ -136,7 +127,7 @@ def get(job_id: str, output_context: OutputContext):
     """
     if output_context.mode == OutputMode.VERBOSE:
         print_deprecation("deepr get <job-id>", "deepr jobs get <job-id>")
-    _run_async_command(_get_results(job_id, output_context))
+    run_async_command(_get_results(job_id, output_context))
 
 
 async def _get_results(job_id: str, output_context: Optional[OutputContext] = None):
@@ -358,7 +349,7 @@ def list_jobs(status_filter: str, limit: int, output_context: OutputContext):
     """
     if output_context.mode == OutputMode.VERBOSE:
         print_deprecation("deepr list", "deepr jobs list")
-    _run_async_command(_list_jobs(status_filter, limit, output_context))
+    run_async_command(_list_jobs(status_filter, limit, output_context))
 
 
 async def _refresh_job_statuses(queue, jobs):
@@ -568,7 +559,7 @@ def cancel(job_id: str, output_context: OutputContext):
     """
     if output_context.mode == OutputMode.VERBOSE:
         print_deprecation("deepr cancel <job-id>", "deepr jobs cancel <job-id>")
-    _run_async_command(_cancel_job(job_id, output_context))
+    run_async_command(_cancel_job(job_id, output_context))
 
 
 async def _cancel_job(job_id: str, output_context: Optional[OutputContext] = None):
@@ -626,7 +617,7 @@ async def _cancel_job(job_id: str, output_context: Optional[OutputContext] = Non
 @output_options
 def status_alias(job_id: str, output_context: OutputContext):
     """Quick alias for 'deepr status'."""
-    _run_async_command(_show_status(job_id, output_context))
+    run_async_command(_show_status(job_id, output_context))
 
 
 @click.command(name="l")
@@ -635,7 +626,7 @@ def status_alias(job_id: str, output_context: OutputContext):
 @output_options
 def list_alias(status_filter: str, limit: int, output_context: OutputContext):
     """Quick alias for 'deepr list'."""
-    _run_async_command(_list_jobs(status_filter, limit, output_context))
+    run_async_command(_list_jobs(status_filter, limit, output_context))
 
 
 if __name__ == "__main__":
