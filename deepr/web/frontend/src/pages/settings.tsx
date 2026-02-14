@@ -124,9 +124,9 @@ export default function Settings() {
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
-        <p className="text-lg font-medium text-foreground mb-1">Failed to load settings</p>
-        <p className="text-sm text-muted-foreground mb-4">Could not fetch configuration from the server.</p>
+        <AlertTriangle className="w-10 h-10 text-muted-foreground/40 mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Unable to load settings</p>
+        <p className="text-sm text-muted-foreground mb-4">Could not connect to the backend. Settings will appear here once the server is running.</p>
         <button
           onClick={() => refetch()}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
