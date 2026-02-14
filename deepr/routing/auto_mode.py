@@ -470,8 +470,7 @@ class AutoModeRouter:
                 provider,
                 model,
                 cost,
-                f"Benchmark: {bench_task} → {provider}/{model} "
-                f"(quality: {score:.0%}, ${cost:.2f})",
+                f"Benchmark: {bench_task} → {provider}/{model} (quality: {score:.0%}, ${cost:.2f})",
             )
 
         # Fallback to overall ranking
