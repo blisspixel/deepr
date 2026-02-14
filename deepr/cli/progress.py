@@ -15,6 +15,8 @@ from typing import Optional
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from deepr.cli.effects import resolve_animation_policy
+
 console = Console()
 
 
@@ -38,6 +40,7 @@ class ProgressFeedback:
         self.start_time: Optional[float] = None
         self.phase: str = ""
         self._warned_long_operation = False
+        self._animation_policy = resolve_animation_policy(console)
 
     @contextmanager
     def operation(self, description: str) -> Generator[Progress, None, None]:
@@ -59,6 +62,7 @@ class ProgressFeedback:
             TimeElapsedColumn(),
             console=console,
             transient=True,
+            refresh_per_second=self._animation_policy.fps or 8,
         ) as progress:
             task = progress.add_task(description, total=None)
 
