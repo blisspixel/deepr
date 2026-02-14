@@ -652,6 +652,7 @@ RESEARCH_MODELS = [
     "openai/o4-mini-deep-research",
     "gemini/deep-research",
 ]
+_DEEP_RESEARCH_NAMES: set[str] = {m.split("/", 1)[1] for m in RESEARCH_MODELS}
 
 # Web-search-augmented research models (no native deep research, but can do
 # multi-source synthesis via web search tools). Scored with research judge.
@@ -801,9 +802,8 @@ def estimate_cost(models: list[str], prompts: list[EvalPrompt], registry: dict) 
             if cap:
                 if ep.tier == "research":
                     # Deep research uses massive budgets; orchestrated uses web search
-                    _deep = {m.split("/", 1)[1] for m in RESEARCH_MODELS}
                     model_name = model_key.split("/", 1)[1] if "/" in model_key else model_key
-                    if model_name in _deep:
+                    if model_name in _DEEP_RESEARCH_NAMES:
                         input_cost = (2000 / 1_000_000) * cap.input_cost_per_1m
                         output_cost = (15000 / 1_000_000) * cap.output_cost_per_1m
                         per_eval = input_cost + output_cost
@@ -1042,7 +1042,12 @@ def call_openai_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
         "tools": [{"type": "web_search"}],
     }
     # GPT-5+ reasoning models need max_output_tokens with headroom for thinking
-    is_reasoning = model.startswith("gpt-5") or model.startswith("o3") or model.startswith("o4")
+    is_reasoning = (
+        model.startswith("gpt-5")
+        or model.startswith("gpt-6")
+        or model.startswith("o3")
+        or model.startswith("o4")
+    )
     if is_reasoning:
         body["max_output_tokens"] = max(max_tokens * 2, 4096)
         body["reasoning"] = {"effort": "low"}
@@ -1381,8 +1386,7 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
 
     # Research tier: deep research models → background API, others → web search
     if tier == "research":
-        _deep_research_models = {m.split("/", 1)[1] for m in RESEARCH_MODELS}
-        if model in _deep_research_models:
+        if model in _DEEP_RESEARCH_NAMES:
             if provider == "openai":
                 return call_openai_deep_research(api_key, model, prompt, max_tokens)
             elif provider == "gemini":
@@ -1473,21 +1477,24 @@ def _load_checkpoint() -> list[EvalResult]:
 
     results = []
     for d in data:
-        r = EvalResult(
-            model_key=d["model_key"],
-            task_type=d["task_type"],
-            difficulty=d["difficulty"],
-            prompt=d["prompt"],
-            response=d.get("response", ""),
-            latency_ms=d.get("latency_ms", 0),
-            error=d.get("error", ""),
-            tier=d.get("tier", "chat"),
-            reference_score=d.get("reference_score", 0.0),
-            citations=d.get("citations", []),
-            citation_count=d.get("citation_count", 0),
-            report_length=d.get("report_length", 0),
-        )
-        results.append(r)
+        try:
+            r = EvalResult(
+                model_key=d["model_key"],
+                task_type=d["task_type"],
+                difficulty=d["difficulty"],
+                prompt=d["prompt"],
+                response=d.get("response", ""),
+                latency_ms=d.get("latency_ms", 0),
+                error=d.get("error", ""),
+                tier=d.get("tier", "chat"),
+                reference_score=d.get("reference_score", 0.0),
+                citations=d.get("citations", []),
+                citation_count=d.get("citation_count", 0),
+                report_length=d.get("report_length", 0),
+            )
+            results.append(r)
+        except (KeyError, TypeError) as e:
+            logger.warning("Skipping corrupt checkpoint entry: %s", e)
     return results
 
 
@@ -1517,6 +1524,7 @@ def _eval_single(
         prompt=ep.prompt,
         response="",
         latency_ms=0,
+        tier=ep.tier,
     )
     cost = 0.0
 
@@ -1526,15 +1534,13 @@ def _eval_single(
         result.latency_ms = latency_ms
         result.citations = citations
         result.citation_count = len(citations)
-        result.tier = ep.tier
         result.report_length = len(text.split()) if ep.tier in ("research", "docs") else 0
 
         # Estimate cost — tier-specific token budgets
         thinking_extra = 500 if _is_thinking_model(model_key) else 0
         if ep.tier == "research":
-            _deep = {m.split("/", 1)[1] for m in RESEARCH_MODELS}
             model_name = model_key.split("/", 1)[1]
-            if model_name in _deep:
+            if model_name in _DEEP_RESEARCH_NAMES:
                 in_tokens, out_tokens = 2000, 15000
             else:
                 in_tokens, out_tokens = 600, 2500 + thinking_extra
@@ -1625,6 +1631,7 @@ def run_evaluations(
                     response="",
                     latency_ms=0,
                     error=str(e),
+                    tier=ep.tier,
                 )
                 cost = 0.0
 
@@ -2723,6 +2730,7 @@ Examples:
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
 
     args = parser.parse_args()
+    args.workers = max(1, min(args.workers, 50))
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
