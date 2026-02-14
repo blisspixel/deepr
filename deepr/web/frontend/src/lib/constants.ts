@@ -30,3 +30,10 @@ export const TIME_RANGES = [
   { value: '30d', label: 'Last 30 Days' },
   { value: '90d', label: 'Last 90 Days' },
 ] as const
+
+/** Default budget limits — used as fallbacks when backend is unreachable */
+export const BUDGET_DEFAULTS = {
+  PER_JOB: 20,
+  DAILY: 100,
+  MONTHLY: 1000,
+} as const
