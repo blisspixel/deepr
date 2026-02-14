@@ -6,6 +6,8 @@ This validates the entire scraping pipeline from start to finish.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from deepr.utils.scrape import (
@@ -187,13 +189,13 @@ def test_http_fetching():
 
     result = fetcher.fetch("https://example.com")
 
-    if result.success:
-        assert result.strategy == "HTTP"
-        assert result.html is not None
-        assert len(result.html) > 0
-        print(f"  [OK] HTTP fetch: {len(result.html)} chars")
-    else:
-        print(f"  [SKIP] HTTP fetch failed: {result.error}")
+    if not result.success:
+        pytest.skip(f"Network unavailable - HTTP fetch failed: {result.error}")
+
+    assert result.strategy == "HTTP"
+    assert result.html is not None
+    assert len(result.html) > 0
+    print(f"  [OK] HTTP fetch: {len(result.html)} chars")
 
 
 def test_link_filtering():
@@ -244,7 +246,9 @@ def test_end_to_end_scrape():
         synthesize=False,
     )
 
-    assert results["success"] == True
+    if not results["success"]:
+        pytest.skip("Network unavailable - cannot reach https://example.com")
+
     assert results["pages_scraped"] >= 1
     assert len(results["scraped_urls"]) >= 1
     assert len(results["scraped_data"]) >= 1

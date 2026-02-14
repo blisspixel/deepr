@@ -107,7 +107,7 @@ class ModelRouter:
         query: str,
         context_size: int = 0,
         budget_remaining: Optional[float] = None,
-        current_model: str = "gpt-5",
+        current_model: str = "gpt-5.2",
         provider_constraint: Optional[str] = None,
     ) -> ModelConfig:
         """Select the optimal model for a query.
@@ -149,17 +149,17 @@ class ModelRouter:
             if complexity == "moderate" or task_type == "reasoning":
                 return ModelConfig(
                     provider="openai",
-                    model="gpt-5",
-                    cost_estimate=0.005,  # ~2K tokens @ $1.25/$10 per 1M
+                    model="gpt-5.2",
+                    cost_estimate=0.005,  # ~2K tokens @ $1.75/$14 per 1M
                     reasoning_effort="medium",
                     confidence=0.85,
                 )
 
-            # Simple queries - use GPT-5 with low reasoning effort for speed (1-3 seconds)
+            # Simple queries - use GPT-5.2 with low reasoning effort for speed (1-3 seconds)
             return ModelConfig(
                 provider="openai",
-                model="gpt-5",
-                cost_estimate=0.001,  # ~500 tokens @ $1.25/$10 per 1M
+                model="gpt-5.2",
+                cost_estimate=0.001,  # ~500 tokens @ $1.75/$14 per 1M
                 reasoning_effort="low",
                 confidence=0.9,  # High confidence for simple queries
             )
@@ -184,11 +184,11 @@ class ModelRouter:
             )
 
         if complexity == "moderate":
-            # Moderate complexity → GPT-5 with medium reasoning or Grok if budget tight
+            # Moderate complexity → GPT-5.2 with medium reasoning or Grok if budget tight
             if budget_remaining is not None and budget_remaining < 0.20:
                 return ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.75)
             return ModelConfig(
-                provider="openai", model="gpt-5", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
+                provider="openai", model="gpt-5.2", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
             )
 
         # Default: Keep current model with adaptive reasoning
@@ -271,11 +271,11 @@ class ModelRouter:
         Returns:
             ModelConfig for cheapest available model
         """
-        # If constrained to OpenAI, use GPT-5 with low reasoning effort
+        # If constrained to OpenAI, use GPT-5.2 with low reasoning effort
         if provider_constraint == "openai":
             return ModelConfig(
                 provider="openai",
-                model="gpt-5",
+                model="gpt-5.2",
                 cost_estimate=0.001,  # Minimal cost for simple query
                 reasoning_effort="low",
                 confidence=0.6,
