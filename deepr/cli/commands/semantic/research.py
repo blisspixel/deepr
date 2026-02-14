@@ -10,6 +10,15 @@ from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_
 from deepr.cli.output import OutputContext, OutputMode, output_options
 
 
+def _run_async_command(coro):
+    """Run command coroutine and close it if a mocked runner doesn't consume it."""
+    try:
+        return asyncio.run(coro)
+    finally:
+        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
+            coro.close()
+
+
 def detect_research_mode(prompt: str) -> str:
     """Auto-detect whether this is documentation research or focused research.
 
@@ -232,7 +241,7 @@ def research(
         print_header("Strategic Company Research")
 
         orchestrator = CompanyResearchOrchestrator()
-        result = asyncio.run(
+        result = _run_async_command(
             orchestrator.research_company(
                 company_name=company_name,
                 website=website,
@@ -356,7 +365,7 @@ def research(
 
     # Call the underlying _run_single implementation
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(
+    _run_async_command(
         _run_single(
             query,
             model,
@@ -408,7 +417,7 @@ def learn(
         deepr learn "Machine learning fundamentals"
     """
     click.echo(f"[Learning Mode: Multi-phase research with {phases} phases]")
-    asyncio.run(_run_campaign(topic, model, lead, phases, yes))
+    _run_async_command(_run_campaign(topic, model, lead, phases, yes))
 
 
 @click.command()
@@ -443,7 +452,7 @@ def team(
         deepr team "Technology decision" -m o3-deep-research
     """
     click.echo(f"[Team Mode: {perspectives} perspectives analyzing in parallel]")
-    asyncio.run(_run_team(question, model, perspectives, yes))
+    _run_async_command(_run_team(question, model, perspectives, yes))
 
 
 @click.command()
@@ -472,7 +481,7 @@ def check(claim: str, sources: Optional[str], provider: Optional[str], model: Op
         click.echo(f"Error: {e}", err=True)
         return
 
-    asyncio.run(_verify_fact(claim, sources, provider, model, verbose))
+    _run_async_command(_verify_fact(claim, sources, provider, model, verbose))
 
 
 async def _verify_fact(
@@ -714,7 +723,7 @@ def _run_batch_research(
         if output_context.mode == OutputMode.VERBOSE:
             console.print(f"  [dim]{msg}[/dim]")
 
-    result = asyncio.run(
+    result = _run_async_command(
         executor.execute_batch(
             file_path=batch_file,
             budget_total=budget_total,
@@ -831,7 +840,7 @@ def _run_auto_research(
 
     # Execute with routed provider/model
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(
+    _run_async_command(
         _run_single(
             query=query,
             model=decision.model,
