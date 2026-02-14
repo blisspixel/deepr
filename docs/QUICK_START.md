@@ -7,8 +7,10 @@ Get started with Deepr in 5 minutes.
 ## Prerequisites
 
 - Python 3.9 or higher
-- At least one AI provider API key (OpenAI, Gemini, Grok, or Azure)
+- **One API key** from any supported provider (OpenAI, Gemini, Grok, Anthropic, or Azure)
 - 10-15 minutes for first research run
+
+> **One key is all you need.** Deepr works with any single provider. Add more keys later and auto mode will route queries to the best available model for each task.
 
 ---
 
@@ -37,14 +39,14 @@ pip install -e ".[full]"                # All features
 cp .env.example .env
 ```
 
-Edit `.env` and add your API key:
+Edit `.env` and add at least one API key:
 
 ```bash
-# Choose at least one:
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-XAI_API_KEY=...
-AZURE_OPENAI_API_KEY=...
+# Pick one to start (add more later for smarter auto-routing):
+OPENAI_API_KEY=sk-...      # Deep research + GPT models — https://platform.openai.com/api-keys
+GEMINI_API_KEY=...          # Cost-effective research    — https://aistudio.google.com/app/apikey
+XAI_API_KEY=...             # Cheapest, web search       — https://console.x.ai/
+ANTHROPIC_API_KEY=...       # Complex reasoning          — https://console.anthropic.com/settings/keys
 ```
 
 ### 3. Verify Setup
@@ -245,12 +247,13 @@ deepr expert chat "Python Async Expert" --agentic --budget 3
 
 ## Tips for Success
 
-1. **Start small** - Use `deepr research` with small budgets first
-2. **Be specific** - Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
-3. **Monitor costs** - Check `deepr cost summary` regularly
-4. **Use fast models** - Grok and Gemini are 96-99% cheaper for most tasks
-5. **Build experts gradually** - Start with documents, add learning later
-6. **Set session budgets** - Always use `--budget` with agentic chat
+1. **Start small** — Use `deepr research` with small budgets first
+2. **Be specific** — Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
+3. **Add more API keys** — Each key you add makes auto mode smarter (routes to best model per task)
+4. **Monitor costs** — Check `deepr cost summary` regularly
+5. **Use `--auto`** — Auto mode routes simple queries to $0.01 models, saves 90%+ on batch jobs
+6. **Build experts gradually** — Start with documents, add learning later
+7. **Set session budgets** — Always use `--budget` with agentic chat
 
 ---
 

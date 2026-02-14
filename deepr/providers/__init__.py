@@ -21,7 +21,12 @@ try:
 except ImportError:
     GrokProvider = None
 
-ProviderType = Literal["openai", "azure", "gemini", "xai"]
+try:
+    from .azure_foundry_provider import AzureFoundryProvider
+except ImportError:
+    AzureFoundryProvider = None
+
+ProviderType = Literal["openai", "azure", "gemini", "xai", "azure-foundry"]
 
 
 def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvider:
@@ -52,11 +57,16 @@ def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvid
         if GrokProvider is None:
             raise ImportError("xAI provider requires: pip install xai-sdk")
         return GrokProvider(**kwargs)
+    elif provider_type == "azure-foundry":
+        if AzureFoundryProvider is None:
+            raise ImportError("Azure Foundry provider requires: pip install deepr-research[azure-foundry]")
+        return AzureFoundryProvider(**kwargs)
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
 
 
 __all__ = [
+    "AzureFoundryProvider",
     "AzureProvider",
     "DeepResearchProvider",
     "GeminiProvider",

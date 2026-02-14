@@ -3,16 +3,24 @@
 Routes queries to the most cost-effective model, checking API key
 availability before selecting a provider:
 
-- Simple factual queries → grok-4-fast ($0.01) or gpt-5.2 low ($0.005)
+- Simple factual queries → grok-4-fast ($0.01) or gpt-4.1-mini ($0.01)
+- Simple other → gpt-4.1-mini ($0.01) or gemini-2.5-flash ($0.02)
 - Moderate queries → o4-mini-deep-research ($0.10)
 - Complex research → o3-deep-research ($0.50)
-- Complex analysis → gpt-5.2 ($0.25)
+- Complex analysis → o4-mini-deep-research ($0.10) or gpt-4.1 ($0.04)
+
+When benchmark results exist (data/benchmarks/routing_preferences.json),
+the benchmark-recommended models override hardcoded defaults if their
+provider has an API key configured.
 
 This enables processing 20+ queries for $1-2 instead of $20-40.
 """
 
+import json
+import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Optional
 
 from deepr.experts.router import ModelRouter
@@ -85,11 +93,24 @@ class BatchRoutingResult:
 # Cost estimates per model (in dollars)
 MODEL_COSTS = {
     ("xai", "grok-4-fast"): 0.01,
-    ("openai", "gpt-5.2"): 0.02,  # adaptive reasoning
+    ("openai", "gpt-5.2"): 0.25,
+    ("openai", "gpt-5-mini"): 0.03,
+    ("openai", "gpt-4.1"): 0.04,
+    ("openai", "gpt-4.1-mini"): 0.01,
     ("openai", "o4-mini-deep-research"): 0.10,
     ("openai", "o3-deep-research"): 0.50,
     ("gemini", "gemini-3-pro"): 0.15,
     ("gemini", "gemini-2.5-flash"): 0.02,
+    ("anthropic", "claude-opus-4-6"): 0.80,
+    ("anthropic", "claude-opus-4-5"): 0.80,
+    ("anthropic", "claude-sonnet-4-5"): 0.48,
+    ("anthropic", "claude-haiku-4-5"): 0.05,
+    ("azure-foundry", "o3-deep-research"): 0.50,
+    ("azure-foundry", "gpt-5-mini"): 0.03,
+    ("azure-foundry", "gpt-4.1"): 0.04,
+    ("azure-foundry", "gpt-4.1-mini"): 0.01,
+    ("azure-foundry", "gpt-4o"): 0.03,
+    ("azure-foundry", "gpt-4o-mini"): 0.005,
 }
 
 # Provider → environment variable mapping for API key checks
@@ -99,6 +120,7 @@ _PROVIDER_KEY_ENV = {
     "gemini": "GEMINI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "azure": "AZURE_OPENAI_KEY",
+    "azure-foundry": "AZURE_PROJECT_ENDPOINT",
 }
 
 
@@ -117,6 +139,52 @@ def _has_api_key(provider: str) -> bool:
     return bool(os.environ.get(env_var))
 
 
+_logger = logging.getLogger(__name__)
+
+
+def _load_benchmark_preferences() -> dict | None:
+    """Load routing preferences from benchmark results if available.
+
+    Returns:
+        Parsed task_preferences dict, or None if file missing/invalid.
+    """
+    prefs_path = Path("data/benchmarks/routing_preferences.json")
+    if not prefs_path.exists():
+        return None
+    try:
+        data = json.loads(prefs_path.read_text(encoding="utf-8"))
+        return data.get("task_preferences")
+    except Exception:
+        _logger.debug("Could not load benchmark routing preferences")
+        return None
+
+
+# Load once at module import
+_BENCHMARK_PREFS = _load_benchmark_preferences()
+
+
+def _benchmark_model_for(task_type: str, strategy: str = "best_value") -> tuple[str, str] | None:
+    """Get the benchmark-recommended (provider, model) for a task type.
+
+    Args:
+        task_type: Task type key (e.g. 'quick_lookup', 'reasoning')
+        strategy: 'best_quality' or 'best_value'
+
+    Returns:
+        (provider, model) tuple if recommendation exists and provider has an
+        API key, otherwise None.
+    """
+    if not _BENCHMARK_PREFS or task_type not in _BENCHMARK_PREFS:
+        return None
+    model_key = _BENCHMARK_PREFS[task_type].get(strategy)
+    if not model_key or "/" not in model_key:
+        return None
+    provider, model = model_key.split("/", 1)
+    if _has_api_key(provider):
+        return (provider, model)
+    return None
+
+
 class AutoModeRouter:
     """Routes queries to optimal models based on complexity and cost.
 
@@ -129,7 +197,7 @@ class AutoModeRouter:
         # Route single query (adapts to available API keys)
         decision = router.route("What is Python?")
         # → grok-4-fast $0.01 (if XAI_API_KEY set)
-        # → gpt-5.2 $0.02 (if only OPENAI_API_KEY set)
+        # → gpt-4.1-mini $0.01 (if only OPENAI_API_KEY set)
 
         # Route batch with budget
         results = router.route_batch(queries, budget_total=5.0)
@@ -304,10 +372,10 @@ class AutoModeRouter:
 
         Routing table (checked in order):
         - simple + factual → grok-4-fast ($0.01)
-        - simple + other   → gpt-5.2 ($0.02)
+        - simple + other   → gpt-4.1-mini ($0.01)
         - moderate         → o4-mini-deep-research ($0.10) or grok-4-fast on tight budget
-        - complex research → o3-deep-research ($0.50), degrades through o4-mini → gpt-5.2
-        - complex analysis → gpt-5.2 ($0.02) or o4-mini-deep-research ($0.10)
+        - complex research → o3-deep-research ($0.50), degrades through o4-mini → gpt-4.1
+        - complex analysis → o4-mini-deep-research ($0.10) or gpt-4.1 ($0.04)
 
         Each tier checks API key availability and falls back to the
         next usable provider.
@@ -315,6 +383,20 @@ class AutoModeRouter:
         Returns:
             Tuple of (provider, model, cost_estimate, reasoning)
         """
+        # --- Benchmark override: use measured best model if available ---
+        if _BENCHMARK_PREFS and not prefer_cost:
+            rec = _benchmark_model_for(task_type, "best_value")
+            if rec:
+                bm_provider, bm_model = rec
+                cost = MODEL_COSTS.get((bm_provider, bm_model), 0.10)
+                if budget is None or cost <= budget:
+                    return (
+                        bm_provider,
+                        bm_model,
+                        cost,
+                        f"Benchmark-recommended for {task_type} → {bm_provider}/{bm_model} (${cost:.2f})",
+                    )
+
         # --- Simple factual queries → grok-4-fast (cheapest, fastest) ---
         if complexity == "simple" and task_type == "factual":
             provider = self._pick_provider("xai", "openai", "gemini")
@@ -325,13 +407,13 @@ class AutoModeRouter:
                     0.01,
                     "Simple factual query → grok-4-fast ($0.01)",
                 )
-            # Fallback: openai gpt-5.2 is still cheap for simple queries
+            # Fallback: openai gpt-4.1-mini is cheapest for simple queries
             if provider == "openai":
                 return (
                     "openai",
-                    "gpt-5.2",
-                    0.02,
-                    "Simple factual query → gpt-5.2 ($0.02, XAI_API_KEY not set)",
+                    "gpt-4.1-mini",
+                    0.01,
+                    "Simple factual query → gpt-4.1-mini ($0.01, XAI_API_KEY not set)",
                 )
             return (
                 "gemini",
@@ -340,15 +422,15 @@ class AutoModeRouter:
                 "Simple factual query → gemini-2.5-flash ($0.02, XAI/OpenAI keys not set)",
             )
 
-        # --- Simple non-factual → gpt-5.2 (fast, low cost) ---
+        # --- Simple non-factual → gpt-4.1-mini (fast, cheapest) ---
         if complexity == "simple":
             provider = self._pick_provider("openai", "xai", "gemini")
             if provider == "openai":
                 return (
                     "openai",
-                    "gpt-5.2",
-                    0.02,
-                    "Simple query → gpt-5.2 ($0.02)",
+                    "gpt-4.1-mini",
+                    0.01,
+                    "Simple query → gpt-4.1-mini ($0.01)",
                 )
             if provider == "xai":
                 return (
@@ -377,9 +459,9 @@ class AutoModeRouter:
                     )
                 return (
                     provider,
-                    "gemini-2.5-flash" if provider == "gemini" else "gpt-5.2",
-                    0.02,
-                    "Moderate query downgraded due to budget ($0.02)",
+                    "gemini-2.5-flash" if provider == "gemini" else "gpt-4.1-mini",
+                    0.02 if provider == "gemini" else 0.01,
+                    f"Moderate query downgraded due to budget → {provider}",
                 )
 
             provider = self._pick_provider("openai", "gemini", "xai")
@@ -420,9 +502,9 @@ class AutoModeRouter:
                 if provider == "openai":
                     return (
                         "openai",
-                        "gpt-5.2",
-                        0.02,
-                        "Complex research budget-limited → gpt-5.2 ($0.02)",
+                        "gpt-4.1",
+                        0.04,
+                        "Complex research budget-limited → gpt-4.1 ($0.04)",
                     )
                 return (
                     provider,
@@ -431,13 +513,20 @@ class AutoModeRouter:
                     f"Complex research budget-limited → {provider} fallback",
                 )
 
-            provider = self._pick_provider("openai", "gemini")
+            provider = self._pick_provider("openai", "azure-foundry", "gemini")
             if provider == "openai":
                 return (
                     "openai",
                     "o3-deep-research",
                     0.50,
                     "Complex research → o3-deep-research ($0.50)",
+                )
+            if provider == "azure-foundry":
+                return (
+                    "azure-foundry",
+                    "o3-deep-research",
+                    0.50,
+                    "Complex research → azure-foundry o3-deep-research ($0.50, OPENAI_API_KEY not set)",
                 )
             return (
                 "gemini",
@@ -446,16 +535,16 @@ class AutoModeRouter:
                 "Complex research → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
             )
 
-        # --- Complex analysis (non-research) → gpt-5.2 or o4-mini ---
+        # --- Complex analysis (non-research) → o4-mini or gpt-4.1 ---
         if complexity == "complex":
             if budget is not None and budget < 0.10:
                 provider = self._pick_provider("openai", "xai", "gemini")
                 if provider == "openai":
                     return (
                         "openai",
-                        "gpt-5.2",
-                        0.02,
-                        "Complex analysis budget-limited → gpt-5.2 ($0.02)",
+                        "gpt-4.1",
+                        0.04,
+                        "Complex analysis budget-limited → gpt-4.1 ($0.04)",
                     )
                 return (
                     provider,
@@ -538,12 +627,12 @@ class AutoModeRouter:
                     "Fallback to grok-4-fast (primary provider unavailable)",
                 )
 
-        # Last resort: return openai gpt-5.2 even if circuit might be open
+        # Last resort: return openai gpt-4.1-mini even if circuit might be open
         return (
             "openai",
-            "gpt-5.2",
-            0.02,
-            "Last resort fallback to gpt-5.2 (all providers may be unhealthy)",
+            "gpt-4.1-mini",
+            0.01,
+            "Last resort fallback to gpt-4.1-mini (all providers may be unhealthy)",
         )
 
     def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, dict]:
