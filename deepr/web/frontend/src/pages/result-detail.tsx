@@ -210,7 +210,7 @@ export default function ResultDetail() {
             <div className="relative" ref={exportRef}>
               <button
                 onClick={() => setShowExport(!showExport)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 <Download className="w-3.5 h-3.5" />
                 Export
@@ -233,11 +233,11 @@ export default function ResultDetail() {
             </div>
 
             <button
-              onClick={() => navigate(`/traces/${id}`)}
+              onClick={() => navigate(`/research?prompt=${encodeURIComponent(`Follow-up: ${result.prompt}`)}`)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors"
             >
               <Search className="w-3.5 h-3.5" />
-              Trace
+              New Research
             </button>
           </div>
         </div>
