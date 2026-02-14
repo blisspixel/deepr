@@ -30,7 +30,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.8.1)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 3600+ tests passing. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, MCP integration, and observability. 3700+ tests passing. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -340,7 +340,7 @@ Keep model registries current across all providers. Models and pricing go stale 
 #### 7.5 Command Consolidation
 - [x] Remove deprecated aliases (`run single`, `run campaign`)
 - [x] Consolidate to core commands: `research`, `jobs`, `expert`, `config`
-- [ ] Update documentation to match
+- [x] Update documentation to match
 
 #### 7.6 Output Improvements (remaining)
 - [ ] Consistent key-value formatting across all commands

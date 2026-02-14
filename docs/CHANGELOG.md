@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expert Profile tabs overflow scroll on mobile (5 tabs: Chat, Claims, Gaps, Decisions, History)
 - Overview empty state no longer references CLI commands — links to web-native budget controls instead
 - Expert Hub error state copy improvement
+- `deepr config set` now supports CLI UX aliases:
+  - `cli.animations` -> `DEEPR_ANIMATIONS` (`off|light|full`)
+  - `cli.branding` -> `DEEPR_BRANDING` (`off|on|auto`)
+  - Unknown `cli.*` keys now fail with explicit validation errors
 
 ### Fixed
 - Removed dead code: `api/activity.ts`, `api/traces.ts`, `components/shared/stat-card.tsx` (never imported)
@@ -46,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export dropdown in Result Detail now closes on Escape key press
 - "Submit Research" → "New Research" button text consistency in Results Library
 - Unsafe type assertion in Expert Profile history query replaced with proper `ExpertHistoryEvent` interface
+- Gemini provider import hardening:
+  - provider initialization now degrades safely when `google-genai` is present but incompatible
+  - clear runtime errors are retained for unavailable Gemini client operations
+  - prevents unrelated command/test breakage from optional SDK import failures
 
 **Background Job Polling + WebSocket Push**
 - Flask-SocketIO initialization with `cors_allowed_origins="*"` and threading async mode

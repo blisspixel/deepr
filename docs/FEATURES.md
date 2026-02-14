@@ -689,7 +689,20 @@ deepr config show
 # Set configuration value
 deepr config set DEEPR_AUTO_REFINE true
 deepr config set DEEPR_MAX_COST_PER_JOB 5.0
+
+# CLI UX settings (preferred aliases)
+deepr config set cli.animations light
+deepr config set cli.branding auto
 ```
+
+Supported CLI UX values:
+- `cli.animations`: `off`, `light`, `full`
+- `cli.branding`: `off`, `on`, `auto`
+
+Notes:
+- `cli.animations` maps to `DEEPR_ANIMATIONS`
+- `cli.branding` maps to `DEEPR_BRANDING`
+- Legacy direct env keys still work (for example `DEEPR_ANIMATIONS=light`)
 
 ## Analytics
 
