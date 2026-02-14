@@ -5,25 +5,26 @@ from typing import Literal
 from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
 from .openai_provider import OpenAIProvider
 
-# Optional providers — imported lazily so missing SDKs don't break the package
+# Optional providers — imported lazily so missing/incompatible SDKs don't break
+# the package import for unrelated code paths.
 try:
     from .azure_provider import AzureProvider
-except ImportError:
+except Exception:
     AzureProvider = None
 
 try:
     from .gemini_provider import GeminiProvider
-except ImportError:
+except Exception:
     GeminiProvider = None
 
 try:
     from .grok_provider import GrokProvider
-except ImportError:
+except Exception:
     GrokProvider = None
 
 try:
     from .azure_foundry_provider import AzureFoundryProvider
-except ImportError:
+except Exception:
     AzureFoundryProvider = None
 
 ProviderType = Literal["openai", "azure", "gemini", "xai", "azure-foundry"]
