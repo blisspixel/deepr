@@ -10,6 +10,7 @@ import json as _json
 import logging
 import math
 import os
+import random
 import re
 import sys
 import threading
@@ -2128,6 +2129,89 @@ def get_model_registry():
     except Exception as e:
         logger.error(f"Error getting model registry: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+# =============================================================================
+# DEMO DATA
+# =============================================================================
+
+
+@app.route("/api/demo/load", methods=["POST"])
+def load_demo_data():
+    """Load demo experts and sample completed jobs."""
+    import subprocess
+
+    errors = []
+
+    # 1. Run demo experts script
+    try:
+        result = subprocess.run(
+            [sys.executable, "scripts/create_demo_experts.py"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(Path(__file__).resolve().parent.parent.parent),
+        )
+        if result.returncode != 0:
+            errors.append(f"Demo experts: {result.stderr[:200]}")
+    except Exception as e:
+        errors.append(f"Demo experts: {e}")
+
+    # 2. Seed sample completed jobs
+    created_jobs = 0
+    sample_jobs = [
+        {
+            "prompt": "What are the latest advances in quantum error correction?",
+            "model": "openai/gpt-5.2",
+            "cost": 2.35,
+            "tokens": 12400,
+        },
+        {
+            "prompt": "Compare React Server Components vs traditional SSR approaches",
+            "model": "xai/grok-4",
+            "cost": 1.80,
+            "tokens": 9800,
+        },
+        {
+            "prompt": "Analyze the economic impact of carbon border adjustment mechanisms",
+            "model": "gemini/gemini-2.5-pro",
+            "cost": 0.45,
+            "tokens": 8200,
+        },
+    ]
+    for sample in sample_jobs:
+        try:
+            job_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc)
+            job = ResearchJob(
+                id=job_id,
+                prompt=sample["prompt"],
+                model=sample["model"],
+                status=JobStatus.QUEUED,
+                priority=3,
+                submitted_at=now - timedelta(hours=random.randint(1, 48)),
+            )
+            run_async(queue.enqueue(job))
+            run_async(queue.update_status(job_id, JobStatus.COMPLETED))
+            run_async(
+                queue.update_results(
+                    job_id=job_id,
+                    report_paths={},
+                    cost=sample["cost"],
+                    tokens_used=sample["tokens"],
+                )
+            )
+            created_jobs += 1
+        except Exception:
+            pass
+
+    return jsonify(
+        {
+            "success": len(errors) == 0,
+            "created_jobs": created_jobs,
+            "errors": errors,
+        }
+    )
 
 
 # =============================================================================

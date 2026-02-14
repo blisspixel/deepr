@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -42,7 +43,7 @@ export default function ResultsLibrary() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  const { data: resultsData, isLoading } = useQuery({
+  const { data: resultsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['results', 'list', debouncedSearch, sortBy, page],
     queryFn: () => resultsApi.list({
       search: debouncedSearch || undefined,
@@ -58,6 +59,24 @@ export default function ResultsLibrary() {
   const totalPages = Math.ceil(total / pageSize)
 
   if (isLoading) return <CardGridSkeleton />
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
+        <p className="text-lg font-medium text-foreground mb-1">Failed to load results</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          Could not connect to the backend. Results will appear here once the server is running.
+        </p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">

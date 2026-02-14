@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   TrendingUp,
 } from 'lucide-react'
+import { BUDGET_DEFAULTS } from '@/lib/constants'
 
 type TimeRange = '7d' | '30d' | '90d'
 
@@ -76,7 +77,7 @@ export default function CostIntelligence() {
 
   const handleSliderChange = useCallback((key: 'per_job' | 'daily' | 'monthly', value: number) => {
     setLocalLimits(prev => {
-      const next = prev ? { ...prev, [key]: value } : { per_job: 20, daily: 100, monthly: 1000, [key]: value }
+      const next = prev ? { ...prev, [key]: value } : { per_job: BUDGET_DEFAULTS.PER_JOB, daily: BUDGET_DEFAULTS.DAILY, monthly: BUDGET_DEFAULTS.MONTHLY, [key]: value }
       localLimitsRef.current = next
       return next
     })
@@ -138,6 +139,16 @@ export default function CostIntelligence() {
         </div>
       </div>
 
+      {/* Accuracy Disclaimer */}
+      <div className="rounded-lg border bg-muted/30 px-4 py-2.5 flex items-start gap-2.5 text-xs text-muted-foreground">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <p>
+          Costs shown are tracked by Deepr from API usage metadata and may not reflect
+          exact billing. Check your provider billing consoles (OpenAI, xAI, Google, etc.)
+          for authoritative charges.
+        </p>
+      </div>
+
       {/* Error Banner */}
       {isSummaryError && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 flex items-center gap-3">
@@ -160,7 +171,7 @@ export default function CostIntelligence() {
           <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.monthly || 0)}</p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{formatCurrency(summary?.monthly_limit || 1000)} limit</span>
+              <span>{formatCurrency(summary?.monthly_limit || BUDGET_DEFAULTS.MONTHLY)} limit</span>
               <span>{monthlyUtilization.toFixed(0)}%</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -178,7 +189,7 @@ export default function CostIntelligence() {
           <p className="text-2xl font-semibold text-foreground tabular-nums">{formatCurrency(summary?.daily || 0)}</p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{formatCurrency(summary?.daily_limit || 100)} limit</span>
+              <span>{formatCurrency(summary?.daily_limit || BUDGET_DEFAULTS.DAILY)} limit</span>
               <span>{dailyUtilization.toFixed(0)}%</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -278,9 +289,9 @@ export default function CostIntelligence() {
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Budget Controls</h2>
           <div className="space-y-4">
             {[
-              { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || 20, max: 50 },
-              { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || 100, max: 500 },
-              { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || 1000, max: 5000 },
+              { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || BUDGET_DEFAULTS.PER_JOB, max: 50 },
+              { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || BUDGET_DEFAULTS.DAILY, max: 500 },
+              { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || BUDGET_DEFAULTS.MONTHLY, max: 5000 },
             ].map((control) => (
               <div key={control.key} className="space-y-1.5">
                 <div className="flex justify-between text-xs">
