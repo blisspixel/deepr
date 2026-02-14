@@ -15,6 +15,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Optional
 
 try:
@@ -53,6 +54,61 @@ logger = logging.getLogger(__name__)
 DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
 
 
+class _FallbackThinkingConfig:
+    """Minimal ThinkingConfig-compatible container for tests and degraded mode."""
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+class _FallbackGenerateContentConfig(dict):
+    """Minimal GenerateContentConfig-compatible mapping for degraded mode."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+class _UnavailableGeminiClient:
+    """Client placeholder that fails with a clear error when SDK is unavailable."""
+
+    def __init__(self):
+        def _unavailable(*_args, **_kwargs):
+            raise ImportError(
+                "Gemini provider requires a compatible google-genai installation. "
+                "Install with: pip install google-genai"
+            ) from _GENAI_IMPORT_ERROR
+
+        self.models = SimpleNamespace(
+            generate_content=_unavailable,
+            generate_content_stream=_unavailable,
+        )
+        self.interactions = SimpleNamespace(
+            create=_unavailable,
+            get=_unavailable,
+        )
+        self.files = SimpleNamespace(
+            get=_unavailable,
+            upload=_unavailable,
+        )
+        self.file_search_stores = SimpleNamespace(
+            create=_unavailable,
+            upload_to_file_search_store=_unavailable,
+            delete=_unavailable,
+            documents=SimpleNamespace(
+                list=_unavailable,
+                delete=_unavailable,
+            ),
+        )
+
+
+if types is None:
+    types = SimpleNamespace(
+        ThinkingConfig=_FallbackThinkingConfig,
+        GenerateContentConfig=_FallbackGenerateContentConfig,
+    )
+
+
 def _is_deep_research_model(model: str) -> bool:
     """Check if a model string refers to the Deep Research Agent."""
     return "deep-research" in model or model == DEEP_RESEARCH_AGENT
@@ -78,18 +134,16 @@ class GeminiProvider(DeepResearchProvider):
             api_key: Google Gemini API key (defaults to GEMINI_API_KEY env var)
             model_mappings: Custom model name mappings (optional)
         """
-        if genai is None:
-            raise ImportError(
-                "Gemini provider requires a compatible google-genai installation. "
-                "Install with: pip install google-genai"
-            ) from _GENAI_IMPORT_ERROR
-
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("Gemini API key is required (set GEMINI_API_KEY)")
 
-        # Initialize client with API key passed directly (thread-safe)
-        self.client = genai.Client(api_key=self.api_key)
+        # Initialize real client when SDK is available, otherwise keep a safe
+        # placeholder so unit tests can patch client behavior.
+        if genai is not None:
+            self.client = genai.Client(api_key=self.api_key)
+        else:
+            self.client = _UnavailableGeminiClient()
 
         # Model mappings for convenience
         self.model_mappings = model_mappings or {
@@ -386,6 +440,9 @@ class GeminiProvider(DeepResearchProvider):
                 else:
                     job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(timezone.utc)})
                     return
+            except Exception as e:
+                job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(timezone.utc)})
+                return
 
     # =========================================================================
     # Get status — handles both deep research and regular jobs
