@@ -307,8 +307,6 @@ def _normalize_config_key_value(key: str, value: str) -> tuple[str, str]:
         normalized_value = normalized_value.lower()
         if normalized_value not in allowed_values:
             allowed_list = ", ".join(sorted(allowed_values))
-            raise click.ClickException(
-                f"Invalid value '{value}' for {normalized_key}. Allowed values: {allowed_list}"
-            )
+            raise click.ClickException(f"Invalid value '{value}' for {normalized_key}. Allowed values: {allowed_list}")
 
     return normalized_key, normalized_value
