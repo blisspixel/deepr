@@ -6,6 +6,7 @@ import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   DollarSign,
@@ -17,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { Sparkline } from '@/components/charts/sparkline'
+import { BUDGET_DEFAULTS } from '@/lib/constants'
 
 export default function Overview() {
   const navigate = useNavigate()
@@ -29,7 +31,7 @@ export default function Overview() {
     },
   })
 
-  const { data: jobsData } = useQuery({
+  const { data: jobsData, isError: isJobsError } = useQuery({
     queryKey: ['jobs', 'recent'],
     queryFn: () => jobsApi.list({ limit: 10 }),
     refetchInterval: 5000,
@@ -41,7 +43,7 @@ export default function Overview() {
     refetchInterval: 10000,
   })
 
-  const { data: costSummary } = useQuery({
+  const { data: costSummary, isError: isCostError } = useQuery({
     queryKey: ['cost', 'summary'],
     queryFn: () => costApi.getSummary(),
     refetchInterval: 10000,
@@ -85,6 +87,19 @@ export default function Overview() {
           New Research
         </button>
       </div>
+
+      {/* Connection warning */}
+      {(isJobsError || isCostError) && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            Unable to connect to the backend. Data below may be incomplete.
+            Start the server or go to{' '}
+            <button onClick={() => navigate('/settings')} className="text-primary hover:underline">Settings</button>
+            {' '}to load demo data.
+          </p>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -131,7 +146,7 @@ export default function Overview() {
           </p>
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{formatCurrency(costSummary?.daily_limit || 100)} limit</span>
+              <span>{formatCurrency(costSummary?.daily_limit || BUDGET_DEFAULTS.DAILY)} limit</span>
               <span>{dailyUtilization.toFixed(0)}%</span>
             </div>
             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -234,7 +249,11 @@ export default function Overview() {
                       <div>
                         <p className="text-sm text-foreground">Set a budget</p>
                         <p className="text-xs text-muted-foreground">
-                          Run <code className="px-1 py-0.5 bg-muted rounded text-[11px]">deepr budget set 5</code> to cap spending at $5
+                          Configure spending limits in{' '}
+                          <button onClick={() => navigate('/costs')} className="text-primary hover:underline">
+                            Cost Intelligence
+                          </button>
+                          {' '}to cap daily and monthly spending
                         </p>
                       </div>
                     </div>
@@ -348,7 +367,7 @@ export default function Overview() {
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Limit</span>
-                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.monthly_limit || 1000)}</span>
+                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(costSummary?.monthly_limit || BUDGET_DEFAULTS.MONTHLY)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Avg/Job</span>

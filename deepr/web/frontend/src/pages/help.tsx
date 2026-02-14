@@ -217,11 +217,14 @@ cp .env.example .env
 #   OPENAI_API_KEY=sk-...
 #   GEMINI_API_KEY=AI...
 #   ANTHROPIC_API_KEY=sk-ant-...
-#   XAI_API_KEY=xai-...
-
-# Recommended: set a budget
-deepr budget set 10`}
+#   XAI_API_KEY=xai-...`}
             </pre>
+            <p className="text-xs text-muted-foreground mt-2">
+              Then configure your budget in{' '}
+              <a href="/settings" className="text-primary hover:underline">Settings &rarr; Budget</a>
+              {' '}or{' '}
+              <a href="/costs" className="text-primary hover:underline">Cost Intelligence</a>.
+            </p>
           </div>
         </div>
       </Accordion>
