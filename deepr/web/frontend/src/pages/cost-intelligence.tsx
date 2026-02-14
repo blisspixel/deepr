@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { BUDGET_DEFAULTS } from '@/lib/constants'
+import { FormSkeleton } from '@/components/ui/skeleton'
 
 type TimeRange = '7d' | '30d' | '90d'
 
@@ -19,7 +20,7 @@ export default function CostIntelligence() {
   const [timeRange, setTimeRange] = useState<TimeRange>('30d')
   const days = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30
 
-  const { data: summary, isError: isSummaryError, refetch: refetchSummary } = useQuery({
+  const { data: summary, isLoading: isSummaryLoading, isError: isSummaryError, refetch: refetchSummary } = useQuery({
     queryKey: ['cost', 'summary'],
     queryFn: () => costApi.getSummary(),
     refetchInterval: 30000,
@@ -115,6 +116,8 @@ export default function CostIntelligence() {
     { key: '90d', label: '90 Days' },
   ]
 
+  if (isSummaryLoading) return <FormSkeleton />
+
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
@@ -151,9 +154,9 @@ export default function CostIntelligence() {
 
       {/* Error Banner */}
       {isSummaryError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
-          <p className="text-sm text-foreground flex-1">Failed to load cost data.</p>
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+          <p className="text-sm text-muted-foreground flex-1">Unable to load cost data. The backend may not be running.</p>
           <button
             onClick={() => refetchSummary()}
             className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors"

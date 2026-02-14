@@ -103,9 +103,9 @@ export default function TraceExplorer() {
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-3">
-        <AlertTriangle className="w-8 h-8 text-destructive" />
-        <p className="text-base font-medium text-foreground">Failed to load trace data</p>
-        <p className="text-sm text-muted-foreground">There was an error fetching the trace. Please try again.</p>
+        <AlertTriangle className="w-8 h-8 text-muted-foreground/40" />
+        <p className="text-base font-medium text-foreground">Unable to load trace</p>
+        <p className="text-sm text-muted-foreground">Could not connect to the backend. Trace data will appear here once the server is running.</p>
         <button
           onClick={() => navigate(-1)}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
