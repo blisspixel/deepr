@@ -846,9 +846,9 @@ def get_cost_summary():
         avg_cost = total_spending / len(completed_jobs) if completed_jobs else 0
 
         # Get limits from controller or defaults
-        daily_limit = cost_controller.max_daily_cost if cost_controller else 100.0
-        monthly_limit = cost_controller.max_monthly_cost if cost_controller else 1000.0
-        per_job_limit = cost_controller.max_cost_per_job if cost_controller else 20.0
+        daily_limit = cost_controller.max_daily_cost if cost_controller else 10.0
+        monthly_limit = cost_controller.max_monthly_cost if cost_controller else 100.0
+        per_job_limit = cost_controller.max_cost_per_job if cost_controller else 10.0
 
         summary = {
             "daily": round(daily_spending, 2),
@@ -1048,9 +1048,9 @@ def get_cost_limits():
     """Get current budget limits."""
     try:
         limits = {
-            "per_job": cost_controller.max_cost_per_job if cost_controller else 20.0,
-            "daily": cost_controller.max_daily_cost if cost_controller else 100.0,
-            "monthly": cost_controller.max_monthly_cost if cost_controller else 1000.0,
+            "per_job": cost_controller.max_cost_per_job if cost_controller else 10.0,
+            "daily": cost_controller.max_daily_cost if cost_controller else 10.0,
+            "monthly": cost_controller.max_monthly_cost if cost_controller else 100.0,
         }
         return jsonify({"limits": limits})
 
@@ -1083,9 +1083,9 @@ def update_cost_limits():
                 cost_controller.max_monthly_cost = float(data["monthly"])
 
         limits = {
-            "per_job": cost_controller.max_cost_per_job if cost_controller else 20.0,
-            "daily": cost_controller.max_daily_cost if cost_controller else 100.0,
-            "monthly": cost_controller.max_monthly_cost if cost_controller else 1000.0,
+            "per_job": cost_controller.max_cost_per_job if cost_controller else 10.0,
+            "daily": cost_controller.max_daily_cost if cost_controller else 10.0,
+            "monthly": cost_controller.max_monthly_cost if cost_controller else 100.0,
         }
         _save_limits(limits["per_job"], limits["daily"], limits["monthly"])
         return jsonify({"limits": limits, "updated": True})
@@ -1319,8 +1319,8 @@ def get_config():
         with _config_lock:
             config = {
                 **_config,
-                "daily_limit": cost_controller.max_daily_cost if cost_controller else 100.0,
-                "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 1000.0,
+                "daily_limit": cost_controller.max_daily_cost if cost_controller else 10.0,
+                "monthly_limit": cost_controller.max_monthly_cost if cost_controller else 100.0,
                 "has_api_key": bool(os.getenv("OPENAI_API_KEY")),
                 "provider_keys": {
                     "openai": bool(os.getenv("OPENAI_API_KEY")),
@@ -2157,39 +2157,107 @@ def load_demo_data():
     except Exception as e:
         errors.append(f"Demo experts: {e}")
 
-    # 2. Seed sample completed jobs
+    # 2. Clear existing jobs to remove stale/garbage data, then seed fresh demo
+    try:
+        import sqlite3
+
+        db_path = _cfg.get("queue_db_path", str(config_path / "queue.db"))
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM research_queue")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        errors.append(f"Clear jobs: {e}")
+
     created_jobs = 0
+    now = datetime.now(timezone.utc)
     sample_jobs = [
+        # Recent deep research jobs (today/yesterday)
         {
-            "prompt": "What are the latest advances in quantum error correction?",
-            "model": "openai/gpt-5.2",
-            "cost": 2.35,
-            "tokens": 12400,
+            "prompt": "Comprehensive analysis of quantum error correction breakthroughs in 2025-2026, including surface codes, topological approaches, and implications for fault-tolerant quantum computing",
+            "model": "openai/o3-deep-research",
+            "cost": 0.52,
+            "tokens": 45200,
+            "hours_ago": 2,
         },
         {
-            "prompt": "Compare React Server Components vs traditional SSR approaches",
-            "model": "xai/grok-4",
-            "cost": 1.80,
-            "tokens": 9800,
+            "prompt": "Compare the economic impact of carbon border adjustment mechanisms across EU, US, and developing nations with trade flow analysis",
+            "model": "gemini/deep-research",
+            "cost": 1.05,
+            "tokens": 62000,
+            "hours_ago": 5,
         },
         {
-            "prompt": "Analyze the economic impact of carbon border adjustment mechanisms",
-            "model": "gemini/gemini-2.5-pro",
+            "prompt": "Deep dive into React Server Components vs traditional SSR: performance benchmarks, developer experience, and migration strategies for enterprise applications",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 1.85,
+            "tokens": 38400,
+            "hours_ago": 8,
+        },
+        {
+            "prompt": "State of autonomous vehicle regulation worldwide: liability frameworks, safety standards, and insurance models as of early 2026",
+            "model": "openai/o3-deep-research",
+            "cost": 0.48,
+            "tokens": 51000,
+            "hours_ago": 18,
+        },
+        {
+            "prompt": "Systematic review of large language model alignment techniques: RLHF, DPO, constitutional AI, and emerging approaches with effectiveness comparisons",
+            "model": "gemini/deep-research",
+            "cost": 0.95,
+            "tokens": 58000,
+            "hours_ago": 24,
+        },
+        # Older jobs (this week)
+        {
+            "prompt": "Analysis of global semiconductor supply chain resilience post-CHIPS Act: impact on TSMC, Samsung, and Intel foundry strategies",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 2.10,
+            "tokens": 42000,
+            "hours_ago": 48,
+        },
+        {
+            "prompt": "Comprehensive guide to Rust async runtime internals: Tokio vs async-std vs smol architecture comparisons with benchmarks",
+            "model": "openai/o3-deep-research",
             "cost": 0.45,
-            "tokens": 8200,
+            "tokens": 39500,
+            "hours_ago": 72,
+        },
+        {
+            "prompt": "Climate adaptation strategies for coastal megacities: engineering solutions, policy frameworks, and cost-benefit analysis through 2050",
+            "model": "gemini/deep-research",
+            "cost": 1.12,
+            "tokens": 67000,
+            "hours_ago": 96,
+        },
+        {
+            "prompt": "Impact of generative AI on software engineering productivity: empirical studies, developer surveys, and economic modeling",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 1.95,
+            "tokens": 35000,
+            "hours_ago": 120,
+        },
+        {
+            "prompt": "Behavioral economics of subscription pricing: nudge theory applications, churn prediction models, and ethical considerations",
+            "model": "openai/o3-deep-research",
+            "cost": 0.55,
+            "tokens": 44000,
+            "hours_ago": 168,
         },
     ]
     for sample in sample_jobs:
         try:
             job_id = str(uuid.uuid4())
-            now = datetime.now(timezone.utc)
+            submitted = now - timedelta(hours=sample["hours_ago"])
+            # Deep research jobs typically take 2-15 minutes
+            completed = submitted + timedelta(minutes=random.randint(2, 15))
             job = ResearchJob(
                 id=job_id,
                 prompt=sample["prompt"],
                 model=sample["model"],
                 status=JobStatus.QUEUED,
-                priority=3,
-                submitted_at=now - timedelta(hours=random.randint(1, 48)),
+                priority=random.choice([1, 3]),
+                submitted_at=submitted,
             )
             run_async(queue.enqueue(job))
             run_async(queue.update_status(job_id, JobStatus.COMPLETED))
