@@ -88,6 +88,9 @@ scripts/expert_deepr_discussion.txt
 deepr/web/frontend/node_modules/
 deepr/web/frontend/dist/
 deepr/web/frontend/.vite/
+deepr/web/frontend/screenshots/
+deepr/web/frontend/screenshot-qa.mjs
+deepr/web/frontend/playwright-report/
 
 # ==============================================================================
 # IDEs and Editors

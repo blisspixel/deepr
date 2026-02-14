@@ -262,58 +262,67 @@ export default function CostIntelligence() {
         )}
       </div>
 
-      {/* Breakdown + Budget Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* By Model */}
-        <div className="rounded-lg border bg-card p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">By Model</h2>
-          {breakdownData.length > 0 ? (
-            <div className="flex items-center gap-6">
-              <DonutChart data={breakdownData} height={160} innerRadius={45} outerRadius={65} />
-              <div className="space-y-2 flex-1">
-                {breakdownData.map((item: { name: string; value: number; color: string }) => (
-                  <div key={item.name} className="flex items-center gap-2 text-sm">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="flex-1 text-foreground text-xs">{item.name}</span>
-                    <span className="text-muted-foreground text-xs tabular-nums">{formatCurrency(item.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="h-[160px] flex items-center justify-center text-sm text-muted-foreground">
-              No breakdown data
-            </div>
+      {/* Budget Controls — prominent section */}
+      <div className="rounded-lg border-2 border-primary/20 bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Budget Controls</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Set spending limits to prevent runaway costs</p>
+          </div>
+          {updateLimitsMutation.isPending && (
+            <span className="text-xs text-muted-foreground animate-pulse">Saving...</span>
           )}
         </div>
-
-        {/* Budget Controls */}
-        <div className="rounded-lg border bg-card p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Budget Controls</h2>
-          <div className="space-y-4">
-            {[
-              { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || BUDGET_DEFAULTS.PER_JOB, max: 50 },
-              { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || BUDGET_DEFAULTS.DAILY, max: 500 },
-              { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || BUDGET_DEFAULTS.MONTHLY, max: 5000 },
-            ].map((control) => (
-              <div key={control.key} className="space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{control.label}</span>
-                  <span className="text-foreground font-medium tabular-nums">{formatCurrency(control.value)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={control.max}
-                  step={control.max > 100 ? 10 : 1}
-                  value={control.value}
-                  onChange={(e) => handleSliderChange(control.key, parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
-                />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {[
+            { label: 'Per-job limit', key: 'per_job' as const, value: effectiveLimits?.per_job || BUDGET_DEFAULTS.PER_JOB, max: 50, step: 1 },
+            { label: 'Daily limit', key: 'daily' as const, value: effectiveLimits?.daily || BUDGET_DEFAULTS.DAILY, max: 200, step: 5 },
+            { label: 'Monthly limit', key: 'monthly' as const, value: effectiveLimits?.monthly || BUDGET_DEFAULTS.MONTHLY, max: 2000, step: 10 },
+          ].map((control) => (
+            <div key={control.key} className="space-y-2">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs font-medium text-muted-foreground">{control.label}</span>
+                <span className="text-lg font-semibold text-foreground tabular-nums">{formatCurrency(control.value)}</span>
               </div>
-            ))}
-          </div>
+              <input
+                type="range"
+                min={1}
+                max={control.max}
+                step={control.step}
+                value={control.value}
+                onChange={(e) => handleSliderChange(control.key, parseFloat(e.target.value))}
+                className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                <span>$1</span>
+                <span>{formatCurrency(control.max)}</span>
+              </div>
+            </div>
+          ))}
         </div>
+      </div>
+
+      {/* Cost Breakdown Pie Chart */}
+      <div className="rounded-lg border bg-card p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Spending by Model</h2>
+        {breakdownData.length > 0 ? (
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <DonutChart data={breakdownData} height={220} innerRadius={60} outerRadius={90} />
+            <div className="space-y-2 flex-1 min-w-0">
+              {breakdownData.map((item: { name: string; value: number; color: string }) => (
+                <div key={item.name} className="flex items-center gap-2 text-sm">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                  <span className="flex-1 text-foreground text-xs truncate">{item.name}</span>
+                  <span className="text-muted-foreground text-xs tabular-nums">{formatCurrency(item.value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
+            No spending data yet
+          </div>
+        )}
       </div>
     </div>
   )
