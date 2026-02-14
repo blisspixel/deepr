@@ -30,4 +30,12 @@ export const configApi = {
     )
     return response.data
   },
+
+  // Clear all demo/job data
+  clearDemo: async () => {
+    const response = await apiClient.post<{ success: boolean; cleared_jobs: number; errors: string[] }>(
+      '/demo/clear'
+    )
+    return response.data
+  },
 }

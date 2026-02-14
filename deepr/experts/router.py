@@ -34,7 +34,7 @@ class ModelRouter:
                 r"\b(is|are|was|were)\b\s+\w+",  # Simple is/are questions
                 r"\b(yes|no|true|false)\b",  # Binary questions
                 r"\b(hello|hi|hey|thanks|thank you)\b",  # Greetings
-                r"\b(version|latest|current)\b",  # Version queries
+                r"\b(latest version|current version|version)\b",  # Version queries
                 r"\b(define|definition|meaning)\b",  # Simple definitions
                 r"\b(when did|when was|what is|what are)\b",  # Simple factual questions
             ],
@@ -59,6 +59,7 @@ class ModelRouter:
                 r"\b(trade-off|tradeoff|pros and cons)\b",  # Trade-off analysis
                 r"\b(multi-step|multiple|several)\b.*\b(step|phase|stage)\b",  # Multi-step
                 r"\b(considering|given|taking into account)\b",  # Contextual reasoning
+                r"\b(comprehensive|in-depth|thorough|extensive)\b",  # Depth indicators
             ],
             "weight": 3.0,
         },

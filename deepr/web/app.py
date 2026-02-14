@@ -2631,8 +2631,6 @@ def load_demo_data():
         try:
             job_id = str(uuid.uuid4())
             submitted = now - timedelta(hours=sample["hours_ago"])
-            # Deep research jobs typically take 2-15 minutes
-            completed = submitted + timedelta(minutes=random.randint(2, 15))
             job = ResearchJob(
                 id=job_id,
                 prompt=sample["prompt"],
@@ -2675,6 +2673,44 @@ def load_demo_data():
     )
 
 
+@app.route("/api/demo/clear", methods=["POST"])
+def clear_demo_data():
+    """Clear all jobs and demo data."""
+    import sqlite3
+
+    errors = []
+    try:
+        db_path = _cfg.get("queue_db_path", str(config_path / "queue.db"))
+        conn = sqlite3.connect(db_path)
+        count = conn.execute("SELECT COUNT(*) FROM research_queue").fetchone()[0]
+        conn.execute("DELETE FROM research_queue")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        errors.append(str(e))
+        count = 0
+
+    # Clean up stored reports
+    try:
+        import shutil
+
+        storage_dir = Path(storage.base_path)
+        if storage_dir.exists():
+            for job_dir in storage_dir.iterdir():
+                if job_dir.is_dir():
+                    shutil.rmtree(job_dir)
+    except Exception as e:
+        errors.append(f"Storage cleanup: {e}")
+
+    return jsonify(
+        {
+            "success": len(errors) == 0,
+            "cleared_jobs": count,
+            "errors": errors,
+        }
+    )
+
+
 # =============================================================================
 # HEALTH CHECK
 # =============================================================================
@@ -2700,6 +2736,27 @@ def health_check():
     except Exception as e:
         logger.error("Health check failed: %s", e)
         return jsonify({"status": "unhealthy", "error": "Service unavailable"}), 500
+
+
+def _auto_load_demo():
+    """Auto-load demo data if DEEPR_DEMO=1 is set."""
+    if os.environ.get("DEEPR_DEMO", "").strip() in ("1", "true", "yes"):
+        with app.app_context():
+            try:
+                logger.info("DEEPR_DEMO is set — auto-loading demo data")
+                # Check if jobs already exist to avoid duplicate loads
+                jobs = run_async(queue.list_jobs(limit=1))
+                if not jobs:
+                    with app.test_request_context():
+                        load_demo_data()
+                    logger.info("Demo data loaded successfully")
+                else:
+                    logger.info("Jobs already exist — skipping demo auto-load")
+            except Exception as e:
+                logger.warning("Failed to auto-load demo data: %s", e)
+
+
+_auto_load_demo()
 
 
 if __name__ == "__main__":
