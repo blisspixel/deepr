@@ -243,17 +243,33 @@ export default function Settings() {
                       <p className="text-sm font-medium text-foreground capitalize">{config?.storage || 'local'}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    {config?.has_api_key ? (
-                      <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
-                    )}
-                    <div>
-                      <p className="text-xs text-muted-foreground">API Key</p>
-                      <p className="text-sm font-medium text-foreground">{config?.has_api_key ? 'Configured' : 'Not set'}</p>
+                  {config?.provider_keys ? (
+                    Object.entries(config.provider_keys).map(([provider, hasKey]) => (
+                      <div key={provider} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        {hasKey ? (
+                          <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                        )}
+                        <div>
+                          <p className="text-xs text-muted-foreground">{provider}</p>
+                          <p className="text-sm font-medium text-foreground">{hasKey ? 'Configured' : 'Not set'}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      {config?.has_api_key ? (
+                        <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                      )}
+                      <div>
+                        <p className="text-xs text-muted-foreground">API Key</p>
+                        <p className="text-sm font-medium text-foreground">{config?.has_api_key ? 'Configured' : 'Not set'}</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </>

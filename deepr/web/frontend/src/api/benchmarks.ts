@@ -21,6 +21,16 @@ export const benchmarksApi = {
     return response.data
   },
 
+  estimate: async (opts: { tier?: string; quick?: boolean; no_judge?: boolean }) => {
+    const response = await apiClient.post<{
+      estimated_cost: number
+      model_count: number
+      provider_count: number
+      tier: string
+    }>('/benchmarks/estimate', opts)
+    return response.data
+  },
+
   start: async (opts: { tier?: string; quick?: boolean; no_judge?: boolean }) => {
     const response = await apiClient.post<{ status: string; started_at: string }>(
       '/benchmarks/start',
