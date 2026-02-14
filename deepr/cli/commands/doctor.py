@@ -1,12 +1,12 @@
 """Diagnostics command for troubleshooting Deepr configuration."""
 
-import asyncio
 import os
 import tempfile
 from pathlib import Path
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.config import load_config
 
 
@@ -351,7 +351,7 @@ def doctor(skip_connectivity: bool):
         print_checks(all_checks)
 
     # Run async checks
-    asyncio.run(run_diagnostics())
+    run_async_command(run_diagnostics())
 
 
 if __name__ == "__main__":
