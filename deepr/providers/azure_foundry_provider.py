@@ -118,13 +118,14 @@ class AzureFoundryProvider(DeepResearchProvider):
         # Pricing per 1M tokens for regular models (from registry)
         from .registry import get_token_pricing
 
+        # Order matters: longer keys first so "gpt-4o-mini" matches before "gpt-4o"
         self.pricing = {
-            "gpt-5": get_token_pricing("gpt-5"),
             "gpt-5-mini": {"input": 0.25, "output": 2.00},
-            "gpt-4.1": get_token_pricing("gpt-4.1"),
+            "gpt-5": get_token_pricing("gpt-5"),
             "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
-            "gpt-4o": get_token_pricing("gpt-4o"),
+            "gpt-4.1": get_token_pricing("gpt-4.1"),
             "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+            "gpt-4o": get_token_pricing("gpt-4o"),
         }
 
         # Cost estimation: Bing grounding ~$0.035/search query

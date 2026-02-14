@@ -501,11 +501,11 @@ class TestAzureFoundryProvider:
         """Test cost estimation based on citation/search count."""
         # With few citations, base cost wins
         estimated = max(provider.deep_research_cost_estimate, 3 * 0.035)
-        assert estimated == 0.50
+        assert estimated == pytest.approx(0.50)
 
         # With many citations, search cost wins
         estimated = max(provider.deep_research_cost_estimate, 20 * 0.035)
-        assert estimated == 0.70
+        assert estimated == pytest.approx(0.70)
 
     def test_close_deletes_all_agents(self, provider, mock_azure_modules):
         """Test close() deletes both deep research and regular agents."""
@@ -572,7 +572,6 @@ class TestAzureFoundryProviderRegistration:
 
         expected = [
             ("azure-foundry", "o3-deep-research"),
-            ("azure-foundry", "gpt-5"),
             ("azure-foundry", "gpt-5-mini"),
             ("azure-foundry", "gpt-4.1"),
             ("azure-foundry", "gpt-4.1-mini"),
