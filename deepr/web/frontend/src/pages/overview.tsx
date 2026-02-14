@@ -270,25 +270,34 @@ export default function Overview() {
                     }}
                   >
                     <div className="flex-shrink-0">
-                      {job.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-success" />}
-                      {job.status === 'processing' && <Loader2 className="w-4 h-4 text-info animate-spin" />}
-                      {job.status === 'queued' && <Activity className="w-4 h-4 text-warning" />}
-                      {job.status === 'failed' && <XCircle className="w-4 h-4 text-destructive" />}
-                      {job.status === 'cancelled' && <XCircle className="w-4 h-4 text-muted-foreground" />}
+                      {job.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-success" /> :
+                       job.status === 'processing' ? <Loader2 className="w-4 h-4 text-info animate-spin" /> :
+                       job.status === 'queued' ? <Activity className="w-4 h-4 text-warning" /> :
+                       job.status === 'failed' ? <XCircle className="w-4 h-4 text-destructive" /> :
+                       job.status === 'cancelled' ? <XCircle className="w-4 h-4 text-muted-foreground" /> :
+                       <Activity className="w-4 h-4 text-muted-foreground" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground truncate">
-                        {job.prompt.substring(0, 60)}{job.prompt.length > 60 ? '...' : ''}
+                        {job.prompt
+                          ? `${job.prompt.substring(0, 60)}${job.prompt.length > 60 ? '...' : ''}`
+                          : <span className="italic text-muted-foreground">Untitled research</span>
+                        }
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {job.model && (
+                        <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted">
+                          {job.model.split('/').pop()}
+                        </span>
+                      )}
                       {job.cost > 0 && (
                         <span className="text-xs text-muted-foreground tabular-nums">
                           {formatCurrency(job.cost)}
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
-                        {job.submitted_at && formatRelativeTime(job.submitted_at)}
+                        {job.submitted_at ? formatRelativeTime(job.submitted_at) : ''}
                       </span>
                     </div>
                   </div>

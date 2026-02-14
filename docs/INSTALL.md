@@ -46,25 +46,23 @@ cp .env.example .env
 # Or use any text editor
 ```
 
-Add your API keys to `.env`:
+Add at least one API key to `.env`:
 
 ```bash
-# At minimum, add one provider key:
+# Pick ANY one to start — Deepr works with a single provider.
+# Add more keys later and auto mode will route to the best model per task.
 
-# OpenAI (recommended - includes Deep Research API)
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=sk-...      # Deep research + GPT-5/4.1 models
+GEMINI_API_KEY=...          # Cost-effective, 1M+ context, Deep Research Agent
+XAI_API_KEY=xai-...         # Cheapest ($0.01/query), real-time web search
+ANTHROPIC_API_KEY=...       # Complex reasoning, coding (Extended Thinking)
 
-# OR Google Gemini (fast, cost-effective)
-GEMINI_API_KEY=...
+# Enterprise options (optional):
+# AZURE_OPENAI_KEY=...
+# AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+# AZURE_PROJECT_ENDPOINT=...  # Azure AI Foundry (deep research + Bing)
 
-# OR xAI Grok (agentic search)
-XAI_API_KEY=xai-...
-
-# Optional: Azure OpenAI (enterprise)
-AZURE_OPENAI_API_KEY=...
-AZURE_OPENAI_ENDPOINT=...
-
-# Optional: Budget limits
+# Budget limits (recommended):
 DEEPR_MAX_COST_PER_MONTH=50.0
 ```
 
@@ -72,7 +70,8 @@ DEEPR_MAX_COST_PER_MONTH=50.0
 - OpenAI: https://platform.openai.com/api-keys
 - Google Gemini: https://aistudio.google.com/app/apikey
 - xAI Grok: https://console.x.ai/
-- Azure OpenAI: https://portal.azure.com/
+- Anthropic: https://console.anthropic.com/settings/keys
+- Azure: https://portal.azure.com/
 
 ### Step 3: Set Your Budget
 
@@ -151,13 +150,14 @@ docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --auto
 Edit `.env` file:
 
 ```bash
-# Provider API Keys
-OPENAI_API_KEY=sk-...              # OpenAI (required for o3/o4-mini)
-GEMINI_API_KEY=...                  # Google Gemini (optional)
-XAI_API_KEY=xai-...                 # xAI Grok (optional)
-AZURE_OPENAI_API_KEY=...            # Azure OpenAI (optional)
-AZURE_OPENAI_ENDPOINT=...           # Azure endpoint (optional)
-ANTHROPIC_API_KEY=...               # Anthropic (for planning, optional)
+# Provider API Keys (at least one required — all optional individually)
+OPENAI_API_KEY=sk-...              # OpenAI (deep research + GPT models)
+GEMINI_API_KEY=...                  # Google Gemini (cost-effective, large context)
+XAI_API_KEY=xai-...                 # xAI Grok (cheapest, real-time web search)
+ANTHROPIC_API_KEY=...               # Anthropic (complex reasoning, coding)
+# AZURE_OPENAI_KEY=...              # Azure OpenAI (enterprise)
+# AZURE_OPENAI_ENDPOINT=...         # Azure endpoint
+# AZURE_PROJECT_ENDPOINT=...        # Azure AI Foundry (enterprise deep research)
 
 # Cost Controls
 DEEPR_MAX_COST_PER_JOB=10.0         # Max cost per research job
@@ -165,7 +165,7 @@ DEEPR_MAX_COST_PER_DAY=100.0        # Daily spending limit
 DEEPR_MAX_COST_PER_MONTH=1000.0     # Monthly spending limit
 
 # Features
-DEEPR_AUTO_REFINE=false             # Auto-optimize prompts (GPT-5.2-mini)
+DEEPR_AUTO_REFINE=false             # Auto-optimize prompts before submission
 
 # Storage
 DEEPR_RESULTS_DIR=data/reports      # Where reports are saved
@@ -174,16 +174,18 @@ DEEPR_QUEUE_DB=queue/research_queue.db  # Job queue database
 
 ### Recommended Provider Setup
 
-**For most users:**
-- Start with OpenAI (o4-mini-deep-research, ~$2.00 per query)
-- Add Gemini for cost optimization (gemini-2.5-flash, ~$0.02 per query)
+**Minimum (one key):** Any single provider works. Pick based on your priority:
+- **OpenAI** — Best for deep research (o3/o4-mini)
+- **Gemini** — Best value (excellent quality at low cost)
+- **Grok** — Cheapest ($0.01/query), great for web search and news
+- **Anthropic** — Best for complex reasoning and coding
 
-**For cost-conscious users:**
-- Start with Gemini (excellent quality, very affordable)
-- Add OpenAI for complex strategic analysis when needed
+**Recommended (two keys):** OpenAI + Grok or Gemini + Grok. This gives you deep research *and* a cheap fallback for simple queries. Auto mode routes appropriately.
+
+**Full setup (all keys):** Auto mode has maximum flexibility — $0.01 for lookups, $0.04 for moderate queries, $0.50 for deep research. Each provider's strengths are used where they matter most.
 
 **For enterprise:**
-- Use Azure OpenAI for compliance and governance
+- Use Azure OpenAI or Azure AI Foundry for compliance and governance
 - Set strict budget limits in .env
 
 ## Troubleshooting
