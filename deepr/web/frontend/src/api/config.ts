@@ -22,4 +22,12 @@ export const configApi = {
     )
     return response.data
   },
+
+  // Load demo data (experts + sample jobs)
+  loadDemo: async () => {
+    const response = await apiClient.post<{ success: boolean; created_jobs: number; errors: string[] }>(
+      '/demo/load'
+    )
+    return response.data
+  },
 }

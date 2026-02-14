@@ -103,12 +103,12 @@ export default function Benchmarks() {
     queryFn: benchmarksApi.list,
   })
 
-  const { data: latestData, isLoading: benchLoading } = useQuery({
+  const { data: latestData, isLoading: benchLoading, isError: benchError } = useQuery({
     queryKey: ['benchmarks', selectedFile ? 'file' : 'latest', selectedFile],
     queryFn: () => selectedFile ? benchmarksApi.get(selectedFile) : benchmarksApi.getLatest(),
   })
 
-  const { data: registry, isLoading: regLoading } = useQuery({
+  const { data: registry, isLoading: regLoading, isError: regError } = useQuery({
     queryKey: ['models', 'registry'],
     queryFn: benchmarksApi.getRegistry,
   })
@@ -235,6 +235,30 @@ export default function Benchmarks() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (regError && benchError && !registry && !result) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Models</h1>
+          <p className="text-sm text-muted-foreground mt-1">Model registry and benchmark results</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <AlertCircle className="w-10 h-10 text-muted-foreground/40 mb-3" />
+          <p className="text-lg font-medium text-foreground mb-1">Unable to load models</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            The backend server is not reachable. Model data and benchmarks will appear here once connected.
+          </p>
+          <button
+            onClick={() => queryClient.invalidateQueries()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
