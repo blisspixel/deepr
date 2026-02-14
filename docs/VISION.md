@@ -22,7 +22,7 @@ What works today:
 - Smart query routing (--auto, --batch) with complexity-based model selection
 - Context discovery with semantic search and temporal tracking
 - Web dashboard (12 pages) with real-time progress updates
-- 3600+ tests
+- 3700+ tests
 
 ## Near-Term Vision (v2.9-3.0)
 
