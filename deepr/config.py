@@ -75,6 +75,10 @@ class ProviderConfig(BaseModel):
         selections with benchmark-recommended models (best_value strategy).
         Env var DEEPR_DEEP_RESEARCH_MODEL takes priority for deep_research.
         """
+        use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "").lower() in {"1", "true", "yes"}
+        if not use_benchmark_routing:
+            return self
+
         prefs_path = Path("data/benchmarks/routing_preferences.json")
         if not prefs_path.exists():
             return self

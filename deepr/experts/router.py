@@ -7,6 +7,7 @@ while maintaining quality. Routes simple queries to fast/cheap models and comple
 reasoning to deep research models.
 """
 
+import os
 import re
 from dataclasses import dataclass
 from typing import Literal, Optional
@@ -104,7 +105,8 @@ class ModelRouter:
         self.capabilities = MODEL_CAPABILITIES
 
         # Load benchmark rankings for OpenAI model selection
-        self._openai_bench = self._load_openai_benchmarks()
+        use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "").lower() in {"1", "true", "yes"}
+        self._openai_bench = self._load_openai_benchmarks() if use_benchmark_routing else None
 
     def _load_openai_benchmarks(self) -> dict[str, list[tuple[str, float, float]]] | None:
         """Load benchmark rankings filtered to OpenAI models only.
