@@ -567,19 +567,20 @@ class TestAzureFoundryProviderRegistration:
             assert cap.cost_per_query == expected_cost, f"{key} cost mismatch"
 
     def test_auto_mode_cost_entries(self):
-        """Test all azure-foundry models in auto mode cost table."""
-        from deepr.routing.auto_mode import MODEL_COSTS
+        """Test all azure-foundry models have costs in registry."""
+        from deepr.providers.registry import MODEL_CAPABILITIES
 
         expected = [
-            ("azure-foundry", "o3-deep-research"),
-            ("azure-foundry", "gpt-5-mini"),
-            ("azure-foundry", "gpt-4.1"),
-            ("azure-foundry", "gpt-4.1-mini"),
-            ("azure-foundry", "gpt-4o"),
-            ("azure-foundry", "gpt-4o-mini"),
+            "azure-foundry/o3-deep-research",
+            "azure-foundry/gpt-5-mini",
+            "azure-foundry/gpt-4.1",
+            "azure-foundry/gpt-4.1-mini",
+            "azure-foundry/gpt-4o",
+            "azure-foundry/gpt-4o-mini",
         ]
         for key in expected:
-            assert key in MODEL_COSTS, f"Missing auto_mode cost entry: {key}"
+            assert key in MODEL_CAPABILITIES, f"Missing registry entry: {key}"
+            assert MODEL_CAPABILITIES[key].cost_per_query > 0
 
     def test_auto_mode_env_mapping(self):
         """Test azure-foundry has env var mapping."""

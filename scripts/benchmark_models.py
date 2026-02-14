@@ -2349,11 +2349,19 @@ def emit_routing_config(summaries: list[ModelSummary], results: list[EvalResult]
             "best_value_score": best_value.scores_by_type.get(tt, 0),
         }
 
+    # Deduplicate overall ranking (models appear in multiple tiers)
+    seen: set[str] = set()
+    overall_ranking: list[str] = []
+    for s in summaries:
+        if s.model_key not in seen:
+            seen.add(s.model_key)
+            overall_ranking.append(s.model_key)
+
     config = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model_count": len(summaries),
         "task_preferences": preferences,
-        "overall_ranking": [s.model_key for s in summaries],
+        "overall_ranking": overall_ranking,
     }
 
     out_file.write_text(json.dumps(config, indent=2))
