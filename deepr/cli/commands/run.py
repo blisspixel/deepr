@@ -28,6 +28,20 @@ from deepr.queue.local_queue import SQLiteQueue
 MAX_FALLBACK_ATTEMPTS = 3
 
 
+def _run_async_command(coro):
+    """Run a coroutine for CLI commands and close leaked coroutines in tests.
+
+    When `asyncio.run` is mocked in unit tests, created coroutines can remain
+    unawaited and trigger noisy RuntimeWarnings. Closing an unconsumed coroutine
+    is safe and avoids those warnings while preserving runtime behavior.
+    """
+    try:
+        return asyncio.run(coro)
+    finally:
+        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
+            coro.close()
+
+
 def _classify_provider_error(exc: Exception, provider: str) -> None:
     """Re-raise exception as a core ProviderError subclass for fallback routing.
 
@@ -275,7 +289,7 @@ def focus(
         deepr run focus "AI trends" --explain --timeline
     """
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    asyncio.run(
+    _run_async_command(
         _run_single(
             query,
             model,
@@ -977,7 +991,7 @@ def project(
         deepr run project "Market entry analysis" --phases 4
         deepr run project "Competitive landscape" -m o3-deep-research
     """
-    asyncio.run(_run_campaign(scenario, model, lead, phases, yes))
+    _run_async_command(_run_campaign(scenario, model, lead, phases, yes))
 
 
 async def _run_campaign(
@@ -1104,7 +1118,7 @@ def team(
         deepr run team "Evaluate merger opportunity" --perspectives 8
         deepr run team "Technology decision" -m o3-deep-research
     """
-    asyncio.run(_run_team(question, model, perspectives, yes))
+    _run_async_command(_run_team(question, model, perspectives, yes))
 
 
 async def _run_team(
@@ -1190,7 +1204,7 @@ def docs(
     # TODO: Add system_message parameter to _run_single for customization
 
     # Call _run_single with docs-specific parameters
-    asyncio.run(
+    _run_async_command(
         _run_single(
             query=f"Create comprehensive documentation for: {topic}",
             model=model,
@@ -1220,7 +1234,7 @@ def docs(
 @output_options
 def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, no_fallback, output_context):
     """Quick alias for 'deepr run focus' - run a focused research job."""
-    asyncio.run(
+    _run_async_command(
         _run_single(
             query, model, provider, no_web, no_code, upload, limit, yes, output_context, no_fallback=no_fallback
         )
