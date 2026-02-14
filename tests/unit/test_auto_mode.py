@@ -5,9 +5,9 @@ based on complexity, task type, and budget constraints, using benchmark
 quality rankings.
 """
 
-import deepr.routing.auto_mode as auto_mode_module
 import pytest
 
+import deepr.routing.auto_mode as auto_mode_module
 from deepr.routing.auto_mode import AutoModeDecision, AutoModeRouter, BatchRoutingResult
 
 # Controlled benchmark rankings for deterministic tests.
