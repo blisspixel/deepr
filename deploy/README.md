@@ -66,12 +66,21 @@ deploy/
 │       └── responses.py    # Response formatting utilities
 ├── aws/                # AWS SAM/CloudFormation deployment
 │   ├── template.yaml   # SAM template
+│   ├── deploy.sh       # Build + deploy + validate
+│   ├── validate.sh     # Smoke test endpoints
+│   ├── destroy.sh      # Tear down stack
 │   └── src/api/handler.py
 ├── azure/              # Azure Bicep deployment
 │   ├── main.bicep      # Bicep template
+│   ├── deploy.sh       # Deploy + validate
+│   ├── validate.sh     # Smoke test endpoints
+│   ├── destroy.sh      # Delete resource group
 │   └── functions/function_app.py
 └── gcp/                # GCP Terraform deployment
     ├── main.tf         # Terraform config
+    ├── deploy.sh       # Terraform apply + validate
+    ├── validate.sh     # Smoke test endpoints
+    ├── destroy.sh      # Terraform destroy
     └── functions/main.py
 ```
 
@@ -79,41 +88,58 @@ The shared library (`deploy/shared/deepr_api_common/`) provides reusable validat
 
 ## Quick Start
 
+Each cloud has three standardized scripts: `deploy.sh`, `validate.sh`, and `destroy.sh`.
+
 ### AWS
 
 ```bash
 cd deploy/aws
-cp .env.example .env
-# Edit .env with your API keys
+cp .env.example .env        # Add your API keys
 
-# Deploy
-sam build
-sam deploy --guided
+./deploy.sh                  # Build + deploy + auto-validate
+./validate.sh                # Re-run validation anytime
+./destroy.sh                 # Tear down all resources
 ```
 
 ### Azure
 
 ```bash
 cd deploy/azure
-cp .env.example .env
-# Edit .env with your API keys
+cp .env.example .env        # Add your API keys
 
-# Deploy
 az login
-./deploy.sh
+./deploy.sh                  # Deploy + auto-validate
+./validate.sh                # Re-run validation anytime
+./destroy.sh                 # Tear down resource group
 ```
 
 ### GCP
 
 ```bash
 cd deploy/gcp
-cp .env.example .env
-# Edit .env with your API keys
+cp .env.example .env        # Add your API keys
 
-# Deploy
 gcloud auth login
-./deploy.sh
+./deploy.sh                  # Deploy + auto-validate
+./validate.sh                # Re-run validation anytime
+./destroy.sh                 # Terraform destroy
 ```
+
+### Deploy / Validate / Destroy Lifecycle
+
+All three clouds follow the same lifecycle:
+
+1. **Deploy** (`deploy.sh`) — Provisions infrastructure, deploys code, auto-runs validation
+2. **Validate** (`validate.sh`) — Smoke tests: health check, job submit, status check, costs endpoint
+3. **Destroy** (`destroy.sh`) — Tears down all resources with confirmation prompt (use `--yes` to skip)
+
+Validation checks (all clouds):
+- `GET /health` returns 200
+- `POST /jobs` returns a job_id
+- `GET /jobs/{id}` returns 200
+- `GET /costs` returns 200
+
+Set `API_URL` and `API_KEY` environment variables to point validation at a specific deployment.
 
 ## Security Features
 
@@ -341,20 +367,28 @@ Restrict API access to specific IP ranges:
 
 ## Cleanup
 
+Use the standardized destroy scripts (with confirmation prompts):
+
 ### AWS
 ```bash
-sam delete --stack-name deepr
+cd deploy/aws
+./destroy.sh                 # Interactive confirmation
+./destroy.sh --yes           # Skip confirmation
 # Note: KMS keys have deletion protection; disable manually if needed
 ```
 
 ### Azure
 ```bash
-az group delete --name deepr-rg
+cd deploy/azure
+./destroy.sh                 # Interactive confirmation
+./destroy.sh --yes           # Skip confirmation
 ```
 
 ### GCP
 ```bash
-terraform destroy
+cd deploy/gcp
+./destroy.sh                 # Interactive confirmation
+./destroy.sh --yes           # Skip confirmation
 # Note: KMS keys have deletion protection; disable manually if needed
 ```
 

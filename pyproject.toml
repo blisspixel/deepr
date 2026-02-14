@@ -59,6 +59,13 @@ azure = [
     "azure-storage-blob>=12.19.0,<13.0.0",
 ]
 
+# Azure AI Foundry deep research
+azure-foundry = [
+    "azure-ai-projects>=1.0.0b4",
+    "azure-ai-agents>=1.0.0b4",
+    "azure-identity>=1.12.0,<2.0.0",
+]
+
 # Document processing for experts
 docs = [
     "python-docx>=0.8.11,<2.0.0",
@@ -68,7 +75,7 @@ docs = [
 
 # Full install with all features
 full = [
-    "deepr-research[web,azure,docs]",
+    "deepr-research[web,azure,azure-foundry,docs]",
 ]
 
 # Development dependencies

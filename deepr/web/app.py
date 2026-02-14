@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import re
+import sys
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -1786,6 +1787,277 @@ def test_connection():
 
     except Exception as e:
         logger.error(f"Error testing connection: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# =============================================================================
+# BENCHMARKS API ENDPOINTS
+# =============================================================================
+
+_benchmark_proc: dict = {}  # pid, process, started_at, output_lines
+_benchmark_lock = threading.Lock()
+_BENCHMARK_DIR = Path("data/benchmarks")
+
+
+@app.route("/api/benchmarks", methods=["GET"])
+def list_benchmarks():
+    """List saved benchmark result files."""
+    try:
+        if not _BENCHMARK_DIR.exists():
+            return jsonify({"benchmarks": []})
+
+        files = sorted(_BENCHMARK_DIR.glob("benchmark_*.json"), reverse=True)
+        benchmarks = []
+        for f in files:
+            try:
+                data = _json.loads(f.read_text(encoding="utf-8"))
+                rankings = data.get("rankings", [])
+                tiers = {r.get("tier", "chat") for r in rankings}
+                benchmarks.append(
+                    {
+                        "filename": f.name,
+                        "timestamp": data.get("timestamp", ""),
+                        "tier_count": len(tiers),
+                        "model_count": len(rankings),
+                        "total_cost": round(data.get("total_cost", 0), 4),
+                    }
+                )
+            except Exception:
+                continue
+
+        return jsonify({"benchmarks": benchmarks})
+
+    except Exception as e:
+        logger.error(f"Error listing benchmarks: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+def _sanitize_benchmark(data: dict) -> dict:
+    """Replace Infinity/NaN with JSON-safe values in benchmark data."""
+    for ranking in data.get("rankings", []):
+        for key in ("cost_per_quality", "avg_quality", "avg_latency_ms", "total_cost"):
+            val = ranking.get(key)
+            if isinstance(val, float) and (math.isinf(val) or math.isnan(val)):
+                ranking[key] = 0.0
+    return data
+
+
+@app.route("/api/benchmarks/latest", methods=["GET"])
+def get_latest_benchmark():
+    """Get the best benchmark result (most models, then most recent)."""
+    try:
+        if not _BENCHMARK_DIR.exists():
+            return jsonify({"result": None})
+
+        files = sorted(_BENCHMARK_DIR.glob("benchmark_*.json"), reverse=True)
+        if not files:
+            return jsonify({"result": None})
+
+        # Pick the file with the most models (most comprehensive run),
+        # breaking ties by most recent timestamp
+        best_file = None
+        best_count = 0
+        for f in files:
+            try:
+                data = _json.loads(f.read_text(encoding="utf-8"))
+                count = len([r for r in data.get("rankings", []) if r.get("num_evals", 0) > 0])
+                if count > best_count:
+                    best_count = count
+                    best_file = (f, data)
+            except Exception:
+                continue
+
+        if not best_file:
+            # Fallback to most recent
+            data = _sanitize_benchmark(_json.loads(files[0].read_text(encoding="utf-8")))
+            return jsonify({"result": data, "filename": files[0].name})
+
+        return jsonify({"result": _sanitize_benchmark(best_file[1]), "filename": best_file[0].name})
+
+    except Exception as e:
+        logger.error(f"Error getting latest benchmark: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/benchmarks/<filename>", methods=["GET"])
+def get_benchmark(filename):
+    """Get a specific benchmark result by filename."""
+    try:
+        # Validate filename: must match benchmark_YYYYMMDD_HHMMSS.json
+        if not re.match(r"^benchmark_\d{8}_\d{6}\.json$", filename):
+            return jsonify({"error": "Invalid filename"}), 400
+
+        filepath = (_BENCHMARK_DIR / filename).resolve()
+        if not str(filepath).startswith(str(_BENCHMARK_DIR.resolve())):
+            return jsonify({"error": "Invalid filename"}), 400
+
+        if not filepath.exists():
+            return jsonify({"error": "Benchmark not found"}), 404
+
+        data = _sanitize_benchmark(_json.loads(filepath.read_text(encoding="utf-8")))
+        return jsonify({"result": data, "filename": filename})
+
+    except Exception as e:
+        logger.error(f"Error getting benchmark {filename}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/benchmarks/start", methods=["POST"])
+def start_benchmark():
+    """Start a benchmark run as a subprocess."""
+    try:
+        import subprocess
+        from collections import deque
+
+        with _benchmark_lock:
+            # Check if already running
+            proc = _benchmark_proc.get("process")
+            if proc and proc.poll() is None:
+                return jsonify({"error": "Benchmark already running"}), 409
+
+            data = request.json or {}
+            tier = data.get("tier", "all")
+            quick = data.get("quick", False)
+            no_judge = data.get("no_judge", False)
+
+            # Validate tier
+            if tier not in ("all", "chat", "news", "research", "docs"):
+                return jsonify({"error": "Invalid tier"}), 400
+
+            # Build command
+            cmd = [
+                sys.executable,
+                "scripts/benchmark_models.py",
+                "--tier",
+                tier,
+                "--save",
+                "--emit-routing-config",
+            ]
+            if quick:
+                cmd.append("--quick")
+            if no_judge:
+                cmd.append("--no-judge")
+
+            output_lines: deque = deque(maxlen=200)
+            started_at = datetime.now(timezone.utc).isoformat()
+
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(Path(__file__).resolve().parent.parent.parent),
+            )
+
+            _benchmark_proc.update(
+                {
+                    "pid": proc.pid,
+                    "process": proc,
+                    "started_at": started_at,
+                    "output_lines": output_lines,
+                }
+            )
+
+            # Reader thread to capture output
+            def _read_output():
+                try:
+                    for line in proc.stdout:
+                        output_lines.append(line.rstrip("\n"))
+                except Exception:
+                    pass
+
+            reader = threading.Thread(target=_read_output, daemon=True, name="benchmark-reader")
+            reader.start()
+
+        return jsonify({"status": "started", "started_at": started_at})
+
+    except Exception as e:
+        logger.error(f"Error starting benchmark: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/benchmarks/status", methods=["GET"])
+def benchmark_status():
+    """Get running benchmark status."""
+    try:
+        with _benchmark_lock:
+            proc = _benchmark_proc.get("process")
+            if not proc:
+                return jsonify({"status": "idle"})
+
+            output_lines = _benchmark_proc.get("output_lines", [])
+            last_lines = list(output_lines)[-50:]
+
+            poll = proc.poll()
+            if poll is None:
+                status = "running"
+            elif poll == 0:
+                status = "completed"
+            else:
+                status = "failed"
+
+            return jsonify(
+                {
+                    "status": status,
+                    "started_at": _benchmark_proc.get("started_at"),
+                    "exit_code": poll,
+                    "output_lines": last_lines,
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Error getting benchmark status: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/benchmarks/routing-preferences", methods=["GET"])
+def get_routing_preferences():
+    """Get current routing preferences from benchmark results."""
+    try:
+        prefs_file = _BENCHMARK_DIR / "routing_preferences.json"
+        if not prefs_file.exists():
+            return jsonify({"preferences": None})
+
+        data = _json.loads(prefs_file.read_text(encoding="utf-8"))
+        return jsonify({"preferences": data})
+
+    except Exception as e:
+        logger.error(f"Error getting routing preferences: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# =============================================================================
+# MODEL REGISTRY
+# =============================================================================
+
+
+@app.route("/api/models/registry", methods=["GET"])
+def get_model_registry():
+    """Return all registered model capabilities for the Models dashboard."""
+    try:
+        from deepr.providers.registry import MODEL_CAPABILITIES
+
+        models = []
+        for key, cap in MODEL_CAPABILITIES.items():
+            models.append(
+                {
+                    "model_key": key,
+                    "provider": cap.provider,
+                    "model": cap.model,
+                    "cost_per_query": cap.cost_per_query,
+                    "input_cost_per_1m": cap.input_cost_per_1m,
+                    "output_cost_per_1m": cap.output_cost_per_1m,
+                    "latency_ms": cap.latency_ms,
+                    "context_window": cap.context_window,
+                    "specializations": cap.specializations,
+                    "strengths": cap.strengths,
+                    "weaknesses": cap.weaknesses,
+                }
+            )
+        return jsonify({"models": models})
+
+    except Exception as e:
+        logger.error(f"Error getting model registry: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
