@@ -68,6 +68,17 @@ export default function Settings() {
     },
   })
 
+  const clearDemoMutation = useMutation({
+    mutationFn: () => configApi.clearDemo(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries()
+      toast.success(`Cleared ${data.cleared_jobs} jobs`)
+    },
+    onError: () => {
+      toast.error('Failed to clear data')
+    },
+  })
+
   const [activeSection, setActiveSection] = useState('general')
   const [formData, setFormData] = useState({
     default_model: 'o4-mini-deep-research',
@@ -289,21 +300,35 @@ export default function Settings() {
                 </div>
                 <div className="border-t pt-4 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Load Demo Data</p>
-                    <p className="text-xs text-muted-foreground">Create sample experts and research jobs to explore the UI</p>
+                    <p className="text-sm font-medium text-foreground">Demo Data</p>
+                    <p className="text-xs text-muted-foreground">Load or clear sample data for exploring the UI. Set <code className="px-1 py-0.5 bg-muted rounded text-[10px]">DEEPR_DEMO=1</code> to auto-load on startup.</p>
                   </div>
-                  <button
-                    onClick={() => loadDemoMutation.mutate()}
-                    disabled={loadDemoMutation.isPending}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
-                  >
-                    {loadDemoMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                    {loadDemoMutation.isPending ? 'Loading...' : 'Load Demo Data'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => clearDemoMutation.mutate()}
+                      disabled={clearDemoMutation.isPending}
+                      className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                    >
+                      {clearDemoMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <XCircle className="w-4 h-4" />
+                      )}
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => loadDemoMutation.mutate()}
+                      disabled={loadDemoMutation.isPending}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                    >
+                      {loadDemoMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4" />
+                      )}
+                      {loadDemoMutation.isPending ? 'Loading...' : 'Load Demo'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </>
