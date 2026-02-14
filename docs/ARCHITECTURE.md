@@ -35,7 +35,7 @@ Deepr is an agentic research platform that uses AI models to conduct deep resear
 - **Location**: `deepr/providers/`
 - **Purpose**: Unified interface to AI providers
 - **Providers**:
-  - OpenAI (o3/o4-mini deep research, GPT-5, GPT-4.1, GPT-4.1-mini)
+  - OpenAI (o3/o4-mini deep research, GPT-5.2, GPT-5, GPT-4.1, GPT-4.1-mini)
   - Azure OpenAI (same models, Azure-hosted)
   - Azure AI Foundry (o3 deep research + Bing, GPT-5, GPT-4.1)
   - xAI (Grok 4 Fast)

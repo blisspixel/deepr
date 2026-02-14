@@ -77,7 +77,7 @@ function Accordion({ title, icon, children, defaultOpen }: { title: string; icon
 
 export default function Help() {
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="p-6 space-y-6 max-w-3xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Help</h1>

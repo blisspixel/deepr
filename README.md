@@ -231,12 +231,14 @@ python deepr/web/app.py
 - **Results Library** - Search, sort, and paginate completed research (12 per page)
 - **Result Detail** - Full markdown report viewer with citation sidebar, copy-to-clipboard, export
 - **Expert Hub** - List and manage domain experts, view knowledge gaps and stats
-- **Expert Profile** - Chat with experts, browse knowledge gaps, view learning history
+- **Expert Profile** - Chat with experts, browse claims and knowledge gaps, review decisions, view learning history
 - **Cost Intelligence** - Spending trends, per-model breakdown, budget controls with charts
+- **Models & Benchmarks** - Model registry browser, benchmark results with quality rankings, run benchmarks from UI
 - **Trace Explorer** - Inspect research execution spans, timing, cost attribution
-- **Settings** - Theme, budget limits, default model preferences, environment info
+- **Help** - API key setup guide, CLI quick reference, model tier explanations
+- **Settings** - Theme, budget limits, default model preferences, environment info, demo data loader
 
-The frontend uses code-split routing with skeleton loading states, Flask-SocketIO for real-time job push events, and light/dark/system theme support. Built on Radix UI primitives (shadcn/ui pattern) with Recharts for data visualization.
+12 pages with code-split routing, skeleton loading states, Flask-SocketIO for real-time job push events, and light/dark/system theme support. Built on Radix UI primitives (shadcn/ui pattern) with Recharts for data visualization.
 
 **For team deployment**, the dashboard can be containerized and deployed to cloud infrastructure. See [deploy/README.md](deploy/README.md) for AWS, Azure, and GCP templates. Authentication and multi-user features are on the roadmap.
 
@@ -279,7 +281,7 @@ Specific design decisions:
 
 **Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI/Gemini/Grok/Anthropic providers, local SQLite storage. 3600+ tests.
 
-**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
+**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (12 pages, polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -320,6 +322,7 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 | [Features](docs/FEATURES.md) | Complete command reference |
 | [Experts](docs/EXPERTS.md) | Domain expert system |
 | [Models](docs/MODELS.md) | Provider comparison and model selection |
+| [Benchmarks](docs/BENCHMARKS.md) | Model benchmarks, scoring methodology, and results |
 | [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
 | [Examples](docs/EXAMPLES.md) | Real-world usage examples |
 | [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
