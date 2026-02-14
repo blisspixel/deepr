@@ -1,6 +1,7 @@
 export const MODELS = [
-  { value: 'o4-mini-deep-research', label: 'o4-mini', description: 'Faster, cheaper' },
-  { value: 'o3-deep-research', label: 'o3', description: 'More thorough' },
+  { value: 'o4-mini-deep-research', label: 'o4-mini Deep Research', description: 'Fast, ~$2/query, ~1 min' },
+  { value: 'o3-deep-research', label: 'o3 Deep Research', description: 'Thorough, ~$0.50/query, 2-5 min' },
+  { value: 'gemini/deep-research', label: 'Gemini Deep Research', description: 'Google Search, ~$1/query, 5-20 min' },
 ] as const
 
 export const PRIORITIES = [
@@ -33,7 +34,7 @@ export const TIME_RANGES = [
 
 /** Default budget limits — used as fallbacks when backend is unreachable */
 export const BUDGET_DEFAULTS = {
-  PER_JOB: 20,
-  DAILY: 100,
-  MONTHLY: 1000,
+  PER_JOB: 10,
+  DAILY: 10,
+  MONTHLY: 100,
 } as const

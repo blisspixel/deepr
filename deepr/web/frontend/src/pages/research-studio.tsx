@@ -356,7 +356,7 @@ export default function ResearchStudio() {
           <ul className="space-y-1 text-xs text-muted-foreground">
             <li>Be specific about what information you need and desired output format</li>
             <li>Mention preferred sources (peer-reviewed, government data, industry reports)</li>
-            <li>Use o4-mini for faster results, o3 for comprehensive research</li>
+            <li>Use o4-mini for fast results, o3 for thorough analysis, Gemini for Google-grounded research</li>
             <li>Upload reference documents for context-aware research</li>
           </ul>
         </div>
