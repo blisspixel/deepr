@@ -21,7 +21,7 @@ Complete guide to all Deepr features as of v2.8.1
 
 ## Web Dashboard
 
-A local web interface for managing research operations visually. Built with React, TypeScript, Vite, and Tailwind CSS.
+A local web interface for managing research operations visually. Built with React, TypeScript, Vite, and Tailwind CSS. 12 pages with code-split routing.
 
 ### Starting the Dashboard
 
@@ -45,13 +45,17 @@ python deepr/web/app.py
 
 **Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Search and sort controls. Navigate to individual expert profiles.
 
-**Expert Profile** - Three tabs: Chat (ask questions, get answers from the expert's knowledge), Knowledge Gaps (view gaps with priority, click to research), and History (learning timeline with costs).
+**Expert Profile** - Five tabs: Chat (ask questions, get answers from the expert's knowledge), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority, click to research), Decisions (reasoning audit trail with rationale and alternatives), and History (learning timeline with costs).
 
-**Cost Intelligence** - Spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, success rate, and average cost per job.
+**Cost Intelligence** - Spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, success rate, and average cost per job. Accuracy disclaimer noting costs are Deepr-internal estimates.
 
-**Trace Explorer** - Inspect research execution traces. View span hierarchy with timing, cost attribution, token counts, and model info for each operation.
+**Models & Benchmarks** - Model registry browser with provider grouping, benchmark results with quality rankings by tier (chat/news/research), quality bar charts and radar charts, run benchmarks from the UI with tier and budget controls, benchmark history file selector, routing configuration display.
 
-**Settings** - Theme selection (light/dark/system), default model, web search toggle, budget limit configuration, and environment info (provider, queue, storage, API key status).
+**Trace Explorer** - Inspect research execution traces. View span hierarchy with timing, cost attribution, token counts, and model info for each operation. Collapsible decision sidebar showing reasoning audit trail.
+
+**Help** - API key setup guide with provider links, CLI quick reference with common commands, model tier explanations (research/news/chat), and getting-started walkthrough.
+
+**Settings** - Theme selection (light/dark/system), default model, web search toggle, budget limit configuration, environment info (provider, queue, storage, API key status), and demo data loader for populating the UI with sample data.
 
 ### Keyboard Shortcuts
 

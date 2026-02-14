@@ -5,9 +5,47 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.8.1] - 2026-02-12
+## [2.8.1] - 2026-02-14
 
 ### Added
+
+**Models & Benchmarks Page**
+- New web page (`/models`) with model registry browser showing all registered models grouped by provider
+- Benchmark results viewer with quality rankings by tier (chat/news/research), quality bar charts, and per-task-type radar charts
+- Run benchmarks from the UI with tier, quick/full, judge toggle, and budget controls
+- Cost estimation (dry-run) before starting a benchmark run
+- Benchmark history file selector to load and compare different runs
+- Routing configuration display showing current auto-mode preferences
+- Provider key status indicators (configured vs not set)
+- Backend APIs: `GET /api/benchmarks`, `GET /api/benchmarks/latest`, `GET /api/benchmarks/<filename>`, `POST /api/benchmarks/start`, `POST /api/benchmarks/estimate`, `GET /api/benchmarks/status`, `GET /api/benchmarks/routing-preferences`
+- Model registry API: `GET /api/registry`
+
+**Help Page**
+- New web page (`/help`) with API key setup guide linking to all provider consoles
+- CLI quick reference with common commands
+- Model tier explanations (research, news, chat) with strengths and cost guidance
+- "When to use Deepr" section comparing against single-vendor tools
+- Free tier callouts for providers that offer free API access
+
+**Demo Data Endpoint**
+- `POST /api/demo/load` backend endpoint that creates sample experts and research jobs
+- "Load Demo Data" button in Settings page Environment section
+- Populates the UI with sample data for exploring the dashboard without a running research pipeline
+
+**UX Improvements**
+- Cost Intelligence accuracy disclaimer banner (costs are Deepr-internal estimates, check provider billing consoles)
+- Standardized error states across all 10+ pages: muted icon, "Unable to load [thing]", consistent backend-down messaging, retry buttons
+- Loading skeleton on Cost Intelligence page (was showing $0 values during load)
+- Expert Profile tabs overflow scroll on mobile (5 tabs: Chat, Claims, Gaps, Decisions, History)
+- Overview empty state no longer references CLI commands — links to web-native budget controls instead
+- Expert Hub error state copy improvement
+
+### Fixed
+- Removed dead code: `api/activity.ts`, `api/traces.ts`, `components/shared/stat-card.tsx` (never imported)
+- Added `p-6` padding to Help page wrapper (missing from all other pages' pattern)
+- Export dropdown in Result Detail now closes on Escape key press
+- "Submit Research" → "New Research" button text consistency in Results Library
+- Unsafe type assertion in Expert Profile history query replaced with proper `ExpertHistoryEvent` interface
 
 **Background Job Polling + WebSocket Push**
 - Flask-SocketIO initialization with `cors_allowed_origins="*"` and threading async mode

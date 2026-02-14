@@ -48,7 +48,7 @@ These features are well-tested and used regularly:
 
 These features work but APIs or behavior may change:
 
-- **Web dashboard**: Local research management UI - 10 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
+- **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
 - **MCP server**: Functional with 16 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
@@ -64,7 +64,7 @@ These features work but APIs or behavior may change:
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
 - MCP server with 16 tools, persistence, security, multi-runtime configs
-- Web dashboard (10 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, trace explorer, settings)
+- Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
 - Auto-fallback on provider failures with `--no-fallback` override
@@ -437,7 +437,7 @@ Defense-in-depth for autonomous research operations, especially when using agent
 
 Local research management interface for monitoring batch operations. CLI remains primary for scripting/automation; dashboard provides visibility when running many concurrent jobs.
 
-**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask + Flask-SocketIO backend. 10 pages with code-split routing, skeleton loading states, Radix UI (shadcn/ui) component library, Recharts charts, WebSocket real-time push via background poller. Drag-and-drop file upload, Ctrl+Enter submit, copy-to-clipboard, pagination, mobile hamburger nav, FOUC prevention, skip-to-content a11y. Light/dark/system theme. 31 API endpoints.
+**What exists:** React 18 + TypeScript + Vite + Tailwind CSS frontend with Flask + Flask-SocketIO backend. 12 pages with code-split routing, skeleton loading states, Radix UI (shadcn/ui) component library, Recharts charts, WebSocket real-time push via background poller. Drag-and-drop file upload, Ctrl+Enter submit, copy-to-clipboard, pagination, mobile hamburger nav, FOUC prevention, skip-to-content a11y. Light/dark/system theme. 31 API endpoints.
 
 #### Completed
 - [x] Job submission and queue monitoring with real-time status
@@ -447,7 +447,7 @@ Local research management interface for monitoring batch operations. CLI remains
 - [x] Modern UI with light/dark/system mode toggle
 - [x] Full API coverage (jobs, costs, results, config)
 - [x] Frontend overhaul: Radix UI (shadcn/ui pattern) component library, Recharts, Zustand state, React Query
-- [x] Code-split lazy loading for all 10 routes (React.lazy + Suspense)
+- [x] Code-split lazy loading for all 12 routes (React.lazy + Suspense)
 - [x] Report viewer with markdown rendering, citation sidebar, copy-to-clipboard, export dropdown
 - [x] Expert management UI (list experts, view stats, chat, knowledge gaps, learning history)
 - [x] Research live page with WebSocket real-time progress updates
@@ -464,6 +464,12 @@ Local research management interface for monitoring batch operations. CLI remains
 - [x] FOUC prevention with critical CSS inline
 - [x] Skip-to-content accessibility link
 - [x] Stale job cleanup endpoint (POST /api/jobs/cleanup-stale)
+- [x] Models & Benchmarks page — model registry browser, benchmark results viewer, run/estimate from UI, routing config
+- [x] Help page — API key setup guide, CLI quick reference, model tier explanations
+- [x] Demo data endpoint (POST /api/demo/load) and "Load Demo Data" button in Settings
+- [x] Standardized error states across all pages (consistent messaging, muted icons, retry buttons)
+- [x] Cost Intelligence accuracy disclaimer banner
+- [x] Expert Profile 5-tab layout (Chat, Claims, Gaps, Decisions, History) with mobile overflow scroll
 
 #### Operational Analytics
 The dashboard should show *posture* (what's working, what's failing, what we're learning) rather than just counts. These surface the decision records and quality metrics that the kernel already tracks.
@@ -476,18 +482,22 @@ The dashboard should show *posture* (what's working, what's failing, what we're 
 - [ ] Recommended actions — actionable alerts: "Provider X degraded", "N experts stale (>30d) used recently", "Budget circuit breaker triggered", "Top gap worth filling (EV/cost)"
 
 #### Model Benchmark Dashboard
-Run `scripts/benchmark_models.py` from the web UI and visualize results interactively. Currently CLI-only — the web version makes it easy to compare models, track quality over time, and validate routing decisions without touching the terminal.
+Run `scripts/benchmark_models.py` from the web UI and visualize results interactively. The benchmarks page (Models & Benchmarks) provides a model registry browser, benchmark results viewer, and run controls.
 
-- [ ] Backend API: `POST /api/benchmarks/run` (start benchmark with options: quick, task-type, models, budget) and `GET /api/benchmarks` (list saved runs)
-- [ ] Backend API: `GET /api/benchmarks/:id` (full results with per-model, per-task-type scores)
-- [ ] Real-time progress via WebSocket — stream eval/judge progress as each model+prompt completes
-- [ ] Results page: overall rankings table (quality, latency, cost, $/quality) sortable by column
-- [ ] Results page: per-task-type heatmap (models × task types, color = quality score)
-- [ ] Results page: cost vs quality scatter plot per model (ties into the operational analytics north star chart)
-- [ ] Results page: routing recommendations with current auto-mode config comparison ("benchmark says X, auto-mode routes to Y")
-- [ ] History: compare runs over time — quality/latency deltas between benchmark runs (uses `--compare` output)
-- [ ] Provider validation: `POST /api/benchmarks/validate` — run `--validate` from the UI, show pass/fail per provider
-- [ ] Configuration: select models, task types, budget, judge model, quick vs full — all from a form instead of CLI flags
+- [x] Backend API: `POST /api/benchmarks/start` (start benchmark with tier, quick, no-judge, budget options) and `GET /api/benchmarks` (list saved runs)
+- [x] Backend API: `GET /api/benchmarks/<filename>` and `GET /api/benchmarks/latest` (full results with per-model, per-task-type scores)
+- [x] Backend API: `POST /api/benchmarks/estimate` (dry-run cost estimation)
+- [x] Backend API: `GET /api/benchmarks/status` (poll running benchmark progress)
+- [x] Results page: overall rankings table (quality, latency, cost, $/quality) sortable by tier
+- [x] Results page: quality bar charts and per-task-type radar charts per model
+- [x] Results page: routing recommendations with current auto-mode routing preferences
+- [x] Configuration: select tier, quick/full, judge toggle, budget — all from a form in the UI
+- [x] Model registry browser with provider grouping, context window, specializations, and provider key status
+- [x] Benchmark history file selector to compare different runs
+- [ ] Real-time progress via WebSocket — currently uses polling via `/api/benchmarks/status`
+- [ ] Results page: cost vs quality scatter plot per model
+- [ ] History: side-by-side comparison of runs with quality/latency deltas
+- [ ] Provider validation: `POST /api/benchmarks/validate` — run `--validate` from the UI
 
 #### Core Improvements
 - [ ] Export results (PDF, DOCX in addition to Markdown)
@@ -573,7 +583,7 @@ Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligen
 | - | Trace explorer | Medium | Done |
 | - | Cost intelligence with charts | Medium | Done |
 | - | Operational analytics (posture cards, cost-quality frontier, alerts) | Medium | Pending |
-| - | Model benchmark dashboard (run benchmarks, heatmaps, routing validation) | Medium | Pending |
+| - | Model benchmark dashboard (run benchmarks, rankings, routing validation) | Medium | Done |
 | - | Decision sidebar in trace explorer | Medium | Done |
 | - | Expert diff view (claim-level changes after refresh) | Medium | Pending |
 | - | Tags and folders for organizing research | Medium | Pending |
@@ -654,7 +664,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.6 | Observability, fallback, cost dashboard | Complete |
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
 | v2.8 | Provider intelligence, advanced context, real-time progress, expert formalization | Complete |
-| v2.8.1 | WebSocket push, background poller, UX overhaul (skeletons, shadcn, drag-drop, a11y) | Complete |
+| v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
 | v2.9 | Azure Foundry provider, deploy validation, web analytics | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |
