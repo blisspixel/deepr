@@ -8,29 +8,30 @@ import { wsClient } from '@/api/websocket'
 import { formatCurrency } from '@/lib/utils'
 
 export default function StatusBar() {
-  const [isOnline, setIsOnline] = useState(wsClient.connected)
+  const [wsConnected, setWsConnected] = useState(wsClient.connected)
 
   useEffect(() => {
-    // Seed from current state
-    setIsOnline(wsClient.connected)
-    // Listen for WebSocket connection changes
+    setWsConnected(wsClient.connected)
     const cleanup = wsClient.on('ws_status', (data: { connected: boolean }) => {
-      setIsOnline(data.connected)
+      setWsConnected(data.connected)
     })
     return cleanup
   }, [])
 
-  const { data: jobsData } = useQuery({
+  const { data: jobsData, isSuccess: jobsOk } = useQuery({
     queryKey: ['jobs', 'active'],
     queryFn: () => jobsApi.list({ status: 'processing' }),
     refetchInterval: 15000,
   })
 
-  const { data: costSummary } = useQuery({
+  const { data: costSummary, isSuccess: costOk } = useQuery({
     queryKey: ['cost', 'summary'],
     queryFn: () => costApi.getSummary(),
     refetchInterval: 60000,
   })
+
+  // Online if WebSocket connected OR HTTP API responds
+  const isOnline = wsConnected || jobsOk || costOk
 
   const activeJobs = jobsData?.jobs?.length ?? 0
   const todaySpend = costSummary?.daily ?? 0
