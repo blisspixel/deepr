@@ -5,18 +5,10 @@ from typing import Optional
 
 import click
 
+from deepr.cli.async_runner import run_async_command
 from deepr.cli.colors import console, print_error, print_header, print_key_value
 from deepr.cli.commands.run import TraceFlags, _run_campaign, _run_single, _run_team
 from deepr.cli.output import OutputContext, OutputMode, output_options
-
-
-def _run_async_command(coro):
-    """Run command coroutine and close it if a mocked runner doesn't consume it."""
-    try:
-        return asyncio.run(coro)
-    finally:
-        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
-            coro.close()
 
 
 def detect_research_mode(prompt: str) -> str:
@@ -241,7 +233,7 @@ def research(
         print_header("Strategic Company Research")
 
         orchestrator = CompanyResearchOrchestrator()
-        result = _run_async_command(
+        result = run_async_command(
             orchestrator.research_company(
                 company_name=company_name,
                 website=website,
@@ -250,7 +242,8 @@ def research(
                 budget_limit=limit,
                 skip_confirmation=yes,
                 scrape_only=scrape_only,
-            )
+            ),
+            runner=asyncio.run,
         )
 
         if not result.get("success"):
@@ -365,7 +358,7 @@ def research(
 
     # Call the underlying _run_single implementation
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    _run_async_command(
+    run_async_command(
         _run_single(
             query,
             model,
@@ -379,7 +372,8 @@ def research(
             trace_flags=trace_flags,
             no_fallback=no_fallback,
             user_specified_provider=user_specified_provider,
-        )
+        ),
+        runner=asyncio.run,
     )
 
 
@@ -417,7 +411,7 @@ def learn(
         deepr learn "Machine learning fundamentals"
     """
     click.echo(f"[Learning Mode: Multi-phase research with {phases} phases]")
-    _run_async_command(_run_campaign(topic, model, lead, phases, yes))
+    run_async_command(_run_campaign(topic, model, lead, phases, yes), runner=asyncio.run)
 
 
 @click.command()
@@ -452,7 +446,7 @@ def team(
         deepr team "Technology decision" -m o3-deep-research
     """
     click.echo(f"[Team Mode: {perspectives} perspectives analyzing in parallel]")
-    _run_async_command(_run_team(question, model, perspectives, yes))
+    run_async_command(_run_team(question, model, perspectives, yes), runner=asyncio.run)
 
 
 @click.command()
@@ -481,7 +475,7 @@ def check(claim: str, sources: Optional[str], provider: Optional[str], model: Op
         click.echo(f"Error: {e}", err=True)
         return
 
-    _run_async_command(_verify_fact(claim, sources, provider, model, verbose))
+    run_async_command(_verify_fact(claim, sources, provider, model, verbose), runner=asyncio.run)
 
 
 async def _verify_fact(
@@ -723,14 +717,15 @@ def _run_batch_research(
         if output_context.mode == OutputMode.VERBOSE:
             console.print(f"  [dim]{msg}[/dim]")
 
-    result = _run_async_command(
+    result = run_async_command(
         executor.execute_batch(
             file_path=batch_file,
             budget_total=budget_total,
             prefer_cost=prefer_cost,
             progress_callback=progress_callback,
             dry_run=False,
-        )
+        ),
+        runner=asyncio.run,
     )
 
     # Display results
@@ -840,7 +835,7 @@ def _run_auto_research(
 
     # Execute with routed provider/model
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)
-    _run_async_command(
+    run_async_command(
         _run_single(
             query=query,
             model=decision.model,
@@ -854,5 +849,6 @@ def _run_auto_research(
             trace_flags=trace_flags,
             no_fallback=no_fallback,
             user_specified_provider=True,  # We chose the provider via routing
-        )
+        ),
+        runner=asyncio.run,
     )
