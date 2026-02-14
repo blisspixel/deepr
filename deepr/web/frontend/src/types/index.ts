@@ -76,6 +76,7 @@ export interface Config {
   has_api_key: boolean
   daily_limit: number
   monthly_limit: number
+  provider_keys?: Record<string, boolean>
 }
 
 export interface SystemStatus {
