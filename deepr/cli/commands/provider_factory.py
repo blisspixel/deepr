@@ -32,6 +32,7 @@ def get_api_key(provider: str, config: Optional[dict] = None) -> str:
         "grok": "xai_api_key",
         "xai": "xai_api_key",
         "azure": "azure_api_key",
+        "azure-foundry": "azure_foundry_endpoint",
         "openai": "api_key",
     }
 
@@ -96,7 +97,7 @@ def supports_background_jobs(provider: str) -> bool:
     Returns:
         True if provider supports background jobs
     """
-    return provider in ["openai", "azure"]
+    return provider in ["openai", "azure", "azure-foundry"]
 
 
 def supports_vector_stores(provider: str) -> bool:
@@ -108,7 +109,7 @@ def supports_vector_stores(provider: str) -> bool:
     Returns:
         True if provider supports vector stores
     """
-    return provider in ["openai", "azure"]
+    return provider in ["openai", "azure"]  # azure-foundry uses Bing grounding, not vector stores
 
 
 def normalize_provider_name(provider: str) -> str:

@@ -10,7 +10,7 @@ from typing import Any, Literal, Optional
 class ToolConfig:
     """Configuration for research tools."""
 
-    type: Literal["web_search_preview", "code_interpreter", "file_search", "google_search"]
+    type: Literal["web_search_preview", "code_interpreter", "file_search", "google_search", "deep_research"]
     vector_store_ids: Optional[list[str]] = None
     container: Optional[dict[str, Any]] = None
 

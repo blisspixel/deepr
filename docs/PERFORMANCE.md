@@ -83,20 +83,23 @@ Search complexity: O(1) API call + O(n) local computation
 
 | Provider | Model | Input Cost | Output Cost | Typical Query |
 |----------|-------|------------|-------------|---------------|
-| OpenAI | gpt-5.2 | $2.50/M | $10.00/M | $0.01-0.25 |
+| OpenAI | gpt-4.1-mini | $0.40/M | $1.60/M | $0.01 |
+| OpenAI | gpt-4.1 | $2.00/M | $8.00/M | $0.04 |
+| OpenAI | gpt-5 | $1.25/M | $10.00/M | $0.15 |
 | OpenAI | o3-deep-research | $11.00/M | $44.00/M | $0.50 |
-| OpenAI | o4-mini-deep-research | $1.10/M | $4.40/M | $2.00 |
+| OpenAI | o4-mini-deep-research | $1.10/M | $4.40/M | $0.10 |
 | xAI | grok-4-fast | $0.20/M | $0.50/M | $0.01 |
 | Google | gemini-2.5-flash | $0.075/M | $0.30/M | $0.002 |
 | Google | gemini-3-pro | $1.25/M | $5.00/M | $0.15 |
-| Anthropic | claude-opus-4-5 | $5.00/M | $25.00/M | $0.80 |
+| Anthropic | claude-opus-4-6 | $5.00/M | $25.00/M | $0.80 |
 | Anthropic | claude-sonnet-4-5 | $3.00/M | $15.00/M | $0.48 |
+| Anthropic | claude-haiku-4-5 | $0.80/M | $4.00/M | $0.05 |
 
 ### By Operation
 
 | Operation | Typical Cost | Notes |
 |-----------|-------------|-------|
-| Research planning | $0.01-0.05 | GPT-5.2 |
+| Research planning | $0.01-0.05 | GPT-4.1 |
 | Standard research | $0.01 | Grok 4 Fast |
 | Deep research (o4-mini) | $2.00 | Full deep research query |
 | Deep research (o3) | $0.50 | Comprehensive multi-step |
@@ -113,7 +116,7 @@ Search complexity: O(1) API call + O(n) local computation
 1. **Use Grok for standard research** - $0.01 per query
 2. **Cache embeddings** - Avoid re-embedding documents
 3. **Set session budgets** - Prevent runaway costs
-4. **Use Grok 4 Fast for simple tasks** - 25x cheaper than gpt-5.2
+4. **Use Grok 4 Fast or GPT-4.1-mini for simple tasks** - $0.01/query
 
 ### For Speed
 

@@ -722,8 +722,9 @@ class AutonomousLearner:
                 # Campaign mode: Deep research (10-45 min per topic)
                 model = "o4-mini-deep-research"
             else:
-                # Focus mode: Quick research with GPT-5 (1-5 min per topic)
-                model = "gpt-5"
+                # Focus mode: Quick research with GPT-4.1 (1-5 min, $0.04/query)
+                # GPT-4.1 has 1M+ context, widely available, much cheaper than GPT-5
+                model = "gpt-4.1"
 
             response_id = await self.research.submit_research(
                 prompt=topic.research_prompt,
