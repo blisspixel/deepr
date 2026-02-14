@@ -92,7 +92,7 @@ class GeminiProvider(DeepResearchProvider):
         from .registry import get_token_pricing
 
         self.pricing = {
-            "gemini-2.5-pro": get_token_pricing("gemini-3-pro"),  # gemini-2.5-pro shares tier
+            "gemini-2.5-pro": get_token_pricing("gemini-2.5-pro"),
             "gemini-2.5-flash": get_token_pricing("gemini-2.5-flash"),
             "gemini-2.5-flash-lite": {"input": 0.0375, "output": 0.15},
         }
