@@ -736,8 +736,8 @@ def select_models(
     if tier == "news":
         candidates = list(NEWS_MODELS)
     elif tier == "research":
-        # Deep research + web-search-augmented research models
-        candidates = list(RESEARCH_MODELS) + list(ORCHESTRATED_RESEARCH_MODELS)
+        # Deep research only: models with native background-research APIs
+        candidates = list(RESEARCH_MODELS)
     elif tier == "docs":
         candidates = list(DOCS_MODELS)
     else:

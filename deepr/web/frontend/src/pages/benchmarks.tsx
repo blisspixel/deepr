@@ -58,6 +58,7 @@ const MODEL_COLORS = [
 type Tier = 'all' | 'chat' | 'news' | 'research' | 'docs'
 const TIER_PRIORITY: Record<string, number> = { research: 0, docs: 1, news: 2, chat: 3 }
 const TIER_ORDER: Tier[] = ['research', 'docs', 'news', 'chat']
+const TIER_LABELS: Record<string, string> = { research: 'Deep Research', docs: 'Docs', news: 'News', chat: 'Chat', all: 'All' }
 
 function inferTier(reg: RegistryModel): string {
   if (reg.specializations.includes('research')) return 'research'
@@ -320,11 +321,11 @@ export default function Benchmarks() {
                   key={t}
                   onClick={() => setRunOpts({ ...runOpts, tier: t })}
                   className={cn(
-                    'px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors',
+                    'px-2.5 py-1 rounded text-xs font-medium transition-colors',
                     runOpts.tier === t ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  {t}
+                  {TIER_LABELS[t] ?? t}
                 </button>
               ))}
             </div>
@@ -408,7 +409,7 @@ export default function Benchmarks() {
             const top = topByTier[tier]
             if (!top) return (
               <div key={tier} className="rounded-lg border bg-card p-4 opacity-50">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Best {tier}</div>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Best {TIER_LABELS[tier] ?? tier}</div>
                 <p className="text-sm text-muted-foreground">Not yet benchmarked</p>
               </div>
             )
@@ -417,7 +418,7 @@ export default function Benchmarks() {
             return (
               <div key={tier} className="rounded-lg border bg-card p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Best {tier}</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Best {TIER_LABELS[tier] ?? tier}</span>
                   <Trophy className="h-3.5 w-3.5 text-yellow-500" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">{modelName}</p>
@@ -458,13 +459,13 @@ export default function Benchmarks() {
                 key={tier}
                 onClick={() => setSelectedTier(tier as Tier)}
                 className={cn(
-                  'px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize',
+                  'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
                   selectedTier === tier
                     ? 'border-primary text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 )}
               >
-                {tier === 'all' ? `All (${total})` : `${tier} (${total})`}
+                {tier === 'all' ? `All (${total})` : `${TIER_LABELS[tier] ?? tier} (${total})`}
               </button>
             )
           })}
@@ -564,7 +565,7 @@ export default function Benchmarks() {
               <div key={`${r.model_key}-${r.tier}`}>
                 {showTierHeader && (
                   <div className={cn('flex items-center gap-2 pt-2', idx > 0 && 'mt-4 border-t pt-4')}>
-                    <h3 className="text-sm font-semibold text-foreground capitalize">{r.tier}</h3>
+                    <h3 className="text-sm font-semibold text-foreground">{TIER_LABELS[r.tier] ?? r.tier}</h3>
                     <span className="text-xs text-muted-foreground">({tierModels.length} benchmarked)</span>
                   </div>
                 )}
@@ -693,7 +694,7 @@ function ModelCard({
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm text-foreground truncate">{modelName}</span>
             <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{provider}</span>
-            <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0 capitalize">{ranking.tier}</span>
+            <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{TIER_LABELS[ranking.tier] ?? ranking.tier}</span>
             {registry && (
               <span className="text-[10px] text-muted-foreground shrink-0">{formatContext(registry.context_window)} ctx</span>
             )}
