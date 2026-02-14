@@ -12,6 +12,15 @@ from deepr.queue.base import JobStatus
 from deepr.queue.local_queue import SQLiteQueue
 
 
+def _run_async_command(coro):
+    """Run command coroutine and close it if a mocked runner doesn't consume it."""
+    try:
+        return asyncio.run(coro)
+    finally:
+        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
+            coro.close()
+
+
 @click.group()
 def jobs():
     """Manage research jobs (list, status, get results, cancel)."""
@@ -27,7 +36,7 @@ def status(job_id: str):
         deepr jobs status abc123
         deepr jobs status research-1234567890
     """
-    asyncio.run(_show_status(job_id))
+    _run_async_command(_show_status(job_id))
 
 
 async def _show_status(job_id: str):
@@ -147,7 +156,7 @@ def get(job_id: str):
         deepr jobs get abc123
         deepr jobs get research-1234567890
     """
-    asyncio.run(_get_results(job_id))
+    _run_async_command(_get_results(job_id))
 
 
 async def _get_results(job_id: str):
@@ -299,7 +308,7 @@ def list_jobs(status: str, limit: int):
         deepr jobs list --status completed
         deepr jobs list --limit 50
     """
-    asyncio.run(_list_jobs(status, limit))
+    _run_async_command(_list_jobs(status, limit))
 
 
 async def _refresh_job_statuses(queue, jobs):
@@ -542,7 +551,7 @@ def cancel(job_id: str):
         deepr jobs cancel abc123
         deepr jobs cancel research-1234567890
     """
-    asyncio.run(_cancel_job(job_id))
+    _run_async_command(_cancel_job(job_id))
 
 
 async def _cancel_job(job_id: str):
