@@ -168,7 +168,7 @@ class TestExpertConfig:
         assert ec.deep_research_topics == 5
         assert ec.quick_research_topics == 10
         assert ec.auto_synthesis is True
-        assert ec.synthesis_model == "gpt-5"
+        assert ec.synthesis_model == "gpt-5.2"
 
     def test_default_topics_from_env(self, monkeypatch):
         """DEEPR_EXPERT_DEFAULT_TOPICS overrides default."""

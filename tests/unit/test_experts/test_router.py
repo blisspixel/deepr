@@ -274,7 +274,7 @@ class TestFallbackModel:
         """Test fallback model with OpenAI constraint."""
         config = router._fallback_free_model("test query", "simple", provider_constraint="openai")
         assert config.provider == "openai"
-        assert config.model == "gpt-5"
+        assert config.model == "gpt-5.2"
         assert config.reasoning_effort == "low"
 
 

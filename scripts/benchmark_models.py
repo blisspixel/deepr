@@ -2045,13 +2045,13 @@ def compute_combined_scores(results: list[EvalResult], use_judge: bool) -> list[
 
 
 def build_summaries(results: list[EvalResult], registry: dict) -> list[ModelSummary]:
-    """Aggregate results into per-model summaries."""
-    by_model: dict[str, list[EvalResult]] = {}
+    """Aggregate results into per-model-per-tier summaries."""
+    by_model_tier: dict[tuple[str, str], list[EvalResult]] = {}
     for r in results:
-        by_model.setdefault(r.model_key, []).append(r)
+        by_model_tier.setdefault((r.model_key, r.tier), []).append(r)
 
     summaries = []
-    for model_key, model_results in by_model.items():
+    for (model_key, tier), model_results in by_model_tier.items():
         valid = [r for r in model_results if not r.error]
         errors = [r for r in model_results if r.error]
 
@@ -2076,9 +2076,6 @@ def build_summaries(results: list[EvalResult], registry: dict) -> list[ModelSumm
 
         scores_by_type = {t: sum(s) / len(s) for t, s in by_type.items()}
 
-        # Determine tier from results (all results for a model share the same tier)
-        model_tier = valid[0].tier if valid else "chat"
-
         summaries.append(
             ModelSummary(
                 model_key=model_key,
@@ -2089,7 +2086,7 @@ def build_summaries(results: list[EvalResult], registry: dict) -> list[ModelSumm
                 scores_by_type=scores_by_type,
                 num_evals=len(valid),
                 errors=len(errors),
-                tier=model_tier,
+                tier=tier,
             )
         )
 
