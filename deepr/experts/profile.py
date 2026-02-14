@@ -99,7 +99,7 @@ class ExpertProfile:
 
     # Provider preferences
     provider: str = "openai"
-    model: str = "gpt-5"
+    model: str = "gpt-5.2"
 
     # Composed components (not serialized directly)
     _temporal_state: Optional[TemporalState] = field(default=None, repr=False)

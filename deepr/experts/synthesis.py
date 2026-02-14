@@ -226,9 +226,9 @@ class KnowledgeSynthesizer:
         # Build synthesis prompt
         synthesis_prompt = self._build_synthesis_prompt(expert_name, domain, doc_contents, existing_worldview)
 
-        # GPT-5 synthesizes knowledge
+        # GPT-5.2 synthesizes knowledge (low reasoning — extraction/synthesis, not deep analysis)
         response = await self.client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-5.2",
             messages=[
                 {
                     "role": "system",
@@ -236,7 +236,7 @@ class KnowledgeSynthesizer:
                 },
                 {"role": "user", "content": synthesis_prompt},
             ],
-            # Note: GPT-5 only supports default temperature (1.0)
+            reasoning_effort="low",
         )
 
         reflection_text = response.choices[0].message.content or ""
@@ -369,12 +369,12 @@ Output ONLY the JSON, no other text.
 """
 
         response = await self.client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-5.2",
             messages=[
                 {"role": "system", "content": "You extract structured data from text. Output only valid JSON."},
                 {"role": "user", "content": parse_prompt},
             ],
-            # Note: GPT-5 only supports default temperature (1.0)
+            reasoning_effort="low",  # JSON extraction doesn't need deep reasoning
         )
 
         try:
