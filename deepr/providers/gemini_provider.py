@@ -9,15 +9,25 @@ This provider supports two modes:
    synthesis, and other non-research tasks.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError as GenaiAPIError
+try:
+    from google import genai
+    from google.genai import types
+    from google.genai.errors import APIError as GenaiAPIError
+except Exception as exc:  # pragma: no cover - depends on optional SDK state
+    genai = None
+    types = None
+    GenaiAPIError = Exception
+    _GENAI_IMPORT_ERROR = exc
+else:
+    _GENAI_IMPORT_ERROR = None
 
 from .base import (
     DeepResearchProvider,
@@ -28,14 +38,14 @@ from .base import (
     VectorStore,
 )
 
-# Suppress experimental API warning for Interactions API
-# The SDK emits a one-time warning; we acknowledge the API may change.
-try:
-    import google.genai.client as _genai_client
+# Suppress experimental API warning for Interactions API.
+if genai is not None:
+    try:
+        import google.genai.client as _genai_client
 
-    _genai_client._interactions_experimental_warned = True
-except (ImportError, AttributeError):
-    pass
+        _genai_client._interactions_experimental_warned = True
+    except (ImportError, AttributeError):
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +78,12 @@ class GeminiProvider(DeepResearchProvider):
             api_key: Google Gemini API key (defaults to GEMINI_API_KEY env var)
             model_mappings: Custom model name mappings (optional)
         """
+        if genai is None:
+            raise ImportError(
+                "Gemini provider requires a compatible google-genai installation. "
+                "Install with: pip install google-genai"
+            ) from _GENAI_IMPORT_ERROR
+
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("Gemini API key is required (set GEMINI_API_KEY)")
