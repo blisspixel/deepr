@@ -1,17 +1,12 @@
 """Auto mode router for intelligent query routing based on complexity.
 
-Routes queries to the most cost-effective model, checking API key
-availability before selecting a provider:
+Routes queries to the best available model using benchmark data to rank
+models by measured quality per task type. Falls back to cheapest available
+model when no benchmark data exists.
 
-- Simple factual queries → grok-4-fast ($0.01) or gpt-4.1-mini ($0.01)
-- Simple other → gpt-4.1-mini ($0.01) or gemini-2.5-flash ($0.02)
-- Moderate queries → o4-mini-deep-research ($0.10)
-- Complex research → o3-deep-research ($0.50)
-- Complex analysis → o4-mini-deep-research ($0.10) or gpt-4.1 ($0.04)
-
-When benchmark results exist (data/benchmarks/routing_preferences.json),
-the benchmark-recommended models override hardcoded defaults if their
-provider has an API key configured.
+When benchmark results exist (data/benchmarks/benchmark_*.json), the router
+uses per-task-type quality rankings to select the best model whose provider
+has an API key configured.
 
 This enables processing 20+ queries for $1-2 instead of $20-40.
 """
@@ -19,12 +14,14 @@ This enables processing 20+ queries for $1-2 instead of $20-40.
 import json
 import logging
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
 
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
+from deepr.providers.registry import MODEL_CAPABILITIES
 
 
 @dataclass
@@ -90,29 +87,6 @@ class BatchRoutingResult:
     total_cost_estimate: float
 
 
-# Cost estimates per model (in dollars)
-MODEL_COSTS = {
-    ("xai", "grok-4-fast"): 0.01,
-    ("openai", "gpt-5.2"): 0.25,
-    ("openai", "gpt-5-mini"): 0.03,
-    ("openai", "gpt-4.1"): 0.04,
-    ("openai", "gpt-4.1-mini"): 0.01,
-    ("openai", "o4-mini-deep-research"): 0.10,
-    ("openai", "o3-deep-research"): 0.50,
-    ("gemini", "gemini-3-pro"): 0.15,
-    ("gemini", "gemini-2.5-flash"): 0.02,
-    ("anthropic", "claude-opus-4-6"): 0.80,
-    ("anthropic", "claude-opus-4-5"): 0.80,
-    ("anthropic", "claude-sonnet-4-5"): 0.48,
-    ("anthropic", "claude-haiku-4-5"): 0.05,
-    ("azure-foundry", "o3-deep-research"): 0.50,
-    ("azure-foundry", "gpt-5-mini"): 0.03,
-    ("azure-foundry", "gpt-4.1"): 0.04,
-    ("azure-foundry", "gpt-4.1-mini"): 0.01,
-    ("azure-foundry", "gpt-4o"): 0.03,
-    ("azure-foundry", "gpt-4o-mini"): 0.005,
-}
-
 # Provider → environment variable mapping for API key checks
 _PROVIDER_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
@@ -141,66 +115,119 @@ def _has_api_key(provider: str) -> bool:
 
 _logger = logging.getLogger(__name__)
 
+# Ranking entry: (provider, model, quality_score, cost_per_query)
+_RankingEntry = tuple[str, str, float, float]
 
-def _load_benchmark_preferences() -> dict | None:
-    """Load routing preferences from benchmark results if available.
 
-    Returns:
-        Parsed task_preferences dict, or None if file missing/invalid.
+def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
+    """Load latest benchmark and build per-task-type rankings.
+
+    Returns dict: task_type -> [(provider, model, quality_score, cost_per_query), ...]
+    sorted by quality desc (cost as tiebreaker). Also includes "_overall" key
+    for fallback. Returns None if no benchmark data found.
     """
-    prefs_path = Path("data/benchmarks/routing_preferences.json")
-    if not prefs_path.exists():
+    bench_dir = Path("data/benchmarks")
+    if not bench_dir.exists():
         return None
+
+    files = sorted(bench_dir.glob("benchmark_*.json"))
+    if not files:
+        return None
+
+    latest = files[-1]
     try:
-        data = json.loads(prefs_path.read_text(encoding="utf-8"))
-        return data.get("task_preferences")
+        data = json.loads(latest.read_text(encoding="utf-8"))
     except Exception:
-        _logger.debug("Could not load benchmark routing preferences")
+        _logger.debug("Could not load benchmark data from %s", latest)
         return None
+
+    rankings_data = data.get("rankings", [])
+    if not rankings_data:
+        return None
+
+    # Merge scores across tiers for the same model (take best score per task type)
+    model_scores: dict[str, dict[str, float]] = defaultdict(dict)
+    for r in rankings_data:
+        model_key = r.get("model_key", "")
+        if "/" not in model_key:
+            continue
+        for task_type, score in r.get("scores_by_type", {}).items():
+            prev = model_scores[model_key].get(task_type, 0)
+            if score > prev:
+                model_scores[model_key][task_type] = score
+
+    # Build per-task-type rankings
+    all_task_types: set[str] = set()
+    for scores in model_scores.values():
+        all_task_types.update(scores.keys())
+
+    rankings: dict[str, list[_RankingEntry]] = {}
+    for task_type in all_task_types:
+        ranked: list[_RankingEntry] = []
+        for model_key, scores in model_scores.items():
+            if task_type not in scores:
+                continue
+            quality = scores[task_type]
+            cap = MODEL_CAPABILITIES.get(model_key)
+            cost = cap.cost_per_query if cap else 0.10
+            provider, model = model_key.split("/", 1)
+            ranked.append((provider, model, quality, cost))
+        # Sort by quality desc, then cost asc as tiebreaker
+        ranked.sort(key=lambda r: (-r[2], r[3]))
+        rankings[task_type] = ranked
+
+    # Build _overall: deduplicated, by avg quality across all task types
+    overall_quality: dict[str, float] = {}
+    for model_key, scores in model_scores.items():
+        if scores:
+            overall_quality[model_key] = sum(scores.values()) / len(scores)
+
+    overall: list[_RankingEntry] = []
+    for model_key in sorted(overall_quality, key=overall_quality.get, reverse=True):
+        if "/" not in model_key:
+            continue
+        provider, model = model_key.split("/", 1)
+        cap = MODEL_CAPABILITIES.get(model_key)
+        cost = cap.cost_per_query if cap else 0.10
+        overall.append((provider, model, overall_quality[model_key], cost))
+    rankings["_overall"] = overall
+
+    return rankings
 
 
 # Load once at module import
-_BENCHMARK_PREFS = _load_benchmark_preferences()
+_BENCHMARK_RANKINGS: dict[str, list[_RankingEntry]] | None = _load_benchmark_rankings()
 
-
-def _benchmark_model_for(task_type: str, strategy: str = "best_value") -> tuple[str, str] | None:
-    """Get the benchmark-recommended (provider, model) for a task type.
-
-    Args:
-        task_type: Task type key (e.g. 'quick_lookup', 'reasoning')
-        strategy: 'best_quality' or 'best_value'
-
-    Returns:
-        (provider, model) tuple if recommendation exists and provider has an
-        API key, otherwise None.
-    """
-    if not _BENCHMARK_PREFS or task_type not in _BENCHMARK_PREFS:
-        return None
-    model_key = _BENCHMARK_PREFS[task_type].get(strategy)
-    if not model_key or "/" not in model_key:
-        return None
-    provider, model = model_key.split("/", 1)
-    if _has_api_key(provider):
-        return (provider, model)
-    return None
+# Map (complexity, task_type) to benchmark task types
+_TASK_MAP = {
+    ("simple", "factual"): "quick_lookup",
+    ("simple", "reasoning"): "knowledge_base",
+    ("simple", "coding"): "knowledge_base",
+    ("simple", "research"): "quick_lookup",
+    ("simple", "document_analysis"): "document_analysis",
+    ("moderate", "factual"): "knowledge_base",
+    ("moderate", "reasoning"): "reasoning",
+    ("moderate", "research"): "synthesis",
+    ("moderate", "coding"): "technical_docs",
+    ("moderate", "document_analysis"): "document_analysis",
+    ("complex", "research"): "comprehensive_research",
+    ("complex", "reasoning"): "reasoning",
+    ("complex", "coding"): "technical_docs",
+    ("complex", "document_analysis"): "document_analysis",
+    ("complex", "factual"): "knowledge_base",
+}
 
 
 class AutoModeRouter:
-    """Routes queries to optimal models based on complexity and cost.
+    """Routes queries to optimal models based on benchmark quality data.
 
-    Combines query analysis from ModelRouter with provider metrics from
-    AutonomousProviderRouter to make intelligent routing decisions.
+    Uses benchmark rankings to select the best available model for each
+    task type, filtered by which providers have API keys configured.
 
     Example:
         router = AutoModeRouter()
-
-        # Route single query (adapts to available API keys)
         decision = router.route("What is Python?")
-        # → grok-4-fast $0.01 (if XAI_API_KEY set)
-        # → gpt-4.1-mini $0.01 (if only OPENAI_API_KEY set)
-
-        # Route batch with budget
-        results = router.route_batch(queries, budget_total=5.0)
+        # → benchmark winner for quick_lookup with available API key
     """
 
     def __init__(
@@ -221,7 +248,7 @@ class AutoModeRouter:
         self._available_providers = {p for p in _PROVIDER_KEY_ENV if _has_api_key(p)}
 
     def _is_provider_usable(self, provider: str) -> bool:
-        """Check if a provider has an API key and a healthy circuit.
+        """Check if a provider has an API key configured.
 
         Args:
             provider: Provider name
@@ -253,21 +280,19 @@ class AutoModeRouter:
         complexity = self._model_router._classify_complexity(query)
         task_type = self._model_router._detect_task_type(query)
 
-        # Get model recommendation from ModelRouter
+        # Get model recommendation from ModelRouter (for confidence score)
         model_config = self._model_router.select_model(
             query=query,
             budget_remaining=budget,
         )
 
-        # Override with auto-mode specific routing rules
+        # Route using benchmark data
         provider, model, cost_estimate, reasoning = self._apply_auto_rules(
             complexity=complexity,
             task_type=task_type,
             budget=budget,
             prefer_cost=prefer_cost,
             prefer_speed=prefer_speed,
-            base_provider=model_config.provider,
-            base_model=model_config.model,
         )
 
         # Check provider health from autonomous router
@@ -336,9 +361,6 @@ class AutoModeRouter:
     def _pick_provider(self, preferred: str, *fallbacks: str) -> str:
         """Pick the first usable provider from the given preference order.
 
-        Checks API key availability. Returns the preferred provider if
-        its key is configured, otherwise tries fallbacks in order.
-
         Args:
             preferred: First-choice provider
             *fallbacks: Backup providers in priority order
@@ -358,6 +380,68 @@ class AutoModeRouter:
             )
         return preferred  # Has key but circuit may be open
 
+    def _best_available(
+        self,
+        task_type: str,
+        budget: Optional[float],
+        prefer_cost: bool,
+    ) -> tuple[str, str, float, float] | None:
+        """Find the best available model for a task type from benchmark rankings.
+
+        Walks the ranked list and returns the first model whose provider has
+        an API key and whose cost fits within budget.
+
+        Args:
+            task_type: Benchmark task type key
+            budget: Maximum cost (None = unlimited)
+            prefer_cost: If True, sort by cost-per-quality instead of raw quality
+
+        Returns:
+            (provider, model, cost, quality_score) or None
+        """
+        if not _BENCHMARK_RANKINGS:
+            return None
+
+        ranked = _BENCHMARK_RANKINGS.get(task_type)
+        if not ranked:
+            return None
+
+        if prefer_cost:
+            # Re-sort by cost-per-quality ascending (best value first)
+            ranked = sorted(ranked, key=lambda r: r[3] / max(r[2], 0.001))
+
+        for provider, model, quality, cost in ranked:
+            if not self._is_provider_usable(provider):
+                continue
+            if budget is not None and cost > budget:
+                continue
+            return (provider, model, cost, quality)
+
+        return None
+
+    def _cheapest_available(self, budget: Optional[float]) -> tuple[str, str, float, str]:
+        """Find the cheapest available model from the registry.
+
+        Used as last resort when no benchmark data exists or all benchmark
+        models are filtered out.
+
+        Returns:
+            Tuple of (provider, model, cost_estimate, reasoning)
+        """
+        candidates = []
+        for cap in MODEL_CAPABILITIES.values():
+            if self._is_provider_usable(cap.provider):
+                if budget is None or cap.cost_per_query <= budget:
+                    candidates.append((cap.provider, cap.model, cap.cost_per_query))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[2])  # Cheapest first
+            p, m, c = candidates[0]
+            return (p, m, c, f"Cheapest available → {p}/{m} (${c:.3f})")
+
+        # Absolute last resort
+        return ("openai", "gpt-4.1-mini", 0.01, "Last resort → openai/gpt-4.1-mini")
+
     def _apply_auto_rules(
         self,
         complexity: str,
@@ -365,224 +449,44 @@ class AutoModeRouter:
         budget: Optional[float],
         prefer_cost: bool,
         prefer_speed: bool,
-        base_provider: str,
-        base_model: str,
     ) -> tuple:
-        """Apply auto-mode specific routing rules.
+        """Route using benchmark quality rankings.
 
-        Routing table (checked in order):
-        - simple + factual → grok-4-fast ($0.01)
-        - simple + other   → gpt-4.1-mini ($0.01)
-        - moderate         → o4-mini-deep-research ($0.10) or grok-4-fast on tight budget
-        - complex research → o3-deep-research ($0.50), degrades through o4-mini → gpt-4.1
-        - complex analysis → o4-mini-deep-research ($0.10) or gpt-4.1 ($0.04)
-
-        Each tier checks API key availability and falls back to the
-        next usable provider.
+        Maps (complexity, task_type) to a benchmark task type, then picks
+        the highest-quality available model. Falls back to overall rankings,
+        then to cheapest available model.
 
         Returns:
             Tuple of (provider, model, cost_estimate, reasoning)
         """
-        # --- Benchmark override: use measured best model if available ---
-        if _BENCHMARK_PREFS and not prefer_cost:
-            rec = _benchmark_model_for(task_type, "best_value")
-            if rec:
-                bm_provider, bm_model = rec
-                cost = MODEL_COSTS.get((bm_provider, bm_model), 0.10)
-                if budget is None or cost <= budget:
-                    return (
-                        bm_provider,
-                        bm_model,
-                        cost,
-                        f"Benchmark-recommended for {task_type} → {bm_provider}/{bm_model} (${cost:.2f})",
-                    )
+        bench_task = _TASK_MAP.get((complexity, task_type), task_type)
+        use_value = prefer_cost or prefer_speed
 
-        # --- Simple factual queries → grok-4-fast (cheapest, fastest) ---
-        if complexity == "simple" and task_type == "factual":
-            provider = self._pick_provider("xai", "openai", "gemini")
-            if provider == "xai":
-                return (
-                    "xai",
-                    "grok-4-fast",
-                    0.01,
-                    "Simple factual query → grok-4-fast ($0.01)",
-                )
-            # Fallback: openai gpt-4.1-mini is cheapest for simple queries
-            if provider == "openai":
-                return (
-                    "openai",
-                    "gpt-4.1-mini",
-                    0.01,
-                    "Simple factual query → gpt-4.1-mini ($0.01, XAI_API_KEY not set)",
-                )
+        # Try benchmark-ranked model for specific task
+        result = self._best_available(bench_task, budget, use_value)
+        if result:
+            provider, model, cost, score = result
             return (
-                "gemini",
-                "gemini-2.5-flash",
-                0.02,
-                "Simple factual query → gemini-2.5-flash ($0.02, XAI/OpenAI keys not set)",
+                provider,
+                model,
+                cost,
+                f"Benchmark: {bench_task} → {provider}/{model} "
+                f"(quality: {score:.0%}, ${cost:.2f})",
             )
 
-        # --- Simple non-factual → gpt-4.1-mini (fast, cheapest) ---
-        if complexity == "simple":
-            provider = self._pick_provider("openai", "xai", "gemini")
-            if provider == "openai":
-                return (
-                    "openai",
-                    "gpt-4.1-mini",
-                    0.01,
-                    "Simple query → gpt-4.1-mini ($0.01)",
-                )
-            if provider == "xai":
-                return (
-                    "xai",
-                    "grok-4-fast",
-                    0.01,
-                    "Simple query → grok-4-fast ($0.01, OPENAI_API_KEY not set)",
-                )
+        # Fallback to overall ranking
+        result = self._best_available("_overall", budget, use_value)
+        if result:
+            provider, model, cost, score = result
             return (
-                "gemini",
-                "gemini-2.5-flash",
-                0.02,
-                "Simple query → gemini-2.5-flash ($0.02, OpenAI/XAI keys not set)",
+                provider,
+                model,
+                cost,
+                f"Overall best available → {provider}/{model}",
             )
 
-        # --- Moderate complexity → o4-mini-deep-research (good middle tier) ---
-        if complexity == "moderate":
-            if prefer_cost and budget is not None and budget < 0.05:
-                provider = self._pick_provider("xai", "gemini", "openai")
-                if provider == "xai":
-                    return (
-                        "xai",
-                        "grok-4-fast",
-                        0.01,
-                        "Moderate query downgraded → grok-4-fast due to budget ($0.01)",
-                    )
-                return (
-                    provider,
-                    "gemini-2.5-flash" if provider == "gemini" else "gpt-4.1-mini",
-                    0.02 if provider == "gemini" else 0.01,
-                    f"Moderate query downgraded due to budget → {provider}",
-                )
-
-            provider = self._pick_provider("openai", "gemini", "xai")
-            if provider == "openai":
-                return (
-                    "openai",
-                    "o4-mini-deep-research",
-                    0.10,
-                    "Moderate query → o4-mini-deep-research ($0.10)",
-                )
-            if provider == "gemini":
-                return (
-                    "gemini",
-                    "gemini-3-pro",
-                    0.15,
-                    "Moderate query → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
-                )
-            return (
-                "xai",
-                "grok-4-fast",
-                0.01,
-                "Moderate query → grok-4-fast ($0.01, OpenAI/Gemini keys not set)",
-            )
-
-        # --- Complex research → o3-deep-research (full power) ---
-        if complexity == "complex" and task_type == "research":
-            if budget is not None and budget < 0.50:
-                # Budget too low for o3, try o4-mini-deep-research
-                if budget >= 0.10 and self._is_provider_usable("openai"):
-                    return (
-                        "openai",
-                        "o4-mini-deep-research",
-                        0.10,
-                        "Complex research budget-limited → o4-mini-deep-research ($0.10)",
-                    )
-                # Further downgrade
-                provider = self._pick_provider("openai", "gemini", "xai")
-                if provider == "openai":
-                    return (
-                        "openai",
-                        "gpt-4.1",
-                        0.04,
-                        "Complex research budget-limited → gpt-4.1 ($0.04)",
-                    )
-                return (
-                    provider,
-                    "gemini-2.5-flash" if provider == "gemini" else "grok-4-fast",
-                    0.02 if provider == "gemini" else 0.01,
-                    f"Complex research budget-limited → {provider} fallback",
-                )
-
-            provider = self._pick_provider("openai", "azure-foundry", "gemini")
-            if provider == "openai":
-                return (
-                    "openai",
-                    "o3-deep-research",
-                    0.50,
-                    "Complex research → o3-deep-research ($0.50)",
-                )
-            if provider == "azure-foundry":
-                return (
-                    "azure-foundry",
-                    "o3-deep-research",
-                    0.50,
-                    "Complex research → azure-foundry o3-deep-research ($0.50, OPENAI_API_KEY not set)",
-                )
-            return (
-                "gemini",
-                "gemini-3-pro",
-                0.15,
-                "Complex research → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
-            )
-
-        # --- Complex analysis (non-research) → o4-mini or gpt-4.1 ---
-        if complexity == "complex":
-            if budget is not None and budget < 0.10:
-                provider = self._pick_provider("openai", "xai", "gemini")
-                if provider == "openai":
-                    return (
-                        "openai",
-                        "gpt-4.1",
-                        0.04,
-                        "Complex analysis budget-limited → gpt-4.1 ($0.04)",
-                    )
-                return (
-                    provider,
-                    "grok-4-fast" if provider == "xai" else "gemini-2.5-flash",
-                    0.01 if provider == "xai" else 0.02,
-                    f"Complex analysis budget-limited → {provider} fallback",
-                )
-
-            provider = self._pick_provider("openai", "gemini", "xai")
-            if provider == "openai":
-                return (
-                    "openai",
-                    "o4-mini-deep-research",
-                    0.10,
-                    "Complex analysis → o4-mini-deep-research ($0.10)",
-                )
-            if provider == "gemini":
-                return (
-                    "gemini",
-                    "gemini-3-pro",
-                    0.15,
-                    "Complex analysis → gemini-3-pro ($0.15, OPENAI_API_KEY not set)",
-                )
-            return (
-                "xai",
-                "grok-4-fast",
-                0.01,
-                "Complex analysis → grok-4-fast ($0.01, only XAI_API_KEY available)",
-            )
-
-        # Default: use base model config
-        cost = MODEL_COSTS.get((base_provider, base_model), 0.10)
-        return (
-            base_provider,
-            base_model,
-            cost,
-            f"Default routing to {base_provider}/{base_model}",
-        )
+        # Last resort: cheapest available from registry
+        return self._cheapest_available(budget)
 
     def _get_fallback(
         self,
