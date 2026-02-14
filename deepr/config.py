@@ -69,27 +69,58 @@ class ProviderConfig(BaseModel):
 
     @model_validator(mode="after")
     def _apply_benchmark_preferences(self) -> "ProviderConfig":
-        """Override deep_research model from benchmark results if available.
+        """Override TASK_MODEL_MAP from benchmark results if available.
 
-        Env var DEEPR_DEEP_RESEARCH_MODEL takes priority (already applied
-        by field_validator). This only fills in when no env var is set.
+        Reads routing_preferences.json and overrides task-specific model
+        selections with benchmark-recommended models (best_value strategy).
+        Env var DEEPR_DEEP_RESEARCH_MODEL takes priority for deep_research.
         """
-        if os.getenv("DEEPR_DEEP_RESEARCH_MODEL"):
-            return self  # Explicit env var overrides benchmark data
         prefs_path = Path("data/benchmarks/routing_preferences.json")
         if not prefs_path.exists():
             return self
         try:
             data = json.loads(prefs_path.read_text(encoding="utf-8"))
             task_prefs = data.get("task_preferences", {})
-            cr = task_prefs.get("comprehensive_research", {})
-            model_key = cr.get("best_value")
-            if model_key and "/" in model_key:
-                provider, model = model_key.split("/", 1)
-                self.TASK_MODEL_MAP["deep_research"] = (provider, model)
         except Exception:
             _logger = logging.getLogger(__name__)
             _logger.debug("Could not load benchmark preferences for config")
+            return self
+
+        # Map config task types to benchmark task types
+        config_to_bench = {
+            "deep_research": "comprehensive_research",
+            "synthesis": "synthesis",
+            "chat": "reasoning",
+            "planning": "reasoning",
+            "documentation": "technical_docs",
+            "quick_lookup": "quick_lookup",
+            "fact_check": "quick_lookup",
+            "strategy": "multi_source_synthesis",
+        }
+
+        # Provider → env var mapping (inlined to avoid circular import)
+        provider_env = {
+            "openai": "OPENAI_API_KEY",
+            "xai": "XAI_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "azure-foundry": "AZURE_PROJECT_ENDPOINT",
+        }
+
+        for config_task, bench_task in config_to_bench.items():
+            # Env var override for deep_research takes priority
+            if config_task == "deep_research" and os.getenv("DEEPR_DEEP_RESEARCH_MODEL"):
+                continue
+            if bench_task not in task_prefs:
+                continue
+            model_key = task_prefs[bench_task].get("best_value", "")
+            if "/" not in model_key:
+                continue
+            provider, model = model_key.split("/", 1)
+            env_var = provider_env.get(provider)
+            if env_var and os.environ.get(env_var):
+                self.TASK_MODEL_MAP[config_task] = (provider, model)
+
         return self
 
     def get_model_for_task(self, task_type: str) -> tuple:
