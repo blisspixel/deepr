@@ -41,7 +41,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5.2, o3/o4-mini-deep-research), Gemini (2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5)
+- **Provider support**: OpenAI (GPT-5/5.2, GPT-4.1, o3/o4-mini-deep-research), Gemini (2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -55,10 +55,11 @@ These features work but APIs or behavior may change:
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
 - **Grok provider**: Basic support, less tested than OpenAI/Gemini
 - **Anthropic provider**: Uses Extended Thinking + orchestration (no native deep research API)
+- **Azure AI Foundry provider**: Agent/Thread/Run pattern with Bing grounding; 7 models (o3-deep-research, gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini)
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.2, Gemini, Grok 4 Fast, Anthropic Claude, Azure)
+- Multi-provider support (OpenAI GPT-5/5.2/4.1, Gemini, Grok 4 Fast, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
@@ -150,6 +151,49 @@ sam build && sam deploy --guided
 ---
 
 ## Next Priorities
+
+### Priority: Azure AI Foundry Provider
+
+- [x] AzureFoundryProvider implementing DeepResearchProvider
+- [x] Agent/Thread/Run pattern with Bing grounding
+- [x] Registration in factory, config, auto-mode routing
+- [x] Registry entries with cost estimates (o3-deep-research, gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini)
+- [x] Tests for submit, poll, cancel, citation extraction
+- [x] Dual-mode: deep research + regular models for lighter tasks
+- [ ] Documentation in MODELS.md
+- [ ] Integration tests with live Azure credentials
+- [ ] Deploy o3-deep-research model for full deep research path
+- [ ] Configure Bing grounding connection for web search in deep research
+- [ ] Deploy gpt-4.1-mini and gpt-5-mini for cheaper auto-mode routing tiers
+- [ ] Azure Foundry model discovery via `az cognitiveservices` API in discover_models.py
+- [ ] Include Azure Foundry deployments in benchmark_models.py quality benchmark
+
+### Priority: Automated Model Discovery
+
+Keep model registries current across all providers. Models and pricing go stale fast — new model families (GPT-5, GPT-4.1) launch on Azure, OpenAI, Gemini regularly.
+
+- [x] `scripts/discover_models.py` utility — compare registry against live provider catalogs
+- [x] API-based discovery (OpenAI, Gemini, xAI, Anthropic model listing endpoints)
+- [x] LLM-based discovery (ask Grok/GPT to look up latest models with pricing)
+- [x] Structured output: new models, pricing changes, registry-only models
+- [x] `--show-registry` for quick registry audit
+- [x] `scripts/benchmark_models.py` — quality benchmark across models (LLM judge + reference scoring, per-task-type rankings, routing recommendations)
+- [ ] `deepr providers models` CLI command wrapping the discovery script
+- [ ] Azure Foundry model discovery via Azure REST API
+- [ ] Auto-update registry pricing from provider APIs (with manual review)
+- [ ] CI job to detect stale models (models not updated in 90+ days)
+- [ ] Alert when new model families are available but not registered
+
+### Cloud Deployment Validation
+
+- [x] Standardized deploy.sh for all clouds (AWS was missing)
+- [x] validate.sh smoke tests (health, submit, status, costs)
+- [x] destroy.sh teardown scripts for all clouds
+- [x] Deploy scripts auto-run validation after deploy
+- [ ] CI workflow to deploy-validate-destroy on demand
+- [ ] Document deploy lifecycle in deploy/README.md
+
+---
 
 ### Priority 4: Observability (remaining)
 
@@ -431,6 +475,20 @@ The dashboard should show *posture* (what's working, what's failing, what we're 
 - [ ] Citation density and freshness — are sources getting stale?
 - [ ] Recommended actions — actionable alerts: "Provider X degraded", "N experts stale (>30d) used recently", "Budget circuit breaker triggered", "Top gap worth filling (EV/cost)"
 
+#### Model Benchmark Dashboard
+Run `scripts/benchmark_models.py` from the web UI and visualize results interactively. Currently CLI-only — the web version makes it easy to compare models, track quality over time, and validate routing decisions without touching the terminal.
+
+- [ ] Backend API: `POST /api/benchmarks/run` (start benchmark with options: quick, task-type, models, budget) and `GET /api/benchmarks` (list saved runs)
+- [ ] Backend API: `GET /api/benchmarks/:id` (full results with per-model, per-task-type scores)
+- [ ] Real-time progress via WebSocket — stream eval/judge progress as each model+prompt completes
+- [ ] Results page: overall rankings table (quality, latency, cost, $/quality) sortable by column
+- [ ] Results page: per-task-type heatmap (models × task types, color = quality score)
+- [ ] Results page: cost vs quality scatter plot per model (ties into the operational analytics north star chart)
+- [ ] Results page: routing recommendations with current auto-mode config comparison ("benchmark says X, auto-mode routes to Y")
+- [ ] History: compare runs over time — quality/latency deltas between benchmark runs (uses `--compare` output)
+- [ ] Provider validation: `POST /api/benchmarks/validate` — run `--validate` from the UI, show pass/fail per provider
+- [ ] Configuration: select models, task types, budget, judge model, quick vs full — all from a form instead of CLI flags
+
 #### Core Improvements
 - [ ] Export results (PDF, DOCX in addition to Markdown)
 - [ ] Tags and folders for organizing research by project
@@ -515,6 +573,7 @@ Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligen
 | - | Trace explorer | Medium | Done |
 | - | Cost intelligence with charts | Medium | Done |
 | - | Operational analytics (posture cards, cost-quality frontier, alerts) | Medium | Pending |
+| - | Model benchmark dashboard (run benchmarks, heatmaps, routing validation) | Medium | Pending |
 | - | Decision sidebar in trace explorer | Medium | Done |
 | - | Expert diff view (claim-level changes after refresh) | Medium | Pending |
 | - | Tags and folders for organizing research | Medium | Pending |
@@ -544,10 +603,10 @@ Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligen
 
 - README demo GIF (CLI research query + web dashboard)
 - 7.4 TUI Dashboard (Textual-based)
-- 8.x NVIDIA NIM Provider
 - Skill marketplace and meta-skills
 - Multi-agent swarm support
 - Remote MCP (SSE, edge deployment)
+- NVIDIA NIM Provider (for enterprises with existing NVIDIA deployments)
 
 ---
 
@@ -596,7 +655,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
 | v2.8 | Provider intelligence, advanced context, real-time progress, expert formalization | Complete |
 | v2.8.1 | WebSocket push, background poller, UX overhaul (skeletons, shadcn, drag-drop, a11y) | Complete |
-| v2.9 | Web analytics, expert diffs, team features | Planned |
+| v2.9 | Azure Foundry provider, deploy validation, web analytics | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |
 

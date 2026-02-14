@@ -69,5 +69,13 @@ echo "Next steps:"
 echo "  1. Build and push worker container to Artifact Registry"
 echo "  2. Test the API: curl $API_URL/health"
 
+# Run validation
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/validate.sh" ]; then
+    echo ""
+    echo "Running validation..."
+    API_URL="$API_URL" bash "$SCRIPT_DIR/validate.sh"
+fi
+
 # Cleanup sensitive file
 rm -f terraform.tfvars

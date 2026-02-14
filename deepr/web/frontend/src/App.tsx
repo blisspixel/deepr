@@ -14,6 +14,8 @@ const ExpertHub = lazy(() => import('@/pages/expert-hub'))
 const ExpertProfile = lazy(() => import('@/pages/expert-profile'))
 const CostIntelligence = lazy(() => import('@/pages/cost-intelligence'))
 const TraceExplorer = lazy(() => import('@/pages/trace-explorer'))
+const Models = lazy(() => import('@/pages/benchmarks'))
+const Help = lazy(() => import('@/pages/help'))
 const Settings = lazy(() => import('@/pages/Settings'))
 
 const queryClient = new QueryClient({
@@ -56,7 +58,9 @@ function App() {
               <Route path="experts" element={<ExpertHub />} />
               <Route path="experts/:name" element={<ExpertProfile />} />
               <Route path="costs" element={<CostIntelligence />} />
+              <Route path="models" element={<Models />} />
               <Route path="traces/:id" element={<TraceExplorer />} />
+              <Route path="help" element={<Help />} />
               <Route path="settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Route>

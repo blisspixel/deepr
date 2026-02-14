@@ -1,5 +1,7 @@
 """Configuration management for Deepr."""
 
+import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -16,7 +18,9 @@ class ProviderConfig(BaseModel):
 
     model_config = ConfigDict(validate_default=True)
 
-    type: Literal["openai", "azure"] = Field(default="openai", description="Provider type: openai or azure")
+    type: Literal["openai", "azure", "azure-foundry"] = Field(
+        default="openai", description="Provider type: openai, azure, or azure-foundry"
+    )
 
     # OpenAI Configuration
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
@@ -28,6 +32,16 @@ class ProviderConfig(BaseModel):
     azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint URL")
     azure_api_version: str = Field(default="2024-10-01-preview", description="Azure OpenAI API version")
     azure_use_managed_identity: bool = Field(default=False, description="Use Azure Managed Identity for authentication")
+
+    # Azure AI Foundry Configuration
+    azure_foundry_endpoint: Optional[str] = Field(default=None, description="Azure AI Foundry project endpoint URL")
+    azure_foundry_deep_research_deployment: str = Field(
+        default="o3-deep-research", description="Azure Foundry deep research model deployment"
+    )
+    azure_foundry_gpt_deployment: str = Field(default="gpt-4o", description="Azure Foundry GPT model deployment")
+    azure_foundry_bing_resource: Optional[str] = Field(
+        default=None, description="Azure Foundry Bing grounding connection name"
+    )
 
     # Model/Deployment Mappings
     default_model: str = Field(default="grok-4-fast", description="Default model to use")
@@ -52,6 +66,31 @@ class ProviderConfig(BaseModel):
         "documentation": ("openai", "gpt-5"),  # Doc generation
         "strategy": ("openai", "gpt-5.2"),  # Strategic analysis
     }
+
+    @model_validator(mode="after")
+    def _apply_benchmark_preferences(self) -> "ProviderConfig":
+        """Override deep_research model from benchmark results if available.
+
+        Env var DEEPR_DEEP_RESEARCH_MODEL takes priority (already applied
+        by field_validator). This only fills in when no env var is set.
+        """
+        if os.getenv("DEEPR_DEEP_RESEARCH_MODEL"):
+            return self  # Explicit env var overrides benchmark data
+        prefs_path = Path("data/benchmarks/routing_preferences.json")
+        if not prefs_path.exists():
+            return self
+        try:
+            data = json.loads(prefs_path.read_text(encoding="utf-8"))
+            task_prefs = data.get("task_preferences", {})
+            cr = task_prefs.get("comprehensive_research", {})
+            model_key = cr.get("best_value")
+            if model_key and "/" in model_key:
+                provider, model = model_key.split("/", 1)
+                self.TASK_MODEL_MAP["deep_research"] = (provider, model)
+        except Exception:
+            _logger = logging.getLogger(__name__)
+            _logger.debug("Could not load benchmark preferences for config")
+        return self
 
     def get_model_for_task(self, task_type: str) -> tuple:
         """Get optimal (provider, model) for a task type.
@@ -108,6 +147,11 @@ class ProviderConfig(BaseModel):
                 self.azure_api_key = os.getenv("AZURE_OPENAI_KEY")
             if not self.azure_endpoint:
                 self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        if self.type == "azure-foundry":
+            if not self.azure_foundry_endpoint:
+                self.azure_foundry_endpoint = os.getenv("AZURE_PROJECT_ENDPOINT")
+            if not self.azure_foundry_bing_resource:
+                self.azure_foundry_bing_resource = os.getenv("AZURE_BING_RESOURCE_NAME")
         return self
 
 

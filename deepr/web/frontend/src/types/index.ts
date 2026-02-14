@@ -191,6 +191,76 @@ export interface CostAnomaly {
   message: string
 }
 
+// Benchmark types
+
+export interface BenchmarkFile {
+  filename: string
+  timestamp: string
+  tier_count: number
+  model_count: number
+  total_cost: number
+}
+
+export interface BenchmarkRanking {
+  model_key: string
+  avg_quality: number
+  avg_latency_ms: number
+  total_cost: number
+  cost_per_quality: number
+  scores_by_type: Record<string, number>
+  num_evals: number
+  errors: number
+  tier: string
+}
+
+export interface BenchmarkResultEntry {
+  model: string
+  tier: string
+  task_type: string
+  difficulty: string
+  quality: number
+  judge_score: number
+  reference_score: number
+  citation_score: number
+  citation_count: number
+  report_length: number
+  latency_ms: number
+  error: string
+}
+
+export interface BenchmarkResult {
+  timestamp: string
+  total_cost: number
+  rankings: BenchmarkRanking[]
+  results: BenchmarkResultEntry[]
+}
+
+export interface RoutingPreferences {
+  generated_at: string
+  model_count: number
+  task_preferences: Record<string, {
+    best_quality: string
+    best_quality_score: number
+    best_value: string
+    best_value_score: number
+  }>
+  overall_ranking: string[]
+}
+
+export interface RegistryModel {
+  model_key: string
+  provider: string
+  model: string
+  cost_per_query: number
+  input_cost_per_1m: number
+  output_cost_per_1m: number
+  latency_ms: number
+  context_window: number
+  specializations: string[]
+  strengths: string[]
+  weaknesses: string[]
+}
+
 // Contract types (canonical expert system types)
 
 export type TrustClass = 'primary' | 'secondary' | 'tertiary' | 'self_generated'

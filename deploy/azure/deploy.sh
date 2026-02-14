@@ -56,3 +56,11 @@ echo "Next steps:"
 echo "  1. Deploy function app code: cd function_app && func azure functionapp publish deepr-${ENVIRONMENT}-api"
 echo "  2. Build and push worker container to ACR"
 echo "  3. Test the API: curl ${FUNCTION_APP_URL}/api/health"
+
+# Run validation
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/validate.sh" ]; then
+    echo ""
+    echo "Running validation..."
+    API_URL="$FUNCTION_APP_URL" bash "$SCRIPT_DIR/validate.sh"
+fi

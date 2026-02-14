@@ -91,7 +91,7 @@ class TestAutoModeRouter:
         assert decision.complexity == "complex"
         assert decision.task_type in ("research", "reasoning")
         assert decision.provider == "openai"
-        assert decision.model in ("o3-deep-research", "o4-mini-deep-research", "gpt-5.2")
+        assert decision.model in ("o3-deep-research", "o4-mini-deep-research", "gpt-4.1")
         assert decision.cost_estimate >= 0.10
 
     def test_complex_strategic_query_routes_research(self, router):
@@ -188,7 +188,7 @@ class TestAutoModeRouterApiKeyAwareness:
         # Simple factual would prefer xai, but key not set → fallback to openai
         decision = router.route("What is Python?")
         assert decision.provider == "openai"
-        assert decision.model == "gpt-5.2"
+        assert decision.model == "gpt-4.1-mini"
 
     def test_routes_to_xai_when_available(self, monkeypatch):
         """Router should prefer xai for simple queries when key is available."""

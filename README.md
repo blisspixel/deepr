@@ -5,19 +5,22 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-2.8.1-orange)](ROADMAP.md)
 
-**Deep research that produces experts, not just answers.**
+**Research infrastructure, not another chat window.**
 
-Deepr produces two artifacts: **reports** (markdown with citations) and **experts**. Experts are persistent, versionable knowledge bases that track claims with confidence scores and detect their own gaps. They autonomously research to fill those gaps within budgeted limits. Every action — routing, source selection, stop conditions — is captured as a structured **decision record**, not a log line. Experts are queryable by other agents via MCP, so your AI workflows consume living knowledge instead of stale documents.
+ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them, builds persistent expert agents that learn over time, and runs from scripts, cron jobs, and AI agent workflows. One report is easy. Scaling research, keeping experts current, and feeding knowledge into automated pipelines — that's what Deepr is for.
 
 ```bash
-# Research produces a report — and feeds the expert
+# Auto-routes to the best model per query: Grok ($0.01) → GPT-5 ($0.15) → o3 ($0.50)
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3 --explain
 
-# Expert accumulates knowledge across queries, fills its own gaps
+# Expert accumulates knowledge across sessions, fills its own gaps
 deepr expert chat "AI Strategy Expert" --budget 3
+
+# Batch 50 queries overnight — auto mode picks the right model for each
+deepr research --auto --batch queries.txt --budget 10
 ```
 
-Scriptable. Schedulable. Callable from your AI agents via MCP. Multi-provider (OpenAI, Gemini, Grok, Anthropic). Reports and experts saved locally as artifacts you own.
+Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents via MCP. Reports and experts saved locally as artifacts you own.
 
 **Stack:** Python · Flask · Click · React · TypeScript · Tailwind CSS · SQLite · WebSocket · Docker · AWS/Azure/GCP
 
@@ -41,10 +44,11 @@ graph TB
     end
 
     subgraph Providers
-        OpenAI["OpenAI<br/>o3 / o4-mini deep research, GPT-5.2"]
+        OpenAI["OpenAI<br/>o3 / o4-mini deep research, GPT-5, GPT-4.1"]
         Gemini["Gemini<br/>Deep Research Agent, 3 Pro, 2.5 Flash"]
         Grok["Grok<br/>4 Fast"]
-        Anthropic["Anthropic<br/>Claude Opus / Sonnet / Haiku 4.5"]
+        Anthropic["Anthropic<br/>Claude Opus 4.6 / Sonnet / Haiku 4.5"]
+        AzureFoundry["Azure AI Foundry<br/>o3 deep research, GPT-5, GPT-4.1 + Bing"]
     end
 
     subgraph Infrastructure
@@ -66,10 +70,12 @@ graph TB
     Research --> Gemini
     Research --> Grok
     Research --> Anthropic
+    Research --> AzureFoundry
     Experts --> OpenAI
     Experts --> Gemini
     Experts --> Grok
     Experts --> Anthropic
+    Experts --> AzureFoundry
 
     Research --> Queue
     Research --> Storage
@@ -84,26 +90,29 @@ graph TB
 
 ## Why Deepr?
 
-Deepr wraps the same underlying APIs (OpenAI's o3/o4-mini-deep-research, Gemini's Deep Research Agent) and adds what they're missing:
+**If you need one research report, use ChatGPT Deep Research, Google Gemini, or Microsoft Copilot.** They're easier — one click, 5-30 minutes, nice PDF. Already included in your $20/month subscription. For a single question, they're the right tool.
 
-- **Domain experts** — Persistent, versionable artifacts that accumulate knowledge, track beliefs with confidence, and autonomously research their own gaps. Not RAG — institutional memory that improves.
-- **Decision records** — Every routing choice, source trust decision, stop condition, and gap fill is captured as a queryable record. Not logs. Auditable artifacts.
-- **Budgeted autonomy** — Per-job budgets, daily limits, cost tracking. Experts act within constraints you set. Auto-mode routes simple queries to $0.01 models instead of $2 ones.
-- **MCP integration** — Your AI agents (Claude Code, Cursor, VS Code, Zed) can query experts and trigger research mid-task. Living knowledge, not hallucinations.
-- **Multi-provider** — Same interface across OpenAI, Gemini, Grok, and Anthropic. Auto-fallback on failures. Switch providers without changing code.
-- **Automation** — Run from scripts, cron jobs, CI pipelines. No browser required. Schedule competitive intel weekly. Batch 50 queries overnight.
-- **Local artifacts** — Reports and experts saved as files you own. No vendor lock-in.
+**Deepr is for when research is infrastructure, not a one-off.**
+
+The single-vendor tools give you a report. Deepr gives you a research *system* — multi-provider, programmable, with persistent experts that accumulate knowledge over time and stay current. The difference matters when you're:
+
+- **Scaling research** — Batch 50 queries overnight at $2, not clicking "Deep Research" 50 times. Auto-mode routes each query to the best model: simple lookups to Grok ($0.01), deep analysis to OpenAI ($0.50), reasoning to Claude, large context to Gemini. One interface, all providers.
+- **Building persistent experts** — Not one-shot reports. Agents that accumulate knowledge across sessions, track beliefs with confidence, detect their own gaps, and autonomously research to fill them. An "AI Policy Expert" you seed today gets smarter every week.
+- **Feeding AI workflows** — Your coding agents (Claude Code, Cursor, VS Code) call Deepr experts via MCP mid-task. They get living knowledge with citations, not hallucinations or stale training data. When the expert hits a gap, it researches autonomously within budget.
+- **Running continuously** — Scripts, cron jobs, CI pipelines. Schedule competitive intel weekly. Monitor regulatory changes. Keep experts current. No browser, no manual clicking.
+- **Auditing everything** — Every routing choice, source trust decision, stop condition, and cost is captured as a structured decision record. Not logs — queryable artifacts that feed back into routing and expert learning.
+- **Avoiding lock-in** — Works with one API key, gets smarter with more. Reports and experts are local files you own. If OpenAI has an outage, auto-fallback routes to Gemini or Grok. No single vendor controls your research pipeline.
 
 ## Quick Start
 
 ```bash
 pip install -e .                        # Install
-cp .env.example .env                    # Add OPENAI_API_KEY=sk-...
+cp .env.example .env                    # Add at least one API key
 deepr doctor && deepr budget set 5      # Verify setup, set $5 budget
 deepr research "Your question here"     # Run your first research job (~$1-2)
 ```
 
-That's it. Results saved to `reports/` as markdown with citations.
+That's it. Results saved to `reports/` as markdown with citations. **You only need one API key to start** — OpenAI, Gemini, Grok, or Anthropic all work. Add more keys later and auto mode will route each query to the best available model.
 
 Optional extras:
 
@@ -140,9 +149,9 @@ deepr research --auto --batch queries.txt --dry-run          # Preview routing f
 
 See [docs/FEATURES.md](docs/FEATURES.md) for the full command reference including progress tracking, tracing, and observability.
 
-### Domain Experts (The Interesting Part)
+### Domain Experts
 
-This is where Deepr goes beyond "ChatGPT but CLI."
+Single-vendor tools give you a report and forget. Deepr experts persist.
 
 **The problem:** Your best architect leaves. Their knowledge — scattered across Confluence, Slack threads, and their head — walks out the door. Or: AWS releases 47 new services this year. Your team can't keep up.
 
@@ -233,14 +242,19 @@ The frontend uses code-split routing with skeleton loading states, Flask-SocketI
 
 ### Multi-Provider Support
 
-Works across OpenAI, Google Gemini, xAI Grok, Anthropic Claude, and Azure OpenAI. OpenAI and Gemini have native async deep research APIs; Anthropic uses Extended Thinking + tool orchestration. Deepr automatically routes tasks to the best model for the job and retries on failures.
+**Start with one API key. Add more to unlock smarter routing.**
 
-| Provider | Deep Research | Best For |
-|----------|---------------|----------|
-| OpenAI | o3/o4-mini-deep-research | Comprehensive research |
-| Gemini | Deep Research Agent | Large context, Google Search |
-| Grok | Via orchestration | Cost-effective general tasks |
-| Anthropic | Extended Thinking | Complex reasoning, coding |
+Deepr works with any single provider — but the more keys you configure, the better auto mode can optimize. With all providers available, simple lookups go to Grok at $0.01, deep research goes to OpenAI at $0.50, complex reasoning goes to Claude, and large-context analysis goes to Gemini. Auto-fallback on failures means no single provider outage stops your work.
+
+| Provider | Key | Deep Research | Best For |
+|----------|-----|---------------|----------|
+| OpenAI | `OPENAI_API_KEY` | o3/o4-mini-deep-research | Comprehensive research, GPT-5/4.1 models |
+| Gemini | `GEMINI_API_KEY` | Deep Research Agent | Large context (1M+), Google Search, cost-effective |
+| Grok (xAI) | `XAI_API_KEY` | Via orchestration | Cheapest general tasks ($0.01), real-time web/news |
+| Anthropic | `ANTHROPIC_API_KEY` | Extended Thinking | Complex reasoning, coding, transparent thinking |
+| Azure AI Foundry | `AZURE_PROJECT_ENDPOINT` | o3-deep-research (Agents API) | Enterprise with Bing grounding, Azure compliance |
+
+See [docs/MODELS.md](docs/MODELS.md) for the full model registry and pricing.
 
 ## Technical Highlights
 
@@ -263,7 +277,7 @@ Specific design decisions:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI and Gemini providers, local SQLite storage. 3600+ tests.
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI/Gemini/Grok/Anthropic providers, local SQLite storage. 3600+ tests.
 
 **Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
 
@@ -289,9 +303,9 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 
 | Depth | Estimated Cost | Output |
 |-------|---------------|--------|
-| Auto mode (simple) | $0.01-$0.02 | Fast answer via grok-4-fast or gpt-5.2 |
-| Auto mode (moderate) | $0.50 | o3-deep-research |
-| Auto mode (complex) | $0.50-$2.00 | o3 or o4-mini-deep-research |
+| Auto mode (simple) | $0.01-$0.02 | Fast answer via grok-4-fast or gpt-4.1-mini |
+| Auto mode (moderate) | $0.10 | o4-mini-deep-research |
+| Auto mode (complex) | $0.50-$2.00 | o3-deep-research or Gemini Deep Research |
 | Quick insight | $1-$2 | Focused summary with citations |
 | Comprehensive | $2-$5 | Detailed structured report |
 | Multi-phase | $5-$15 | Context-linked analysis |
@@ -318,7 +332,12 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 ## Requirements
 
 - Python 3.9+
-- API key for at least one provider (OpenAI, Gemini, Anthropic, Grok, or Azure)
+- **One API key** from any supported provider — that's all you need to start:
+  - [OpenAI](https://platform.openai.com/api-keys) — deep research + GPT models
+  - [Gemini](https://aistudio.google.com/app/apikey) — cost-effective, large context
+  - [xAI Grok](https://console.x.ai/) — cheapest, real-time web search
+  - [Anthropic](https://console.anthropic.com/settings/keys) — complex reasoning
+- Optional: More API keys for smarter auto-routing across providers
 - Optional: Node.js 18+ for web dashboard development
 
 ## Security
