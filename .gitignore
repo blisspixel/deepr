@@ -114,6 +114,7 @@ Desktop.ini
 .claude/
 .deepr/
 .kiro/
+.ruff_cache/
 
 # Ngrok binaries
 ngrok.exe
