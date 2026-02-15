@@ -272,21 +272,6 @@ export default function Benchmarks() {
 
   // Compute average report length per tier from results
   // NOTE: must be before early returns to satisfy Rules of Hooks
-  const avgReportLengthByTier = useMemo(() => {
-    const map: Record<string, { total: number; count: number }> = {}
-    for (const r of results) {
-      if (r.report_length > 0) {
-        if (!map[r.tier]) map[r.tier] = { total: 0, count: 0 }
-        map[r.tier].total += r.report_length
-        map[r.tier].count++
-      }
-    }
-    const result: Record<string, number> = {}
-    for (const [tier, { total, count }] of Object.entries(map)) {
-      result[tier] = Math.round(total / count)
-    }
-    return result
-  }, [results])
 
   if (isLoading) {
     return (
@@ -499,25 +484,19 @@ export default function Benchmarks() {
                 </div>
                 <p className="text-lg font-semibold text-foreground">{modelName}</p>
                 <p className="text-xs text-muted-foreground mb-3">{providerLabel(provider)}</p>
-                <div className={cn("grid gap-2 text-center", avgReportLengthByTier[tier] ? "grid-cols-4" : "grid-cols-3")}>
+                <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-sm font-bold text-foreground">{(top.avg_quality * 100).toFixed(0)}%</p>
                     <p className="text-[10px] text-muted-foreground">Quality</p>
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">{formatLatency(top.avg_latency_ms)}</p>
-                    <p className="text-[10px] text-muted-foreground">{tier === 'research' || tier === 'docs' ? 'Run Time' : 'Latency'}</p>
+                    <p className="text-[10px] text-muted-foreground">Speed</p>
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">{formatCurrency(top.total_cost)}</p>
                     <p className="text-[10px] text-muted-foreground">Cost</p>
                   </div>
-                  {avgReportLengthByTier[tier] && (
-                    <div>
-                      <p className="text-sm font-bold text-foreground">~{Math.round(avgReportLengthByTier[tier] / 500)}p</p>
-                      <p className="text-[10px] text-muted-foreground">Output</p>
-                    </div>
-                  )}
                 </div>
               </div>
             )
