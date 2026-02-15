@@ -1125,9 +1125,11 @@ def list_results():
             completed.sort(key=lambda j: j.model or "")
         else:  # date
             completed.sort(
-                key=lambda j: _ensure_utc(j.completed_at)
-                or _ensure_utc(j.submitted_at)
-                or datetime.min.replace(tzinfo=timezone.utc),
+                key=lambda j: (
+                    _ensure_utc(j.completed_at)
+                    or _ensure_utc(j.submitted_at)
+                    or datetime.min.replace(tzinfo=timezone.utc)
+                ),
                 reverse=True,
             )
 
@@ -2555,33 +2557,140 @@ def load_demo_data():
 
     sample_jobs = [
         # Today
-        {"prompt": "Comprehensive analysis of quantum error correction breakthroughs in 2025-2026, including surface codes, topological approaches, and implications for fault-tolerant quantum computing", "model": "openai/o3-deep-research", "cost": 0.52, "tokens": 45200, "hours_ago": 2},
-        {"prompt": "Compare the economic impact of carbon border adjustment mechanisms across EU, US, and developing nations with trade flow analysis", "model": "gemini/deep-research", "cost": 1.05, "tokens": 62000, "hours_ago": 5},
-        {"prompt": "Deep dive into React Server Components vs traditional SSR: performance benchmarks, developer experience, and migration strategies", "model": "openai/o4-mini-deep-research", "cost": 1.85, "tokens": 38400, "hours_ago": 8},
+        {
+            "prompt": "Comprehensive analysis of quantum error correction breakthroughs in 2025-2026, including surface codes, topological approaches, and implications for fault-tolerant quantum computing",
+            "model": "openai/o3-deep-research",
+            "cost": 0.52,
+            "tokens": 45200,
+            "hours_ago": 2,
+        },
+        {
+            "prompt": "Compare the economic impact of carbon border adjustment mechanisms across EU, US, and developing nations with trade flow analysis",
+            "model": "gemini/deep-research",
+            "cost": 1.05,
+            "tokens": 62000,
+            "hours_ago": 5,
+        },
+        {
+            "prompt": "Deep dive into React Server Components vs traditional SSR: performance benchmarks, developer experience, and migration strategies",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 1.85,
+            "tokens": 38400,
+            "hours_ago": 8,
+        },
         # Yesterday
-        {"prompt": "State of autonomous vehicle regulation worldwide: liability frameworks, safety standards, and insurance models as of early 2026", "model": "openai/o3-deep-research", "cost": 0.48, "tokens": 51000, "hours_ago": 18},
-        {"prompt": "Systematic review of large language model alignment techniques: RLHF, DPO, constitutional AI, and emerging approaches", "model": "gemini/deep-research", "cost": 0.95, "tokens": 58000, "hours_ago": 28},
+        {
+            "prompt": "State of autonomous vehicle regulation worldwide: liability frameworks, safety standards, and insurance models as of early 2026",
+            "model": "openai/o3-deep-research",
+            "cost": 0.48,
+            "tokens": 51000,
+            "hours_ago": 18,
+        },
+        {
+            "prompt": "Systematic review of large language model alignment techniques: RLHF, DPO, constitutional AI, and emerging approaches",
+            "model": "gemini/deep-research",
+            "cost": 0.95,
+            "tokens": 58000,
+            "hours_ago": 28,
+        },
         # 2 days ago
-        {"prompt": "Analysis of global semiconductor supply chain resilience post-CHIPS Act: TSMC, Samsung, and Intel foundry strategies", "model": "openai/o4-mini-deep-research", "cost": 2.10, "tokens": 42000, "hours_ago": 52},
-        {"prompt": "CRISPR gene therapy clinical trial outcomes 2024-2026: sickle cell, beta-thalassemia, and hereditary blindness", "model": "openai/o3-deep-research", "cost": 0.61, "tokens": 47500, "hours_ago": 55},
+        {
+            "prompt": "Analysis of global semiconductor supply chain resilience post-CHIPS Act: TSMC, Samsung, and Intel foundry strategies",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 2.10,
+            "tokens": 42000,
+            "hours_ago": 52,
+        },
+        {
+            "prompt": "CRISPR gene therapy clinical trial outcomes 2024-2026: sickle cell, beta-thalassemia, and hereditary blindness",
+            "model": "openai/o3-deep-research",
+            "cost": 0.61,
+            "tokens": 47500,
+            "hours_ago": 55,
+        },
         # 3 days ago
-        {"prompt": "Comprehensive guide to Rust async runtime internals: Tokio vs async-std vs smol architecture comparisons", "model": "openai/o3-deep-research", "cost": 0.45, "tokens": 39500, "hours_ago": 75},
-        # 4 days ago — one failure
-        {"prompt": "Real-time satellite imagery analysis for deforestation monitoring using foundation models", "model": "openai/o4-mini-deep-research", "cost": 0.12, "tokens": 4200, "hours_ago": 100, "failed": True},
-        {"prompt": "Climate adaptation strategies for coastal megacities: engineering solutions, policy frameworks, and cost-benefit analysis", "model": "gemini/deep-research", "cost": 1.12, "tokens": 67000, "hours_ago": 102},
+        {
+            "prompt": "Comprehensive guide to Rust async runtime internals: Tokio vs async-std vs smol architecture comparisons",
+            "model": "openai/o3-deep-research",
+            "cost": 0.45,
+            "tokens": 39500,
+            "hours_ago": 75,
+        },
+        # 4 days ago
+        {
+            "prompt": "Climate adaptation strategies for coastal megacities: engineering solutions, policy frameworks, and cost-benefit analysis",
+            "model": "gemini/deep-research",
+            "cost": 1.12,
+            "tokens": 67000,
+            "hours_ago": 102,
+        },
         # 5-6 days ago
-        {"prompt": "Impact of generative AI on software engineering productivity: empirical studies, developer surveys, and economic modeling", "model": "openai/o4-mini-deep-research", "cost": 1.95, "tokens": 35000, "hours_ago": 125},
-        {"prompt": "Comparative analysis of central bank digital currencies: technical architectures, privacy models, and adoption timelines", "model": "openai/o3-deep-research", "cost": 0.68, "tokens": 52000, "hours_ago": 140},
+        {
+            "prompt": "Impact of generative AI on software engineering productivity: empirical studies, developer surveys, and economic modeling",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 1.95,
+            "tokens": 35000,
+            "hours_ago": 125,
+        },
+        {
+            "prompt": "Comparative analysis of central bank digital currencies: technical architectures, privacy models, and adoption timelines",
+            "model": "openai/o3-deep-research",
+            "cost": 0.68,
+            "tokens": 52000,
+            "hours_ago": 140,
+        },
         # 7-8 days ago
-        {"prompt": "Behavioral economics of subscription pricing: nudge theory applications, churn prediction models, and ethical considerations", "model": "openai/o3-deep-research", "cost": 0.55, "tokens": 44000, "hours_ago": 170},
-        {"prompt": "Advances in solid-state battery technology: energy density benchmarks, manufacturing scalability, and EV adoption impact", "model": "gemini/deep-research", "cost": 0.89, "tokens": 55000, "hours_ago": 192},
+        {
+            "prompt": "Behavioral economics of subscription pricing: nudge theory applications, churn prediction models, and ethical considerations",
+            "model": "openai/o3-deep-research",
+            "cost": 0.55,
+            "tokens": 44000,
+            "hours_ago": 170,
+        },
+        {
+            "prompt": "Advances in solid-state battery technology: energy density benchmarks, manufacturing scalability, and EV adoption impact",
+            "model": "gemini/deep-research",
+            "cost": 0.89,
+            "tokens": 55000,
+            "hours_ago": 192,
+        },
         # 9-10 days ago
-        {"prompt": "Post-quantum cryptography migration strategies for enterprise systems: NIST standards, hybrid approaches, and timeline planning", "model": "openai/o3-deep-research", "cost": 0.72, "tokens": 48000, "hours_ago": 220},
-        {"prompt": "Microplastics in human tissue: latest epidemiological findings, health risk models, and regulatory responses worldwide", "model": "openai/o4-mini-deep-research", "cost": 1.65, "tokens": 37000, "hours_ago": 240},
+        {
+            "prompt": "Post-quantum cryptography migration strategies for enterprise systems: NIST standards, hybrid approaches, and timeline planning",
+            "model": "openai/o3-deep-research",
+            "cost": 0.72,
+            "tokens": 48000,
+            "hours_ago": 220,
+        },
+        {
+            "prompt": "Microplastics in human tissue: latest epidemiological findings, health risk models, and regulatory responses worldwide",
+            "model": "openai/o4-mini-deep-research",
+            "cost": 1.65,
+            "tokens": 37000,
+            "hours_ago": 240,
+        },
         # 11-13 days ago
-        {"prompt": "Nuclear fusion progress update: ITER, NIF, and private ventures — plasma confinement milestones and energy breakeven timeline", "model": "gemini/deep-research", "cost": 1.08, "tokens": 63000, "hours_ago": 268},
-        {"prompt": "WebAssembly beyond the browser: edge computing, plugin systems, and server-side adoption patterns in 2025-2026", "model": "openai/o3-deep-research", "cost": 0.41, "tokens": 36000, "hours_ago": 290},
-        {"prompt": "Global water scarcity projections 2030-2050: desalination technology advances, aquifer depletion rates, and policy interventions", "model": "gemini/deep-research", "cost": 0.92, "tokens": 59000, "hours_ago": 310},
+        {
+            "prompt": "Nuclear fusion progress update: ITER, NIF, and private ventures — plasma confinement milestones and energy breakeven timeline",
+            "model": "gemini/deep-research",
+            "cost": 1.08,
+            "tokens": 63000,
+            "hours_ago": 268,
+        },
+        {
+            "prompt": "WebAssembly beyond the browser: edge computing, plugin systems, and server-side adoption patterns in 2025-2026",
+            "model": "openai/o3-deep-research",
+            "cost": 0.41,
+            "tokens": 36000,
+            "hours_ago": 290,
+        },
+        {
+            "prompt": "Global water scarcity projections 2030-2050: desalination technology advances, aquifer depletion rates, and policy interventions",
+            "model": "gemini/deep-research",
+            "cost": 0.92,
+            "tokens": 59000,
+            "hours_ago": 310,
+        },
     ]
     for idx, sample in enumerate(sample_jobs):
         try:
