@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number): string {
+  if (amount > 0 && amount < 0.01) return '<$0.01'
   return `$${amount.toFixed(2)}`
 }
 
