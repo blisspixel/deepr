@@ -60,6 +60,17 @@ const TIER_PRIORITY: Record<string, number> = { research: 0, docs: 1, news: 2, c
 const TIER_ORDER: Tier[] = ['research', 'docs', 'news', 'chat']
 const TIER_LABELS: Record<string, string> = { research: 'Deep Research', docs: 'Docs', news: 'News', chat: 'Chat', all: 'All' }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: 'OpenAI',
+  gemini: 'Google',
+  xai: 'xAI',
+  anthropic: 'Anthropic',
+  'azure-foundry': 'Azure',
+}
+function providerLabel(id: string): string {
+  return PROVIDER_LABELS[id] ?? id
+}
+
 function inferTier(reg: RegistryModel): string {
   if (reg.specializations.includes('research')) return 'research'
   if (reg.specializations.includes('documentation')) return 'docs'
@@ -232,6 +243,24 @@ export default function Benchmarks() {
   const isLoading = benchLoading || regLoading
   const totalModels = (registry?.length ?? 0) - (registry?.filter(m => m.model_key.startsWith('azure-foundry/')).length ?? 0)
 
+  // Compute average report length per tier from results
+  // NOTE: must be before early returns to satisfy Rules of Hooks
+  const avgReportLengthByTier = useMemo(() => {
+    const map: Record<string, { total: number; count: number }> = {}
+    for (const r of results) {
+      if (r.report_length > 0) {
+        if (!map[r.tier]) map[r.tier] = { total: 0, count: 0 }
+        map[r.tier].total += r.report_length
+        map[r.tier].count++
+      }
+    }
+    const result: Record<string, number> = {}
+    for (const [tier, { total, count }] of Object.entries(map)) {
+      result[tier] = Math.round(total / count)
+    }
+    return result
+  }, [results])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -263,23 +292,6 @@ export default function Benchmarks() {
       </div>
     )
   }
-
-  // Compute average report length per tier from results
-  const avgReportLengthByTier = useMemo(() => {
-    const map: Record<string, { total: number; count: number }> = {}
-    for (const r of results) {
-      if (r.report_length > 0) {
-        if (!map[r.tier]) map[r.tier] = { total: 0, count: 0 }
-        map[r.tier].total += r.report_length
-        map[r.tier].count++
-      }
-    }
-    const result: Record<string, number> = {}
-    for (const [tier, { total, count }] of Object.entries(map)) {
-      result[tier] = Math.round(total / count)
-    }
-    return result
-  }, [results])
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -439,7 +451,7 @@ export default function Benchmarks() {
                   <Trophy className="h-3.5 w-3.5 text-yellow-500" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">{modelName}</p>
-                <p className="text-xs text-muted-foreground mb-3">{provider}</p>
+                <p className="text-xs text-muted-foreground mb-3">{providerLabel(provider)}</p>
                 <div className={cn("grid gap-2 text-center", avgReportLengthByTier[tier] ? "grid-cols-4" : "grid-cols-3")}>
                   <div>
                     <p className="text-sm font-bold text-foreground">{(top.avg_quality * 100).toFixed(0)}%</p>
@@ -522,7 +534,7 @@ export default function Benchmarks() {
               )}
             >
               <span className={cn('h-1.5 w-1.5 rounded-full', hasKey ? 'bg-green-500' : 'bg-muted-foreground/40')} />
-              {provider}
+              {providerLabel(provider)}
             </span>
           ))}
         </div>
@@ -716,7 +728,7 @@ function ModelCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm text-foreground truncate">{modelName}</span>
-            <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{provider}</span>
+            <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{providerLabel(provider)}</span>
             <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{TIER_LABELS[ranking.tier] ?? ranking.tier}</span>
             {registry && (
               <span className="text-[10px] text-muted-foreground shrink-0">{formatContext(registry.context_window)} ctx</span>
@@ -920,7 +932,7 @@ function RegistryCard({
         <div className="flex items-center gap-2 mb-1.5">
           <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="text-sm font-medium text-foreground truncate">{modelName}</span>
-          <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{m.provider}</span>
+          <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted shrink-0">{providerLabel(m.provider)}</span>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
           <span>{formatContext(m.context_window)} ctx</span>
