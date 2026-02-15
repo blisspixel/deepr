@@ -24,9 +24,10 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 
 **Stack:** Python · Flask · Click · React · TypeScript · Tailwind CSS · SQLite · WebSocket · Docker · AWS/Azure/GCP
 
-![Deepr Dashboard](assets/dashboard.png)
-
-![Models & Benchmarks](assets/models.png)
+<p align="center">
+  <img src="assets/dashboard.png" width="49%" alt="Deepr Dashboard" />
+  <img src="assets/models.png" width="49%" alt="Models & Benchmarks" />
+</p>
 
 ## Architecture
 

@@ -2554,83 +2554,40 @@ def load_demo_data():
     ]
 
     sample_jobs = [
-        # Recent deep research jobs (today/yesterday)
-        {
-            "prompt": "Comprehensive analysis of quantum error correction breakthroughs in 2025-2026, including surface codes, topological approaches, and implications for fault-tolerant quantum computing",
-            "model": "openai/o3-deep-research",
-            "cost": 0.52,
-            "tokens": 45200,
-            "hours_ago": 2,
-        },
-        {
-            "prompt": "Compare the economic impact of carbon border adjustment mechanisms across EU, US, and developing nations with trade flow analysis",
-            "model": "gemini/deep-research",
-            "cost": 1.05,
-            "tokens": 62000,
-            "hours_ago": 5,
-        },
-        {
-            "prompt": "Deep dive into React Server Components vs traditional SSR: performance benchmarks, developer experience, and migration strategies for enterprise applications",
-            "model": "openai/o4-mini-deep-research",
-            "cost": 1.85,
-            "tokens": 38400,
-            "hours_ago": 8,
-        },
-        {
-            "prompt": "State of autonomous vehicle regulation worldwide: liability frameworks, safety standards, and insurance models as of early 2026",
-            "model": "openai/o3-deep-research",
-            "cost": 0.48,
-            "tokens": 51000,
-            "hours_ago": 18,
-        },
-        {
-            "prompt": "Systematic review of large language model alignment techniques: RLHF, DPO, constitutional AI, and emerging approaches with effectiveness comparisons",
-            "model": "gemini/deep-research",
-            "cost": 0.95,
-            "tokens": 58000,
-            "hours_ago": 24,
-        },
-        # Older jobs (this week)
-        {
-            "prompt": "Analysis of global semiconductor supply chain resilience post-CHIPS Act: impact on TSMC, Samsung, and Intel foundry strategies",
-            "model": "openai/o4-mini-deep-research",
-            "cost": 2.10,
-            "tokens": 42000,
-            "hours_ago": 48,
-        },
-        {
-            "prompt": "Comprehensive guide to Rust async runtime internals: Tokio vs async-std vs smol architecture comparisons with benchmarks",
-            "model": "openai/o3-deep-research",
-            "cost": 0.45,
-            "tokens": 39500,
-            "hours_ago": 72,
-        },
-        {
-            "prompt": "Climate adaptation strategies for coastal megacities: engineering solutions, policy frameworks, and cost-benefit analysis through 2050",
-            "model": "gemini/deep-research",
-            "cost": 1.12,
-            "tokens": 67000,
-            "hours_ago": 96,
-        },
-        {
-            "prompt": "Impact of generative AI on software engineering productivity: empirical studies, developer surveys, and economic modeling",
-            "model": "openai/o4-mini-deep-research",
-            "cost": 1.95,
-            "tokens": 35000,
-            "hours_ago": 120,
-        },
-        {
-            "prompt": "Behavioral economics of subscription pricing: nudge theory applications, churn prediction models, and ethical considerations",
-            "model": "openai/o3-deep-research",
-            "cost": 0.55,
-            "tokens": 44000,
-            "hours_ago": 168,
-        },
+        # Today
+        {"prompt": "Comprehensive analysis of quantum error correction breakthroughs in 2025-2026, including surface codes, topological approaches, and implications for fault-tolerant quantum computing", "model": "openai/o3-deep-research", "cost": 0.52, "tokens": 45200, "hours_ago": 2},
+        {"prompt": "Compare the economic impact of carbon border adjustment mechanisms across EU, US, and developing nations with trade flow analysis", "model": "gemini/deep-research", "cost": 1.05, "tokens": 62000, "hours_ago": 5},
+        {"prompt": "Deep dive into React Server Components vs traditional SSR: performance benchmarks, developer experience, and migration strategies", "model": "openai/o4-mini-deep-research", "cost": 1.85, "tokens": 38400, "hours_ago": 8},
+        # Yesterday
+        {"prompt": "State of autonomous vehicle regulation worldwide: liability frameworks, safety standards, and insurance models as of early 2026", "model": "openai/o3-deep-research", "cost": 0.48, "tokens": 51000, "hours_ago": 18},
+        {"prompt": "Systematic review of large language model alignment techniques: RLHF, DPO, constitutional AI, and emerging approaches", "model": "gemini/deep-research", "cost": 0.95, "tokens": 58000, "hours_ago": 28},
+        # 2 days ago
+        {"prompt": "Analysis of global semiconductor supply chain resilience post-CHIPS Act: TSMC, Samsung, and Intel foundry strategies", "model": "openai/o4-mini-deep-research", "cost": 2.10, "tokens": 42000, "hours_ago": 52},
+        {"prompt": "CRISPR gene therapy clinical trial outcomes 2024-2026: sickle cell, beta-thalassemia, and hereditary blindness", "model": "openai/o3-deep-research", "cost": 0.61, "tokens": 47500, "hours_ago": 55},
+        # 3 days ago
+        {"prompt": "Comprehensive guide to Rust async runtime internals: Tokio vs async-std vs smol architecture comparisons", "model": "openai/o3-deep-research", "cost": 0.45, "tokens": 39500, "hours_ago": 75},
+        # 4 days ago — one failure
+        {"prompt": "Real-time satellite imagery analysis for deforestation monitoring using foundation models", "model": "openai/o4-mini-deep-research", "cost": 0.12, "tokens": 4200, "hours_ago": 100, "failed": True},
+        {"prompt": "Climate adaptation strategies for coastal megacities: engineering solutions, policy frameworks, and cost-benefit analysis", "model": "gemini/deep-research", "cost": 1.12, "tokens": 67000, "hours_ago": 102},
+        # 5-6 days ago
+        {"prompt": "Impact of generative AI on software engineering productivity: empirical studies, developer surveys, and economic modeling", "model": "openai/o4-mini-deep-research", "cost": 1.95, "tokens": 35000, "hours_ago": 125},
+        {"prompt": "Comparative analysis of central bank digital currencies: technical architectures, privacy models, and adoption timelines", "model": "openai/o3-deep-research", "cost": 0.68, "tokens": 52000, "hours_ago": 140},
+        # 7-8 days ago
+        {"prompt": "Behavioral economics of subscription pricing: nudge theory applications, churn prediction models, and ethical considerations", "model": "openai/o3-deep-research", "cost": 0.55, "tokens": 44000, "hours_ago": 170},
+        {"prompt": "Advances in solid-state battery technology: energy density benchmarks, manufacturing scalability, and EV adoption impact", "model": "gemini/deep-research", "cost": 0.89, "tokens": 55000, "hours_ago": 192},
+        # 9-10 days ago
+        {"prompt": "Post-quantum cryptography migration strategies for enterprise systems: NIST standards, hybrid approaches, and timeline planning", "model": "openai/o3-deep-research", "cost": 0.72, "tokens": 48000, "hours_ago": 220},
+        {"prompt": "Microplastics in human tissue: latest epidemiological findings, health risk models, and regulatory responses worldwide", "model": "openai/o4-mini-deep-research", "cost": 1.65, "tokens": 37000, "hours_ago": 240},
+        # 11-13 days ago
+        {"prompt": "Nuclear fusion progress update: ITER, NIF, and private ventures — plasma confinement milestones and energy breakeven timeline", "model": "gemini/deep-research", "cost": 1.08, "tokens": 63000, "hours_ago": 268},
+        {"prompt": "WebAssembly beyond the browser: edge computing, plugin systems, and server-side adoption patterns in 2025-2026", "model": "openai/o3-deep-research", "cost": 0.41, "tokens": 36000, "hours_ago": 290},
+        {"prompt": "Global water scarcity projections 2030-2050: desalination technology advances, aquifer depletion rates, and policy interventions", "model": "gemini/deep-research", "cost": 0.92, "tokens": 59000, "hours_ago": 310},
     ]
     for idx, sample in enumerate(sample_jobs):
         try:
             job_id = str(uuid.uuid4())
             submitted = now - timedelta(hours=sample["hours_ago"])
+            is_failed = sample.get("failed", False)
             job = ResearchJob(
                 id=job_id,
                 prompt=sample["prompt"],
@@ -2640,22 +2597,38 @@ def load_demo_data():
                 submitted_at=submitted,
             )
             run_async(queue.enqueue(job))
-            run_async(queue.update_status(job_id, JobStatus.COMPLETED))
-            # Save a demo report so result-detail renders real content
-            report_content = demo_reports[idx % len(demo_reports)]
-            run_async(
-                storage.save_report(
-                    job_id=job_id,
-                    filename="report.md",
-                    content=report_content.encode("utf-8"),
-                    content_type="text/markdown",
-                    metadata={"prompt": sample["prompt"], "model": sample["model"]},
-                )
+            target_status = JobStatus.FAILED if is_failed else JobStatus.COMPLETED
+            error_msg = "Provider timeout after 120s" if is_failed else None
+            run_async(queue.update_status(job_id, target_status, error=error_msg))
+
+            # Fix completed_at to match the past time (update_status sets it to now)
+            completed = submitted + timedelta(minutes=random.randint(12, 45))
+            import sqlite3 as _sqlite3
+
+            _conn = _sqlite3.connect(queue.db_path)
+            _conn.execute(
+                "UPDATE research_queue SET completed_at = ? WHERE id = ?",
+                (completed.isoformat(), job_id),
             )
+            _conn.commit()
+            _conn.close()
+
+            if not is_failed:
+                # Save a demo report so result-detail renders real content
+                report_content = demo_reports[idx % len(demo_reports)]
+                run_async(
+                    storage.save_report(
+                        job_id=job_id,
+                        filename="report.md",
+                        content=report_content.encode("utf-8"),
+                        content_type="text/markdown",
+                        metadata={"prompt": sample["prompt"], "model": sample["model"]},
+                    )
+                )
             run_async(
                 queue.update_results(
                     job_id=job_id,
-                    report_paths={"markdown": "report.md"},
+                    report_paths={"markdown": "report.md"} if not is_failed else {},
                     cost=sample["cost"],
                     tokens_used=sample["tokens"],
                 )
