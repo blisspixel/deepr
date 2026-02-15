@@ -97,6 +97,7 @@ export default function Benchmarks() {
   const [runOpts, setRunOpts] = useState({ tier: 'all' as Tier, quick: false, no_judge: false })
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [showAvailableOnly, setShowAvailableOnly] = useState(true)
+  const [routingMode, setRoutingMode] = useState<'best' | 'balanced' | 'value'>('balanced')
   const [estimateData, setEstimateData] = useState<{
     estimated_cost: number
     model_count: number
@@ -198,31 +199,43 @@ export default function Benchmarks() {
     [filtered, selectedTier]
   )
 
-  // Top model per tier for hero cards
-  // Research: pick by raw quality (depth justifies cost)
-  // News/Docs/Chat: pick by cost-effectiveness (lowest cost_per_quality with ≥50% quality floor)
+  // Top model per tier for hero cards — mode-aware selection
+  // Best: highest quality regardless of cost (deep research default)
+  // Balanced: best quality among cost-efficient models (within 10% of top quality, cheapest wins)
+  // Value: lowest cost_per_quality with ≥50% quality floor
   const topByTier = useMemo(() => {
     const map: Record<string, BenchmarkRanking> = {}
+    // Group by tier
+    const byTier: Record<string, BenchmarkRanking[]> = {}
     for (const r of rankings) {
       if (r.num_evals === 0) continue
-      const current = map[r.tier]
-      if (r.tier === 'research') {
-        // Research: highest quality wins
-        if (!current || r.avg_quality > current.avg_quality) {
-          map[r.tier] = r
+      byTier[r.tier] = byTier[r.tier] || []
+      byTier[r.tier].push(r)
+    }
+    for (const [tier, models] of Object.entries(byTier)) {
+      if (routingMode === 'best') {
+        // Highest quality wins
+        map[tier] = models.reduce((a, b) => (b.avg_quality > a.avg_quality ? b : a))
+      } else if (routingMode === 'value') {
+        // Lowest cost_per_quality with quality ≥ 50%
+        const viable = models.filter((m) => m.avg_quality >= 0.5)
+        if (viable.length > 0) {
+          map[tier] = viable.reduce((a, b) =>
+            (b.cost_per_quality || Infinity) < (a.cost_per_quality || Infinity) ? b : a
+          )
         }
       } else {
-        // News/Docs/Chat: best value wins (lowest cost per quality point, quality ≥ 50%)
-        if (r.avg_quality < 0.5) continue
-        const rCpq = r.cost_per_quality || Infinity
-        const cCpq = current?.cost_per_quality || Infinity
-        if (!current || rCpq < cCpq) {
-          map[r.tier] = r
-        }
+        // Balanced: within 10% of top quality, then cheapest
+        const topQuality = Math.max(...models.map((m) => m.avg_quality))
+        const threshold = topQuality * 0.9
+        const nearTop = models.filter((m) => m.avg_quality >= threshold)
+        map[tier] = nearTop.reduce((a, b) =>
+          (b.cost_per_quality || Infinity) < (a.cost_per_quality || Infinity) ? b : a
+        )
       }
     }
     return map
-  }, [rankings])
+  }, [rankings, routingMode])
 
   // Tiers with data
   const tiers = useMemo(() => {
@@ -445,8 +458,28 @@ export default function Benchmarks() {
         </div>
       )}
 
-      {/* Top picks per tier */}
+      {/* Routing mode toggle + Top picks per tier */}
       {Object.keys(topByTier).length > 0 && (
+        <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">Recommended models by routing strategy</p>
+          <div className="inline-flex rounded-lg border bg-muted p-0.5 text-xs">
+            {(['best', 'balanced', 'value'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setRoutingMode(mode)}
+                className={cn(
+                  'px-3 py-1 rounded-md capitalize transition-colors',
+                  routingMode === mode
+                    ? 'bg-background text-foreground shadow-sm font-medium'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {mode === 'best' ? 'Best Quality' : mode === 'balanced' ? 'Balanced' : 'Cost Optimized'}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className={cn("grid grid-cols-1 gap-4", TIER_ORDER.length <= 3 ? "md:grid-cols-3" : "md:grid-cols-4")}>
           {TIER_ORDER.map((tier) => {
             const top = topByTier[tier]
@@ -489,6 +522,7 @@ export default function Benchmarks() {
               </div>
             )
           })}
+        </div>
         </div>
       )}
 
