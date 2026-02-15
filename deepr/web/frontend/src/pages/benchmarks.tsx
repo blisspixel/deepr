@@ -213,8 +213,9 @@ export default function Benchmarks() {
       byTier[r.tier].push(r)
     }
     for (const [tier, models] of Object.entries(byTier)) {
-      if (routingMode === 'best') {
-        // Highest quality wins
+      if (tier === 'research' || routingMode === 'best') {
+        // Research always picks best quality (that's the point of deep research)
+        // Best mode also picks by quality for all tiers
         map[tier] = models.reduce((a, b) => (b.avg_quality > a.avg_quality ? b : a))
       } else if (routingMode === 'value') {
         // Lowest cost_per_quality with quality ≥ 50%
