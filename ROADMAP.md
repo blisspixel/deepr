@@ -184,6 +184,25 @@ Keep model registries current across all providers. Models and pricing go stale 
 - [ ] CI job to detect stale models (models not updated in 90+ days)
 - [ ] Alert when new model families are available but not registered
 
+### Priority: Evaluation Methodology
+
+The current benchmark (`scripts/benchmark_models.py`) evaluates models across four tiers (chat, news, research, docs) using LLM-as-judge scoring. This works as a first pass, but the evaluation criteria need to be tightened to reflect what Deepr actually optimizes for — not generic model quality, but research-specific outcomes.
+
+**What needs refinement:**
+- [ ] Align eval dimensions to Deepr's core value props: citation accuracy, source diversity, factual grounding, synthesis depth — not just "quality"
+- [ ] Weight research-tier evals higher than chat-tier in routing recommendations (research is what users pay for)
+- [ ] Add eval dimensions for expert system use cases: gap detection accuracy, knowledge integration quality, belief revision appropriateness
+- [ ] Evaluate cost-efficiency at the task level, not just per-model (a $0.01 Grok lookup + $0.50 o3 deep dive may beat a single $2.00 call)
+- [ ] Track eval methodology version alongside results so benchmark runs are comparable over time
+- [ ] Validate that auto-mode routing decisions actually produce better outcomes than single-model defaults (A/B on real queries)
+- [ ] Consider reference-free evaluation for novel research (no ground truth exists for genuinely new questions)
+
+**Current gaps:**
+- Judge prompts are generic — they don't penalize hallucination or reward citation quality heavily enough
+- No evaluation of temporal accuracy (are facts current as of query date?)
+- Research-tier benchmarks test report generation but not the full multi-phase pipeline (context discovery → research → synthesis)
+- Batch routing efficiency isn't benchmarked (the 10-20x cost savings claim needs ongoing validation)
+
 ### Cloud Deployment Validation
 
 - [x] Standardized deploy.sh for all clouds (AWS was missing)
@@ -349,13 +368,25 @@ Keep model registries current across all providers. Models and pricing go stale 
 
 ---
 
-### Priority 8: NVIDIA Provider (LATER)
+### Priority 8: Local Model Support
 
-Support for self-hosted NVIDIA NIM infrastructure. Only for enterprises with existing NVIDIA deployments.
+Run models locally on NVIDIA hardware — zero API cost, full data privacy, no rate limits. Useful for high-volume batch operations, sensitive queries, and offline research. Target hardware: NVIDIA DGX Spark (desktop AI workstation) and Jetson Orin Nano Super (edge inference).
 
-- [ ] NIM API client implementation
-- [ ] Model registry entries for NIM models
-- [ ] Documentation for self-hosted setup
+**Why local matters for Deepr:**
+- Batch 100+ simple lookups at $0.00 instead of $1.00 via Grok
+- Keep sensitive research queries entirely on-premises
+- Expert chat and gap-filling on local models when budget is exhausted
+- Edge deployment: run a Deepr expert on a Jetson for field research or air-gapped environments
+
+**Implementation:**
+- [ ] Local provider implementing DeepResearchProvider (OpenAI-compatible API, e.g. llama.cpp server, vLLM, Ollama)
+- [ ] Auto-detect local models via API endpoint discovery (localhost scan or explicit config)
+- [ ] Registry entries for common local models (Llama 3.x, Mistral, Qwen, Gemma) with hardware-specific latency estimates
+- [ ] Routing integration: auto-mode treats local models as zero-cost tier, routes simple tasks there first
+- [ ] Benchmark local models alongside cloud models (`scripts/benchmark_models.py` already supports any OpenAI-compatible endpoint)
+- [ ] Hardware profiles: DGX Spark (128GB, up to 70B models), Jetson Orin Nano Super (8GB, up to 8B quantized models)
+- [ ] Fallback behavior: if local model confidence is low or context exceeds local capacity, escalate to cloud provider
+- [ ] Documentation for local setup (Ollama, vLLM, NIM containers)
 
 ---
 
@@ -616,7 +647,7 @@ Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligen
 - Skill marketplace and meta-skills
 - Multi-agent swarm support
 - Remote MCP (SSE, edge deployment)
-- NVIDIA NIM Provider (for enterprises with existing NVIDIA deployments)
+- Local model support on NVIDIA hardware (DGX Spark, Jetson Orin Nano Super)
 
 ---
 
