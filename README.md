@@ -28,8 +28,6 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 
 ![Models & Benchmarks](assets/models.png)
 
-![Expert Hub](assets/expert-hub.png)
-
 ## Architecture
 
 ```mermaid
