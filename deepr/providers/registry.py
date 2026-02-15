@@ -395,27 +395,6 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=5.00,
         output_cost_per_1m=25.00,
     ),
-    "anthropic/claude-opus-4-5": ModelCapability(
-        provider="anthropic",
-        model="claude-opus-4-5",
-        cost_per_query=0.80,  # Estimated with 32K thinking budget
-        latency_ms=15000,
-        context_window=200_000,
-        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks"],
-        strengths=[
-            "Strong multi-step reasoning",
-            "Extended Thinking with high token budget",
-            "Same price as Opus 4.6 ($5/$25 per MTok)",
-        ],
-        weaknesses=[
-            "Legacy — Opus 4.6 is recommended instead",
-            "No Adaptive Thinking (Opus 4.6 only)",
-            "No native deep research API (requires orchestration)",
-            "Slower than Sonnet (~15s vs ~3s)",
-        ],
-        input_cost_per_1m=5.00,
-        output_cost_per_1m=25.00,
-    ),
     "anthropic/claude-sonnet-4-5": ModelCapability(
         provider="anthropic",
         model="claude-sonnet-4-5",

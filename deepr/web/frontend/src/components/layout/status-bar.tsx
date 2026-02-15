@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, DollarSign, Wifi, WifiOff } from 'lucide-react'
+import { Activity, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { jobsApi } from '@/api/jobs'
 import { costApi } from '@/api/cost'
@@ -55,29 +55,12 @@ export default function StatusBar() {
 
       {/* Right section */}
       <div className="flex items-center gap-1.5">
-        {isOnline ? (
-          <>
-            <span
-              className={cn(
-                'inline-block h-2 w-2 rounded-full',
-                'bg-green-500'
-              )}
-            />
-            <Wifi className="h-3 w-3" />
-            <span>Connected</span>
-          </>
-        ) : (
-          <>
-            <span
-              className={cn(
-                'inline-block h-2 w-2 rounded-full',
-                'bg-destructive'
-              )}
-            />
-            <WifiOff className="h-3 w-3" />
-            <span>Offline</span>
-          </>
-        )}
+        <span
+          className={cn(
+            'inline-block h-2 w-2 rounded-full',
+            isOnline ? 'bg-green-500' : 'bg-destructive'
+          )}
+        />
       </div>
     </div>
   )
