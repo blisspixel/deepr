@@ -199,12 +199,26 @@ export default function Benchmarks() {
   )
 
   // Top model per tier for hero cards
+  // Research: pick by raw quality (depth justifies cost)
+  // News/Docs/Chat: pick by cost-effectiveness (lowest cost_per_quality with ≥50% quality floor)
   const topByTier = useMemo(() => {
     const map: Record<string, BenchmarkRanking> = {}
     for (const r of rankings) {
       if (r.num_evals === 0) continue
-      if (!map[r.tier] || r.avg_quality > map[r.tier].avg_quality) {
-        map[r.tier] = r
+      const current = map[r.tier]
+      if (r.tier === 'research') {
+        // Research: highest quality wins
+        if (!current || r.avg_quality > current.avg_quality) {
+          map[r.tier] = r
+        }
+      } else {
+        // News/Docs/Chat: best value wins (lowest cost per quality point, quality ≥ 50%)
+        if (r.avg_quality < 0.5) continue
+        const rCpq = r.cost_per_quality || Infinity
+        const cCpq = current?.cost_per_quality || Infinity
+        if (!current || rCpq < cCpq) {
+          map[r.tier] = r
+        }
       }
     }
     return map
