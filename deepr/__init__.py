@@ -5,7 +5,7 @@ Keep package import lightweight by lazily importing heavy modules.
 
 from typing import TYPE_CHECKING, Any
 
-__version__ = "2.9.0"
+__version__ = "2.9.1"
 __author__ = "blisspixel"
 
 if TYPE_CHECKING:
