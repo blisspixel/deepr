@@ -121,6 +121,7 @@ export interface Expert {
   total_cost: number
   last_active: string
   created_at: string
+  portrait_url?: string | null
 }
 
 export interface ExpertChat {

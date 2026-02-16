@@ -104,6 +104,9 @@ class ExpertProfile:
     # Installed skills (skill names referencing skill directories)
     installed_skills: list[str] = field(default_factory=list)
 
+    # AI-generated portrait image
+    portrait_url: Optional[str] = None
+
     # Composed components (not serialized directly)
     _temporal_state: Optional[TemporalState] = field(default=None, repr=False)
     _freshness_checker: Optional[FreshnessChecker] = field(default=None, repr=False)
