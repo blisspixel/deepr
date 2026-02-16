@@ -1100,8 +1100,9 @@ class TestDocumentAnalysis:
         start_time = time.time()
 
         # Upload README and ROADMAP
-        readme_path = Path("C:/Users/nicks/OneDrive/deepr/README.md")
-        roadmap_path = Path("C:/Users/nicks/OneDrive/deepr/docs/ROADMAP.md")
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        readme_path = repo_root / "README.md"
+        roadmap_path = repo_root / "docs" / "ROADMAP.md"
 
         if not readme_path.exists() or not roadmap_path.exists():
             pytest.skip("README.md or ROADMAP.md not found")
@@ -1225,8 +1226,9 @@ Keep under 800 words."""
         start_time = time.time()
 
         # Upload README and ROADMAP
-        readme_path = Path("C:/Users/nicks/OneDrive/deepr/README.md")
-        roadmap_path = Path("C:/Users/nicks/OneDrive/deepr/docs/ROADMAP.md")
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        readme_path = repo_root / "README.md"
+        roadmap_path = repo_root / "docs" / "ROADMAP.md"
 
         if not readme_path.exists() or not roadmap_path.exists():
             pytest.skip("README.md or ROADMAP.md not found")
