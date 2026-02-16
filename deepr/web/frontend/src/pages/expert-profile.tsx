@@ -179,7 +179,10 @@ export default function ExpertProfile() {
         setActiveTools(prev => [...prev, { tool, query, startedAt: Date.now() }])
       }),
       wsClient.onChatToolEnd(({ tool }) => {
-        setActiveTools(prev => prev.filter(t => t.tool !== tool))
+        setActiveTools(prev => {
+          const idx = prev.findIndex(t => t.tool === tool)
+          return idx >= 0 ? [...prev.slice(0, idx), ...prev.slice(idx + 1)] : prev
+        })
       }),
       wsClient.onChatComplete((data) => {
         setIsStreaming(false)

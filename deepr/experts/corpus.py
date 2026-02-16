@@ -337,8 +337,18 @@ async def import_corpus(
         worldview.expert_name = new_expert_name
         worldview.save(knowledge_dir / "worldview.json")
 
-        # Also save markdown version
-        worldview.save_markdown(knowledge_dir / "worldview.md")
+        # Also save markdown version (best-effort, JSON is source of truth)
+        try:
+            md_lines = [f"# Worldview: {worldview.expert_name}\n"]
+            for belief in worldview.beliefs:
+                conf = getattr(belief, "confidence", "?")
+                claim = getattr(belief, "claim", str(belief))
+                md_lines.append(f"- [{conf}] {claim}")
+            (knowledge_dir / "worldview.md").write_text(
+                "\n".join(md_lines), encoding="utf-8"
+            )
+        except Exception:
+            pass  # Non-critical
 
     # Copy documents to expert's documents folder
     docs_dir = store.get_documents_dir(new_expert_name)
