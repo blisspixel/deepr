@@ -553,7 +553,7 @@ export default function ExpertProfile() {
               <span className="inline-flex items-center gap-1"><FileText className="w-3 h-3" />{expert.document_count} docs</span>
               <span className="inline-flex items-center gap-1"><Lightbulb className="w-3 h-3" />{expert.finding_count} findings</span>
               <span className="inline-flex items-center gap-1"><Search className="w-3 h-3" />{expert.gap_count} gaps</span>
-              {expert.total_cost > 0 && <span className="inline-flex items-center gap-1"><DollarSign className="w-3 h-3" />{formatCurrency(expert.total_cost)}</span>}
+              <span className="inline-flex items-center gap-1"><DollarSign className="w-3 h-3" />{formatCurrency(expert.total_cost)}</span>
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
               <button
