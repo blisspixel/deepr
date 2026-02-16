@@ -44,6 +44,7 @@ class ConflictResolution(Enum):
     HIGHER_CONFIDENCE = "higher_confidence"
     MERGE = "merge"
     ASK_USER = "ask_user"
+    ADJUDICATE = "adjudicate"
 
 
 @dataclass

@@ -266,6 +266,8 @@ export interface RegistryModel {
 
 export type TrustClass = 'primary' | 'secondary' | 'tertiary' | 'self_generated'
 
+export type SupportClass = 'supported' | 'partially_supported' | 'unsupported' | 'uncertain'
+
 export interface Source {
   id: string
   url?: string
@@ -274,6 +276,7 @@ export interface Source {
   content_hash: string
   extraction_method: string
   retrieved_at: string
+  support_class?: SupportClass
 }
 
 export interface Claim {
@@ -346,4 +349,22 @@ export interface ExpertManifest {
   claim_count: number
   open_gap_count: number
   avg_confidence: number
+}
+
+export interface SourceValidation {
+  source_id: string
+  claim_id: string
+  support_class: SupportClass
+  explanation: string
+  validated_at: string
+}
+
+export interface ConsensusResult {
+  query: string
+  provider_responses: { provider: string; model: string; answer: string; cost: number }[]
+  agreement_score: number
+  consensus_answer: string
+  confidence: number
+  total_cost: number
+  decision_record?: DecisionRecord
 }

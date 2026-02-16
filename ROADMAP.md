@@ -337,6 +337,14 @@ The current benchmark (`scripts/benchmark_models.py`) evaluates models across fo
 - [x] `Belief.to_claim()` converts evidence_refs to Source objects with trust classification
 - [ ] Optional `--high-trust-only` mode that restricts expert to primary/secondary sources
 
+#### Expert Intelligence (v2.9)
+- [x] Multi-provider consensus gap-filling (`--consensus`)
+- [x] Semantic citation validation (`SupportClass`, `--validate-citations`)
+- [x] Multi-pass gap-filling pipeline (`--deep`)
+- [x] Automated gap discovery via claim clustering
+- [x] Conflict resolution agent with multi-provider adjudication
+- [x] Map-reduce document ingestion for large document sets
+
 ---
 
 ### Priority 7: Modern CLI UX (remaining)
