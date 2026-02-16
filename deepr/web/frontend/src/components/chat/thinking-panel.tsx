@@ -31,8 +31,7 @@ export function ThinkingPanel({ thoughts, isStreaming }: ThinkingPanelProps) {
 
   if (thoughts.length === 0) return null
 
-  const isLive = isStreaming
-  const showExpanded = isLive || expanded
+  const showExpanded = isStreaming || expanded
 
   // Calculate thinking duration
   const first = thoughts[0]
@@ -50,11 +49,11 @@ export function ThinkingPanel({ thoughts, isStreaming }: ThinkingPanelProps) {
         onClick={() => setExpanded((v) => !v)}
         className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
       >
-        <Brain className={cn('w-3.5 h-3.5', isLive ? 'text-primary animate-pulse' : 'text-muted-foreground')} />
+        <Brain className={cn('w-3.5 h-3.5', isStreaming ? 'text-primary animate-pulse' : 'text-muted-foreground')} />
         <span className="text-xs font-medium text-foreground">
-          {isLive ? 'Thinking...' : `Thought for ${durationStr}`}
+          {isStreaming ? 'Thinking...' : `Thought for ${durationStr}`}
         </span>
-        {!isLive && (
+        {!isStreaming && (
           <span className="text-[10px] text-muted-foreground">
             {thoughts.length} step{thoughts.length !== 1 ? 's' : ''}
           </span>
@@ -82,7 +81,7 @@ export function ThinkingPanel({ thoughts, isStreaming }: ThinkingPanelProps) {
               )}
             </div>
           ))}
-          {isLive && (
+          {isStreaming && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               <span>Processing...</span>
