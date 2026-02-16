@@ -41,7 +41,7 @@ export function ThinkingPanel({ thoughts, isStreaming }: ThinkingPanelProps) {
     first && last
       ? new Date(last.timestamp).getTime() - new Date(first.timestamp).getTime()
       : 0
-  const durationStr = durationMs > 0 ? `${(durationMs / 1000).toFixed(1)}s` : ''
+  const durationStr = durationMs > 0 ? `${(durationMs / 1000).toFixed(1)}s` : '<1s'
 
   return (
     <div className="rounded-lg border bg-muted/30 text-sm mb-2 overflow-hidden">

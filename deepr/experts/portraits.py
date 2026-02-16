@@ -89,6 +89,8 @@ async def generate_portrait(
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in name).strip().replace(" ", "-").lower()
+    if not safe_name:
+        safe_name = "portrait"
     filename = f"{safe_name}.png"
     filepath = out / filename
     filepath.write_bytes(image_bytes)
