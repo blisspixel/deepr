@@ -1671,7 +1671,7 @@ def fill_expert_gaps(name):
         import asyncio
 
         from deepr.experts.profile_store import ExpertStore
-        from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+        from deepr.experts.synthesis import Worldview
 
         decoded_name, err = _decode_expert_name(name)
         if err:
@@ -1681,7 +1681,6 @@ def fill_expert_gaps(name):
         use_deep = data.get("deep", False)
         top = min(data.get("top", 3), 10)
         budget = min(data.get("budget", 5.0), 50.0)
-        do_validate = data.get("validate_citations", False)
 
         store = ExpertStore(str(_experts_dir))
         profile = store.load(decoded_name)
@@ -1956,28 +1955,32 @@ def list_expert_skills(name):
 
         installed = []
         for s in manager.get_installed_skills(list(installed_names)):
-            installed.append({
-                "name": s.name,
-                "description": s.description,
-                "version": s.version,
-                "tools": len(s.tools),
-                "tier": s.tier,
-                "domains": s.domains,
-                "installed": True,
-            })
-
-        available = []
-        for s in manager.list_all():
-            if s.name not in installed_names:
-                available.append({
+            installed.append(
+                {
                     "name": s.name,
                     "description": s.description,
                     "version": s.version,
                     "tools": len(s.tools),
                     "tier": s.tier,
                     "domains": s.domains,
-                    "installed": False,
-                })
+                    "installed": True,
+                }
+            )
+
+        available = []
+        for s in manager.list_all():
+            if s.name not in installed_names:
+                available.append(
+                    {
+                        "name": s.name,
+                        "description": s.description,
+                        "version": s.version,
+                        "tools": len(s.tools),
+                        "tier": s.tier,
+                        "domains": s.domains,
+                        "installed": False,
+                    }
+                )
 
         return jsonify({"installed_skills": installed, "available_skills": available})
     except Exception as e:

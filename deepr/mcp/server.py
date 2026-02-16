@@ -1022,15 +1022,17 @@ async def _list_skills(expert_name: str) -> dict:
 
         skills = []
         for s in manager.list_all():
-            skills.append({
-                "name": s.name,
-                "description": s.description,
-                "version": s.version,
-                "tools": [t.name for t in s.tools],
-                "tier": s.tier,
-                "domains": s.domains,
-                "installed": s.name in installed_names,
-            })
+            skills.append(
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "version": s.version,
+                    "tools": [t.name for t in s.tools],
+                    "tier": s.tier,
+                    "domains": s.domains,
+                    "installed": s.name in installed_names,
+                }
+            )
         return {"skills": skills, "expert_name": expert_name or None}
     except Exception as e:
         return {"error": str(e)}

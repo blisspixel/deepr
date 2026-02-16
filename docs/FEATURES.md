@@ -45,7 +45,7 @@ python deepr/web/app.py
 
 **Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Search and sort controls. Navigate to individual expert profiles.
 
-**Expert Profile** - Five tabs: Chat (ask questions, get answers from the expert's knowledge), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority, click to research), Decisions (reasoning audit trail with rationale and alternatives), and History (learning timeline with costs).
+**Expert Profile** - Six tabs: Chat (ask questions, get answers from the expert's knowledge), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority, click to research), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), and Skills (install/remove domain-specific capability packages).
 
 **Cost Intelligence** - Spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, success rate, and average cost per job. Accuracy disclaimer noting costs are Deepr-internal estimates.
 
@@ -467,6 +467,37 @@ deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
 deepr expert resume "Azure Architect"
 ```
 
+### Expert Skills
+
+Domain-specific capability packages that give experts unique tools:
+
+```bash
+# List all available skills
+deepr skill list
+
+# List skills installed on an expert
+deepr skill list "Financial Analyst"
+
+# Install a skill on an expert
+deepr skill install "Financial Analyst" financial-data
+
+# Remove a skill
+deepr skill remove "Financial Analyst" financial-data
+
+# Show skill details (tools, triggers, domains)
+deepr skill info code-analysis
+
+# Scaffold a new custom skill
+deepr skill create my-custom-skill
+
+# Run a skill tool directly
+deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
+```
+
+**Built-in skills:** `web-search-enhanced` (data extraction), `code-analysis` (dependencies + complexity), `financial-data` (ratio calculations), `data-visualization` (tables + charts).
+
+Skills auto-activate when user queries match keyword or regex triggers. Full skill documentation loads only when activated (progressive disclosure).
+
 ### Export/Import Experts
 
 ```bash
@@ -801,6 +832,7 @@ deepr check        # Fact verification
 deepr make docs    # Generate documentation
 deepr make strategy # Strategic analysis
 deepr expert       # Domain expert management
+deepr skill        # Expert skill management
 ```
 
 ### Supporting Commands

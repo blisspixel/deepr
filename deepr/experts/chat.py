@@ -250,9 +250,7 @@ Budget remaining: ${budget_remaining:.2f}
 """
 
         # Skill summaries (always present — progressive disclosure)
-        installed = self.skill_manager.get_installed_skills(
-            getattr(self.expert, "installed_skills", [])
-        )
+        installed = self.skill_manager.get_installed_skills(getattr(self.expert, "installed_skills", []))
         if installed:
             base_message += "\n\nSKILLS AVAILABLE:\n"
             for skill in installed:
