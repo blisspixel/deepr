@@ -125,6 +125,7 @@ class ApprovalManager:
 
         if not got_response:
             logger.warning("Approval request %s timed out", request_id)
+            self._responses.pop(request_id, None)  # Clean up stale responses
             return False
 
         return self._responses.pop(request_id, False)

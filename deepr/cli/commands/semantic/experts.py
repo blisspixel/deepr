@@ -2073,19 +2073,12 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                         console.print(result.output)
                         console.print()
                     if result.end_session:
-                        ui.print_session_summary(
-                            messages_count=len([m for m in session.messages if m["role"] == "user"]),
-                            cost=session.cost_accumulated,
-                            research_jobs=len(session.research_jobs),
-                            model=session.expert.model,
-                        )
                         break
                     if result.export_content:
                         console.print(result.export_content[:2000])
                     continue
 
                 # Fall through for unrecognised /commands — handle legacy ones
-                pass
 
             # Legacy commands not in the registry
             if user_input.startswith("/learn ") or user_input.startswith("\\learn "):
@@ -2228,6 +2221,11 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                         traceback.print_exc()
 
                 asyncio.run(do_synthesis())
+                continue
+
+            # Reject unrecognised slash/backslash commands
+            if cmd_input.startswith("/"):
+                print_error(f"Unknown command: {user_input.split()[0]}. Type /help for available commands.")
                 continue
 
             # Check budget before processing

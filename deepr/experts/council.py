@@ -51,6 +51,7 @@ class ExpertCouncil:
         """Score all experts against the query and return the top matches.
 
         Uses keyword overlap between the query and each expert's domain/description.
+        Returns list of dicts with 'name' and 'domain' keys.
         """
         from deepr.experts.profile import ExpertStore
 
@@ -62,11 +63,14 @@ class ExpertCouncil:
 
         scored: list[tuple[float, dict]] = []
         for exp in all_experts:
-            if exp["name"] in exclude_set:
+            name = exp.name
+            if name in exclude_set:
                 continue
-            domain_words = set((exp.get("domain", "") + " " + exp.get("description", "")).lower().split())
+            domain = getattr(exp, "domain", "") or ""
+            description = getattr(exp, "description", "") or ""
+            domain_words = set((domain + " " + description).lower().split())
             overlap = len(query_words & domain_words)
-            scored.append((overlap, exp))
+            scored.append((overlap, {"name": name, "domain": domain}))
 
         scored.sort(key=lambda x: x[0], reverse=True)
         return [exp for _, exp in scored[: min(max_experts, self.MAX_EXPERTS)]]

@@ -97,12 +97,13 @@ class WebSocketClient {
     this.socket.emit('unsubscribe_jobs', data)
   }
 
-  startChat(expertName: string, message: string, sessionId?: string) {
+  startChat(expertName: string, message: string, sessionId?: string, mode?: string) {
     if (!this.socket?.connected) return false
     this.socket.emit('chat_start', {
       expert_name: expertName,
       message,
       ...(sessionId && { session_id: sessionId }),
+      ...(mode && { mode }),
     })
     return true
   }
