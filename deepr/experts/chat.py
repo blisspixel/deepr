@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
+from deepr.experts.commands import MODE_CONFIGS, ChatMode
 from deepr.experts.lazy_graph_rag import LazyGraphRAG
 from deepr.experts.memory import Episode, HierarchicalMemory, ReasoningStep
 from deepr.experts.metacognition import MetaCognitionTracker
@@ -121,6 +122,17 @@ class ExpertChatSession:
         self.active_skills: list = []  # list[SkillDefinition]
         self.skill_executors: dict = {}  # name -> SkillExecutor
         self._skill_tool_map: dict[str, tuple[str, str]] = {}  # qualified_name -> (skill, tool)
+
+        # Chat mode + command system (Phase: Agentic UX)
+        self.chat_mode: ChatMode = ChatMode.RESEARCH
+        self.pinned_memories: list[str] = []
+        self.verbose_thinking: bool = verbose
+
+        # Callbacks for approval / compact / plan (set by callers)
+        self._confirm_callback: Optional[Any] = None
+        self._compact_callback: Optional[Any] = None
+        self._plan_callback: Optional[Any] = None
+        self._plan_step_callback: Optional[Any] = None
 
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
@@ -266,6 +278,18 @@ Budget remaining: ${budget_remaining:.2f}
         # Add custom system message if provided
         if self.expert.system_message:
             base_message += f"\n\nADDITIONAL INSTRUCTIONS:\n{self.expert.system_message}"
+
+        # Mode suffix (from command system)
+        mode_cfg = MODE_CONFIGS.get(self.chat_mode, {})
+        mode_suffix = mode_cfg.get("system_suffix", "")
+        if mode_suffix:
+            base_message += f"\n\nCURRENT MODE ({self.chat_mode.value.upper()}):\n{mode_suffix}"
+
+        # Pinned memories
+        if self.pinned_memories:
+            base_message += "\n\nPINNED MEMORIES (user explicitly asked you to remember these):\n"
+            for i, mem in enumerate(self.pinned_memories, 1):
+                base_message += f"  {i}. {mem}\n"
 
         return base_message
 
@@ -1654,11 +1678,13 @@ Budget remaining: ${budget_remaining:.2f}
 
         try:
             # Check if query is complex enough for Tree of Thoughts reasoning
-            if self.should_use_tot(user_message):
+            # In Focus mode, ToT is always on
+            force_tot = MODE_CONFIGS.get(self.chat_mode, {}).get("force_tot", False)
+            if force_tot or self.should_use_tot(user_message):
                 self.thought_stream.emit(
                     ThoughtType.PLAN_STEP,
                     "Complex query detected, using advanced reasoning",
-                    private_payload={"query_length": len(user_message.split())},
+                    private_payload={"query_length": len(user_message.split()), "forced_by_mode": force_tot},
                 )
                 tot_result = await self._run_tot_reasoning(user_message, status_callback)
                 if tot_result and "unable to generate" not in tot_result.lower():
@@ -1681,9 +1707,13 @@ Budget remaining: ${budget_remaining:.2f}
                     private_payload={"reason": "ToT reasoning incomplete"},
                 )
 
-            # Build tools list (same as send_message)
-            tools = [
-                {
+            # Build tools list — filtered by current chat mode
+            active_tool_names = self.get_active_tools()
+
+            tools: list[dict] = []
+
+            if "search_knowledge_base" in active_tool_names:
+                tools.append({
                     "type": "function",
                     "function": {
                         "name": "search_knowledge_base",
@@ -1705,44 +1735,41 @@ Budget remaining: ${budget_remaining:.2f}
                             "required": ["query", "reasoning"],
                         },
                     },
-                }
-            ]
+                })
 
-            if self.agentic:
-                tools.extend(
-                    [
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "standard_research",
-                                "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {"type": "string", "description": "What you need to research on the web"},
-                                        "reasoning": {"type": "string", "description": "Why your knowledge base isn't sufficient and you need web search"},
-                                    },
-                                    "required": ["query", "reasoning"],
-                                },
+            if self.agentic and "standard_research" in active_tool_names:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "standard_research",
+                        "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "What you need to research on the web"},
+                                "reasoning": {"type": "string", "description": "Why your knowledge base isn't sufficient and you need web search"},
                             },
+                            "required": ["query", "reasoning"],
                         },
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "deep_research",
-                                "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {"type": "string", "description": "The complex question that needs deep analysis"},
-                                        "reasoning": {"type": "string", "description": "Why this needs expensive deep research instead of quick web search"},
-                                    },
-                                    "required": ["query", "reasoning"],
-                                },
+                    },
+                })
+
+            if self.agentic and "deep_research" in active_tool_names:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "deep_research",
+                        "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The complex question that needs deep analysis"},
+                                "reasoning": {"type": "string", "description": "Why this needs expensive deep research instead of quick web search"},
                             },
+                            "required": ["query", "reasoning"],
                         },
-                    ]
-                )
+                    },
+                })
 
             # Detect and activate skills
             installed_names = getattr(self.expert, "installed_skills", [])
@@ -2008,6 +2035,15 @@ Budget remaining: ${budget_remaining:.2f}
             op.set_attribute("response_length", len(final_message or ""))
             self._emitter.complete_task(op)
 
+            # Auto-suggest compaction when context is large
+            if self._compact_callback and (
+                len(self.messages) > 30 or self._estimate_tokens() > 80000
+            ):
+                try:
+                    self._compact_callback(len(self.messages), self._estimate_tokens())
+                except Exception:
+                    pass  # Don't crash on callback failure
+
             return final_message or ""
 
         except Exception as e:
@@ -2044,6 +2080,87 @@ Budget remaining: ${budget_remaining:.2f}
             return _json.loads(raw)
         except Exception:
             return []
+
+    def get_active_tools(self) -> list[str]:
+        """Return tool names allowed in the current chat mode."""
+        return list(MODE_CONFIGS.get(self.chat_mode, MODE_CONFIGS[ChatMode.RESEARCH])["tools"])
+
+    def _estimate_tokens(self) -> int:
+        """Rough token estimate (~4 chars per token)."""
+        total = len(self.get_system_message()) // 4
+        for msg in self.messages:
+            total += len(msg.get("content", "")) // 4
+        return total
+
+    async def compact_conversation(self) -> dict:
+        """Summarise older messages and replace them with a compact summary.
+
+        Keeps the last 4 messages verbatim and summarises everything before
+        them into structured sections via a cheap LLM call.
+
+        Returns dict with ``original_messages`` and ``summary_length``.
+        """
+        if len(self.messages) <= 6:
+            return {"original_messages": len(self.messages), "summary_length": 0, "status": "too_short"}
+
+        keep_count = 4
+        to_summarise = self.messages[:-keep_count]
+        kept = self.messages[-keep_count:]
+
+        # Build text to summarise
+        text_parts = []
+        for msg in to_summarise:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            text_parts.append(f"{role}: {content[:500]}")
+        conversation_text = "\n".join(text_parts)
+
+        try:
+            result = await self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Summarise the following conversation into structured sections. "
+                            "Use these exact headings:\n"
+                            "KEY_FACTS: Important facts established\n"
+                            "DECISIONS_MADE: Decisions or conclusions reached\n"
+                            "OPEN_QUESTIONS: Unresolved questions\n"
+                            "USER_PREFERENCES: Any user preferences noted\n"
+                            "Keep each section to 2-3 bullet points max. Be concise."
+                        ),
+                    },
+                    {"role": "user", "content": conversation_text[:8000]},
+                ],
+                temperature=0.3,
+                max_tokens=500,
+            )
+            summary = result.choices[0].message.content or "Summary unavailable."
+        except Exception as e:
+            logger.warning("Compact summary failed: %s", e)
+            summary = f"[{len(to_summarise)} earlier messages — summary unavailable]"
+
+        # Replace messages
+        summary_msg = {
+            "role": "system",
+            "content": f"CONVERSATION SUMMARY (compacted from {len(to_summarise)} messages):\n\n{summary}",
+        }
+        self.messages = [summary_msg, *kept]
+
+        self.reasoning_trace.append({
+            "step": "compact_conversation",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "original_messages": len(to_summarise) + keep_count,
+            "kept_messages": keep_count,
+            "summary_length": len(summary),
+        })
+
+        return {
+            "original_messages": len(to_summarise) + keep_count,
+            "summary_length": len(summary),
+            "status": "compacted",
+        }
 
     def get_session_summary(self) -> dict:
         """Get a summary of the chat session including cost safety status."""

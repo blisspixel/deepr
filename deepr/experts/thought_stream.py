@@ -256,8 +256,19 @@ class ThoughtStream:
         self.thoughts: list[Thought] = []
         self.decision_records: list = []  # list[DecisionRecord]
 
+        # Callbacks for external consumers (e.g. WebSocket events)
+        self._callbacks: list = []  # list[Callable[[Thought], None]]
+
         # Current phase for grouping
         self._current_phase: Optional[str] = None
+
+    def add_callback(self, callback) -> None:
+        """Register a callback that is invoked on every emitted thought.
+
+        The callback receives the ``Thought`` object.  Exceptions inside
+        callbacks are caught and logged to avoid crashing the chat loop.
+        """
+        self._callbacks.append(callback)
 
     def emit(
         self,
@@ -299,6 +310,13 @@ class ThoughtStream:
 
         # Write to JSONL log (full, unredacted for audit)
         self._write_to_log(thought, original_text=public_text)
+
+        # Invoke external callbacks (e.g. WebSocket thought events)
+        for cb in self._callbacks:
+            try:
+                cb(thought)
+            except Exception as cb_err:
+                logger.debug("ThoughtStream callback error: %s", cb_err)
 
         # Display in terminal (redacted)
         if not self.quiet:

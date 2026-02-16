@@ -10,7 +10,13 @@ import { Button } from '@/components/ui/button'
 import { MarkdownMessage } from '@/components/chat/markdown-message'
 import { ToolCallBlock } from '@/components/chat/tool-call-block'
 import { MessageActions } from '@/components/chat/message-actions'
-import type { ExpertChat, Skill, SupportClass } from '@/types'
+import { SlashCommandMenu } from '@/components/chat/slash-command-menu'
+import { ThinkingPanel } from '@/components/chat/thinking-panel'
+import { CompactBanner } from '@/components/chat/compact-banner'
+import { ConfirmDialog } from '@/components/chat/confirm-dialog'
+import { PlanDisplay } from '@/components/chat/plan-display'
+import { CHAT_MODES } from '@/lib/constants'
+import type { ExpertChat, Skill, SupportClass, ChatMode, ThoughtItem, ConfirmRequest, PlanStep } from '@/types'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -104,6 +110,13 @@ export default function ExpertProfile() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [activeTools, setActiveTools] = useState<{ tool: string; query: string; startedAt: number }[]>([])
+  const [chatMode, setChatMode] = useState<ChatMode>('research')
+  const [thoughts, setThoughts] = useState<ThoughtItem[]>([])
+  const [showSlashMenu, setShowSlashMenu] = useState(false)
+  const [compactSuggest, setCompactSuggest] = useState<{ messageCount: number } | null>(null)
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null)
+  const [planSteps, setPlanSteps] = useState<PlanStep[]>([])
+  const [planQuery, setPlanQuery] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
 
@@ -136,7 +149,9 @@ export default function ExpertProfile() {
         setIsStreaming(false)
         setStreamingContent('')
         setActiveTools([])
+        setThoughts([])
         if (data.session_id) setSessionId(data.session_id)
+        if ((data as any).mode) setChatMode((data as any).mode)
         setChatMessages(prev => [...prev, {
           id: data.id,
           role: 'assistant',
@@ -153,7 +168,51 @@ export default function ExpertProfile() {
         setIsStreaming(false)
         setStreamingContent('')
         setActiveTools([])
+        setThoughts([])
         toast.error(`Chat error: ${error}`)
+      }),
+      // Agentic events
+      wsClient.onChatThought((thought) => {
+        setThoughts(prev => [...prev, thought])
+      }),
+      wsClient.onCommandResult((result) => {
+        if (result.mode) setChatMode(result.mode)
+        if (result.clear_chat) {
+          setChatMessages([])
+          setSessionId(null)
+        }
+        if (result.output) {
+          // Show command output as a system message
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: result.output,
+            timestamp: new Date().toISOString(),
+          }])
+        }
+        if (result.end_session) {
+          toast.info('Chat session ended')
+        }
+      }),
+      wsClient.onCompactSuggest(({ message_count }) => {
+        setCompactSuggest({ messageCount: message_count })
+      }),
+      wsClient.onCompactDone((data) => {
+        setCompactSuggest(null)
+        if (data.error) {
+          toast.error(`Compact failed: ${data.error}`)
+        } else {
+          toast.success(`Compacted ${data.original_messages} messages`)
+        }
+      }),
+      wsClient.onChatConfirmRequest((req) => {
+        setConfirmRequest(req)
+      }),
+      wsClient.onChatPlan((data) => {
+        setPlanQuery(data.query)
+        setPlanSteps(data.steps)
+      }),
+      wsClient.onChatPlanStep((data) => {
+        setPlanSteps(prev => prev.map(s => s.id === data.id ? { ...s, status: data.status as PlanStep['status'] } : s))
       }),
     ]
     return () => cleanups.forEach(fn => fn())
@@ -269,14 +328,34 @@ export default function ExpertProfile() {
     e?.preventDefault()
     if (!chatInput.trim() || isStreaming || chatMutation.isPending) return
     const message = chatInput.trim()
-    setChatMessages(prev => [...prev, { role: 'user', content: message, timestamp: new Date().toISOString() }])
     setChatInput('')
+    setShowSlashMenu(false)
+
+    // Detect slash commands
+    if (message.startsWith('/')) {
+      // Client-side commands: /clear, /new
+      if (message === '/clear' || message === '/new') {
+        setChatMessages([])
+        setSessionId(null)
+        setThoughts([])
+        toast.success(message === '/clear' ? 'Cleared' : 'New conversation')
+        return
+      }
+      // Send command via WebSocket
+      if (wsClient.connected) {
+        wsClient.sendCommand(message)
+        return
+      }
+    }
+
+    setChatMessages(prev => [...prev, { role: 'user', content: message, timestamp: new Date().toISOString() }])
 
     // Try WebSocket streaming first, fall back to REST
     if (wsClient.connected) {
       setIsStreaming(true)
       setStreamingContent('')
       setActiveTools([])
+      setThoughts([])
       userScrolledRef.current = false
       wsClient.startChat(decodedName, message, sessionId ?? undefined)
     } else {
@@ -576,6 +655,28 @@ export default function ExpertProfile() {
               {activeTools.map((t) => (
                 <ToolCallBlock key={t.tool} tool={t.tool} query={t.query} running />
               ))}
+              {/* Thinking panel */}
+              {thoughts.length > 0 && (
+                <ThinkingPanel thoughts={thoughts} isStreaming={isStreaming} />
+              )}
+              {/* Confirm dialog */}
+              {confirmRequest && (
+                <ConfirmDialog
+                  request={confirmRequest}
+                  onApprove={() => {
+                    wsClient.sendConfirmResponse(confirmRequest.request_id, true)
+                    setConfirmRequest(null)
+                  }}
+                  onDeny={() => {
+                    wsClient.sendConfirmResponse(confirmRequest.request_id, false)
+                    setConfirmRequest(null)
+                  }}
+                />
+              )}
+              {/* Plan display */}
+              {planSteps.length > 0 && (
+                <PlanDisplay query={planQuery} steps={planSteps} />
+              )}
               {/* Streaming bubble */}
               {isStreaming && (
                 <div className="flex gap-3" role="status">
@@ -602,17 +703,48 @@ export default function ExpertProfile() {
               <div ref={chatEndRef} />
             </div>
 
+            {/* Compact banner */}
+            {compactSuggest && (
+              <div className="px-4 pt-2">
+                <CompactBanner
+                  messageCount={compactSuggest.messageCount}
+                  onCompact={() => { wsClient.sendCompact(); setCompactSuggest(null) }}
+                  onDismiss={() => setCompactSuggest(null)}
+                />
+              </div>
+            )}
+
             {/* Input */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2 items-end">
-              <Textarea
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`Ask ${expert.name} a question...`}
-                className="flex-1 min-h-[40px] max-h-[200px]"
-                autoGrow
-                rows={1}
-              />
+            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2 items-end relative">
+              {/* Mode badge */}
+              <span className={cn(
+                'absolute -top-5 left-4 px-2 py-0.5 rounded text-[10px] font-semibold text-white',
+                CHAT_MODES.find(m => m.value === chatMode)?.color || 'bg-cyan-500'
+              )}>
+                {chatMode}
+              </span>
+
+              {/* Slash command autocomplete */}
+              <div className="flex-1 relative">
+                <SlashCommandMenu
+                  inputValue={chatInput}
+                  visible={showSlashMenu}
+                  onSelect={(cmd) => { setChatInput(cmd); setShowSlashMenu(false) }}
+                  onClose={() => setShowSlashMenu(false)}
+                />
+                <Textarea
+                  value={chatInput}
+                  onChange={(e) => {
+                    setChatInput(e.target.value)
+                    setShowSlashMenu(/^\/\w*$/.test(e.target.value))
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder={`Ask ${expert.name} a question... (/ for commands)`}
+                  className="min-h-[40px] max-h-[200px]"
+                  autoGrow
+                  rows={1}
+                />
+              </div>
               {isStreaming ? (
                 <Button
                   type="button"

@@ -393,3 +393,73 @@ export interface Skill {
   domains: string[]
   installed: boolean
 }
+
+// Agentic chat types
+
+export type ChatMode = 'ask' | 'research' | 'advise' | 'focus'
+
+export interface ChatCommandDef {
+  name: string
+  aliases: string[]
+  description: string
+  category: 'Mode' | 'Session' | 'Reasoning' | 'Control' | 'Management' | 'Utility'
+  args: string
+}
+
+export interface CommandResult {
+  success: boolean
+  output: string
+  clear_chat?: boolean
+  end_session?: boolean
+  mode?: ChatMode
+  export_content?: string
+  data?: Record<string, unknown>
+}
+
+export interface ThoughtItem {
+  type: string
+  text: string
+  confidence: number | null
+  phase: string | null
+  timestamp: string
+}
+
+export interface PlanStep {
+  id: number
+  title: string
+  query?: string
+  depends_on?: number[]
+  status: 'pending' | 'running' | 'done' | 'failed'
+  result?: string
+}
+
+export interface ConfirmRequest {
+  request_id: string
+  tool_name: string
+  query: string
+  estimated_cost: number
+  budget_remaining: number
+}
+
+export interface MemoryContext {
+  conversations: number
+  domains: { name: string; confidence: number }[]
+  gaps: number
+}
+
+export interface CouncilResult {
+  query: string
+  perspectives: ExpertPerspective[]
+  synthesis: string
+  agreements: string[]
+  disagreements: string[]
+  total_cost: number
+}
+
+export interface ExpertPerspective {
+  expert_name: string
+  domain: string
+  response: string
+  confidence: number
+  cost: number
+}

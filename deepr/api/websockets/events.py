@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Track active chat sessions for cancellation
 _active_chats: dict[str, bool] = {}  # sid -> cancelled flag
 
+# Track active ExpertChatSession instances for command dispatch
+_active_sessions: dict[str, object] = {}  # sid -> ExpertChatSession
+
 
 def register_socketio_events(socketio):
     """Register Socket.IO event handlers."""
@@ -119,6 +122,37 @@ def register_socketio_events(socketio):
                 if session_id:
                     _restore_session_messages(session, expert_name, session_id)
 
+                # Store session for command dispatch
+                _active_sessions[sid] = session
+
+                # Register thought callback for visible reasoning
+                def on_thought(thought):
+                    if _active_chats.get(sid):
+                        return
+                    socketio.emit(
+                        "chat_thought",
+                        {
+                            "type": thought.thought_type.value,
+                            "text": thought.public_text,
+                            "confidence": thought.confidence,
+                            "phase": thought.metadata.get("phase"),
+                            "timestamp": thought.timestamp.isoformat(),
+                        },
+                        room=room,
+                    )
+
+                session.thought_stream.add_callback(on_thought)
+
+                # Register compact suggestion callback
+                def on_compact_suggest(msg_count, token_count):
+                    socketio.emit(
+                        "chat_compact_suggest",
+                        {"message_count": msg_count, "token_estimate": token_count},
+                        room=room,
+                    )
+
+                session._compact_callback = on_compact_suggest
+
                 tool_timers: dict[str, float] = {}
 
                 def on_token(text):
@@ -187,6 +221,7 @@ def register_socketio_events(socketio):
                         "tool_calls": tool_calls,
                         "follow_ups": getattr(session, "_last_follow_ups", []),
                         "confidence": getattr(session, "_last_confidence", 0.9),
+                        "mode": session.chat_mode.value,
                     },
                     room=room,
                 )
@@ -209,6 +244,104 @@ def register_socketio_events(socketio):
         if sid in _active_chats:
             _active_chats[sid] = True
             logger.info("Chat cancelled for %s", sid)
+
+    @socketio.on("chat_command")
+    def handle_chat_command(data):
+        """Execute a slash command on the active session.
+
+        Data: { command: str }  (e.g. "/status", "/ask", "/compact")
+        Emits: chat_command_result
+        """
+        sid = flask_request.sid
+        room = f"chat_{sid}"
+        raw = data.get("command", "")
+
+        session = _active_sessions.get(sid)
+
+        def _run():
+            try:
+                from deepr.experts.command_handlers import dispatch_command
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(
+                    dispatch_command(session, raw, {"web": True})
+                )
+                loop.close()
+
+                if result is None:
+                    socketio.emit(
+                        "chat_command_result",
+                        {"success": False, "output": f"Unknown command: {raw}"},
+                        room=room,
+                    )
+                    return
+
+                payload = {
+                    "success": result.success,
+                    "output": result.output,
+                    "clear_chat": result.clear_chat,
+                    "end_session": result.end_session,
+                    "data": result.data,
+                }
+                if result.mode_changed:
+                    payload["mode"] = result.mode_changed.value
+                if result.export_content:
+                    payload["export_content"] = result.export_content
+
+                socketio.emit("chat_command_result", payload, room=room)
+
+            except Exception as e:
+                logger.exception("Command error: %s", raw)
+                socketio.emit(
+                    "chat_command_result",
+                    {"success": False, "output": f"Error: {e}"},
+                    room=room,
+                )
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+    @socketio.on("chat_compact")
+    def handle_chat_compact(data=None):
+        """Run conversation compaction on the active session."""
+        sid = flask_request.sid
+        room = f"chat_{sid}"
+        session = _active_sessions.get(sid)
+
+        if not session:
+            socketio.emit("chat_compact_done", {"error": "No active session"}, room=room)
+            return
+
+        def _run():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(session.compact_conversation())
+                loop.close()
+                socketio.emit("chat_compact_done", result, room=room)
+            except Exception as e:
+                socketio.emit("chat_compact_done", {"error": str(e)}, room=room)
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+    @socketio.on("chat_confirm_response")
+    def handle_chat_confirm_response(data):
+        """User's response to an approval request.
+
+        Data: { request_id: str, approved: bool }
+        """
+        sid = flask_request.sid
+        session = _active_sessions.get(sid)
+        if not session:
+            return
+
+        request_id = data.get("request_id", "")
+        approved = data.get("approved", False)
+
+        if hasattr(session, "_approval_manager") and session._approval_manager:
+            session._approval_manager.respond(request_id, approved)
 
 
 def emit_job_created(socketio, job):
