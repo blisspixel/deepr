@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any
+
+from openai import AsyncOpenAI
+
+from deepr.experts.constants import SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -109,43 +114,37 @@ class ExpertCouncil:
             }
 
         num = len(experts)
-        # 10% reserve for synthesis, rest split among experts
-        per_expert_budget = (budget * 0.9) / max(num, 1)
+        per_expert_budget = (budget * (1 - SYNTHESIS_BUDGET_FRACTION)) / max(num, 1)
+
+        def _notify(name: str, status: str) -> None:
+            if progress_callback:
+                try:
+                    progress_callback(name, status)
+                except Exception:
+                    pass
 
         async def _query_expert(exp: dict) -> ExpertPerspective:
             name = exp["name"]
-            if progress_callback:
-                try:
-                    progress_callback(name, "querying")
-                except Exception:
-                    pass
+            domain = exp.get("domain", "")
+            _notify(name, "querying")
             try:
                 session = await start_chat_session(name, budget=per_expert_budget, agentic=True, quiet=True)
                 response = await session.send_message(
                     f"As a domain expert, please provide your perspective on: {query}"
                 )
-                cost = session.cost_accumulated
-                if progress_callback:
-                    try:
-                        progress_callback(name, "done")
-                    except Exception:
-                        pass
+                _notify(name, "done")
                 return ExpertPerspective(
                     expert_name=name,
-                    domain=exp.get("domain", ""),
+                    domain=domain,
                     response=response,
-                    cost=cost,
+                    cost=session.cost_accumulated,
                 )
             except Exception as e:
                 logger.warning("Council: expert %s failed: %s", name, e)
-                if progress_callback:
-                    try:
-                        progress_callback(name, "failed")
-                    except Exception:
-                        pass
+                _notify(name, "failed")
                 return ExpertPerspective(
                     expert_name=name,
-                    domain=exp.get("domain", ""),
+                    domain=domain,
                     response=f"Unable to respond: {e}",
                     confidence=0.0,
                     cost=0.0,
@@ -156,7 +155,7 @@ class ExpertCouncil:
         total_cost = sum(p.cost for p in perspectives)
 
         # Synthesise
-        synthesis = await self._synthesise(query, perspectives, budget * 0.1)
+        synthesis = await self._synthesise(query, perspectives, budget * SYNTHESIS_BUDGET_FRACTION)
         total_cost += synthesis.get("cost", 0.0)
 
         return {
@@ -184,10 +183,6 @@ class ExpertCouncil:
         budget: float,
     ) -> dict:
         """Synthesise multiple expert perspectives into a unified view."""
-        import os
-
-        from openai import AsyncOpenAI
-
         if not perspectives or all(p.confidence == 0 for p in perspectives):
             return {"text": "No valid perspectives to synthesise.", "agreements": [], "disagreements": [], "cost": 0.0}
 
@@ -198,7 +193,7 @@ class ExpertCouncil:
 
         prompt = (
             f"Query: {query}\n\n"
-            f"Expert perspectives:\n\n{'---'.join(parts)}\n\n"
+            "Expert perspectives:\n\n" + "---\n".join(parts) + "\n\n"
             "Provide:\n"
             "1. SYNTHESIS: A unified answer combining the best insights\n"
             "2. AGREEMENTS: Points where experts agree (bullet list)\n"
@@ -208,7 +203,7 @@ class ExpertCouncil:
         try:
             client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             result = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=UTILITY_MODEL,
                 messages=[
                     {"role": "system", "content": "Synthesise expert perspectives. Be concise and structured."},
                     {"role": "user", "content": prompt[:6000]},

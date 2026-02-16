@@ -20,6 +20,7 @@ from deepr.experts.commands import (
     CommandRegistry,
     CommandResult,
 )
+from deepr.experts.constants import TOOL_DESCRIPTIONS
 
 if TYPE_CHECKING:
     from deepr.experts.chat import ExpertChatSession
@@ -210,13 +211,8 @@ async def handle_tools(session: ExpertChatSession, args: str, context: dict) -> 
     cfg = MODE_CONFIGS[session.chat_mode]
     allowed = cfg["tools"]
     lines = [f"Tools available in **{session.chat_mode.value}** mode:"]
-    tool_info = {
-        "search_knowledge_base": "Search expert's documents (free)",
-        "standard_research": "Web search via Grok (free)",
-        "deep_research": "Deep analysis ($0.10-0.30)",
-    }
     for tool_name in allowed:
-        desc = tool_info.get(tool_name, tool_name)
+        desc = TOOL_DESCRIPTIONS.get(tool_name, tool_name)
         lines.append(f"  - {tool_name}: {desc}")
     if session.active_skills:
         lines.append("")
@@ -414,12 +410,6 @@ HANDLERS: dict[str, Any] = {
     "help": handle_help,
     "status": handle_status,
     "quit": handle_quit,
-    # Aliases resolved by the registry, but add common ones for direct dispatch
-    "exit": handle_quit,
-    "q": handle_quit,
-    "?": handle_help,
-    "unpin": handle_forget,
-    "pins": handle_memories,
 }
 
 

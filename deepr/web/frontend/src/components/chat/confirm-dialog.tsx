@@ -1,4 +1,5 @@
 import type { ConfirmRequest } from '@/types'
+import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle } from 'lucide-react'
 
@@ -18,12 +19,12 @@ export function ConfirmDialog({ request, onApprove, onDeny }: ConfirmDialogProps
       <div className="space-y-1 text-xs text-muted-foreground">
         <p>
           <span className="font-medium text-foreground">{request.tool_name}</span>
-          {request.query && <> — {request.query.slice(0, 100)}</>}
+          {request.query && <> — {request.query.length > 100 ? request.query.slice(0, 100) + '...' : request.query}</>}
         </p>
         <p>
-          Estimated cost: <span className="font-mono">${request.estimated_cost.toFixed(2)}</span>
+          Estimated cost: <span className="font-mono">{formatCurrency(request.estimated_cost)}</span>
           {' · '}
-          Budget remaining: <span className="font-mono">${request.budget_remaining.toFixed(2)}</span>
+          Budget remaining: <span className="font-mono">{formatCurrency(request.budget_remaining)}</span>
         </p>
       </div>
       <div className="flex items-center gap-2 pt-1">

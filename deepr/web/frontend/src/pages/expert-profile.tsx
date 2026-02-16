@@ -38,6 +38,7 @@ import {
   Users,
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import EmptyState from '@/components/shared/empty-state'
 
 type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history' | 'skills'
 
@@ -85,6 +86,40 @@ function SupportClassBadge({ support }: { support: SupportClass }) {
     <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-semibold', style.bg, style.text)}>
       {style.label}
     </span>
+  )
+}
+
+function SkillCard({ skill, action, installed }: { skill: Skill; action: React.ReactNode; installed?: boolean }) {
+  return (
+    <div className={cn(
+      'rounded-lg border p-4 flex items-center gap-4',
+      installed ? 'bg-card' : 'border-dashed bg-card/50',
+    )}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium text-foreground">{skill.name}</h4>
+          {installed && (
+            <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] font-medium text-muted-foreground">
+              v{skill.version}
+            </span>
+          )}
+          <span className={cn(
+            'px-1.5 py-0.5 rounded text-[10px] font-semibold',
+            skill.tier === 'built-in' ? 'bg-blue-500/10 text-blue-600' :
+            skill.tier === 'global' ? 'bg-purple-500/10 text-purple-600' :
+            'bg-green-500/10 text-green-600'
+          )}>
+            {skill.tier}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">{skill.description}</p>
+        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+          <span>{skill.tools} tool{skill.tools !== 1 ? 's' : ''}</span>
+          {skill.domains.length > 0 && <span>{skill.domains.join(', ')}</span>}
+        </div>
+      </div>
+      {action}
+    </div>
   )
 }
 
@@ -152,7 +187,7 @@ export default function ExpertProfile() {
         setActiveTools([])
         setThoughts([])
         if (data.session_id) setSessionId(data.session_id)
-        if ((data as any).mode) setChatMode((data as any).mode)
+        if (data.mode) setChatMode(data.mode as ChatMode)
         setChatMessages(prev => [...prev, {
           id: data.id,
           role: 'assistant',
@@ -677,8 +712,6 @@ export default function ExpertProfile() {
                         <button
                           key={i}
                           onClick={() => {
-                            setChatInput(fu)
-                            // Auto-send the follow-up
                             setChatMessages(prev => [...prev, { role: 'user', content: fu, timestamp: new Date().toISOString() }])
                             if (wsClient.connected) {
                               setIsStreaming(true)
@@ -826,15 +859,7 @@ export default function ExpertProfile() {
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             ) : !sortedClaims.length ? (
-              <div className="flex flex-col items-center justify-center text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <Lightbulb className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-sm font-medium text-foreground mb-1">No claims yet</h3>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  Claims will appear here as the expert forms beliefs from evidence.
-                </p>
-              </div>
+              <EmptyState icon={Lightbulb} title="No claims yet" description="Claims will appear here as the expert forms beliefs from evidence." />
             ) : (
               <div className="rounded-lg border bg-card overflow-hidden">
                 <table className="w-full text-sm">
@@ -882,15 +907,7 @@ export default function ExpertProfile() {
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             ) : !gaps || gaps.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <SearchX className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-sm font-medium text-foreground mb-1">No knowledge gaps</h3>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  Knowledge gaps will appear here as the expert identifies areas needing more research.
-                </p>
-              </div>
+              <EmptyState icon={SearchX} title="No knowledge gaps" description="Knowledge gaps will appear here as the expert identifies areas needing more research." />
             ) : (
               gaps.map((gap) => (
                 <div key={gap.id} className="rounded-lg border bg-card p-4 space-y-2">
@@ -938,15 +955,7 @@ export default function ExpertProfile() {
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             ) : !sortedDecisions.length ? (
-              <div className="flex flex-col items-center justify-center text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <GitBranch className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-sm font-medium text-foreground mb-1">No decisions yet</h3>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  Decision records will appear here as the expert makes research decisions.
-                </p>
-              </div>
+              <EmptyState icon={GitBranch} title="No decisions yet" description="Decision records will appear here as the expert makes research decisions." />
             ) : (
               <div className="space-y-3">
                 {sortedDecisions.map((dec) => {
@@ -988,15 +997,7 @@ export default function ExpertProfile() {
         {activeTab === 'history' && (
           <div className="p-6 space-y-3">
             {!history || history.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <Clock className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-sm font-medium text-foreground mb-1">No activity yet</h3>
-                <p className="text-xs text-muted-foreground max-w-xs">
-                  Learning events and research activity will be logged here.
-                </p>
-              </div>
+              <EmptyState icon={Clock} title="No activity yet" description="Learning events and research activity will be logged here." />
             ) : (
               history.map((event) => (
                 <div key={event.id} className="flex items-start gap-3 text-sm">
@@ -1029,37 +1030,16 @@ export default function ExpertProfile() {
               ) : (
                 <div className="space-y-2">
                   {skillsData.installed_skills.map((skill: Skill) => (
-                    <div key={skill.name} className="rounded-lg border bg-card p-4 flex items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-medium text-foreground">{skill.name}</h4>
-                          <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] font-medium text-muted-foreground">
-                            v{skill.version}
-                          </span>
-                          <span className={cn(
-                            'px-1.5 py-0.5 rounded text-[10px] font-semibold',
-                            skill.tier === 'built-in' ? 'bg-blue-500/10 text-blue-600' :
-                            skill.tier === 'global' ? 'bg-purple-500/10 text-purple-600' :
-                            'bg-green-500/10 text-green-600'
-                          )}>
-                            {skill.tier}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{skill.description}</p>
-                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-                          <span>{skill.tools} tool{skill.tools !== 1 ? 's' : ''}</span>
-                          {skill.domains.length > 0 && <span>{skill.domains.join(', ')}</span>}
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeSkillMutation.mutate(skill.name)}
-                        disabled={removeSkillMutation.isPending}
-                      >
-                        Remove
-                      </Button>
-                    </div>
+                    <SkillCard
+                      key={skill.name}
+                      skill={skill}
+                      installed
+                      action={
+                        <Button variant="outline" size="sm" onClick={() => removeSkillMutation.mutate(skill.name)} disabled={removeSkillMutation.isPending}>
+                          Remove
+                        </Button>
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -1071,33 +1051,15 @@ export default function ExpertProfile() {
                 <h3 className="text-sm font-semibold text-foreground mb-3">Available Skills</h3>
                 <div className="space-y-2">
                   {skillsData.available_skills.map((skill: Skill) => (
-                    <div key={skill.name} className="rounded-lg border border-dashed bg-card/50 p-4 flex items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-medium text-foreground">{skill.name}</h4>
-                          <span className={cn(
-                            'px-1.5 py-0.5 rounded text-[10px] font-semibold',
-                            skill.tier === 'built-in' ? 'bg-blue-500/10 text-blue-600' :
-                            skill.tier === 'global' ? 'bg-purple-500/10 text-purple-600' :
-                            'bg-green-500/10 text-green-600'
-                          )}>
-                            {skill.tier}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{skill.description}</p>
-                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-                          <span>{skill.tools} tool{skill.tools !== 1 ? 's' : ''}</span>
-                          {skill.domains.length > 0 && <span>{skill.domains.join(', ')}</span>}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => installSkillMutation.mutate(skill.name)}
-                        disabled={installSkillMutation.isPending}
-                      >
-                        Install
-                      </Button>
-                    </div>
+                    <SkillCard
+                      key={skill.name}
+                      skill={skill}
+                      action={
+                        <Button size="sm" onClick={() => installSkillMutation.mutate(skill.name)} disabled={installSkillMutation.isPending}>
+                          Install
+                        </Button>
+                      }
+                    />
                   ))}
                 </div>
               </div>

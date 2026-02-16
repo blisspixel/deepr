@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 from openai import AsyncOpenAI
 
+from deepr.experts.constants import UTILITY_MODEL
+
 if TYPE_CHECKING:
     from deepr.experts.chat import ExpertChatSession
 
@@ -80,7 +82,7 @@ class TaskPlanner:
 
         try:
             result = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=UTILITY_MODEL,
                 messages=[
                     {
                         "role": "system",
@@ -228,7 +230,7 @@ class TaskPlanner:
 
         try:
             result = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=UTILITY_MODEL,
                 messages=[
                     {
                         "role": "system",
@@ -236,7 +238,7 @@ class TaskPlanner:
                     },
                     {
                         "role": "user",
-                        "content": f"Query: {query}\n\nStep results:\n" + "\n---\n".join(step_results[:3000]),
+                        "content": (f"Query: {query}\n\nStep results:\n" + "\n---\n".join(step_results))[:3000],
                     },
                 ],
                 temperature=0.3,
