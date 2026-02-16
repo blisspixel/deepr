@@ -49,7 +49,8 @@ These features are well-tested and used regularly:
 These features work but APIs or behavior may change:
 
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
-- **MCP server**: Functional with 16 tools, but MCP spec itself is still maturing
+- **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 4 built-in skills, CLI management, web API, auto-activation triggers
+- **MCP server**: Functional with 18 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -62,8 +63,9 @@ These features work but APIs or behavior may change:
 - Multi-provider support (OpenAI GPT-5/5.2/4.1, Gemini, Grok 4 Fast, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
-- Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`)
-- MCP server with 16 tools, persistence, security, multi-runtime configs
+- Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills
+- Expert skills system: 4 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
+- MCP server with 18 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -116,6 +118,8 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | Phase 5 | Expert Contract (`ExpertManifest`, `Claim`, `Gap`, `Source` types in `core/contracts.py`) | v2.8 |
 | Phase 5 | Gap EV/Cost Ranking (`gap_scorer.py`, scored gaps in web + MCP) | v2.8 |
 | Phase 5 | Source Provenance (`TrustClass` enum, content hashes, extraction method) | v2.8 |
+| Expert Skills | Expert Skills System (skill definitions, manager, executor, 4 built-in skills, CLI/web/MCP) | v2.9 |
+| Expert Intelligence | Consensus gap-filling, citation validation, gap discovery, conflict resolution | v2.9 |
 
 ---
 
@@ -345,6 +349,21 @@ The current benchmark (`scripts/benchmark_models.py`) evaluates models across fo
 - [x] Conflict resolution agent with multi-provider adjudication
 - [x] Map-reduce document ingestion for large document sets
 
+#### Expert Skills System (v2.9)
+- [x] Skill definition format (`skill.yaml` + `prompt.md` + Python tools)
+- [x] Three-tier storage: built-in (`deepr/skills/`), user global (`~/.deepr/skills/`), expert-local (`data/experts/{name}/skills/`)
+- [x] `SkillDefinition`, `SkillTool`, `SkillTrigger`, `SkillBudget` dataclasses in `deepr/experts/skills/definition.py`
+- [x] `SkillManager` for discovery, indexing, trigger matching, domain suggestion in `deepr/experts/skills/manager.py`
+- [x] `SkillExecutor` for Python tool execution and MCP bridging in `deepr/experts/skills/executor.py`
+- [x] Chat integration: progressive disclosure (summaries in system prompt, full prompt on activation), tool registration, tool dispatch
+- [x] Profile schema migration v2→v3 (`installed_skills` field)
+- [x] CLI: `deepr skill list/install/remove/create/info` and `deepr expert run-skill`
+- [x] Web API: `GET/POST/DELETE /api/experts/<name>/skills/<skill>`, `GET /api/skills`
+- [x] MCP tools: `deepr_list_skills`, `deepr_install_skill`
+- [x] Frontend: Skills tab (6th tab) in Expert Profile page
+- [x] 4 built-in skills: `web-search-enhanced`, `code-analysis`, `financial-data`, `data-visualization`
+- [x] 124 unit tests for skills definition, manager, and executor
+
 ---
 
 ### Priority 7: Modern CLI UX (remaining)
@@ -434,6 +453,12 @@ Run models locally on NVIDIA hardware — zero API cost, full data privacy, no r
 - [ ] Expose `experts.diff(version_a, version_b)` for versioned comparison
 
 #### Skill System Enhancements
+- [x] Expert Skills system with skill.yaml definition format, Python + MCP tool types
+- [x] Three-tier skill storage (built-in, user global, expert-local) with tier override
+- [x] Auto-activation via keyword/regex triggers with progressive disclosure
+- [x] 4 built-in skills (web-search-enhanced, code-analysis, financial-data, data-visualization)
+- [x] CLI management (`deepr skill list/install/remove/create/info`)
+- [x] Web API and MCP tool integration
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
 - [ ] Meta-skills: generate temporary skills for niche research topics
 - [ ] Skill marketplace discovery (`deepr skills search`)
@@ -508,7 +533,7 @@ Local research management interface for monitoring batch operations. CLI remains
 - [x] Demo data endpoint (POST /api/demo/load) and "Load Demo Data" button in Settings
 - [x] Standardized error states across all pages (consistent messaging, muted icons, retry buttons)
 - [x] Cost Intelligence accuracy disclaimer banner
-- [x] Expert Profile 5-tab layout (Chat, Claims, Gaps, Decisions, History) with mobile overflow scroll
+- [x] Expert Profile 6-tab layout (Chat, Claims, Gaps, Decisions, History, Skills) with mobile overflow scroll
 
 #### Operational Analytics
 The dashboard should show *posture* (what's working, what's failing, what we're learning) rather than just counts. These surface the decision records and quality metrics that the kernel already tracks.

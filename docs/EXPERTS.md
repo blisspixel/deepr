@@ -185,6 +185,83 @@ Creates a portable package:
 deepr expert import "New Expert" --corpus ./exports/azure_architect/
 ```
 
+## Expert Skills
+
+Skills are domain-specific capability packages that give experts unique tools and reasoning. A "Financial Analyst" expert with the `financial-data` skill can calculate ratios; a "Dev Lead" with `code-analysis` can audit dependencies and measure complexity.
+
+### Managing Skills
+
+```bash
+# List all available skills
+deepr skill list
+
+# List skills on a specific expert
+deepr skill list "Financial Analyst"
+
+# Install a skill
+deepr skill install "Financial Analyst" financial-data
+
+# Remove a skill
+deepr skill remove "Financial Analyst" financial-data
+
+# Show skill details
+deepr skill info code-analysis
+
+# Run a skill tool directly
+deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
+```
+
+### Creating Custom Skills
+
+```bash
+# Scaffold a new skill in ~/.deepr/skills/
+deepr skill create my-custom-skill
+```
+
+This creates:
+- `skill.yaml` — metadata, triggers, tool definitions
+- `prompt.md` — domain-specific reasoning instructions
+- `tools/` — Python tool implementations
+
+### Built-in Skills
+
+| Skill | Tools | Purpose |
+|-------|-------|---------|
+| `web-search-enhanced` | `structured_extract` | Extract tables/facts from research text |
+| `code-analysis` | `analyze_dependencies`, `complexity_report` | Dependency audit + cyclomatic complexity |
+| `financial-data` | `calculate_ratios` | P/E, P/B, debt-to-equity, ROE, margins |
+| `data-visualization` | `markdown_table`, `ascii_chart` | Format data as tables and charts |
+
+### How Skills Work
+
+- **Progressive disclosure**: Skill summaries are always visible in the expert's system prompt. Full prompt and tools load only when a skill activates.
+- **Auto-activation**: Skills activate when user queries match keyword or regex triggers.
+- **Three-tier storage**: Built-in skills ship with Deepr, user skills live in `~/.deepr/skills/`, expert-local skills in `data/experts/{name}/skills/`. Later tiers override earlier ones.
+- **MCP bridging**: Skills can connect experts to external MCP servers for tools no generic expert would have.
+
+### Skill Definition Format
+
+```yaml
+name: my-skill
+version: "1.0.0"
+description: "What this skill does"
+domains: ["finance", "analysis"]
+triggers:
+  keywords: ["earnings", "P/E ratio"]
+  patterns: ["compare .+ stocks"]
+prompt_file: "prompt.md"
+tools:
+  - name: my_tool
+    type: python          # or "mcp" for external servers
+    module: tools.my_tool
+    function: run
+    description: "What this tool does"
+    cost_tier: free       # free/low/medium/high
+budget:
+  max_per_call: 0.50
+  default_budget: 2.00
+```
+
 ## Architecture
 
 ### Components
@@ -205,7 +282,11 @@ deepr/experts/
 ├── synthesis.py    # Knowledge synthesis, to_claim()/to_gap() adapters
 ├── gap_scorer.py   # EV/cost ranking for knowledge gaps
 ├── thought_stream.py # Decision records, reasoning traces
-└── cost_safety.py  # Budget controls
+├── cost_safety.py  # Budget controls
+└── skills/         # Expert skills system
+    ├── definition.py  # SkillDefinition, SkillTool, SkillTrigger
+    ├── manager.py     # Discovery, indexing, trigger matching
+    └── executor.py    # Python + MCP tool execution
 ```
 
 ### Knowledge Storage
