@@ -752,7 +752,7 @@ Budget remaining: ${budget_remaining:.2f}
         estimated_cost = 0.20  # Average estimate
 
         # Check cost safety before proceeding
-        allowed, reason, needs_confirm = self.cost_safety.check_operation(
+        allowed, reason, _needs_confirm = self.cost_safety.check_operation(
             session_id=self.session_id,
             operation_type="deep_research",
             estimated_cost=estimated_cost,
@@ -2258,9 +2258,14 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Session ID
         """
+        import re
         import uuid
 
         if not session_id:
+            session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+        # Sanitize session_id to prevent path traversal
+        if not re.match(r'^[\w\-]+$', session_id):
             session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Get conversations directory

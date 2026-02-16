@@ -136,7 +136,7 @@ class AutonomousLearner:
         # Create cost tracking session
         session_id = f"learn_{expert.name}_{uuid.uuid4().hex[:8]}"
         session = self.cost_safety.create_session(
-            session_id=session_id, session_type="learning", budget_limit=budget_limit
+            session_id=session_id, session_type="learning", budget_limit=budget_limit or 100.0
         )
 
         # Initialize progress - restore from saved if resuming
@@ -190,7 +190,7 @@ class AutonomousLearner:
         )
 
         # Check if estimated cost exceeds budget
-        if cost_estimate["expected_cost"] > budget_limit:
+        if budget_limit is not None and cost_estimate["expected_cost"] > budget_limit:
             self._log_progress(
                 f"Estimated cost ${cost_estimate['expected_cost']:.2f} exceeds budget ${budget_limit:.2f}",
                 "Consider reducing topic count or using --dry-run to preview",
@@ -297,7 +297,7 @@ class AutonomousLearner:
                 continue
 
             # Check global cost safety limits
-            allowed, block_reason, needs_confirm = self.cost_safety.check_operation(
+            allowed, block_reason, _needs_confirm = self.cost_safety.check_operation(
                 session_id=session.session_id,
                 operation_type="research",
                 estimated_cost=topic.estimated_cost,
