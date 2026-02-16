@@ -1284,7 +1284,10 @@ def import_expert(name: str, corpus: str, yes: bool):
 @click.option("--budget", "-b", type=float, default=5.0, help="Budget limit for gap filling research (default: $5)")
 @click.option("--top", "-t", type=int, default=3, help="Number of top-priority gaps to fill (default: 3)")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def fill_gaps(name: str, budget: float, top: int, yes: bool):
+@click.option("--consensus", is_flag=True, help="Multi-provider consensus (2-3x cost)")
+@click.option("--deep", is_flag=True, help="3-pass pipeline (extract/cross-ref/synthesize)")
+@click.option("--validate-citations", is_flag=True, help="Validate source-claim alignment after synthesis")
+def fill_gaps(name: str, budget: float, top: int, yes: bool, consensus: bool, deep: bool, validate_citations: bool):
     """Proactively research and fill knowledge gaps.
 
     Reads the expert's worldview, identifies high-priority knowledge gaps,
@@ -1398,18 +1401,40 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
         filled_gaps = []
         failed_gaps = []
 
-        # Create a chat session for research (agentic mode)
+        # Set up consensus engine if requested
+        consensus_engine = None
+        if consensus:
+            from deepr.experts.consensus import ConsensusEngine
+
+            consensus_engine = ConsensusEngine()
+            console.print("[dim]Multi-provider consensus enabled[/dim]")
+
+        # Set up multi-pass pipeline if --deep
+        pipeline = None
+        if deep:
+            from deepr.experts.multi_pass import MultiPassPipeline
+
+            pipeline = MultiPassPipeline(
+                client=provider.client,
+                consensus_engine=consensus_engine,
+            )
+            console.print("[dim]3-pass deep pipeline enabled[/dim]")
+
+        # Create a chat session for standard research fallback
         session = ExpertChatSession(profile, budget=budget, agentic=True)
+
+        # Collect existing claims for cross-referencing (used by --deep)
+        existing_claims = []
+        if deep and worldview.beliefs:
+            existing_claims = [b.to_dict() for b in worldview.beliefs[:30]]
 
         for i, gap in enumerate(gaps_to_fill, 1):
             print_step(i, len(gaps_to_fill), gap.topic)
 
             # Construct research query from gap
             if gap.questions:
-                # Use the first question as the main query
                 query = gap.questions[0]
                 if len(gap.questions) > 1:
-                    # Add context from other questions
                     query += f" Also address: {'; '.join(gap.questions[1:3])}"
             else:
                 query = f"Research and explain: {gap.topic}"
@@ -1417,20 +1442,54 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
             console.print(f"[dim]Query: {query[:80]}...[/dim]")
 
             try:
-                # Use standard research to fill the gap
-                console.print("[dim]Researching...[/dim]")
-                result = await session._standard_research(query)
+                if pipeline:
+                    # Deep 3-pass pipeline
+                    console.print("[dim]Pass 1: Extracting... Pass 2: Cross-referencing... Pass 3: Synthesizing...[/dim]")
+                    mp_result = await pipeline.fill_gap(
+                        gap=gap,
+                        existing_claims=existing_claims,
+                        expert_name=profile.name,
+                        domain=profile.domain or profile.description,
+                        budget=budget / len(gaps_to_fill),
+                        use_consensus=consensus,
+                    )
+                    cost = mp_result.total_cost
+                    total_cost += cost
+                    print_result(
+                        f"Deep research complete ({mp_result.passes_completed}/3 passes)",
+                        cost_usd=cost,
+                    )
+                    filled_gaps.append({"gap": gap, "cost": cost, "multi_pass": mp_result})
 
-                if "error" in result:
-                    print_error(f"Research failed: {result['error']}")
-                    failed_gaps.append({"gap": gap, "error": result["error"]})
+                elif consensus_engine:
+                    # Consensus-only (no deep pipeline)
+                    console.print("[dim]Researching with consensus...[/dim]")
+                    cr = await consensus_engine.research_with_consensus(
+                        query=query,
+                        budget=budget / len(gaps_to_fill),
+                        expert_name=profile.name,
+                    )
+                    cost = cr.total_cost
+                    total_cost += cost
+                    print_result(
+                        f"Consensus research complete (agreement: {cr.agreement_score:.0%})",
+                        cost_usd=cost,
+                    )
+                    filled_gaps.append({"gap": gap, "cost": cost, "consensus": cr})
+
                 else:
+                    # Standard single-provider research
+                    console.print("[dim]Researching...[/dim]")
+                    result = await session._standard_research(query)
+
+                    if "error" in result:
+                        print_error(f"Research failed: {result['error']}")
+                        failed_gaps.append({"gap": gap, "error": result["error"]})
+                        continue
+
                     cost = result.get("cost", 0.0)
                     total_cost += cost
                     print_result("Research complete", cost_usd=cost)
-
-                    # The research is automatically added to knowledge base
-                    # by _standard_research via _add_research_to_knowledge_base
                     filled_gaps.append({"gap": gap, "cost": cost})
 
             except Exception as e:
@@ -1453,7 +1512,7 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
                 # Get all documents for synthesis
                 docs_dir = store.get_documents_dir(name)
                 all_docs = list(docs_dir.glob("*.md"))
-                docs_to_process = [{"path": str(f)} for f in all_docs[:20]]  # Limit to 20
+                docs_to_process = [{"path": str(f)} for f in all_docs[:20]]
 
                 synthesis_result = await synthesizer.synthesize_new_knowledge(
                     expert_name=profile.name,
@@ -1477,6 +1536,32 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
                     print_success("Synthesis complete!")
                     console.print(f"    New beliefs: {synthesis_result['beliefs_formed']}")
                     console.print(f"    Remaining gaps: {len(new_worldview.knowledge_gaps)}")
+
+                    # Citation validation if requested
+                    if validate_citations and synthesis_result.get("worldview"):
+                        console.print("[dim]Validating citations...[/dim]")
+                        try:
+                            from deepr.experts.citation_validator import CitationValidator
+
+                            validator = CitationValidator(client=provider.client)
+                            claims = [b.to_claim() for b in new_worldview.beliefs]
+                            # Build documents dict from synthesis docs
+                            doc_dict = {}
+                            for doc_path in all_docs[:20]:
+                                try:
+                                    doc_dict[doc_path.name] = doc_path.read_text(encoding="utf-8")[:2000]
+                                except OSError:
+                                    pass
+                            validations = await validator.validate_claims(claims, doc_dict)
+                            summary = validator.summarize(validations)
+                            console.print(
+                                f"    Citations validated: {summary['total']} "
+                                f"({summary['supported']} supported, "
+                                f"{summary['unsupported']} unsupported)"
+                            )
+                        except Exception as e:
+                            print_warning(f"Citation validation error: {e}")
+
                 else:
                     print_warning(f"Synthesis failed: {synthesis_result.get('error', 'Unknown')}")
 
@@ -1495,6 +1580,229 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool):
     console.print(f"Total cost: ${result['total_cost']:.4f}")
     console.print("\nExpert consciousness has been updated.")
     console.print(f'Chat with: deepr expert chat "{name}"')
+
+
+@expert.command(name="validate-citations")
+@click.argument("name")
+def validate_citations_cmd(name: str):
+    """Validate that sources actually support their associated claims.
+
+    Runs semantic citation validation on an expert's claims, classifying
+    each source-claim pair as SUPPORTED / PARTIALLY_SUPPORTED / UNSUPPORTED / UNCERTAIN.
+
+    EXAMPLES:
+      deepr expert validate-citations "AWS Expert"
+    """
+    import asyncio
+
+    from deepr.config import AppConfig
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import Worldview
+    from deepr.providers import create_provider
+
+    print_header(f"Validate Citations: {name}")
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        return
+
+    knowledge_dir = store.get_knowledge_dir(name)
+    worldview_path = knowledge_dir / "worldview.json"
+    if not worldview_path.exists():
+        print_error("Expert has no worldview yet.")
+        return
+
+    try:
+        worldview = Worldview.load(worldview_path)
+    except Exception as e:
+        print_error(f"Error loading worldview: {e}")
+        return
+
+    if not worldview.beliefs:
+        print_success("Expert has no beliefs to validate.")
+        return
+
+    async def do_validate():
+        from deepr.experts.citation_validator import CitationValidator
+
+        config = AppConfig.from_env()
+        provider = create_provider("openai", api_key=config.provider.openai_api_key)
+        validator = CitationValidator(client=provider.client)
+
+        claims = [b.to_claim() for b in worldview.beliefs]
+        docs_dir = store.get_documents_dir(name)
+        doc_dict = {}
+        for doc_path in docs_dir.glob("*.md"):
+            try:
+                doc_dict[doc_path.name] = doc_path.read_text(encoding="utf-8")[:2000]
+            except OSError:
+                pass
+
+        validations = await validator.validate_claims(claims, doc_dict)
+        return validator.summarize(validations)
+
+    summary = asyncio.run(do_validate())
+    console.print(f"Total source-claim pairs: {summary['total']}")
+    console.print(f"  Supported:           {summary['supported']}")
+    console.print(f"  Partially supported: {summary['partially_supported']}")
+    console.print(f"  Unsupported:         {summary['unsupported']}")
+    console.print(f"  Uncertain:           {summary['uncertain']}")
+    console.print(f"  Support rate:        {summary['support_rate']:.0%}")
+    if summary["flagged_claims"]:
+        print_warning(f"Flagged claims: {len(summary['flagged_claims'])}")
+
+
+@expert.command(name="discover-gaps")
+@click.argument("name")
+def discover_gaps_cmd(name: str):
+    """Discover knowledge gaps by analyzing claim coverage.
+
+    Uses embedding-based clustering to find thin knowledge areas,
+    then generates gap questions for under-represented topics.
+
+    EXAMPLES:
+      deepr expert discover-gaps "Python Expert"
+    """
+    import asyncio
+
+    from deepr.config import AppConfig
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import Worldview
+    from deepr.providers import create_provider
+
+    print_header(f"Discover Gaps: {name}")
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        return
+
+    knowledge_dir = store.get_knowledge_dir(name)
+    worldview_path = knowledge_dir / "worldview.json"
+    if not worldview_path.exists():
+        print_error("Expert has no worldview yet.")
+        return
+
+    try:
+        worldview = Worldview.load(worldview_path)
+    except Exception as e:
+        print_error(f"Error loading worldview: {e}")
+        return
+
+    if not worldview.beliefs:
+        print_warning("Expert has no beliefs to analyze.")
+        return
+
+    async def do_discover():
+        from deepr.experts.gap_discovery import GapDiscoverer
+
+        discoverer = GapDiscoverer()
+        claims = [b.to_claim().to_dict() for b in worldview.beliefs]
+        existing_gaps = [g.to_dict() for g in worldview.knowledge_gaps]
+        return await discoverer.discover_gaps(claims, profile.domain or "", existing_gaps)
+
+    new_gaps = asyncio.run(do_discover())
+
+    if not new_gaps:
+        print_success("No new gaps discovered. Knowledge coverage is good!")
+        return
+
+    console.print(f"Discovered {len(new_gaps)} new gaps:\n")
+    for i, gap in enumerate(new_gaps, 1):
+        method = gap.get("discovery_method", "unknown")
+        console.print(f"  {i}. {gap['topic']} [dim][{method}][/dim]")
+        for q in gap.get("questions", [])[:2]:
+            console.print(f"     - {q}")
+    print_success(f"Found {len(new_gaps)} gaps. Use fill-gaps to research them.")
+
+
+@expert.command(name="resolve-conflicts")
+@click.argument("name")
+@click.option("--budget", "-b", type=float, default=5.0, help="Budget for conflict resolution")
+@click.option("--consensus", is_flag=True, help="Use multi-provider consensus for adjudication")
+def resolve_conflicts_cmd(name: str, budget: float, consensus: bool):
+    """Detect and resolve contradictions in expert beliefs.
+
+    Uses heuristic and LLM-based detection to find contradicting beliefs,
+    then resolves them via multi-provider adjudication.
+
+    EXAMPLES:
+      deepr expert resolve-conflicts "AI Expert"
+      deepr expert resolve-conflicts "AI Expert" --consensus --budget 10
+    """
+    import asyncio
+
+    from deepr.config import AppConfig
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.synthesis import Worldview
+    from deepr.providers import create_provider
+
+    print_header(f"Resolve Conflicts: {name}")
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        return
+
+    knowledge_dir = store.get_knowledge_dir(name)
+    worldview_path = knowledge_dir / "worldview.json"
+    if not worldview_path.exists():
+        print_error("Expert has no worldview yet.")
+        return
+
+    try:
+        worldview = Worldview.load(worldview_path)
+    except Exception as e:
+        print_error(f"Error loading worldview: {e}")
+        return
+
+    if not worldview.beliefs:
+        print_warning("Expert has no beliefs to check.")
+        return
+
+    async def do_resolve():
+        from deepr.experts.beliefs import Belief as BeliefObj
+        from deepr.experts.conflict_resolver import ConflictResolver
+
+        consensus_engine = None
+        if consensus:
+            from deepr.experts.consensus import ConsensusEngine
+
+            consensus_engine = ConsensusEngine()
+
+        config = AppConfig.from_env()
+        provider = create_provider("openai", api_key=config.provider.openai_api_key)
+        resolver = ConflictResolver(consensus_engine=consensus_engine, client=provider.client)
+
+        # Convert synthesis Beliefs to beliefs.py Belief objects
+        belief_objects = []
+        for b in worldview.beliefs:
+            belief_objects.append(
+                BeliefObj(
+                    claim=b.statement,
+                    confidence=b.confidence,
+                    evidence_refs=b.evidence,
+                    domain=b.topic,
+                )
+            )
+
+        return await resolver.resolve_all(belief_objects, budget=budget)
+
+    results = asyncio.run(do_resolve())
+
+    if not results:
+        print_success("No contradictions found!")
+        return
+
+    console.print(f"Resolved {len(results)} contradictions:\n")
+    for r in results:
+        console.print(f"  Outcome: {r.outcome}")
+        console.print(f"  Explanation: {r.explanation[:100]}")
+        console.print("")
 
 
 @expert.command(name="refresh")
