@@ -786,10 +786,7 @@ class HierarchicalMemory:
             "conversations": len(all_episodes),
             "working_memory": len(self.working_memory),
             "episodic_memory": len(self.episodic_memory),
-            "domains": [
-                {"name": name, "confidence": sum(scores) / len(scores)}
-                for name, scores in top_domains
-            ],
+            "domains": [{"name": name, "confidence": sum(scores) / len(scores)} for name, scores in top_domains],
             "gaps": 0,  # Filled from metacognition if available
         }
 
