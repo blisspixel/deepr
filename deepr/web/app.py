@@ -1687,7 +1687,7 @@ def _restore_session_messages(session, expert_name: str, session_id: str):
     from deepr.experts.profile import ExpertStore
 
     # Sanitize session_id to prevent path traversal
-    if not re.match(r'^[\w\-]+$', session_id):
+    if not re.match(r"^[\w\-]+$", session_id):
         logger.warning("Invalid session_id rejected: %s", session_id)
         return
 
