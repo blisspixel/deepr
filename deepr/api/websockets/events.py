@@ -45,6 +45,9 @@ def register_socketio_events(socketio):
     @socketio.on("disconnect")
     def handle_disconnect():
         """Handle client disconnection."""
+        sid = flask_request.sid
+        _active_chats.pop(sid, None)
+        _active_sessions.pop(sid, None)
         logger.info("Client disconnected")
 
     @socketio.on("subscribe_jobs")
@@ -236,6 +239,7 @@ def register_socketio_events(socketio):
                 socketio.emit("chat_error", {"error": str(e)}, room=room)
             finally:
                 _active_chats.pop(sid, None)
+                _active_sessions.pop(sid, None)
 
         thread = threading.Thread(target=_run_chat, daemon=True)
         thread.start()
@@ -260,6 +264,13 @@ def register_socketio_events(socketio):
         raw = data.get("command", "")
 
         session = _active_sessions.get(sid)
+        if not session:
+            socketio.emit(
+                "chat_command_result",
+                {"success": False, "output": "No active chat session. Send a message first."},
+                room=room,
+            )
+            return
 
         def _run():
             try:
