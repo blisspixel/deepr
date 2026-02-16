@@ -1,6 +1,6 @@
 # Deepr Features Guide
 
-Complete guide to all Deepr features as of v2.8.1
+Complete guide to all Deepr features as of v2.9.0
 
 ## Table of Contents
 

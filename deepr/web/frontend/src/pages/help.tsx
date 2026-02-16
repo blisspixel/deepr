@@ -288,7 +288,7 @@ cp .env.example .env
 
       {/* Footer */}
       <div className="text-xs text-muted-foreground text-center py-4">
-        Deepr v2.8.1 &middot; MIT License &middot;{' '}
+        Deepr v2.9.0 &middot; MIT License &middot;{' '}
         <a href="https://github.com/langjam/deepr" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
           GitHub
         </a>
