@@ -2243,33 +2243,11 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                 ui.print_error(f"Session budget exhausted (${budget:.2f}). End session or increase budget.")
                 break
 
-            # Classify query complexity for adaptive intelligence
-            complexity = ui.classify_query_complexity(user_input)
-
-            # Handle simple queries with quick response
-            if complexity == ui.QueryComplexity.SIMPLE:
-                # For greetings and simple responses, skip heavy processing
-                simple_responses = {
-                    "hi": f"Hello! I'm {session.expert.name}. What would you like to know?",
-                    "hello": f"Hello! I'm {session.expert.name}. How can I help you today?",
-                    "hey": "Hey! What questions do you have for me?",
-                    "thanks": "You're welcome! Let me know if you need anything else.",
-                    "thank you": "You're welcome! Feel free to ask more questions.",
-                    "ok": "Got it. Anything else you'd like to know?",
-                    "okay": "Understood. What else can I help with?",
-                    "bye": "Goodbye! Feel free to come back anytime.",
-                    "goodbye": "Take care! Come back if you have more questions.",
-                }
-
-                response = simple_responses.get(
-                    user_input.lower().strip(),
-                    f"I'm here to help with {session.expert.domain or 'your questions'}. What would you like to know?",
-                )
-                ui.stream_response(session.expert.name, response)
-                continue
-
-            # For moderate and complex queries, use full expert system
-            # Note: user_input already displayed from input() prompt, don't duplicate
+            # Budget warning before sending (pre-emptive)
+            if budget:
+                remaining = budget - session.cost_accumulated
+                if remaining < budget * 0.2:  # Less than 20% remaining
+                    click.echo(f"[!] Budget warning: ${remaining:.2f} remaining\n")
 
             # Track live status updates
             status_live = None
@@ -2297,27 +2275,47 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                     spinner_type = "dots" if os.environ.get("WT_SESSION") or sys.platform != "win32" else "line"
                     status_live.update(Spinner(spinner_type, text=f"[cyan]◆[/cyan] [dim]{status}[/dim]"))
 
+            # Collect streamed tokens
+            streamed_chunks: list[str] = []
+
+            def on_token(text: str):
+                """Handle streamed token — stop spinner and print incrementally."""
+                nonlocal status_live
+                # Close the spinner on first token
+                if status_live and status_live.is_started:
+                    status_live.__exit__(None, None, None)
+                    # Print expert name header before first token
+                    console.print(f"[bold cyan]{session.expert.name}[/bold cyan]")
+                    console.print()
+                streamed_chunks.append(text)
+                console.print(text, end="")
+
             try:
                 # Start live status display
                 status_live = ui.print_thinking("Thinking...", with_spinner=True)
                 status_live.__enter__()
 
-                # Get response with status updates
-                response = asyncio.run(session.send_message(user_input, status_callback=update_status))
+                # Get response with streaming
+                response = asyncio.run(
+                    session.send_message_streaming(
+                        user_input,
+                        token_callback=on_token,
+                        status_callback=update_status,
+                    )
+                )
 
             finally:
-                # Stop live display
+                # Stop live display if still active
                 if status_live and status_live.is_started:
                     status_live.__exit__(None, None, None)
 
-            # Stream response with modern formatting
-            ui.stream_response(session.expert.name, response)
-
-            # Budget warning
-            if budget:
-                remaining = budget - session.cost_accumulated
-                if remaining < budget * 0.2:  # Less than 20% remaining
-                    click.echo(f"[!] Budget warning: ${remaining:.2f} remaining\n")
+            if streamed_chunks:
+                # Tokens were already printed incrementally
+                console.print()  # Final newline
+                console.print()
+            else:
+                # Fallback: no streaming occurred, render full response
+                ui.stream_response(session.expert.name, response)
 
         except KeyboardInterrupt:
             click.echo("\n\nInterrupted. Ending chat session...")
