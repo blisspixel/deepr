@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client'
-import type { Job } from '../types'
+import type { Job, CommandResult, ThoughtItem, PlanStep, ConfirmRequest } from '../types'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}`
 const isDev = import.meta.env.DEV
@@ -154,6 +154,66 @@ class WebSocketClient {
     if (!this.socket) return () => {}
     this.socket.on('chat_error', callback)
     return () => { this.socket?.off('chat_error', callback) }
+  }
+
+  // --- Agentic chat events ---
+
+  sendCommand(command: string) {
+    if (!this.socket?.connected) return false
+    this.socket.emit('chat_command', { command })
+    return true
+  }
+
+  onCommandResult(callback: (data: CommandResult) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_command_result', callback)
+    return () => { this.socket?.off('chat_command_result', callback) }
+  }
+
+  onChatThought(callback: (data: ThoughtItem) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_thought', callback)
+    return () => { this.socket?.off('chat_thought', callback) }
+  }
+
+  sendCompact() {
+    if (!this.socket?.connected) return
+    this.socket.emit('chat_compact', {})
+  }
+
+  onCompactSuggest(callback: (data: { message_count: number; token_estimate: number }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_compact_suggest', callback)
+    return () => { this.socket?.off('chat_compact_suggest', callback) }
+  }
+
+  onCompactDone(callback: (data: { original_messages?: number; summary_length?: number; error?: string }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_compact_done', callback)
+    return () => { this.socket?.off('chat_compact_done', callback) }
+  }
+
+  onChatConfirmRequest(callback: (data: ConfirmRequest) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_confirm_request', callback)
+    return () => { this.socket?.off('chat_confirm_request', callback) }
+  }
+
+  sendConfirmResponse(requestId: string, approved: boolean) {
+    if (!this.socket?.connected) return
+    this.socket.emit('chat_confirm_response', { request_id: requestId, approved })
+  }
+
+  onChatPlan(callback: (data: { query: string; steps: PlanStep[] }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_plan', callback)
+    return () => { this.socket?.off('chat_plan', callback) }
+  }
+
+  onChatPlanStep(callback: (data: { id: number; title: string; status: string }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_plan_step', callback)
+    return () => { this.socket?.off('chat_plan_step', callback) }
   }
 
   on(event: string, callback: (data: any) => void) {

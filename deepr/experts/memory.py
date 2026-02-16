@@ -752,6 +752,47 @@ class HierarchicalMemory:
         # For now, return empty - semantic consolidation is future work
         return []
 
+    def remove_episode(self, index: int) -> bool:
+        """Remove an episode by index from working memory.
+
+        Args:
+            index: Zero-based index into working_memory
+
+        Returns:
+            True if removed, False if index out of range
+        """
+        if 0 <= index < len(self.working_memory):
+            self.working_memory.pop(index)
+            self._save()
+            return True
+        return False
+
+    def get_memory_summary(self) -> dict:
+        """Get a summary of the memory state.
+
+        Returns:
+            Dict with episode counts, domain stats, gaps
+        """
+        all_episodes = self.working_memory + self.episodic_memory
+        domains: dict[str, list[float]] = {}
+        for ep in all_episodes:
+            for kw in ep.get_keywords():
+                domains.setdefault(kw, []).append(ep.quality_score or 0.5)
+
+        # Top domains by frequency
+        top_domains = sorted(domains.items(), key=lambda x: len(x[1]), reverse=True)[:5]
+
+        return {
+            "conversations": len(all_episodes),
+            "working_memory": len(self.working_memory),
+            "episodic_memory": len(self.episodic_memory),
+            "domains": [
+                {"name": name, "confidence": sum(scores) / len(scores)}
+                for name, scores in top_domains
+            ],
+            "gaps": 0,  # Filled from metacognition if available
+        }
+
     def get_user_profile(self, user_id: str) -> UserProfile:
         """Get or create user profile.
 
