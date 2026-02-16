@@ -1,0 +1,56 @@
+name: code-analysis
+version: "1.0.0"
+description: "Analyze code dependencies and calculate complexity metrics"
+author: "Deepr"
+license: "MIT"
+
+domains: ["software", "development", "engineering", "programming"]
+
+triggers:
+  keywords: ["dependency", "dependencies", "complexity", "cyclomatic", "code quality", "imports"]
+  patterns: ["analyze .+ (code|dependencies|imports)", "how complex is", "code (quality|metrics)"]
+
+prompt_file: "prompt.md"
+
+tools:
+  - name: analyze_dependencies
+    type: python
+    module: tools.deps
+    function: analyze_dependencies
+    description: "Analyze import/dependency structure from code text. Returns dependency graph, circular dependencies, and external packages."
+    cost_tier: free
+    parameters:
+      type: object
+      properties:
+        code:
+          type: string
+          description: "Source code text to analyze"
+        language:
+          type: string
+          enum: ["python", "javascript", "typescript", "auto"]
+          description: "Programming language"
+          default: "auto"
+      required: ["code"]
+
+  - name: complexity_report
+    type: python
+    module: tools.complexity
+    function: complexity_report
+    description: "Calculate cyclomatic complexity and other code metrics. Returns per-function complexity scores and overall assessment."
+    cost_tier: free
+    parameters:
+      type: object
+      properties:
+        code:
+          type: string
+          description: "Source code to analyze"
+        language:
+          type: string
+          enum: ["python", "javascript", "auto"]
+          description: "Programming language"
+          default: "auto"
+      required: ["code"]
+
+budget:
+  max_per_call: 0.0
+  default_budget: 0.0

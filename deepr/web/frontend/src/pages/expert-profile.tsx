@@ -6,7 +6,7 @@ import { expertsApi } from '@/api/experts'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import type { ExpertChat, SupportClass } from '@/types'
+import type { ExpertChat, Skill, SupportClass } from '@/types'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
 
-type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history'
+type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history' | 'skills'
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
@@ -136,6 +136,24 @@ export default function ExpertProfile() {
     enabled: !!decodedName && activeTab === 'history',
   })
 
+  const { data: skillsData, refetch: refetchSkills } = useQuery({
+    queryKey: ['experts', decodedName, 'skills'],
+    queryFn: () => expertsApi.getSkills(encodedName),
+    enabled: !!decodedName && activeTab === 'skills',
+  })
+
+  const installSkillMutation = useMutation({
+    mutationFn: (skillName: string) => expertsApi.installSkill(encodedName, skillName),
+    onSuccess: () => { refetchSkills(); toast.success('Skill installed') },
+    onError: () => toast.error('Failed to install skill'),
+  })
+
+  const removeSkillMutation = useMutation({
+    mutationFn: (skillName: string) => expertsApi.removeSkill(encodedName, skillName),
+    onSuccess: () => { refetchSkills(); toast.success('Skill removed') },
+    onError: () => toast.error('Failed to remove skill'),
+  })
+
   const chatMutation = useMutation({
     mutationFn: (message: string) => expertsApi.chat(encodedName, message),
     onSuccess: (data) => {
@@ -201,6 +219,7 @@ export default function ExpertProfile() {
     { key: 'gaps', label: 'Knowledge Gaps' },
     { key: 'decisions', label: 'Decisions' },
     { key: 'history', label: 'History' },
+    { key: 'skills', label: 'Skills' },
   ]
 
   const sortedClaims = claims
@@ -532,6 +551,97 @@ export default function ExpertProfile() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'skills' && (
+          <div className="p-6 space-y-6">
+            {/* Installed Skills */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-3">Installed Skills</h3>
+              {!skillsData?.installed_skills?.length ? (
+                <div className="flex flex-col items-center justify-center text-center py-8">
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-2">
+                    <Sparkles className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">No skills installed yet. Install one below to extend this expert.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {skillsData.installed_skills.map((skill: Skill) => (
+                    <div key={skill.name} className="rounded-lg border bg-card p-4 flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-foreground">{skill.name}</h4>
+                          <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] font-medium text-muted-foreground">
+                            v{skill.version}
+                          </span>
+                          <span className={cn(
+                            'px-1.5 py-0.5 rounded text-[10px] font-semibold',
+                            skill.tier === 'built-in' ? 'bg-blue-500/10 text-blue-600' :
+                            skill.tier === 'global' ? 'bg-purple-500/10 text-purple-600' :
+                            'bg-green-500/10 text-green-600'
+                          )}>
+                            {skill.tier}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{skill.description}</p>
+                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                          <span>{skill.tools} tool{skill.tools !== 1 ? 's' : ''}</span>
+                          {skill.domains.length > 0 && <span>{skill.domains.join(', ')}</span>}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeSkillMutation.mutate(skill.name)}
+                        disabled={removeSkillMutation.isPending}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Available Skills */}
+            {skillsData?.available_skills && skillsData.available_skills.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-3">Available Skills</h3>
+                <div className="space-y-2">
+                  {skillsData.available_skills.map((skill: Skill) => (
+                    <div key={skill.name} className="rounded-lg border border-dashed bg-card/50 p-4 flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-foreground">{skill.name}</h4>
+                          <span className={cn(
+                            'px-1.5 py-0.5 rounded text-[10px] font-semibold',
+                            skill.tier === 'built-in' ? 'bg-blue-500/10 text-blue-600' :
+                            skill.tier === 'global' ? 'bg-purple-500/10 text-purple-600' :
+                            'bg-green-500/10 text-green-600'
+                          )}>
+                            {skill.tier}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{skill.description}</p>
+                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                          <span>{skill.tools} tool{skill.tools !== 1 ? 's' : ''}</span>
+                          {skill.domains.length > 0 && <span>{skill.domains.join(', ')}</span>}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => installSkillMutation.mutate(skill.name)}
+                        disabled={installSkillMutation.isPending}
+                      >
+                        Install
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}
