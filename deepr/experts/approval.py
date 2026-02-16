@@ -55,7 +55,7 @@ class ApprovalManager:
 
     def __init__(self, policies: list[tuple[str, ApprovalTier, float]] | None = None):
         self._policies: dict[str, tuple[ApprovalTier, float]] = {}
-        for tool_name, tier, threshold in (policies or DEFAULT_POLICIES):
+        for tool_name, tier, threshold in policies or DEFAULT_POLICIES:
             self._policies[tool_name] = (tier, threshold)
 
         # For blocking on CONFIRM tier
@@ -72,9 +72,7 @@ class ApprovalManager:
 
         Returns the effective tier after applying cost-based escalation.
         """
-        base_tier, threshold = self._policies.get(
-            tool_name, (ApprovalTier.AUTO_APPROVE, 0.0)
-        )
+        base_tier, threshold = self._policies.get(tool_name, (ApprovalTier.AUTO_APPROVE, 0.0))
 
         # Escalate NOTIFY to CONFIRM if cost exceeds threshold
         if base_tier == ApprovalTier.NOTIFY and estimated_cost > threshold:

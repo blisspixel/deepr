@@ -82,7 +82,10 @@ class TaskPlanner:
             result = await self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You decompose complex research questions into parallel subtasks. Return only JSON."},
+                    {
+                        "role": "system",
+                        "content": "You decompose complex research questions into parallel subtasks. Return only JSON.",
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
@@ -96,7 +99,7 @@ class TaskPlanner:
         except Exception as e:
             return {"display": f"Failed to create plan: {e}", "steps": [], "query": query}
 
-        steps_data = data.get("steps", [])[:self.MAX_STEPS]
+        steps_data = data.get("steps", [])[: self.MAX_STEPS]
 
         steps = [
             PlanStep(
@@ -184,7 +187,8 @@ class TaskPlanner:
         while len(completed) < len(steps) and iteration < max_iterations:
             iteration += 1
             ready = [
-                s for s in steps.values()
+                s
+                for s in steps.values()
                 if s.id not in completed
                 and s.status == StepStatus.PENDING
                 and all(d in completed for d in s.depends_on)
