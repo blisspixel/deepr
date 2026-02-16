@@ -113,6 +113,46 @@ Experts choose appropriate research depth:
 | `standard_research` | $0.01-0.05 | 30-60s | Moderate complexity |
 | `deep_research` | $0.10-0.30 | 5-20 min | Complex topics |
 
+### Slash Commands and Chat Modes
+
+Agentic chat supports 27 slash commands (use `/` in web, `\` in CLI). Chat modes control the expert's behavior:
+
+- **`/ask`** — Quick answers from knowledge base only
+- **`/research`** — Default mode with all tools available
+- **`/advise`** — Structured consulting recommendations with pros/cons
+- **`/focus`** — Always-on chain-of-thought reasoning for complex analysis
+
+Other useful commands:
+- `/compact` — Summarize earlier messages to free token budget for longer sessions
+- `/council "question"` — Consult multiple experts on cross-domain questions (see Expert Council below)
+- `/plan "question"` — Break complex queries into parallel subtasks with live progress
+- `/remember <text>` — Pin facts to the session context
+- `/status` — Show session stats (messages, tokens, mode, budget remaining)
+- `/help` — List all available commands
+
+### Approval Flows
+
+Expensive operations require approval before proceeding. The system uses three tiers:
+
+| Tier | Behavior | Example |
+|------|----------|---------|
+| Auto-approve | Proceeds immediately | KB search, standard research |
+| Notify | Shows cost, proceeds unless budget critically low | Deep research under $1 |
+| Confirm | Blocks until user approves or denies | Deep research over $1, council over $3 |
+
+In the web UI, confirmation appears as an inline card in the chat. In CLI, it's a simple y/n prompt.
+
+### Context Compaction
+
+Long conversations can exhaust the model's token budget. The `/compact` command summarizes earlier messages while keeping recent context intact:
+
+```
+/compact
+# Compacted: 32 messages -> summary (kept last 4 messages)
+```
+
+The system suggests compaction automatically after 30+ messages or when estimated tokens exceed 80K.
+
 ## Preview a Curriculum
 
 Before creating an expert with `--learn`, preview what it would research:
@@ -274,14 +314,21 @@ deepr/experts/
 ├── profile.py      # Expert metadata, usage tracking, get_manifest()
 ├── curriculum.py   # Learning plan generation
 ├── learner.py      # Autonomous learning execution
-├── chat.py         # Interactive Q&A
+├── chat.py         # Interactive Q&A with streaming, modes, compaction
+├── commands.py     # Command registry, ChatMode, MODE_CONFIGS
+├── command_handlers.py # 27 slash command handler functions
+├── approval.py     # ApprovalManager with three-tier policies
+├── council.py      # Multi-expert consultation and synthesis
+├── task_planner.py # Hierarchical task decomposition
+├── portraits.py    # AI-generated SVG expert portraits
+├── constants.py    # Shared model names, tool identifiers, budget fractions
 ├── router.py       # Model selection
 ├── beliefs.py      # Belief formation, to_claim() adapter
 ├── metacognition.py # Gap awareness, to_gap() adapter
 ├── memory.py       # Conversation memory
 ├── synthesis.py    # Knowledge synthesis, to_claim()/to_gap() adapters
 ├── gap_scorer.py   # EV/cost ranking for knowledge gaps
-├── thought_stream.py # Decision records, reasoning traces
+├── thought_stream.py # Decision records, reasoning traces (with callbacks)
 ├── cost_safety.py  # Budget controls
 └── skills/         # Expert skills system
     ├── definition.py  # SkillDefinition, SkillTool, SkillTrigger
@@ -389,14 +436,22 @@ The manifest includes computed properties: `claim_count`, `open_gap_count`, `avg
 
 After research conversations, experts can re-synthesize to integrate new knowledge.
 
-### Expert Council (Future)
+### Expert Council
 
-Assemble multiple experts to deliberate on complex decisions:
+Consult multiple experts on cross-domain questions. The system selects relevant experts (or you specify them), queries each in parallel, and synthesizes the perspectives into agreements, disagreements, and a unified recommendation.
+
 ```bash
-deepr council "Build vs buy?" \
-  --experts "Tech Architect,Business Strategist,Legal Counsel" \
-  --budget 10
+# Via slash command in chat
+/council "How will AI regulation affect our cloud architecture?"
+
+# Via CLI subcommand
+deepr expert council "Build vs buy?" --experts "Tech Architect,Business Strategist" --budget 5
+
+# Via REST API
+POST /api/experts/council
 ```
+
+Budget is split evenly among consulted experts with a 10% reserve for synthesis. Max 5 experts per council query.
 
 ## Limitations
 
