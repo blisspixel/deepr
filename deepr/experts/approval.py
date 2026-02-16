@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from dataclasses import dataclass
 from enum import Enum
 
@@ -92,8 +93,6 @@ class ApprovalManager:
         budget_remaining: float,
     ) -> ApprovalRequest:
         """Create an approval request."""
-        import uuid
-
         tier = self.check_approval(tool_name, estimated_cost, budget_remaining)
         request_id = uuid.uuid4().hex[:12]
 
