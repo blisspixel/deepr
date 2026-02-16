@@ -28,9 +28,9 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.8.1)
+## Current Status (v2.9.0)
 
-Multi-provider research automation with expert system, MCP integration, and observability. 3700+ tests passing. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 3800+ tests passing. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -729,7 +729,8 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
 | v2.8 | Provider intelligence, advanced context, real-time progress, expert formalization | Complete |
 | v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
-| v2.9 | Azure Foundry provider, deploy validation, web analytics | Planned |
+| v2.9.0 | Expert skills system, consensus gap-filling, citation validation, conflict resolution | Complete |
+| v2.10 | Azure Foundry provider, deploy validation, web analytics | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |
 
