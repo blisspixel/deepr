@@ -13,9 +13,13 @@ interface MessageActionsProps {
 }
 
 export function MessageActions({ content, role, index, onRetry, onEdit, className }: MessageActionsProps) {
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(content)
-    toast.success('Copied to clipboard')
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      toast.success('Copied to clipboard')
+    } catch {
+      toast.error('Failed to copy')
+    }
   }, [content])
 
   return (
