@@ -1,6 +1,6 @@
 # Deepr Features Guide
 
-Complete guide to all Deepr features as of v2.9.0
+Complete guide to all Deepr features as of v2.9.1
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ A local web interface for managing research operations visually. Built with Reac
 
 ```bash
 pip install -e ".[web]"
-python deepr/web/app.py
+deepr web
 # Open http://localhost:5000
 ```
 
@@ -903,6 +903,7 @@ deepr costs        # Cost dashboard (show, history, breakdown, timeline, alerts,
 deepr config       # Configuration
 deepr analytics    # Usage analytics
 deepr doctor       # System diagnostics
+deepr web          # Start web dashboard
 ```
 
 ### Help for Commands

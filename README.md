@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.9.0-orange)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-2.9.1-orange)](ROADMAP.md)
 
 **Research infrastructure, not another chat window.**
 
@@ -224,7 +224,7 @@ A local research management interface for when you want a visual view of your re
 
 ```bash
 pip install -e ".[web]"
-python deepr/web/app.py
+deepr web
 # Open http://localhost:5000
 ```
 
