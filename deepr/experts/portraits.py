@@ -15,20 +15,33 @@ logger = logging.getLogger(__name__)
 
 
 def _build_prompt(name: str, domain: str | None, description: str | None) -> str:
-    """Build an image generation prompt from expert metadata."""
-    parts = [
-        "Professional portrait of an expert",
+    """Build an image generation prompt from expert metadata.
+
+    Uses a seeded rotation of gender, ethnicity, and age to ensure diverse
+    representation across generated portraits.
+    """
+    import hashlib
+
+    # Deterministic diversity based on expert name
+    seed = int(hashlib.md5(name.encode()).hexdigest(), 16)
+    genders = ["woman", "man", "woman", "man", "non-binary person"]
+    ethnicities = [
+        "East Asian", "South Asian", "Black", "Latino", "Middle Eastern",
+        "white", "Southeast Asian", "Indigenous", "mixed-race",
     ]
-    if domain:
-        parts.append(f"specializing in {domain}")
-    if description:
-        parts.append(f"who {description[:120]}")
-    parts.append(
-        "— stylized digital illustration, clean background, "
-        "warm lighting, academic/professional aesthetic, "
-        "suitable as an avatar. No text or watermarks."
+    ages = ["young", "middle-aged", "senior", "young", "middle-aged"]
+    gender = genders[seed % len(genders)]
+    ethnicity = ethnicities[(seed // 7) % len(ethnicities)]
+    age = ages[(seed // 13) % len(ages)]
+
+    domain_hint = domain or description or name
+    return (
+        f"Professional portrait of a {age} {ethnicity} {gender} who is an expert in "
+        f"{domain_hint[:100]}. Confident, approachable expression. "
+        "Stylized digital illustration, clean background, warm lighting, "
+        "academic/professional aesthetic, suitable as an avatar. "
+        "No text or watermarks."
     )
-    return ", ".join(parts)
 
 
 def detect_provider() -> str | None:
@@ -112,13 +125,21 @@ async def _generate_openai(prompt: str) -> bytes:
         prompt=prompt,
         n=1,
         size="1024x1024",
-        response_format="b64_json",
     )
 
     b64 = result.data[0].b64_json
-    if not b64:
-        raise RuntimeError("OpenAI returned empty image data")
-    return base64.b64decode(b64)
+    if b64:
+        return base64.b64decode(b64)
+    # Fallback: download from URL if b64 not available
+    url = result.data[0].url
+    if url:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=60) as http:
+            resp = await http.get(url)
+            resp.raise_for_status()
+            return resp.content
+    raise RuntimeError("OpenAI returned neither base64 nor URL image data")
 
 
 async def _generate_google(prompt: str) -> bytes:

@@ -23,8 +23,12 @@ deepr research --auto --batch queries.txt --budget 10
 Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents via MCP. Reports and experts saved locally as artifacts you own.
 
 <p align="center">
-  <img src="assets/dashboard.png" width="49%" alt="Deepr Dashboard" />
-  <img src="assets/models.png" width="49%" alt="Models & Benchmarks" />
+  <img src="assets/dashboard.png" width="49%" alt="Dashboard — cost trends, job stats, activity feed" />
+  <img src="assets/expert-hub.png" width="49%" alt="Expert Hub — persistent domain experts with knowledge tracking" />
+</p>
+<p align="center">
+  <img src="assets/expert-profile.png" width="49%" alt="Expert Chat — agentic chat with slash commands and visible reasoning" />
+  <img src="assets/models.png" width="49%" alt="Models & Benchmarks — provider comparison and quality rankings" />
 </p>
 
 ## Why Deepr?
