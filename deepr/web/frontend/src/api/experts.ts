@@ -81,4 +81,8 @@ export const expertsApi = {
     const response = await apiClient.delete<{ status: string }>(`/experts/${name}/conversations/${sessionId}`)
     return response.data
   },
+  generatePortrait: async (name: string, provider?: string) => {
+    const response = await apiClient.post<{ portrait_url: string }>(`/experts/${name}/generate-portrait`, provider ? { provider } : {})
+    return response.data
+  },
 }
