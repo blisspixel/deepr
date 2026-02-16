@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 # Mode commands
 # ---------------------------------------------------------------------------
 
+
 async def handle_ask(session: ExpertChatSession, args: str, context: dict) -> CommandResult:
     return _switch_mode(session, ChatMode.ASK)
 
@@ -81,6 +82,7 @@ def _switch_mode(session: ExpertChatSession, mode: ChatMode) -> CommandResult:
 # Session commands
 # ---------------------------------------------------------------------------
 
+
 async def handle_clear(session: ExpertChatSession | None, args: str, context: dict) -> CommandResult:
     if session:
         session.messages = []
@@ -114,7 +116,9 @@ async def handle_forget(session: ExpertChatSession, args: str, context: dict) ->
         if 0 <= idx < len(session.pinned_memories):
             removed = session.pinned_memories.pop(idx)
             return CommandResult(output=f"Forgot: {removed}")
-        return CommandResult(output=f"Invalid index. You have {len(session.pinned_memories)} pinned memories.", success=False)
+        return CommandResult(
+            output=f"Invalid index. You have {len(session.pinned_memories)} pinned memories.", success=False
+        )
     except ValueError:
         return CommandResult(output="Usage: /forget <number>", success=False)
 
@@ -138,6 +142,7 @@ async def handle_new(session: ExpertChatSession | None, args: str, context: dict
 # Reasoning commands
 # ---------------------------------------------------------------------------
 
+
 async def handle_trace(session: ExpertChatSession, args: str, context: dict) -> CommandResult:
     if not session.reasoning_trace:
         return CommandResult(output="No reasoning trace available yet.")
@@ -160,11 +165,7 @@ async def handle_why(session: ExpertChatSession, args: str, context: dict) -> Co
     if not decisions:
         return CommandResult(output="No decisions recorded yet. Ask a question first.")
     last = decisions[-1]
-    output = (
-        f"Last decision: {last.decision}\n"
-        f"Confidence: {last.confidence:.0%}\n"
-        f"Reasoning: {last.reasoning}"
-    )
+    output = f"Last decision: {last.decision}\nConfidence: {last.confidence:.0%}\nReasoning: {last.reasoning}"
     return CommandResult(output=output)
 
 
@@ -196,6 +197,7 @@ async def handle_thinking(session: ExpertChatSession, args: str, context: dict) 
 # ---------------------------------------------------------------------------
 # Control commands
 # ---------------------------------------------------------------------------
+
 
 async def handle_model(session: ExpertChatSession, args: str, context: dict) -> CommandResult:
     if not args.strip():
@@ -253,6 +255,7 @@ async def handle_budget(session: ExpertChatSession, args: str, context: dict) ->
 # Management commands
 # ---------------------------------------------------------------------------
 
+
 async def handle_save(session: ExpertChatSession, args: str, context: dict) -> CommandResult:
     name = args.strip() or None
     sid = session.save_conversation(name)
@@ -265,6 +268,7 @@ async def handle_load(session: ExpertChatSession, args: str, context: dict) -> C
         return CommandResult(output="Usage: /load <session_id>", success=False)
     try:
         from deepr.experts.profile import ExpertStore
+
         store = ExpertStore()
         conv_dir = store.get_conversations_dir(session.expert.name)
         conv_file = conv_dir / f"{sid}.json"
@@ -302,6 +306,7 @@ async def handle_council(session: ExpertChatSession, args: str, context: dict) -
         return CommandResult(output="Usage: /council <query>", success=False)
     try:
         from deepr.experts.council import ExpertCouncil
+
         council = ExpertCouncil()
         result = await council.consult(query, budget=min(5.0, session.budget - session.cost_accumulated))
         session.cost_accumulated += result.get("total_cost", 0.0)
@@ -316,6 +321,7 @@ async def handle_plan(session: ExpertChatSession, args: str, context: dict) -> C
         return CommandResult(output="Usage: /plan <query>", success=False)
     try:
         from deepr.experts.task_planner import TaskPlanner
+
         planner = TaskPlanner(session)
         plan = await planner.decompose(query)
         return CommandResult(
@@ -329,6 +335,7 @@ async def handle_plan(session: ExpertChatSession, args: str, context: dict) -> C
 # ---------------------------------------------------------------------------
 # Utility commands
 # ---------------------------------------------------------------------------
+
 
 async def handle_help(session: ExpertChatSession | None, args: str, context: dict) -> CommandResult:
     registry = CommandRegistry.get_instance()

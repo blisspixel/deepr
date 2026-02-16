@@ -1554,8 +1554,11 @@ def chat_with_expert(name):
         # Extract confidence from uncertainty
         confidence = 0.9
         uncertainty_phrases = [
-            "i don't know", "i'm not sure", "i don't have",
-            "no information", "not in my knowledge",
+            "i don't know",
+            "i'm not sure",
+            "i don't have",
+            "no information",
+            "not in my knowledge",
         ]
         if response_text and any(p in response_text.lower() for p in uncertainty_phrases):
             confidence = 0.3
