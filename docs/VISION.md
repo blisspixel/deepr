@@ -13,35 +13,45 @@ What works today:
 - Gemini Deep Research Agent via Interactions API
 - Multi-phase research with context chaining
 - Domain experts from documents with autonomous learning
-- Agentic research (experts can trigger research)
+- Agentic expert chat with streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows
+- Expert council (multi-expert consultation with parallel querying and synthesis)
+- Hierarchical task decomposition with parallel subtask execution
+- Expert skills system (4 built-in skills, Python + MCP tool types)
+- Expert portraits (AI-generated SVG)
 - Knowledge synthesis and gap awareness
-- MCP server with 16 tools, persistence, security
+- MCP server with 18+ tools, persistence, security
 - CLI observability (--explain, --timeline, --full-trace)
 - Auto-fallback on provider failures with circuit breakers
 - Cost dashboard with per-expert tracking
 - Smart query routing (--auto, --batch) with complexity-based model selection
 - Context discovery with semantic search and temporal tracking
-- Web dashboard (12 pages) with real-time progress updates
-- 3700+ tests
+- Web dashboard (12 pages) with real-time progress updates and streaming chat
+- 3800+ tests
 
 ## Near-Term Vision (v2.9-3.0)
 
-### Visible Thinking
+### Visible Thinking (Implemented)
 
-Show expert reasoning in real-time:
-- Planning thoughts
-- Decision rationale
-- Confidence levels
-- Trade-off analysis
+Expert reasoning shown in real-time via ThinkingPanel:
+- Planning thoughts, tool calls, evidence found, decisions
+- Confidence levels per step
+- Collapsible panel auto-expands during streaming, summarizes after completion
+- `/thinking on/off` toggle, `/trace` for full reasoning chain, `/why` for last decision
 
-Goal: Build trust through transparency.
+### Persistent Memory (Implemented)
 
-### Persistent Memory
+Experts remember across sessions:
+- Hierarchical memory with conversation episodes
+- `/remember` to pin facts, `/forget` to remove, `/memories` to list
+- Conversation history browsable and resumable via Conversations API
+- Learning history tracked permanently
 
-Experts that remember across sessions:
-- User preferences and context
-- Conversation patterns
-- Learning history
+### Context Compaction (Implemented)
+
+Long sessions stay usable:
+- `/compact` summarizes earlier messages while keeping recent context
+- Auto-suggest after 30+ messages or 80K+ estimated tokens
+- Structured summary preserves key facts, decisions, and open questions
 
 ### Graph-Based Knowledge
 
@@ -49,8 +59,8 @@ Replace flat vector search with relationship-aware retrieval:
 - Understand connections between concepts
 - Traverse knowledge graphs
 - Answer "how" and "why" questions better
-- Temporal dimension: track *when* findings were discovered, not just what
-- Context chaining: output of phase N becomes structured input for phase N+1
+- Temporal dimension: track *when* findings were discovered, not just what (implemented via `TemporalKnowledgeTracker`)
+- Context chaining: output of phase N becomes structured input for phase N+1 (implemented via `ContextChainer`)
 
 ### Self-Correction
 
@@ -58,8 +68,8 @@ Detect and fix errors automatically:
 - Contradiction detection
 - Claim verification
 - Confidence decay for outdated info
-- Entropy-based stopping (detect when searches yield diminishing returns)
-- Meta-cognitive evaluation ("Did this search yield new information or just confirm priors?")
+- Entropy-based stopping (implemented via `EntropyStoppingCriteria`)
+- Meta-cognitive evaluation (implemented via `InformationGainTracker`)
 
 ## Long-Term Vision (v3.0+)
 
@@ -77,12 +87,13 @@ Systems that identify research needs without prompting:
 - Prioritize learning based on usage patterns
 - Self-assess quality
 
-### Cross-Expert Collaboration
+### Cross-Expert Collaboration (Partial)
 
 Experts that consult each other:
-- Knowledge transfer between domains
-- Collaborative synthesis
-- Expert councils for complex decisions
+- Expert council implemented: `/council` queries multiple experts in parallel and synthesizes perspectives
+- Knowledge transfer between domains via council synthesis
+- Collaborative synthesis with agreement/disagreement analysis
+- Remaining: persistent cross-expert knowledge sharing, automatic expert-to-expert delegation
 
 ## Design Principles
 
@@ -116,7 +127,7 @@ As agents gain more autonomy (agentic mode, MCP tool access), security becomes c
 
 ## What We're Not Building
 
-- Chat interface (use regular ChatGPT)
+- General-purpose chat (expert chat is domain-focused; for open-ended conversation, use ChatGPT etc.)
 - Real-time responses (deep research takes time)
 - Sub-$1 research (comprehensive research costs money)
 - Mobile apps
