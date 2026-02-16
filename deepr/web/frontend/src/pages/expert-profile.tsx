@@ -202,7 +202,7 @@ export default function ExpertProfile() {
         if (data.error) {
           toast.error(`Compact failed: ${data.error}`)
         } else {
-          toast.success(`Compacted ${data.original_messages} messages`)
+          toast.success(`Compacted ${data.original_messages ?? '?'} messages`)
         }
       }),
       wsClient.onChatConfirmRequest((req) => {
@@ -356,6 +356,8 @@ export default function ExpertProfile() {
         wsClient.sendCommand(message)
         return
       }
+      toast.error('Commands require a WebSocket connection')
+      return
     }
 
     setChatMessages(prev => [...prev, { role: 'user', content: message, timestamp: new Date().toISOString() }])
@@ -367,11 +369,11 @@ export default function ExpertProfile() {
       setActiveTools([])
       setThoughts([])
       userScrolledRef.current = false
-      wsClient.startChat(decodedName, message, sessionId ?? undefined)
+      wsClient.startChat(decodedName, message, sessionId ?? undefined, chatMode)
     } else {
       chatMutation.mutate(message)
     }
-  }, [chatInput, isStreaming, chatMutation, decodedName, sessionId])
+  }, [chatInput, isStreaming, chatMutation, decodedName, sessionId, chatMode])
 
   const handleStopStreaming = useCallback(() => {
     wsClient.stopChat()
@@ -404,11 +406,11 @@ export default function ExpertProfile() {
       setIsStreaming(true)
       setStreamingContent('')
       setActiveTools([])
-      wsClient.startChat(decodedName, userMsg.content, sessionId ?? undefined)
+      wsClient.startChat(decodedName, userMsg.content, sessionId ?? undefined, chatMode)
     } else {
       chatMutation.mutate(userMsg.content)
     }
-  }, [chatMessages, decodedName, sessionId, chatMutation])
+  }, [chatMessages, decodedName, sessionId, chatMutation, chatMode])
 
   const handleEdit = useCallback((index: number, content: string) => {
     setChatMessages(prev => prev.slice(0, index))
@@ -596,7 +598,17 @@ export default function ExpertProfile() {
             {/* Chat area */}
             <div className="flex-1 flex flex-col min-w-0">
             {/* Messages */}
-            <div className="flex-1 overflow-auto p-6 space-y-4" role="log" aria-live="polite" aria-relevant="additions">
+            <div
+              className="flex-1 overflow-auto p-6 space-y-4"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              onScroll={(e) => {
+                const el = e.currentTarget
+                const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+                userScrolledRef.current = !atBottom
+              }}
+            >
               {chatMessages.length === 0 && !isStreaming && (
                 <div className="flex flex-col items-center justify-center text-center py-12">
                   {expert.portrait_url ? (
@@ -672,7 +684,7 @@ export default function ExpertProfile() {
                               setIsStreaming(true)
                               setStreamingContent('')
                               setActiveTools([])
-                              wsClient.startChat(decodedName, fu, sessionId ?? undefined)
+                              wsClient.startChat(decodedName, fu, sessionId ?? undefined, chatMode)
                             } else {
                               chatMutation.mutate(fu)
                             }
@@ -689,7 +701,7 @@ export default function ExpertProfile() {
               ))}
               {/* Active tool indicators during streaming */}
               {activeTools.map((t) => (
-                <ToolCallBlock key={t.tool} tool={t.tool} query={t.query} running />
+                <ToolCallBlock key={`${t.tool}-${t.startedAt}`} tool={t.tool} query={t.query} running />
               ))}
               {/* Thinking panel */}
               {thoughts.length > 0 && (

@@ -1559,9 +1559,11 @@ def generate_expert_portrait(name):
         return jsonify({"error": "Portrait generation failed"}), 500
 
 
-@app.route("/portraits/<path:filename>")
+@app.route("/portraits/<filename>")
 def serve_portrait(filename):
     """Serve a generated portrait image."""
+    if not filename.endswith(".png"):
+        return jsonify({"error": "Invalid file type"}), 400
     portraits_dir = Path("data") / "portraits"
     return send_from_directory(str(portraits_dir.resolve()), filename)
 
