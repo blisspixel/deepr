@@ -127,6 +127,21 @@ export interface ExpertChat {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  id?: string
+  session_id?: string
+  cost?: number
+  tool_calls?: { tool: string; query: string }[]
+  follow_ups?: string[]
+  confidence?: number
+  error?: boolean
+}
+
+export interface ConversationSummary {
+  session_id: string
+  started_at: string
+  message_count: number
+  preview: string
+  cost: number
 }
 
 export interface KnowledgeGap {

@@ -1520,28 +1520,197 @@ def chat_with_expert(name):
         data = request.json
         if not data or not data.get("message"):
             return jsonify({"error": "Message required"}), 400
-        # Stub — interactive chat requires the full expert system
+
         decoded_name, err = _decode_expert_name(name)
         if err:
             return err
+
+        from deepr.experts.chat import start_chat_session
+
+        message = data["message"]
+        session_id = data.get("session_id")
+
+        # Create or restore session
+        session = run_async(start_chat_session(decoded_name, budget=10.0, agentic=True, quiet=True))
+
+        if session_id:
+            _restore_session_messages(session, decoded_name, session_id)
+
+        # Get response
+        response_text = run_async(session.send_message(message))
+
+        # Persist conversation
+        session_id = session.save_conversation(session_id)
+
+        # Summarize tool calls from reasoning trace
+        tool_calls = [
+            {"tool": t["step"], "query": t.get("query", "")[:200]}
+            for t in session.reasoning_trace
+            if t.get("step") in ("search_knowledge_base", "standard_research", "deep_research", "skill_tool_call")
+        ]
+
+        import uuid
+
+        # Extract confidence from uncertainty
+        confidence = 0.9
+        uncertainty_phrases = [
+            "i don't know", "i'm not sure", "i don't have",
+            "no information", "not in my knowledge",
+        ]
+        if response_text and any(p in response_text.lower() for p in uncertainty_phrases):
+            confidence = 0.3
+
         return jsonify(
             {
                 "response": {
+                    "id": uuid.uuid4().hex[:12],
                     "role": "assistant",
-                    "content": (
-                        f'Web chat with "{decoded_name}" is not yet available. '
-                        "You can explore this expert's knowledge using the tabs above:\n\n"
-                        "- **Claims** \u2014 verified facts the expert has learned\n"
-                        "- **Gaps** \u2014 topics where knowledge is missing\n"
-                        "- **Decisions** \u2014 audit trail of research choices\n\n"
-                        f'For interactive chat, use the CLI:\n`deepr expert chat "{decoded_name}"`'
-                    ),
+                    "content": response_text,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "session_id": session_id,
+                    "cost": round(session.cost_accumulated, 4),
+                    "tool_calls": tool_calls,
+                    "confidence": confidence,
                 }
             }
         )
+    except ImportError:
+        return jsonify({"error": "Expert system not available"}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
     except Exception as e:
         logger.error(f"Error chatting with expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+def _restore_session_messages(session, expert_name: str, session_id: str):
+    """Restore conversation messages from a saved session file."""
+    from deepr.experts.profile import ExpertStore
+
+    store = ExpertStore(str(_experts_dir))
+    conversations_dir = store.get_conversations_dir(expert_name)
+    conversation_file = conversations_dir / f"{session_id}.json"
+
+    if conversation_file.exists():
+        import json as _json
+
+        with open(conversation_file, encoding="utf-8") as f:
+            data = _json.load(f)
+        saved_messages = data.get("messages", [])
+        for msg in saved_messages:
+            if msg.get("role") in ("user", "assistant"):
+                session.messages.append({"role": msg["role"], "content": msg["content"]})
+
+
+@app.route("/api/experts/<name>/conversations", methods=["GET"])
+def list_expert_conversations(name):
+    """List saved conversations for an expert."""
+    try:
+        import json as _json
+
+        from deepr.experts.profile_store import ExpertStore
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+        store = ExpertStore(str(_experts_dir))
+        conversations_dir = store.get_conversations_dir(decoded_name)
+        if not conversations_dir.exists():
+            return jsonify({"conversations": []})
+
+        conversations = []
+        for f in sorted(conversations_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                with open(f, encoding="utf-8") as fh:
+                    data = _json.load(fh)
+                messages = data.get("messages", [])
+                summary = data.get("summary", {})
+                # Build preview from first user message
+                preview = ""
+                for m in messages:
+                    if m.get("role") == "user":
+                        preview = m.get("content", "")[:100]
+                        break
+                conversations.append(
+                    {
+                        "session_id": data.get("session_id", f.stem),
+                        "started_at": data.get("started_at", ""),
+                        "message_count": len(messages),
+                        "preview": preview,
+                        "cost": summary.get("cost_accumulated", 0.0),
+                    }
+                )
+            except Exception:
+                continue
+        return jsonify({"conversations": conversations})
+    except ImportError:
+        return jsonify({"conversations": []})
+    except Exception as e:
+        logger.error(f"Error listing conversations for expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/conversations/<session_id>", methods=["GET"])
+def get_expert_conversation(name, session_id):
+    """Load a full conversation."""
+    try:
+        import json as _json
+
+        from deepr.experts.profile_store import ExpertStore
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+        store = ExpertStore(str(_experts_dir))
+        conversations_dir = store.get_conversations_dir(decoded_name)
+        conversation_file = conversations_dir / f"{session_id}.json"
+
+        if not conversation_file.exists():
+            return jsonify({"error": "Conversation not found"}), 404
+
+        with open(conversation_file, encoding="utf-8") as f:
+            data = _json.load(f)
+
+        return jsonify(
+            {
+                "session_id": data.get("session_id", session_id),
+                "messages": [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in data.get("messages", [])
+                    if m.get("role") in ("user", "assistant")
+                ],
+                "summary": data.get("summary", {}),
+            }
+        )
+    except ImportError:
+        return jsonify({"error": "Expert system not available"}), 404
+    except Exception as e:
+        logger.error(f"Error loading conversation {session_id} for {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/conversations/<session_id>", methods=["DELETE"])
+def delete_expert_conversation(name, session_id):
+    """Delete a conversation."""
+    try:
+        from deepr.experts.profile_store import ExpertStore
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+        store = ExpertStore(str(_experts_dir))
+        conversations_dir = store.get_conversations_dir(decoded_name)
+        conversation_file = conversations_dir / f"{session_id}.json"
+
+        if not conversation_file.exists():
+            return jsonify({"error": "Conversation not found"}), 404
+
+        conversation_file.unlink()
+        return jsonify({"status": "deleted"})
+    except ImportError:
+        return jsonify({"error": "Expert system not available"}), 404
+    except Exception as e:
+        logger.error(f"Error deleting conversation {session_id} for {name}: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
