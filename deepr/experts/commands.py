@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Chat modes
 # ---------------------------------------------------------------------------
 
+
 class ChatMode(Enum):
     """Chat interaction modes that control tool availability and behaviour."""
 
@@ -59,8 +60,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
     ChatMode.FOCUS: {
         "tools": ["search_knowledge_base", "standard_research", "deep_research"],
         "system_suffix": (
-            "Use advanced reasoning. Generate hypotheses, verify claims, "
-            "and self-correct. Think step by step."
+            "Use advanced reasoning. Generate hypotheses, verify claims, and self-correct. Think step by step."
         ),
         "model_bias": "quality",
         "force_tot": True,
@@ -74,6 +74,7 @@ MODE_CONFIGS: dict[ChatMode, dict[str, Any]] = {
 # Command categories
 # ---------------------------------------------------------------------------
 
+
 class CommandCategory(Enum):
     MODE = "Mode"
     SESSION = "Session"
@@ -86,6 +87,7 @@ class CommandCategory(Enum):
 # ---------------------------------------------------------------------------
 # Command definition + result
 # ---------------------------------------------------------------------------
+
 
 class CommandScope(Enum):
     """Where a command can be executed."""
@@ -125,6 +127,7 @@ class CommandResult:
 # Registry singleton
 # ---------------------------------------------------------------------------
 
+
 class CommandRegistry:
     """Central registry of chat commands."""
 
@@ -153,37 +156,159 @@ class CommandRegistry:
         defaults = [
             # Mode commands
             ChatCommand("ask", [], "Switch to Ask mode (KB only)", CommandCategory.MODE, CommandScope.SESSION_REQUIRED),
-            ChatCommand("research", [], "Switch to Research mode (default)", CommandCategory.MODE, CommandScope.SESSION_REQUIRED),
-            ChatCommand("advise", [], "Switch to Advise mode (structured advice)", CommandCategory.MODE, CommandScope.SESSION_REQUIRED),
-            ChatCommand("focus", [], "Switch to Focus mode (deep reasoning)", CommandCategory.MODE, CommandScope.SESSION_REQUIRED),
-            ChatCommand("mode", [], "Show or switch mode", CommandCategory.MODE, CommandScope.SESSION_REQUIRED, args="[name]"),
+            ChatCommand(
+                "research", [], "Switch to Research mode (default)", CommandCategory.MODE, CommandScope.SESSION_REQUIRED
+            ),
+            ChatCommand(
+                "advise",
+                [],
+                "Switch to Advise mode (structured advice)",
+                CommandCategory.MODE,
+                CommandScope.SESSION_REQUIRED,
+            ),
+            ChatCommand(
+                "focus",
+                [],
+                "Switch to Focus mode (deep reasoning)",
+                CommandCategory.MODE,
+                CommandScope.SESSION_REQUIRED,
+            ),
+            ChatCommand(
+                "mode", [], "Show or switch mode", CommandCategory.MODE, CommandScope.SESSION_REQUIRED, args="[name]"
+            ),
             # Session commands
             ChatCommand("clear", [], "Clear conversation history", CommandCategory.SESSION, CommandScope.CLIENT_ONLY),
-            ChatCommand("compact", [], "Summarise and compress conversation", CommandCategory.SESSION, CommandScope.SESSION_REQUIRED, args="[topic]"),
-            ChatCommand("remember", [], "Pin a fact to session memory", CommandCategory.SESSION, CommandScope.SESSION_REQUIRED, args="<text>"),
-            ChatCommand("forget", ["unpin"], "Remove a pinned memory", CommandCategory.SESSION, CommandScope.SESSION_REQUIRED, args="<index>"),
-            ChatCommand("memories", ["pins"], "List pinned memories", CommandCategory.SESSION, CommandScope.SESSION_REQUIRED),
+            ChatCommand(
+                "compact",
+                [],
+                "Summarise and compress conversation",
+                CommandCategory.SESSION,
+                CommandScope.SESSION_REQUIRED,
+                args="[topic]",
+            ),
+            ChatCommand(
+                "remember",
+                [],
+                "Pin a fact to session memory",
+                CommandCategory.SESSION,
+                CommandScope.SESSION_REQUIRED,
+                args="<text>",
+            ),
+            ChatCommand(
+                "forget",
+                ["unpin"],
+                "Remove a pinned memory",
+                CommandCategory.SESSION,
+                CommandScope.SESSION_REQUIRED,
+                args="<index>",
+            ),
+            ChatCommand(
+                "memories", ["pins"], "List pinned memories", CommandCategory.SESSION, CommandScope.SESSION_REQUIRED
+            ),
             ChatCommand("new", [], "Start a new conversation", CommandCategory.SESSION, CommandScope.CLIENT_ONLY),
             # Reasoning commands
             ChatCommand("trace", [], "Show reasoning trace", CommandCategory.REASONING, CommandScope.SESSION_REQUIRED),
-            ChatCommand("why", [], "Explain the last decision", CommandCategory.REASONING, CommandScope.SESSION_REQUIRED),
-            ChatCommand("decisions", [], "List all decisions this session", CommandCategory.REASONING, CommandScope.SESSION_REQUIRED),
-            ChatCommand("thinking", [], "Toggle verbose thinking display", CommandCategory.REASONING, CommandScope.SESSION_REQUIRED, args="[on|off]"),
+            ChatCommand(
+                "why", [], "Explain the last decision", CommandCategory.REASONING, CommandScope.SESSION_REQUIRED
+            ),
+            ChatCommand(
+                "decisions",
+                [],
+                "List all decisions this session",
+                CommandCategory.REASONING,
+                CommandScope.SESSION_REQUIRED,
+            ),
+            ChatCommand(
+                "thinking",
+                [],
+                "Toggle verbose thinking display",
+                CommandCategory.REASONING,
+                CommandScope.SESSION_REQUIRED,
+                args="[on|off]",
+            ),
             # Control commands
-            ChatCommand("model", [], "Show or change model", CommandCategory.CONTROL, CommandScope.SESSION_REQUIRED, args="[name]"),
-            ChatCommand("tools", [], "List available tools for current mode", CommandCategory.CONTROL, CommandScope.SESSION_REQUIRED),
-            ChatCommand("effort", [], "Set reasoning effort level", CommandCategory.CONTROL, CommandScope.SESSION_REQUIRED, args="[low|med|high]"),
-            ChatCommand("budget", [], "Show or set session budget", CommandCategory.CONTROL, CommandScope.SESSION_REQUIRED, args="[amount]"),
+            ChatCommand(
+                "model",
+                [],
+                "Show or change model",
+                CommandCategory.CONTROL,
+                CommandScope.SESSION_REQUIRED,
+                args="[name]",
+            ),
+            ChatCommand(
+                "tools",
+                [],
+                "List available tools for current mode",
+                CommandCategory.CONTROL,
+                CommandScope.SESSION_REQUIRED,
+            ),
+            ChatCommand(
+                "effort",
+                [],
+                "Set reasoning effort level",
+                CommandCategory.CONTROL,
+                CommandScope.SESSION_REQUIRED,
+                args="[low|med|high]",
+            ),
+            ChatCommand(
+                "budget",
+                [],
+                "Show or set session budget",
+                CommandCategory.CONTROL,
+                CommandScope.SESSION_REQUIRED,
+                args="[amount]",
+            ),
             # Management commands
-            ChatCommand("save", [], "Save current conversation", CommandCategory.MANAGEMENT, CommandScope.SESSION_REQUIRED, args="[name]"),
-            ChatCommand("load", [], "Load a saved conversation", CommandCategory.MANAGEMENT, CommandScope.SESSION_REQUIRED, args="<id>"),
-            ChatCommand("export", [], "Export conversation as markdown or JSON", CommandCategory.MANAGEMENT, CommandScope.SESSION_REQUIRED, args="[md|json]"),
-            ChatCommand("council", [], "Consult multiple experts", CommandCategory.MANAGEMENT, CommandScope.SESSION_REQUIRED, args="<query>"),
-            ChatCommand("plan", [], "Decompose a complex query into steps", CommandCategory.MANAGEMENT, CommandScope.SESSION_REQUIRED, args="<query>"),
+            ChatCommand(
+                "save",
+                [],
+                "Save current conversation",
+                CommandCategory.MANAGEMENT,
+                CommandScope.SESSION_REQUIRED,
+                args="[name]",
+            ),
+            ChatCommand(
+                "load",
+                [],
+                "Load a saved conversation",
+                CommandCategory.MANAGEMENT,
+                CommandScope.SESSION_REQUIRED,
+                args="<id>",
+            ),
+            ChatCommand(
+                "export",
+                [],
+                "Export conversation as markdown or JSON",
+                CommandCategory.MANAGEMENT,
+                CommandScope.SESSION_REQUIRED,
+                args="[md|json]",
+            ),
+            ChatCommand(
+                "council",
+                [],
+                "Consult multiple experts",
+                CommandCategory.MANAGEMENT,
+                CommandScope.SESSION_REQUIRED,
+                args="<query>",
+            ),
+            ChatCommand(
+                "plan",
+                [],
+                "Decompose a complex query into steps",
+                CommandCategory.MANAGEMENT,
+                CommandScope.SESSION_REQUIRED,
+                args="<query>",
+            ),
             # Utility commands
-            ChatCommand("help", ["?"], "Show command help", CommandCategory.UTILITY, CommandScope.CLIENT_ONLY, args="[command]"),
-            ChatCommand("status", [], "Show session statistics", CommandCategory.UTILITY, CommandScope.SESSION_REQUIRED),
-            ChatCommand("quit", ["exit", "q"], "End the chat session", CommandCategory.UTILITY, CommandScope.CLIENT_ONLY),
+            ChatCommand(
+                "help", ["?"], "Show command help", CommandCategory.UTILITY, CommandScope.CLIENT_ONLY, args="[command]"
+            ),
+            ChatCommand(
+                "status", [], "Show session statistics", CommandCategory.UTILITY, CommandScope.SESSION_REQUIRED
+            ),
+            ChatCommand(
+                "quit", ["exit", "q"], "End the chat session", CommandCategory.UTILITY, CommandScope.CLIENT_ONLY
+            ),
         ]
         for cmd in defaults:
             self.register(cmd)
