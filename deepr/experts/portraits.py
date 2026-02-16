@@ -13,9 +13,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Provider priority order
-_PROVIDERS = ["openai", "google", "xai"]
-
 
 def _build_prompt(name: str, domain: str | None, description: str | None) -> str:
     """Build an image generation prompt from expert metadata."""

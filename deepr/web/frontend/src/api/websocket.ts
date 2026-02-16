@@ -145,6 +145,7 @@ class WebSocketClient {
     tool_calls: { tool: string; query: string }[]
     follow_ups?: string[]
     confidence?: number
+    mode?: string
   }) => void) {
     if (!this.socket) return () => {}
     this.socket.on('chat_complete', callback)
