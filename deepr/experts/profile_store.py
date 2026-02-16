@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Current schema version - increment when profile structure changes
-PROFILE_SCHEMA_VERSION = 3
+PROFILE_SCHEMA_VERSION = 4
 
 # Migration registry: maps (from_version, to_version) -> migration function
 _MIGRATIONS: dict[tuple, Callable[[dict[str, Any]], dict[str, Any]]] = {}
@@ -98,6 +98,18 @@ def migrate_v2_to_v3(data: dict[str, Any]) -> dict[str, Any]:
     """
     data["schema_version"] = 3
     data.setdefault("installed_skills", [])
+    return data
+
+
+@migration(3, 4)
+def migrate_v3_to_v4(data: dict[str, Any]) -> dict[str, Any]:
+    """Migrate from schema v3 to v4.
+
+    Changes in v4:
+    - Added portrait_url field for AI-generated expert portraits
+    """
+    data["schema_version"] = 4
+    data.setdefault("portrait_url", None)
     return data
 
 

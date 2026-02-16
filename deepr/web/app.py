@@ -1410,6 +1410,7 @@ def list_experts():
                     "total_cost": getattr(profile, "total_research_cost", 0.0),
                     "last_active": getattr(profile, "updated_at", datetime.now(timezone.utc)).isoformat(),
                     "created_at": getattr(profile, "created_at", datetime.now(timezone.utc)).isoformat(),
+                    "portrait_url": getattr(profile, "portrait_url", None),
                 }
             )
         return jsonify({"experts": experts})
@@ -1503,6 +1504,7 @@ def get_expert(name):
                     "total_cost": getattr(profile, "total_research_cost", 0.0),
                     "last_active": getattr(profile, "updated_at", datetime.now(timezone.utc)).isoformat(),
                     "created_at": getattr(profile, "created_at", datetime.now(timezone.utc)).isoformat(),
+                    "portrait_url": getattr(profile, "portrait_url", None),
                 }
             }
         )
@@ -1511,6 +1513,57 @@ def get_expert(name):
     except Exception as e:
         logger.error(f"Error getting expert {name}: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/generate-portrait", methods=["POST"])
+def generate_expert_portrait(name):
+    """Generate an AI portrait for a domain expert."""
+    try:
+        from deepr.experts.portraits import generate_portrait
+        from deepr.experts.profile_store import ExpertStore
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+        store = ExpertStore(str(_experts_dir))
+        if not store.exists(decoded_name):
+            return jsonify({"error": "Expert not found"}), 404
+
+        profile = store.load(decoded_name)
+
+        data = request.json or {}
+        provider = data.get("provider")  # optional override
+
+        loop = asyncio.new_event_loop()
+        try:
+            portrait_url = loop.run_until_complete(
+                generate_portrait(
+                    name=profile.name,
+                    domain=getattr(profile, "domain", None),
+                    description=getattr(profile, "description", None),
+                    provider=provider,
+                    output_dir=str(Path("data") / "portraits"),
+                )
+            )
+        finally:
+            loop.close()
+
+        profile.portrait_url = portrait_url
+        store.save(profile)
+
+        return jsonify({"portrait_url": portrait_url})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error generating portrait for {name}: {e}")
+        return jsonify({"error": "Portrait generation failed"}), 500
+
+
+@app.route("/portraits/<path:filename>")
+def serve_portrait(filename):
+    """Serve a generated portrait image."""
+    portraits_dir = Path("data") / "portraits"
+    return send_from_directory(str(portraits_dir.resolve()), filename)
 
 
 @app.route("/api/experts/<name>/chat", methods=["POST"])
