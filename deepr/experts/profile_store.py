@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Current schema version - increment when profile structure changes
-PROFILE_SCHEMA_VERSION = 2
+PROFILE_SCHEMA_VERSION = 3
 
 # Migration registry: maps (from_version, to_version) -> migration function
 _MIGRATIONS: dict[tuple, Callable[[dict[str, Any]], dict[str, Any]]] = {}
@@ -86,6 +86,18 @@ def migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
     if "learning_budget" in data and "monthly_learning_budget" not in data:
         data["monthly_learning_budget"] = data.pop("learning_budget")
 
+    return data
+
+
+@migration(2, 3)
+def migrate_v2_to_v3(data: dict[str, Any]) -> dict[str, Any]:
+    """Migrate from schema v2 to v3.
+
+    Changes in v3:
+    - Added installed_skills field for expert skills system
+    """
+    data["schema_version"] = 3
+    data.setdefault("installed_skills", [])
     return data
 
 

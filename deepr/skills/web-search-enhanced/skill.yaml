@@ -1,0 +1,37 @@
+name: web-search-enhanced
+version: "1.0.0"
+description: "Extract structured data, tables, and key facts from research text"
+author: "Deepr"
+license: "MIT"
+
+domains: ["research", "analysis", "data-extraction"]
+
+triggers:
+  keywords: ["extract", "summarize facts", "key findings", "structured data", "pull out"]
+  patterns: ["extract .+ from", "summarize .+ into", "what are the key .+"]
+
+prompt_file: "prompt.md"
+
+tools:
+  - name: structured_extract
+    type: python
+    module: tools.extract
+    function: structured_extract
+    description: "Extract structured facts, entities, and relationships from research text. Returns a JSON object with entities, facts, and relationships."
+    cost_tier: free
+    parameters:
+      type: object
+      properties:
+        text:
+          type: string
+          description: "The research text to extract structured data from"
+        extract_type:
+          type: string
+          enum: ["facts", "entities", "relationships", "all"]
+          description: "What to extract"
+          default: "all"
+      required: ["text"]
+
+budget:
+  max_per_call: 0.0
+  default_budget: 0.0

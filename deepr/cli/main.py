@@ -67,6 +67,11 @@ cli.add_command(semantic.make)
 cli.add_command(semantic.agentic)
 cli.add_command(semantic.expert)
 
+# Skill management
+from deepr.cli.commands.semantic.skills import skill
+
+cli.add_command(skill)
+
 # Deprecated commands (kept for backward compatibility with warnings)
 cli.add_command(status.status)
 cli.add_command(status.get)

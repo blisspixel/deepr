@@ -368,3 +368,13 @@ export interface ConsensusResult {
   total_cost: number
   decision_record?: DecisionRecord
 }
+
+export interface Skill {
+  name: string
+  description: string
+  version: string
+  tools: number
+  tier: 'built-in' | 'global' | 'expert-local'
+  domains: string[]
+  installed: boolean
+}

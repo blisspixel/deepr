@@ -1,0 +1,37 @@
+name: financial-data
+version: "1.0.0"
+description: "Financial ratio calculations and data analysis"
+author: "Deepr"
+license: "MIT"
+
+domains: ["financial", "investment", "economics", "accounting"]
+
+triggers:
+  keywords: ["P/E ratio", "debt-to-equity", "financial ratio", "ROE", "ROA", "margin", "earnings"]
+  patterns: ["calculate .+ ratio", "financial (analysis|metrics)", "compare .+ (financials|stocks)"]
+
+prompt_file: "prompt.md"
+
+tools:
+  - name: calculate_ratios
+    type: python
+    module: tools.ratios
+    function: calculate_financial_ratios
+    description: "Calculate financial ratios (P/E, P/B, debt-to-equity, ROE, ROA, margins) from raw financial data"
+    cost_tier: free
+    parameters:
+      type: object
+      properties:
+        data:
+          type: object
+          description: "Financial data dict with keys like revenue, net_income, total_assets, total_liabilities, equity, share_price, eps, book_value_per_share"
+        ratios:
+          type: array
+          items:
+            type: string
+          description: "Which ratios to calculate. Options: pe, pb, de, roe, roa, gross_margin, net_margin, current_ratio, quick_ratio. Defaults to all."
+      required: ["data"]
+
+budget:
+  max_per_call: 0.0
+  default_budget: 0.0

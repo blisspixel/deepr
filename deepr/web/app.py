@@ -1906,6 +1906,148 @@ def resolve_expert_conflicts(name):
 
 
 # =============================================================================
+# SKILLS API ENDPOINTS
+# =============================================================================
+
+
+@app.route("/api/skills", methods=["GET"])
+def list_all_skills():
+    """List all available skills."""
+    try:
+        from deepr.experts.skills import SkillManager
+
+        manager = SkillManager()
+        skills = [
+            {
+                "name": s.name,
+                "description": s.description,
+                "version": s.version,
+                "tools": len(s.tools),
+                "tier": s.tier,
+                "domains": s.domains,
+                "installed": False,
+            }
+            for s in manager.list_all()
+        ]
+        return jsonify({"skills": skills})
+    except Exception as e:
+        logger.error(f"Error listing skills: {e}")
+        return jsonify({"skills": []})
+
+
+@app.route("/api/experts/<name>/skills", methods=["GET"])
+def list_expert_skills(name):
+    """List installed and available skills for an expert."""
+    try:
+        from deepr.experts.profile_store import ExpertStore
+        from deepr.experts.skills import SkillManager
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
+
+        manager = SkillManager(expert_name=decoded_name)
+        installed_names = set(getattr(profile, "installed_skills", []))
+
+        installed = []
+        for s in manager.get_installed_skills(list(installed_names)):
+            installed.append({
+                "name": s.name,
+                "description": s.description,
+                "version": s.version,
+                "tools": len(s.tools),
+                "tier": s.tier,
+                "domains": s.domains,
+                "installed": True,
+            })
+
+        available = []
+        for s in manager.list_all():
+            if s.name not in installed_names:
+                available.append({
+                    "name": s.name,
+                    "description": s.description,
+                    "version": s.version,
+                    "tools": len(s.tools),
+                    "tier": s.tier,
+                    "domains": s.domains,
+                    "installed": False,
+                })
+
+        return jsonify({"installed_skills": installed, "available_skills": available})
+    except Exception as e:
+        logger.error(f"Error listing skills for expert {name}: {e}")
+        return jsonify({"installed_skills": [], "available_skills": []})
+
+
+@app.route("/api/experts/<name>/skills/<skill_name>", methods=["POST"])
+def install_expert_skill(name, skill_name):
+    """Install a skill on an expert."""
+    try:
+        from deepr.experts.profile_store import ExpertStore
+        from deepr.experts.skills import SkillManager
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
+
+        manager = SkillManager(expert_name=decoded_name)
+        skill_def = manager.get_skill(skill_name)
+        if not skill_def:
+            return jsonify({"error": f"Skill not found: {skill_name}"}), 404
+
+        installed = getattr(profile, "installed_skills", [])
+        if skill_name in installed:
+            return jsonify({"status": "already_installed"})
+
+        profile.installed_skills = [*installed, skill_name]
+        store.save(profile)
+
+        return jsonify({"status": "installed"})
+    except Exception as e:
+        logger.error(f"Error installing skill {skill_name} on expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/skills/<skill_name>", methods=["DELETE"])
+def remove_expert_skill(name, skill_name):
+    """Remove a skill from an expert."""
+    try:
+        from deepr.experts.profile_store import ExpertStore
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
+
+        installed = getattr(profile, "installed_skills", [])
+        if skill_name not in installed:
+            return jsonify({"status": "not_installed"})
+
+        profile.installed_skills = [s for s in installed if s != skill_name]
+        store.save(profile)
+
+        return jsonify({"status": "removed"})
+    except Exception as e:
+        logger.error(f"Error removing skill {skill_name} from expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# =============================================================================
 # TRACES API ENDPOINTS
 # =============================================================================
 

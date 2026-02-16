@@ -2344,3 +2344,62 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     if summary["research_jobs_triggered"] > 0:
         print_key_value("Research Jobs", str(summary["research_jobs_triggered"]))
     console.print()
+
+
+@expert.command(name="run-skill")
+@click.argument("name")
+@click.argument("skill_name")
+@click.argument("tool_name")
+@click.option("--args", "tool_args", type=str, default="{}", help='Tool arguments as JSON string (e.g. \'{"data": {"revenue": 100}}\')')
+def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
+    """Run a specific skill tool on an expert directly.
+
+    EXAMPLES:
+      deepr expert run-skill "Analyst" financial-data calculate_ratios --args '{"data": {"revenue": 100, "net_income": 20}}'
+      deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
+    """
+    import asyncio
+    import json
+
+    from deepr.experts.profile_store import ExpertStore
+    from deepr.experts.skills import SkillExecutor, SkillManager
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        return
+
+    manager = SkillManager(expert_name=name)
+    skill_def = manager.get_skill(skill_name)
+    if not skill_def:
+        print_error(f"Skill not found: {skill_name}")
+        return
+
+    installed = getattr(profile, "installed_skills", [])
+    if skill_name not in installed:
+        print_warning(f"Skill '{skill_name}' is not installed on {name}. Installing now...")
+        profile.installed_skills = [*installed, skill_name]
+        store.save(profile)
+
+    try:
+        args = json.loads(tool_args)
+    except json.JSONDecodeError as e:
+        print_error(f"Invalid JSON arguments: {e}")
+        return
+
+    async def do_run():
+        executor = SkillExecutor(skill_def, budget_remaining=10.0)
+        try:
+            result = await executor.execute_tool(tool_name, args)
+            return result
+        finally:
+            await executor.cleanup()
+
+    result = asyncio.run(do_run())
+
+    if "error" in result:
+        print_error(f"Tool error: {result['error']}")
+    else:
+        print_success(f"Result from {skill_name}/{tool_name}:")
+        console.print_json(json.dumps(result.get("result", result), indent=2, default=str))
