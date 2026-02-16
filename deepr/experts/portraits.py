@@ -26,8 +26,15 @@ def _build_prompt(name: str, domain: str | None, description: str | None) -> str
     seed = int(hashlib.md5(name.encode()).hexdigest(), 16)
     genders = ["woman", "man", "woman", "man", "non-binary person"]
     ethnicities = [
-        "East Asian", "South Asian", "Black", "Latino", "Middle Eastern",
-        "white", "Southeast Asian", "Indigenous", "mixed-race",
+        "East Asian",
+        "South Asian",
+        "Black",
+        "Latino",
+        "Middle Eastern",
+        "white",
+        "Southeast Asian",
+        "Indigenous",
+        "mixed-race",
     ]
     ages = ["young", "middle-aged", "senior", "young", "middle-aged"]
     gender = genders[seed % len(genders)]
