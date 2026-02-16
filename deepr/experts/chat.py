@@ -114,6 +114,14 @@ class ExpertChatSession:
         # Observability: MetadataEmitter for span tracking
         self._emitter = MetadataEmitter()
 
+        # Skills system
+        from deepr.experts.skills import SkillManager
+
+        self.skill_manager = SkillManager(expert_name=expert.name)
+        self.active_skills: list = []  # list[SkillDefinition]
+        self.skill_executors: dict = {}  # name -> SkillExecutor
+        self._skill_tool_map: dict[str, tuple[str, str]] = {}  # qualified_name -> (skill, tool)
+
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
         # Load worldview if it exists
@@ -240,6 +248,22 @@ Don't overthink it. Trust your judgment like a real expert would.
 
 Budget remaining: ${budget_remaining:.2f}
 """
+
+        # Skill summaries (always present — progressive disclosure)
+        installed = self.skill_manager.get_installed_skills(
+            getattr(self.expert, "installed_skills", [])
+        )
+        if installed:
+            base_message += "\n\nSKILLS AVAILABLE:\n"
+            for skill in installed:
+                base_message += f"  - {skill.get_summary()}\n"
+            base_message += "\nThese skills activate automatically when relevant.\n"
+
+        # Active skill prompts (full content loaded only when triggered)
+        for skill in self.active_skills:
+            prompt = skill.load_prompt()
+            if prompt:
+                base_message += f"\n\n--- ACTIVE SKILL: {skill.name} ---\n{prompt}\n"
 
         # Add custom system message if provided
         if self.expert.system_message:
@@ -1133,6 +1157,25 @@ Budget remaining: ${budget_remaining:.2f}
                     ]
                 )
 
+            # Detect and activate skills for this query
+            installed_names = getattr(self.expert, "installed_skills", [])
+            triggered = self.skill_manager.detect_skills_for_query(user_message, installed_names)
+            for skill in triggered:
+                if skill.name not in [s.name for s in self.active_skills]:
+                    self.active_skills.append(skill)
+                    skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
+                    from deepr.experts.skills import SkillExecutor
+
+                    self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+
+            # Add skill tools to the tools list
+            for skill in self.active_skills:
+                for tool in skill.tools:
+                    tool_def = tool.to_openai_tool_def(skill.name)
+                    tools.append(tool_def)
+                    qualified = tool_def["function"]["name"]
+                    self._skill_tool_map[qualified] = (skill.name, tool.name)
+
             # Add user message to history
             self.messages.append({"role": "user", "content": user_message})
 
@@ -1415,6 +1458,42 @@ Budget remaining: ${budget_remaining:.2f}
                             {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
                         )
 
+                    elif tool_call.function.name in self._skill_tool_map:
+                        skill_name, tool_name = self._skill_tool_map[tool_call.function.name]
+                        args = json.loads(tool_call.function.arguments)
+
+                        self.thought_stream.tool_call(
+                            tool_name=f"{skill_name}/{tool_name}",
+                            args={k: str(v)[:100] for k, v in args.items()},
+                            result_summary=f"Executing {skill_name} skill tool",
+                        )
+                        report_status(f"Running {skill_name}/{tool_name}...")
+
+                        executor = self.skill_executors.get(skill_name)
+                        if executor:
+                            result = await executor.execute_tool(tool_name, args)
+                        else:
+                            result = {"error": "No executor for skill", "cost": 0.0}
+
+                        self.cost_accumulated += result.get("cost", 0.0)
+                        self.reasoning_trace.append(
+                            {
+                                "step": "skill_tool_call",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "skill": skill_name,
+                                "tool": tool_name,
+                                "cost": result.get("cost", 0.0),
+                                "has_error": "error" in result,
+                            }
+                        )
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": json.dumps(result),
+                            }
+                        )
+
                 # Add assistant message and tool results to conversation
                 conversation_messages.append(current_message)
                 conversation_messages.extend(tool_messages)
@@ -1523,6 +1602,10 @@ Budget remaining: ${budget_remaining:.2f}
                     if new_beliefs > 0:
                         final_message += f"\n\n_[Consciousness updated: {new_beliefs} new beliefs formed]_"
 
+            # Cleanup skill executors (terminate MCP subprocesses)
+            for executor in self.skill_executors.values():
+                await executor.cleanup()
+
             # Complete observability span with final metrics
             op.set_cost(self.cost_accumulated)
             op.set_attribute("tool_calls_count", round_count)
@@ -1532,6 +1615,9 @@ Budget remaining: ${budget_remaining:.2f}
             return final_message
 
         except Exception as e:
+            # Cleanup skill executors on error too
+            for executor in self.skill_executors.values():
+                await executor.cleanup()
             # Mark span as failed
             self._emitter.fail_task(op, str(e))
             return f"Error communicating with expert: {e!s}"
