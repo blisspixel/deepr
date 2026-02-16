@@ -1664,6 +1664,247 @@ def get_expert_decisions(name):
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/api/experts/<name>/fill-gaps", methods=["POST"])
+def fill_expert_gaps(name):
+    """Fill knowledge gaps with optional consensus and deep pipeline."""
+    try:
+        import asyncio
+
+        from deepr.experts.profile_store import ExpertStore
+        from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+        data = request.get_json() or {}
+        use_consensus = data.get("consensus", False)
+        use_deep = data.get("deep", False)
+        top = min(data.get("top", 3), 10)
+        budget = min(data.get("budget", 5.0), 50.0)
+        do_validate = data.get("validate_citations", False)
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
+
+        knowledge_dir = store.get_knowledge_dir(decoded_name)
+        worldview_path = knowledge_dir / "worldview.json"
+        if not worldview_path.exists():
+            return jsonify({"error": "Expert has no worldview yet"}), 400
+
+        worldview = Worldview.load(worldview_path)
+        if not worldview.knowledge_gaps:
+            return jsonify({"filled": 0, "message": "No gaps to fill"})
+
+        sorted_gaps = sorted(worldview.knowledge_gaps, key=lambda g: g.priority, reverse=True)[:top]
+
+        async def _do_fill():
+            from deepr.config import AppConfig
+            from deepr.providers import create_provider
+
+            config = AppConfig.from_env()
+            provider = create_provider("openai", api_key=config.provider.openai_api_key)
+            filled = 0
+
+            if use_deep:
+                from deepr.experts.multi_pass import MultiPassPipeline
+
+                consensus_engine = None
+                if use_consensus:
+                    from deepr.experts.consensus import ConsensusEngine
+
+                    consensus_engine = ConsensusEngine()
+
+                pipeline = MultiPassPipeline(client=provider.client, consensus_engine=consensus_engine)
+                existing_claims = [b.to_dict() for b in worldview.beliefs[:30]]
+
+                for gap in sorted_gaps:
+                    result = await pipeline.fill_gap(
+                        gap=gap,
+                        existing_claims=existing_claims,
+                        expert_name=profile.name,
+                        domain=profile.domain or profile.description,
+                        budget=budget / len(sorted_gaps),
+                        use_consensus=use_consensus,
+                    )
+                    if result.filled:
+                        filled += 1
+
+            return {"filled": filled, "total_gaps": len(sorted_gaps)}
+
+        result = asyncio.run(_do_fill())
+        return jsonify(result)
+    except ImportError:
+        return jsonify({"error": "Required dependencies not installed"}), 500
+    except Exception as e:
+        logger.error(f"Error filling gaps for expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/citation-validations", methods=["GET"])
+def get_citation_validations(name):
+    """Get citation validation results for an expert."""
+    try:
+        import asyncio
+
+        from deepr.experts.profile_store import ExpertStore
+        from deepr.experts.synthesis import Worldview
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"validations": [], "summary": {}})
+
+        knowledge_dir = store.get_knowledge_dir(decoded_name)
+        worldview_path = knowledge_dir / "worldview.json"
+        if not worldview_path.exists():
+            return jsonify({"validations": [], "summary": {}})
+
+        worldview = Worldview.load(worldview_path)
+        if not worldview.beliefs:
+            return jsonify({"validations": [], "summary": {}})
+
+        async def _do_validate():
+            from deepr.config import AppConfig
+            from deepr.experts.citation_validator import CitationValidator
+            from deepr.providers import create_provider
+
+            config = AppConfig.from_env()
+            provider = create_provider("openai", api_key=config.provider.openai_api_key)
+            validator = CitationValidator(client=provider.client)
+
+            claims = [b.to_claim() for b in worldview.beliefs]
+            docs_dir = store.get_documents_dir(decoded_name)
+            doc_dict = {}
+            for doc_path in docs_dir.glob("*.md"):
+                try:
+                    doc_dict[doc_path.name] = doc_path.read_text(encoding="utf-8")[:2000]
+                except OSError:
+                    pass
+
+            validations = await validator.validate_claims(claims, doc_dict)
+            summary = validator.summarize(validations)
+            return [v.to_dict() for v in validations], summary
+
+        validations, summary = asyncio.run(_do_validate())
+        return jsonify({"validations": validations, "summary": summary})
+    except ImportError:
+        return jsonify({"validations": [], "summary": {}})
+    except Exception as e:
+        logger.error(f"Error validating citations for expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/discover-gaps", methods=["POST"])
+def discover_expert_gaps(name):
+    """Trigger automated gap discovery for an expert."""
+    try:
+        import asyncio
+
+        from deepr.experts.profile_store import ExpertStore
+        from deepr.experts.synthesis import Worldview
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
+
+        knowledge_dir = store.get_knowledge_dir(decoded_name)
+        worldview_path = knowledge_dir / "worldview.json"
+        if not worldview_path.exists():
+            return jsonify({"error": "Expert has no worldview yet"}), 400
+
+        worldview = Worldview.load(worldview_path)
+        if not worldview.beliefs:
+            return jsonify({"gaps": []})
+
+        async def _do_discover():
+            from deepr.experts.gap_discovery import GapDiscoverer
+
+            discoverer = GapDiscoverer()
+            claims = [b.to_claim().to_dict() for b in worldview.beliefs]
+            existing_gaps = [g.to_dict() for g in worldview.knowledge_gaps]
+            return await discoverer.discover_gaps(claims, profile.domain or "", existing_gaps)
+
+        new_gaps = asyncio.run(_do_discover())
+        return jsonify({"gaps": new_gaps})
+    except ImportError:
+        return jsonify({"gaps": []})
+    except Exception as e:
+        logger.error(f"Error discovering gaps for expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/experts/<name>/resolve-conflicts", methods=["POST"])
+def resolve_expert_conflicts(name):
+    """Trigger conflict resolution for an expert."""
+    try:
+        import asyncio
+
+        from deepr.experts.profile_store import ExpertStore
+        from deepr.experts.synthesis import Worldview
+
+        decoded_name, err = _decode_expert_name(name)
+        if err:
+            return err
+        data = request.get_json() or {}
+        budget = min(data.get("budget", 5.0), 50.0)
+
+        store = ExpertStore(str(_experts_dir))
+        profile = store.load(decoded_name)
+        if not profile:
+            return jsonify({"error": f"Expert not found: {decoded_name}"}), 404
+
+        knowledge_dir = store.get_knowledge_dir(decoded_name)
+        worldview_path = knowledge_dir / "worldview.json"
+        if not worldview_path.exists():
+            return jsonify({"error": "Expert has no worldview yet"}), 400
+
+        worldview = Worldview.load(worldview_path)
+        if not worldview.beliefs:
+            return jsonify({"results": []})
+
+        async def _do_resolve():
+            from deepr.config import AppConfig
+            from deepr.experts.beliefs import Belief as BeliefObj
+            from deepr.experts.conflict_resolver import ConflictResolver
+            from deepr.providers import create_provider
+
+            config = AppConfig.from_env()
+            provider = create_provider("openai", api_key=config.provider.openai_api_key)
+            resolver = ConflictResolver(client=provider.client)
+
+            belief_objects = []
+            for b in worldview.beliefs:
+                belief_objects.append(
+                    BeliefObj(
+                        claim=b.statement,
+                        confidence=b.confidence,
+                        evidence_refs=b.evidence,
+                        domain=b.topic,
+                    )
+                )
+            results = await resolver.resolve_all(belief_objects, budget=budget)
+            return [r.to_dict() for r in results]
+
+        results = asyncio.run(_do_resolve())
+        return jsonify({"results": results})
+    except ImportError:
+        return jsonify({"results": []})
+    except Exception as e:
+        logger.error(f"Error resolving conflicts for expert {name}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
 # =============================================================================
 # TRACES API ENDPOINTS
 # =============================================================================
