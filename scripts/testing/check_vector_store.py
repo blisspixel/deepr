@@ -10,7 +10,7 @@ async def check_vector_store():
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     # Microsoft AI Expert vector store ID
-    vector_store_id = "vs_69710e818bd081919cc0a7ca2d32f4e3"
+    vector_store_id = os.getenv("TEST_VECTOR_STORE_ID", "vs_test_placeholder")
 
     print(f"Checking vector store: {vector_store_id}\n")
 

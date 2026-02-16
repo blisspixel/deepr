@@ -11,7 +11,7 @@ load_dotenv()
 
 async def test_search():
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    vector_store_id = "vs_69710e818bd081919cc0a7ca2d32f4e3"
+    vector_store_id = os.getenv("TEST_VECTOR_STORE_ID", "vs_test_placeholder")
 
     queries = [
         "Agent 365 pricing",
