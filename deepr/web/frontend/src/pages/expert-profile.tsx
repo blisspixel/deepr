@@ -6,7 +6,7 @@ import { expertsApi } from '@/api/experts'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import type { ExpertChat } from '@/types'
+import type { ExpertChat, SupportClass } from '@/types'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -22,6 +22,7 @@ import {
   SearchX,
   Send,
   Shield,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
@@ -55,6 +56,22 @@ function EvScoreBadge({ ratio }: { ratio: number }) {
       'bg-red-500/10 text-red-600'
     )}>
       {ratio.toFixed(2)}
+    </span>
+  )
+}
+
+const SUPPORT_CLASS_STYLES: Record<SupportClass, { bg: string; text: string; label: string }> = {
+  supported: { bg: 'bg-green-500/10', text: 'text-green-600', label: 'Supported' },
+  partially_supported: { bg: 'bg-yellow-500/10', text: 'text-yellow-600', label: 'Partial' },
+  unsupported: { bg: 'bg-red-500/10', text: 'text-red-600', label: 'Unsupported' },
+  uncertain: { bg: 'bg-gray-500/10', text: 'text-gray-500', label: 'Uncertain' },
+}
+
+function SupportClassBadge({ support }: { support: SupportClass }) {
+  const style = SUPPORT_CLASS_STYLES[support]
+  return (
+    <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-semibold', style.bg, style.text)}>
+      {style.label}
     </span>
   )
 }
@@ -219,6 +236,22 @@ export default function ExpertProfile() {
               <span className="inline-flex items-center gap-1"><Search className="w-3 h-3" />{expert.gap_count} gaps</span>
               <span className="inline-flex items-center gap-1"><DollarSign className="w-3 h-3" />{formatCurrency(expert.total_cost)}</span>
             </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
+                onClick={() => { setActiveTab('claims'); toast.info('Use CLI: deepr expert validate-citations "' + decodedName + '"') }}
+              >
+                <Shield className="w-3 h-3" />
+                Validate Citations
+              </button>
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
+                onClick={() => { setActiveTab('gaps'); toast.info('Use CLI: deepr expert discover-gaps "' + decodedName + '"') }}
+              >
+                <Sparkles className="w-3 h-3" />
+                Discover Gaps
+              </button>
+            </div>
           </div>
         </div>
 
@@ -341,9 +374,14 @@ export default function ExpertProfile() {
                         <td className="p-3 text-foreground">{claim.statement}</td>
                         <td className="p-3"><ConfidenceBar value={claim.confidence} /></td>
                         <td className="p-3">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-secondary text-xs font-medium text-foreground">
-                            {claim.sources.length}
-                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-secondary text-xs font-medium text-foreground">
+                              {claim.sources.length}
+                            </span>
+                            {claim.sources.map((src) => src.support_class && (
+                              <SupportClassBadge key={src.id} support={src.support_class} />
+                            ))}
+                          </div>
                         </td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded bg-secondary text-xs text-muted-foreground">
