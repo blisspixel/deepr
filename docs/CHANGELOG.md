@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**Agentic Expert Chat**
+- Streaming expert chat over WebSocket (Socket.IO) with real-time token delivery, tool call visibility, and follow-up suggestions
+- 27 slash commands organized by category (Mode, Session, Reasoning, Control, Management, Utility) with `/` prefix in web and `\` prefix in CLI
+- Command registry (`deepr/experts/commands.py`) with shared parsing for CLI and web, alias resolution, and category grouping
+- 4 chat modes: ASK (quick answers, KB-only tools), RESEARCH (default, all tools), ADVISE (consulting-style structured recommendations), FOCUS (always-on chain-of-thought reasoning)
+- Mode switching via `/ask`, `/research`, `/advise`, `/focus` commands; mode badge displayed in chat header
+- Visible reasoning: ThoughtStream callbacks pipe real-time thinking steps to frontend via `chat_thought` WebSocket events; collapsible ThinkingPanel shows planning, search, evidence, and decision steps with confidence indicators
+- Context compaction: `/compact` summarizes earlier messages while preserving recent context, enabling longer sessions without token budget exhaustion; auto-suggest banner after 30+ messages or 80K+ estimated tokens
+- Human-in-the-loop approval flows: `ApprovalManager` with three tiers (auto-approve, notify, confirm) based on operation cost and budget; inline confirmation dialog in chat for expensive operations
+- Expert council: `/council` command queries multiple experts in parallel on cross-domain questions, synthesizes agreements and disagreements; also available as `POST /api/experts/council` REST endpoint
+- Hierarchical task decomposition: `/plan` command breaks complex queries into subtasks with dependency graph, executes independent subtasks in parallel with live progress per step
+- Memory commands: `/remember` pins facts to session, `/forget` removes them, `/memories` lists all; pinned memories included in system prompt
+- Session management: `/clear` resets chat, `/new` starts fresh session, `/save` and `/load` for named sessions, `/export` to markdown or JSON
+- Reasoning commands: `/trace` shows full reasoning chain, `/why` explains last decision, `/decisions` lists all decisions, `/thinking on/off` toggles verbose reasoning display
+- Control commands: `/model` switches model, `/tools` lists available tools, `/effort` adjusts reasoning depth, `/budget` shows remaining budget, `/status` shows session stats
+- Conversations API: `GET/POST /api/experts/<name>/conversations` for listing and loading past chat sessions
+- Expert portrait generation: AI-generated SVG portraits based on expert domain and description, cached per expert, displayed in profile header
+- Web slash command autocomplete: floating menu triggered by `/` in chat input, grouped by category, keyboard navigable
+- Frontend chat components: `ThinkingPanel`, `ConfirmDialog`, `CompactBanner`, `PlanDisplay`, `MemoryIndicator`, `SlashCommandMenu`, `MessageActions`, `ToolCallBlock`
+
 **Expert Skills System**
 - Domain-specific capability packages that give experts unique tools and reasoning
 - `SkillDefinition` format: `skill.yaml` manifest + `prompt.md` overlay + Python/MCP tools
@@ -38,9 +58,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated gap discovery via claim clustering (`deepr expert discover-gaps`)
 - Conflict resolution agent with multi-provider adjudication (`deepr expert resolve-conflicts`)
 
+### Changed
+- Shared constants module (`deepr/experts/constants.py`) centralizes model names, tool identifiers, and budget fractions across council, task planner, command handlers, and WebSocket events
+- `_run_in_thread()` helper in WebSocket events replaces duplicated asyncio event loop boilerplate
+- Frontend: extracted reusable `SkillCard` and `EmptyState` components, reducing expert-profile.tsx bundle by 1.5KB
+- Frontend: replaced 4 inline empty state patterns and 2 inline skill card renderings with shared components
+
 ### Fixed
 - Removed unused imports `AppConfig` and `create_provider` in `experts.py` discover-gaps command
 - Removed unused import `KnowledgeSynthesizer` and unused variable `do_validate` in `app.py` fill-gaps endpoint
+- ThinkingPanel showed "Thought for " with empty duration when timestamps were identical (now shows "<1s")
+- Compact toast showed "undefined messages" when backend omitted count (added fallback)
+- Chat auto-scroll: `userScrolledRef` was never set to true (added `onScroll` handler)
+- Duplicate React keys in active tool call list (key now includes `startedAt` timestamp)
+- Chat mode was not sent to backend `startChat()` (added mode parameter to WebSocket emit)
+- Unsafe `(data as any).mode` cast in chat complete handler replaced with proper typed field
+- Dead `setChatInput(fu)` in follow-up handler removed (was immediately overwritten)
+- Clipboard copy in message actions now has try/catch for environments where `navigator.clipboard` is unavailable
+- Confirm dialog cost display uses `formatCurrency()` for consistent formatting
+- Council synthesis missing newline separators between expert perspectives
+- Task planner result truncation was slicing a list instead of truncating the joined string
+- Removed unused `_PROVIDERS` constant in portraits module
+- Removed redundant alias entries in command handlers (registry already resolves aliases)
+- Moved lazy imports (`uuid`, `os`, `AsyncOpenAI`) to top level in approval and council modules
 
 ---
 

@@ -30,7 +30,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.9.0)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 3800+ tests passing. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 3800+ tests. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -51,7 +51,7 @@ These features work but APIs or behavior may change:
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
 - **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 4 built-in skills, CLI management, web API, auto-activation triggers
 - **MCP server**: Functional with 18 tools, but MCP spec itself is still maturing
-- **Agentic expert chat**: `--agentic` flag triggers autonomous research - powerful but can be expensive
+- **Agentic expert chat**: `--agentic` flag triggers autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
 - **Grok provider**: Basic support, less tested than OpenAI/Gemini
@@ -63,8 +63,9 @@ These features work but APIs or behavior may change:
 - Multi-provider support (OpenAI GPT-5/5.2/4.1, Gemini, Grok 4 Fast, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
-- Expert system with autonomous learning, agentic chat, knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills
+- Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
 - Expert skills system: 4 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
+- Conversations API for browsing and resuming past chat sessions
 - MCP server with 18 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
@@ -120,6 +121,15 @@ Implementation details for completed priorities are in the [Changelog](docs/CHAN
 | Phase 5 | Source Provenance (`TrustClass` enum, content hashes, extraction method) | v2.8 |
 | Expert Skills | Expert Skills System (skill definitions, manager, executor, 4 built-in skills, CLI/web/MCP) | v2.9 |
 | Expert Intelligence | Consensus gap-filling, citation validation, gap discovery, conflict resolution | v2.9 |
+| Agentic Chat | Streaming expert chat, 27 slash commands, 4 chat modes, command registry | v2.9 |
+| Visible Reasoning | ThoughtStream callbacks, ThinkingPanel, real-time reasoning display | v2.9 |
+| Context Compaction | `/compact` command, auto-suggest, structured summarization | v2.9 |
+| Approval Flows | ApprovalManager, three-tier policies, inline confirm dialog | v2.9 |
+| Expert Council | Multi-expert consultation, parallel querying, synthesis | v2.9 |
+| Task Planner | Hierarchical decomposition, parallel subtask execution, live progress | v2.9 |
+| Memory Commands | `/remember`, `/forget`, `/memories`, pinned memories in system prompt | v2.9 |
+| Expert Portraits | AI-generated SVG portraits, cached per expert | v2.9 |
+| Conversations API | List, load, resume past chat sessions | v2.9 |
 
 ---
 
@@ -688,7 +698,7 @@ Recommended sequence for remaining work. Phases 1-4 (polish, provider intelligen
 
 Explicitly out of scope:
 
-- **Chat interface** — Use ChatGPT, Claude, Gemini, etc. for conversational AI
+- **General-purpose chat** — Expert chat is domain-focused; for open-ended conversation, use ChatGPT, Claude, Gemini, etc.
 - **Real-time responses** — Deep research takes minutes by design; this is a feature, not a bug
 - **Sub-$1 comprehensive research** — Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
 - **Mobile apps** — CLI and web dashboard cover the use cases
@@ -729,7 +739,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.7 | Context discovery, interactive mode, tracing | Complete |
 | v2.8 | Provider intelligence, advanced context, real-time progress, expert formalization | Complete |
 | v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
-| v2.9.0 | Expert skills system, consensus gap-filling, citation validation, conflict resolution | Complete |
+| v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.10 | Azure Foundry provider, deploy validation, web analytics | Planned |
 | v2.10 | Team features (auth, workspaces) | Planned |
 | v3.0+ | Self-improvement, autonomous learning | Future |
