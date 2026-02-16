@@ -22,8 +22,7 @@ def web(host: str, port: int, debug: bool):
         from deepr.web.app import app, socketio
     except ImportError as exc:
         raise click.ClickException(
-            f"Web dependencies not installed: {exc}\n"
-            "Install with: pip install -e '.[web]'"
+            f"Web dependencies not installed: {exc}\nInstall with: pip install -e '.[web]'"
         ) from exc
 
     display_host = "localhost" if host == "0.0.0.0" else host
