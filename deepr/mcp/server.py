@@ -951,6 +951,118 @@ def _register_new_tools(registry: ToolRegistry) -> None:
     # but we register it in the registry too so it appears in full tool lists.
     registry.register(GatewayTool.SCHEMA)
 
+    registry.register(
+        ToolSchema(
+            name="deepr_list_skills",
+            description=(
+                "List available and installed skills for an expert. Skills are domain-specific "
+                "capability packages that give experts unique tools (e.g., financial ratios, "
+                "code analysis). Pass expert_name to see installed vs available for that expert, "
+                "or omit to see all available skills."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {
+                        "type": "string",
+                        "description": "Optional expert name to check installed skills",
+                    },
+                },
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
+            name="deepr_install_skill",
+            description=(
+                "Install a skill on an expert, giving it access to the skill's tools "
+                "and domain-specific capabilities during chat."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {
+                        "type": "string",
+                        "description": "Name of the expert to install the skill on",
+                    },
+                    "skill_name": {
+                        "type": "string",
+                        "description": "Name of the skill to install (e.g., 'financial-data', 'code-analysis')",
+                    },
+                },
+                "required": ["expert_name", "skill_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+
+# ------------------------------------------------------------------ #
+# Skill helpers for MCP dispatch
+# ------------------------------------------------------------------ #
+
+
+async def _list_skills(expert_name: str) -> dict:
+    """List available/installed skills for an expert."""
+    try:
+        from deepr.experts.skills import SkillManager
+
+        manager = SkillManager(expert_name=expert_name or None)
+
+        if expert_name:
+            store = ExpertStore()
+            profile = store.load(expert_name)
+            installed_names = set(getattr(profile, "installed_skills", [])) if profile else set()
+        else:
+            installed_names = set()
+
+        skills = []
+        for s in manager.list_all():
+            skills.append({
+                "name": s.name,
+                "description": s.description,
+                "version": s.version,
+                "tools": [t.name for t in s.tools],
+                "tier": s.tier,
+                "domains": s.domains,
+                "installed": s.name in installed_names,
+            })
+        return {"skills": skills, "expert_name": expert_name or None}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _install_skill(expert_name: str, skill_name: str) -> dict:
+    """Install a skill on an expert."""
+    if not expert_name or not skill_name:
+        return {"error": "expert_name and skill_name are required"}
+    try:
+        from deepr.experts.skills import SkillManager
+
+        store = ExpertStore()
+        profile = store.load(expert_name)
+        if not profile:
+            return {"error": f"Expert not found: {expert_name}"}
+
+        manager = SkillManager(expert_name=expert_name)
+        skill_def = manager.get_skill(skill_name)
+        if not skill_def:
+            return {"error": f"Skill not found: {skill_name}"}
+
+        installed = getattr(profile, "installed_skills", [])
+        if skill_name in installed:
+            return {"status": "already_installed", "expert_name": expert_name, "skill_name": skill_name}
+
+        profile.installed_skills = [*installed, skill_name]
+        store.save(profile)
+        return {"status": "installed", "expert_name": expert_name, "skill_name": skill_name}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 # ------------------------------------------------------------------ #
 # MCP Protocol Handlers (JSON-RPC methods)
@@ -1077,6 +1189,11 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
         ),
         "deepr_pause_task": lambda args: server.deepr_pause_task(
             task_id=args.get("task_id", ""),
+        ),
+        "deepr_list_skills": lambda args: _list_skills(args.get("expert_name", "")),
+        "deepr_install_skill": lambda args: _install_skill(
+            args.get("expert_name", ""),
+            args.get("skill_name", ""),
         ),
     }
 

@@ -1,0 +1,84 @@
+name: data-visualization
+version: "1.0.0"
+description: "Format data as markdown tables and ASCII charts"
+author: "Deepr"
+license: "MIT"
+
+domains: ["data", "analytics", "reporting", "visualization"]
+
+triggers:
+  keywords: ["table", "chart", "graph", "visualize", "format data", "comparison table"]
+  patterns: ["(show|create|make|format) .+ (table|chart|graph)", "compare .+ in a table"]
+
+prompt_file: "prompt.md"
+
+tools:
+  - name: markdown_table
+    type: python
+    module: tools.tables
+    function: markdown_table
+    description: "Format data as a markdown table with optional sorting and alignment"
+    cost_tier: free
+    parameters:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            type: string
+          description: "Column headers"
+        rows:
+          type: array
+          items:
+            type: array
+          description: "Rows of data (each row is an array of values)"
+        sort_by:
+          type: integer
+          description: "Column index to sort by (0-based)"
+        reverse:
+          type: boolean
+          description: "Sort in descending order"
+          default: false
+        alignments:
+          type: array
+          items:
+            type: string
+            enum: ["left", "center", "right"]
+          description: "Column alignments"
+      required: ["headers", "rows"]
+
+  - name: ascii_chart
+    type: python
+    module: tools.charts
+    function: ascii_chart
+    description: "Create a simple ASCII bar chart from data"
+    cost_tier: free
+    parameters:
+      type: object
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+          description: "Labels for each bar"
+        values:
+          type: array
+          items:
+            type: number
+          description: "Numeric values for each bar"
+        title:
+          type: string
+          description: "Chart title"
+        width:
+          type: integer
+          description: "Maximum bar width in characters"
+          default: 40
+        unit:
+          type: string
+          description: "Unit label to display after values"
+          default: ""
+      required: ["labels", "values"]
+
+budget:
+  max_per_call: 0.0
+  default_budget: 0.0

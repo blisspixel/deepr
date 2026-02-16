@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertManifest, Claim, DecisionRecord, ScoredGap, SourceValidation } from '../types'
+import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertManifest, Claim, DecisionRecord, ScoredGap, Skill, SourceValidation } from '../types'
 
 export const expertsApi = {
   list: async () => {
@@ -53,5 +53,17 @@ export const expertsApi = {
   resolveConflicts: async (name: string, data?: { budget?: number }) => {
     const response = await apiClient.post<{ results: Record<string, unknown>[] }>(`/experts/${name}/resolve-conflicts`, data)
     return response.data.results
+  },
+  getSkills: async (name: string) => {
+    const response = await apiClient.get<{ installed_skills: Skill[], available_skills: Skill[] }>(`/experts/${name}/skills`)
+    return response.data
+  },
+  installSkill: async (name: string, skillName: string) => {
+    const response = await apiClient.post<{ status: string }>(`/experts/${name}/skills/${skillName}`)
+    return response.data
+  },
+  removeSkill: async (name: string, skillName: string) => {
+    const response = await apiClient.delete<{ status: string }>(`/experts/${name}/skills/${skillName}`)
+    return response.data
   },
 }
