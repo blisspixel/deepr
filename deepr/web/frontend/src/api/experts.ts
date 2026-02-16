@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertManifest, Claim, DecisionRecord, ScoredGap, Skill, SourceValidation } from '../types'
+import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertManifest, Claim, ConversationSummary, DecisionRecord, ScoredGap, Skill, SourceValidation } from '../types'
 
 export const expertsApi = {
   list: async () => {
@@ -14,8 +14,11 @@ export const expertsApi = {
     const response = await apiClient.get<{ expert: Expert }>(`/experts/${name}`)
     return response.data.expert
   },
-  chat: async (name: string, message: string) => {
-    const response = await apiClient.post<{ response: ExpertChat }>(`/experts/${name}/chat`, { message })
+  chat: async (name: string, message: string, sessionId?: string) => {
+    const response = await apiClient.post<{ response: ExpertChat }>(`/experts/${name}/chat`, {
+      message,
+      ...(sessionId && { session_id: sessionId }),
+    })
     return response.data.response
   },
   getGaps: async (name: string) => {
@@ -64,6 +67,18 @@ export const expertsApi = {
   },
   removeSkill: async (name: string, skillName: string) => {
     const response = await apiClient.delete<{ status: string }>(`/experts/${name}/skills/${skillName}`)
+    return response.data
+  },
+  listConversations: async (name: string) => {
+    const response = await apiClient.get<{ conversations: ConversationSummary[] }>(`/experts/${name}/conversations`)
+    return response.data.conversations
+  },
+  getConversation: async (name: string, sessionId: string) => {
+    const response = await apiClient.get<{ session_id: string; messages: { role: string; content: string }[]; summary: Record<string, unknown> }>(`/experts/${name}/conversations/${sessionId}`)
+    return response.data
+  },
+  deleteConversation: async (name: string, sessionId: string) => {
+    const response = await apiClient.delete<{ status: string }>(`/experts/${name}/conversations/${sessionId}`)
     return response.data
   },
 }

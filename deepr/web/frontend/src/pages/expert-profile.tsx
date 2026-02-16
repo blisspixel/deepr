@@ -1,11 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { cn, formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { expertsApi } from '@/api/experts'
+import { wsClient } from '@/api/websocket'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { MarkdownMessage } from '@/components/chat/markdown-message'
+import { ToolCallBlock } from '@/components/chat/tool-call-block'
+import { MessageActions } from '@/components/chat/message-actions'
 import type { ExpertChat, Skill, SupportClass } from '@/types'
 import {
   AlertTriangle,
@@ -23,6 +27,7 @@ import {
   Send,
   Shield,
   Sparkles,
+  Square,
   Users,
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
@@ -94,8 +99,13 @@ export default function ExpertProfile() {
   const initialTab = (searchParams.get('tab') as TabKey) || 'chat'
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab)
   const [chatInput, setChatInput] = useState('')
-  const [chatMessages, setChatMessages] = useState<(ExpertChat & { error?: boolean })[]>([])
+  const [chatMessages, setChatMessages] = useState<ExpertChat[]>([])
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
+  const [activeTools, setActiveTools] = useState<{ tool: string; query: string; startedAt: number }[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const userScrolledRef = useRef(false)
 
   const decodedName = decodeURIComponent(name || '')
   const encodedName = encodeURIComponent(decodedName)
@@ -104,7 +114,50 @@ export default function ExpertProfile() {
   useEffect(() => {
     setChatMessages([])
     setChatInput('')
+    setSessionId(null)
+    setIsStreaming(false)
+    setStreamingContent('')
+    setActiveTools([])
   }, [decodedName])
+
+  // Wire Socket.IO chat events
+  useEffect(() => {
+    const cleanups = [
+      wsClient.onChatToken(({ content }) => {
+        setStreamingContent(prev => prev + content)
+      }),
+      wsClient.onChatToolStart(({ tool, query }) => {
+        setActiveTools(prev => [...prev, { tool, query, startedAt: Date.now() }])
+      }),
+      wsClient.onChatToolEnd(({ tool }) => {
+        setActiveTools(prev => prev.filter(t => t.tool !== tool))
+      }),
+      wsClient.onChatComplete((data) => {
+        setIsStreaming(false)
+        setStreamingContent('')
+        setActiveTools([])
+        if (data.session_id) setSessionId(data.session_id)
+        setChatMessages(prev => [...prev, {
+          id: data.id,
+          role: 'assistant',
+          content: data.content,
+          timestamp: new Date().toISOString(),
+          session_id: data.session_id,
+          cost: data.cost,
+          tool_calls: data.tool_calls,
+          follow_ups: data.follow_ups,
+          confidence: data.confidence,
+        }])
+      }),
+      wsClient.onChatError(({ error }) => {
+        setIsStreaming(false)
+        setStreamingContent('')
+        setActiveTools([])
+        toast.error(`Chat error: ${error}`)
+      }),
+    ]
+    return () => cleanups.forEach(fn => fn())
+  }, [])
 
   const { data: expert, isLoading, isError, refetch } = useQuery({
     queryKey: ['experts', decodedName],
@@ -142,6 +195,45 @@ export default function ExpertProfile() {
     enabled: !!decodedName && activeTab === 'skills',
   })
 
+  const { data: conversations, refetch: refetchConversations } = useQuery({
+    queryKey: ['experts', decodedName, 'conversations'],
+    queryFn: () => expertsApi.listConversations(encodedName),
+    enabled: !!decodedName && activeTab === 'chat',
+  })
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: (sid: string) => expertsApi.deleteConversation(encodedName, sid),
+    onSuccess: () => { refetchConversations(); toast.success('Conversation deleted') },
+    onError: () => toast.error('Failed to delete conversation'),
+  })
+
+  const loadConversation = useCallback(async (sid: string) => {
+    try {
+      const data = await expertsApi.getConversation(encodedName, sid)
+      setSessionId(data.session_id)
+      setChatMessages(
+        data.messages
+          .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+          .map((m: { role: string; content: string }) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date().toISOString(),
+          }))
+      )
+    } catch {
+      toast.error('Failed to load conversation')
+    }
+  }, [encodedName])
+
+  const startNewChat = useCallback(() => {
+    setChatMessages([])
+    setSessionId(null)
+    setChatInput('')
+    setIsStreaming(false)
+    setStreamingContent('')
+    setActiveTools([])
+  }, [])
+
   const installSkillMutation = useMutation({
     mutationFn: (skillName: string) => expertsApi.installSkill(encodedName, skillName),
     onSuccess: () => { refetchSkills(); toast.success('Skill installed') },
@@ -154,9 +246,11 @@ export default function ExpertProfile() {
     onError: () => toast.error('Failed to remove skill'),
   })
 
+  // REST fallback mutation (used when WebSocket is disconnected)
   const chatMutation = useMutation({
-    mutationFn: (message: string) => expertsApi.chat(encodedName, message),
+    mutationFn: (message: string) => expertsApi.chat(encodedName, message, sessionId ?? undefined),
     onSuccess: (data) => {
+      if (data.session_id) setSessionId(data.session_id)
       setChatMessages(prev => [...prev, data])
     },
     onError: () => {
@@ -171,17 +265,72 @@ export default function ExpertProfile() {
     },
   })
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!chatInput.trim()) return
-    setChatMessages(prev => [...prev, { role: 'user', content: chatInput, timestamp: new Date().toISOString() }])
-    chatMutation.mutate(chatInput)
+  const handleSendMessage = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!chatInput.trim() || isStreaming || chatMutation.isPending) return
+    const message = chatInput.trim()
+    setChatMessages(prev => [...prev, { role: 'user', content: message, timestamp: new Date().toISOString() }])
     setChatInput('')
-  }
+
+    // Try WebSocket streaming first, fall back to REST
+    if (wsClient.connected) {
+      setIsStreaming(true)
+      setStreamingContent('')
+      setActiveTools([])
+      userScrolledRef.current = false
+      wsClient.startChat(decodedName, message, sessionId ?? undefined)
+    } else {
+      chatMutation.mutate(message)
+    }
+  }, [chatInput, isStreaming, chatMutation, decodedName, sessionId])
+
+  const handleStopStreaming = useCallback(() => {
+    wsClient.stopChat()
+    // Preserve partial content as a message
+    if (streamingContent) {
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: streamingContent + '\n\n*(stopped)*',
+        timestamp: new Date().toISOString(),
+      }])
+    }
+    setIsStreaming(false)
+    setStreamingContent('')
+    setActiveTools([])
+  }, [streamingContent])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }, [handleSendMessage])
+
+  const handleRetry = useCallback((index: number) => {
+    // Find the preceding user message and re-send
+    const userMsg = chatMessages.slice(0, index).reverse().find(m => m.role === 'user')
+    if (!userMsg) return
+    setChatMessages(prev => prev.slice(0, index))
+    if (wsClient.connected) {
+      setIsStreaming(true)
+      setStreamingContent('')
+      setActiveTools([])
+      wsClient.startChat(decodedName, userMsg.content, sessionId ?? undefined)
+    } else {
+      chatMutation.mutate(userMsg.content)
+    }
+  }, [chatMessages, decodedName, sessionId, chatMutation])
+
+  const handleEdit = useCallback((index: number, content: string) => {
+    setChatMessages(prev => prev.slice(0, index))
+    setChatInput(content)
+  }, [])
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
+    if (!userScrolledRef.current) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages, streamingContent])
 
   if (isLoading) return <DetailSkeleton />
 
@@ -296,10 +445,48 @@ export default function ExpertProfile() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {activeTab === 'chat' && (
-          <div className="flex flex-col h-full">
+          <div className="flex h-full">
+            {/* Conversation sidebar */}
+            {conversations && conversations.length > 0 && (
+              <div className="w-56 border-r flex-shrink-0 flex flex-col overflow-hidden">
+                <div className="p-3 border-b">
+                  <Button size="sm" className="w-full" variant="outline" onClick={startNewChat}>
+                    New Chat
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-auto">
+                  {conversations.map((conv) => (
+                    <div
+                      key={conv.session_id}
+                      className={cn(
+                        'px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors group/conv',
+                        sessionId === conv.session_id && 'bg-muted',
+                      )}
+                      onClick={() => loadConversation(conv.session_id)}
+                    >
+                      <p className="text-xs text-foreground truncate">{conv.preview || 'Empty conversation'}</p>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[10px] text-muted-foreground">
+                          {conv.message_count} msgs{conv.cost > 0 ? ` · ${formatCurrency(conv.cost)}` : ''}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteConversationMutation.mutate(conv.session_id) }}
+                          className="text-[10px] text-destructive opacity-0 group-hover/conv:opacity-100 transition-opacity"
+                          aria-label="Delete conversation"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Chat area */}
+            <div className="flex-1 flex flex-col min-w-0">
             {/* Messages */}
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              {chatMessages.length === 0 && (
+            <div className="flex-1 overflow-auto p-6 space-y-4" role="log" aria-live="polite" aria-relevant="additions">
+              {chatMessages.length === 0 && !isStreaming && (
                 <div className="flex flex-col items-center justify-center text-center py-12">
                   <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
                     <MessageSquare className="w-6 h-6 text-muted-foreground" />
@@ -311,25 +498,101 @@ export default function ExpertProfile() {
                 </div>
               )}
               {chatMessages.map((msg, index) => (
-                <div key={index} className={cn('flex gap-3', msg.role === 'user' && 'justify-end')}>
-                  <div className={cn(
-                    'max-w-[70%] rounded-lg p-3 text-sm',
-                    msg.role === 'user'
-                      ? msg.error ? 'bg-destructive/10 text-foreground border border-destructive/30' : 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-foreground'
-                  )}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                <div key={msg.id || index}>
+                  <div className={cn('flex gap-3 group', msg.role === 'user' && 'justify-end')}>
                     <div className={cn(
-                      'flex items-center gap-2 text-[10px] mt-1',
-                      msg.role === 'user' ? (msg.error ? 'text-destructive' : 'text-primary-foreground/60') : 'text-muted-foreground'
+                      'max-w-[70%] rounded-lg p-3 text-sm relative',
+                      msg.role === 'user'
+                        ? msg.error ? 'bg-destructive/10 text-foreground border border-destructive/30' : 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-foreground'
                     )}>
-                      <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                      {msg.error && <span>Failed to send</span>}
+                      {/* Tool call blocks for completed messages */}
+                      {msg.tool_calls && msg.tool_calls.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          {msg.tool_calls.map((tc, i) => (
+                            <ToolCallBlock key={i} tool={tc.tool} query={tc.query} />
+                          ))}
+                        </div>
+                      )}
+                      {msg.role === 'assistant' ? (
+                        <MarkdownMessage content={msg.content} />
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      )}
+                      {/* Confidence indicator */}
+                      {msg.role === 'assistant' && msg.confidence != null && msg.confidence < 0.5 && (
+                        <div className="flex items-center gap-1.5 mt-2 text-xs text-yellow-600 dark:text-yellow-500">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>Low confidence — consider verifying</span>
+                        </div>
+                      )}
+                      <div className={cn(
+                        'flex items-center gap-2 text-[10px] mt-1',
+                        msg.role === 'user' ? (msg.error ? 'text-destructive' : 'text-primary-foreground/60') : 'text-muted-foreground'
+                      )}>
+                        <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                        {msg.error && <span>Failed to send</span>}
+                        {msg.cost != null && msg.cost > 0 && <span>${msg.cost.toFixed(4)}</span>}
+                        <MessageActions
+                          content={msg.content}
+                          role={msg.role}
+                          index={index}
+                          onRetry={handleRetry}
+                          onEdit={handleEdit}
+                        />
+                      </div>
                     </div>
                   </div>
+                  {/* Follow-up suggestion chips */}
+                  {msg.follow_ups && msg.follow_ups.length > 0 && index === chatMessages.length - 1 && (
+                    <div className="flex flex-wrap gap-2 mt-2 ml-0">
+                      {msg.follow_ups.map((fu, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setChatInput(fu)
+                            // Auto-send the follow-up
+                            setChatMessages(prev => [...prev, { role: 'user', content: fu, timestamp: new Date().toISOString() }])
+                            if (wsClient.connected) {
+                              setIsStreaming(true)
+                              setStreamingContent('')
+                              setActiveTools([])
+                              wsClient.startChat(decodedName, fu, sessionId ?? undefined)
+                            } else {
+                              chatMutation.mutate(fu)
+                            }
+                            setChatInput('')
+                          }}
+                          className="px-3 py-1.5 rounded-full border text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                        >
+                          {fu}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
-              {chatMutation.isPending && (
+              {/* Active tool indicators during streaming */}
+              {activeTools.map((t) => (
+                <ToolCallBlock key={t.tool} tool={t.tool} query={t.query} running />
+              ))}
+              {/* Streaming bubble */}
+              {isStreaming && (
+                <div className="flex gap-3" role="status">
+                  <div className="max-w-[70%] rounded-lg p-3 text-sm bg-secondary text-foreground">
+                    {streamingContent ? (
+                      <>
+                        <MarkdownMessage content={streamingContent} />
+                        <span className="inline-block w-2 h-4 bg-foreground/60 animate-pulse ml-0.5 align-text-bottom" />
+                      </>
+                    ) : (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* REST fallback loading */}
+              {chatMutation.isPending && !isStreaming && (
                 <div className="flex gap-3">
                   <div className="bg-secondary rounded-lg p-3">
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -340,23 +603,39 @@ export default function ExpertProfile() {
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
-              <Input
+            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2 items-end">
+              <Textarea
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder={`Ask ${expert.name} a question...`}
-                className="flex-1"
+                className="flex-1 min-h-[40px] max-h-[200px]"
+                autoGrow
+                rows={1}
               />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!chatInput.trim()}
-                loading={chatMutation.isPending}
-                aria-label="Send message"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
+              {isStreaming ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  onClick={handleStopStreaming}
+                  aria-label="Stop streaming"
+                >
+                  <Square className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!chatInput.trim()}
+                  loading={chatMutation.isPending}
+                  aria-label="Send message"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              )}
             </form>
+            </div>{/* end chat area */}
           </div>
         )}
 

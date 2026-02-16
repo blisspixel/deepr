@@ -1620,6 +1620,431 @@ Budget remaining: ${budget_remaining:.2f}
             self._emitter.fail_task(op, str(e))
             return f"Error communicating with expert: {e!s}"
 
+    async def send_message_streaming(
+        self, user_message: str, token_callback=None, status_callback=None
+    ) -> str:
+        """Send a message and stream the final response token-by-token.
+
+        Tool-call rounds use standard (non-streaming) completions. Only the final
+        response to the user is streamed so that callers can render tokens
+        incrementally.
+
+        Args:
+            user_message: The user's question or message
+            token_callback: Optional callback(text: str) called per streamed token
+            status_callback: Optional callback(status: str) for progress updates
+
+        Returns:
+            The complete expert response text.
+        """
+
+        def report_status(status: str):
+            if status_callback:
+                status_callback(status)
+
+        op = self._emitter.start_task(
+            "chat_message_streaming",
+            prompt=user_message[:500],
+            attributes={
+                "expert_name": self.expert.name,
+                "agentic_mode": self.agentic,
+                "budget_remaining": self.budget - self.cost_accumulated,
+            },
+        )
+
+        try:
+            # Check if query is complex enough for Tree of Thoughts reasoning
+            if self.should_use_tot(user_message):
+                self.thought_stream.emit(
+                    ThoughtType.PLAN_STEP,
+                    "Complex query detected, using advanced reasoning",
+                    private_payload={"query_length": len(user_message.split())},
+                )
+                tot_result = await self._run_tot_reasoning(user_message, status_callback)
+                if tot_result and "unable to generate" not in tot_result.lower():
+                    self.messages.append({"role": "user", "content": user_message})
+                    self.messages.append({"role": "assistant", "content": tot_result})
+                    # Stream the ToT result token-by-token
+                    if token_callback:
+                        for char in tot_result:
+                            token_callback(char)
+                    self.thought_stream.decision(
+                        decision_text="Response ready (via advanced reasoning)",
+                        confidence=0.85,
+                        reasoning="Used Tree of Thoughts for complex query",
+                    )
+                    self._emitter.complete_task(op)
+                    return tot_result
+                self.thought_stream.emit(
+                    ThoughtType.PLAN_STEP,
+                    "Falling back to standard chat",
+                    private_payload={"reason": "ToT reasoning incomplete"},
+                )
+
+            # Build tools list (same as send_message)
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "search_knowledge_base",
+                        "description": f"Search your {self.expert.total_documents} research documents when you need to verify something or find details. Use this when you're not 100% certain or need to check your notes.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "What you're looking for in your documents"},
+                                "top_k": {
+                                    "type": "integer",
+                                    "description": "Number of documents to retrieve",
+                                    "default": 5,
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Why you need to check your documents (for transparency)",
+                                },
+                            },
+                            "required": ["query", "reasoning"],
+                        },
+                    },
+                }
+            ]
+
+            if self.agentic:
+                tools.extend(
+                    [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "standard_research",
+                                "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {"type": "string", "description": "What you need to research on the web"},
+                                        "reasoning": {"type": "string", "description": "Why your knowledge base isn't sufficient and you need web search"},
+                                    },
+                                    "required": ["query", "reasoning"],
+                                },
+                            },
+                        },
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "deep_research",
+                                "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {"type": "string", "description": "The complex question that needs deep analysis"},
+                                        "reasoning": {"type": "string", "description": "Why this needs expensive deep research instead of quick web search"},
+                                    },
+                                    "required": ["query", "reasoning"],
+                                },
+                            },
+                        },
+                    ]
+                )
+
+            # Detect and activate skills
+            installed_names = getattr(self.expert, "installed_skills", [])
+            triggered = self.skill_manager.detect_skills_for_query(user_message, installed_names)
+            for skill in triggered:
+                if skill.name not in [s.name for s in self.active_skills]:
+                    self.active_skills.append(skill)
+                    skill_budget = min(skill.budget.default_budget, self.budget - self.cost_accumulated)
+                    from deepr.experts.skills import SkillExecutor
+
+                    self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+
+            for skill in self.active_skills:
+                for tool in skill.tools:
+                    tool_def = tool.to_openai_tool_def(skill.name)
+                    tools.append(tool_def)
+                    qualified = tool_def["function"]["name"]
+                    self._skill_tool_map[qualified] = (skill.name, tool.name)
+
+            self.messages.append({"role": "user", "content": user_message})
+            selected_model = self._select_model_for_query(user_message)
+
+            if self.enable_router:
+                self.reasoning_trace.append(
+                    {
+                        "step": "model_routing",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "query": user_message[:100],
+                        "selected_provider": selected_model.provider,
+                        "selected_model": selected_model.model,
+                        "cost_estimate": selected_model.cost_estimate,
+                        "confidence": selected_model.confidence,
+                        "reasoning_effort": selected_model.reasoning_effort,
+                    }
+                )
+                self.thought_stream.emit(
+                    ThoughtType.PLAN_STEP,
+                    f"Selected model: {selected_model.model}",
+                    private_payload={
+                        "provider": selected_model.provider,
+                        "cost_estimate": selected_model.cost_estimate,
+                        "reasoning_effort": selected_model.reasoning_effort,
+                    },
+                    confidence=selected_model.confidence,
+                )
+
+            report_status("Thinking...")
+            api_params = {
+                "model": selected_model.model,
+                "messages": [{"role": "system", "content": self.get_system_message()}, *self.messages],
+                "tools": tools,
+                "tool_choice": "auto",
+            }
+            if selected_model.reasoning_effort and selected_model.provider == "openai":
+                api_params["reasoning_effort"] = selected_model.reasoning_effort
+
+            first_response = await self.client.chat.completions.create(**api_params)
+            assistant_message = first_response.choices[0].message
+
+            # Tool-call loop (non-streaming)
+            current_message = assistant_message
+            conversation_messages = [{"role": "system", "content": self.get_system_message()}, *self.messages]
+            max_rounds = 5
+            round_count = 0
+
+            while current_message.tool_calls and round_count < max_rounds:
+                round_count += 1
+                tool_messages = []
+
+                for tool_call in current_message.tool_calls:
+                    if tool_call.function.name == "search_knowledge_base":
+                        args = json.loads(tool_call.function.arguments)
+                        query = args.get("query", "")
+                        top_k = args.get("top_k", 5)
+                        reasoning = args.get("reasoning", "No reasoning provided")
+                        with self.thought_stream.searching(query):
+                            report_status("Searching knowledge base...")
+                            search_results = await self._search_knowledge_base(query, top_k)
+                        self.reasoning_trace.append(
+                            {
+                                "step": "search_knowledge_base",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "query": query,
+                                "reasoning": reasoning,
+                                "results_count": len(search_results),
+                            }
+                        )
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"results": search_results})}
+                        )
+
+                    elif tool_call.function.name == "standard_research":
+                        args = json.loads(tool_call.function.arguments)
+                        query = args.get("query", "")
+                        reasoning = args.get("reasoning", "No reasoning provided")
+                        self.research_count += 1
+                        self.thought_stream.tool_call(
+                            tool_name="standard_research",
+                            args={"query": query[:100]},
+                            result_summary="Searching web for current information",
+                        )
+                        report_status("Searching web...")
+                        result = await self._standard_research(query)
+                        self.reasoning_trace.append(
+                            {
+                                "step": "standard_research",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "query": query,
+                                "reasoning": reasoning,
+                                "cost": result.get("cost", 0.0),
+                            }
+                        )
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
+                        )
+
+                    elif tool_call.function.name == "deep_research":
+                        args = json.loads(tool_call.function.arguments)
+                        query = args.get("query", "")
+                        reasoning = args.get("reasoning", "No reasoning provided")
+                        self.research_count += 1
+                        remaining = self.budget - self.cost_accumulated
+                        report_status(f"Deep research (~$0.20) \u2014 budget: ${remaining:.2f} remaining")
+                        self.thought_stream.tool_call(
+                            tool_name="deep_research",
+                            args={"query": query[:100]},
+                            result_summary="Submitting for deep analysis (5-20 min)",
+                        )
+                        result = await self._deep_research(query)
+                        self.reasoning_trace.append(
+                            {
+                                "step": "deep_research",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "query": query,
+                                "reasoning": reasoning,
+                            }
+                        )
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
+                        )
+
+                    elif tool_call.function.name in self._skill_tool_map:
+                        skill_name, tool_name = self._skill_tool_map[tool_call.function.name]
+                        args = json.loads(tool_call.function.arguments)
+                        self.thought_stream.tool_call(
+                            tool_name=f"{skill_name}/{tool_name}",
+                            args={k: str(v)[:100] for k, v in args.items()},
+                            result_summary=f"Executing {skill_name} skill tool",
+                        )
+                        report_status(f"Running {skill_name}/{tool_name}...")
+                        executor = self.skill_executors.get(skill_name)
+                        if executor:
+                            result = await executor.execute_tool(tool_name, args)
+                        else:
+                            result = {"error": "No executor for skill", "cost": 0.0}
+                        self.cost_accumulated += result.get("cost", 0.0)
+                        self.reasoning_trace.append(
+                            {
+                                "step": "skill_tool_call",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "skill": skill_name,
+                                "tool": tool_name,
+                                "cost": result.get("cost", 0.0),
+                            }
+                        )
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
+                        )
+
+                conversation_messages.append(current_message)
+                conversation_messages.extend(tool_messages)
+                report_status("Thinking...")
+
+                api_params_next = {
+                    "model": selected_model.model,
+                    "messages": conversation_messages,
+                    "tools": tools,
+                    "tool_choice": "auto",
+                }
+                if selected_model.reasoning_effort and selected_model.provider == "openai":
+                    api_params_next["reasoning_effort"] = selected_model.reasoning_effort
+
+                next_response = await self.client.chat.completions.create(**api_params_next)
+                current_message = next_response.choices[0].message
+
+                if next_response.usage:
+                    input_cost = (next_response.usage.prompt_tokens / 1000) * 0.00125
+                    output_cost = (next_response.usage.completion_tokens / 1000) * 0.01
+                    self.cost_accumulated += input_cost + output_cost
+
+            # --- Final response: stream it ---
+            if current_message.content is not None:
+                # Already have the full response from non-streaming call
+                final_message = current_message.content
+                if token_callback:
+                    for char in final_message:
+                        token_callback(char)
+            else:
+                # No content yet — need a streaming call for the final answer
+                report_status("Generating response...")
+                conversation_messages.append(current_message)
+                stream_params = {
+                    "model": selected_model.model,
+                    "messages": conversation_messages,
+                    "stream": True,
+                }
+                if selected_model.reasoning_effort and selected_model.provider == "openai":
+                    stream_params["reasoning_effort"] = selected_model.reasoning_effort
+
+                stream = await self.client.chat.completions.create(**stream_params)
+                final_message = ""
+                async for chunk in stream:
+                    delta = chunk.choices[0].delta if chunk.choices else None
+                    if delta and delta.content:
+                        final_message += delta.content
+                        if token_callback:
+                            token_callback(delta.content)
+
+            # Track initial call costs
+            if first_response.usage:
+                input_cost = (first_response.usage.prompt_tokens / 1000) * 0.00125
+                output_cost = (first_response.usage.completion_tokens / 1000) * 0.01
+                self.cost_accumulated += input_cost + output_cost
+
+            # Add to history
+            self.messages.append({"role": "assistant", "content": final_message})
+
+            self.thought_stream.decision(
+                decision_text="Response ready",
+                confidence=0.9
+                if not any(
+                    phrase in (final_message or "").lower() for phrase in ["i don't know", "i'm not sure", "uncertain"]
+                )
+                else 0.5,
+                reasoning="Synthesized answer from available knowledge and research",
+            )
+
+            self.conversation_count += 1
+
+            # Cleanup skill executors
+            for executor in self.skill_executors.values():
+                await executor.cleanup()
+
+            # Generate follow-up suggestions
+            follow_ups = await self._generate_follow_ups(user_message, final_message or "")
+
+            # Extract confidence from uncertainty detection
+            confidence = 0.9
+            uncertainty_phrases = [
+                "i don't know", "i'm not sure", "i don't have",
+                "no information", "not in my knowledge", "i cannot find",
+                "i'm uncertain", "unclear", "not familiar with",
+            ]
+            if final_message and any(p in final_message.lower() for p in uncertainty_phrases):
+                confidence = 0.3
+
+            # Store on instance for callers to read
+            self._last_follow_ups = follow_ups
+            self._last_confidence = confidence
+
+            op.set_cost(self.cost_accumulated)
+            op.set_attribute("tool_calls_count", round_count)
+            op.set_attribute("response_length", len(final_message or ""))
+            self._emitter.complete_task(op)
+
+            return final_message or ""
+
+        except Exception as e:
+            for executor in self.skill_executors.values():
+                await executor.cleanup()
+            self._emitter.fail_task(op, str(e))
+            return f"Error communicating with expert: {e!s}"
+
+    async def _generate_follow_ups(self, user_message: str, response: str) -> list[str]:
+        """Generate 2-3 follow-up question suggestions."""
+        try:
+            result = await self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Generate 2-3 short follow-up questions a user might ask after this exchange. "
+                        "Return ONLY a JSON array of strings. No explanation.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"User asked: {user_message[:300]}\n\nExpert replied: {response[:500]}",
+                    },
+                ],
+                temperature=0.7,
+                max_tokens=200,
+            )
+            import json as _json
+
+            raw = (result.choices[0].message.content or "").strip()
+            # Strip markdown fences if present
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            return _json.loads(raw)
+        except Exception:
+            return []
+
     def get_session_summary(self) -> dict:
         """Get a summary of the chat session including cost safety status."""
         # Get cost session summary
