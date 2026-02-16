@@ -344,9 +344,7 @@ async def import_corpus(
                 conf = getattr(belief, "confidence", "?")
                 claim = getattr(belief, "claim", str(belief))
                 md_lines.append(f"- [{conf}] {claim}")
-            (knowledge_dir / "worldview.md").write_text(
-                "\n".join(md_lines), encoding="utf-8"
-            )
+            (knowledge_dir / "worldview.md").write_text("\n".join(md_lines), encoding="utf-8")
         except Exception:
             pass  # Non-critical
 

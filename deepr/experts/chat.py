@@ -2265,7 +2265,7 @@ Budget remaining: ${budget_remaining:.2f}
             session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Sanitize session_id to prevent path traversal
-        if not re.match(r'^[\w\-]+$', session_id):
+        if not re.match(r"^[\w\-]+$", session_id):
             session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Get conversations directory
