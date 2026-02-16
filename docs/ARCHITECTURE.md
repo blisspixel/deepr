@@ -4,6 +4,80 @@
 
 Deepr is an agentic research platform that uses AI models to conduct deep research, build domain experts, and synthesize knowledge.
 
+## System Diagram
+
+```mermaid
+graph TB
+    subgraph Interfaces
+        CLI["CLI (Click)"]
+        Web["Web Dashboard (React + Flask)"]
+        MCP["MCP Server (AI Agent Tools)"]
+    end
+
+    subgraph Core
+        Router["Auto Mode Router<br/><i>complexity analysis, cost optimization</i>"]
+        Research["Research Engine<br/><i>multi-phase, context chaining</i>"]
+        Experts["Expert System<br/><i>beliefs, memory, autonomous learning</i>"]
+        Context["Context Discovery<br/><i>semantic search, temporal tracking</i>"]
+    end
+
+    subgraph Providers
+        OpenAI["OpenAI<br/>o3 / o4-mini deep research, GPT-5.2, GPT-4.1"]
+        Gemini["Gemini<br/>Deep Research Agent, 3 Pro, 2.5 Flash"]
+        Grok["Grok<br/>4 Fast"]
+        Anthropic["Anthropic<br/>Claude Opus 4.6 / Sonnet / Haiku 4.5"]
+        AzureFoundry["Azure AI Foundry<br/>o3 deep research, GPT-5, GPT-4.1 + Bing"]
+    end
+
+    subgraph Infrastructure
+        Queue["Job Queue (SQLite)"]
+        Storage["Storage (Local / S3 / Blob / GCS)"]
+        Observe["Observability<br/><i>costs, traces, quality metrics</i>"]
+        Budget["Budget Controls<br/><i>per-job, daily, monthly limits</i>"]
+    end
+
+    CLI --> Router
+    Web --> Router
+    MCP --> Router
+
+    Router --> Research
+    Router --> Experts
+    Research --> Context
+
+    Research --> OpenAI
+    Research --> Gemini
+    Research --> Grok
+    Research --> Anthropic
+    Research --> AzureFoundry
+    Experts --> OpenAI
+    Experts --> Gemini
+    Experts --> Grok
+    Experts --> Anthropic
+    Experts --> AzureFoundry
+
+    Research --> Queue
+    Research --> Storage
+    Experts --> Storage
+    Context --> Storage
+
+    Budget -.->|"guards"| Research
+    Budget -.->|"guards"| Experts
+    Observe -.->|"tracks"| Research
+    Observe -.->|"tracks"| Providers
+```
+
+## Design Decisions
+
+- **Local-first with SQLite, not Postgres.** Research results, expert profiles, job queues, and cost tracking all use SQLite. No database server to run, no connection strings to manage. Users `pip install` and go. Cloud deployment swaps in DynamoDB/CosmosDB/Firestore via storage abstractions, but the local experience stays zero-config.
+
+- **Experts are not just RAG.** Most "chat with your docs" tools do retrieval then generation and stop there. Deepr experts have a metacognition layer — they track what they know (claims with confidence), recognize what they don't know (gaps with priority), and (in agentic mode) autonomously research to fill those gaps. The knowledge persists permanently, so the expert improves over time rather than resetting each session.
+
+- **Auto-mode routing analyzes query complexity before choosing a model.** Simple factual questions go to grok-4-fast at $0.01. Complex multi-faceted research goes to o3-deep-research at $0.50. This isn't just keyword matching — it uses a lightweight classifier to estimate complexity, then factors in which API keys are configured, current budget, and provider health scores. Batch processing 20 queries this way costs $1-2 instead of $20-40.
+
+- **Multi-layer budget controls because research costs real money.** Per-operation limits, daily caps, monthly ceilings, pre-submission estimates, and a circuit breaker that pauses after repeated failures. The system saves progress on pause so you can resume later. An uncapped loop calling o3-deep-research could burn $100+ before you notice.
+
+- **Provider abstraction with circuit breakers, not just try/catch.** Each provider has health scoring with exponential decay, latency percentile tracking (p50/p95/p99), and automatic disabling after sustained failures. The router uses exploration/exploitation (10% exploration by default) to discover when a degraded provider recovers.
+
 ## Core Components
 
 ### 1. Research Engine
