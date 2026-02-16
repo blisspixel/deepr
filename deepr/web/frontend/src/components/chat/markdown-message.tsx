@@ -13,9 +13,12 @@ function CodeBlock({ language, children }: { language: string; children: string 
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(children)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    navigator.clipboard.writeText(children).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {
+      // Clipboard API not available (e.g. non-HTTPS)
+    })
   }, [children])
 
   return (

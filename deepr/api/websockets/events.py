@@ -250,14 +250,16 @@ def register_socketio_events(socketio):
                     room=room,
                 )
 
-                loop.close()
-
             except Exception as e:
                 logger.exception("Chat streaming error for %s", expert_name)
                 socketio.emit("chat_error", {"error": str(e)}, room=room)
             finally:
                 _active_chats.pop(sid, None)
                 _active_sessions.pop(sid, None)
+                try:
+                    loop.close()
+                except Exception:
+                    pass
 
         thread = threading.Thread(target=_run_chat, daemon=True)
         thread.start()

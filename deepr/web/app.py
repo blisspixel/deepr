@@ -707,6 +707,9 @@ def batch_submit():
                 continue  # Skip empty prompts
             if len(prompt) > _MAX_PROMPT_LENGTH:
                 continue  # Skip oversized prompts
+            model = job_input.get("model", "o4-mini-deep-research")
+            if model not in _ALLOWED_MODELS:
+                continue  # Skip jobs with invalid models
             job_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
             metadata = job_input.get("metadata", {})
@@ -716,7 +719,7 @@ def batch_submit():
             job = ResearchJob(
                 id=job_id,
                 prompt=prompt,
-                model=job_input.get("model", "o4-mini-deep-research"),
+                model=model,
                 priority=job_input.get("priority", 3),
                 enable_web_search=job_input.get("enable_web_search", True),
                 status=JobStatus.QUEUED,
@@ -1679,7 +1682,14 @@ def expert_council():
 
 def _restore_session_messages(session, expert_name: str, session_id: str):
     """Restore conversation messages from a saved session file."""
+    import re
+
     from deepr.experts.profile import ExpertStore
+
+    # Sanitize session_id to prevent path traversal
+    if not re.match(r'^[\w\-]+$', session_id):
+        logger.warning("Invalid session_id rejected: %s", session_id)
+        return
 
     store = ExpertStore(str(_experts_dir))
     conversations_dir = store.get_conversations_dir(expert_name)
