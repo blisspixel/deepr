@@ -78,10 +78,7 @@ export default function ExpertHub() {
 
   const filteredExperts = useMemo(() => {
     if (!experts) return []
-    // Hide experts with no content unless searching
-    let filtered = debouncedSearch
-      ? [...experts]
-      : experts.filter(e => e.document_count > 0 || e.finding_count > 0 || e.gap_count > 0)
+    let filtered = [...experts]
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       filtered = filtered.filter(e =>
