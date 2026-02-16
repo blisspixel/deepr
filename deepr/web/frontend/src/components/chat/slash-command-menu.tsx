@@ -46,6 +46,7 @@ export function SlashCommandMenu({ inputValue, visible, onSelect, onClose }: Sla
         setSelectedIndex((i) => Math.max(i - 1, 0))
       } else if (e.key === 'Enter' && flatList.length > 0) {
         e.preventDefault()
+        e.stopImmediatePropagation()
         const cmd = flatList[selectedIndex]
         onSelect(`/${cmd.name}${cmd.args ? ' ' : ''}`)
       } else if (e.key === 'Escape') {
