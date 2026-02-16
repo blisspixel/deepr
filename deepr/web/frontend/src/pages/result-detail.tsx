@@ -2,9 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { resultsApi } from '@/api/results'
-import ReactMarkdown from 'react-markdown'
-import rehypeSanitize from 'rehype-sanitize'
-import remarkGfm from 'remark-gfm'
+import { MarkdownMessage } from '@/components/chat/markdown-message'
 import { cn, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
@@ -255,9 +253,7 @@ export default function ResultDetail() {
               {result.content}
             </pre>
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-a:text-primary prose-strong:text-foreground prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{result.content}</ReactMarkdown>
-            </div>
+            <MarkdownMessage content={result.content} />
           )}
         </div>
       </div>
