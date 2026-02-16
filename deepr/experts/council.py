@@ -116,9 +116,7 @@ class ExpertCouncil:
                 except Exception:
                     pass
             try:
-                session = await start_chat_session(
-                    name, budget=per_expert_budget, agentic=True, quiet=True
-                )
+                session = await start_chat_session(name, budget=per_expert_budget, agentic=True, quiet=True)
                 response = await session.send_message(
                     f"As a domain expert, please provide your perspective on: {query}"
                 )
