@@ -51,6 +51,7 @@ from deepr.cli.commands import (
     status,
     templates,
     vector,
+    web,
 )
 from deepr.cli.commands import help as help_cmd
 
@@ -101,6 +102,7 @@ cli.add_command(help_cmd.help)
 cli.add_command(costs.costs)
 cli.add_command(providers.providers)
 cli.add_command(search.search)
+cli.add_command(web.web)
 
 
 def main():

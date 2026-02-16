@@ -5,6 +5,18 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.1] - 2026-02-16
+
+### Added
+- `deepr web` CLI command to start the web dashboard (replaces `python deepr/web/app.py`)
+  - `--host`, `--port` / `-p`, `--debug` options
+  - Graceful error if web dependencies are not installed
+
+### Changed
+- Documentation updated to use `deepr web` instead of `python deepr/web/app.py`
+
+---
+
 ## [2.9.0] - 2026-02-16
 
 ### Added

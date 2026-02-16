@@ -6,7 +6,7 @@
 
 Transform research from isolated queries into cumulative understanding. Build systems that learn and improve over time.
 
-## Current State (v2.9.0)
+## Current State (v2.9.1)
 
 What works today:
 - Multi-provider deep research (OpenAI, Gemini, Grok, Anthropic, Azure)
