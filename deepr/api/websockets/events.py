@@ -7,11 +7,35 @@ import os
 import threading
 import time
 import uuid
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from flask import request as flask_request
 from flask_socketio import emit, join_room, leave_room
 
+from deepr.experts.constants import ALL_TOOL_NAMES
+
 logger = logging.getLogger(__name__)
+
+
+def _run_in_thread(coro_fn: Callable[[], Coroutine], on_error: Callable[[Exception], Any] | None = None) -> None:
+    """Run an async coroutine in a new daemon thread with its own event loop."""
+
+    def _target() -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(coro_fn())
+        except Exception as exc:
+            if on_error:
+                on_error(exc)
+            else:
+                logger.exception("Background task failed")
+        finally:
+            loop.close()
+
+    threading.Thread(target=_target, daemon=True).start()
+
 
 # Track active chat sessions for cancellation
 _active_chats: dict[str, bool] = {}  # sid -> cancelled flag
@@ -208,13 +232,7 @@ def register_socketio_events(socketio):
                 tool_calls = [
                     {"tool": t["step"], "query": t.get("query", "")[:200]}
                     for t in session.reasoning_trace
-                    if t.get("step")
-                    in (
-                        "search_knowledge_base",
-                        "standard_research",
-                        "deep_research",
-                        "skill_tool_call",
-                    )
+                    if t.get("step") in ALL_TOOL_NAMES
                 ]
 
                 socketio.emit(
@@ -272,47 +290,41 @@ def register_socketio_events(socketio):
             )
             return
 
-        def _run():
-            try:
-                from deepr.experts.command_handlers import dispatch_command
+        async def _dispatch():
+            from deepr.experts.command_handlers import dispatch_command
 
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(dispatch_command(session, raw, {"web": True}))
-                loop.close()
+            result = await dispatch_command(session, raw, {"web": True})
 
-                if result is None:
-                    socketio.emit(
-                        "chat_command_result",
-                        {"success": False, "output": f"Unknown command: {raw}"},
-                        room=room,
-                    )
-                    return
-
-                payload = {
-                    "success": result.success,
-                    "output": result.output,
-                    "clear_chat": result.clear_chat,
-                    "end_session": result.end_session,
-                    "data": result.data,
-                }
-                if result.mode_changed:
-                    payload["mode"] = result.mode_changed.value
-                if result.export_content:
-                    payload["export_content"] = result.export_content
-
-                socketio.emit("chat_command_result", payload, room=room)
-
-            except Exception as e:
-                logger.exception("Command error: %s", raw)
+            if result is None:
                 socketio.emit(
                     "chat_command_result",
-                    {"success": False, "output": f"Error: {e}"},
+                    {"success": False, "output": f"Unknown command: {raw}"},
                     room=room,
                 )
+                return
 
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
+            payload = {
+                "success": result.success,
+                "output": result.output,
+                "clear_chat": result.clear_chat,
+                "end_session": result.end_session,
+                "data": result.data,
+            }
+            if result.mode_changed:
+                payload["mode"] = result.mode_changed.value
+            if result.export_content:
+                payload["export_content"] = result.export_content
+
+            socketio.emit("chat_command_result", payload, room=room)
+
+        _run_in_thread(
+            _dispatch,
+            on_error=lambda e: socketio.emit(
+                "chat_command_result",
+                {"success": False, "output": f"Error: {e}"},
+                room=room,
+            ),
+        )
 
     @socketio.on("chat_compact")
     def handle_chat_compact(data=None):
@@ -325,18 +337,14 @@ def register_socketio_events(socketio):
             socketio.emit("chat_compact_done", {"error": "No active session"}, room=room)
             return
 
-        def _run():
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(session.compact_conversation())
-                loop.close()
-                socketio.emit("chat_compact_done", result, room=room)
-            except Exception as e:
-                socketio.emit("chat_compact_done", {"error": str(e)}, room=room)
+        async def _compact():
+            result = await session.compact_conversation()
+            socketio.emit("chat_compact_done", result, room=room)
 
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
+        _run_in_thread(
+            _compact,
+            on_error=lambda e: socketio.emit("chat_compact_done", {"error": str(e)}, room=room),
+        )
 
     @socketio.on("chat_confirm_response")
     def handle_chat_confirm_response(data):
