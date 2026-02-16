@@ -262,19 +262,40 @@ def print_session_summary(messages_count: int, cost: float, research_jobs: int, 
 
 
 def print_command_help():
-    """Print help text for available commands."""
-    help_text = """
-[bold]Available Commands:[/bold]
+    """Print help text for available commands (grouped by category)."""
+    from deepr.experts.commands import CommandRegistry
 
-  [cyan]/quit[/cyan] or [cyan]/exit[/cyan]  - End the chat session
-  [cyan]/status[/cyan]             - Show session statistics
-  [cyan]/clear[/cyan]              - Clear conversation history
-  [cyan]/trace[/cyan]              - Show reasoning trace
-  [cyan]/help[/cyan]               - Show this help message
+    registry = CommandRegistry.get_instance()
+    groups = registry.commands_by_category()
 
-Just type your question to chat with the expert.
-"""
-    console.print(help_text)
+    console.print()
+    console.print("[bold]Available Commands[/bold]")
+    console.print()
+    for cat, cmds in groups.items():
+        console.print(f"[bold]{cat.value}[/bold]")
+        for cmd in cmds:
+            arg_str = f" {cmd.args}" if cmd.args else ""
+            aliases = f" ({', '.join('/' + a for a in cmd.aliases)})" if cmd.aliases else ""
+            console.print(f"  [cyan]/{cmd.name}{arg_str}[/cyan]{aliases} — {cmd.description}")
+        console.print()
+    console.print("Use / (web) or \\ (CLI) prefix for commands. Just type to chat.")
+    console.print()
+
+
+def print_mode_indicator(mode_name: str):
+    """Print a colored mode badge.
+
+    Args:
+        mode_name: Current chat mode name
+    """
+    mode_colors = {
+        "ask": "green",
+        "research": "cyan",
+        "advise": "yellow",
+        "focus": "magenta",
+    }
+    color = mode_colors.get(mode_name.lower(), "cyan")
+    console.print(f"[{color}][{mode_name}][/{color}]", end=" ")
 
 
 def print_status(

@@ -2046,59 +2046,51 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
         knowledge_age_days=knowledge_age_days,
     )
 
+    # Command registry for slash commands
+    from deepr.experts.command_handlers import dispatch_command
+    from deepr.experts.commands import MODE_CONFIGS
+
     # Interactive chat loop
     while True:
         try:
-            # Get user input
-            user_input = input("You: ").strip()
+            # Mode indicator in prompt
+            mode_label = MODE_CONFIGS[session.chat_mode]["label"].lower()
+            user_input = input(f"You ({mode_label}): ").strip()
 
             if not user_input:
                 continue
 
-            # Handle commands
-            if user_input in ["/quit", "/exit"]:
-                ui.console.print("\n[dim]Ending chat session...[/dim]")
-                ui.print_session_summary(
-                    messages_count=len([m for m in session.messages if m["role"] == "user"]),
-                    cost=session.cost_accumulated,
-                    research_jobs=len(session.research_jobs),
-                    model=session.expert.model,
-                )
-                break
+            # --- Slash command handling via registry ---
+            # Normalise CLI backslash prefix to forward slash
+            cmd_input = user_input
+            if cmd_input.startswith("\\"):
+                cmd_input = "/" + cmd_input[1:]
 
-            elif user_input == "/help":
-                ui.print_command_help()
-                continue
+            if cmd_input.startswith("/"):
+                result = asyncio.run(dispatch_command(session, cmd_input, {"cli": True}))
+                if result is not None:
+                    if result.output:
+                        console.print(result.output)
+                        console.print()
+                    if result.end_session:
+                        ui.print_session_summary(
+                            messages_count=len([m for m in session.messages if m["role"] == "user"]),
+                            cost=session.cost_accumulated,
+                            research_jobs=len(session.research_jobs),
+                            model=session.expert.model,
+                        )
+                        break
+                    if result.export_content:
+                        console.print(result.export_content[:2000])
+                    continue
 
-            elif user_input == "/status":
-                summary = session.get_session_summary()
-                ui.print_status(
-                    expert_name=session.expert.name,
-                    messages_count=summary["messages_exchanged"],
-                    cost=summary["cost_accumulated"],
-                    budget=budget,
-                    research_jobs=summary["research_jobs_triggered"],
-                    model=summary["model"],
-                    documents=session.expert.total_documents,
-                    daily_spent=summary.get("daily_spent", 0),
-                    daily_limit=summary.get("daily_limit", 0),
-                    monthly_spent=summary.get("monthly_spent", 0),
-                    monthly_limit=summary.get("monthly_limit", 0),
-                )
-                continue
+                # Fall through for unrecognised /commands — handle legacy ones
+                pass
 
-            elif user_input == "/clear":
-                session.messages = []
-                console.print("\n[success]Conversation history cleared[/success]\n")
-                continue
-
-            elif user_input == "/trace":
-                ui.print_trace(session.reasoning_trace)
-                continue
-
-            elif user_input.startswith("/learn "):
+            # Legacy commands not in the registry
+            if user_input.startswith("/learn ") or user_input.startswith("\\learn "):
                 # Extract file path
-                file_path = user_input[7:].strip()
+                file_path = user_input.split(None, 1)[1].strip() if " " in user_input else ""
                 if not file_path:
                     print_error("Usage: /learn <file_path>")
                     continue
@@ -2145,7 +2137,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                 asyncio.run(upload_document())
                 continue
 
-            elif user_input == "/synthesize":
+            elif user_input in ["/synthesize", "\\synthesize"]:
                 print_section_header("Synthesizing Consciousness")
                 console.print("[dim]Expert is actively processing knowledge to form beliefs...[/dim]")
                 console.print("This may take 1-2 minutes...\n")

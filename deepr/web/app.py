@@ -1583,6 +1583,29 @@ def chat_with_expert(name):
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/api/experts/council", methods=["POST"])
+def expert_council():
+    """Consult multiple experts on a query."""
+    try:
+        data = request.json
+        if not data or not data.get("query"):
+            return jsonify({"error": "query required"}), 400
+
+        from deepr.experts.council import ExpertCouncil
+
+        council = ExpertCouncil()
+        result = run_async(
+            council.consult(
+                query=data["query"],
+                budget=data.get("budget", 5.0),
+            )
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Council error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 def _restore_session_messages(session, expert_name: str, session_id: str):
     """Restore conversation messages from a saved session file."""
     from deepr.experts.profile import ExpertStore
