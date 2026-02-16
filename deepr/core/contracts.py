@@ -387,9 +387,7 @@ class ConsensusResult:
             consensus_answer=data.get("consensus_answer", ""),
             confidence=data.get("confidence", 0.0),
             total_cost=data.get("total_cost", 0.0),
-            decision_record=DecisionRecord.from_dict(data["decision_record"])
-            if data.get("decision_record")
-            else None,
+            decision_record=DecisionRecord.from_dict(data["decision_record"]) if data.get("decision_record") else None,
         )
 
 

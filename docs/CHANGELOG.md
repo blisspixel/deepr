@@ -5,6 +5,45 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-02-16
+
+### Added
+
+**Expert Skills System**
+- Domain-specific capability packages that give experts unique tools and reasoning
+- `SkillDefinition` format: `skill.yaml` manifest + `prompt.md` overlay + Python/MCP tools
+- Three-tier storage: built-in (`deepr/skills/`), user global (`~/.deepr/skills/`), expert-local (`data/experts/{name}/skills/`)
+- `SkillManager`: discovery across all tiers, keyword/regex trigger matching, domain-based suggestion
+- `SkillExecutor`: Python tool execution via importlib, MCP bridging via JSON-RPC stdio proxy
+- Progressive disclosure in expert chat: skill summaries always in system prompt, full prompt loaded only on activation
+- Tool namespacing (`skill_name__tool_name`) prevents conflicts across skills
+- Budget tracking per skill with cost tier estimates (free/low/medium/high)
+- Profile schema migration v2→v3 adding `installed_skills` field (backward compatible)
+- 4 built-in skills shipping in `deepr/skills/`:
+  - `web-search-enhanced`: structured data extraction from research text
+  - `code-analysis`: dependency audit + cyclomatic complexity analysis
+  - `financial-data`: financial ratio calculations (P/E, P/B, debt-to-equity, ROE, margins)
+  - `data-visualization`: markdown table generation + ASCII bar charts
+- CLI: `deepr skill list/install/remove/create/info` command group
+- CLI: `deepr expert run-skill` for direct tool execution
+- Web API: `GET/POST/DELETE /api/experts/<name>/skills/<skill>`, `GET /api/skills`
+- MCP: `deepr_list_skills` and `deepr_install_skill` tools
+- Frontend: Skills tab (6th tab) in Expert Profile with install/remove buttons
+- 124 new unit tests for skills definition, manager, and executor
+
+**Expert Intelligence**
+- Multi-provider consensus gap-filling (`--consensus` flag)
+- Semantic citation validation (`SupportClass` enum, `--validate-citations` flag)
+- Multi-pass gap-filling pipeline (`--deep` flag)
+- Automated gap discovery via claim clustering (`deepr expert discover-gaps`)
+- Conflict resolution agent with multi-provider adjudication (`deepr expert resolve-conflicts`)
+
+### Fixed
+- Removed unused imports `AppConfig` and `create_provider` in `experts.py` discover-gaps command
+- Removed unused import `KnowledgeSynthesizer` and unused variable `do_validate` in `app.py` fill-gaps endpoint
+
+---
+
 ## [2.8.1] - 2026-02-14
 
 ### Added

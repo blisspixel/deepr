@@ -1444,7 +1444,9 @@ def fill_gaps(name: str, budget: float, top: int, yes: bool, consensus: bool, de
             try:
                 if pipeline:
                     # Deep 3-pass pipeline
-                    console.print("[dim]Pass 1: Extracting... Pass 2: Cross-referencing... Pass 3: Synthesizing...[/dim]")
+                    console.print(
+                        "[dim]Pass 1: Extracting... Pass 2: Cross-referencing... Pass 3: Synthesizing...[/dim]"
+                    )
                     mp_result = await pipeline.fill_gap(
                         gap=gap,
                         existing_claims=existing_claims,
@@ -1667,10 +1669,8 @@ def discover_gaps_cmd(name: str):
     """
     import asyncio
 
-    from deepr.config import AppConfig
     from deepr.experts.profile import ExpertStore
     from deepr.experts.synthesis import Worldview
-    from deepr.providers import create_provider
 
     print_header(f"Discover Gaps: {name}")
 
@@ -2350,7 +2350,13 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
 @click.argument("name")
 @click.argument("skill_name")
 @click.argument("tool_name")
-@click.option("--args", "tool_args", type=str, default="{}", help='Tool arguments as JSON string (e.g. \'{"data": {"revenue": 100}}\')')
+@click.option(
+    "--args",
+    "tool_args",
+    type=str,
+    default="{}",
+    help='Tool arguments as JSON string (e.g. \'{"data": {"revenue": 100}}\')',
+)
 def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
     """Run a specific skill tool on an expert directly.
 
