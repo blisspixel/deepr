@@ -3194,7 +3194,7 @@ def health_check():
         return jsonify(
             {
                 "status": "healthy",
-                "version": "2.8.1",
+                "version": "2.9.0",
                 "provider": "openai",
                 "queue": "sqlite",
                 "storage": "local",
