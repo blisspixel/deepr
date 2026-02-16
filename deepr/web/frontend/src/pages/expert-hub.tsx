@@ -231,7 +231,7 @@ export default function ExpertHub() {
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
-                  <span>{expert.total_cost > 0 ? `${formatCurrency(expert.total_cost)} spent` : `${expert.document_count} docs`}</span>
+                  <span>{formatCurrency(expert.total_cost)} spent</span>
                   <span>{expert.last_active ? formatRelativeTime(expert.last_active) : 'Never'}</span>
                 </div>
 
