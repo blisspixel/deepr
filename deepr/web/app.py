@@ -833,7 +833,7 @@ def get_cost_summary():
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # Calculate spending
+        # Calculate job spending
         daily_spending = sum(
             (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start
         )
@@ -841,6 +841,19 @@ def get_cost_summary():
             (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= month_start
         )
         total_spending = sum((j.cost or 0) for j in all_jobs)
+
+        # Include expert learning costs (tracked on profiles, not in queue)
+        try:
+            from deepr.experts.profile_store import ExpertStore
+
+            expert_store = ExpertStore()
+            expert_total = sum(e.total_research_cost for e in expert_store.list_all())
+            total_spending += expert_total
+            # Expert monthly spending (from budget manager tracking)
+            expert_monthly = sum(e.monthly_spending for e in expert_store.list_all())
+            monthly_spending += expert_monthly
+        except Exception:
+            pass  # Expert store unavailable — use job costs only
 
         completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
         avg_cost = total_spending / len(completed_jobs) if completed_jobs else 0

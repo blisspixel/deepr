@@ -717,3 +717,44 @@ def reset_cost_safety_manager() -> None:
     if _cost_safety_manager is not None:
         _cost_safety_manager.reset()
     _cost_safety_manager = None
+
+
+def estimate_curriculum_cost(
+    topic_count: int,
+    deep_research_count: int = 0,
+    quick_research_count: int = 0,
+    docs_count: int = 0,
+) -> dict:
+    """Estimate the cost of executing a learning curriculum.
+
+    Returns dict with expected_cost, min_cost, max_cost.
+    """
+    # Per-topic cost estimates by research mode
+    deep_cost = 2.00  # campaign mode
+    quick_cost = 0.25  # focus mode
+    docs_cost = 0.15  # documentation
+
+    other_count = topic_count - deep_research_count - quick_research_count - docs_count
+    expected = (
+        deep_research_count * deep_cost
+        + quick_research_count * quick_cost
+        + docs_count * docs_cost
+        + other_count * quick_cost
+    )
+    return {
+        "expected_cost": expected,
+        "min_cost": expected * 0.5,
+        "max_cost": expected * 1.5,
+        "topic_count": topic_count,
+    }
+
+
+def format_cost_warning(expected_cost: float, budget_limit: float | None) -> str:
+    """Format a human-readable cost warning for curriculum execution."""
+    msg = f"Estimated cost: ${expected_cost:.2f}"
+    if budget_limit is not None:
+        if expected_cost > budget_limit:
+            msg += f" (exceeds ${budget_limit:.2f} budget — will stop at limit)"
+        else:
+            msg += f" (within ${budget_limit:.2f} budget)"
+    return msg
