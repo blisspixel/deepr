@@ -34,6 +34,15 @@ class TrustClass(str, Enum):
     SELF_GENERATED = "self_generated"
 
 
+class SupportClass(str, Enum):
+    """How well a source supports its associated claim."""
+
+    SUPPORTED = "supported"
+    PARTIALLY_SUPPORTED = "partially_supported"
+    UNSUPPORTED = "unsupported"
+    UNCERTAIN = "uncertain"
+
+
 class DecisionType(str, Enum):
     """Types of decisions made during research."""
 
@@ -68,6 +77,7 @@ class Source:
     url: Optional[str] = None
     content_hash: str = ""
     retrieved_at: datetime = field(default_factory=_utc_now)
+    support_class: Optional[SupportClass] = None
 
     @classmethod
     def create(
@@ -80,7 +90,7 @@ class Source:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        d = {
             "id": self.id,
             "url": self.url,
             "title": self.title,
@@ -89,10 +99,14 @@ class Source:
             "extraction_method": self.extraction_method,
             "retrieved_at": self.retrieved_at.isoformat(),
         }
+        if self.support_class is not None:
+            d["support_class"] = self.support_class.value
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Source":
         """Create from dictionary."""
+        support_class = SupportClass(data["support_class"]) if data.get("support_class") else None
         return cls(
             id=data["id"],
             url=data.get("url"),
@@ -101,6 +115,7 @@ class Source:
             content_hash=data.get("content_hash", ""),
             extraction_method=data.get("extraction_method", "llm"),
             retrieved_at=datetime.fromisoformat(data["retrieved_at"]) if data.get("retrieved_at") else _utc_now(),
+            support_class=support_class,
         )
 
 
@@ -307,6 +322,74 @@ class DecisionRecord:
             cost_impact=data.get("cost_impact", 0.0),
             timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else _utc_now(),
             context=data.get("context", {}),
+        )
+
+
+@dataclass
+class SourceValidation:
+    """Result of validating a source against its claim."""
+
+    source_id: str
+    claim_id: str
+    support_class: SupportClass
+    explanation: str
+    validated_at: datetime = field(default_factory=_utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_id": self.source_id,
+            "claim_id": self.claim_id,
+            "support_class": self.support_class.value,
+            "explanation": self.explanation,
+            "validated_at": self.validated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SourceValidation":
+        return cls(
+            source_id=data["source_id"],
+            claim_id=data["claim_id"],
+            support_class=SupportClass(data["support_class"]),
+            explanation=data["explanation"],
+            validated_at=datetime.fromisoformat(data["validated_at"]) if data.get("validated_at") else _utc_now(),
+        )
+
+
+@dataclass
+class ConsensusResult:
+    """Result of multi-provider consensus research."""
+
+    query: str
+    provider_responses: list[dict] = field(default_factory=list)
+    agreement_score: float = 0.0
+    consensus_answer: str = ""
+    confidence: float = 0.0
+    total_cost: float = 0.0
+    decision_record: Optional[DecisionRecord] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "query": self.query,
+            "provider_responses": self.provider_responses,
+            "agreement_score": self.agreement_score,
+            "consensus_answer": self.consensus_answer,
+            "confidence": self.confidence,
+            "total_cost": self.total_cost,
+            "decision_record": self.decision_record.to_dict() if self.decision_record else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ConsensusResult":
+        return cls(
+            query=data["query"],
+            provider_responses=data.get("provider_responses", []),
+            agreement_score=data.get("agreement_score", 0.0),
+            consensus_answer=data.get("consensus_answer", ""),
+            confidence=data.get("confidence", 0.0),
+            total_cost=data.get("total_cost", 0.0),
+            decision_record=DecisionRecord.from_dict(data["decision_record"])
+            if data.get("decision_record")
+            else None,
         )
 
 
