@@ -195,10 +195,13 @@ export default function ResultDetail() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                navigator.clipboard.writeText(result.content)
-                setCopied(true)
-                toast.success('Copied to clipboard')
-                setTimeout(() => setCopied(false), 2000)
+                navigator.clipboard.writeText(result.content).then(() => {
+                  setCopied(true)
+                  toast.success('Copied to clipboard')
+                  setTimeout(() => setCopied(false), 2000)
+                }).catch(() => {
+                  toast.error('Failed to copy')
+                })
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors"
             >
