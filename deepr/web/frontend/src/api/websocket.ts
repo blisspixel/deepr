@@ -97,6 +97,65 @@ class WebSocketClient {
     this.socket.emit('unsubscribe_jobs', data)
   }
 
+  startChat(expertName: string, message: string, sessionId?: string) {
+    if (!this.socket?.connected) return false
+    this.socket.emit('chat_start', {
+      expert_name: expertName,
+      message,
+      ...(sessionId && { session_id: sessionId }),
+    })
+    return true
+  }
+
+  stopChat() {
+    if (!this.socket?.connected) return
+    this.socket.emit('chat_stop', {})
+  }
+
+  onChatToken(callback: (data: { content: string }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_token', callback)
+    return () => { this.socket?.off('chat_token', callback) }
+  }
+
+  onChatStatus(callback: (data: { status: string }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_status', callback)
+    return () => { this.socket?.off('chat_status', callback) }
+  }
+
+  onChatToolStart(callback: (data: { tool: string; query: string }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_tool_start', callback)
+    return () => { this.socket?.off('chat_tool_start', callback) }
+  }
+
+  onChatToolEnd(callback: (data: { tool: string; elapsed_ms: number }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_tool_end', callback)
+    return () => { this.socket?.off('chat_tool_end', callback) }
+  }
+
+  onChatComplete(callback: (data: {
+    id: string
+    content: string
+    session_id: string
+    cost: number
+    tool_calls: { tool: string; query: string }[]
+    follow_ups?: string[]
+    confidence?: number
+  }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_complete', callback)
+    return () => { this.socket?.off('chat_complete', callback) }
+  }
+
+  onChatError(callback: (data: { error: string }) => void) {
+    if (!this.socket) return () => {}
+    this.socket.on('chat_error', callback)
+    return () => { this.socket?.off('chat_error', callback) }
+  }
+
   on(event: string, callback: (data: any) => void) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
