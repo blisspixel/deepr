@@ -45,7 +45,7 @@ python deepr/web/app.py
 
 **Expert Hub** - List all domain experts with document counts, finding counts, knowledge gaps, and cost stats. Search and sort controls. Navigate to individual expert profiles.
 
-**Expert Profile** - Six tabs: Chat (ask questions, get answers from the expert's knowledge), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority, click to research), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), and Skills (install/remove domain-specific capability packages).
+**Expert Profile** - Seven tabs: Chat (agentic streaming chat with slash commands, mode switching, visible reasoning panel, approval dialogs, context compaction, follow-up suggestions), Claims (tracked assertions with confidence scores and source provenance), Knowledge Gaps (view gaps with EV/cost priority, click to research), Decisions (reasoning audit trail with rationale and alternatives), History (learning timeline with costs), Skills (install/remove domain-specific capability packages), and Conversations (browse and resume past chat sessions).
 
 **Cost Intelligence** - Spending trends over configurable time ranges (7/30/90 days), per-model cost breakdown with charts, budget limit controls with debounced sliders, success rate, and average cost per job. Accuracy disclaimer noting costs are Deepr-internal estimates.
 
@@ -453,6 +453,62 @@ deepr expert chat "Azure Architect"
 # With agentic research capability
 deepr expert chat "Azure Architect" --agentic --budget 5
 ```
+
+### Agentic Chat Features
+
+When using `--agentic`, expert chat supports slash commands, chat modes, visible reasoning, and more. The same features are available in both CLI and web.
+
+**Chat Modes** control how the expert responds:
+
+```bash
+# In chat, switch modes with slash commands:
+/ask        # Quick answers, KB-only tools
+/research   # Default — all tools available
+/advise     # Structured consulting-style recommendations
+/focus      # Always-on chain-of-thought reasoning
+```
+
+**Slash Commands** (27 total, organized by category):
+
+| Category | Commands |
+|----------|----------|
+| Mode | `/ask`, `/research`, `/advise`, `/focus`, `/mode [name]` |
+| Session | `/clear`, `/compact`, `/remember <text>`, `/forget <idx>`, `/memories`, `/new` |
+| Reasoning | `/trace`, `/why`, `/decisions`, `/thinking [on/off]` |
+| Control | `/model [name]`, `/tools`, `/effort [low/med/high]`, `/budget [amount]` |
+| Management | `/save [name]`, `/load <id>`, `/export [md/json]`, `/council <query>`, `/plan <query>` |
+| Utility | `/help [cmd]`, `/status`, `/quit` |
+
+Use `/` prefix in web, `\` prefix in CLI.
+
+**Context Compaction** keeps sessions usable over long conversations:
+
+```bash
+/compact           # Summarize earlier messages, keep recent context
+```
+
+The system also auto-suggests compaction after 30+ messages.
+
+**Expert Council** consults multiple experts on cross-domain questions:
+
+```bash
+/council "How will AI regulation affect our cloud architecture?"
+```
+
+Selects relevant experts, queries each in parallel, synthesizes agreements and disagreements.
+
+**Task Planning** decomposes complex queries into subtasks:
+
+```bash
+/plan "Design a zero-trust architecture for healthcare"
+```
+
+Generates a step-by-step plan, runs independent steps in parallel, shows live progress per step.
+
+**Approval Flows** protect against expensive operations:
+- Free operations (KB search, standard research) auto-approve
+- Moderate operations show a notification with cost
+- Expensive operations (deep research above threshold, council above $3) block until the user approves or denies
 
 ### Update Expert Knowledge
 

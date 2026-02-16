@@ -14,6 +14,7 @@ ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind 
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3 --explain
 
 # Expert accumulates knowledge across sessions, fills its own gaps
+# Slash commands, chat modes, visible reasoning, approval flows
 deepr expert chat "AI Strategy Expert" --budget 3
 
 # Batch 50 queries overnight — auto mode picks the right model for each
@@ -234,14 +235,14 @@ python deepr/web/app.py
 - **Results Library** - Search, sort, and paginate completed research (12 per page)
 - **Result Detail** - Full markdown report viewer with citation sidebar, copy-to-clipboard, export
 - **Expert Hub** - List and manage domain experts, view knowledge gaps and stats
-- **Expert Profile** - Chat with experts, browse claims and knowledge gaps, review decisions, view learning history
+- **Expert Profile** - Agentic chat with experts via streaming WebSocket (slash commands, chat modes, visible reasoning, approval flows, context compaction), browse claims and knowledge gaps, review decisions, view learning history, manage skills
 - **Cost Intelligence** - Spending trends, per-model breakdown, budget controls with charts
 - **Models & Benchmarks** - Model registry browser, benchmark results with quality rankings, run benchmarks from UI
 - **Trace Explorer** - Inspect research execution spans, timing, cost attribution
 - **Help** - API key setup guide, CLI quick reference, model tier explanations
 - **Settings** - Theme, budget limits, default model preferences, environment info, demo data loader
 
-12 pages with code-split routing, skeleton loading states, Flask-SocketIO for real-time job push events, and light/dark/system theme support. Built on Radix UI primitives (shadcn/ui pattern) with Recharts for data visualization.
+12 pages with code-split routing, skeleton loading states, Flask-SocketIO for real-time job push and streaming expert chat, and light/dark/system theme support. Built on Radix UI primitives (shadcn/ui pattern) with Recharts for data visualization.
 
 **For team deployment**, the dashboard can be containerized and deployed to cloud infrastructure. See [deploy/README.md](deploy/README.md) for AWS, Azure, and GCP templates. Authentication and multi-user features are on the roadmap.
 
@@ -282,9 +283,9 @@ Specific design decisions:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI/Gemini/Grok/Anthropic providers, local SQLite storage. 3700+ tests.
+**Production-ready:** Core research commands (`research`, `check`, `learn`), cost controls, expert creation/chat, context discovery (`deepr search`, `--context`), real-time progress tracking (`--progress`), temporal knowledge tracking, auto mode smart routing (`--auto`, `--batch`), OpenAI/Gemini/Grok/Anthropic providers, local SQLite storage. 3800+ tests.
 
-**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (12 pages, polished for local use with real-time WebSocket updates), agentic expert chat (`--agentic`), auto-fallback circuit breakers, cloud deployment templates.
+**Experimental:** MCP server (works, but MCP spec is still maturing), web dashboard (12 pages, polished for local use with real-time WebSocket updates), agentic expert chat with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning (`--agentic`), expert skills system, auto-fallback circuit breakers, cloud deployment templates.
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -354,7 +355,7 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 - Budget controls to prevent runaway costs
 - Optional Docker isolation for untrusted workloads
 
-3700+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
+3800+ unit tests. Pre-commit hooks run ruff (lint + format). See [Architecture](docs/ARCHITECTURE.md) for threat model and security implementation details.
 
 **Report security vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (please do not open public issues for security bugs)
 
@@ -387,6 +388,6 @@ Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained 
 
 I believe automated research workflows will be one of the most impactful applications of AI over the next few years — for individuals, teams, and organizations. Building Deepr is also an exercise in a broader question: what does it take to run AI agents *continuously* — with budgets, reliability, memory, and auditability? The patterns here (economic governance, provider routing, persistent expertise, decision observability) are transferable well beyond research. At minimum, it's a way to learn the space deeply. At best, it's genuinely useful tooling for people who need research that goes beyond a chat window.
 
-There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (3700+ tests), but you're ultimately responsible for your own API keys and usage.
+There's no SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions). Budget guardrails are well-tested (3800+ tests), but you're ultimately responsible for your own API keys and usage.
 
 [GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)
