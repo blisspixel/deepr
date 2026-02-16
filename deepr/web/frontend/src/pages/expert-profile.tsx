@@ -20,6 +20,7 @@ import type { ExpertChat, Skill, SupportClass, ChatMode, ThoughtItem, ConfirmReq
 import {
   AlertTriangle,
   ArrowLeft,
+  Camera,
   CheckCircle,
   Clock,
   DollarSign,
@@ -305,6 +306,15 @@ export default function ExpertProfile() {
     onError: () => toast.error('Failed to remove skill'),
   })
 
+  const portraitMutation = useMutation({
+    mutationFn: (provider?: string) => expertsApi.generatePortrait(encodedName, provider),
+    onSuccess: () => {
+      refetch()
+      toast.success('Portrait generated!')
+    },
+    onError: () => toast.error('Failed to generate portrait'),
+  })
+
   // REST fallback mutation (used when WebSocket is disconnected)
   const chatMutation = useMutation({
     mutationFn: (message: string) => expertsApi.chat(encodedName, message, sessionId ?? undefined),
@@ -471,8 +481,30 @@ export default function ExpertProfile() {
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Users className="w-6 h-6 text-primary" />
+          <div className="relative group/avatar flex-shrink-0">
+            {expert.portrait_url ? (
+              <img
+                src={expert.portrait_url}
+                alt={`${expert.name} portrait`}
+                className="w-12 h-12 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Users className="w-6 h-6 text-primary" />
+              </div>
+            )}
+            <button
+              onClick={() => portraitMutation.mutate(undefined)}
+              disabled={portraitMutation.isPending}
+              className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
+              title={expert.portrait_url ? 'Regenerate portrait' : 'Generate portrait'}
+            >
+              {portraitMutation.isPending ? (
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4 text-white" />
+              )}
+            </button>
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-semibold text-foreground">{expert.name}</h1>
@@ -567,9 +599,13 @@ export default function ExpertProfile() {
             <div className="flex-1 overflow-auto p-6 space-y-4" role="log" aria-live="polite" aria-relevant="additions">
               {chatMessages.length === 0 && !isStreaming && (
                 <div className="flex flex-col items-center justify-center text-center py-12">
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                    <MessageSquare className="w-6 h-6 text-muted-foreground" />
-                  </div>
+                  {expert.portrait_url ? (
+                    <img src={expert.portrait_url} alt={expert.name} className="w-16 h-16 rounded-full object-cover mb-3 ring-2 ring-muted" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                      <MessageSquare className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  )}
                   <h3 className="text-sm font-medium text-foreground mb-1">Start a conversation</h3>
                   <p className="text-xs text-muted-foreground max-w-xs">
                     Ask {expert.name} questions about their domain expertise.
