@@ -205,9 +205,12 @@ def register_socketio_events(socketio):
                 tool_calls = [
                     {"tool": t["step"], "query": t.get("query", "")[:200]}
                     for t in session.reasoning_trace
-                    if t.get("step") in (
-                        "search_knowledge_base", "standard_research",
-                        "deep_research", "skill_tool_call",
+                    if t.get("step")
+                    in (
+                        "search_knowledge_base",
+                        "standard_research",
+                        "deep_research",
+                        "skill_tool_call",
                     )
                 ]
 
@@ -264,9 +267,7 @@ def register_socketio_events(socketio):
 
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(
-                    dispatch_command(session, raw, {"web": True})
-                )
+                result = loop.run_until_complete(dispatch_command(session, raw, {"web": True}))
                 loop.close()
 
                 if result is None:

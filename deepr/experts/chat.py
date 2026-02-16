@@ -1644,9 +1644,7 @@ Budget remaining: ${budget_remaining:.2f}
             self._emitter.fail_task(op, str(e))
             return f"Error communicating with expert: {e!s}"
 
-    async def send_message_streaming(
-        self, user_message: str, token_callback=None, status_callback=None
-    ) -> str:
+    async def send_message_streaming(self, user_message: str, token_callback=None, status_callback=None) -> str:
         """Send a message and stream the final response token-by-token.
 
         Tool-call rounds use standard (non-streaming) completions. Only the final
@@ -1713,63 +1711,81 @@ Budget remaining: ${budget_remaining:.2f}
             tools: list[dict] = []
 
             if "search_knowledge_base" in active_tool_names:
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": "search_knowledge_base",
-                        "description": f"Search your {self.expert.total_documents} research documents when you need to verify something or find details. Use this when you're not 100% certain or need to check your notes.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "query": {"type": "string", "description": "What you're looking for in your documents"},
-                                "top_k": {
-                                    "type": "integer",
-                                    "description": "Number of documents to retrieve",
-                                    "default": 5,
+                tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "search_knowledge_base",
+                            "description": f"Search your {self.expert.total_documents} research documents when you need to verify something or find details. Use this when you're not 100% certain or need to check your notes.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "What you're looking for in your documents",
+                                    },
+                                    "top_k": {
+                                        "type": "integer",
+                                        "description": "Number of documents to retrieve",
+                                        "default": 5,
+                                    },
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Why you need to check your documents (for transparency)",
+                                    },
                                 },
-                                "reasoning": {
-                                    "type": "string",
-                                    "description": "Why you need to check your documents (for transparency)",
-                                },
+                                "required": ["query", "reasoning"],
                             },
-                            "required": ["query", "reasoning"],
                         },
-                    },
-                })
+                    }
+                )
 
             if self.agentic and "standard_research" in active_tool_names:
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": "standard_research",
-                        "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "query": {"type": "string", "description": "What you need to research on the web"},
-                                "reasoning": {"type": "string", "description": "Why your knowledge base isn't sufficient and you need web search"},
+                tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "standard_research",
+                            "description": "Quick web search when your knowledge base is empty or outdated. Gets current information from the web. FREE, ~10 seconds.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {"type": "string", "description": "What you need to research on the web"},
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Why your knowledge base isn't sufficient and you need web search",
+                                    },
+                                },
+                                "required": ["query", "reasoning"],
                             },
-                            "required": ["query", "reasoning"],
                         },
-                    },
-                })
+                    }
+                )
 
             if self.agentic and "deep_research" in active_tool_names:
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": "deep_research",
-                        "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "query": {"type": "string", "description": "The complex question that needs deep analysis"},
-                                "reasoning": {"type": "string", "description": "Why this needs expensive deep research instead of quick web search"},
+                tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "deep_research",
+                            "description": "Deep analysis for complex questions that need multi-step reasoning. Use for strategic decisions, architecture design, comprehensive analysis. $0.10-0.30, 5-20 minutes.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "The complex question that needs deep analysis",
+                                    },
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Why this needs expensive deep research instead of quick web search",
+                                    },
+                                },
+                                "required": ["query", "reasoning"],
                             },
-                            "required": ["query", "reasoning"],
                         },
-                    },
-                })
+                    }
+                )
 
             # Detect and activate skills
             installed_names = getattr(self.expert, "installed_skills", [])
@@ -1858,7 +1874,11 @@ Budget remaining: ${budget_remaining:.2f}
                             }
                         )
                         tool_messages.append(
-                            {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps({"results": search_results})}
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": json.dumps({"results": search_results}),
+                            }
                         )
 
                     elif tool_call.function.name == "standard_research":
@@ -2019,9 +2039,15 @@ Budget remaining: ${budget_remaining:.2f}
             # Extract confidence from uncertainty detection
             confidence = 0.9
             uncertainty_phrases = [
-                "i don't know", "i'm not sure", "i don't have",
-                "no information", "not in my knowledge", "i cannot find",
-                "i'm uncertain", "unclear", "not familiar with",
+                "i don't know",
+                "i'm not sure",
+                "i don't have",
+                "no information",
+                "not in my knowledge",
+                "i cannot find",
+                "i'm uncertain",
+                "unclear",
+                "not familiar with",
             ]
             if final_message and any(p in final_message.lower() for p in uncertainty_phrases):
                 confidence = 0.3
@@ -2036,9 +2062,7 @@ Budget remaining: ${budget_remaining:.2f}
             self._emitter.complete_task(op)
 
             # Auto-suggest compaction when context is large
-            if self._compact_callback and (
-                len(self.messages) > 30 or self._estimate_tokens() > 80000
-            ):
+            if self._compact_callback and (len(self.messages) > 30 or self._estimate_tokens() > 80000):
                 try:
                     self._compact_callback(len(self.messages), self._estimate_tokens())
                 except Exception:
@@ -2148,13 +2172,15 @@ Budget remaining: ${budget_remaining:.2f}
         }
         self.messages = [summary_msg, *kept]
 
-        self.reasoning_trace.append({
-            "step": "compact_conversation",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "original_messages": len(to_summarise) + keep_count,
-            "kept_messages": keep_count,
-            "summary_length": len(summary),
-        })
+        self.reasoning_trace.append(
+            {
+                "step": "compact_conversation",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "original_messages": len(to_summarise) + keep_count,
+                "kept_messages": keep_count,
+                "summary_length": len(summary),
+            }
+        )
 
         return {
             "original_messages": len(to_summarise) + keep_count,
