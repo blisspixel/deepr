@@ -346,7 +346,7 @@ class CostSession:
         """
         return max(0.0, self.budget_limit - self.total_cost)
 
-    def can_proceed(self, estimated_cost: float) -> tuple[bool, str]:
+    def can_proceed(self, estimated_cost: float = 0.0) -> tuple[bool, str]:
         """Check if an operation can proceed within budget.
 
         Args:
@@ -683,6 +683,35 @@ class CostSafetyManager:
             "active_sessions": len(self._sessions),
         }
 
+    def close_session(self, session_id: str) -> Optional[dict]:
+        """Close a cost tracking session and return its summary.
+
+        Args:
+            session_id: Session identifier to close
+
+        Returns:
+            Dictionary with session summary, or None if session not found
+        """
+        session = self._sessions.pop(session_id, None)
+        if session is None:
+            # Also clean up legacy cost tracking
+            self._session_costs.pop(session_id, None)
+            return None
+
+        # Clean up legacy tracking too
+        self._session_costs.pop(session_id, None)
+
+        return {
+            "session_id": session_id,
+            "session_type": session.session_type,
+            "total_cost": session.total_cost,
+            "budget_limit": session.budget_limit,
+            "operations": len(session.operations),
+            "failures": len(session.failures),
+            "alerts": [{"level": a.level, "message": a.message} for a in session.alerts],
+            "duration_seconds": time.time() - session.created_at,
+        }
+
     def reset(self) -> None:
         """Reset all tracking state."""
         self._circuit_breaker.reset()
@@ -734,7 +763,7 @@ def estimate_curriculum_cost(
     quick_cost = 0.25  # focus mode
     docs_cost = 0.15  # documentation
 
-    other_count = topic_count - deep_research_count - quick_research_count - docs_count
+    other_count = max(0, topic_count - deep_research_count - quick_research_count - docs_count)
     expected = (
         deep_research_count * deep_cost
         + quick_research_count * quick_cost

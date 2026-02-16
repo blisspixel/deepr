@@ -907,7 +907,13 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
 
                     # Also save markdown version
                     worldview_md_path = knowledge_dir / "worldview.md"
-                    new_worldview.save_markdown(worldview_md_path)
+                    try:
+                        worldview_doc = await synthesizer.generate_worldview_document(
+                            new_worldview, synthesis_result.get("reflection", "")
+                        )
+                        worldview_md_path.write_text(worldview_doc, encoding="utf-8")
+                    except Exception:
+                        pass  # Non-critical: JSON worldview already saved
 
                     print_success("Synthesis complete!")
                     click.echo(f"    Beliefs: {len(new_worldview.beliefs)}")
