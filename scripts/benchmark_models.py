@@ -611,7 +611,7 @@ DEFAULT_MODELS = [
     # Frontier models
     "openai/gpt-5.2",  # Frontier enterprise reasoning, 400K context ($0.30/query)
     "anthropic/claude-opus-4-6",  # Most capable Claude ($0.80/query)
-    "gemini/gemini-3-pro-preview",  # Newest gen, best quality ($0.20/query)
+    "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
     # Mid-tier
     "anthropic/claude-sonnet-4-5",  # Strong reasoning ($0.48/query)
@@ -641,8 +641,8 @@ NEWS_MODELS = [
     "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-fast-reasoning",
     # Gemini (Google grounding)
+    "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-3-flash-preview",
-    "gemini/gemini-3-pro-preview",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-2.5-pro",
 ]
@@ -662,7 +662,7 @@ ORCHESTRATED_RESEARCH_MODELS = [
     "openai/o3",
     "openai/gpt-5-mini",
     # Gemini (google_search grounding)
-    "gemini/gemini-3-pro-preview",
+    "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
     # xAI (Responses API + web_search)
     "xai/grok-4-1-fast-reasoning",
@@ -674,7 +674,7 @@ DOCS_MODELS = [
     "openai/gpt-5.2",
     "openai/gpt-5-mini",
     "openai/o3",
-    "gemini/gemini-3-pro-preview",
+    "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
     "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-fast-reasoning",
@@ -856,10 +856,7 @@ def call_openai_compatible(
     #   - temperature is fixed at 1 (any other value is rejected)
     #   - reasoning_effort controls thinking token budget
     is_reasoning = (
-        model.startswith("gpt-5")
-        or model.startswith("gpt-6")
-        or model.startswith("o3")
-        or model.startswith("o4")
+        model.startswith("gpt-5") or model.startswith("gpt-6") or model.startswith("o3") or model.startswith("o4")
     )
 
     body = {
@@ -1043,10 +1040,7 @@ def call_openai_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
     }
     # GPT-5+ reasoning models need max_output_tokens with headroom for thinking
     is_reasoning = (
-        model.startswith("gpt-5")
-        or model.startswith("gpt-6")
-        or model.startswith("o3")
-        or model.startswith("o4")
+        model.startswith("gpt-5") or model.startswith("gpt-6") or model.startswith("o3") or model.startswith("o4")
     )
     if is_reasoning:
         body["max_output_tokens"] = max(max_tokens * 2, 4096)
@@ -1282,8 +1276,7 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
         elapsed = time.monotonic() - start
         if elapsed > timeout:
             raise TimeoutError(
-                f"Gemini deep research timed out after {timeout}s. "
-                f"Interaction {interaction_id} may still be running."
+                f"Gemini deep research timed out after {timeout}s. Interaction {interaction_id} may still be running."
             )
 
         # Adaptive polling: 5s → 10s → 20s → 30s
@@ -1350,7 +1343,7 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
     if not citations and text:
         import re
 
-        for match in re.finditer(r'\[([^\]]+)\]\((https?://[^)]+)\)', text):
+        for match in re.finditer(r"\[([^\]]+)\]\((https?://[^)]+)\)", text):
             citations.append({"title": match.group(1), "url": match.group(2)})
 
     return text, latency_ms, citations
@@ -1507,9 +1500,7 @@ def _clear_checkpoint() -> None:
 # ─── Phase 2: Evaluate ───────────────────────────────────────────────────────
 
 
-def _eval_single(
-    model_key: str, ep: EvalPrompt, registry: dict
-) -> tuple[EvalResult, float]:
+def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalResult, float]:
     """Run a single model+prompt evaluation. Returns (result, cost_estimate).
 
     Thread-safe — no shared mutable state.
@@ -1552,9 +1543,7 @@ def _eval_single(
             in_tokens, out_tokens = 400, 450 + thinking_extra
 
         if cap:
-            cost = (in_tokens / 1_000_000) * cap.input_cost_per_1m + (
-                out_tokens / 1_000_000
-            ) * cap.output_cost_per_1m
+            cost = (in_tokens / 1_000_000) * cap.input_cost_per_1m + (out_tokens / 1_000_000) * cap.output_cost_per_1m
             if ep.tier in ("news", "docs"):
                 cost *= 1.2  # web search overhead
         else:
@@ -1923,9 +1912,7 @@ def _get_judge_config(tier: str) -> tuple[str, dict[str, float]]:
     return JUDGE_PROMPT, JUDGE_WEIGHTS
 
 
-def _judge_single(
-    result: EvalResult, judge_model: str
-) -> tuple[dict[str, float] | None, float]:
+def _judge_single(result: EvalResult, judge_model: str) -> tuple[dict[str, float] | None, float]:
     """Judge a single eval result. Returns (judge_details, judge_score).
 
     Thread-safe — no shared mutable state.
@@ -1947,9 +1934,7 @@ def _judge_single(
         return None, 0.0
 
 
-def run_judge(
-    results: list[EvalResult], judge_model: str, max_workers: int = 5
-) -> list[EvalResult]:
+def run_judge(results: list[EvalResult], judge_model: str, max_workers: int = 5) -> list[EvalResult]:
     """Score each eval result using the LLM judge (tier-aware, parallel)."""
     judgeable = [(i, r) for i, r in enumerate(results) if not r.error]
     total = len(judgeable)
@@ -2204,7 +2189,12 @@ def print_report(summaries: list[ModelSummary], results: list[EvalResult], total
             if tier_summaries:
                 best = tier_summaries[0]
                 cost_per = best.total_cost / max(best.num_evals, 1)
-                label = {"chat": "Quick lookup", "news": "Live news", "research": "Deep research", "docs": "Documentation"}.get(tier, tier)
+                label = {
+                    "chat": "Quick lookup",
+                    "news": "Live news",
+                    "research": "Deep research",
+                    "docs": "Documentation",
+                }.get(tier, tier)
                 print(f"  {label:<20} -> {best.model_key:<30} ${cost_per:.2f}/query")
     else:
         # Single-tier routing recommendations
@@ -2424,7 +2414,7 @@ def run_validation(tier: str = "chat"):
             ("gemini", "gemini/gemini-2.5-flash"),
             ("gemini", "gemini/gemini-2.5-pro"),
             ("gemini", "gemini/gemini-3-flash-preview"),
-            ("gemini", "gemini/gemini-3-pro-preview"),
+            ("gemini", "gemini/gemini-3.1-pro-preview"),
             ("anthropic", "anthropic/claude-haiku-4-5"),
             ("azure-foundry", "azure-foundry/gpt-4.1"),
         ]
@@ -2459,7 +2449,7 @@ def run_validation(tier: str = "chat"):
             ("xai", "xai/grok-4-1-fast-reasoning"),
             ("xai", "xai/grok-4-fast-reasoning"),
             ("gemini", "gemini/gemini-3-flash-preview"),
-            ("gemini", "gemini/gemini-3-pro-preview"),
+            ("gemini", "gemini/gemini-3.1-pro-preview"),
             ("gemini", "gemini/gemini-2.5-flash"),
             ("gemini", "gemini/gemini-2.5-pro"),
         ]

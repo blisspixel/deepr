@@ -293,9 +293,9 @@ class ModelRouter:
             # Deep research → o3-deep-research (best quality for deep research)
             return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
 
-        if context_size > 100_000 and (budget_remaining is None or budget_remaining >= 0.15):
+        if context_size > 100_000 and (budget_remaining is None or budget_remaining >= 0.20):
             # Large context → Gemini
-            return ModelConfig(provider="gemini", model="gemini-3-pro", cost_estimate=0.15, confidence=0.85)
+            return ModelConfig(provider="gemini", model="gemini-3.1-pro-preview", cost_estimate=0.20, confidence=0.85)
 
         if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.25):
             # Complex reasoning → GPT-5 with high reasoning effort
