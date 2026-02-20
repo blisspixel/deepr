@@ -252,7 +252,8 @@ class TestModelSelection:
         """Test that large context uses Gemini."""
         config = router.select_model("Analyze this document", context_size=150_000)
         # Should use Gemini for large context
-        assert config.provider == "gemini" or config.model == "gemini-3-pro"
+        assert config.provider == "gemini"
+        assert config.model == "gemini-3.1-pro-preview"
 
 
 class TestFallbackModel:
