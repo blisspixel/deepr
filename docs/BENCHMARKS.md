@@ -1,16 +1,17 @@
 # Model Benchmarks
 
-Deepr includes a tiered model benchmark system that tests every provider across three distinct use cases. Results drive the auto-mode routing table — the system that picks which model handles each research query.
+Deepr includes a tiered model benchmark system that tests every provider across four distinct use cases. Results drive the auto-mode routing table — the system that picks which model handles each research query.
 
-## Three Tiers
+## Four Tiers
 
 | Tier | What it tests | Models | Prompts | API | Typical cost |
 |------|--------------|--------|---------|-----|-------------|
-| **Chat** | Training data knowledge, reasoning, docs | 11 | 18 (6 task types) | Chat completions | ~$0.80 |
-| **News** | Web search, freshness, citations | 6 | 6 (3 task types) | Grok Responses API + Gemini grounding | ~$0.20 |
-| **Research** | Autonomous multi-source reports | 3 | 4 (2 task types) | OpenAI Responses (background) + Gemini Interactions | ~$0.12 |
+| **Chat** | Training data knowledge, reasoning, docs | 11+ | 18 (6 task types) | Chat completions | ~$0.80 |
+| **News** | Web search, freshness, citations | 6+ | 6 (3 task types) | Grok Responses API + Gemini grounding | ~$0.20 |
+| **Research** | Autonomous multi-source reports | 3+ | 4 (2 task types) | OpenAI Responses (background) + Gemini Interactions | ~$0.12 |
+| **Docs** | API doc fetching, SDK guides | 7+ | 5 (3 task types) | Web search + chat completions | ~$0.15 |
 
-**Total cost for a full `--tier all` run: ~$1.10** (actual, based on 2026-02-13 run).
+**Total cost for a full `--tier all` run: ~$1.25** (actual, based on 2026-02-14 run).
 
 ## Quick Start
 
@@ -33,7 +34,7 @@ python scripts/benchmark_models.py --tier chat --model gemini/gemini-2.5-pro --s
 
 ## Models Tested
 
-### Chat Tier (11 models)
+### Chat Tier (12 models)
 
 | Model | Provider | Typical cost/query |
 |-------|----------|--------------------|
@@ -46,17 +47,19 @@ python scripts/benchmark_models.py --tier chat --model gemini/gemini-2.5-pro --s
 | gemini/gemini-2.5-pro | Google | $0.012 |
 | gemini/gemini-3-flash-preview | Google | $0.003 |
 | gemini/gemini-3-pro-preview | Google | $0.012 |
+| gemini/gemini-3.1-pro-preview | Google | $0.012 |
 | anthropic/claude-haiku-4-5 | Anthropic | $0.003 |
 | anthropic/claude-sonnet-4-5 | Anthropic | $0.008 |
 
 Optional expensive models (add `--include-expensive`): gpt-5.2, claude-opus-4-6.
 
-### News Tier (6 models)
+### News Tier (7 models)
 
 | Model | Provider | API used |
 |-------|----------|----------|
 | xai/grok-4-1-fast-reasoning | xAI | Responses API + `web_search` tool |
 | xai/grok-4-fast-reasoning | xAI | Responses API + `web_search` tool |
+| gemini/gemini-3.1-pro-preview | Google | generateContent + `google_search` grounding |
 | gemini/gemini-3-flash-preview | Google | generateContent + `google_search` grounding |
 | gemini/gemini-3-pro-preview | Google | generateContent + `google_search` grounding |
 | gemini/gemini-2.5-flash | Google | generateContent + `google_search` grounding |
@@ -152,6 +155,9 @@ GET https://api.openai.com/v1/responses/resp_abc123
 - **gemini/gemini-2.5-pro**: **0.83** quality (33.2s, $0.180) — originally 0.00 due to thinking tokens eating the maxOutputTokens budget. Tied for #1 after fix.
 - **openai/gpt-5**: **0.64** quality (40.1s, $0.180) — originally 5/18 timed out at 60s. After increasing timeout to 180s, all 18 passed. Still underperforms cheaper models — slow and expensive for the quality.
 
+*Added 2026-02-19:*
+- **gemini/gemini-3.1-pro-preview**: **0.83** quality (39.0s, $0.220) — tied for #1 with gpt-4.1-mini and gemini-2.5-pro. Strong across all task types, especially document_analysis (0.91) and quick_lookup (0.90). Configurable thinking adds latency (~40s avg) but improves reasoning quality vs 3.0 Pro (0.46 → 0.83).
+
 Chat best-by-task: document_analysis (gpt-5-mini), knowledge_base (claude-sonnet-4-5), quick_lookup (gemini-3-pro-preview), reasoning (gpt-4.1-mini), synthesis (gpt-4.1), technical_docs (grok-4-fast).
 
 Best value across all chat tasks: **xai/grok-4-fast** ($0.007/quality point).
@@ -167,6 +173,9 @@ Best value across all chat tasks: **xai/grok-4-fast** ($0.007/quality point).
 | 5 | gemini/gemini-2.5-flash | 0.42 | 10.3s | 13.8 | $0.015 |
 | 6 | gemini/gemini-3-flash-preview | 0.36 | 22.4s | 5.2 | $0.018 |
 
+*Added 2026-02-19:*
+- **gemini/gemini-3.1-pro-preview**: **0.48** quality (82.0s, 7.3 avg citations, $0.073) — ranks between Gemini 2.5 Pro and 3.0 Pro. Higher latency than other Gemini models due to thinking tokens.
+
 Grok dominates the news tier. Grok 4.1 leads on freshness; Grok 4.0 leads on citation quality and source diversity. Gemini 3 models produce fewer citations than 2.5 models, suggesting grounding API maturity differences.
 
 ### Research Tier
@@ -178,6 +187,25 @@ Grok dominates the news tier. Grok 4.1 leads on freshness; Grok 4.0 leads on cit
 | 3 | gemini/deep-research | 0.60 | 6.9 min | 0.0 | 2320 | $0.011 |
 
 o3-deep-research produces the longest, most-cited reports. o4-mini is nearly as good at 1/10th the cost. Gemini deep-research returned zero parsed citations (API may structure them differently than expected).
+
+*Added 2026-02-19:*
+- **gemini/gemini-3.1-pro-preview** (orchestrated research): **0.60** quality (72.5s, $0.049) — uses web search tool orchestration rather than native deep research. Faster (~1 min vs 5-15 min) but lower quality than dedicated deep research models. Good for budget-conscious research.
+
+### Docs Tier (2026-02-14 Baseline)
+
+| Rank | Model | Quality | Latency | Cost |
+|------|-------|---------|---------|------|
+| 1 | openai/gpt-5.2 | **0.83** | 69.9s | $0.042 |
+| 2 | xai/grok-4-fast-reasoning | 0.78 | 54.7s | $0.001 |
+| 3 | xai/grok-4-1-fast-reasoning | 0.77 | 41.8s | $0.001 |
+| 4 | openai/gpt-5 | 0.75 | 140.0s | $0.030 |
+| 5 | gemini/gemini-3-pro-preview | 0.70 | 58.4s | $0.037 |
+| 6 | gemini/gemini-3.1-pro-preview | 0.68 | 80.3s | $0.049 |
+| 7 | openai/gpt-5-mini | 0.65 | 38.7s | $0.006 |
+| 8 | openai/o3 | 0.65 | 42.0s | $0.025 |
+| 9 | gemini/gemini-2.5-pro | 0.37 | 41.6s | $0.030 |
+
+Docs tier tests API documentation fetching, SDK guides, and integration guides. Grok models offer the best value (near-top quality at $0.001). Gemini 3.1 Pro (0.68) scores slightly below 3.0 Pro (0.70) here — the thinking overhead adds latency without improving doc-fetching quality. 1 eval timed out for 3.1 Pro on the SDK documentation prompt.
 
 ### Cross-Tier Routing Recommendations
 
@@ -195,7 +223,9 @@ o3-deep-research produces the longest, most-cited reports. o4-mini is nearly as 
 2. Add it to the appropriate tier list in `scripts/benchmark_models.py`:
    - `DEFAULT_MODELS` for chat tier
    - `NEWS_MODELS` for news tier
-   - `RESEARCH_MODELS` for research tier
+   - `RESEARCH_MODELS` for research tier (native deep research)
+   - `ORCHESTRATED_RESEARCH_MODELS` for research tier (web-search orchestration)
+   - `DOCS_MODELS` for docs tier
 3. If it needs a new API caller, add a `call_*` function and route it in `call_model()`
 4. Validate: `python scripts/benchmark_models.py --validate --tier <tier>`
 5. Benchmark: `python scripts/benchmark_models.py --tier <tier> --model <new_model> --save`
