@@ -181,7 +181,7 @@ Expert ready to answer questions
 - **o3-deep-research** (OpenAI): $0.50, 2-5min, comprehensive multi-step research
 - **o4-mini-deep-research** (OpenAI): $2.00, 60s, deep research with extended reasoning
 - **Grok 4 Fast** (xAI): $0.01, 1s, best for quick lookups
-- **Gemini 3.1 Pro** (Google): $0.20, 4s, 1M context for large docs (2x pricing >200K tokens)
+- **Gemini 3.1 Pro** (Google): $0.20, ~40s, 1M context for large docs (2x pricing >200K tokens)
 - **Gemini Deep Research** (Google): $1.00, 5-20min, async research with Google Search
 - **Gemini 2.5 Flash** (Google): $0.002, 1.5s, cheapest option for general queries
 - **Claude Opus 4.6** (Anthropic): $0.80, 15s, best for complex reasoning with Adaptive Thinking
