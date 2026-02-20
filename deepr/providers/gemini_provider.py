@@ -16,7 +16,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any
 
 try:
     from google import genai
@@ -124,8 +124,8 @@ class GeminiProvider(DeepResearchProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model_mappings: Optional[dict] = None,
+        api_key: str | None = None,
+        model_mappings: dict | None = None,
     ):
         """
         Initialize Gemini provider.
@@ -147,10 +147,13 @@ class GeminiProvider(DeepResearchProvider):
 
         # Model mappings for convenience
         self.model_mappings = model_mappings or {
+            "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
+            "gemini-3.1-pro": "gemini-3.1-pro-preview",
+            "gemini-3-pro-preview": "gemini-3-pro-preview",
             "gemini-2.5-pro": "gemini-2.5-pro",
             "gemini-2.5-flash": "gemini-2.5-flash",
             "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
-            "gemini-pro": "gemini-2.5-pro",
+            "gemini-pro": "gemini-3.1-pro-preview",
             "gemini-flash": "gemini-2.5-flash",
             "gemini-flash-lite": "gemini-2.5-flash-lite",
             # Deep Research Agent
@@ -162,6 +165,8 @@ class GeminiProvider(DeepResearchProvider):
         from .registry import get_token_pricing
 
         self.pricing = {
+            "gemini-3.1-pro-preview": get_token_pricing("gemini-3.1-pro-preview"),
+            "gemini-3-pro-preview": get_token_pricing("gemini-3-pro-preview"),
             "gemini-2.5-pro": get_token_pricing("gemini-2.5-pro"),
             "gemini-2.5-flash": get_token_pricing("gemini-2.5-flash"),
             "gemini-2.5-flash-lite": {"input": 0.0375, "output": 0.15},
@@ -198,7 +203,7 @@ class GeminiProvider(DeepResearchProvider):
 
         return round(input_cost + output_cost, 6)
 
-    def _get_thinking_config(self, model: str, complexity: str = "medium") -> Optional[types.ThinkingConfig]:
+    def _get_thinking_config(self, model: str, complexity: str = "medium") -> types.ThinkingConfig | None:
         """
         Get thinking configuration based on model and task complexity.
 
@@ -209,6 +214,19 @@ class GeminiProvider(DeepResearchProvider):
         Returns:
             ThinkingConfig or None
         """
+        # Gemini 3.1 Pro: configurable thinking levels (minimal/low/medium/high)
+        if "3.1-pro" in model:
+            if complexity == "easy":
+                return types.ThinkingConfig(thinking_budget=1024, include_thoughts=True)
+            elif complexity == "hard":
+                return types.ThinkingConfig(thinking_budget=24576, include_thoughts=True)
+            else:
+                return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
+
+        # Gemini 3 Pro: mandatory thinking (can't disable)
+        if "3-pro" in model and "3.1" not in model:
+            return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
+
         if "2.5-pro" in model:
             return types.ThinkingConfig(thinking_budget=-1, include_thoughts=True)
 
@@ -627,7 +645,7 @@ class GeminiProvider(DeepResearchProvider):
     # Deep Research — File Search Store support
     # =========================================================================
 
-    async def _create_file_search_store(self, name: str, file_ids: list[str]) -> Optional[str]:
+    async def _create_file_search_store(self, name: str, file_ids: list[str]) -> str | None:
         """
         Create a File Search Store for deep research grounding.
 
