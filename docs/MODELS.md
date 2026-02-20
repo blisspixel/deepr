@@ -54,7 +54,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 | Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
 | Quick Lookups | Grok 4 Fast | $0.01 | ~1s | Cheapest option |
 | Latest News / Web | Grok 4 Fast | $0.01 | ~1s | Real-time web + X search |
-| Large Documents | Gemini 3.1 Pro | $0.20* | ~4s | 1M token context, configurable thinking |
+| Large Documents | Gemini 3.1 Pro | $0.20* | ~40s | 1M token context, configurable thinking |
 | Coding Tasks | Claude Sonnet 4.5 | $0.48 | ~3s | Best for code |
 | Complex Reasoning | Claude Opus 4.6 | $0.80 | ~15s | Adaptive Thinking |
 | Budget General | GPT-4.1-mini | $0.01 | ~1s | Cheapest OpenAI, 1M context |
