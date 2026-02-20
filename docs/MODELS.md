@@ -18,8 +18,8 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### Google Gemini (`GEMINI_API_KEY`)
 - **Deep Research**: Native Deep Research Agent via Interactions API (async background jobs)
-- **Models**: Gemini 2.5 Flash, Gemini 3 Pro, Deep Research Agent (`deep-research-pro-preview-12-2025`)
-- **Best for**: Large context windows (1M+ tokens), document analysis, cost-effective research
+- **Models**: Gemini 3.1 Pro Preview (default), Gemini 3 Flash, Gemini 2.5 Flash, Deep Research Agent (`deep-research-pro-preview-12-2025`)
+- **Best for**: Large context windows (1M+ tokens), document analysis, cost-effective research, agentic workflows
 
 ### xAI Grok (`XAI_API_KEY`)
 - **Models**: Grok 4, Grok 4 Fast
@@ -54,10 +54,12 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 | Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
 | Quick Lookups | Grok 4 Fast | $0.01 | ~1s | Cheapest option |
 | Latest News / Web | Grok 4 Fast | $0.01 | ~1s | Real-time web + X search |
-| Large Documents | Gemini 3 Pro | $0.15 | ~4s | 1M token context |
+| Large Documents | Gemini 3.1 Pro | $0.20* | ~4s | 1M token context, configurable thinking |
 | Coding Tasks | Claude Sonnet 4.5 | $0.48 | ~3s | Best for code |
 | Complex Reasoning | Claude Opus 4.6 | $0.80 | ~15s | Adaptive Thinking |
 | Budget General | GPT-4.1-mini | $0.01 | ~1s | Cheapest OpenAI, 1M context |
+
+*\*Gemini 3.1 Pro has tiered pricing: $2/$12 per 1M tokens (input/output) for prompts ≤200K tokens, $4/$18 for prompts >200K tokens. The $0.20/query estimate assumes a typical sub-200K prompt. Large document analysis (250K+ tokens) costs roughly 2x more — e.g., a 500K-token corpus costs ~$2.27 vs ~$1.18 with sub-200K prompts. Use `--dry-run` to check before running.*
 
 ## Cost Optimization Strategy
 

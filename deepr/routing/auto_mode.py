@@ -502,12 +502,12 @@ class AutoModeRouter:
         """
         # Try gemini as fallback for complex queries
         if complexity == "complex" and self._is_provider_usable("gemini"):
-            if self._provider_router.is_circuit_available("gemini", "gemini-3-pro"):
+            if self._provider_router.is_circuit_available("gemini", "gemini-3.1-pro-preview"):
                 return (
                     "gemini",
-                    "gemini-3-pro",
-                    0.15,
-                    "Fallback to gemini-3-pro (primary provider unavailable)",
+                    "gemini-3.1-pro-preview",
+                    0.20,
+                    "Fallback to gemini-3.1-pro-preview (primary provider unavailable)",
                 )
 
         # Try o4-mini as lighter OpenAI fallback for complex queries
