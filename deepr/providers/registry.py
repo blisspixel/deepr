@@ -295,6 +295,28 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=0.50,
         output_cost_per_1m=3.00,  # Includes thinking tokens
     ),
+    "gemini/gemini-3.1-pro-preview": ModelCapability(
+        provider="gemini",
+        model="gemini-3.1-pro-preview",
+        cost_per_query=0.20,
+        latency_ms=4000,
+        context_window=1_000_000,
+        specializations=["reasoning", "large_context", "document_analysis", "synthesis", "thinking", "agentic"],
+        strengths=[
+            "Latest Gemini generation, best multimodal understanding",
+            "1M token context window, 65K output",
+            "Configurable thinking levels (minimal/low/medium/high)",
+            "Excellent for document analysis, synthesis, and agentic tasks",
+            "URL context and custom tools support",
+        ],
+        weaknesses=[
+            "Preview model (may change)",
+            "2x pricing for prompts >200K tokens",
+            "No free tier",
+        ],
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=12.00,  # Includes thinking tokens; 2x for >200K prompts
+    ),
     "gemini/gemini-3-pro-preview": ModelCapability(
         provider="gemini",
         model="gemini-3-pro-preview",
@@ -303,14 +325,13 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         context_window=1_000_000,
         specializations=["reasoning", "large_context", "document_analysis", "synthesis", "thinking"],
         strengths=[
-            "Newest generation, highest quality Gemini",
             "1M token context window",
             "Mandatory thinking (always reasons deeply)",
             "Excellent for document analysis and synthesis",
         ],
         weaknesses=[
+            "Superseded by Gemini 3.1 Pro Preview",
             "Preview model (may change)",
-            "Slower due to mandatory thinking",
             "Can't disable thinking",
             "2x pricing for prompts >200K tokens",
         ],

@@ -41,7 +41,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5/5.2, GPT-4.1, o3/o4-mini-deep-research), Gemini (2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5/5.2, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -60,7 +60,7 @@ These features work but APIs or behavior may change:
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5/5.2/4.1, Gemini, Grok 4 Fast, Anthropic Claude, Azure, Azure AI Foundry)
+- Multi-provider support (OpenAI GPT-5/5.2/4.1, Gemini 3.1 Pro/3 Flash/2.5 Flash, Grok 4 Fast, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits

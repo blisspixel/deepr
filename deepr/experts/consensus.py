@@ -34,7 +34,7 @@ _PROVIDER_KEY_ENV = {
 _PROVIDER_MODELS = {
     "xai": "grok-4-fast",
     "openai": "gpt-5.2",
-    "gemini": "gemini-3-pro",
+    "gemini": "gemini-3.1-pro-preview",
     "anthropic": "claude-sonnet-4-5-20250929",
 }
 

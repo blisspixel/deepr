@@ -90,7 +90,7 @@ Search complexity: O(1) API call + O(n) local computation
 | OpenAI | o4-mini-deep-research | $1.10/M | $4.40/M | $0.10 |
 | xAI | grok-4-fast | $0.20/M | $0.50/M | $0.01 |
 | Google | gemini-2.5-flash | $0.075/M | $0.30/M | $0.002 |
-| Google | gemini-3-pro | $1.25/M | $5.00/M | $0.15 |
+| Google | gemini-3.1-pro-preview | $2.00/M | $12.00/M | $0.20 |
 | Anthropic | claude-opus-4-6 | $5.00/M | $25.00/M | $0.80 |
 | Anthropic | claude-sonnet-4-5 | $3.00/M | $15.00/M | $0.48 |
 | Anthropic | claude-haiku-4-5 | $0.80/M | $4.00/M | $0.05 |

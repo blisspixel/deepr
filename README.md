@@ -136,6 +136,8 @@ deepr costs show                                    # See what you've spent
 deepr research --auto --batch queries.txt --dry-run # Preview costs before executing
 ```
 
+**Gemini large-context pricing note:** Gemini 3.1 Pro (the default Gemini pro model) charges 2x for prompts over 200K tokens ($4/$18 per 1M input/output vs $2/$12 under 200K). Most queries stay well under that threshold, but large document analysis (`--files` with big PDFs, 500+ page corpora) can cost ~2x more than shorter prompts — e.g., a 250K-token document analysis runs ~$1.18 vs ~$0.62 for a sub-200K prompt. Use `--dry-run` to preview costs before executing, and `--budget` to cap spend.
+
 See [docs/FEATURES.md](docs/FEATURES.md) for the full cost command reference.
 
 ## What's Stable vs Experimental
