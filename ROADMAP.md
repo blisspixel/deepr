@@ -470,9 +470,11 @@ Run models locally on NVIDIA hardware — zero API cost, full data privacy, no r
 - [x] CLI management (`deepr skill list/install/remove/create/info`)
 - [x] Web API and MCP tool integration
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
-- [ ] Meta-skills: generate temporary skills for niche research topics
+- [ ] Skill templates for niche research topics — human-curated scaffolds, not fully auto-generated (SkillsBench shows self-generated skills perform worse than no skills; value is in domain-expert authoring with LLM-assisted drafting)
+- [ ] Skill efficacy measurement — track whether activating a skill improves research outcomes (citation quality, gap-fill success rate) vs baseline without it
 - [ ] Skill marketplace discovery (`deepr skills search`)
 - [ ] Skill versioning and dependency management
+- [ ] Design guideline: keep skills focused (2-3 modules per skill) — empirically outperforms comprehensive documentation for agent consumption
 
 #### Stretch Goals
 - [ ] Multi-agent swarm support (specialized variants, manager routing)
