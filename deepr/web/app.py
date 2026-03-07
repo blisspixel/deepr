@@ -1178,7 +1178,9 @@ def list_results():
                 content_str = content.decode("utf-8")
                 result_data["content"] = content_str[:500] if len(content_str) > 500 else content_str
                 # Count citations (rough estimate by counting URLs)
-                result_data["citations_count"] = content_str.count("http")`r`n            except Exception as exc:`r`n                logger.debug("Could not load result preview for job %s: %s", job.id, exc, exc_info=exc)
+                result_data["citations_count"] = content_str.count("http")
+            except Exception as exc:
+                logger.debug("Could not load result preview for job %s: %s", job.id, exc, exc_info=exc)
 
             results.append(result_data)
 
@@ -1740,7 +1742,12 @@ def list_expert_conversations(name):
                         "started_at": data.get("started_at", ""),
                         "message_count": len(messages),
                         "preview": preview,
-                        "cost": summary.get("cost_accumulated", 0.0),`r`n                    }`r`n                )`r`n            except Exception as exc:`r`n                logger.debug("Skipping unreadable conversation file %s: %s", f, exc, exc_info=exc)`r`n                continue
+                        "cost": summary.get("cost_accumulated", 0.0),
+                    }
+                )
+            except Exception as exc:
+                logger.debug("Skipping unreadable conversation file %s: %s", f, exc, exc_info=exc)
+                continue
         return jsonify({"conversations": conversations})
     except ImportError:
         return jsonify({"conversations": []})
@@ -2483,7 +2490,12 @@ def list_benchmarks():
                         "timestamp": data.get("timestamp", ""),
                         "tier_count": len(tiers),
                         "model_count": len(rankings),
-                        "total_cost": round(data.get("total_cost", 0), 4),`r`n                    }`r`n                )`r`n            except Exception as exc:`r`n                logger.debug("Skipping unreadable benchmark file %s: %s", f, exc, exc_info=exc)`r`n                continue
+                        "total_cost": round(data.get("total_cost", 0), 4),
+                    }
+                )
+            except Exception as exc:
+                logger.debug("Skipping unreadable benchmark file %s: %s", f, exc, exc_info=exc)
+                continue
 
         return jsonify({"benchmarks": benchmarks})
 
@@ -3502,7 +3514,3 @@ if __name__ == "__main__":
 
     debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
     socketio.run(app, debug=debug, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
-
-
-
-

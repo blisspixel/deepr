@@ -74,9 +74,7 @@ def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvid
         return AzureProvider(**kwargs)
     elif provider_type == "gemini":
         if GeminiProvider is None:
-            raise ImportError(
-                _optional_import_message("gemini", "Gemini provider requires: pip install google-genai")
-            )
+            raise ImportError(_optional_import_message("gemini", "Gemini provider requires: pip install google-genai"))
         return GeminiProvider(**kwargs)
     elif provider_type == "xai":
         if GrokProvider is None:

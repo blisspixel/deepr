@@ -1249,4 +1249,3 @@ def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, no_fa
 
 if __name__ == "__main__":
     run()
-
