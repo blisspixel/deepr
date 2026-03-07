@@ -9,8 +9,11 @@ STATUS: Interface definitions only. MCP client connections not implemented.
 See docs/mcp-client-architecture.md for the full design.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -86,7 +89,8 @@ class BuiltinSearchBackend:
                 )
                 for r in (result.data or [])
             ]
-        except Exception:
+        except Exception as exc:
+            logger.warning("Builtin search backend failed for query %r: %s", query, exc)
             return []
 
     async def health_check(self) -> bool:
@@ -96,7 +100,8 @@ class BuiltinSearchBackend:
 
             WebSearchTool()
             return True
-        except Exception:
+        except Exception as exc:
+            logger.warning("Builtin search backend health check failed: %s", exc)
             return False
 
 
