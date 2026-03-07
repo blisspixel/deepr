@@ -16,7 +16,6 @@ from deepr.experts.skills.definition import (
     SkillTrigger,
 )
 
-
 # ---------------------------------------------------------------------------
 # SkillTrigger
 # ---------------------------------------------------------------------------
@@ -364,7 +363,7 @@ budget:
         """FileNotFoundError raised when skill.yaml is absent."""
         empty_dir = tmp_path / "empty-skill"
         empty_dir.mkdir()
-        with pytest.raises(FileNotFoundError, match="No skill.yaml"):
+        with pytest.raises(FileNotFoundError, match=r"No skill\.yaml"):
             SkillDefinition.load(empty_dir, tier="built-in")
 
     def test_load_invalid_yaml_not_dict_raises(self, tmp_path):

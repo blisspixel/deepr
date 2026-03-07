@@ -223,7 +223,7 @@ class TestExpertLearningEdgeCases:
             monthly_learning_budget=0.0,
         )
 
-        can_spend, reason = expert.can_spend_learning_budget(0.01)
+        can_spend, _reason = expert.can_spend_learning_budget(0.01)
         assert can_spend is False
 
     @pytest.mark.integration

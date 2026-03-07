@@ -5,18 +5,17 @@ Routes HTTP requests to job submission, status, and results endpoints.
 Uses Cosmos DB for job metadata (O(1) lookups) and Blob Storage for results.
 """
 
-import azure.functions as func
 import json
 import logging
 import os
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any
 
+import azure.functions as func
+from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
-from azure.cosmos import CosmosClient
 from azure.storage.blob import BlobServiceClient
 from azure.storage.queue import QueueClient
 
@@ -296,7 +295,7 @@ def list_jobs(req: func.HttpRequest) -> func.HttpResponse:
 
     # Query Cosmos DB
     if status_filter:
-        query = f"SELECT * FROM c WHERE c.status = @status ORDER BY c.submitted_at DESC OFFSET 0 LIMIT @limit"
+        query = "SELECT * FROM c WHERE c.status = @status ORDER BY c.submitted_at DESC OFFSET 0 LIMIT @limit"
         parameters = [
             {'name': '@status', 'value': status_filter},
             {'name': '@limit', 'value': limit}
@@ -419,7 +418,7 @@ def get_costs(req: func.HttpRequest) -> func.HttpResponse:
 
     # Get total job count
     count_query = "SELECT VALUE COUNT(1) FROM c"
-    total_jobs = list(jobs_container.query_items(query=count_query, enable_cross_partition_query=True))[0]
+    total_jobs = next(iter(jobs_container.query_items(query=count_query, enable_cross_partition_query=True)))
 
     return response(200, {
         'daily': total_cost,

@@ -27,6 +27,44 @@ class ModelCapability:
 # Model capabilities registry
 MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # OpenAI Models
+    "openai/gpt-5.4": ModelCapability(
+        provider="openai",
+        model="gpt-5.4",
+        cost_per_query=0.30,
+        latency_ms=2300,
+        context_window=1_050_000,
+        specializations=["reasoning", "planning", "agentic", "synthesis", "large_context"],
+        strengths=[
+            "Newest OpenAI frontier model",
+            "Strong long-horizon task execution",
+            "1M+ token context window",
+            "Improved tool-use reliability",
+            "Supports none/low/medium/high/xhigh reasoning effort",
+        ],
+        weaknesses=["Higher cost than gpt-5.2", "May require prompt/effort tuning for best cost-quality tradeoff"],
+        input_cost_per_1m=2.50,
+        output_cost_per_1m=15.00,
+    ),
+    "openai/gpt-5.4-pro": ModelCapability(
+        provider="openai",
+        model="gpt-5.4-pro",
+        cost_per_query=0.90,
+        latency_ms=8000,
+        context_window=1_050_000,
+        specializations=["reasoning", "planning", "agentic", "synthesis", "hard_problems"],
+        strengths=[
+            "Highest-precision GPT-5.4 variant",
+            "Stronger long-horizon reasoning for complex tasks",
+            "1M+ token context window",
+            "Responses API support with advanced tools",
+        ],
+        weaknesses=[
+            "Expensive compared with non-pro variants",
+            "Higher latency and may take minutes on hard tasks",
+        ],
+        input_cost_per_1m=30.00,
+        output_cost_per_1m=180.00,
+    ),
     "openai/gpt-5.2": ModelCapability(
         provider="openai",
         model="gpt-5.2",
@@ -258,6 +296,42 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=0.20,
         output_cost_per_1m=0.50,
     ),
+    "xai/grok-4-1-fast-non-reasoning": ModelCapability(
+        provider="xai",
+        model="grok-4-1-fast-non-reasoning",
+        cost_per_query=0.008,
+        latency_ms=1200,
+        context_window=2_000_000,
+        specializations=["speed", "news", "factual", "high_throughput"],
+        strengths=[
+            "Low-latency Grok 4.1 variant",
+            "2M token context window",
+            "Great for high-volume factual and retrieval tasks",
+        ],
+        weaknesses=[
+            "Weaker than reasoning variant on complex analysis",
+        ],
+        input_cost_per_1m=0.20,
+        output_cost_per_1m=0.50,
+    ),
+    "xai/grok-code-fast-1": ModelCapability(
+        provider="xai",
+        model="grok-code-fast-1",
+        cost_per_query=0.012,
+        latency_ms=1300,
+        context_window=256_000,
+        specializations=["coding", "speed", "cost", "developer_workflows"],
+        strengths=[
+            "xAI coding-optimized fast model",
+            "Low-cost coding and transformation tasks",
+            "Good fit for agent loops with short responses",
+        ],
+        weaknesses=[
+            "Narrower specialization than general-purpose Grok reasoning models",
+        ],
+        input_cost_per_1m=0.20,
+        output_cost_per_1m=1.50,
+    ),
     "xai/grok-4-fast-reasoning": ModelCapability(
         provider="xai",
         model="grok-4-fast-reasoning",
@@ -294,6 +368,25 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Preview model (may change)", "Thinking tokens add to output cost"],
         input_cost_per_1m=0.50,
         output_cost_per_1m=3.00,  # Includes thinking tokens
+    ),
+    "gemini/gemini-3.1-flash-lite-preview": ModelCapability(
+        provider="gemini",
+        model="gemini-3.1-flash-lite-preview",
+        cost_per_query=0.006,
+        latency_ms=1300,
+        context_window=1_000_000,
+        specializations=["speed", "cost", "general", "high_throughput", "thinking"],
+        strengths=[
+            "Newest Flash-Lite in Gemini 3.1 series",
+            "1M token context window",
+            "Low-cost high-throughput inference",
+        ],
+        weaknesses=[
+            "Preview model (lifecycle may change)",
+            "Less capable than Pro models on deep reasoning",
+        ],
+        input_cost_per_1m=0.20,
+        output_cost_per_1m=1.20,
     ),
     "gemini/gemini-3.1-pro-preview": ModelCapability(
         provider="gemini",
@@ -371,6 +464,22 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=["Less capable than pro models", "Thinking tokens add to output cost"],
         input_cost_per_1m=0.30,
         output_cost_per_1m=2.50,  # Includes thinking tokens
+    ),
+    "gemini/gemini-2.5-flash-lite": ModelCapability(
+        provider="gemini",
+        model="gemini-2.5-flash-lite",
+        cost_per_query=0.003,
+        latency_ms=1100,
+        context_window=1_000_000,
+        specializations=["speed", "cost", "general", "high_throughput"],
+        strengths=[
+            "Stable low-cost Flash-Lite model",
+            "1M token context window",
+            "Strong throughput for lightweight tasks",
+        ],
+        weaknesses=["Less capable on deep reasoning and synthesis"],
+        input_cost_per_1m=0.10,
+        output_cost_per_1m=0.40,
     ),
     "gemini/gemini-2.5-pro": ModelCapability(
         provider="gemini",

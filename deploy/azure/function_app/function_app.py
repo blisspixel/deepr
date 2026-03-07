@@ -4,17 +4,17 @@ Azure Functions app for Deepr API.
 Handles job submission, status, and results via HTTP triggers.
 """
 
-import azure.functions as func
 import json
+import logging
 import os
 import uuid
-import logging
 from datetime import datetime, timezone
 
-from azure.storage.queue import QueueClient
-from azure.storage.blob import BlobServiceClient
+import azure.functions as func
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
+from azure.storage.blob import BlobServiceClient
+from azure.storage.queue import QueueClient
 
 app = func.FunctionApp()
 

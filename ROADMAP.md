@@ -1,6 +1,6 @@
 # Deepr Roadmap
 
-> Development priorities and planned features. Model pricing current as of February 2026.
+> Development priorities and planned features. Model/pricing notes updated through March 2026.
 
 ## Quick Links
 
@@ -37,11 +37,11 @@ Multi-provider research automation with expert system, domain-specific skills, M
 These features are well-tested and used regularly:
 
 - **Core research commands**: `research`, `check`, `learn` - reliable across providers
-- **Cost controls**: Budget limits, cost tracking, `costs show/timeline/breakdown`
+- **Cost controls**: Budget limits, canonical cost ledger, cost tracking, `costs show/timeline/breakdown/doctor`
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5/5.2, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -60,7 +60,7 @@ These features work but APIs or behavior may change:
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5/5.2/4.1, Gemini 3.1 Pro/3 Flash/2.5 Flash, Grok 4 Fast, Anthropic Claude, Azure, Azure AI Foundry)
+- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.1 Pro/Flash-Lite/2.5, Grok 4.1 Fast variants, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
@@ -73,7 +73,7 @@ These features work but APIs or behavior may change:
 - Auto-fallback on provider failures with `--no-fallback` override
 - **Auto mode** (`--auto`) for smart query routing based on complexity (10-20x cost savings)
 - **Batch processing** (`--auto --batch queries.txt`) with per-query optimal routing
-- Cost dashboard (`costs timeline`, `costs breakdown --period`, `costs expert`)
+- Cost dashboard (`costs timeline`, `costs breakdown --period`, `costs expert`, `costs doctor`)
 - Multi-layer budget protection with pause/resume
 - Docker deployment option
 - Cloud deployment templates (AWS, Azure, GCP)
@@ -283,7 +283,7 @@ The current benchmark (`scripts/benchmark_models.py`) evaluates models across fo
 - [x] `--prefer-cost` and `--prefer-speed` optimization flags
 - [x] API key awareness: checks `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY` before routing to a provider
 - [x] Tiered deep research models: simple → grok-4-fast ($0.01), moderate → o3-deep-research ($0.50), complex → o4-mini-deep-research ($2.00)
-- [x] Budget-aware routing (downgrades through o3 → o4-mini → gpt-5.2 → grok-4-fast)
+- [x] Budget-aware routing (downgrades through deep research -> frontier -> fast/value models)
 - [x] Auto-routed jobs in queue schema (`auto_routed`, `routing_decision`, `batch_id` fields)
 - [x] AWS worker respects `routing_decision` for provider/model selection
 - [x] 44 unit tests covering routing logic, API key awareness, batch parsing, dry-run execution
@@ -752,3 +752,4 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 **Questions?** Open a [GitHub Discussion](https://github.com/blisspixel/deepr/discussions) or check the [documentation](docs/).
 
 [MIT License](LICENSE) · [GitHub](https://github.com/blisspixel/deepr)
+

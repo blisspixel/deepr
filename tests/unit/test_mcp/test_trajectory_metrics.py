@@ -286,7 +286,7 @@ class TestCalculateCitationAccuracy:
         """All claims have citations."""
         text = "The market grew 50% [1]. Revenue was $1M [2]."
 
-        accuracy, cited, total = calculate_citation_accuracy(text)
+        accuracy, cited, _total = calculate_citation_accuracy(text)
 
         assert accuracy == 1.0
         assert cited == 2
@@ -295,7 +295,7 @@ class TestCalculateCitationAccuracy:
         """Text with claims but no citations."""
         text = "The market grew 50%. Revenue was $1M."
 
-        accuracy, cited, total = calculate_citation_accuracy(text)
+        accuracy, cited, _total = calculate_citation_accuracy(text)
 
         assert cited == 0
         assert accuracy == 0.0

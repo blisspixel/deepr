@@ -18,6 +18,7 @@ Property tests validate:
 
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -613,6 +614,18 @@ class TestSubgraphCache:
         assert result is not None
         assert "node1" in result.node_ids
 
+    def test_load_handles_memory_error_in_edges_file(self, tmp_path):
+        """Graph load should recover from MemoryError in persisted edges."""
+        storage_dir = tmp_path / "graph"
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        (storage_dir / "edges.json").write_text("[]", encoding="utf-8")
+
+        with patch("deepr.experts.lazy_graph_rag.json.load", side_effect=MemoryError("boom")):
+            graph = KnowledgeGraph(expert_name="test_expert", storage_dir=storage_dir)
+
+        assert graph is not None
+        assert len(graph.edges) == 0
+
     def test_get_stats(self, tmp_path):
         """Test getting cache statistics."""
         cache = SubgraphCache(max_size=10)
@@ -837,6 +850,18 @@ class TestKnowledgeGraph:
         assert len(graph2.concepts) == 2
         assert len(graph2.edges) == 1
 
+    def test_load_handles_memory_error_in_edges_file(self, tmp_path):
+        """Graph load should recover from MemoryError in persisted edges."""
+        storage_dir = tmp_path / "graph"
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        (storage_dir / "edges.json").write_text("[]", encoding="utf-8")
+
+        with patch("deepr.experts.lazy_graph_rag.json.load", side_effect=MemoryError("boom")):
+            graph = KnowledgeGraph(expert_name="test_expert", storage_dir=storage_dir)
+
+        assert graph is not None
+        assert len(graph.edges) == 0
+
     def test_get_stats(self, tmp_path):
         """Test getting graph statistics."""
         graph = KnowledgeGraph(expert_name="test_expert", storage_dir=tmp_path / "graph")
@@ -952,6 +977,18 @@ Deep learning uses multiple layers of neural networks.
         # Both should return boolean
         assert isinstance(simple, bool)
         assert isinstance(complex_query, bool)
+
+    def test_load_handles_memory_error_in_edges_file(self, tmp_path):
+        """Graph load should recover from MemoryError in persisted edges."""
+        storage_dir = tmp_path / "graph"
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        (storage_dir / "edges.json").write_text("[]", encoding="utf-8")
+
+        with patch("deepr.experts.lazy_graph_rag.json.load", side_effect=MemoryError("boom")):
+            graph = KnowledgeGraph(expert_name="test_expert", storage_dir=storage_dir)
+
+        assert graph is not None
+        assert len(graph.edges) == 0
 
     def test_get_stats(self, tmp_path):
         """Test getting LazyGraphRAG statistics."""

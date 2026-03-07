@@ -51,7 +51,7 @@ python scripts/benchmark_models.py --tier chat --model gemini/gemini-2.5-pro --s
 | anthropic/claude-haiku-4-5 | Anthropic | $0.003 |
 | anthropic/claude-sonnet-4-5 | Anthropic | $0.008 |
 
-Optional expensive models (add `--include-expensive`): gpt-5.2, claude-opus-4-6.
+Optional expensive models (add `--include-expensive`): higher-cost frontier models (for periodic baseline refreshes).
 
 ### News Tier (7 models)
 
@@ -91,6 +91,8 @@ Each tier uses a different scoring formula optimized for what matters:
 - **Judge**: Scores comprehensiveness (0.25), accuracy (0.25), synthesis (0.20), structure (0.15), citation integration (0.15)
 - **Citation score**: 35% count (0-20) + 25% domain diversity (0-10) + 25% report length (0-2000 words) + 15% structure (headings present)
 
+By default, benchmark runs now use a `$1` preflight cap. Increase with `--max-estimated-cost` or disable with `--no-cost-cap` when you intentionally want a larger run.
+
 ## CLI Reference
 
 ```
@@ -111,7 +113,11 @@ python scripts/benchmark_models.py [OPTIONS]
 | `--validate` | Test provider APIs (no benchmark) |
 | `--dry-run` | Show plan + cost estimate without making calls |
 | `--show-prompts` | Display all eval prompts and exit |
-| `--include-expensive` | Add gpt-5.2 and claude-opus-4-6 to chat tier |
+| `--include-expensive` | Add expensive opt-in models to chat tier |
+| `--fill-gaps` | Load prior results and run only missing model+tier combos |
+| `--new-models` | Alias for `--fill-gaps` (recommended for new model launches) |
+| `--max-estimated-cost DOLLARS` | Abort before execution when preflight estimate exceeds threshold |
+| `--no-cost-cap` | Disable default preflight cost cap (use sparingly) |
 | `--judge-model MODEL` | Override the judge (default: openai/gpt-4.1-mini) |
 | `--format table\|json` | Output format |
 | `--emit-routing-config` | Write `routing_preferences.json` for auto-mode |
@@ -134,6 +140,17 @@ TimeoutError: OpenAI deep research timed out after 3600s.
 Job resp_abc123 may still be running -- check with:
 GET https://api.openai.com/v1/responses/resp_abc123
 ```
+
+## Latest Routing Snapshot
+
+From `data/benchmarks/routing_preferences.json` (latest generated run):
+
+- Freshness/citation/source diversity: `xai/grok-4-1-fast-non-reasoning`
+- API reference + integration guide quality: `openai/gpt-5.4`
+- Quick lookup/synthesis/technical docs quality: `gemini/gemini-3.1-pro-preview`
+- Common value winner for chat-style tasks: `openai/gpt-4.1-nano`
+
+These are task-specific winners; routing should prefer `best_value` for cost-sensitive default flows and `best_quality` when explicitly requested.
 
 ## Results (2026-02-13 Baseline)
 
@@ -216,6 +233,34 @@ Docs tier tests API documentation fetching, SDK guides, and integration guides. 
 | Live news / fresh info | xai/grok-4-1-fast-reasoning | xai/grok-4-fast-reasoning | $0.002 |
 | Expert knowledge synthesis | anthropic/claude-sonnet-4-5 | openai/gpt-4.1 | $0.08-0.14 |
 | Deep research report | openai/o4-mini-deep-research | openai/o3-deep-research | $0.01-0.10 |
+
+## New Model Onboarding Playbook
+
+Use this process whenever providers release new models.
+
+1. Discovery
+- Check provider model docs/changelogs (OpenAI, Anthropic, Google, xAI).
+- Only consider models that match Deepr workflows: `deep_research`, `reasoning/synthesis`, or `cheap lookup/news/docs`.
+
+2. Registry update
+- Add model metadata in `deepr/providers/registry.py` (pricing, latency, context, strengths/weaknesses).
+- Add provider alias/mapping support in provider implementation if model IDs differ from friendly names.
+
+3. Tier placement
+- Put each model only in relevant tiers in `scripts/benchmark_models.py`:
+  - `RESEARCH_MODELS` for native deep-research APIs
+  - `ORCHESTRATED_RESEARCH_MODELS` for web-search orchestration
+  - `NEWS_MODELS` / `DOCS_MODELS` only if web-grounded docs/news behavior matters
+
+4. Cost-gated eval (default flow)
+- Estimate first: `deepr eval new --dry-run --tier all`
+- Enforce threshold at runtime: `deepr eval new` (default `$1` cap)
+- Increase intentionally when needed: `deepr eval new --max-estimated-cost 3`
+- Add `--no-judge` or `--quick` when cost/latency must be minimal.
+
+5. Promote or rollback
+- If quality improves for target tier(s), keep model in routing candidates.
+- If quality regresses or cost/latency is poor, keep model in registry but remove from benchmark defaults/routing candidates.
 
 ## Adding New Models
 

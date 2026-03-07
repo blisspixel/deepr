@@ -6,10 +6,13 @@ Provides defense against accidental or malicious cost spikes.
 Requirements: 8.2 - Implement rapid cost accumulation detection and circuit breaker
 """
 
+import os
 import time
 from collections import deque
 from dataclasses import dataclass
 from typing import Optional
+
+from deepr.observability.cost_ledger import CostLedger
 
 
 @dataclass
@@ -535,6 +538,8 @@ class CostSafetyManager:
         self._circuit_breaker = circuit_breaker or create_default_circuit_breaker()
         self._session_costs: dict[str, float] = {}
         self._sessions: dict[str, CostSession] = {}
+        self._ledger = CostLedger()
+        self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "0").lower() in {"1", "true", "yes", "on"}
 
         # Global daily/monthly tracking
         self.daily_cost: float = 0.0
@@ -612,7 +617,19 @@ class CostSafetyManager:
         return True, "OK", False
 
     def record_cost(
-        self, session_id: str, operation_type: str, actual_cost: float, details: Optional[str] = None
+        self,
+        session_id: str,
+        operation_type: str,
+        actual_cost: float,
+        details: Optional[str] = None,
+        provider: str = "unknown",
+        model: str = "",
+        tokens_input: int = 0,
+        tokens_output: int = 0,
+        request_id: str = "",
+        idempotency_key: str = "",
+        source: str = "cost_safety.record_cost",
+        metadata: Optional[dict] = None,
     ) -> bool:
         """Record a cost event.
 
@@ -621,6 +638,14 @@ class CostSafetyManager:
             operation_type: Type of operation
             actual_cost: Actual cost incurred
             details: Optional details about the operation
+            provider: Provider that incurred cost
+            model: Model that incurred cost
+            tokens_input: Input tokens if available
+            tokens_output: Output tokens if available
+            request_id: Optional provider request/response ID
+            idempotency_key: Optional dedupe key for canonical ledger
+            source: Event source label for observability
+            metadata: Optional metadata map for ledger event
 
         Returns:
             True if circuit is still closed, False if it tripped
@@ -636,6 +661,29 @@ class CostSafetyManager:
         # Track daily/monthly
         self.daily_cost += actual_cost
         self.monthly_cost += actual_cost
+
+        # Record canonical ledger event
+        event_metadata = dict(metadata or {})
+        if details:
+            event_metadata["details"] = details
+        try:
+            self._ledger.record_event(
+                operation=operation_type,
+                provider=provider or "unknown",
+                model=model or "",
+                cost_usd=actual_cost,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
+                task_id=session_id,
+                session_id=session_id,
+                request_id=request_id,
+                source=source,
+                idempotency_key=idempotency_key,
+                metadata=event_metadata,
+            )
+        except OSError as e:
+            if self._strict_tracking:
+                raise RuntimeError(f"Cost ledger write failed in strict mode: {e}") from e
 
         # Record in circuit breaker
         return self._circuit_breaker.record_cost(cost=actual_cost, operation=operation_type, job_id=session_id)
@@ -787,3 +835,4 @@ def format_cost_warning(expected_cost: float, budget_limit: float | None) -> str
         else:
             msg += f" (within ${budget_limit:.2f} budget)"
     return msg
+

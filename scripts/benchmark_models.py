@@ -609,7 +609,7 @@ DOCS_EVAL_PROMPTS = [
 # Azure Foundry runs the same models as OpenAI — test it separately for latency.
 DEFAULT_MODELS = [
     # Frontier models
-    "openai/gpt-5.2",  # Frontier enterprise reasoning, 400K context ($0.30/query)
+    "openai/gpt-5.4",  # Current OpenAI frontier default (1M+ context)
     "anthropic/claude-opus-4-6",  # Most capable Claude ($0.80/query)
     "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
@@ -625,24 +625,26 @@ DEFAULT_MODELS = [
     "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
     "xai/grok-4-fast",  # Cheapest overall ($0.01/query)
     "gemini/gemini-3-flash-preview",  # Newest gen, fast ($0.01/query)
-    "gemini/gemini-2.5-flash",  # Cheapest Gemini ($0.005/query)
+    "gemini/gemini-3.1-flash-lite-preview",  # Lowest-cost Gemini 3.1
     "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
 ]
 
 EXPENSIVE_MODELS: list[str] = [
-    # Reserved for future very expensive models
+    "openai/gpt-5.4-pro",  # Highest-end variant; opt-in due high cost
 ]
 
 NEWS_MODELS = [
     # OpenAI (via Responses API web_search tool)
-    "openai/gpt-5.2",
+    "openai/gpt-5.4",
     "openai/gpt-5-mini",
     # xAI (native web search)
     "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-fast-reasoning",
+    "xai/grok-4-1-fast-non-reasoning",
     # Gemini (Google grounding)
     "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-3-flash-preview",
+    "gemini/gemini-3.1-flash-lite-preview",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-2.5-pro",
 ]
@@ -658,26 +660,30 @@ _DEEP_RESEARCH_NAMES: set[str] = {m.split("/", 1)[1] for m in RESEARCH_MODELS}
 # multi-source synthesis via web search tools). Scored with research judge.
 ORCHESTRATED_RESEARCH_MODELS = [
     # OpenAI (Responses API + web_search)
-    "openai/gpt-5.2",
+    "openai/gpt-5.4",
     "openai/o3",
     "openai/gpt-5-mini",
     # Gemini (google_search grounding)
     "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
+    "gemini/gemini-3.1-flash-lite-preview",
     # xAI (Responses API + web_search)
     "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-fast-reasoning",
+    "xai/grok-4-1-fast-non-reasoning",
 ]
 
 # Documentation tier models: web-search-capable models that can fetch + document APIs.
 DOCS_MODELS = [
-    "openai/gpt-5.2",
+    "openai/gpt-5.4",
     "openai/gpt-5-mini",
     "openai/o3",
     "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
+    "gemini/gemini-3.1-flash-lite-preview",
     "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-fast-reasoning",
+    "xai/grok-4-1-fast-non-reasoning",
 ]
 
 # Provider → (env var, API base URL)
@@ -2676,6 +2682,9 @@ Examples:
   python scripts/benchmark_models.py --tier docs                   # Documentation tier
   python scripts/benchmark_models.py --tier all --save             # Full run, save results
   python scripts/benchmark_models.py --tier all --resume --save    # Resume crashed run
+  python scripts/benchmark_models.py --fill-gaps --tier all --save # Only missing model+tier combos
+  python scripts/benchmark_models.py --new-models --save                # default $1 preflight cap
+  python scripts/benchmark_models.py --new-models --max-estimated-cost 3 --save
   python scripts/benchmark_models.py --tier news --provider gemini # Vendor + tier
   python scripts/benchmark_models.py --show-prompts --tier all     # Display all prompts
   python scripts/benchmark_models.py --compare data/benchmarks/benchmark_PREV.json
@@ -2700,6 +2709,16 @@ Examples:
     )
     parser.add_argument("--include-expensive", action="store_true", help="Include expensive models (gpt-5.2, opus)")
     parser.add_argument("--budget", type=float, help="Maximum spend in dollars for the run")
+    parser.add_argument(
+        "--max-estimated-cost",
+        type=float,
+        help="Abort before execution if preflight estimated cost exceeds this amount (USD)",
+    )
+    parser.add_argument(
+        "--no-cost-cap",
+        action="store_true",
+        help="Disable default preflight cost cap. Use with care.",
+    )
     parser.add_argument("--judge-model", help="Force a specific judge model (e.g. openai/gpt-4.1-mini)")
     parser.add_argument("--no-judge", action="store_true", help="Skip LLM judge, use reference/citation scoring only")
     parser.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
@@ -2721,11 +2740,24 @@ Examples:
         action="store_true",
         help="Load all prior results and only run missing model+tier combos. Saves merged output.",
     )
+    parser.add_argument(
+        "--new-models",
+        action="store_true",
+        help="Alias for --fill-gaps (run only newly added model+tier combos).",
+    )
     parser.add_argument("--workers", type=int, default=5, help="Parallel eval workers (default: 5)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
 
     args = parser.parse_args()
     args.workers = max(1, min(args.workers, 50))
+
+    if args.new_models:
+        args.fill_gaps = True
+
+    # Safe default: cap benchmark spend unless explicitly disabled/overridden.
+    # This is especially important for --new-models / --fill-gaps workflows.
+    if args.max_estimated_cost is None and not args.no_cost_cap:
+        args.max_estimated_cost = 1.0
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -2793,6 +2825,14 @@ Examples:
     est_total = est_cost + judge_cost
 
     print_preflight(key_status, all_models, est_total)
+
+    if (not args.dry_run) and args.max_estimated_cost is not None and est_total > args.max_estimated_cost:
+        print(
+            f"\n  ABORT: estimated cost ${est_total:.2f} exceeds --max-estimated-cost ${args.max_estimated_cost:.2f}."
+        )
+        print("  Re-run with narrower scope, --new-models/--fill-gaps, --quick, or --no-judge.")
+        print("  To intentionally run expensive benchmarks, set --max-estimated-cost higher or pass --no-cost-cap.")
+        sys.exit(2)
 
     # Dry run (before budget prompts)
     if args.dry_run:
