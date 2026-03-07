@@ -137,8 +137,8 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
     latest = files[-1]
     try:
         data = json.loads(latest.read_text(encoding="utf-8"))
-    except Exception:
-        _logger.debug("Could not load benchmark data from %s", latest)
+    except Exception as exc:
+        _logger.warning("Could not load benchmark data from %s: %s", latest, exc)
         return None
 
     rankings_data = data.get("rankings", [])
@@ -597,3 +597,4 @@ Reasoning
 {decision.reasoning}
 """
         return explanation.strip()
+
