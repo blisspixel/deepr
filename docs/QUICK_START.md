@@ -200,6 +200,7 @@ Deep research can take 15-30 minutes. This is normal. Check status periodically.
 ### Need help?
 
 ```bash
+deepr -h
 deepr --help
 deepr research --help
 deepr expert --help
@@ -259,7 +260,7 @@ deepr expert chat "Python Async Expert" --agentic --budget 3
 
 ## Getting Help
 
-- `deepr --help` - CLI help
+- `deepr -h` / `deepr --help` - CLI help
 - [GitHub Issues](https://github.com/blisspixel/deepr/issues) - Report bugs
 - [README.md](../README.md) - Full documentation
 - [ROADMAP.md](../ROADMAP.md) - Future plans

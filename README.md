@@ -177,7 +177,7 @@ Optional env controls:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 3800+ tests.
+**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 4300+ tests.
 
 **Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates.
 
@@ -212,11 +212,11 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 
 ## Contributing
 
-Contributions welcome. Run `ruff check . && ruff format .` and `pytest tests/` before submitting. See [ROADMAP.md](ROADMAP.md) for priorities.
+Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before submitting. See [ROADMAP.md](ROADMAP.md) for priorities.
 
 ## Security
 
-3800+ tests. Pre-commit hooks run ruff. Input validation, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+4300+ tests. Pre-commit hooks run ruff. Input validation, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
