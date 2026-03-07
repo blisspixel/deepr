@@ -1,6 +1,7 @@
 """Run research jobs with modern CLI interface."""
 
 import asyncio
+import logging
 import os
 import time
 import uuid
@@ -28,6 +29,8 @@ from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 
 MAX_FALLBACK_ATTEMPTS = 3
+
+logger = logging.getLogger(__name__)
 
 
 def _classify_provider_error(exc: Exception, provider: str) -> None:
@@ -373,8 +376,8 @@ async def _run_single(
             model = selected_model
             if output_context.mode == OutputMode.VERBOSE:
                 console.print(f"  [dim]Router selected: {provider}/{model}[/dim]")
-        except Exception:
-            pass  # Keep original provider/model on router failure
+        except Exception as exc:
+            logger.debug("Router selection failed; using requested/default provider: %s", exc, exc_info=exc)
 
     # Initialize trace emitter
     emitter = MetadataEmitter()
@@ -492,8 +495,8 @@ async def _run_single(
                         success=True,
                         latency_ms=submit_latency,
                     )
-                except Exception:
-                    pass  # Non-critical
+                except Exception as exc:
+                    logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
                 success = True
                 break
 
@@ -502,8 +505,8 @@ async def _run_single(
                 last_error = e
                 try:
                     router.record_result(current_provider, current_model, success=False, error=str(e))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
                 if output_context.mode == OutputMode.VERBOSE:
                     print_warning(f"{current_provider}: authentication failed, skipping")
                 attempted.append((current_provider, current_model))
@@ -513,8 +516,8 @@ async def _run_single(
                 last_error = e
                 try:
                     router.record_result(current_provider, current_model, success=False, error=str(e))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
                 attempted.append((current_provider, current_model))
 
             except ProviderTimeoutError as e:
@@ -530,16 +533,16 @@ async def _run_single(
                 # Second timeout — record and fall through to fallback
                 try:
                     router.record_result(current_provider, current_model, success=False, error=str(e))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
 
             except CoreProviderError as e:
                 # Generic provider error or unavailable: immediate fallback
                 last_error = e
                 try:
                     router.record_result(current_provider, current_model, success=False, error=str(e))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to record provider router metric: %s", exc, exc_info=exc)
                 attempted.append((current_provider, current_model))
 
             # === Fallback selection ===
@@ -568,7 +571,8 @@ async def _run_single(
                     fallback = router.select_provider(task_type="research", exclude=attempted)
                     if fallback in attempted:
                         fallback = None
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Fallback provider selection failed with exclusions: %s", exc, exc_info=exc)
                     fallback = None
 
             if fallback is None:
@@ -639,8 +643,8 @@ async def _run_single(
     trace_path = Path(f"data/traces/research_{job_id[:12]}.json")
     try:
         emitter.save_trace(trace_path)
-    except Exception:
-        pass  # Non-critical
+    except Exception as exc:
+        logger.warning("Failed to save research trace to %s: %s", trace_path, exc)
 
     # Display trace info if flags are set (skip for JSON/QUIET modes)
     if trace_flags.any_enabled and output_context.mode not in (OutputMode.JSON, OutputMode.QUIET):
@@ -1245,3 +1249,4 @@ def run_alias(query, model, provider, no_web, no_code, upload, limit, yes, no_fa
 
 if __name__ == "__main__":
     run()
+

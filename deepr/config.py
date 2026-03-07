@@ -85,9 +85,9 @@ class ProviderConfig(BaseModel):
         try:
             data = json.loads(prefs_path.read_text(encoding="utf-8"))
             task_prefs = data.get("task_preferences", {})
-        except Exception:
+        except Exception as exc:
             _logger = logging.getLogger(__name__)
-            _logger.debug("Could not load benchmark preferences for config")
+            _logger.warning("Could not load benchmark preferences for config: %s", exc)
             return self
 
         # Map config task types to benchmark task types
@@ -525,3 +525,4 @@ def load_config() -> dict:
         "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0") or "25.0"),
         "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0") or "200.0"),
     }
+
