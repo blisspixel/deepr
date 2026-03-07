@@ -7,16 +7,14 @@ in deepr.experts.skills.executor.
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from deepr.experts.skills.definition import SkillBudget, SkillDefinition, SkillTool, SkillTrigger
-from deepr.experts.skills.executor import MCPClientProxy, SkillExecutor, _COST_TIER_ESTIMATES
-
+from deepr.experts.skills.definition import SkillDefinition, SkillTool
+from deepr.experts.skills.executor import _COST_TIER_ESTIMATES, MCPClientProxy, SkillExecutor
 
 # ---------------------------------------------------------------------------
 # Helpers

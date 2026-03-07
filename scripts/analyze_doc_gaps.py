@@ -4,11 +4,12 @@ Analyze existing documentation and identify gaps.
 Uses GPT-5 to review what docs we have and what we need.
 """
 
+import json
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 from openai import OpenAI
-import json
 
 load_dotenv()
 
@@ -25,7 +26,7 @@ def main():
     doc_inventory = []
     for doc in doc_files:
         try:
-            with open(doc, 'r', encoding='utf-8') as f:
+            with open(doc, encoding='utf-8') as f:
                 content = f.read(1000)  # First 1000 chars
                 doc_inventory.append({
                     'name': doc.name,
@@ -124,7 +125,7 @@ Return ONLY JSON, no other text."""
             print(f'  {i}. [{priority.upper()}] {gap["title"]}')
             print(f'     {gap["reason"]}')
 
-        print(f'\nRecommendations:')
+        print('\nRecommendations:')
         print(f'  {analysis.get("recommendations", "N/A")}')
 
         # Save to file

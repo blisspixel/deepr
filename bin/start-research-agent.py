@@ -13,9 +13,9 @@ Usage:
     python bin/start-research agent.py --interval 15  # Poll every 15 seconds
 """
 
-import sys
 import asyncio
 import logging
+import sys
 from pathlib import Path
 
 # Add parent directory to path

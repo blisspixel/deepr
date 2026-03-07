@@ -9,9 +9,9 @@ Cleans up local development environment:
 - Optional: Remove all generated data
 """
 
+import shutil
 import sys
 from pathlib import Path
-import shutil
 
 # Add parent directory to path to import deepr modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -51,7 +51,7 @@ def cleanup_results(force=False):
 
     if not force:
         print(f"  Found {len(files)} result files")
-        response = input(f"Delete all result files? (y/N): ")
+        response = input("Delete all result files? (y/N): ")
         if response.lower() != 'y':
             print("  Skipped")
             return
@@ -78,7 +78,7 @@ def cleanup_logs(force=False):
 
     if not force:
         print(f"  Found {len(files)} log files")
-        response = input(f"Delete all log files? (y/N): ")
+        response = input("Delete all log files? (y/N): ")
         if response.lower() != 'y':
             print("  Skipped")
             return
@@ -104,7 +104,7 @@ def cleanup_uploads(force=False):
 
     if not force:
         print(f"  Found {len(files)} uploaded files")
-        response = input(f"Delete all uploaded files? (y/N): ")
+        response = input("Delete all uploaded files? (y/N): ")
         if response.lower() != 'y':
             print("  Skipped")
             return

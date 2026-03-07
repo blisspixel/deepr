@@ -1595,12 +1595,20 @@ class KnowledgeGraph:
             json.dump(edges_data, f, indent=2)
 
     def _load(self):
-        """Load graph from disk."""
+        """Load graph from disk.
+
+        Falls back to an empty graph when persisted files are corrupted
+        or too large to load in available memory.
+        """
         # Load concepts
         concepts_path = self.storage_dir / "concepts.json"
         if concepts_path.exists():
-            with open(concepts_path, encoding="utf-8") as f:
-                concepts_data = json.load(f)
+            try:
+                with open(concepts_path, encoding="utf-8") as f:
+                    concepts_data = json.load(f)
+            except (json.JSONDecodeError, OSError, MemoryError) as e:
+                logger.warning("Failed to load concepts graph for %s: %s", self.expert_name, e)
+                concepts_data = []
             for data in concepts_data:
                 concept = Concept.from_dict(data)
                 self.concepts[concept.id] = concept
@@ -1609,8 +1617,12 @@ class KnowledgeGraph:
         # Load edges
         edges_path = self.storage_dir / "edges.json"
         if edges_path.exists():
-            with open(edges_path, encoding="utf-8") as f:
-                edges_data = json.load(f)
+            try:
+                with open(edges_path, encoding="utf-8") as f:
+                    edges_data = json.load(f)
+            except (json.JSONDecodeError, OSError, MemoryError) as e:
+                logger.warning("Failed to load edges graph for %s: %s", self.expert_name, e)
+                edges_data = []
             for data in edges_data:
                 edge = Edge.from_dict(data)
                 self.edges[edge.id] = edge

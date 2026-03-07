@@ -352,11 +352,11 @@ class TestAutonomousProviderRouter:
         router = AutonomousProviderRouter(storage_path=temp_storage)
 
         # Research task should prefer research-optimized models
-        provider, model = router.select_provider(task_type="research")
+        provider, _model = router.select_provider(task_type="research")
         assert provider is not None
 
         # Quick task should prefer fast models
-        provider, model = router.select_provider(task_type="quick")
+        provider, _model = router.select_provider(task_type="quick")
         assert provider is not None
 
     def test_select_provider_excludes_specified(self, temp_storage):
@@ -398,7 +398,7 @@ class TestAutonomousProviderRouter:
                 cost=0.05,
             )
 
-        provider, model = router.select_provider()
+        provider, _model = router.select_provider()
 
         # Should prefer the healthy provider
         # (exact result depends on scoring, but unhealthy should be penalized)
@@ -534,7 +534,7 @@ class TestAutonomousProviderRouter:
             router.record_result("openai", "gpt-4o-mini", True, 1000.0, 0.01)
 
         # When preferring cost, should lean toward cheaper option
-        provider, model = router.select_provider(prefer_cost=True)
+        provider, _model = router.select_provider(prefer_cost=True)
         # The exact result depends on scoring weights, but the test ensures
         # the prefer_cost flag is processed without error
         assert provider is not None
@@ -552,7 +552,7 @@ class TestAutonomousProviderRouter:
             router.record_result("openai", "gpt-4o-mini", True, 2000.0, 0.01)
 
         # When preferring speed, should lean toward faster option
-        provider, model = router.select_provider(prefer_speed=True)
+        provider, _model = router.select_provider(prefer_speed=True)
         assert provider is not None
 
 

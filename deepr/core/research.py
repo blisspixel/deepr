@@ -202,7 +202,7 @@ class ResearchOrchestrator:
             op.set_attribute("session_id", tracking_session_id)
 
             # Check against global limits (daily/monthly)
-            allowed, reason, needs_confirm = cost_safety.check_operation(
+            allowed, reason, _needs_confirm = cost_safety.check_operation(
                 session_id=tracking_session_id,
                 operation_type="research_submit",
                 estimated_cost=estimated_cost,

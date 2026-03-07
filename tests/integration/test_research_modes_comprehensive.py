@@ -430,7 +430,7 @@ async def test_gemini_focus_mode_capability_check():
     response = await provider.get_status(job_id)
 
     if response.status == "completed":
-        text_content, has_citations = validate_research_output(response, "Gemini Focus", min_length=300)
+        text_content, _has_citations = validate_research_output(response, "Gemini Focus", min_length=300)
 
         print(f"  Output: {len(text_content)} chars")
         print(f"  Cost: ${response.usage.cost:.4f}")
@@ -477,7 +477,7 @@ async def test_gemini_docs_mode_api_documentation():
     response = await provider.get_status(job_id)
 
     if response.status == "completed":
-        text_content, has_citations = validate_research_output(response, "Gemini Docs", min_length=500)
+        text_content, _has_citations = validate_research_output(response, "Gemini Docs", min_length=500)
 
         print(f"  Output: {len(text_content)} chars")
         print(f"  Cost: ${response.usage.cost:.4f}")
@@ -530,7 +530,7 @@ async def test_grok_focus_mode_basic():
     response = await provider.get_status(job_id)
 
     if response.status == "completed":
-        text_content, has_citations = validate_research_output(response, "Grok Focus", min_length=200)
+        text_content, _has_citations = validate_research_output(response, "Grok Focus", min_length=200)
 
         print(f"  Output: {len(text_content)} chars")
         print(f"  Cost: ${response.usage.cost:.4f}")

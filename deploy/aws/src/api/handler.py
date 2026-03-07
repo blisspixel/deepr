@@ -10,11 +10,12 @@ import logging
 import os
 import re
 import uuid
-import boto3
-from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
+
+import boto3
+from botocore.exceptions import ClientError
 
 # Configure logging
 logger = logging.getLogger()

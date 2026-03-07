@@ -34,6 +34,8 @@ class TestGrokProvider:
         assert provider.get_model_name("grok-4-fast") == "grok-4-fast-non-reasoning"
         assert provider.get_model_name("grok-4-fast-reasoning") == "grok-4-fast-reasoning"
         assert provider.get_model_name("grok-4-fast-non-reasoning") == "grok-4-fast-non-reasoning"
+        assert provider.get_model_name("grok-4-1-fast-non-reasoning") == "grok-4-1-fast-non-reasoning"
+        assert provider.get_model_name("grok-4-1-fast-reasoning") == "grok-4-1-fast-reasoning"
 
         # Grok 4 full reasoning model
         assert provider.get_model_name("grok-4") == "grok-4"
@@ -53,7 +55,9 @@ class TestGrokProvider:
 
         # Grok 4 Fast pricing (cost-effective)
         assert "grok-4-fast-reasoning" in provider.pricing
+        assert "grok-4-1-fast-reasoning" in provider.pricing
         assert "grok-4-fast-non-reasoning" in provider.pricing
+        assert "grok-4-1-fast-non-reasoning" in provider.pricing
         assert provider.pricing["grok-4-fast-reasoning"]["input"] == 0.20
         assert provider.pricing["grok-4-fast-reasoning"]["output"] == 0.50
 

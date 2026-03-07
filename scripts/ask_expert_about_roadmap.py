@@ -1,14 +1,16 @@
 """Ask the Agentic Digital Consciousness expert about our roadmap."""
 import asyncio
+
 from deepr.experts.chat import start_chat_session
+
 
 async def main():
     # Read project context
-    with open('temp_project_context.md', 'r', encoding='utf-8') as f:
+    with open('temp_project_context.md', encoding='utf-8') as f:
         context = f.read()
 
     # Read relevant parts of roadmap
-    with open('ROADMAP.md', 'r', encoding='utf-8') as f:
+    with open('ROADMAP.md', encoding='utf-8') as f:
         roadmap = f.read()
 
     # Start chat

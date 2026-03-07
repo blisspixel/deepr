@@ -12,8 +12,8 @@ Runs all local tests without making API calls:
 Validates code without spending money on APIs.
 """
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Add parent directory to path to import deepr modules

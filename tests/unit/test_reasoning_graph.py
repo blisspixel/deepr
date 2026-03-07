@@ -190,7 +190,7 @@ class TestClaimSchema:
     def test_validate_valid_schema(self):
         """Test validation of valid claim JSON."""
         data = {"claims": [{"id": "c_1", "text": "Test claim", "source": "h_1"}]}
-        is_valid, error = ClaimSchema.validate(data)
+        is_valid, _error = ClaimSchema.validate(data)
         assert is_valid is True
 
     def test_validate_missing_claims(self):

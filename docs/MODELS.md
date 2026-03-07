@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-> **Note**: Model information current as of February 2026. AI models evolve rapidly — verify current pricing at provider websites. The [model registry](../deepr/providers/registry.py) is the source of truth. Run `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
+> **Note**: Model information current as of March 2026. AI models evolve rapidly — verify current pricing at provider websites. The [model registry](../deepr/providers/registry.py) is the source of truth. Run `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
 
 ## Overview
 
@@ -12,9 +12,9 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### OpenAI (`OPENAI_API_KEY`)
 - **Deep Research**: Turnkey async Deep Research API via Responses endpoint
-- **Models**: o3-deep-research, o4-mini-deep-research, GPT-5, GPT-5-mini, GPT-4.1, GPT-4.1-mini
+- **Models**: o3-deep-research, o4-mini-deep-research, GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, GPT-4.1-mini
 - **Best for**: Deep research, planning, expert system (vector stores require OpenAI-compatible API)
-- **Note**: GPT-5.2 available but requires approval; GPT-4.1 is widely available and cost-effective
+- **Note**: GPT-5.4 is the current mainline default; use GPT-5.4-pro for hardest tasks and GPT-5-mini for value
 
 ### Google Gemini (`GEMINI_API_KEY`)
 - **Deep Research**: Native Deep Research Agent via Interactions API (async background jobs)
@@ -22,9 +22,9 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Best for**: Large context windows (1M+ tokens), document analysis, cost-effective research, agentic workflows
 
 ### xAI Grok (`XAI_API_KEY`)
-- **Models**: Grok 4, Grok 4 Fast
+- **Models**: Grok 4.1 Fast Non-Reasoning, Grok 4.1 Fast Reasoning, Grok Code Fast 1
 - **Best for**: Cheapest general operations ($0.01/query), real-time web + X/Twitter search, latest news
-- **Note**: Grok 4 Fast is the default for simple factual queries in auto mode
+- **Note**: Grok fast variants are preferred for low-cost freshness/citation-heavy tasks
 
 ### Anthropic Claude (`ANTHROPIC_API_KEY`)
 - **Deep Research**: No turnkey API — uses Extended Thinking + tool use + web search orchestration
@@ -47,16 +47,16 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 | Task | Recommended Model | Cost/query | Latency | Notes |
 |------|-------------------|-----------|---------|-------|
-| Deep Research (OpenAI) | o4-mini-deep-research | $0.10 | 5-20 min | Async, comprehensive |
+| Deep Research (OpenAI) | o3-deep-research | see registry | 5-20 min | Async, highest-quality deep research baseline |
 | Deep Research (Gemini) | deep-research-pro-preview | ~$1.00 | 5-20 min | Async, Google Search built-in |
 | Deep Research (Azure) | o3-deep-research | $0.50 | 5-20 min | Bing grounding, enterprise |
-| Complex Research | o3-deep-research | $0.50 | 2-5 min | Extended reasoning chains |
+| Complex Research | gpt-5.4 | see registry | ~seconds to minutes | strong reasoning/synthesis default |
 | Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
-| Quick Lookups | Grok 4 Fast | $0.01 | ~1s | Cheapest option |
-| Latest News / Web | Grok 4 Fast | $0.01 | ~1s | Real-time web + X search |
+| Quick Lookups | Grok 4.1 Fast Non-Reasoning | see registry | ~1s | best value for freshness/citation tasks |
+| Latest News / Web | Grok 4.1 Fast Non-Reasoning | see registry | ~1s | real-time web + strong value |
 | Large Documents | Gemini 3.1 Pro | $0.20* | ~40s | 1M token context, configurable thinking |
 | Coding Tasks | Claude Sonnet 4.5 | $0.48 | ~3s | Best for code |
-| Complex Reasoning | Claude Opus 4.6 | $0.80 | ~15s | Adaptive Thinking |
+| Complex Reasoning | Claude Opus 4.6 | see registry | ~seconds | high-end complex reasoning |
 | Budget General | GPT-4.1-mini | $0.01 | ~1s | Cheapest OpenAI, 1M context |
 
 *\*Gemini 3.1 Pro has tiered pricing: $2/$12 per 1M tokens (input/output) for prompts ≤200K tokens, $4/$18 for prompts >200K tokens. The $0.20/query estimate assumes a typical sub-200K prompt. Large document analysis (250K+ tokens) costs roughly 2x more — e.g., a 500K-token corpus costs ~$2.27 vs ~$1.18 with sub-200K prompts. Use `--dry-run` to check before running.*
@@ -82,18 +82,18 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### Research Commands
 ```bash
-# Uses o4-mini-deep-research by default
+# Uses deep research routing defaults (see config + benchmark preferences)
 deepr research "Complex topic"
 
 # Override with specific model
-deepr research "Topic" --model o3-deep-research
+deepr research "Topic" --model openai/o3-deep-research
 
 # Use Gemini Deep Research Agent
 deepr research "Topic" --model gemini-deep-research
 ```
 
 ### Expert System
-- **Campaign mode (deep)**: o4-mini-deep-research (10-45 min per topic)
+- **Campaign mode (deep)**: o3-deep-research / o4-mini-deep-research (provider + budget dependent)
 - **Focus mode (quick)**: GPT-4.1 ($0.04/query, 1M+ context)
 - **Expert chat**: Provider-dependent (OpenAI for vector store experts)
 - **Quick lookups**: Grok 4 Fast ($0.01, when XAI_API_KEY available)

@@ -333,7 +333,7 @@ class TestPersistenceIntegration:
         # Verify in DB
         result = handler_with_db.persistence.load_job("persist_test")
         assert result is not None
-        state, plan, beliefs = result
+        state, plan, _beliefs = result
         assert state.job_id == "persist_test"
         assert plan.goal == "Test persistence"
 

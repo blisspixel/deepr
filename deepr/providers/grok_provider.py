@@ -62,7 +62,9 @@ class GrokProvider(DeepResearchProvider):
             "grok-4": "grok-4",
             "grok-4-fast": "grok-4-fast-non-reasoning",  # Default to non-reasoning for speed
             "grok-4-fast-reasoning": "grok-4-fast-reasoning",
+            "grok-4-1-fast-reasoning": "grok-4-1-fast-reasoning",
             "grok-4-fast-non-reasoning": "grok-4-fast-non-reasoning",
+            "grok-4-1-fast-non-reasoning": "grok-4-1-fast-non-reasoning",
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
@@ -79,7 +81,9 @@ class GrokProvider(DeepResearchProvider):
         self.pricing = {
             "grok-4": {"input": 3.00, "output": 15.00},
             "grok-4-fast-reasoning": _grok_fast,
+            "grok-4-1-fast-reasoning": _grok_fast,
             "grok-4-fast-non-reasoning": _grok_fast,
+            "grok-4-1-fast-non-reasoning": _grok_fast,
             "grok-3": {"input": 3.00, "output": 15.00},
             "grok-3-mini": {"input": 0.30, "output": 0.50},
             "grok-code-fast-1": {"input": 0.20, "output": 1.50},

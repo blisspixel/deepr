@@ -11,7 +11,6 @@ Usage in server:
 
 from typing import Any
 
-
 # Prompt definitions: name -> {description, arguments, messages}
 PROMPTS: dict[str, dict[str, Any]] = {
     "deep_research_task": {
