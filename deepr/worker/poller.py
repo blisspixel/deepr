@@ -90,7 +90,7 @@ class JobPoller:
             try:
                 await self._check_job_status(job)
             except Exception:
-                logger.error("Error checking job %s", job.id)
+                logger.exception("Error checking job %s", job.id)
 
     async def _check_job_status(self, job):
         """Check status of a single job."""
@@ -151,7 +151,7 @@ class JobPoller:
                         logger.debug(f"Job {job.id} queued for {queue_time_minutes:.1f} minutes")
 
         except Exception:
-            logger.error("Error checking job %s", job.id)
+            logger.exception("Error checking job %s", job.id)
             # Don't mark as failed yet, might be temporary network issue
 
     async def _handle_completion(self, job, response):
@@ -190,17 +190,21 @@ class JobPoller:
             tokens = response.usage.total_tokens if response.usage else 0
 
             # Update queue with results
-            await self.queue.update_results(
+            results_updated = await self.queue.update_results(
                 job_id=job.id, report_paths={"markdown": "report.md"}, cost=cost, tokens_used=tokens
             )
+            if not results_updated:
+                raise RuntimeError(f"Queue update_results failed for job {job.id}")
 
             # Mark as completed
-            await self.queue.update_status(job.id, JobStatus.COMPLETED)
+            status_updated = await self.queue.update_status(job.id, JobStatus.COMPLETED)
+            if not status_updated:
+                raise RuntimeError(f"Queue update_status(COMPLETED) failed for job {job.id}")
 
             logger.info(f"Job {job.id} completed successfully (cost: ${cost:.4f})")
 
         except Exception:
-            logger.error("Error handling completion for job %s", job.id)
+            logger.exception("Error handling completion for job %s", job.id)
             await self._handle_failure(job, "Result processing failed")
 
     async def _handle_failure(self, job, error: str):
@@ -211,10 +215,12 @@ class JobPoller:
             logger.error("Job %s failed: %s", job.id, error)
 
             # Update queue with failure status
-            await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
+            status_updated = await self.queue.update_status(job_id=job.id, status=JobStatus.FAILED, error=error)
+            if not status_updated:
+                logger.error("Failed to persist FAILED status for job %s", job.id)
 
         except Exception:
-            logger.error("Error handling failure for job %s", job.id)
+            logger.exception("Error handling failure for job %s", job.id)
 
 
 async def run_poller(poll_interval: int = 30):
