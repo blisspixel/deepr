@@ -286,10 +286,10 @@ deepr list
 
 After installation:
 
-1. Read [Quick Start](../README.md#quick-start) for basic usage
-2. Explore [CLI Commands](../README.md#cli-commands) for all features
-3. Review [Best Practices](../README.md#best-practices-for-research-prompts) for effective prompts
-4. Check [ROADMAP.md](ROADMAP.md) for upcoming features
+1. Read [Quick Start](QUICK_START.md) for basic usage
+2. Explore [Feature Reference](FEATURES.md) for all features
+3. Review [Examples](EXAMPLES.md) for effective prompts
+4. Check [ROADMAP.md](../ROADMAP.md) for upcoming features
 
 ## Uninstall
 

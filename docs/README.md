@@ -1,6 +1,6 @@
 # Deepr Documentation
 
-> **Note**: Model information current as of February 2026. AI evolves rapidly - verify at provider websites.
+> **Note**: Model information current as of March 2026. AI evolves rapidly - verify at provider websites.
 
 ## Getting Started
 
@@ -32,8 +32,9 @@
 
 ## Archive
 
-- **[archive/](archive/)** - Historical docs, completed work, old specifications
+- **[archive/](archive/)** - Historical docs, completed work, old specifications ([policy](ARCHIVE.md))
 
 ---
 
 **Keeping Current**: When new AI models are released, update the model registry at `deepr/providers/registry.py`. Never hardcode model names elsewhere.
+
