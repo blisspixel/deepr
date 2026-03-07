@@ -855,8 +855,8 @@ def get_cost_summary():
             # Expert monthly spending (from budget manager tracking)
             expert_monthly = sum(e.monthly_spending for e in expert_store.list_all())
             monthly_spending += expert_monthly
-        except Exception:
-            pass  # Expert store unavailable — use job costs only
+        except Exception as exc:
+            logger.debug("Expert store unavailable while computing cost summary: %s", exc, exc_info=exc)
 
         completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
         avg_cost = total_spending / len(completed_jobs) if completed_jobs else 0
@@ -1039,8 +1039,9 @@ def estimate_cost():
                     if daily_actual + est_expected > cost_controller.max_daily_cost:
                         allowed = False
                         reason = f"Would exceed daily limit of ${cost_controller.max_daily_cost}"
-                except Exception:
-                    pass  # If we can't check, allow it
+                except Exception as exc:
+                    logger.warning("Could not verify daily spend limit before estimate: %s", exc)
+                    # Preserve existing permissive behavior when checks fail.
 
         return jsonify(
             {
@@ -1177,9 +1178,7 @@ def list_results():
                 content_str = content.decode("utf-8")
                 result_data["content"] = content_str[:500] if len(content_str) > 500 else content_str
                 # Count citations (rough estimate by counting URLs)
-                result_data["citations_count"] = content_str.count("http")
-            except Exception:
-                pass
+                result_data["citations_count"] = content_str.count("http")`r`n            except Exception as exc:`r`n                logger.debug("Could not load result preview for job %s: %s", job.id, exc, exc_info=exc)
 
             results.append(result_data)
 
@@ -1414,8 +1413,8 @@ def list_experts():
             try:
                 manifest = profile.get_manifest()
                 gap_count = len(manifest.gaps)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Could not read expert manifest for %s: %s", profile.name, exc, exc_info=exc)
             experts.append(
                 {
                     "name": profile.name,
@@ -1506,8 +1505,8 @@ def get_expert(name):
         try:
             manifest = profile.get_manifest()
             gap_count = len(manifest.gaps)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Could not read expert manifest for %s: %s", profile.name, exc, exc_info=exc)
 
         return jsonify(
             {
@@ -1741,11 +1740,7 @@ def list_expert_conversations(name):
                         "started_at": data.get("started_at", ""),
                         "message_count": len(messages),
                         "preview": preview,
-                        "cost": summary.get("cost_accumulated", 0.0),
-                    }
-                )
-            except Exception:
-                continue
+                        "cost": summary.get("cost_accumulated", 0.0),`r`n                    }`r`n                )`r`n            except Exception as exc:`r`n                logger.debug("Skipping unreadable conversation file %s: %s", f, exc, exc_info=exc)`r`n                continue
         return jsonify({"conversations": conversations})
     except ImportError:
         return jsonify({"conversations": []})
@@ -2488,11 +2483,7 @@ def list_benchmarks():
                         "timestamp": data.get("timestamp", ""),
                         "tier_count": len(tiers),
                         "model_count": len(rankings),
-                        "total_cost": round(data.get("total_cost", 0), 4),
-                    }
-                )
-            except Exception:
-                continue
+                        "total_cost": round(data.get("total_cost", 0), 4),`r`n                    }`r`n                )`r`n            except Exception as exc:`r`n                logger.debug("Skipping unreadable benchmark file %s: %s", f, exc, exc_info=exc)`r`n                continue
 
         return jsonify({"benchmarks": benchmarks})
 
@@ -2533,7 +2524,8 @@ def get_latest_benchmark():
                 if count > best_count:
                     best_count = count
                     best_file = (f, data)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Skipping invalid benchmark candidate %s: %s", f, exc, exc_info=exc)
                 continue
 
         if not best_file:
@@ -2694,8 +2686,8 @@ def start_benchmark():
                 try:
                     for line in proc.stdout:
                         output_lines.append(line.rstrip("\n"))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Benchmark reader output loop terminated: %s", exc, exc_info=exc)
 
             reader = threading.Thread(target=_read_output, daemon=True, name="benchmark-reader")
             reader.start()
@@ -3402,8 +3394,9 @@ def load_demo_data():
                 )
             )
             created_jobs += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            errors.append(f"Failed to create demo job sample {idx}: {exc}")
+            logger.warning("Failed creating demo job sample %s: %s", idx, exc)
 
     return jsonify(
         {
@@ -3509,3 +3502,7 @@ if __name__ == "__main__":
 
     debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
     socketio.run(app, debug=debug, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
+
+
+
+
