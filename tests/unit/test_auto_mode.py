@@ -396,3 +396,17 @@ class TestAutoModeRouterExplain:
         explanation = router.explain_routing("What is Python?")
 
         assert "$" in explanation or "Cost" in explanation
+
+
+def test_load_benchmark_rankings_logs_warning_on_invalid_json(tmp_path, monkeypatch, caplog):
+    bench_dir = tmp_path / "data" / "benchmarks"
+    bench_dir.mkdir(parents=True)
+    (bench_dir / "benchmark_bad.json").write_text("{not valid json", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    with caplog.at_level("WARNING"):
+        rankings = auto_mode_module._load_benchmark_rankings()
+
+    assert rankings is None
+    assert "Could not load benchmark data" in caplog.text
