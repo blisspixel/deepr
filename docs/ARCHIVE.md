@@ -15,3 +15,6 @@ If a historical document must remain versioned, keep it in `docs/` and mark it c
 
 ## Recent archival actions
 - Moved `docs/MCP_REFINEMENT_PLAN.md` to local archive at `docs/archive/analysis/MCP_REFINEMENT_PLAN.md`.
+- Moved `docs/MIGRATION.md` -> `docs/archive/migration/MIGRATION.md` (legacy migration guidance).
+- Moved `docs/mcp-client-architecture.md` -> `docs/archive/analysis/mcp-client-architecture.md` (historical design note).
+- Moved `docs/PERFORMANCE.md` -> `docs/archive/analysis/PERFORMANCE.md` (superseded by active benchmark/model docs).

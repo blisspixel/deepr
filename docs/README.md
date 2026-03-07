@@ -18,7 +18,6 @@
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and security
 - **[BENCHMARKS.md](BENCHMARKS.md)** - Model benchmarks, scoring methodology, and results
-- **[PERFORMANCE.md](PERFORMANCE.md)** - Performance considerations
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
 
 ## Project
@@ -37,4 +36,3 @@
 ---
 
 **Keeping Current**: When new AI models are released, update the model registry at `deepr/providers/registry.py`. Never hardcode model names elsewhere.
-
