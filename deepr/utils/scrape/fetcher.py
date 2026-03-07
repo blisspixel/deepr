@@ -64,8 +64,8 @@ class ContentFetcher:
         Fetch content from URL using adaptive strategy chain.
 
         Tries strategies in order until content is retrieved:
-        1. Playwright (handles JS, modern sites - preferred)
-        2. HTTP (fast fallback for simple sites)
+        1. HTTP (fast default for simple/static sites)
+        2. Playwright (handles JS-heavy modern sites)
         3. Selenium headless (legacy fallback)
         4. Archive.org (historical fallback)
 
@@ -99,16 +99,16 @@ class ContentFetcher:
                 error="Blocked by robots.txt",
             )
 
-        # Try strategies in order - Playwright first for modern JS sites
+        # Try strategies in order - HTTP first for speed and deterministic behavior
         strategies = []
 
-        # Playwright is preferred for JS-heavy sites (most modern sites)
-        if PLAYWRIGHT_AVAILABLE:
-            strategies.append(("Playwright", self._fetch_playwright))
-
-        # HTTP as fast fallback for simple sites
+        # HTTP as fast default for simple sites
         if self.config.try_http:
             strategies.append(("HTTP", self._fetch_http))
+
+        # Playwright fallback for JS-heavy sites
+        if PLAYWRIGHT_AVAILABLE and self.config.try_selenium:
+            strategies.append(("Playwright", self._fetch_playwright))
 
         # Selenium as legacy fallback
         if self.config.try_selenium:
