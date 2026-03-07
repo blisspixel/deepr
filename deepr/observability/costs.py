@@ -1101,4 +1101,3 @@ class BufferedCostDashboard(CostDashboard):
         with self._lock:
             remaining = self.flush_interval - self._time_since_flush()
             return max(0.0, remaining)
-

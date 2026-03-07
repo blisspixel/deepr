@@ -356,11 +356,13 @@ def costs_doctor(drift_threshold: float):
     ledger_total = ledger.get_total_cost()
     drift = abs(ledger_total - dashboard_total)
     drift_ok = drift <= drift_threshold
-    checks.append((
-        "Ledger vs dashboard drift",
-        drift_ok,
-        f"drift=${drift:.6f} (ledger=${ledger_total:.4f}, dashboard=${dashboard_total:.4f})",
-    ))
+    checks.append(
+        (
+            "Ledger vs dashboard drift",
+            drift_ok,
+            f"drift=${drift:.6f} (ledger=${ledger_total:.4f}, dashboard=${dashboard_total:.4f})",
+        )
+    )
 
     table = Table(title="Cost Tracking Doctor")
     table.add_column("Check", style="cyan")
@@ -378,4 +380,3 @@ def costs_doctor(drift_threshold: float):
         console.print(f"[green]All checks passed ({passed}/{total})[/green]")
     else:
         console.print(f"[red]Issues found ({total - passed}/{total})[/red]")
-
