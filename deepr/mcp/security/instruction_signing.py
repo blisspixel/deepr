@@ -261,7 +261,7 @@ class InstructionSigner:
         }
 
         for signed in signed_instructions:
-            is_valid, is_expired, error = self.verify_and_check_expiry(signed)
+            is_valid, is_expired, _error = self.verify_and_check_expiry(signed)
 
             if is_expired:
                 results["expired"].append(signed.nonce)

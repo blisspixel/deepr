@@ -3,14 +3,14 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.9.1-orange)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-latest-orange)](ROADMAP.md)
 
 **Research infrastructure, not another chat window.**
 
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them, builds persistent expert agents that learn over time, and runs from scripts, cron jobs, and AI agent workflows. One report is easy. Scaling research, keeping experts current, and feeding knowledge into automated pipelines — that's what Deepr is for.
 
 ```bash
-# Auto-routes to the best model per query: Grok ($0.01) → GPT-5.2 ($0.20) → o3 ($0.50)
+# Auto-routes to the best model per query: Grok Fast ($0.01) -> GPT-5.4 -> o3-deep-research
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3
 
 # Expert accumulates knowledge across sessions, fills its own gaps
@@ -111,6 +111,23 @@ deepr web                # http://localhost:5000
 
 See [docs/FEATURES.md](docs/FEATURES.md) for the full page list.
 
+### Benchmarking and Evals
+
+Deepr includes a cost-safe benchmark workflow for keeping routing current as models change.
+
+```bash
+# Evaluate only new/missing model+tier combinations (default $1 preflight cap)
+deepr eval new
+
+# Estimate first, no spend
+deepr eval new --dry-run --tier all
+
+# Intentionally allow larger spend when needed
+deepr eval new --max-estimated-cost 3
+```
+
+The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks.
+
 ### Multi-Provider Support
 
 Start with one API key. Add more to unlock smarter routing. OpenAI, Gemini, Grok, Anthropic, and Azure AI Foundry all supported. Auto-fallback on failures means no single provider outage stops your work.
@@ -128,17 +145,35 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
 
 ## Cost Controls
 
-Research costs real money. Deepr has multi-layer budget protection: per-operation limits, daily and monthly caps, pre-submission estimates, pause/resume at boundaries, and anomaly detection. Auto mode cuts costs 10-20x for simple queries by routing to cheaper models.
+Research costs real money. Deepr has multi-layer budget protection: per-operation limits, daily and monthly caps, pre-submission estimates, pause/resume at boundaries, anomaly detection, and a canonical append-only cost ledger (`data/costs/cost_ledger.jsonl`).
 
 ```bash
 deepr budget set 5                                  # Set $5 limit
 deepr costs show                                    # See what you've spent
+deepr costs doctor                                 # Validate tracker health + drift (no API spend)
 deepr research --auto --batch queries.txt --dry-run # Preview costs before executing
 ```
+
+Set `DEEPR_COST_TRACKING_STRICT=1` to fail fast when cost events cannot be persisted to the canonical ledger.
 
 **Gemini large-context pricing note:** Gemini 3.1 Pro (the default Gemini pro model) charges 2x for prompts over 200K tokens ($4/$18 per 1M input/output vs $2/$12 under 200K). Most queries stay well under that threshold, but large document analysis (`--files` with big PDFs, 500+ page corpora) can cost ~2x more than shorter prompts — e.g., a 250K-token document analysis runs ~$1.18 vs ~$0.62 for a sub-200K prompt. Use `--dry-run` to preview costs before executing, and `--budget` to cap spend.
 
 See [docs/FEATURES.md](docs/FEATURES.md) for the full cost command reference.
+
+## Startup Banner
+
+Deepr shows an animated startup banner by default in interactive terminals, with automatic fallbacks for CI, screen readers, no-color terminals, and low-capability terminals.
+
+```bash
+deepr interactive --banner     # Force-show banner once
+deepr interactive --no-banner  # Skip banner
+```
+
+Optional env controls:
+- `DEEPR_BANNER_MODE=off|static|light|full`
+- `DEEPR_BANNER_DURATION=<seconds>` (applies to animated modes)
+- `DEEPR_ANIMATIONS=off|light|full`
+- `DEEPR_BRANDING=off|on|auto`
 
 ## What's Stable vs Experimental
 
@@ -196,3 +231,7 @@ Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained 
 No SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions).
 
 [GitHub](https://github.com/blisspixel/deepr) · [Issues](https://github.com/blisspixel/deepr/issues) · [Discussions](https://github.com/blisspixel/deepr/discussions)
+
+
+
+

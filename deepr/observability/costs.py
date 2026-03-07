@@ -24,6 +24,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from deepr.observability.cost_ledger import CostLedger
+
 # Module logger for debugging persistence and validation issues
 logger = logging.getLogger(__name__)
 
@@ -518,6 +520,8 @@ class CostDashboard:
             storage_path = Path("data/costs/cost_log.json")
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        ledger_path = self.storage_path.with_name("cost_ledger.jsonl")
+        self.ledger = CostLedger(ledger_path=ledger_path)
 
         self.daily_limit = daily_limit
         self.monthly_limit = monthly_limit
@@ -540,6 +544,35 @@ class CostDashboard:
         Provides backward compatibility for code accessing triggered_alerts directly.
         """
         return self.alert_manager.triggered_alerts
+
+    def _record_ledger_event(self, entry: CostEntry) -> None:
+        """Write a canonical ledger event for a recorded cost entry."""
+        metadata = entry.metadata or {}
+        idempotency_key = str(metadata.get("idempotency_key", "") or "")
+        source = str(metadata.get("source", "cost_dashboard.record") or "cost_dashboard.record")
+        session_id = str(metadata.get("session_id", "") or "")
+        request_id = str(metadata.get("request_id", "") or "")
+
+        try:
+            self.ledger.record_event(
+                operation=entry.operation,
+                provider=entry.provider,
+                cost_usd=entry.cost,
+                model=entry.model,
+                tokens_input=entry.tokens_input,
+                tokens_output=entry.tokens_output,
+                task_id=entry.task_id,
+                session_id=session_id,
+                request_id=request_id,
+                source=source,
+                metadata=metadata,
+                idempotency_key=idempotency_key,
+            )
+        except OSError as e:
+            strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "0").lower() in {"1", "true", "yes", "on"}
+            if strict_tracking:
+                raise RuntimeError(f"Cost ledger write failed in strict mode: {e}") from e
+            logger.warning("Failed to write cost ledger event: %s", e)
 
     def record(
         self,
@@ -587,6 +620,7 @@ class CostDashboard:
         )
 
         self.entries.append(entry)
+        self._record_ledger_event(entry)
         self._save()
 
         # Check alerts
@@ -984,6 +1018,8 @@ class BufferedCostDashboard(CostDashboard):
             # Check if flush is needed based on buffer size or time interval
             should_flush = len(self._buffer) >= self.buffer_size or self._time_since_flush() >= self.flush_interval
 
+        self._record_ledger_event(entry)
+
         # Flush outside the lock to avoid holding it during I/O
         if should_flush:
             self.flush()
@@ -1065,3 +1101,4 @@ class BufferedCostDashboard(CostDashboard):
         with self._lock:
             remaining = self.flush_interval - self._time_since_flush()
             return max(0.0, remaining)
+

@@ -1,9 +1,9 @@
 """Security utilities - API key validation, headers."""
 
-from typing import Dict, Optional
+from typing import Optional
 
 # Security headers for all responses
-SECURITY_HEADERS: Dict[str, str] = {
+SECURITY_HEADERS: dict[str, str] = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
@@ -12,14 +12,14 @@ SECURITY_HEADERS: Dict[str, str] = {
 }
 
 # CORS headers for cross-origin requests
-CORS_HEADERS: Dict[str, str] = {
+CORS_HEADERS: dict[str, str] = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key',
 }
 
 
-def get_all_response_headers() -> Dict[str, str]:
+def get_all_response_headers() -> dict[str, str]:
     """Get combined security + CORS + content-type headers."""
     return {
         **SECURITY_HEADERS,

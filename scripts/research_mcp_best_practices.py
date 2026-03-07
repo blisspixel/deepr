@@ -1,7 +1,9 @@
 """Use Deep Research to analyze Deepr and recommend optimal MCP implementation."""
 import asyncio
 from pathlib import Path
+
 from openai import AsyncOpenAI
+
 
 async def main():
     client = AsyncOpenAI()
@@ -112,7 +114,7 @@ Provide a structured report with:
     output_path = Path("docs/mcp_implementation_recommendations.md")
     output_path.write_text(report, encoding='utf-8')
 
-    print(f"\n✓ Research complete!")
+    print("\n✓ Research complete!")
     print(f"  Report saved to: {output_path}")
     print(f"\n{report}")
 

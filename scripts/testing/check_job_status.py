@@ -6,8 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepr.providers import create_provider
 from deepr.config import load_config
+from deepr.providers import create_provider
+
 
 async def check_job(job_id: str):
     """Check job status."""
@@ -34,7 +35,7 @@ async def check_job(job_id: str):
                         text = item.get('text', '')
                         print(text[:500] if len(text) > 500 else text)
         if response.usage:
-            print(f"\n=== Usage ===")
+            print("\n=== Usage ===")
             print(f"Input tokens: {response.usage.input_tokens}")
             print(f"Output tokens: {response.usage.output_tokens}")
             print(f"Total tokens: {response.usage.total_tokens}")

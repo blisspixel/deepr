@@ -5,6 +5,21 @@ All notable changes to Deepr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Canonical append-only cost ledger at `data/costs/cost_ledger.jsonl` with idempotency-key support (`deepr/observability/cost_ledger.py`)
+- `deepr costs doctor` command for zero-cost tracker integrity checks (ledger writable + drift vs dashboard totals)
+- Queue cost persistence now records positive cost deltas with idempotency metadata to avoid duplicate attribution
+- Cost safety manager (`CostSafetyManager.record_cost`) now writes canonical ledger events for non-queue spend paths
+- Rich animated ASCII startup banner with cross-platform fallbacks (compact/narrow terminals, legacy Windows, non-UTF output)
+- Startup banner env controls: `DEEPR_BANNER_MODE=off|static|light|full` and `DEEPR_BANNER_DURATION=<seconds>`
+
+### Changed
+- `CostDashboard.record` and buffered cost recording now emit canonical ledger events
+- `DEEPR_COST_TRACKING_STRICT=1` now enables fail-fast behavior when ledger writes fail in cost dashboard/safety paths
+
+---
 ## [2.9.1] - 2026-02-16
 
 ### Added
@@ -680,3 +695,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 For more details on upcoming features, see [ROADMAP.md](ROADMAP.md).
+

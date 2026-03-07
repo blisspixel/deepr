@@ -14,12 +14,14 @@ Interactive Mode:
     deepr interactive
 """
 
+import sys
+
 import click
 
 from deepr import __version__
 
 
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(version=__version__, prog_name="Deepr")
 def cli():
     """
@@ -52,6 +54,9 @@ from deepr.cli.commands import (
     templates,
     vector,
     web,
+)
+from deepr.cli.commands import (
+    eval as eval_cmd,
 )
 from deepr.cli.commands import help as help_cmd
 
@@ -103,6 +108,7 @@ cli.add_command(costs.costs)
 cli.add_command(providers.providers)
 cli.add_command(search.search)
 cli.add_command(web.web)
+cli.add_command(eval_cmd.evaluate)
 
 
 def main():
@@ -110,16 +116,11 @@ def main():
 
     When invoked with no arguments, launches interactive mode.
     """
-    import sys
-
-    # If no arguments provided (just 'deepr'), launch interactive mode
+    # If no arguments provided (just 'deepr'), launch interactive mode.
+    # Route through Click with an explicit subcommand to avoid NoArgsIsHelpError
+    # from the root group parser.
     if len(sys.argv) == 1:
-        # Import here to avoid circular imports
-        from deepr.cli.commands.interactive import interactive
-
-        ctx = cli.make_context("deepr", [])
-        with ctx:
-            interactive.invoke(ctx)
+        cli.main(args=["interactive"], prog_name="deepr", standalone_mode=False)
     else:
         cli()
 

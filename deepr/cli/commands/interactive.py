@@ -4,14 +4,16 @@ Provides an interactive menu when deepr is invoked with no arguments.
 Uses Rich for beautiful terminal UI with panels, tables, and styled prompts.
 """
 
-from typing import Any
+import asyncio
+import inspect
+from typing import Any, Optional
 
 import click
 from rich import box
-from rich.box import ROUNDED
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr import __version__
 from deepr.cli.colors import (
     console,
     print_error,
@@ -21,6 +23,22 @@ from deepr.cli.colors import (
     print_warning,
     truncate_text,
 )
+from deepr.cli.startup_banner import show_startup_banner
+
+
+def _resolve_maybe_awaitable(value: Any) -> Any:
+    """Resolve sync values and awaitables from queue backends."""
+    if not inspect.isawaitable(value):
+        return value
+    try:
+        return asyncio.run(value)
+    except RuntimeError:
+        # Fallback for environments with an existing running loop.
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(value)
+        finally:
+            loop.close()
 
 
 def _get_recent_prompts(limit: int = 5) -> list[str]:
@@ -29,7 +47,7 @@ def _get_recent_prompts(limit: int = 5) -> list[str]:
         from deepr.queue import SQLiteQueue
 
         queue = SQLiteQueue()
-        jobs = queue.list_jobs(limit=limit * 2)  # Get extra in case of duplicates
+        jobs = _resolve_maybe_awaitable(queue.list_jobs(limit=limit * 2))  # Get extra in case of duplicates
         seen = set()
         prompts = []
         for job in jobs:
@@ -77,18 +95,39 @@ def _get_available_models() -> list[dict[str, Any]]:
     ]
 
 
-def _print_welcome():
-    """Print welcome banner and status."""
-    console.print()
-    console.print(
-        Panel(
-            "[bold cyan]Deepr[/bold cyan] [dim]v2.7[/dim]\n[dim]Deep research automation platform[/dim]",
-            box=ROUNDED,
-            border_style="cyan",
-            padding=(0, 2),
-        )
-    )
-    console.print()
+def _print_welcome(banner_override: Optional[str] = None):
+    """Print startup intro with motion-aware banner fallback."""
+    show_startup_banner(console, version=__version__, override=banner_override)
+
+
+def _parse_main_menu_choice(raw_choice: str) -> int:
+    """Parse main menu input into a route code."""
+    value = (raw_choice or "").strip().lower()
+    if value in {"q", "quit", "exit", "0"}:
+        return 0
+    aliases = {
+        "?": 6,
+        "h": 6,
+        "help": 6,
+        "r": 1,
+        "research": 1,
+        "e": 2,
+        "experts": 2,
+        "j": 3,
+        "jobs": 3,
+        "c": 4,
+        "costs": 4,
+        "g": 5,
+        "config": 5,
+    }
+    if value in aliases:
+        return aliases[value]
+    if value == "":
+        return -1
+    try:
+        return int(value)
+    except ValueError:
+        return -1
 
 
 def _print_main_menu() -> int:
@@ -100,7 +139,7 @@ def _print_main_menu() -> int:
         ("4", "Costs", "View spending and budgets"),
         ("5", "Config", "Settings and API keys"),
         ("6", "Help", "Commands and documentation"),
-        ("q", "Quit", "Exit interactive mode"),
+        ("q", "Quit", "Exit interactive mode (q/quit/exit/0)"),
     ]
 
     table = Table(
@@ -116,22 +155,18 @@ def _print_main_menu() -> int:
     for key, action, desc in menu_items:
         table.add_row(f"[{key}]", action, desc)
 
+    console.print("[dim]Quick actions:[/dim] [cyan][r][/cyan]esearch  [cyan][e][/cyan]xperts  [cyan][j][/cyan]obs  [cyan][c][/cyan]osts  [cyan][g][/cyan]config  [cyan][?][/cyan] help")
     console.print(table)
     console.print()
 
     choice = click.prompt(
-        click.style("Select", fg="cyan"),
+        click.style("Action", fg="cyan"),
         type=str,
-        default="1",
+        default="",
         show_default=False,
     )
 
-    if choice.lower() == "q":
-        return 0
-    try:
-        return int(choice)
-    except ValueError:
-        return -1
+    return _parse_main_menu_choice(choice)
 
 
 def _research_menu():
@@ -241,11 +276,11 @@ def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_co
         provider="openai" if "o3" in model or "o4" in model else "gemini",
         priority=3,
         enable_web_search=web_search,
-        status=JobStatus.PENDING,
+        status=JobStatus.QUEUED,
         submitted_at=datetime.now(timezone.utc),
     )
 
-    queue.enqueue(job)
+    _resolve_maybe_awaitable(queue.enqueue(job))
 
     print_success("Job submitted!")
     console.print()
@@ -342,15 +377,15 @@ def _jobs_menu():
         from deepr.queue import JobStatus, SQLiteQueue
 
         queue = SQLiteQueue()
-        jobs = queue.list_jobs(limit=20)
+        jobs = _resolve_maybe_awaitable(queue.list_jobs(limit=20))
 
         if not jobs:
             console.print("[dim]No jobs in queue[/dim]")
             return
 
         # Stats
-        pending = sum(1 for j in jobs if j.status == JobStatus.PENDING)
-        running = sum(1 for j in jobs if j.status == JobStatus.IN_PROGRESS)
+        pending = sum(1 for j in jobs if j.status == JobStatus.QUEUED)
+        running = sum(1 for j in jobs if j.status == JobStatus.PROCESSING)
         completed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED)
         failed = sum(1 for j in jobs if j.status == JobStatus.FAILED)
 
@@ -370,10 +405,11 @@ def _jobs_menu():
         table.add_column("Cost", width=8, justify="right")
 
         status_styles = {
-            JobStatus.PENDING: "dim",
-            JobStatus.IN_PROGRESS: "cyan",
+            JobStatus.QUEUED: "dim",
+            JobStatus.PROCESSING: "cyan",
             JobStatus.COMPLETED: "green",
             JobStatus.FAILED: "red",
+            JobStatus.CANCELLED: "yellow",
         }
 
         for job in jobs[:10]:
@@ -409,7 +445,7 @@ def _costs_menu():
         from deepr.queue import SQLiteQueue
 
         queue = SQLiteQueue()
-        jobs = queue.list_jobs(limit=100)
+        jobs = _resolve_maybe_awaitable(queue.list_jobs(limit=100))
         total_cost = sum(j.cost or 0 for j in jobs)
 
         if total_cost > 0:
@@ -436,7 +472,7 @@ def _config_menu():
         console.print("[dim]Run 'deepr doctor' for full diagnostics[/dim]")
 
 
-def _help_menu():
+def _help_menu(ctx: Optional[click.Context] = None):
     """Help and documentation menu."""
     print_header("Help")
 
@@ -458,10 +494,18 @@ def _help_menu():
 
     console.print()
     console.print("[dim]Full docs: https://github.com/blisspixel/deepr[/dim]")
+    if ctx is not None and ctx.parent is not None:
+        if click.confirm(click.style("Show full command index?", fg="cyan"), default=False):
+            console.print()
+            console.print("[bold]Full Command Index[/bold]")
+            console.print(ctx.parent.get_help())
 
 
 @click.command()
-def interactive():
+@click.option("--banner", "banner_override", flag_value="on", default=None, help="Force-show startup banner")
+@click.option("--no-banner", "banner_override", flag_value="off", help="Skip startup banner")
+@click.pass_context
+def interactive(ctx: click.Context, banner_override: Optional[str]):
     """
     Start interactive mode for guided research.
 
@@ -469,10 +513,12 @@ def interactive():
     Provides a menu-driven interface for research operations.
 
     Example:
-        deepr           # Opens interactive mode
-        deepr interactive  # Same as above
+        deepr                    # Opens interactive mode
+        deepr interactive        # Same as above
+        deepr interactive --banner
+        deepr interactive --no-banner
     """
-    _print_welcome()
+    _print_welcome(banner_override=banner_override)
 
     while True:
         try:
@@ -492,7 +538,7 @@ def interactive():
             elif choice == 5:
                 _config_menu()
             elif choice == 6:
-                _help_menu()
+                _help_menu(ctx)
             else:
                 print_error("Invalid option")
 
@@ -500,7 +546,14 @@ def interactive():
 
         except (KeyboardInterrupt, click.Abort):
             console.print()
-            print_warning("Cancelled")
+            print_success("Goodbye!")
             break
         except EOFError:
             break
+
+
+
+
+
+
+

@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 API_VERSION = '2.6.0'
 DEFAULT_TTL_DAYS = 90
@@ -31,7 +31,7 @@ def calculate_ttl(days: int = DEFAULT_TTL_DAYS) -> int:
     return int(datetime.now(timezone.utc).timestamp()) + (days * 24 * 60 * 60)
 
 
-def estimate_cost(model: str) -> Dict[str, Any]:
+def estimate_cost(model: str) -> dict[str, Any]:
     """
     Estimate job cost based on model.
 
@@ -57,10 +57,10 @@ def create_job_document(
     model: str,
     priority: int,
     enable_web_search: bool,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     user_id: str = 'anonymous',
     include_ttl: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Create a standardized job document for storage.
 
@@ -95,7 +95,7 @@ def create_job_document(
     return doc
 
 
-def create_queue_message(job: Dict[str, Any]) -> Dict[str, Any]:
+def create_queue_message(job: dict[str, Any]) -> dict[str, Any]:
     """
     Create standardized queue message from job document.
 
@@ -116,7 +116,7 @@ def create_queue_message(job: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def format_job_response(job: Dict[str, Any]) -> Dict[str, Any]:
+def format_job_response(job: dict[str, Any]) -> dict[str, Any]:
     """
     Format job for API response (convert job_id to id).
 
@@ -132,7 +132,7 @@ def format_job_response(job: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def health_response() -> Dict[str, Any]:
+def health_response() -> dict[str, Any]:
     """
     Create standard health check response.
 
