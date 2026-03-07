@@ -99,7 +99,7 @@ See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
 ### MCP Integration
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr as a tool via MCP — query experts, trigger research, fill knowledge gaps, all mid-task with budget controls. 18 MCP tools, resource subscriptions, prompt templates. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr as a tool via MCP — query experts, trigger research, fill knowledge gaps, all mid-task with budget controls. 16 MCP tools, resource subscriptions, prompt templates. See [mcp/README.md](mcp/README.md) for setup.
 
 ### Web Dashboard
 
@@ -177,7 +177,7 @@ Optional env controls:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 4300+ tests.
+**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 4300+ tests (Python 3.12).
 
 **Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates.
 
@@ -216,7 +216,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## Security
 
-4300+ tests. Pre-commit hooks run ruff. Input validation, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+4300+ tests (Python 3.12). Pre-commit hooks run ruff. Input validation, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
