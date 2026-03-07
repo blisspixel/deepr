@@ -248,15 +248,16 @@ class ModelRouter:
         # Route based on complexity and task type
         # If provider is constrained (e.g., for vector store compatibility), only use that provider
         if provider_constraint == "openai":
+            # Preserve explicit deep-research behavior for research tasks when budget allows.
+            # Benchmark routing is useful, but should not downgrade this core path.
+            if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
+                return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
+
             # Try benchmark-driven selection first
             bench_result = self._select_openai_from_benchmarks(complexity, task_type, budget_remaining)
             if bench_result:
                 return bench_result
-
             # Fallback: hardcoded OpenAI routing
-            if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
-                return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
-
             if complexity == "complex" and (budget_remaining is None or budget_remaining >= 0.01):
                 return ModelConfig(
                     provider="openai",
