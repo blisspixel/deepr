@@ -1,6 +1,5 @@
 """Tests for core configuration constants and env loading."""
 
-import os
 
 import pytest
 

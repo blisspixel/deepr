@@ -1,5 +1,7 @@
 """Tests for SQLite queue implementation."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from deepr.queue import JobStatus, ResearchJob, SQLiteQueue
@@ -119,6 +121,37 @@ class TestSQLiteQueue:
         assert job.report_paths == report_paths
         assert job.cost == 2.50
         assert job.tokens_used == 10000
+
+    async def test_update_results_records_cost_dashboard_once_per_delta(self, queue, sample_job):
+        """Cost dashboard records only positive deltas to avoid double counting."""
+        await queue.enqueue(sample_job)
+
+        mock_dashboard = MagicMock()
+        with patch("deepr.queue.local_queue.CostDashboard", return_value=mock_dashboard):
+            # First write records full cost
+            success = await queue.update_results(sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000)
+            assert success is True
+
+            # Same cost update should not record again
+            success = await queue.update_results(sample_job.id, report_paths={"md": "b.md"}, cost=2.50, tokens_used=10000)
+            assert success is True
+
+            # Higher updated cost records only delta
+            success = await queue.update_results(sample_job.id, report_paths={"md": "c.md"}, cost=3.00, tokens_used=12000)
+            assert success is True
+
+        assert mock_dashboard.record.call_count == 2
+
+        first = mock_dashboard.record.call_args_list[0].kwargs
+        second = mock_dashboard.record.call_args_list[1].kwargs
+
+        assert first["operation"] == "research_job"
+        assert first["provider"] == sample_job.provider
+        assert first["model"] == sample_job.model
+        assert first["cost"] == 2.50
+        assert first["task_id"] == sample_job.id
+
+        assert second["cost"] == 0.50
 
     async def test_list_jobs_filter_by_status(self, queue):
         """Test listing jobs filtered by status."""
@@ -348,3 +381,4 @@ class TestSQLiteQueueAdvanced:
         assert stats["total"] == 0
         assert stats["queued"] == 0
         assert stats["processing"] == 0
+

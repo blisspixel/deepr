@@ -1,9 +1,11 @@
-import os
 import argparse
-from docx import Document
-from normalize import normalize_markdown
+import os
+
 import style
+from docx import Document
 from docx2pdf import convert
+from normalize import normalize_markdown
+
 
 # --- Main conversion function ---
 def convert_report(txt_path, convert_pdf=False):
@@ -26,7 +28,7 @@ def convert_report(txt_path, convert_pdf=False):
     docx_path = os.path.join(report_dir, f"{base_name}.docx")
 
     print(f"📄 Reading: {txt_path}")
-    with open(txt_path, "r", encoding="utf-8") as f:
+    with open(txt_path, encoding="utf-8") as f:
         raw_text = f.read()
 
     # Normalize markdown formatting for consistent styling

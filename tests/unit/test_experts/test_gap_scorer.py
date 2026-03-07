@@ -1,6 +1,5 @@
 """Unit tests for experts.gap_scorer scoring functions."""
 
-import pytest
 
 from deepr.core.contracts import Gap
 from deepr.experts.gap_scorer import rank_gaps, score_gap

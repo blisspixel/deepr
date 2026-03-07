@@ -1,6 +1,8 @@
 """Test script to verify knowledge base auto-update (learning) functionality."""
 import asyncio
+
 from deepr.experts.chat import start_chat_session
+
 
 async def test_learning():
     """Test that expert learns from research and integrates into knowledge base."""

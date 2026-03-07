@@ -1,9 +1,9 @@
 """Response formatting utilities."""
 
-from typing import Any, Dict
+from typing import Any
 
 
-def error_response(message: str) -> Dict[str, Any]:
+def error_response(message: str) -> dict[str, Any]:
     """
     Create standard error response body.
 
@@ -16,7 +16,7 @@ def error_response(message: str) -> Dict[str, Any]:
     return {'error': message}
 
 
-def success_response(data: Dict[str, Any]) -> Dict[str, Any]:
+def success_response(data: dict[str, Any]) -> dict[str, Any]:
     """
     Create standard success response body.
 
@@ -33,8 +33,8 @@ def job_submitted_response(
     job_id: str,
     prompt: str,
     model: str,
-    estimated_cost: Dict[str, Any]
-) -> Dict[str, Any]:
+    estimated_cost: dict[str, Any]
+) -> dict[str, Any]:
     """
     Create job submission response.
 

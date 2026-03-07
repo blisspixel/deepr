@@ -1,6 +1,7 @@
 """Tests for cost dashboard CLI commands (ROADMAP 4.3)."""
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -282,3 +283,53 @@ class TestCostAggregatorExpert:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+class TestCostsDoctor:
+    """Tests for deepr costs doctor command."""
+
+    def test_costs_doctor_command_runs(self, runner):
+        mock_dash = MagicMock(spec=CostDashboard)
+        mock_dash.storage_path = Path("data/costs/cost_log.json")
+        mock_dash.entries = [CostEntry(operation="research", provider="openai", cost=1.0)]
+
+        mock_ledger = MagicMock()
+        mock_ledger.get_health.return_value = {
+            "path": "data/costs/cost_ledger.jsonl",
+            "writable": True,
+            "event_count": 1,
+        }
+        mock_ledger.get_total_cost.return_value = 1.0
+
+        with (
+            patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
+            patch("deepr.cli.commands.costs.CostLedger", return_value=mock_ledger),
+        ):
+            result = runner.invoke(cli, ["costs", "doctor"])
+
+        assert result.exit_code == 0
+        assert "Cost Tracking Doctor" in result.output
+        assert "PASS" in result.output
+
+    def test_costs_doctor_detects_drift(self, runner):
+        mock_dash = MagicMock(spec=CostDashboard)
+        mock_dash.storage_path = Path("data/costs/cost_log.json")
+        mock_dash.entries = [CostEntry(operation="research", provider="openai", cost=1.0)]
+
+        mock_ledger = MagicMock()
+        mock_ledger.get_health.return_value = {
+            "path": "data/costs/cost_ledger.jsonl",
+            "writable": True,
+            "event_count": 1,
+        }
+        mock_ledger.get_total_cost.return_value = 2.0
+
+        with (
+            patch("deepr.cli.commands.costs.CostDashboard", return_value=mock_dash),
+            patch("deepr.cli.commands.costs.CostLedger", return_value=mock_ledger),
+        ):
+            result = runner.invoke(cli, ["costs", "doctor", "--drift-threshold", "0.1"])
+
+        assert result.exit_code == 0
+        assert "FAIL" in result.output
+        assert "drift=$" in result.output
+

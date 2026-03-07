@@ -2198,9 +2198,9 @@ Budget remaining: ${budget_remaining:.2f}
             "expert_name": self.expert.name,
             "messages_exchanged": len([m for m in self.messages if m["role"] == "user"]),
             "cost_accumulated": round(self.cost_accumulated, 4),
-            "budget_remaining": round(self.cost_session.get_remaining_budget(), 4)
-            if hasattr(self, "cost_session")
-            else None,
+            "budget_remaining": round(max(0.0, self.budget - self.cost_accumulated), 4)
+            if self.budget is not None
+            else (round(self.cost_session.get_remaining_budget(), 4) if hasattr(self, "cost_session") else None),
             "research_jobs_triggered": len(self.research_jobs),
             "model": self.expert.model,
             "reasoning_steps": len(self.reasoning_trace),

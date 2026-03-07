@@ -105,7 +105,7 @@ class ModelRouter:
         self.capabilities = MODEL_CAPABILITIES
 
         # Load benchmark rankings for OpenAI model selection
-        use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "").lower() in {"1", "true", "yes"}
+        use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "true").lower() in {"1", "true", "yes", "on"}
         self._openai_bench = self._load_openai_benchmarks() if use_benchmark_routing else None
 
     def _load_openai_benchmarks(self) -> dict[str, list[tuple[str, float, float]]] | None:

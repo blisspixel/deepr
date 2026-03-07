@@ -3,16 +3,14 @@
 This demonstrates the different ways to scrape websites for research purposes.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from deepr.utils.scrape import (
-    scrape_website,
-    scrape_for_company_research,
-    scrape_for_documentation,
     ScrapeConfig,
+    scrape_website,
 )
 
 
@@ -57,7 +55,7 @@ def demo_company_research():
 
     print(f"Success: {results['success']}")
     print(f"Pages scraped: {results['pages_scraped']}")
-    print(f"\nScraped URLs:")
+    print("\nScraped URLs:")
     for i, url in enumerate(results['scraped_urls'], 1):
         print(f"  {i}. {url}")
 
@@ -85,7 +83,7 @@ def demo_documentation_scraping():
     print(f"Pages scraped: {results['pages_scraped']}")
 
     if results['scraped_data']:
-        first_url = list(results['scraped_data'].keys())[0]
+        first_url = next(iter(results['scraped_data'].keys()))
         content = results['scraped_data'][first_url]
         print(f"\nSample content from {first_url}:")
         print(f"  Length: {len(content)} chars")

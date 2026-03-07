@@ -111,9 +111,9 @@ def providers():
     table.add_column("Models")
     table.add_column("Best For")
 
-    table.add_row("openai", "gpt-5, gpt-5.2, o4-mini-deep-research", "Deep research, synthesis, complex reasoning")
-    table.add_row("xai", "grok-4-fast, grok-4", "Quick lookups, fact checking, general queries")
-    table.add_row("gemini", "gemini-2.0-flash, gemini-2.0-pro", "Multimodal tasks, long context")
+    table.add_row("openai", "gpt-5.4, gpt-5.4-pro, gpt-5-mini, o4-mini-deep-research", "Deep research, synthesis, complex reasoning")
+    table.add_row("xai", "grok-4-1-fast-reasoning, grok-4-fast, grok-code-fast-1", "Quick lookups, coding, fact checking")
+    table.add_row("gemini", "gemini-3.1-pro-preview, gemini-3.1-flash-lite-preview", "Multimodal tasks, long context")
     table.add_row("azure", "(your deployments)", "Enterprise deployments with Azure OpenAI")
 
     console.print(table)

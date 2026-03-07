@@ -7,7 +7,9 @@ Requirements: 8.2 - Cost circuit breaker
 """
 
 import time
+from unittest.mock import patch
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -449,6 +451,52 @@ class TestCostSafetyManager:
 
         assert manager.get_session_cost("unknown") == 0.0
 
+
+    def test_record_cost_writes_ledger_event(self):
+        """record_cost should write canonical ledger event metadata."""
+        with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
+            manager = CostSafetyManager()
+            mock_ledger = mock_ledger_cls.return_value
+
+            manager.record_cost(
+                session_id="session-1",
+                operation_type="research_submit",
+                actual_cost=0.42,
+                details="test details",
+                provider="openai",
+                model="gpt-5.4",
+                tokens_input=100,
+                tokens_output=200,
+                request_id="resp_123",
+                source="unit.test",
+                idempotency_key="k1",
+            )
+
+            mock_ledger.record_event.assert_called_once()
+            kwargs = mock_ledger.record_event.call_args.kwargs
+            assert kwargs["operation"] == "research_submit"
+            assert kwargs["provider"] == "openai"
+            assert kwargs["model"] == "gpt-5.4"
+            assert kwargs["cost_usd"] == 0.42
+            assert kwargs["session_id"] == "session-1"
+            assert kwargs["request_id"] == "resp_123"
+            assert kwargs["source"] == "unit.test"
+            assert kwargs["idempotency_key"] == "k1"
+            assert kwargs["metadata"]["details"] == "test details"
+
+    def test_record_cost_strict_mode_raises_on_ledger_error(self, monkeypatch):
+        """Strict mode should fail fast when ledger write fails."""
+        monkeypatch.setenv("DEEPR_COST_TRACKING_STRICT", "1")
+        with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
+            manager = CostSafetyManager()
+            mock_ledger_cls.return_value.record_event.side_effect = OSError("disk full")
+
+            with pytest.raises(RuntimeError, match="strict mode"):
+                manager.record_cost(
+                    session_id="session-1",
+                    operation_type="research_submit",
+                    actual_cost=0.10,
+                )
     def test_reset_clears_all_state(self):
         """Test that reset clears all tracking state."""
         manager = CostSafetyManager()
@@ -517,3 +565,4 @@ class TestResetCostSafetyManager:
         """Test that reset is safe when no manager exists."""
         reset_cost_safety_manager()  # First reset
         reset_cost_safety_manager()  # Should not raise
+

@@ -441,7 +441,7 @@ async def _run_single(
 
         live_status.update("Queueing job...")
         # Create and enqueue job
-        job_id, job = await _create_and_enqueue_job(
+        job_id, _job = await _create_and_enqueue_job(
             query, model, provider, no_web, no_code, document_ids, vector_store_id, limit, upload
         )
         op.set_attribute("job_id", job_id)
