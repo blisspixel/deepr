@@ -30,7 +30,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.9.1)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 3800+ tests. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 4300+ tests. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
