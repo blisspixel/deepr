@@ -197,3 +197,38 @@ class TestJobPoller:
         await poller._handle_completion(mock_job, mock_resp)
         # Should call _handle_failure, which calls update_status
         poller.queue.update_status.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_completion_update_results_failure_marks_job_failed(self, poller):
+        """If queue result persistence fails, completion should fall back to FAILED status."""
+        mock_job = MagicMock()
+        mock_job.id = "comp-results-fail"
+        mock_job.prompt = "Test prompt"
+        mock_job.model = "o3"
+        mock_job.provider_job_id = "pj"
+
+        mock_resp = MagicMock()
+        mock_resp.output = [{"type": "message", "content": [{"text": "Result text"}]}]
+        mock_resp.usage = MagicMock(cost=2.0, total_tokens=10000)
+
+        poller.queue.update_results.return_value = False
+
+        await poller._handle_completion(mock_job, mock_resp)
+
+        assert poller.queue.update_status.call_count == 1
+        kwargs = poller.queue.update_status.call_args.kwargs
+        assert kwargs["job_id"] == "comp-results-fail"
+        assert kwargs["status"].value == "failed"
+
+    @pytest.mark.asyncio
+    async def test_handle_failure_logs_when_status_not_persisted(self, poller, caplog):
+        """A failed status write should emit an explicit error log."""
+        mock_job = MagicMock()
+        mock_job.id = "fail-persist"
+
+        poller.queue.update_status.return_value = False
+
+        with caplog.at_level("ERROR"):
+            await poller._handle_failure(mock_job, "Test error")
+
+        assert "Failed to persist FAILED status for job fail-persist" in caplog.text
