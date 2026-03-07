@@ -13,6 +13,7 @@ Use Cases:
 
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -20,6 +21,8 @@ from typing import Any, Callable, Optional
 
 import aiohttp
 from aiohttp import web
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -255,8 +258,9 @@ class StreamingHttpTransport:
             try:
                 await queue.put(notification)
                 count += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                self._stats.errors += 1
+                logger.warning("Failed to broadcast MCP notification to subscriber: %s", exc)
         return count
 
     async def send_to(self, subscriber_id: str, notification: dict) -> bool:
@@ -395,10 +399,11 @@ class HttpClient:
 
         except asyncio.CancelledError:
             pass
-        except Exception:
+        except Exception as exc:
             # Reconnect logic could go here
-            pass
+            logger.warning("MCP HTTP stream loop terminated with error for %s: %s", url, exc)
 
 
 # Convenience alias
 HttpTransport = StreamingHttpTransport
+

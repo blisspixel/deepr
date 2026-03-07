@@ -389,3 +389,25 @@ class TestSubscriptionValidation:
 
         assert not sub.matches("")
         assert not sub.matches(None)
+
+@pytest.mark.asyncio
+async def test_emit_callback_failure_logs_and_continues(caplog):
+    """Callback exceptions should be logged and should not stop other subscribers."""
+    manager = SubscriptionManager()
+    received = []
+
+    async def failing_callback(_data):
+        raise RuntimeError("callback boom")
+
+    async def ok_callback(data):
+        received.append(data)
+
+    await manager.subscribe("deepr://campaigns/abc/status", failing_callback)
+    await manager.subscribe("deepr://campaigns/abc/status", ok_callback)
+
+    with caplog.at_level("WARNING"):
+        count = await manager.emit("deepr://campaigns/abc/status", {"phase": "running"})
+
+    assert count == 1
+    assert len(received) == 1
+    assert "Subscription callback failed" in caplog.text
