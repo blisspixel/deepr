@@ -130,7 +130,7 @@ venv\Scripts\activate
 pip install -e .
 
 # Run tests
-pytest
+python -m pytest
 ```
 
 ### Docker Installation (Optional)
@@ -250,6 +250,7 @@ pip install -e .
 deepr --version
 
 # Test help system
+deepr -h
 deepr --help
 deepr research --help
 

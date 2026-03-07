@@ -900,7 +900,8 @@ deepr jobs cancel <job-id> --yes
 
 ```bash
 deepr --version    # Show version
-deepr --help       # Show help
+deepr -h           # Short help
+deepr --help       # Full help
 ```
 
 ### Semantic Commands (Primary Interface)
