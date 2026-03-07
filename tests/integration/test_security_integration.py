@@ -150,7 +150,7 @@ class TestSecurityPipelineIntegration:
         assert signer.is_expired(signed) is True
 
         # Combined check
-        is_valid, is_expired, error = signer.verify_and_check_expiry(signed)
+        is_valid, is_expired, _error = signer.verify_and_check_expiry(signed)
         assert is_valid is False
         assert is_expired is True
 

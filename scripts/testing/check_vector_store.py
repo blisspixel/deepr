@@ -1,6 +1,7 @@
 """Check vector store file status"""
 import asyncio
 import os
+
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
@@ -17,7 +18,7 @@ async def check_vector_store():
     # Get vector store details
     vs = await client.vector_stores.retrieve(vector_store_id)
     print(f"Vector Store: {vs.name}")
-    print(f"File counts:")
+    print("File counts:")
     print(f"  Total: {vs.file_counts.total}")
     print(f"  In progress: {vs.file_counts.in_progress}")
     print(f"  Completed: {vs.file_counts.completed}")

@@ -5,12 +5,13 @@ Monitor research jobs and save results when complete.
 import asyncio
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
-from deepr.queue.local_queue import SQLiteQueue
-from deepr.storage.local import LocalStorage
+
 from deepr.providers.openai_provider import OpenAIProvider
 from deepr.queue.base import JobStatus
-import time
+from deepr.queue.local_queue import SQLiteQueue
+from deepr.storage.local import LocalStorage
 
 load_dotenv()
 
@@ -19,7 +20,7 @@ async def main():
     config_path = Path('.deepr')
     queue = SQLiteQueue(str(config_path / 'queue.db'))
     storage = LocalStorage(str(config_path / 'storage'))
-    provider = OpenAIProvider(api_key=os.getenv('OPENAI_API_KEY'))
+    OpenAIProvider(api_key=os.getenv('OPENAI_API_KEY'))
 
     # Load job IDs
     job_file = config_path / 'doc_research_jobs.txt'
@@ -28,7 +29,7 @@ async def main():
         return
 
     jobs = []
-    with open(job_file, 'r') as f:
+    with open(job_file) as f:
         for line in f:
             parts = line.strip().split('\t')
             if len(parts) == 3:
@@ -89,9 +90,9 @@ async def main():
             print(f'\r{completed_count}/{len(jobs)} complete ({remaining} remaining)...', end='', flush=True)
             await asyncio.sleep(30)  # Check every 30 seconds
 
-    print(f'\n\n[OK] All jobs complete!')
+    print('\n\n[OK] All jobs complete!')
     print(f'Total cost: ${total_cost:.2f}')
-    print(f'\nNew documentation saved to docs/research and documentation/')
+    print('\nNew documentation saved to docs/research and documentation/')
 
 if __name__ == '__main__':
     asyncio.run(main())

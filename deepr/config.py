@@ -75,7 +75,7 @@ class ProviderConfig(BaseModel):
         selections with benchmark-recommended models (best_value strategy).
         Env var DEEPR_DEEP_RESEARCH_MODEL takes priority for deep_research.
         """
-        use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "").lower() in {"1", "true", "yes"}
+        use_benchmark_routing = os.getenv("DEEPR_USE_BENCHMARK_ROUTING", "true").lower() in {"1", "true", "yes", "on"}
         if not use_benchmark_routing:
             return self
 
@@ -121,6 +121,9 @@ class ProviderConfig(BaseModel):
             if "/" not in model_key:
                 continue
             provider, model = model_key.split("/", 1)
+            # Keep deep_research pinned to deep-research-capable models only.
+            if config_task == "deep_research" and "deep-research" not in model:
+                continue
             env_var = provider_env.get(provider)
             if env_var and os.environ.get(env_var):
                 self.TASK_MODEL_MAP[config_task] = (provider, model)

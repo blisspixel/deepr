@@ -121,7 +121,7 @@ class TestSaveLoad:
         db.save_job(sample_state, plan=sample_plan, beliefs=sample_beliefs)
         result = db.load_job("job_001")
 
-        state, plan, beliefs = result
+        _state, plan, beliefs = result
         assert plan is not None
         assert plan.goal == "Research quantum computing"
         assert plan.steps[0]["step"] == "search"

@@ -10,13 +10,10 @@ import logging
 import os
 import re
 import uuid
-import functions_framework
 from datetime import datetime, timezone
-from typing import Any
 
-from google.cloud import pubsub_v1
-from google.cloud import storage
-from google.cloud import firestore
+import functions_framework
+from google.cloud import firestore, pubsub_v1, storage
 
 # Configure logging
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO'))

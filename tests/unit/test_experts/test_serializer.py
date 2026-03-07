@@ -7,11 +7,10 @@ from deepr.experts.serializer import (
     COMPOSED_FIELDS,
     DATETIME_FIELDS,
     METADATA_FIELDS,
+    ProfileSerializer,
     datetime_to_iso,
     dict_to_profile_kwargs,
     iso_to_datetime,
-    profile_to_dict,
-    ProfileSerializer,
 )
 
 

@@ -9,14 +9,13 @@ Sets up the local development environment for Deepr:
 - Validates Python dependencies
 """
 
+import sqlite3
 import sys
 from pathlib import Path
-import sqlite3
-import json
 
 # Add parent directory to path to import deepr modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from deepr.cli.colors import console, print_header, print_success, print_error, print_warning
+from deepr.cli.colors import console, print_error, print_header, print_success
 
 
 def create_directories():

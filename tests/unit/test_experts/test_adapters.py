@@ -3,7 +3,6 @@
 Tests to_claim() and to_gap() adapters that bridge old types to canonical contracts.
 """
 
-import pytest
 from datetime import datetime, timezone
 
 from deepr.core.contracts import Claim, Gap, TrustClass

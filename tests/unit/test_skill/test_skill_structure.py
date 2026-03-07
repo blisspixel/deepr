@@ -195,7 +195,7 @@ version: "{version}"
 
 # Test Content
 """
-        frontmatter, body = parse_skill_frontmatter(skill_content)
+        frontmatter, _body = parse_skill_frontmatter(skill_content)
 
         assert frontmatter["name"] == name
         assert frontmatter["version"] == version

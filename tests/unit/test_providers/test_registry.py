@@ -19,7 +19,8 @@ class TestModelCapabilities:
     def test_registry_not_empty(self):
         """Test that registry contains model definitions."""
         assert len(MODEL_CAPABILITIES) > 0
-        assert "openai/gpt-5.2" in MODEL_CAPABILITIES
+        assert "openai/gpt-5.4" in MODEL_CAPABILITIES
+        assert "openai/gpt-5.4-pro" in MODEL_CAPABILITIES
         assert "xai/grok-4-fast" in MODEL_CAPABILITIES
 
     def test_all_capabilities_valid(self):
@@ -38,10 +39,10 @@ class TestModelCapabilities:
     def test_get_model_capability(self):
         """Test getting model capability by provider and model."""
         # Valid model
-        cap = get_model_capability("openai", "gpt-5.2")
+        cap = get_model_capability("openai", "gpt-5.4")
         assert cap is not None
         assert cap.provider == "openai"
-        assert cap.model == "gpt-5.2"
+        assert cap.model == "gpt-5.4"
 
         # Invalid model
         cap = get_model_capability("invalid", "model")
@@ -96,15 +97,20 @@ class TestModelCapabilities:
 
     def test_openai_models(self):
         """Test OpenAI model capabilities."""
-        gpt5 = get_model_capability("openai", "gpt-5.2")
-        assert gpt5 is not None
-        assert "reasoning" in gpt5.specializations
-        assert gpt5.context_window >= 128_000
+        gpt54 = get_model_capability("openai", "gpt-5.4")
+        assert gpt54 is not None
+        assert "reasoning" in gpt54.specializations
+        assert gpt54.context_window >= 1_000_000
+
+        gpt54_pro = get_model_capability("openai", "gpt-5.4-pro")
+        assert gpt54_pro is not None
+        assert "reasoning" in gpt54_pro.specializations
+        assert gpt54_pro.context_window >= 1_000_000
 
         deep_research = get_model_capability("openai", "o4-mini-deep-research")
         assert deep_research is not None
         assert "research" in deep_research.specializations
-        assert deep_research.cost_per_query > gpt5.cost_per_query  # More expensive
+        assert deep_research.cost_per_query > gpt54.cost_per_query  # More expensive
 
     def test_xai_models(self):
         """Test xAI (Grok) model capabilities."""
@@ -114,9 +120,13 @@ class TestModelCapabilities:
         assert grok.cost_per_query < 0.05  # Should be very cheap
         assert grok.latency_ms < 2000  # Should be fast
 
+        grok_41_nr = get_model_capability("xai", "grok-4-1-fast-non-reasoning")
+        assert grok_41_nr is not None
+        assert "speed" in grok_41_nr.specializations
+
     def test_gemini_models(self):
         """Test Gemini model capabilities."""
-        gemini_pro = get_model_capability("gemini", "gemini-3-pro-preview")
+        gemini_pro = get_model_capability("gemini", "gemini-3.1-pro-preview")
         assert gemini_pro is not None
         assert "large_context" in gemini_pro.specializations
         assert gemini_pro.context_window >= 1_000_000

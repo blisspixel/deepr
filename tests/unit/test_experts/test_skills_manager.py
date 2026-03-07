@@ -5,12 +5,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import pytest
 import yaml
 
 import deepr.experts.skills.manager as manager_mod
 from deepr.experts.skills.manager import SkillManager
-
 
 # ---------------------------------------------------------------------------
 # Helpers

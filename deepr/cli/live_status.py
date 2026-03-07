@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Optional
 
 from rich.console import Console
 from rich.live import Live
@@ -24,9 +23,9 @@ class LiveShimmerStatus:
         self._enabled = enabled and self._policy.enabled
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._phase = 0.0
-        self._live: Optional[Live] = None
+        self._live: Live | None = None
 
     def _render(self) -> Text:
         with self._lock:

@@ -310,7 +310,7 @@ class TestConflictResolution:
 
         # Add conflicting belief with higher confidence
         belief2 = Belief(claim="Python version is 3.12", confidence=0.9, domain="python")
-        added, change = store.add_belief(belief2)
+        _added, change = store.add_belief(belief2)
 
         # Higher confidence should win
         assert change is not None
@@ -328,7 +328,7 @@ class TestConflictResolution:
 
         # Add conflicting belief (even with lower confidence)
         belief2 = Belief(claim="Python version is 3.12", confidence=0.7, domain="python")
-        added, change = store.add_belief(belief2)
+        _added, change = store.add_belief(belief2)
 
         # Newer should win regardless of confidence
         assert change is not None
@@ -346,7 +346,7 @@ class TestConflictResolution:
 
         # Add similar belief
         belief2 = Belief(claim="Python is popular language", confidence=0.6, domain="python", evidence_refs=["ref2"])
-        added, change = store.add_belief(belief2)
+        _added, change = store.add_belief(belief2)
 
         # Should merge evidence
         assert change is not None

@@ -1,12 +1,11 @@
 """Tests for deepr.experts.multi_pass.MultiPassPipeline."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from deepr.experts.multi_pass import CrossReferenceResult, MultiPassPipeline, MultiPassResult
-
 
 # ---------------------------------------------------------------------------
 # MultiPassResult
@@ -131,8 +130,8 @@ class TestPassCrossReference:
         pipeline = MultiPassPipeline(client=mock_client)
 
         # Create a mock extraction
-        from deepr.services.context_chainer import ExtractedFinding, StructuredPhaseOutput
         from deepr.observability.temporal_tracker import FindingType
+        from deepr.services.context_chainer import ExtractedFinding, StructuredPhaseOutput
 
         extraction = StructuredPhaseOutput(
             phase=1,
@@ -231,7 +230,7 @@ class TestPassSynthesize:
             open_questions=[], contradictions=[], confidence_avg=0.5,
         )
 
-        beliefs, changes, filled = await pipeline._pass_synthesize(
+        beliefs, _changes, filled = await pipeline._pass_synthesize(
             extraction, None, "Test Topic", "test_domain", 1.0
         )
 

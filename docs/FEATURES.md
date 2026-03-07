@@ -1,6 +1,6 @@
 # Deepr Features Guide
 
-Complete guide to all Deepr features as of v2.9.1
+Complete guide to Deepr features (continuously updated).
 
 ## Table of Contents
 
@@ -235,8 +235,8 @@ deepr run focus "Question" --model o3-deep-research --yes
 ```
 
 **Available models:**
-- `o4-mini-deep-research` (faster, $2.00/query)
-- `o3-deep-research` (comprehensive, $0.50/query)
+- `openai/o3-deep-research` (high-quality deep research)
+- `openai/o4-mini-deep-research` (alternative deep research profile)
 
 ### Checking Results
 
@@ -647,6 +647,21 @@ deepr prep status <plan-id>
 deepr prep execute
 ```
 
+## Safe Eval Workflow
+
+```bash
+# New models only, default $1 preflight cap
+deepr eval new
+
+# Estimate only
+deepr eval new --dry-run --tier all
+
+# Intentional larger run
+deepr eval new --max-estimated-cost 3
+```
+
+Use `--tier all` full-catalog runs sparingly; they are for periodic baseline refreshes, not daily iteration.
+
 ## Cost Management
 
 ### Cost Estimation
@@ -678,6 +693,10 @@ deepr costs timeline --days 60 --weekly
 # Per-expert cost tracking
 deepr costs expert "Expert Name"
 
+# Run tracker integrity checks (no API calls)
+deepr costs doctor
+deepr costs doctor --drift-threshold 0.05
+
 # View active cost alerts
 deepr costs alerts
 
@@ -692,6 +711,9 @@ deepr costs limits --daily 15 --monthly 150
 - Timeline chart with anomaly detection (days > 2x average highlighted)
 - Per-expert costs: total research cost, monthly spending, budget usage, per-operation breakdown
 - Active alerts at configurable thresholds (50%, 80%, 95%)
+- Tracker integrity checks (ledger writable + drift vs dashboard totals) via `deepr costs doctor`
+
+Set `DEEPR_COST_TRACKING_STRICT=1` to fail fast when cost events cannot be written to the canonical ledger.
 
 ### Budget Limits
 
@@ -790,6 +812,9 @@ Notes:
 - `cli.animations` maps to `DEEPR_ANIMATIONS`
 - `cli.branding` maps to `DEEPR_BRANDING`
 - Legacy direct env keys still work (for example `DEEPR_ANIMATIONS=light`)
+- Startup banner controls:
+- `DEEPR_BANNER_MODE=off|static|light|full`
+- `DEEPR_BANNER_DURATION=<seconds>` (animated modes only)
 
 ## Analytics
 
@@ -1017,3 +1042,5 @@ deepr jobs list --status failed
 - See [ROADMAP.md](../ROADMAP.md) for upcoming features
 - Check [CHANGELOG.md](../CHANGELOG.md) for latest changes
 - Visit [README.md](../README.md) for quick start
+
+

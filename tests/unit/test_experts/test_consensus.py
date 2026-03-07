@@ -5,13 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from deepr.experts.consensus import (
+    _ESTIMATED_COST,
     ConsensusEngine,
     ProviderResponse,
-    _ESTIMATED_COST,
-    _PROVIDER_MODELS,
     _has_api_key,
 )
-
 
 # ---------------------------------------------------------------------------
 # _has_api_key

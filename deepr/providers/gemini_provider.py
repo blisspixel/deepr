@@ -149,13 +149,14 @@ class GeminiProvider(DeepResearchProvider):
         self.model_mappings = model_mappings or {
             "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
             "gemini-3.1-pro": "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite-preview",
             "gemini-3-pro-preview": "gemini-3-pro-preview",
             "gemini-2.5-pro": "gemini-2.5-pro",
             "gemini-2.5-flash": "gemini-2.5-flash",
             "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
             "gemini-pro": "gemini-3.1-pro-preview",
             "gemini-flash": "gemini-2.5-flash",
-            "gemini-flash-lite": "gemini-2.5-flash-lite",
+            "gemini-flash-lite": "gemini-3.1-flash-lite-preview",
             # Deep Research Agent
             "gemini-deep-research": DEEP_RESEARCH_AGENT,
             "deep-research": DEEP_RESEARCH_AGENT,
@@ -166,10 +167,11 @@ class GeminiProvider(DeepResearchProvider):
 
         self.pricing = {
             "gemini-3.1-pro-preview": get_token_pricing("gemini-3.1-pro-preview"),
+            "gemini-3.1-flash-lite-preview": get_token_pricing("gemini-3.1-flash-lite-preview"),
             "gemini-3-pro-preview": get_token_pricing("gemini-3-pro-preview"),
             "gemini-2.5-pro": get_token_pricing("gemini-2.5-pro"),
             "gemini-2.5-flash": get_token_pricing("gemini-2.5-flash"),
-            "gemini-2.5-flash-lite": {"input": 0.0375, "output": 0.15},
+            "gemini-2.5-flash-lite": get_token_pricing("gemini-2.5-flash-lite"),
         }
 
         # Estimated cost per deep research job (varies by search query count)

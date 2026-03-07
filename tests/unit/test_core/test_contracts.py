@@ -3,7 +3,6 @@
 Tests creation, serialization round-trips, ID generation, and computed properties.
 """
 
-import pytest
 from datetime import datetime, timezone
 
 from deepr.core.contracts import (

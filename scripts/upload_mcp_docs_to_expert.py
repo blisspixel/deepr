@@ -1,8 +1,11 @@
 """Upload MCP documentation to Agentic Digital Consciousness expert."""
 import asyncio
 from pathlib import Path
-from deepr.experts.profile import ExpertProfile, ExpertStore
+
 from openai import AsyncOpenAI
+
+from deepr.experts.profile import ExpertStore
+
 
 async def main():
     # Load expert
@@ -15,7 +18,7 @@ async def main():
 
     # Read MCP documentation
     mcp_doc_path = Path("docs/documentation openai deep research api and MCP details.txt")
-    with open(mcp_doc_path, 'r', encoding='utf-8') as f:
+    with open(mcp_doc_path, encoding='utf-8') as f:
         content = f.read()
 
     # Save to expert's documents folder
@@ -61,7 +64,7 @@ Date: 2025
     expert.source_files.append(str(target_path))
     store.save(expert)
 
-    print(f"\n✓ MCP documentation added to expert")
+    print("\n✓ MCP documentation added to expert")
     print(f"  Total documents: {expert.total_documents}")
     print(f"  Vector store: {expert.vector_store_id}")
 

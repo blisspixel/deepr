@@ -1,8 +1,10 @@
 """Check campaign results from OpenAI."""
 import asyncio
-from deepr.providers import create_provider
-from deepr.config import load_config
 from pathlib import Path
+
+from deepr.config import load_config
+from deepr.providers import create_provider
+
 
 async def main():
     config = load_config()
@@ -37,7 +39,7 @@ async def main():
                                     content += text + "\n"
 
             print(f"Content length: {len(content)} characters")
-            print(f"\nFirst 1000 characters:")
+            print("\nFirst 1000 characters:")
             print("-" * 70)
             print(content[:1000])
             print("-" * 70)

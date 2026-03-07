@@ -21,7 +21,7 @@ import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable
 
 from deepr.utils.security import sanitize_name, validate_path
 
@@ -278,7 +278,7 @@ class ExpertStore:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-    def load(self, name: str, migrate: bool = True) -> Optional[ExpertProfile]:
+    def load(self, name: str, migrate: bool = True) -> ExpertProfile | None:
         """Load expert profile from disk.
 
         Automatically migrates old schema versions if migrate=True.
@@ -412,7 +412,7 @@ class ExpertStore:
 
         return True
 
-    def backup(self, name: str, backup_suffix: str = ".backup") -> Optional[Path]:
+    def backup(self, name: str, backup_suffix: str = ".backup") -> Path | None:
         """Create a backup of an expert profile.
 
         Args:

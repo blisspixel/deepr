@@ -1,9 +1,6 @@
 """Tests for confidence calibration module."""
 
-import json
-from datetime import datetime, timezone
-
-import pytest
+from datetime import datetime
 
 from deepr.experts.confidence_calibration import (
     CalibrationExample,

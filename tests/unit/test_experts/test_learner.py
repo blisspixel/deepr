@@ -304,7 +304,7 @@ class TestAutonomousLearnerProgressPersistence:
 
     def test_load_learning_progress_not_found(self, mock_config, mock_expert_store):
         """Test loading when no saved progress exists."""
-        store, knowledge_dir = mock_expert_store
+        store, _knowledge_dir = mock_expert_store
 
         with (
             patch("deepr.experts.learner.create_provider"),
@@ -342,7 +342,7 @@ class TestAutonomousLearnerProgressPersistence:
 
     def test_clear_learning_progress_not_found(self, mock_config, mock_expert_store):
         """Test clearing when no saved progress exists (should not error)."""
-        store, knowledge_dir = mock_expert_store
+        store, _knowledge_dir = mock_expert_store
 
         with (
             patch("deepr.experts.learner.create_provider"),

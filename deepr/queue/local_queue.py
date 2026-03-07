@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
+from deepr.observability.costs import CostDashboard
+
 from .base import JobStatus, QueueBackend, ResearchJob
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,14 @@ class SQLiteQueue(QueueBackend):
         """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._cost_dashboard: Optional[CostDashboard] = None
         self._init_db()
+
+    def _get_cost_dashboard(self) -> CostDashboard:
+        """Get or create lazily initialized cost dashboard instance."""
+        if self._cost_dashboard is None:
+            self._cost_dashboard = CostDashboard()
+        return self._cost_dashboard
 
     def _init_db(self):
         """Initialize database schema."""
@@ -372,6 +381,11 @@ class SQLiteQueue(QueueBackend):
         conn = sqlite3.connect(self.db_path)
         try:
             cursor = conn.cursor()
+            cursor.execute("SELECT provider, model, cost FROM research_queue WHERE id = ?", (job_id,))
+            existing_row = cursor.fetchone()
+            if existing_row is None:
+                return False
+            provider, model, previous_cost = existing_row
 
             cursor.execute(
                 """
@@ -384,6 +398,24 @@ class SQLiteQueue(QueueBackend):
 
             success = cursor.rowcount > 0
             conn.commit()
+
+            if success and cost is not None and cost > 0:
+                prior = float(previous_cost) if previous_cost is not None else 0.0
+                delta = float(cost) - prior
+                if delta > 0:
+                    try:
+                        dashboard = self._get_cost_dashboard()
+                        dashboard.record(
+                            operation="research_job",
+                            provider=provider or "unknown",
+                            model=model or "",
+                            cost=delta,
+                            tokens_output=int(tokens_used or 0),
+                            task_id=job_id,
+                            metadata={"source": "queue.update_results", "idempotency_key": f"queue:update_results:{job_id}:{float(cost):.6f}"},
+                        )
+                    except Exception as e:
+                        logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
 
             return success
         except Exception:
@@ -498,3 +530,4 @@ class SQLiteQueue(QueueBackend):
             raise
         finally:
             conn.close()
+
