@@ -6,12 +6,14 @@ Uses Rich for beautiful terminal UI with panels, tables, and styled prompts.
 
 import asyncio
 import inspect
+import shlex
 from typing import Any, Optional
 
 import click
 from rich import box
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from deepr import __version__
 from deepr.cli.colors import (
@@ -103,6 +105,8 @@ def _print_welcome(banner_override: Optional[str] = None):
 def _parse_main_menu_choice(raw_choice: str) -> int:
     """Parse main menu input into a route code."""
     value = (raw_choice or "").strip().lower()
+    if value.startswith("/"):
+        value = value[1:]
     if value in {"q", "quit", "exit", "0"}:
         return 0
     aliases = {
@@ -122,6 +126,11 @@ def _parse_main_menu_choice(raw_choice: str) -> int:
     }
     if value in aliases:
         return aliases[value]
+    # Light fuzzy intent matching for command-palette style input.
+    if " " not in value:
+        for alias, route in aliases.items():
+            if len(value) >= 2 and alias.isalpha() and value.startswith(alias):
+                return route
     if value == "":
         return -1
     try:
@@ -130,17 +139,61 @@ def _parse_main_menu_choice(raw_choice: str) -> int:
         return -1
 
 
-def _print_main_menu() -> int:
-    """Print main menu and get selection."""
-    menu_items = [
+def _get_home_status() -> tuple[str, str, str]:
+    """Return compact status triplet: provider, budget, queue."""
+    provider_label = "provider: unknown"
+    budget_label = "budget: n/a"
+    queue_label = "queue: n/a"
+
+    try:
+        from deepr.core.settings import get_settings
+
+        settings = get_settings()
+        provider = (settings.default_provider or "").strip() or "auto"
+        provider_label = f"provider: {provider}"
+    except Exception:
+        pass
+
+    try:
+        from deepr.queue import JobStatus, SQLiteQueue
+
+        queue = SQLiteQueue()
+        jobs = _resolve_maybe_awaitable(queue.list_jobs(limit=200))
+        queued = sum(1 for j in jobs if j.status == JobStatus.QUEUED)
+        running = sum(1 for j in jobs if j.status == JobStatus.PROCESSING)
+        queue_label = f"queue: {queued} queued, {running} running"
+
+        total_spent = sum(j.cost or 0 for j in jobs)
+        budget_label = f"spent: ${total_spent:.2f}"
+    except Exception:
+        pass
+
+    return provider_label, budget_label, queue_label
+
+
+def _print_main_menu() -> str:
+    """Print main menu and get action text."""
+    primary_items = [
         ("1", "Research", "Submit a new research query"),
         ("2", "Experts", "Chat with domain experts"),
         ("3", "Jobs", "View job queue and history"),
+    ]
+    secondary_items = [
         ("4", "Costs", "View spending and budgets"),
         ("5", "Config", "Settings and API keys"),
         ("6", "Help", "Commands and documentation"),
         ("q", "Quit", "Exit interactive mode (q/quit/exit/0)"),
     ]
+
+    provider_label, budget_label, queue_label = _get_home_status()
+    status = Text("Status: ", style="dim")
+    status.append(provider_label, style="cyan")
+    status.append("  ·  ", style="dim")
+    status.append(budget_label, style="yellow")
+    status.append("  ·  ", style="dim")
+    status.append(queue_label, style="magenta")
+    console.print(status)
+    console.print()
 
     table = Table(
         show_header=False,
@@ -152,10 +205,31 @@ def _print_main_menu() -> int:
     table.add_column("Action", style="bold", width=12)
     table.add_column("Description", style="dim")
 
-    for key, action, desc in menu_items:
+    table.add_row("", "[dim]Primary[/dim]", "")
+    for key, action, desc in primary_items:
+        table.add_row(f"[{key}]", action, desc)
+    table.add_row("", "[dim]Utility[/dim]", "")
+    for key, action, desc in secondary_items:
         table.add_row(f"[{key}]", action, desc)
 
-    console.print("[dim]Quick actions:[/dim] [cyan][r][/cyan]esearch  [cyan][e][/cyan]xperts  [cyan][j][/cyan]obs  [cyan][c][/cyan]osts  [cyan][g][/cyan]config  [cyan][?][/cyan] help")
+    quick = Text("Type ", style="dim")
+    quick.append("[r]", style="bold cyan")
+    quick.append("esearch ", style="dim")
+    quick.append("[e]", style="bold cyan")
+    quick.append("xperts ", style="dim")
+    quick.append("[j]", style="bold cyan")
+    quick.append("obs ", style="dim")
+    quick.append("[c]", style="bold cyan")
+    quick.append("osts ", style="dim")
+    quick.append("[g]", style="bold cyan")
+    quick.append("config ", style="dim")
+    quick.append("[?]", style="bold cyan")
+    quick.append("help ", style="dim")
+    quick.append("or ", style="dim")
+    quick.append("[q]", style="bold cyan")
+    quick.append("uit", style="dim")
+    console.print(quick)
+    console.print("[dim]Pro mode:[/dim] type a command directly (example: jobs list, costs show)")
     console.print(table)
     console.print()
 
@@ -166,7 +240,52 @@ def _print_main_menu() -> int:
         show_default=False,
     )
 
-    return _parse_main_menu_choice(choice)
+    return choice
+
+
+def _run_direct_command(raw_action: str) -> bool:
+    """Run a direct deepr command from interactive action input.
+
+    Returns:
+        True if input was handled (executed or intentionally ignored),
+        False if it doesn't look like a command.
+    """
+    action = (raw_action or "").strip()
+    if not action:
+        return True
+
+    if action.startswith("/"):
+        action = action[1:].strip()
+    if action.lower().startswith("deepr "):
+        action = action[6:].strip()
+    if not action:
+        return True
+
+    try:
+        tokens = shlex.split(action)
+    except ValueError as exc:
+        print_error(f"Invalid command syntax: {exc}")
+        return True
+
+    if not tokens:
+        return True
+    if tokens[0] in {"interactive", "i"}:
+        print_warning("Already in interactive mode.")
+        return True
+
+    try:
+        from deepr.cli.main import cli
+
+        cli.main(args=tokens, prog_name="deepr", standalone_mode=False)
+        return True
+    except click.ClickException as exc:
+        exc.show()
+        return True
+    except SystemExit:
+        return True
+    except Exception as exc:
+        print_error(f"Command failed: {exc}")
+        return True
 
 
 def _research_menu():
@@ -294,6 +413,8 @@ def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_co
 def _experts_menu():
     """Expert management menu."""
     print_header("Domain Experts")
+    console.print("[dim]Experts are optional. Use Research for one-off queries.[/dim]")
+    console.print()
 
     console.print("[dim]Options:[/dim]")
     console.print("  [1] List experts")
@@ -325,12 +446,14 @@ def _list_experts():
 
         experts_dir = Path("experts")
         if not experts_dir.exists():
-            console.print("[dim]No experts found. Create one with 'deepr expert make'[/dim]")
+            console.print("[dim]No experts yet.[/dim]")
+            console.print("[dim]Next: deepr expert make \"My Expert\" --files docs/*.md[/dim]")
             return
 
         profiles = list(experts_dir.glob("*/profile.json"))
         if not profiles:
-            console.print("[dim]No experts found. Create one with 'deepr expert make'[/dim]")
+            console.print("[dim]No experts yet.[/dim]")
+            console.print("[dim]Next: deepr expert make \"My Expert\" --files docs/*.md[/dim]")
             return
 
         table = Table(show_header=True, box=box.SIMPLE, header_style="bold")
@@ -522,7 +645,8 @@ def interactive(ctx: click.Context, banner_override: Optional[str]):
 
     while True:
         try:
-            choice = _print_main_menu()
+            action = _print_main_menu()
+            choice = _parse_main_menu_choice(action)
 
             if choice == 0:
                 print_success("Goodbye!")
@@ -540,7 +664,8 @@ def interactive(ctx: click.Context, banner_override: Optional[str]):
             elif choice == 6:
                 _help_menu(ctx)
             else:
-                print_error("Invalid option")
+                if not _run_direct_command(action):
+                    print_error("Unknown action. Use 1-6, ?, q, or type a command like 'jobs list'.")
 
             console.print()
 
