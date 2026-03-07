@@ -30,6 +30,17 @@ def test_parse_main_menu_aliases():
     assert _parse_main_menu_choice("config") == 5
 
 
+def test_parse_main_menu_slash_commands():
+    assert _parse_main_menu_choice("/research") == 1
+    assert _parse_main_menu_choice("/jobs") == 3
+    assert _parse_main_menu_choice("/help") == 6
+
+
+def test_parse_main_menu_direct_command_returns_unmapped():
+    # Multi-token commands should be handled by direct command execution path.
+    assert _parse_main_menu_choice("jobs list") == -1
+
+
 def test_parse_main_menu_invalid():
     assert _parse_main_menu_choice("") == -1
     assert _parse_main_menu_choice("not-an-option") == -1
