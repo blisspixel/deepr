@@ -406,4 +406,3 @@ class HttpClient:
 
 # Convenience alias
 HttpTransport = StreamingHttpTransport
-

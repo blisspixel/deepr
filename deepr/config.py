@@ -525,4 +525,3 @@ def load_config() -> dict:
         "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0") or "25.0"),
         "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0") or "200.0"),
     }
-
