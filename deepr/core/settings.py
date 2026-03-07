@@ -38,7 +38,7 @@ import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Optional
+from typing import Any, ClassVar, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -101,14 +101,14 @@ class ProviderSettings:
 
     name: str
     api_key: str = ""
-    base_url: Optional[str] = None
+    base_url: str | None = None
     default_model: str = ""
     enabled: bool = True
     rate_limit: int = 60  # requests per minute
     timeout: int = 120  # seconds
 
     # Azure-specific
-    azure_endpoint: Optional[str] = None
+    azure_endpoint: str | None = None
     azure_api_version: str = "2024-10-01-preview"
     azure_use_managed_identity: bool = False
     azure_deployment_map: dict[str, str] = field(default_factory=dict)
@@ -143,8 +143,8 @@ class StorageSettings:
     local_path: str = "data/reports"
 
     # Azure Blob storage
-    azure_connection_string: Optional[str] = None
-    azure_account_url: Optional[str] = None
+    azure_connection_string: str | None = None
+    azure_account_url: str | None = None
     azure_container: str = "reports"
     azure_use_managed_identity: bool = False
 
@@ -173,8 +173,8 @@ class DatabaseSettings:
     sqlite_path: str = "data/logs/jobs.db"
 
     # CosmosDB
-    cosmosdb_endpoint: Optional[str] = None
-    cosmosdb_key: Optional[str] = None
+    cosmosdb_endpoint: str | None = None
+    cosmosdb_key: str | None = None
     cosmosdb_database: str = "deepr"
     cosmosdb_container: str = "jobs"
 
@@ -307,7 +307,7 @@ class WebhookSettings:
     port: int = 5000
     use_ngrok: bool = True
     ngrok_path: str = "ngrok"
-    public_url: Optional[str] = None
+    public_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -435,10 +435,10 @@ class Settings:
     # Metadata (not persisted)
     _source: str = field(default="defaults", repr=False)
     _overrides: dict[str, str] = field(default_factory=dict, repr=False)
-    _config_path: Optional[Path] = field(default=None, repr=False)
+    _config_path: Path | None = field(default=None, repr=False)
 
     # Singleton instance
-    _instance: ClassVar[Optional[Settings]] = None
+    _instance: ClassVar[Settings | None] = None
 
     # ==========================================================================
     # Loading methods
@@ -447,8 +447,8 @@ class Settings:
     @classmethod
     def load(
         cls,
-        config_path: Optional[Path] = None,
-        cli_overrides: Optional[dict[str, Any]] = None,
+        config_path: Path | None = None,
+        cli_overrides: dict[str, Any] | None = None,
         reset_singleton: bool = False,
     ) -> Settings:
         """Load settings from all sources.
@@ -486,7 +486,7 @@ class Settings:
         """Reset the singleton instance (useful for testing)."""
         cls._instance = None
 
-    def _apply_config_file(self, config_path: Optional[Path] = None) -> None:
+    def _apply_config_file(self, config_path: Path | None = None) -> None:
         """Apply settings from config file."""
         if config_path is None:
             config_path = self._find_config_file()
@@ -820,7 +820,7 @@ class Settings:
             self._set_nested(setting_path, value)
             self._overrides[setting_path] = "env"
 
-    def _load_provider_from_env(self, name: str, key_var: str, url_var: Optional[str], default_model: str) -> None:
+    def _load_provider_from_env(self, name: str, key_var: str, url_var: str | None, default_model: str) -> None:
         """Load provider configuration from environment."""
         api_key = os.getenv(key_var)
         if api_key:
@@ -844,7 +844,7 @@ class Settings:
             if container is not None and hasattr(container, parts[1]):
                 setattr(container, parts[1], value)
 
-    def _find_config_file(self) -> Optional[Path]:
+    def _find_config_file(self) -> Path | None:
         """Find configuration file in standard locations."""
         locations = [
             Path(".deepr/config.yaml"),
@@ -889,7 +889,7 @@ class Settings:
 
         return current
 
-    def get_provider(self, name: Optional[str] = None) -> Optional[ProviderSettings]:
+    def get_provider(self, name: str | None = None) -> ProviderSettings | None:
         """Get provider configuration.
 
         Args:
@@ -901,7 +901,7 @@ class Settings:
         provider_name = name or self.default_provider
         return self.providers.get(provider_name)
 
-    def get_api_key(self, provider: Optional[str] = None) -> str:
+    def get_api_key(self, provider: str | None = None) -> str:
         """Get API key for a provider.
 
         Args:
@@ -1066,7 +1066,7 @@ def _parse_bool(value: str) -> bool:
     return value.lower() in ("true", "1", "yes", "on")
 
 
-def get_settings(cli_overrides: Optional[dict[str, Any]] = None, reset: bool = False) -> Settings:
+def get_settings(cli_overrides: dict[str, Any] | None = None, reset: bool = False) -> Settings:
     """Get the global Settings instance.
 
     This is the recommended way to access settings. It returns a cached

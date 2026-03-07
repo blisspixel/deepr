@@ -6,12 +6,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from deepr.experts.map_reduce import (
-    DEFAULT_CHUNK_SIZE,
     LARGE_DOCUMENT_THRESHOLD,
     MapReduceIngester,
     should_use_map_reduce,
 )
-
 
 # ---------------------------------------------------------------------------
 # should_use_map_reduce

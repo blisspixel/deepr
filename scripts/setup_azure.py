@@ -10,10 +10,9 @@ Sets up Azure cloud resources for Deepr:
 - Creates required containers and queues
 """
 
-import sys
-import os
-from pathlib import Path
 import json
+import sys
+from pathlib import Path
 
 # Add parent directory to path to import deepr modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -70,11 +69,11 @@ def create_resource_group(name, location):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Resource group created")
+        print("  ✓ Resource group created")
         return True
     except subprocess.CalledProcessError as e:
         if "already exists" in e.stderr.decode():
-            print(f"  ✓ Resource group already exists")
+            print("  ✓ Resource group already exists")
             return True
         print(f"  ✗ Failed to create resource group: {e.stderr.decode()}")
         return False
@@ -99,12 +98,12 @@ def create_storage_account(resource_group, name, location):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Storage account created")
+        print("  ✓ Storage account created")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "already exists" in error_msg:
-            print(f"  ✓ Storage account already exists")
+            print("  ✓ Storage account already exists")
             return True
         print(f"  ✗ Failed: {error_msg}")
         return False
@@ -174,12 +173,12 @@ def create_service_bus(resource_group, namespace, location):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Service Bus namespace created")
+        print("  ✓ Service Bus namespace created")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "already exists" in error_msg:
-            print(f"  ✓ Service Bus namespace already exists")
+            print("  ✓ Service Bus namespace already exists")
             return True
         print(f"  ✗ Failed: {error_msg}")
         return False
@@ -202,12 +201,12 @@ def create_service_bus_queue(resource_group, namespace, queue_name):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Queue created")
+        print("  ✓ Queue created")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "already exists" in error_msg:
-            print(f"  ✓ Queue already exists")
+            print("  ✓ Queue already exists")
             return True
         print(f"  ✗ Failed: {error_msg}")
         return False

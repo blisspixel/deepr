@@ -4,15 +4,16 @@ Submit research jobs for identified documentation gaps.
 
 import asyncio
 import os
+import uuid
 from pathlib import Path
+
 from dotenv import load_dotenv
+
+from deepr.providers.base import ResearchRequest, ToolConfig
+from deepr.providers.openai_provider import OpenAIProvider
+from deepr.queue.base import JobStatus, ResearchJob
 from deepr.queue.local_queue import SQLiteQueue
 from deepr.storage.local import LocalStorage
-from deepr.providers.openai_provider import OpenAIProvider
-from deepr.providers.base import ResearchRequest, ToolConfig
-from deepr.queue.base import ResearchJob, JobStatus
-from datetime import datetime
-import uuid
 
 load_dotenv()
 
@@ -110,7 +111,7 @@ async def main():
     config_path.mkdir(exist_ok=True)
 
     queue = SQLiteQueue(str(config_path / 'queue.db'))
-    storage = LocalStorage(str(config_path / 'storage'))
+    LocalStorage(str(config_path / 'storage'))
     provider = OpenAIProvider(api_key=os.getenv('OPENAI_API_KEY'))
 
     print(f'Submitting {len(RESEARCH_TASKS)} research jobs...\n')
@@ -172,7 +173,7 @@ async def main():
             f.write(f'{job["local_id"]}\t{job["provider_id"]}\t{job["title"]}\n')
 
     print(f'Job IDs saved to {output_file}')
-    print(f'\nMonitor with: python scripts/monitor_research_jobs.py')
+    print('\nMonitor with: python scripts/monitor_research_jobs.py')
 
 if __name__ == '__main__':
     asyncio.run(main())

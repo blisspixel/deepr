@@ -10,8 +10,8 @@ Destroys Azure cloud resources for Deepr:
 CAUTION: This will DELETE all data in Azure resources.
 """
 
-import sys
 import json
+import sys
 
 
 def check_azure_cli():
@@ -69,7 +69,7 @@ def delete_resource_group(name, force=False):
             ],
             check=True
         )
-        print(f"  ✓ Deletion started (running in background)")
+        print("  ✓ Deletion started (running in background)")
         print(f"  Check status: az group show --name {name}")
         return True
     except subprocess.CalledProcessError as e:
@@ -94,12 +94,12 @@ def delete_service_bus_queue(resource_group, namespace, queue_name):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Queue deleted")
+        print("  ✓ Queue deleted")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "not found" in error_msg.lower():
-            print(f"  Queue not found (already deleted?)")
+            print("  Queue not found (already deleted?)")
             return True
         print(f"  ✗ Failed: {error_msg}")
         return False
@@ -121,12 +121,12 @@ def delete_service_bus_namespace(resource_group, namespace):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Namespace deleted")
+        print("  ✓ Namespace deleted")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "not found" in error_msg.lower():
-            print(f"  Namespace not found (already deleted?)")
+            print("  Namespace not found (already deleted?)")
             return True
         print(f"  ✗ Failed: {error_msg}")
         return False
@@ -194,12 +194,12 @@ def delete_storage_account(resource_group, account_name):
             check=True,
             capture_output=True
         )
-        print(f"  ✓ Storage account deleted")
+        print("  ✓ Storage account deleted")
         return True
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode()
         if "not found" in error_msg.lower():
-            print(f"  Storage account not found (already deleted?)")
+            print("  Storage account not found (already deleted?)")
             return True
         print(f"  ✗ Failed: {error_msg}")
         return False
@@ -289,7 +289,7 @@ def main():
     print("✓ Teardown complete")
     print()
     print("Note: Resource group still exists (but should be empty)")
-    print(f"To delete resource group: python scripts/destroy_azure.py --delete-resource-group")
+    print("To delete resource group: python scripts/destroy_azure.py --delete-resource-group")
     print("="*60)
 
     return 0

@@ -656,7 +656,7 @@ def _run_batch_research(
 
     # Parse and preview
     try:
-        items, defaults = parse_batch_file(batch_file)
+        items, _defaults = parse_batch_file(batch_file)
     except ValueError as e:
         print_error(str(e))
         return

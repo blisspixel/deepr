@@ -51,7 +51,7 @@ class TestParseBatchFile:
             f.write("Compare AWS vs Azure\n")
             f.flush()
 
-            items, defaults = parse_batch_file(f.name)
+            items, _defaults = parse_batch_file(f.name)
 
         assert len(items) == 3
         assert items[0].query == "What is Python?"
@@ -86,7 +86,7 @@ class TestParseBatchFile:
             json.dump(data, f)
             f.flush()
 
-            items, defaults = parse_batch_file(f.name)
+            items, _defaults = parse_batch_file(f.name)
 
         assert len(items) == 2
         assert items[0].query == "What is Python?"

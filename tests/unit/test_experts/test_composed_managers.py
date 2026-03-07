@@ -157,10 +157,10 @@ class TestBudgetManagerStandalone:
         """Should correctly check spending allowance."""
         manager = BudgetManager(monthly_budget=10.0)
 
-        can, reason = manager.can_spend(5.0)
+        can, _reason = manager.can_spend(5.0)
         assert can is True
 
-        can, reason = manager.can_spend(15.0)
+        can, _reason = manager.can_spend(15.0)
         assert can is False
 
     def test_budget_manager_record_spending(self):

@@ -9,6 +9,7 @@ Provides commands for viewing and managing costs:
 - deepr costs expert - Show per-expert cost breakdown
 """
 
+from pathlib import Path
 from typing import Optional
 
 import click
@@ -16,6 +17,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from deepr.observability.cost_ledger import CostLedger
 from deepr.observability.costs import CostDashboard
 
 console = Console()
@@ -329,3 +331,51 @@ def expert_costs(name: str):
         console.print(table)
     else:
         console.print("[dim]No detailed cost entries found for this expert[/dim]")
+
+
+@costs.command("doctor")
+@click.option("--drift-threshold", default=0.01, type=float, show_default=True, help="Allowed absolute drift in USD")
+def costs_doctor(drift_threshold: float):
+    """Run zero-cost integrity checks for cost tracking."""
+    dashboard = CostDashboard()
+    ledger_path = Path(dashboard.storage_path).with_name("cost_ledger.jsonl")
+    ledger = CostLedger(ledger_path=ledger_path)
+
+    checks: list[tuple[str, bool, str]] = []
+
+    # Dashboard storage sanity
+    log_exists = dashboard.storage_path.exists()
+    checks.append(("Cost log exists", log_exists, str(dashboard.storage_path)))
+
+    # Ledger storage sanity
+    health = ledger.get_health()
+    checks.append(("Ledger writable", bool(health.get("writable")), str(health.get("path", ledger_path))))
+
+    # Reconciliation drift check (dashboard is legacy mirror, ledger is canonical append-only)
+    dashboard_total = sum(e.cost for e in dashboard.entries)
+    ledger_total = ledger.get_total_cost()
+    drift = abs(ledger_total - dashboard_total)
+    drift_ok = drift <= drift_threshold
+    checks.append((
+        "Ledger vs dashboard drift",
+        drift_ok,
+        f"drift=${drift:.6f} (ledger=${ledger_total:.4f}, dashboard=${dashboard_total:.4f})",
+    ))
+
+    table = Table(title="Cost Tracking Doctor")
+    table.add_column("Check", style="cyan")
+    table.add_column("Status", style="bold")
+    table.add_column("Details")
+
+    for name, ok, details in checks:
+        table.add_row(name, "PASS" if ok else "FAIL", details)
+
+    console.print(table)
+
+    passed = sum(1 for _name, ok, _details in checks if ok)
+    total = len(checks)
+    if passed == total:
+        console.print(f"[green]All checks passed ({passed}/{total})[/green]")
+    else:
+        console.print(f"[red]Issues found ({total - passed}/{total})[/red]")
+

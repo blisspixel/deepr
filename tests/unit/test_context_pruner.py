@@ -70,7 +70,7 @@ class TestContextPruner:
             ),
         ]
 
-        kept, decision = pruner.prune(items, "Python testing", token_budget=600)
+        kept, _decision = pruner.prune(items, "Python testing", token_budget=600)
 
         # Should keep the more relevant items
         kept_texts = [item.text for item in kept]
@@ -89,7 +89,7 @@ class TestContextPruner:
             ContextItem(id="2", text="New finding about X " * 50, source="test", timestamp=new_time, phase=1),
         ]
 
-        kept, decision = pruner.prune(items, "finding about X", token_budget=300)
+        kept, _decision = pruner.prune(items, "finding about X", token_budget=300)
 
         # Should prefer the newer item
         if len(kept) == 1:
@@ -175,7 +175,7 @@ class TestDeduplication:
             ContextItem(id="3", text="Unique content here", source="test", timestamp=now, phase=1),
         ]
 
-        kept, decision = pruner.prune(items, "test", token_budget=10000)
+        kept, _decision = pruner.prune(items, "test", token_budget=10000)
 
         # At least one duplicate should be removed
         assert len(kept) <= 3
@@ -201,7 +201,7 @@ class TestDeduplication:
             ),
         ]
 
-        kept, decision = pruner.prune(items, "test", token_budget=10000)
+        kept, _decision = pruner.prune(items, "test", token_budget=10000)
 
         # The two similar sentences might be deduplicated
         assert len(kept) <= 3
@@ -303,7 +303,7 @@ class TestEdgeCases:
 
         items = [ContextItem(id="1", text="Content", source="test", timestamp=datetime.now(timezone.utc), phase=1)]
 
-        kept, decision = pruner.prune(items, "query", token_budget=0)
+        kept, _decision = pruner.prune(items, "query", token_budget=0)
 
         # Should keep at least some minimal content or return empty
         assert len(kept) <= len(items)
