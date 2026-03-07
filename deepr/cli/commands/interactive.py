@@ -447,13 +447,13 @@ def _list_experts():
         experts_dir = Path("experts")
         if not experts_dir.exists():
             console.print("[dim]No experts yet.[/dim]")
-            console.print("[dim]Next: deepr expert make \"My Expert\" --files docs/*.md[/dim]")
+            console.print('[dim]Next: deepr expert make "My Expert" --files docs/*.md[/dim]')
             return
 
         profiles = list(experts_dir.glob("*/profile.json"))
         if not profiles:
             console.print("[dim]No experts yet.[/dim]")
-            console.print("[dim]Next: deepr expert make \"My Expert\" --files docs/*.md[/dim]")
+            console.print('[dim]Next: deepr expert make "My Expert" --files docs/*.md[/dim]')
             return
 
         table = Table(show_header=True, box=box.SIMPLE, header_style="bold")
@@ -675,10 +675,3 @@ def interactive(ctx: click.Context, banner_override: Optional[str]):
             break
         except EOFError:
             break
-
-
-
-
-
-
-

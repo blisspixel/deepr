@@ -335,7 +335,7 @@ def _play_ansi_frames(
 
 def _wordmark_rgb(phase: float, column: int) -> tuple[int, int, int]:
     # Smooth whole-word gradient: blue -> violet -> pink, with subtle drift.
-    c0 = (78, 164, 245)   # blue
+    c0 = (78, 164, 245)  # blue
     c1 = (150, 126, 232)  # violet
     c2 = (222, 120, 176)  # pink
     width = max(1, len(_PIXEL_WORDMARK[0]) - 1)
@@ -431,13 +431,17 @@ def _wordmark_ansi_frame(phase: float, width: int, truecolor: bool, unicode_bloc
     return "\n".join(chunks)
 
 
-def _build_wordmark_frames(width: int, frame_count: int, truecolor: bool, unicode_blocks: bool) -> tuple[list[str], int]:
+def _build_wordmark_frames(
+    width: int, frame_count: int, truecolor: bool, unicode_blocks: bool
+) -> tuple[list[str], int]:
     if frame_count <= 0:
         return [], 0
     frames = []
     for i in range(frame_count):
         phase = i / max(frame_count - 1, 1)
-        frames.append(_wordmark_ansi_frame(phase=phase, width=width, truecolor=truecolor, unicode_blocks=unicode_blocks))
+        frames.append(
+            _wordmark_ansi_frame(phase=phase, width=width, truecolor=truecolor, unicode_blocks=unicode_blocks)
+        )
     return frames, len(_PIXEL_WORDMARK) + 1
 
 
@@ -545,7 +549,9 @@ def show_startup_banner(
                 return
 
             use_ansi = renderer == "ansi" or (
-                renderer == "auto" and bool(getattr(console, "is_terminal", False)) and not bool(getattr(console, "legacy_windows", False))
+                renderer == "auto"
+                and bool(getattr(console, "is_terminal", False))
+                and not bool(getattr(console, "legacy_windows", False))
             )
             if use_ansi:
                 pre_rendered: list[str] = []
@@ -569,7 +575,9 @@ def show_startup_banner(
                 ) as live:
                     for frame in range(frames):
                         phase = frame / max(frames - 1, 1)
-                        live.update(_build_panel(version=version, phase=phase, mode=render_mode, width=width), refresh=True)
+                        live.update(
+                            _build_panel(version=version, phase=phase, mode=render_mode, width=width), refresh=True
+                        )
                         _precise_sleep(time.perf_counter() + frame_delay)
 
                 console.print(_build_panel(version=version, phase=1.0, mode=render_mode, width=width))
