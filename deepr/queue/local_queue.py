@@ -412,7 +412,10 @@ class SQLiteQueue(QueueBackend):
                             cost=delta,
                             tokens_output=int(tokens_used or 0),
                             task_id=job_id,
-                            metadata={"source": "queue.update_results", "idempotency_key": f"queue:update_results:{job_id}:{float(cost):.6f}"},
+                            metadata={
+                                "source": "queue.update_results",
+                                "idempotency_key": f"queue:update_results:{job_id}:{float(cost):.6f}",
+                            },
                         )
                     except Exception as e:
                         logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
@@ -530,4 +533,3 @@ class SQLiteQueue(QueueBackend):
             raise
         finally:
             conn.close()
-

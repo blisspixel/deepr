@@ -206,4 +206,3 @@ class CostLedger:
             "idempotency_keys_loaded": len(self._idempotency_keys),
             "error": error,
         }
-

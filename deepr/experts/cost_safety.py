@@ -835,4 +835,3 @@ def format_cost_warning(expected_cost: float, budget_limit: float | None) -> str
         else:
             msg += f" (within ${budget_limit:.2f} budget)"
     return msg
-
