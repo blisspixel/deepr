@@ -1,35 +1,39 @@
 """Startup banner rendering for interactive CLI sessions.
 
-Provides a short, polished terminal intro with safe cross-terminal fallbacks.
-The banner is enabled by default for interactive human sessions and suppressed
-for CI/non-interactive environments.
+Scribe-style animated gradient sweep for Deepr startup.
 """
 
 from __future__ import annotations
 
+import colorsys
 import os
 import shutil
 import sys
 import time
 from dataclasses import dataclass
-from io import StringIO
 from pathlib import Path
 
-from rich.console import Console, Group
-from rich.live import Live
-from rich.panel import Panel
+from rich.console import Console
+from rich.markup import escape
 from rich.text import Text
 
-from deepr.cli.effects import gradient_text, resolve_animation_policy
+from deepr.cli.effects import resolve_animation_policy
 
 _BANNER_SENTINEL = "banner_seen_v1"
-_PIXEL_WORDMARK = [
-    "██████  ███████ ███████ ██████  ██████ ",
-    "██   ██ ██      ██      ██   ██ ██   ██",
-    "██   ██ █████   █████   ██████  ██████ ",
-    "██   ██ ██      ██      ██      ██   ██",
-    "██████  ███████ ███████ ██      ██   ██",
-]
+_START_HUE = 200 / 360
+_END_HUE = 320 / 360
+_ANSI_RESET = "\033[0m"
+_ANSI_HIDE_CURSOR = "\033[?25l"
+_ANSI_SHOW_CURSOR = "\033[?25h"
+
+_BANNER_ART = (
+    "  ██████╗ ███████╗███████╗██████╗ ██████╗ \n"
+    "  ██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗\n"
+    "  ██║  ██║█████╗  █████╗  ██████╔╝██████╔╝\n"
+    "  ██║  ██║██╔══╝  ██╔══╝  ██╔═══╝ ██╔══██╗\n"
+    "  ██████╔╝███████╗███████╗██║     ██║  ██║\n"
+    "  ╚═════╝ ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝"
+)
 
 
 @dataclass(frozen=True)
@@ -46,7 +50,6 @@ def _is_truthy(value: str) -> bool:
 
 
 def _screen_reader_enabled() -> bool:
-    """Detect common screen-reader mode signals."""
     for env_key in ("DEEPR_SCREEN_READER", "SCREENREADER", "TERM_SCREEN_READER"):
         raw = os.getenv(env_key)
         if raw and _is_truthy(raw):
@@ -66,17 +69,13 @@ def _terminal_width(console: Console) -> int:
 
 
 def _supports_full_banner(console: Console, width: int) -> bool:
-    """Check if runtime can safely render the full animated banner."""
-    if width < 94:
+    if width < 50:
         return False
-
     if bool(getattr(console, "legacy_windows", False)):
         return False
-
     encoding = (getattr(console.file, "encoding", "") or "").lower()
     if encoding and "utf" not in encoding:
         return False
-
     return True
 
 
@@ -88,8 +87,8 @@ def _env_banner_mode_override() -> str | None:
 
 
 def _duration_for_mode(mode: str) -> float:
-    defaults = {"light": 0.45, "full": 0.95}
-    base = defaults.get(mode, 0.75)
+    defaults = {"light": 0.8, "full": 1.5}
+    base = defaults.get(mode, 1.0)
 
     raw = os.getenv("DEEPR_BANNER_DURATION", "").strip()
     if not raw:
@@ -100,27 +99,18 @@ def _duration_for_mode(mode: str) -> float:
     except ValueError:
         return base
 
-    # Keep startup motion short and predictable.
     return min(6.0, max(0.3, value))
 
 
-def _fps_for_banner(policy_fps: int) -> int:
+def _fps_for_banner() -> int:
     raw = os.getenv("DEEPR_BANNER_FPS", "").strip()
     if not raw:
-        # Prefer smoother startup by default; override with DEEPR_BANNER_FPS.
-        return max(24, min(60, max(policy_fps, 48)))
+        return 60
     try:
         value = int(raw)
     except ValueError:
-        return max(24, min(60, max(policy_fps, 48)))
+        return 60
     return max(8, min(60, value))
-
-
-def _banner_renderer_mode() -> str:
-    raw = os.getenv("DEEPR_BANNER_RENDERER", "auto").strip().lower()
-    if raw in {"auto", "rich", "ansi"}:
-        return raw
-    return "auto"
 
 
 def _banner_end_hold_seconds() -> float:
@@ -130,18 +120,8 @@ def _banner_end_hold_seconds() -> float:
     try:
         value = float(raw)
     except ValueError:
-        return 0.45
+        return 0.0
     return max(0.0, min(2.0, value))
-
-
-def _supports_truecolor(console: Console) -> bool:
-    color_system = str(getattr(console, "color_system", "") or "").lower()
-    return color_system in {"truecolor", "windows"}
-
-
-def _supports_unicode_blocks(console: Console) -> bool:
-    encoding = (getattr(console.file, "encoding", "") or "").lower()
-    return "utf" in encoding or encoding == ""
 
 
 def resolve_banner_plan(console: Console, override: str | None = None, state_dir: Path = Path(".deepr")) -> BannerPlan:
@@ -184,93 +164,13 @@ def resolve_banner_plan(console: Console, override: str | None = None, state_dir
     if override_normalized is None and env_mode in {"static", "light", "full"}:
         return BannerPlan(show=True, mode=env_mode, mark_seen=env_mode == "full" and not seen)
 
-    # Default to full intro each launch for a consistent branded experience.
     return BannerPlan(show=True, mode="full", mark_seen=not seen)
 
 
-def _build_route_line(phase: float, compact: bool, animated: bool) -> Text:
-    stages = [("Fast", "grok"), ("Balanced", "gpt-5.4"), ("Deep", "o3")]
-
-    active_idx = int(phase * len(stages)) % len(stages) if animated else -1
-    route_line = Text("Routing: ", style="dim")
-
-    for idx, (tier, model) in enumerate(stages):
-        active = idx == active_idx
-        prefix = "> " if active else "  "
-        style = "bold cyan" if active else "dim"
-        label = model if compact else f"{tier} {model}"
-        route_line.append(prefix + label, style=style)
-        if idx < len(stages) - 1:
-            route_line.append(" -> ", style="dim")
-
-    return route_line
-
-
-def _build_route_note(compact: bool) -> Text:
-    if compact:
-        return Text("Typical spend/job: ~$0.01 / ~$0.30 / ~$0.50.", style="dim")
-    return Text("Typical spend/job: grok ~$0.01 | gpt-5.4 ~$0.30 | o3 ~$0.50. Press 4 for live costs.", style="dim")
-
-
-def _wordmark_line(line: str, *, phase: float = 0.0, reveal: float = 1.0) -> Text:
-    visible_cols = int(max(0.0, min(1.0, reveal)) * len(line))
-    text = Text()
-    pulse = int(phase * 10) % 2 == 0
-    body = "bright_cyan" if pulse else "cyan"
-    for i, ch in enumerate(line):
-        if i >= visible_cols:
-            text.append(" ")
-            continue
-        if ch == " ":
-            text.append(" ")
-        else:
-            # Copilot-like look: cyan body with white edge highlights.
-            edge = i + 1 >= len(line) or line[i + 1] == " " or i == 0
-            style = "bold white" if edge else f"bold {body}"
-            text.append(ch, style=style)
-    return text
-
-
-def _hero_lines(phase: float, *, mode: str, width: int) -> list[Text]:
-    _ = width
-    lines: list[Text] = []
-    reveal = phase if mode == "full" else 1.0
-    for idx in range(len(_PIXEL_WORDMARK)):
-        left = _PIXEL_WORDMARK[idx]
-        row = Text()
-        row.append_text(_wordmark_line(left, phase=phase + (idx * 0.07), reveal=reveal))
-        lines.append(row)
-    return lines
-
-
-def _render_panel_to_ansi(console: Console, panel: Panel) -> tuple[str, int]:
-    sink = StringIO()
-    render_console = Console(
-        file=sink,
-        force_terminal=True,
-        width=max(60, _terminal_width(console)),
-        color_system=getattr(console, "color_system", "auto"),
-        legacy_windows=bool(getattr(console, "legacy_windows", False)),
-    )
-    render_console.print(panel)
-    rendered = sink.getvalue().rstrip("\n")
-    line_count = rendered.count("\n") + 1
-    return rendered, line_count
-
-
-def _render_group_to_ansi(console: Console, group: Group) -> tuple[str, int]:
-    sink = StringIO()
-    render_console = Console(
-        file=sink,
-        force_terminal=True,
-        width=max(60, _terminal_width(console)),
-        color_system=getattr(console, "color_system", "auto"),
-        legacy_windows=bool(getattr(console, "legacy_windows", False)),
-    )
-    render_console.print(group)
-    rendered = sink.getvalue().rstrip("\n")
-    line_count = rendered.count("\n") + 1
-    return rendered, line_count
+def _ease_in_out_cubic(t: float) -> float:
+    if t < 0.5:
+        return 4.0 * t * t * t
+    return 1.0 - (-2.0 * t + 2.0) ** 3 / 2.0
 
 
 def _precise_sleep(target_time: float) -> None:
@@ -283,214 +183,92 @@ def _precise_sleep(target_time: float) -> None:
         pass
 
 
-def _clear_rendered_region(out: object, line_count: int) -> None:
-    if line_count <= 0:
-        return
-    out.write(f"\x1b[{line_count}A\r")
-    for i in range(line_count):
-        out.write("\x1b[2K")
-        if i < line_count - 1:
-            out.write("\x1b[1B\r")
-    out.write(f"\x1b[{max(line_count - 1, 0)}A\r")
+def _precompute_gradient(max_width: int) -> list[str]:
+    codes: list[str] = []
+    for col in range(max_width):
+        col_ratio = col / max(1, max_width - 1)
+        hue = _START_HUE + (_END_HUE - _START_HUE) * col_ratio
+        r, g, b = [int(v * 255) for v in colorsys.hsv_to_rgb(hue % 1.0, 0.85, 0.92)]
+        codes.append(f"\033[1;38;2;{r};{g};{b}m")
+    return codes
 
 
-def _play_ansi_frames(
-    console: Console,
-    frames: list[str],
-    line_count: int,
-    frame_delay: float,
-    wipe_at_end: bool = False,
-    end_hold_seconds: float = 0.0,
-) -> None:
-    if not frames:
-        return
-    out = console.file or sys.stdout
-    hide_cursor = "\x1b[?25l"
-    show_cursor = "\x1b[?25h"
-    cursor_up = f"\x1b[{line_count}A\r"
-    try:
-        out.write(hide_cursor)
-        out.write(frames[0])
-        out.write("\n")
-        if hasattr(out, "flush"):
-            out.flush()
-        start = time.perf_counter()
-        for i, frame in enumerate(frames[1:], start=1):
-            _precise_sleep(start + (i * frame_delay))
-            out.write(cursor_up)
-            out.write(frame)
-            out.write("\n")
-            if hasattr(out, "flush"):
-                out.flush()
-        if end_hold_seconds > 0:
-            _precise_sleep(time.perf_counter() + end_hold_seconds)
-        if wipe_at_end:
-            _clear_rendered_region(out, line_count)
-    finally:
-        out.write(show_cursor)
-        out.write("\n")
-        if hasattr(out, "flush"):
-            out.flush()
-
-
-def _wordmark_rgb(phase: float, column: int) -> tuple[int, int, int]:
-    # Smooth whole-word gradient: blue -> violet -> pink, with subtle drift.
-    c0 = (78, 164, 245)  # blue
-    c1 = (150, 126, 232)  # violet
-    c2 = (222, 120, 176)  # pink
-    width = max(1, len(_PIXEL_WORDMARK[0]) - 1)
-    base_t = column / width
-    drift = (phase - 0.5) * 0.10
-    t = max(0.0, min(1.0, base_t + drift))
-    if t < 0.5:
-        u = t / 0.5
-        return (
-            int(c0[0] + (c1[0] - c0[0]) * u),
-            int(c0[1] + (c1[1] - c0[1]) * u),
-            int(c0[2] + (c1[2] - c0[2]) * u),
-        )
-    u = (t - 0.5) / 0.5
-    return (
-        int(c1[0] + (c2[0] - c1[0]) * u),
-        int(c1[1] + (c2[1] - c1[1]) * u),
-        int(c1[2] + (c2[2] - c1[2]) * u),
-    )
-
-
-def _shadow_rgb(phase: float, column: int) -> tuple[int, int, int]:
-    base = _wordmark_rgb(phase, column)
-    # Keep shadow subtle so gradient remains dominant.
-    return (max(0, int(base[0] * 0.22)), max(0, int(base[1] * 0.22)), max(0, int(base[2] * 0.24)))
-
-
-def _wordmark_ansi_frame(phase: float, width: int, truecolor: bool, unicode_blocks: bool) -> str:
-    lines = list(_PIXEL_WORDMARK)
-    fill_char = "█" if unicode_blocks else "#"
-    shadow_char = "░" if unicode_blocks else "."
-    enable_shadow = os.getenv("DEEPR_BANNER_SHADOW", "0").strip().lower() in {"1", "true", "yes", "on"}
-    reveal = max(0.0, min(1.0, phase))
-    visible_cols = int(len(lines[0]) * reveal)
-    left_pad = 2
-    pad = " " * left_pad
-    reset = "\x1b[0m"
-    h = len(lines) + 1
-    w = len(lines[0]) + 1
-    glyph: list[list[str]] = [[" " for _ in range(w)] for _ in range(h)]
-    color: list[list[tuple[int, int, int] | None]] = [[None for _ in range(w)] for _ in range(h)]
-
-    # Primary glyph.
-    for r, row in enumerate(lines):
-        for c, ch in enumerate(row):
-            if c >= visible_cols or ch == " ":
-                continue
-            glyph[r][c] = fill_char
-            color[r][c] = _wordmark_rgb(phase, c)
-
-    # Optional dotted shadow pass (disabled by default to avoid noisy glyph artifacts).
-    if enable_shadow:
-        for r, row in enumerate(lines):
-            for c, ch in enumerate(row):
-                if c >= visible_cols or ch == " ":
-                    continue
-                rr = r + 1
-                cc = c + 1
-                # Keep shadow off the bottom-most text row to avoid heavy base thickness.
-                if r >= len(lines) - 1:
-                    continue
-                if rr < h and cc < w and glyph[rr][cc] == " " and ((r + c) % 4 == 0):
-                    glyph[rr][cc] = shadow_char
-                    color[rr][cc] = _shadow_rgb(phase, c)
-
-    chunks: list[str] = []
-    for r in range(h):
-        out = [pad]
-        last_code = ""
-        for c in range(w):
-            ch = glyph[r][c]
-            rgb = color[r][c]
-            if ch == " " or rgb is None:
-                if last_code:
-                    out.append(reset)
-                    last_code = ""
-                out.append(" ")
+def _render_ansi_frame(
+    lines: list[str],
+    max_width: int,
+    sweep_progress: float,
+    gradient_codes: list[str],
+    muted_code: str,
+) -> str:
+    parts: list[str] = []
+    for line_idx, line in enumerate(lines):
+        if line_idx > 0:
+            parts.append("\n")
+        last_code: str | None = None
+        for col, ch in enumerate(line):
+            if ch == " ":
+                parts.append(" ")
+                last_code = None
                 continue
 
-            if truecolor:
-                code = f"\x1b[1;38;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
-            else:
-                code = "\x1b[1;95m" if ch == shadow_char else "\x1b[1;96m"
+            col_ratio = col / max(1, max_width - 1)
+            code = gradient_codes[col] if col_ratio <= sweep_progress else muted_code
 
             if code != last_code:
-                out.append(code)
+                parts.append(code)
                 last_code = code
-            out.append(ch)
+            parts.append(ch)
 
-        if last_code:
-            out.append(reset)
-        chunks.append("".join(out))
-    return "\n".join(chunks)
+        parts.append(_ANSI_RESET)
 
-
-def _build_wordmark_frames(
-    width: int, frame_count: int, truecolor: bool, unicode_blocks: bool
-) -> tuple[list[str], int]:
-    if frame_count <= 0:
-        return [], 0
-    frames = []
-    for i in range(frame_count):
-        phase = i / max(frame_count - 1, 1)
-        frames.append(
-            _wordmark_ansi_frame(phase=phase, width=width, truecolor=truecolor, unicode_blocks=unicode_blocks)
-        )
-    return frames, len(_PIXEL_WORDMARK) + 1
+    return "".join(parts)
 
 
-def _wordmark_group(phase: float, width: int) -> Group:
-    compact = width < 94
-    items: list[Text] = []
-    if compact:
-        items.append(gradient_text("DEEPR", hue_offset=phase * 0.2))
+def colorize_banner(
+    art: str,
+    sweep_progress: float = 1.0,
+    start_hue: float = _START_HUE,
+    end_hue: float = _END_HUE,
+    muted_color: str = "dim",
+) -> str:
+    lines = art.split("\n")
+    if not lines:
+        return ""
+
+    max_width = max(len(line) for line in lines)
+    if max_width == 0:
+        return art
+
+    result_lines: list[str] = []
+    for line in lines:
+        parts: list[str] = []
+        for col, ch in enumerate(line):
+            if ch == " ":
+                parts.append(" ")
+                continue
+
+            col_ratio = col / max(1, max_width - 1)
+
+            if col_ratio <= sweep_progress:
+                hue = start_hue + (end_hue - start_hue) * col_ratio
+                r, g, b = [int(v * 255) for v in colorsys.hsv_to_rgb(hue % 1.0, 0.85, 0.92)]
+                parts.append(f"[bold rgb({r},{g},{b})]{escape(ch)}[/]")
+            else:
+                parts.append(f"[{muted_color}]{escape(ch)}[/{muted_color}]")
+
+        result_lines.append("".join(parts))
+
+    return "\n".join(result_lines)
+
+
+def _render_static(console: Console, version: str) -> None:
+    console.print()
+    if getattr(console, "no_color", False):
+        console.print(_BANNER_ART)
     else:
-        items.extend(_hero_lines(phase, mode="full", width=width))
-    return Group(*items)
-
-
-def _build_panel(version: str, phase: float = 0.0, mode: str = "static", width: int = 100) -> Panel:
-    compact = width < 94
-    staged = mode == "full"
-
-    title = f"[bold cyan]v{version}[/bold cyan]"
-    content_items: list[Text] = []
-
-    if compact:
-        content_items.append(gradient_text("DEEPR", hue_offset=phase * 0.12))
-    else:
-        content_items.extend(_hero_lines(phase, mode=mode, width=width))
-        content_items.append(Text(f"CLI Version {version}", style="bold white"))
-
-    # Full intro: animate only the DEEPR wordmark first, then reveal everything else.
-    if staged and phase < 0.98:
-        spinner = "|/-\\"[int(phase * 32) % 4]
-        content_items.append(Text(f"{spinner} Starting interactive menu...", style="bold magenta"))
-        content = Group(*content_items)
-        return Panel(
-            content,
-            title=title,
-            border_style="cyan",
-            padding=(0, 2),
-            expand=False,
-        )
-    content_items.append(Text("[ready] Interactive menu", style="bold green"))
-
-    content = Group(*content_items)
-
-    return Panel(
-        content,
-        title=title,
-        border_style="cyan",
-        padding=(0, 2),
-        expand=False,
-    )
+        console.print(Text.from_markup(colorize_banner(_BANNER_ART, sweep_progress=1.0)))
+    console.print(f"[dim]deepr {version}[/dim]")
+    console.print()
 
 
 def _mark_seen(state_dir: Path) -> None:
@@ -512,81 +290,76 @@ def show_startup_banner(
         return
 
     width = _terminal_width(console)
-
     if plan.mode == "static":
-        console.print()
-        console.print(_build_panel(version=version, mode="static", width=width))
-        console.print()
-    else:
-        render_mode = plan.mode if _supports_full_banner(console, width) else "light"
-        duration = _duration_for_mode(render_mode)
-        policy = resolve_animation_policy(console)
-        fps = _fps_for_banner(policy.fps)
-        frame_delay = 1.0 / fps
-        frames = max(1, int(duration * fps))
-        renderer = _banner_renderer_mode()
+        _render_static(console, version)
+        if plan.mark_seen:
+            _mark_seen(state_dir)
+        return
 
+    render_mode = plan.mode if _supports_full_banner(console, width) else "light"
+
+    # If colors are unavailable, degrade to plain static output.
+    if getattr(console, "no_color", False):
+        _render_static(console, version)
+        if plan.mark_seen:
+            _mark_seen(state_dir)
+        return
+
+    duration = _duration_for_mode(render_mode)
+    fps = _fps_for_banner()
+    frame_time = 1.0 / float(fps)
+
+    try:
+        lines = _BANNER_ART.split("\n")
+        num_lines = len(lines)
+        max_width = max(len(line) for line in lines)
+        total_frames = max(2, int(duration * fps))
+
+        gradient_codes = _precompute_gradient(max_width)
+        muted_code = "\033[38;2;96;96;96m"
+
+        frames: list[str] = []
+        for f in range(total_frames + 1):
+            progress = f / total_frames
+            eased = _ease_in_out_cubic(progress)
+            frames.append(_render_ansi_frame(lines, max_width, eased, gradient_codes, muted_code))
+
+        out = console.file or sys.stdout
+        cursor_up = f"\033[{num_lines - 1}A\r"
+
+        out.write(_ANSI_HIDE_CURSOR)
+        out.write(frames[0])
+        if hasattr(out, "flush"):
+            out.flush()
+
+        start = time.perf_counter()
+        for i in range(1, len(frames)):
+            _precise_sleep(start + i * frame_time)
+            out.write(cursor_up)
+            out.write(frames[i])
+            if hasattr(out, "flush"):
+                out.flush()
+
+        hold = _banner_end_hold_seconds()
+        if hold > 0:
+            _precise_sleep(time.perf_counter() + hold)
+
+        out.write(_ANSI_SHOW_CURSOR + "\n")
+        if hasattr(out, "flush"):
+            out.flush()
+
+        console.print(f"[dim]deepr {version}[/dim]")
+        console.print()
+
+    except Exception:
         try:
-            if render_mode in {"full", "light"}:
-                truecolor = _supports_truecolor(console)
-                unicode_blocks = _supports_unicode_blocks(console)
-                pre_rendered, line_count = _build_wordmark_frames(
-                    width=width,
-                    frame_count=frames,
-                    truecolor=truecolor,
-                    unicode_blocks=unicode_blocks,
-                )
-                _play_ansi_frames(
-                    console,
-                    pre_rendered,
-                    line_count=line_count,
-                    frame_delay=frame_delay,
-                    wipe_at_end=False,
-                    end_hold_seconds=_banner_end_hold_seconds(),
-                )
-                if plan.mark_seen:
-                    _mark_seen(state_dir)
-                return
-
-            use_ansi = renderer == "ansi" or (
-                renderer == "auto"
-                and bool(getattr(console, "is_terminal", False))
-                and not bool(getattr(console, "legacy_windows", False))
-            )
-            if use_ansi:
-                pre_rendered: list[str] = []
-                line_count = 0
-                for frame in range(frames):
-                    phase = frame / max(frames - 1, 1)
-                    panel = _build_panel(version=version, phase=phase, mode=render_mode, width=width)
-                    rendered, lc = _render_panel_to_ansi(console, panel)
-                    pre_rendered.append(rendered)
-                    line_count = max(line_count, lc)
-                _play_ansi_frames(console, pre_rendered, line_count=line_count, frame_delay=frame_delay)
-                console.print()
-            else:
-                console.print()
-                with Live(
-                    _build_panel(version=version, phase=0.0, mode=render_mode, width=width),
-                    console=console,
-                    auto_refresh=False,
-                    transient=True,
-                    refresh_per_second=fps,
-                ) as live:
-                    for frame in range(frames):
-                        phase = frame / max(frames - 1, 1)
-                        live.update(
-                            _build_panel(version=version, phase=phase, mode=render_mode, width=width), refresh=True
-                        )
-                        _precise_sleep(time.perf_counter() + frame_delay)
-
-                console.print(_build_panel(version=version, phase=1.0, mode=render_mode, width=width))
-                console.print()
+            out = console.file or sys.stdout
+            out.write(_ANSI_SHOW_CURSOR + _ANSI_RESET + "\n")
+            if hasattr(out, "flush"):
+                out.flush()
         except Exception:
-            # Last-resort fallback for unexpected terminal behavior.
-            console.print()
-            console.print(_build_panel(version=version, mode="static", width=width))
-            console.print()
+            pass
+        _render_static(console, version)
 
     if plan.mark_seen:
         _mark_seen(state_dir)
