@@ -15,12 +15,15 @@ Resource URI Format:
 """
 
 import asyncio
+import logging
 import re
 import uuid
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -231,9 +234,9 @@ class SubscriptionManager:
             try:
                 await sub.callback(notification)
                 notified += 1
-            except Exception:
-                # Log but don't fail other notifications
-                pass
+            except Exception as exc:
+                # Log but do not fail other notifications.
+                logger.warning("Subscription callback failed for %s (%s): %s", sub.id, sub.uri, exc)
 
         return notified
 

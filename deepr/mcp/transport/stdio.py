@@ -13,11 +13,14 @@ Security Properties:
 
 import asyncio
 import json
+import logging
 import sys
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -225,8 +228,9 @@ class StdioTransport:
 
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception as exc:
                 self._stats.record_error()
+                logger.warning("Stdio transport loop error: %s", exc)
 
     async def send(self, message: Message) -> None:
         """
