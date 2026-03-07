@@ -15,6 +15,7 @@ from hypothesis import strategies as st
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from deepr.mcp.transport.http import (
+    HttpClient,
     HttpMessage,
     HttpTransportStats,
     StreamingHttpTransport,
@@ -389,3 +390,47 @@ class TestPropertyBased:
 
         assert f":{port}/" in transport.url
         assert transport.url.startswith("http://")
+
+
+@pytest.mark.asyncio
+async def test_http_broadcast_logs_and_counts_subscriber_put_failures(caplog):
+    """Broadcast should continue and record errors when a subscriber queue fails."""
+
+    class _FailingQueue:
+        async def put(self, _item):
+            raise RuntimeError("queue broken")
+
+    transport = StreamingHttpTransport(port=18770)
+    transport._subscribers = {"bad": _FailingQueue()}
+
+    with caplog.at_level("WARNING"):
+        count = await transport.broadcast({"test": "data"})
+
+    assert count == 0
+    assert transport.stats.errors >= 1
+    assert "Failed to broadcast MCP notification to subscriber" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_http_client_stream_loop_logs_errors(caplog):
+    """Stream loop should log connection/read failures instead of silently swallowing."""
+
+    class _BrokenResponse:
+        async def __aenter__(self):
+            raise RuntimeError("stream boom")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class _BrokenSession:
+        def get(self, _url):
+            return _BrokenResponse()
+
+    client = HttpClient("http://localhost:9999")
+    client._session = _BrokenSession()
+
+    with caplog.at_level("WARNING"):
+        await client._stream_loop("http://localhost:9999/mcp/stream")
+
+    assert "MCP HTTP stream loop terminated with error" in caplog.text
+
