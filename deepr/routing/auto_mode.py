@@ -597,4 +597,3 @@ Reasoning
 {decision.reasoning}
 """
         return explanation.strip()
-
