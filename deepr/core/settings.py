@@ -271,7 +271,7 @@ class ExpertSettings:
     quick_research_topics: int = 10
 
     # Costs
-    deep_research_cost: float = 1.0  # per topic
+    deep_research_cost: float = 2.50  # per topic (Gemini 3.1 Pro deep research)
     quick_research_cost: float = 0.002  # per topic
 
     # Synthesis
