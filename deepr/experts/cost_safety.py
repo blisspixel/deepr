@@ -835,3 +835,28 @@ def format_cost_warning(expected_cost: float, budget_limit: float | None) -> str
         else:
             msg += f" (within ${budget_limit:.2f} budget)"
     return msg
+
+
+def is_pausable_limit(reason: str) -> bool:
+    """Check if a block reason is a pausable limit (daily/monthly) vs a hard stop.
+
+    Pausable limits mean progress can be saved and resumed later.
+    """
+    if not reason:
+        return False
+    lower = reason.lower()
+    return "daily" in lower or "monthly" in lower
+
+
+def get_resume_message(reason: str) -> str:
+    """Get a human-readable message explaining when learning can resume.
+
+    Args:
+        reason: The block reason from check_operation
+    """
+    lower = (reason or "").lower()
+    if "daily" in lower:
+        return "Daily spending limit reached. Learning will resume tomorrow."
+    elif "monthly" in lower:
+        return "Monthly spending limit reached. Learning will resume next month."
+    return f"Spending limit reached: {reason}"
