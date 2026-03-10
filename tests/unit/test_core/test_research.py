@@ -197,23 +197,23 @@ class TestPromptValidation:
 
     @pytest.mark.asyncio
     async def test_long_prompt_rejected(self, orchestrator):
-        """Test that prompts over 300 chars are rejected."""
-        long_prompt = "x" * 350  # Over 300 char limit
+        """Test that long prompts are accepted (metadata truncated internally)."""
+        long_prompt = "x" * 350  # Over 300 chars — should be accepted now
 
-        # Patch at source module since import is inside function
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()
             mock_manager.check_operation.return_value = (True, "OK", False)
+            mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
 
-            with pytest.raises(ValueError) as exc_info:
-                await orchestrator.submit_research(
-                    prompt=long_prompt,
-                    model="o3-deep-research",
-                )
+            orchestrator.provider.submit_research = AsyncMock(return_value="job-123")
 
-            assert "too long" in str(exc_info.value).lower()
-            assert "300" in str(exc_info.value)
+            result = await orchestrator.submit_research(
+                prompt=long_prompt,
+                model="o3-deep-research",
+            )
+
+            assert result == "job-123"
 
     @pytest.mark.asyncio
     async def test_short_prompt_accepted(self, orchestrator):
@@ -540,19 +540,15 @@ class TestPropertyBasedValidation:
     @pytest.mark.property
     @given(st.text(min_size=301, max_size=1000))
     @settings(max_examples=100, deadline=None)
-    def test_property_long_prompts_always_rejected(self, prompt):
+    def test_property_long_prompts_accepted_with_truncated_metadata(self, prompt):
         """
-        Property 1: Long Prompt Rejection
+        Property 1: Long Prompt Acceptance
 
-        INVARIANT: Any prompt longer than 300 characters MUST be rejected
-        with a ValueError before any API call is made.
+        INVARIANT: Prompts longer than 300 characters are accepted.
+        The metadata field is truncated internally to fit OpenAI's 512-char limit,
+        but the full prompt is sent to the API.
 
-        This property ensures:
-        - OpenAI metadata field limits (512 chars) are respected
-        - No wasted API calls on invalid prompts
-        - Consistent error messaging
-
-        Validates: Requirement 1.3 (Prompt length validation)
+        Validates: Requirement 1.3 (Prompt metadata truncation)
         """
         # Create fresh orchestrator for each test
         mock_provider = MagicMock()
@@ -567,24 +563,19 @@ class TestPropertyBasedValidation:
             report_generator=mock_report_generator,
         )
 
-        # Mock cost safety to allow (we want to test prompt validation)
+        # Mock cost safety to allow
         with patch("deepr.experts.cost_safety.get_cost_safety_manager") as mock_csm:
             mock_manager = MagicMock()
             mock_manager.check_operation.return_value = (True, "OK", False)
+            mock_manager.record_cost = MagicMock()
             mock_csm.return_value = mock_manager
 
-            # Property: Long prompts must raise ValueError
-            with pytest.raises(ValueError) as exc_info:
-                import asyncio
+            mock_provider.submit_research = AsyncMock(return_value="job-123")
 
-                asyncio.run(orchestrator.submit_research(prompt=prompt))
+            import asyncio
 
-            # Verify error message mentions length
-            assert "too long" in str(exc_info.value).lower()
-            assert "300" in str(exc_info.value)
-
-            # Verify provider was NEVER called
-            mock_provider.submit_research.assert_not_called()
+            result = asyncio.run(orchestrator.submit_research(prompt=prompt))
+            assert result == "job-123"
 
     @pytest.mark.property
     @given(st.text(min_size=1, max_size=300).filter(lambda x: x.strip()))

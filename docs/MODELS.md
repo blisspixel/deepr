@@ -48,7 +48,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 | Task | Recommended Model | Cost/query | Latency | Notes |
 |------|-------------------|-----------|---------|-------|
 | Deep Research (OpenAI) | o3-deep-research | see registry | 5-20 min | Async, highest-quality deep research baseline |
-| Deep Research (Gemini) | deep-research-pro-preview | ~$1.00 | 5-20 min | Async, Google Search built-in |
+| Deep Research (Gemini) | deep-research-pro-preview | ~$2.50 | 5-20 min | Async, Google Search built-in, powered by Gemini 3.1 Pro |
 | Deep Research (Azure) | o3-deep-research | $0.50 | 5-20 min | Bing grounding, enterprise |
 | Complex Research | gpt-5.4 | see registry | ~seconds to minutes | strong reasoning/synthesis default |
 | Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
@@ -67,7 +67,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### Deep Research (~20% of operations)
 - **Models**: o4-mini-deep-research, o3-deep-research, Gemini Deep Research Agent
-- **Cost**: $0.50-$2.00 per query (OpenAI), ~$1.00 (Gemini)
+- **Cost**: $0.50-$2.00 per query (OpenAI), ~$2.50 (Gemini)
 - **Use for**: Novel problem-solving, critical decisions, complex synthesis
 - **Note**: Both OpenAI and Gemini deep research use async background jobs with polling
 

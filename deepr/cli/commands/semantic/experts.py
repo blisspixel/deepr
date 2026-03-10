@@ -251,7 +251,7 @@ def make_expert(
             expert_config = temp_config.expert
 
             # docs and quick are both FOCUS mode (grok-4-fast: ~$0.002)
-            # deep is CAMPAIGN mode (o4-mini-deep-research: ~$1.00)
+            # deep is CAMPAIGN mode (o4-mini-deep-research / Gemini deep research: ~$2.50)
             calculated_budget = (
                 (docs_count * expert_config.quick_research_cost)
                 + (quick_count * expert_config.quick_research_cost)

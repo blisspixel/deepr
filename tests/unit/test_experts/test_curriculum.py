@@ -305,7 +305,7 @@ class TestCurriculumGenerator:
         # Mock the expert config with cost values
         config.expert = MagicMock()
         config.expert.quick_research_cost = 0.002
-        config.expert.deep_research_cost = 1.0
+        config.expert.deep_research_cost = 2.50
         return config
 
     @pytest.fixture
