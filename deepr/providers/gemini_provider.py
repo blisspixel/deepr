@@ -175,7 +175,8 @@ class GeminiProvider(DeepResearchProvider):
         }
 
         # Estimated cost per deep research job (varies by search query count)
-        self.deep_research_cost_estimate = 1.00
+        # Powered by Gemini 3.1 Pro ($2/$12 per 1M tokens) + Google Search grounding
+        self.deep_research_cost_estimate = 2.50
 
         # Job tracking for regular (synchronous) research
         self.jobs: dict[str, dict[str, Any]] = {}

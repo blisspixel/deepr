@@ -224,14 +224,6 @@ class ResearchOrchestrator:
             job_id = str(uuid.uuid4())
             op.set_attribute("job_id", job_id)
 
-            # OpenAI metadata fields have 512 char limit - validate prompt length
-            if len(prompt) > 300:
-                raise ValueError(
-                    f"Research prompt too long ({len(prompt)} chars). "
-                    f"Must be under 300 characters for API compatibility. "
-                    f"Please use a more concise prompt."
-                )
-
             # Initialize temporal tracking for this job (6.4)
             if self._enable_temporal:
                 tracker = TemporalKnowledgeTracker(job_id=job_id)
@@ -242,7 +234,8 @@ class ResearchOrchestrator:
             # Prepare metadata
             job_metadata = metadata or {}
             job_metadata["job_id"] = job_id
-            job_metadata["original_prompt"] = prompt
+            # Truncate prompt in metadata to fit OpenAI's 512-char metadata field limit
+            job_metadata["original_prompt"] = prompt[:500] if len(prompt) > 500 else prompt
 
             # Use provided vector_store_id or create one from documents
             documents_count = 0
