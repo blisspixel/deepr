@@ -136,7 +136,7 @@ deepr brain delete vs_XXXXX
 
 **Actual costs:**
 - Docs/Quick: ~$0.002 each (grok-4-fast)
-- Deep: ~$1.00 each (o4-mini-deep-research)
+- Deep: ~$2.50 each (o4-mini-deep-research / Gemini deep research)
 
 ## What to Check
 

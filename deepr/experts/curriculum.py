@@ -697,7 +697,7 @@ Generate the source list now for: {domain}"""
         # Get actual cost values from config
         if isinstance(self.config, dict):
             quick_cost = self.config.get("expert", {}).get("quick_research_cost", 0.002)
-            deep_cost = self.config.get("expert", {}).get("deep_research_cost", 1.0)
+            deep_cost = self.config.get("expert", {}).get("deep_research_cost", 2.50)
         else:
             quick_cost = self.config.expert.quick_research_cost
             deep_cost = self.config.expert.deep_research_cost
@@ -1034,8 +1034,7 @@ For each topic, provide:
 - estimated_minutes: 30-60 for campaign, 8-15 for focus
 - priority: 1 (critical foundation) to 5 (nice-to-have)
 - research_prompt: The exact prompt to use for research
-  * CRITICAL: Must be under 300 characters (hard limit for API)
-  * Be concise but specific
+  * Keep prompts concise but specific (under 500 characters preferred)
   * Include year {today.split("-")[0]} for currency
   * **Include URLs from discovered sources when relevant**
   * Example: "Study NVIDIA Omniverse docs at docs.nvidia.com/omniverse. Extract: USD format, Kit SDK, Connectors, RTX rendering. Synthesize understanding of platform architecture."

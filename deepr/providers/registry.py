@@ -434,7 +434,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     "gemini/deep-research": ModelCapability(
         provider="gemini",
         model="deep-research-pro-preview-12-2025",
-        cost_per_query=1.00,
+        cost_per_query=2.50,
         latency_ms=600_000,  # 5-20 minutes
         context_window=1_000_000,
         specializations=["research", "analysis", "synthesis"],
@@ -443,10 +443,11 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Structured reports with citations",
             "File grounding via File Search Stores",
             "Background async execution",
+            "Powered by Gemini 3.1 Pro",
         ],
-        weaknesses=["Slow (5-20 minutes per job)", "~$1 per job", "Experimental API (may change)"],
-        input_cost_per_1m=1.25,
-        output_cost_per_1m=5.00,
+        weaknesses=["Slow (5-20 minutes per job)", "~$2.50 per job", "Experimental API (may change)"],
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=12.00,
     ),
     "gemini/gemini-2.5-flash": ModelCapability(
         provider="gemini",

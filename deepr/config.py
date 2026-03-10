@@ -275,7 +275,7 @@ class ExpertConfig(BaseModel):
 
     # Cost Estimates (averages based on actual model costs)
     deep_research_cost: float = Field(
-        default=1.0, description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research)"
+        default=2.50, description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research / Gemini deep research)"
     )
     quick_research_cost: float = Field(
         default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4-fast)"
