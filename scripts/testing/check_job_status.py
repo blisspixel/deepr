@@ -13,10 +13,7 @@ from deepr.providers import create_provider
 async def check_job(job_id: str):
     """Check job status."""
     config = load_config()
-    provider = create_provider(
-        config.get("provider", "openai"),
-        api_key=config.get("api_key")
-    )
+    provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
 
     print(f"Checking job: {job_id}")
     response = await provider.get_status(job_id)
@@ -29,10 +26,10 @@ async def check_job(job_id: str):
         print("\n=== Result ===")
         if response.output:
             for i, block in enumerate(response.output):
-                print(f"\nBlock {i+1} ({block['type']}):")
-                if block.get('content'):
-                    for item in block['content']:
-                        text = item.get('text', '')
+                print(f"\nBlock {i + 1} ({block['type']}):")
+                if block.get("content"):
+                    for item in block["content"]:
+                        text = item.get("text", "")
                         print(text[:500] if len(text) > 500 else text)
         if response.usage:
             print("\n=== Usage ===")
@@ -42,6 +39,7 @@ async def check_job(job_id: str):
             print(f"Cost: ${response.usage.cost:.4f}")
     elif response.error:
         print(f"\nError: {response.error}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

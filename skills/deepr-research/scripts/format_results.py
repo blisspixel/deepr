@@ -15,6 +15,7 @@ from typing import Optional
 @dataclass
 class Citation:
     """A single citation reference."""
+
     index: int
     source: str
     url: Optional[str] = None
@@ -33,6 +34,7 @@ class Citation:
 @dataclass
 class ResearchMetadata:
     """Metadata about the research operation."""
+
     mode: str
     model: str
     duration_seconds: int
@@ -65,6 +67,7 @@ class ResearchMetadata:
 @dataclass
 class RawResult:
     """Raw research result before formatting."""
+
     title: str
     summary: str
     findings: list[str]
@@ -102,7 +105,7 @@ def extract_citations(text: str) -> tuple[str, list[Citation]]:
     citation_map: dict[str, int] = {}
 
     # Pattern for markdown links used as citations
-    link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+    link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
 
     def replace_link(match: re.Match) -> str:
         source = match.group(1)
@@ -112,28 +115,32 @@ def extract_citations(text: str) -> tuple[str, list[Citation]]:
         if key not in citation_map:
             idx = len(citations) + 1
             citation_map[key] = idx
-            citations.append(Citation(
-                index=idx,
-                source=source,
-                url=url,
-                accessed=datetime.now().strftime("%Y-%m-%d"),
-            ))
+            citations.append(
+                Citation(
+                    index=idx,
+                    source=source,
+                    url=url,
+                    accessed=datetime.now().strftime("%Y-%m-%d"),
+                )
+            )
 
         return f"[{citation_map[key]}]"
 
     normalized = re.sub(link_pattern, replace_link, text)
 
     # Pattern for existing numeric citations [N]
-    existing_pattern = r'\[(\d+)\]'
+    existing_pattern = r"\[(\d+)\]"
     existing_refs = set(int(m.group(1)) for m in re.finditer(existing_pattern, normalized))
 
     # Add placeholder citations for numeric refs not yet in list
     for ref_num in sorted(existing_refs):
         if ref_num > len(citations):
-            citations.append(Citation(
-                index=ref_num,
-                source=f"Source {ref_num}",
-            ))
+            citations.append(
+                Citation(
+                    index=ref_num,
+                    source=f"Source {ref_num}",
+                )
+            )
 
     return normalized, citations
 
@@ -149,7 +156,7 @@ def format_recommendations(recommendations: list[str]) -> str:
     """Format recommendations as numbered list."""
     if not recommendations:
         return "No specific recommendations."
-    return "\n".join(f"{i+1}. {rec}" for i, rec in enumerate(recommendations))
+    return "\n".join(f"{i + 1}. {rec}" for i, rec in enumerate(recommendations))
 
 
 def format_citations(citations: list[Citation]) -> str:
@@ -204,8 +211,7 @@ def format_result(result: RawResult) -> str:
 
     # Add any new citations found in text (avoiding duplicates)
     for c in summary_citations + analysis_citations:
-        if not any(existing.url == c.url and existing.source == c.source
-                   for existing in all_citations):
+        if not any(existing.url == c.url and existing.source == c.source for existing in all_citations):
             c.index = len(all_citations) + 1
             all_citations.append(c)
 
@@ -276,7 +282,7 @@ def load_template(template_path: Optional[Path] = None) -> str:
 
 def count_citations(text: str) -> int:
     """Count the number of citation references in text."""
-    pattern = r'\[\d+\]'
+    pattern = r"\[\d+\]"
     return len(re.findall(pattern, text))
 
 

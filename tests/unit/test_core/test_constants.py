@@ -1,6 +1,5 @@
 """Tests for core configuration constants and env loading."""
 
-
 import pytest
 
 from deepr.core.constants import (

@@ -9,10 +9,7 @@ from deepr.experts.citation_validator import CitationValidator
 
 
 def _make_claim(statement: str, source_titles: list[str], claim_id: str = "c1") -> Claim:
-    sources = [
-        Source.create(title=t, trust_class=TrustClass.SECONDARY)
-        for t in source_titles
-    ]
+    sources = [Source.create(title=t, trust_class=TrustClass.SECONDARY) for t in source_titles]
     return Claim(
         id=claim_id,
         statement=statement,
@@ -81,7 +78,9 @@ class TestSummarize:
         validations = [
             SourceValidation(source_id="s1", claim_id="c1", support_class=SupportClass.SUPPORTED, explanation=""),
             SourceValidation(source_id="s2", claim_id="c2", support_class=SupportClass.UNSUPPORTED, explanation=""),
-            SourceValidation(source_id="s3", claim_id="c3", support_class=SupportClass.PARTIALLY_SUPPORTED, explanation=""),
+            SourceValidation(
+                source_id="s3", claim_id="c3", support_class=SupportClass.PARTIALLY_SUPPORTED, explanation=""
+            ),
             SourceValidation(source_id="s4", claim_id="c4", support_class=SupportClass.UNCERTAIN, explanation=""),
         ]
         summary = self.validator.summarize(validations)
@@ -127,9 +126,9 @@ class TestValidateClaims:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = (
-            '[{"index": 0, "support": "supported", "explanation": "Direct support"}]'
-        )
+        mock_response.choices[
+            0
+        ].message.content = '[{"index": 0, "support": "supported", "explanation": "Direct support"}]'
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         validator = CitationValidator(client=mock_client)
@@ -148,21 +147,18 @@ class TestValidateClaims:
         # Return all 6 pairs in batch results
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = (
-            '['
+            "["
             '{"index": 0, "support": "supported", "explanation": "OK"},'
             '{"index": 1, "support": "unsupported", "explanation": "No"},'
             '{"index": 2, "support": "uncertain", "explanation": "Maybe"},'
             '{"index": 3, "support": "supported", "explanation": "OK"},'
             '{"index": 4, "support": "partially_supported", "explanation": "Partial"}'
-            ']'
+            "]"
         )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         validator = CitationValidator(client=mock_client)
-        claims = [
-            _make_claim(f"Claim {i}", ["doc.md"], claim_id=f"c{i}")
-            for i in range(5)
-        ]
+        claims = [_make_claim(f"Claim {i}", ["doc.md"], claim_id=f"c{i}") for i in range(5)]
         docs = {"doc.md": "Content"}
 
         result = await validator.validate_claims(claims, docs)
@@ -202,9 +198,9 @@ class TestValidateClaims:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = (
-            '```json\n[{"index": 0, "support": "supported", "explanation": "OK"}]\n```'
-        )
+        mock_response.choices[
+            0
+        ].message.content = '```json\n[{"index": 0, "support": "supported", "explanation": "OK"}]\n```'
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         validator = CitationValidator(client=mock_client)

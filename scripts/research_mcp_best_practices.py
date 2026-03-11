@@ -1,4 +1,5 @@
 """Use Deep Research to analyze Deepr and recommend optimal MCP implementation."""
+
 import asyncio
 from pathlib import Path
 
@@ -9,14 +10,14 @@ async def main():
     client = AsyncOpenAI()
 
     # Read project context
-    readme = Path("README.md").read_text(encoding='utf-8')
-    roadmap = Path("ROADMAP.md").read_text(encoding='utf-8')
-    tasks = Path("tasks.md").read_text(encoding='utf-8')
-    mcp_docs = Path("docs/documentation openai deep research api and MCP details.txt").read_text(encoding='utf-8')
+    readme = Path("README.md").read_text(encoding="utf-8")
+    roadmap = Path("ROADMAP.md").read_text(encoding="utf-8")
+    tasks = Path("tasks.md").read_text(encoding="utf-8")
+    mcp_docs = Path("docs/documentation openai deep research api and MCP details.txt").read_text(encoding="utf-8")
 
     # Read current MCP implementation
-    mcp_server = Path("deepr/mcp/server.py").read_text(encoding='utf-8')
-    mcp_cli = Path("deepr/cli/commands/mcp.py").read_text(encoding='utf-8')
+    mcp_server = Path("deepr/mcp/server.py").read_text(encoding="utf-8")
+    mcp_cli = Path("deepr/cli/commands/mcp.py").read_text(encoding="utf-8")
 
     prompt = f"""Analyze the Deepr research automation platform and provide comprehensive recommendations for optimal MCP (Model Context Protocol) implementation.
 
@@ -102,9 +103,7 @@ Provide a structured report with:
         model="o4-mini-deep-research",
         input=prompt,
         background=False,  # Wait for completion
-        tools=[
-            {"type": "web_search_preview"}
-        ]
+        tools=[{"type": "web_search_preview"}],
     )
 
     # Extract the final report
@@ -112,11 +111,12 @@ Provide a structured report with:
 
     # Save report
     output_path = Path("docs/mcp_implementation_recommendations.md")
-    output_path.write_text(report, encoding='utf-8')
+    output_path.write_text(report, encoding="utf-8")
 
     print("\n✓ Research complete!")
     print(f"  Report saved to: {output_path}")
     print(f"\n{report}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

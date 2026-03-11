@@ -29,26 +29,14 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Start Deepr job worker")
-    parser.add_argument(
-        "--interval", "-i",
-        type=int,
-        default=30,
-        help="Poll interval in seconds (default: 30)"
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
-    )
+    parser.add_argument("--interval", "-i", type=int, default=30, help="Poll interval in seconds (default: 30)")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
 
     # Configure logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger = logging.getLogger(__name__)
 
