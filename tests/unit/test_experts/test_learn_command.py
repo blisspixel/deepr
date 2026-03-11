@@ -13,6 +13,12 @@ from unittest.mock import Mock, patch
 from click.testing import CliRunner
 
 
+def _discard_coroutine(coro):
+    """Close intercepted coroutines when asyncio.run is mocked in tests."""
+    coro.close()
+    return None
+
+
 class TestLearnCommandRegistration:
     """Test that the learn command is properly registered."""
 
@@ -162,7 +168,10 @@ class TestLearnOutputMessages:
         from deepr.cli.commands.semantic import expert
 
         runner = CliRunner()
-        with patch("deepr.experts.profile.ExpertStore") as mock_store, patch("asyncio.run", return_value=None):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store,
+            patch("asyncio.run", side_effect=_discard_coroutine),
+        ):
             mock_profile = Mock()
             mock_profile.name = "Test Expert"
             mock_store.return_value.load.return_value = mock_profile
@@ -176,7 +185,10 @@ class TestLearnOutputMessages:
         from deepr.cli.commands.semantic import expert
 
         runner = CliRunner()
-        with patch("deepr.experts.profile.ExpertStore") as mock_store, patch("asyncio.run", return_value=None):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store,
+            patch("asyncio.run", side_effect=_discard_coroutine),
+        ):
             mock_profile = Mock()
             mock_profile.name = "Test Expert"
             mock_store.return_value.load.return_value = mock_profile
