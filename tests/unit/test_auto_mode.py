@@ -134,9 +134,7 @@ class TestAutoModeRouter:
 
     def test_complex_research_uses_best_quality(self, router):
         """Complex research queries should use highest quality model."""
-        decision = router.route(
-            "Research the latest comprehensive developments in quantum computing"
-        )
+        decision = router.route("Research the latest comprehensive developments in quantum computing")
 
         assert decision.complexity == "complex"
         assert decision.task_type == "research"

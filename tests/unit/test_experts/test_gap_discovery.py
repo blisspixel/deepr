@@ -54,40 +54,48 @@ class TestClusterByThreshold:
         assert clusters[0] == [0]
 
     def test_identical_embeddings_one_cluster(self):
-        emb = np.array([
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-        ])
+        emb = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+            ]
+        )
         clusters = _cluster_by_threshold(emb, threshold=0.9)
         assert len(clusters) == 1
         assert sorted(clusters[0]) == [0, 1, 2]
 
     def test_orthogonal_embeddings_separate_clusters(self):
-        emb = np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ])
+        emb = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
         clusters = _cluster_by_threshold(emb, threshold=0.5)
         assert len(clusters) == 3
 
     def test_two_groups(self):
-        emb = np.array([
-            [1.0, 0.1, 0.0],  # Group 1
-            [0.9, 0.2, 0.0],  # Group 1
-            [0.0, 0.1, 1.0],  # Group 2
-            [0.0, 0.2, 0.9],  # Group 2
-        ])
+        emb = np.array(
+            [
+                [1.0, 0.1, 0.0],  # Group 1
+                [0.9, 0.2, 0.0],  # Group 1
+                [0.0, 0.1, 1.0],  # Group 2
+                [0.0, 0.2, 0.9],  # Group 2
+            ]
+        )
         clusters = _cluster_by_threshold(emb, threshold=0.8)
         assert len(clusters) == 2
 
     def test_low_threshold_merges_all(self):
-        emb = np.array([
-            [1.0, 0.5, 0.3],
-            [0.9, 0.4, 0.2],
-            [0.8, 0.6, 0.4],
-        ])
+        emb = np.array(
+            [
+                [1.0, 0.5, 0.3],
+                [0.9, 0.4, 0.2],
+                [0.8, 0.6, 0.4],
+            ]
+        )
         clusters = _cluster_by_threshold(emb, threshold=0.1)
         # With very low threshold, most things merge
         assert len(clusters) <= 2
@@ -122,15 +130,21 @@ class TestDiscoverGaps:
         discoverer = GapDiscoverer(min_cluster_size=3)
 
         # Mock embeddings: 3 similar + 1 different = 2 clusters, one thin
-        discoverer._embed_statements = AsyncMock(return_value=np.array([
-            [1.0, 0.0, 0.0],
-            [0.95, 0.05, 0.0],
-            [0.9, 0.1, 0.0],
-            [0.0, 0.0, 1.0],  # Thin cluster (only 1 item)
-        ]))
-        discoverer._generate_gaps_for_thin_areas = AsyncMock(return_value=[
-            {"topic": "Thin area", "questions": ["What about this?"], "priority": 3},
-        ])
+        discoverer._embed_statements = AsyncMock(
+            return_value=np.array(
+                [
+                    [1.0, 0.0, 0.0],
+                    [0.95, 0.05, 0.0],
+                    [0.9, 0.1, 0.0],
+                    [0.0, 0.0, 1.0],  # Thin cluster (only 1 item)
+                ]
+            )
+        )
+        discoverer._generate_gaps_for_thin_areas = AsyncMock(
+            return_value=[
+                {"topic": "Thin area", "questions": ["What about this?"], "priority": 3},
+            ]
+        )
 
         claims = [{"statement": f"Claim {i}"} for i in range(4)]
         result = await discoverer.discover_gaps(claims, "test")
@@ -142,15 +156,21 @@ class TestDiscoverGaps:
     async def test_deduplicates_against_existing(self):
         discoverer = GapDiscoverer(min_cluster_size=3)
 
-        discoverer._embed_statements = AsyncMock(return_value=np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ]))
-        discoverer._generate_gaps_for_thin_areas = AsyncMock(return_value=[
-            {"topic": "Existing Topic", "questions": ["Q1"], "priority": 3},
-            {"topic": "New Topic", "questions": ["Q2"], "priority": 4},
-        ])
+        discoverer._embed_statements = AsyncMock(
+            return_value=np.array(
+                [
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                ]
+            )
+        )
+        discoverer._generate_gaps_for_thin_areas = AsyncMock(
+            return_value=[
+                {"topic": "Existing Topic", "questions": ["Q1"], "priority": 3},
+                {"topic": "New Topic", "questions": ["Q2"], "priority": 4},
+            ]
+        )
 
         claims = [{"statement": f"Claim {i}"} for i in range(3)]
         existing_gaps = [{"topic": "Existing Topic"}]
@@ -163,14 +183,20 @@ class TestDiscoverGaps:
     async def test_falls_back_to_domain_coverage(self):
         discoverer = GapDiscoverer(min_cluster_size=1)  # All clusters meet threshold
 
-        discoverer._embed_statements = AsyncMock(return_value=np.array([
-            [1.0, 0.0],
-            [0.9, 0.1],
-            [0.8, 0.2],
-        ]))
-        discoverer._check_domain_coverage = AsyncMock(return_value=[
-            {"topic": "Missing subtopic", "questions": ["Q"], "priority": 2, "discovery_method": "domain_coverage"},
-        ])
+        discoverer._embed_statements = AsyncMock(
+            return_value=np.array(
+                [
+                    [1.0, 0.0],
+                    [0.9, 0.1],
+                    [0.8, 0.2],
+                ]
+            )
+        )
+        discoverer._check_domain_coverage = AsyncMock(
+            return_value=[
+                {"topic": "Missing subtopic", "questions": ["Q"], "priority": 2, "discovery_method": "domain_coverage"},
+            ]
+        )
 
         claims = [{"statement": f"Claim {i}"} for i in range(3)]
         result = await discoverer.discover_gaps(claims, "test")
@@ -222,15 +248,15 @@ class TestGenerateGapsForThinAreas:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"topic": "Thin area", "questions": ["What is X?"], "priority": 4},
-        ])
+        mock_response.choices[0].message.content = json.dumps(
+            [
+                {"topic": "Thin area", "questions": ["What is X?"], "priority": 4},
+            ]
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         discoverer = GapDiscoverer(client=mock_client)
-        result = await discoverer._generate_gaps_for_thin_areas(
-            [["Single lonely claim"]], "test_domain"
-        )
+        result = await discoverer._generate_gaps_for_thin_areas([["Single lonely claim"]], "test_domain")
         assert len(result) == 1
         assert result[0]["topic"] == "Thin area"
 

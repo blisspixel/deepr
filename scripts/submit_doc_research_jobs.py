@@ -31,7 +31,7 @@ Cover:
 - Implementation examples with code patterns
 - Best practices for provider-agnostic design
 
-Focus on practical implementation guidance for 2025."""
+Focus on practical implementation guidance for 2025.""",
     },
     {
         "title": "Context Chaining and State Management",
@@ -45,7 +45,7 @@ Cover:
 - Examples showing context flow between tasks
 - Versioning and TTL strategies
 
-Focus on production-ready approaches for agentic systems."""
+Focus on production-ready approaches for agentic systems.""",
     },
     {
         "title": "Task Routing and Cost-Optimized Scheduling",
@@ -59,7 +59,7 @@ Cover:
 - SLA-aware scheduling
 - Batching and fanout patterns
 
-Focus on operational best practices for 2025."""
+Focus on operational best practices for 2025.""",
     },
     {
         "title": "Intelligent Document Reuse and Knowledge Store",
@@ -73,7 +73,7 @@ Cover:
 - Refresh/update pipelines (when to reuse vs re-fetch)
 - Implementation examples
 
-Focus on cost-effective doc management for 2025."""
+Focus on cost-effective doc management for 2025.""",
     },
     {
         "title": "CLI Interface and Developer Workflows",
@@ -87,7 +87,7 @@ Cover:
 - Sample projects and common operations
 - Debugging and troubleshooting guides
 
-Focus on developer UX for 2025."""
+Focus on developer UX for 2025.""",
     },
     {
         "title": "Observability, Metrics, and Provider Fallback",
@@ -101,39 +101,36 @@ Cover:
 - Automated fallback when providers fail
 - Budget management and cost controls
 
-Focus on production operations for 2025."""
+Focus on production operations for 2025.""",
     },
 ]
 
+
 async def main():
     # Initialize services
-    config_path = Path('.deepr')
+    config_path = Path(".deepr")
     config_path.mkdir(exist_ok=True)
 
-    queue = SQLiteQueue(str(config_path / 'queue.db'))
-    LocalStorage(str(config_path / 'storage'))
-    provider = OpenAIProvider(api_key=os.getenv('OPENAI_API_KEY'))
+    queue = SQLiteQueue(str(config_path / "queue.db"))
+    LocalStorage(str(config_path / "storage"))
+    provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))
 
-    print(f'Submitting {len(RESEARCH_TASKS)} research jobs...\n')
+    print(f"Submitting {len(RESEARCH_TASKS)} research jobs...\n")
 
     job_ids = []
 
     for i, task in enumerate(RESEARCH_TASKS, 1):
-        print(f'{i}. {task["title"]}')
+        print(f"{i}. {task['title']}")
 
         # Create job
         job_id = str(uuid.uuid4())
         job = ResearchJob(
             id=job_id,
-            prompt=task['prompt'],
-            model='o4-mini-deep-research',
+            prompt=task["prompt"],
+            model="o4-mini-deep-research",
             enable_web_search=True,
             status=JobStatus.QUEUED,
-            metadata={
-                'title': task['title'],
-                'purpose': 'documentation_gap',
-                'batch_id': 'doc_gaps_batch_1'
-            }
+            metadata={"title": task["title"], "purpose": "documentation_gap", "batch_id": "doc_gaps_batch_1"},
         )
 
         # Enqueue
@@ -141,10 +138,10 @@ async def main():
 
         # Submit to provider
         request = ResearchRequest(
-            prompt=task['prompt'],
-            model='o4-mini-deep-research',
-            system_message='You are a technical documentation expert. Research and document best practices, implementation patterns, and practical guidance.',
-            tools=[ToolConfig(type='web_search_preview')],
+            prompt=task["prompt"],
+            model="o4-mini-deep-research",
+            system_message="You are a technical documentation expert. Research and document best practices, implementation patterns, and practical guidance.",
+            tools=[ToolConfig(type="web_search_preview")],
             background=True,
         )
 
@@ -157,23 +154,24 @@ async def main():
             provider_job_id=provider_job_id,
         )
 
-        job_ids.append({'local_id': job_id, 'provider_id': provider_job_id, 'title': task['title']})
-        print(f'   Job ID: {job_id[:8]}...')
-        print(f'   Provider ID: {provider_job_id}')
+        job_ids.append({"local_id": job_id, "provider_id": provider_job_id, "title": task["title"]})
+        print(f"   Job ID: {job_id[:8]}...")
+        print(f"   Provider ID: {provider_job_id}")
         print()
 
-    print(f'\n[OK] Submitted {len(job_ids)} research jobs!')
-    print(f'\nEstimated cost: ${len(job_ids) * 0.5:.2f} - ${len(job_ids) * 2:.2f}')
-    print(f'Estimated time: {len(job_ids) * 10} - {len(job_ids) * 20} minutes\n')
+    print(f"\n[OK] Submitted {len(job_ids)} research jobs!")
+    print(f"\nEstimated cost: ${len(job_ids) * 0.5:.2f} - ${len(job_ids) * 2:.2f}")
+    print(f"Estimated time: {len(job_ids) * 10} - {len(job_ids) * 20} minutes\n")
 
     # Save job list
-    output_file = Path('.deepr/doc_research_jobs.txt')
-    with open(output_file, 'w') as f:
+    output_file = Path(".deepr/doc_research_jobs.txt")
+    with open(output_file, "w") as f:
         for job in job_ids:
-            f.write(f'{job["local_id"]}\t{job["provider_id"]}\t{job["title"]}\n')
+            f.write(f"{job['local_id']}\t{job['provider_id']}\t{job['title']}\n")
 
-    print(f'Job IDs saved to {output_file}')
-    print('\nMonitor with: python scripts/monitor_research_jobs.py')
+    print(f"Job IDs saved to {output_file}")
+    print("\nMonitor with: python scripts/monitor_research_jobs.py")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())

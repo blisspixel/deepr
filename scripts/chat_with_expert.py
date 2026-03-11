@@ -20,7 +20,7 @@ async def test_and_discuss_deepr():
 
     # Open output file with UTF-8 encoding
     output_file = Path("scripts/expert_deepr_discussion.txt")
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         f.write("=" * 80 + "\n")
         f.write("Deepr Expert Consultation - Testing GPT-5 Tool Calling RAG\n")
         f.write("=" * 80 + "\n\n")
@@ -31,12 +31,12 @@ async def test_and_discuss_deepr():
     session = await start_chat_session("Agentic Digital Consciousness", budget=5.0)
 
     # Read the README and ROADMAP
-    readme = Path("README.md").read_text(encoding='utf-8')
-    roadmap = Path("ROADMAP.md").read_text(encoding='utf-8')
+    readme = Path("README.md").read_text(encoding="utf-8")
+    roadmap = Path("ROADMAP.md").read_text(encoding="utf-8")
 
     # Test 1: RAG retrieval test (needle in haystack)
     print("\n[Test 1] Testing RAG retrieval...")
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 80 + "\n")
         f.write("TEST 1: RAG Retrieval (Needle in Haystack)\n")
         f.write("=" * 80 + "\n")
@@ -44,7 +44,7 @@ async def test_and_discuss_deepr():
     test_question = """What specific framework did Juliani et al. (2022) demonstrate can function as a global workspace in your knowledge base? Please search your documents and cite the exact source."""
 
     response1 = await session.send_message(test_question)
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write(f"\nQUESTION:\n{test_question}\n\n")
         f.write(f"EXPERT RESPONSE:\n{response1}\n\n")
 
@@ -53,7 +53,7 @@ async def test_and_discuss_deepr():
 
     # Test 2: Another RAG test
     print("\n[Test 2] Testing RAG with different query...")
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 80 + "\n")
         f.write("TEST 2: RAG Retrieval Test #2\n")
         f.write("=" * 80 + "\n")
@@ -61,7 +61,7 @@ async def test_and_discuss_deepr():
     test_question2 = """In the DyRep architecture for temporal knowledge graphs that you have in your documents, what specific approach does it use to handle node interactions?"""
 
     response2 = await session.send_message(test_question2)
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write(f"\nQUESTION:\n{test_question2}\n\n")
         f.write(f"EXPERT RESPONSE:\n{response2}\n\n")
 
@@ -69,7 +69,7 @@ async def test_and_discuss_deepr():
 
     # Question 1: Initial assessment of Deepr
     print("\n[Question 1] Getting expert assessment...")
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 80 + "\n")
         f.write("QUESTION 1: Initial Assessment of Deepr Architecture\n")
         f.write("=" * 80 + "\n")
@@ -85,7 +85,7 @@ ROADMAP (expert system section):
 Based on your expertise in agentic AI, digital consciousness, and self-improving systems, what are the most promising aspects and critical gaps in our current architecture?"""
 
     response3 = await session.send_message(question1)
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write(f"\nQUESTION:\n{question1}\n\n")
         f.write(f"EXPERT RESPONSE:\n{response3}\n\n")
 
@@ -93,7 +93,7 @@ Based on your expertise in agentic AI, digital consciousness, and self-improving
 
     # Question 2: Temporal Knowledge Graph recommendations
     print("\n[Question 2] Asking about temporal knowledge...")
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 80 + "\n")
         f.write("QUESTION 2: Temporal Knowledge Graph Implementation\n")
         f.write("=" * 80 + "\n")
@@ -107,7 +107,7 @@ Given the architectures you know about (DyRep, Perceiver-IO, etc.), what would b
 4. Enables meta-cognitive awareness of what the expert knows/does not know?"""
 
     response4 = await session.send_message(question2)
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write(f"\nQUESTION:\n{question2}\n\n")
         f.write(f"EXPERT RESPONSE:\n{response4}\n\n")
 
@@ -115,7 +115,7 @@ Given the architectures you know about (DyRep, Perceiver-IO, etc.), what would b
 
     # Question 3: Top 5 priorities
     print("\n[Question 3] Getting implementation priorities...")
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 80 + "\n")
         f.write("QUESTION 3: Top 5 Implementation Priorities\n")
         f.write("=" * 80 + "\n")
@@ -129,7 +129,7 @@ Please be specific about:
 4. What success looks like"""
 
     response5 = await session.send_message(question3)
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write(f"\nQUESTION:\n{question3}\n\n")
         f.write(f"EXPERT RESPONSE:\n{response5}\n\n")
 
@@ -140,7 +140,7 @@ Please be specific about:
     print("Session Complete!")
     print("=" * 80)
     summary = session.get_session_summary()
-    with open(output_file, 'a', encoding='utf-8') as f:
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 80 + "\n")
         f.write("SESSION SUMMARY\n")
         f.write("=" * 80 + "\n")

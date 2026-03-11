@@ -120,11 +120,13 @@ class TestPassCrossReference:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "confirmations": ["Finding A confirms Claim X"],
-            "contradictions": ["Finding B contradicts Claim Y"],
-            "novel_facts": ["Finding C is entirely new"],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "confirmations": ["Finding A confirms Claim X"],
+                "contradictions": ["Finding B contradicts Claim Y"],
+                "novel_facts": ["Finding C is entirely new"],
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         pipeline = MultiPassPipeline(client=mock_client)
@@ -162,19 +164,26 @@ class TestPassCrossReference:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "confirmations": ["A", "B", "C"],
-            "contradictions": [],
-            "novel_facts": [],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "confirmations": ["A", "B", "C"],
+                "contradictions": [],
+                "novel_facts": [],
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         pipeline = MultiPassPipeline(client=mock_client)
         from deepr.services.context_chainer import StructuredPhaseOutput
 
         extraction = StructuredPhaseOutput(
-            phase=1, key_findings=[], summary="", entities=[],
-            open_questions=[], contradictions=[], confidence_avg=0.5,
+            phase=1,
+            key_findings=[],
+            summary="",
+            entities=[],
+            open_questions=[],
+            contradictions=[],
+            confidence_avg=0.5,
         )
         result = await pipeline._pass_cross_reference(extraction, [], 1.0)
         assert result.confidence_adjustment > 0
@@ -184,19 +193,26 @@ class TestPassCrossReference:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "confirmations": [],
-            "contradictions": ["X", "Y"],
-            "novel_facts": [],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "confirmations": [],
+                "contradictions": ["X", "Y"],
+                "novel_facts": [],
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         pipeline = MultiPassPipeline(client=mock_client)
         from deepr.services.context_chainer import StructuredPhaseOutput
 
         extraction = StructuredPhaseOutput(
-            phase=1, key_findings=[], summary="", entities=[],
-            open_questions=[], contradictions=[], confidence_avg=0.5,
+            phase=1,
+            key_findings=[],
+            summary="",
+            entities=[],
+            open_questions=[],
+            contradictions=[],
+            confidence_avg=0.5,
         )
         result = await pipeline._pass_cross_reference(extraction, [], 1.0)
         assert result.confidence_adjustment < 0
@@ -213,26 +229,31 @@ class TestPassSynthesize:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "beliefs": [
-                {"statement": "New belief", "confidence": 0.85, "evidence": ["research"]},
-            ],
-            "changes": [{"type": "created", "description": "New belief formed"}],
-            "gap_filled": True,
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "beliefs": [
+                    {"statement": "New belief", "confidence": 0.85, "evidence": ["research"]},
+                ],
+                "changes": [{"type": "created", "description": "New belief formed"}],
+                "gap_filled": True,
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         pipeline = MultiPassPipeline(client=mock_client)
         from deepr.services.context_chainer import StructuredPhaseOutput
 
         extraction = StructuredPhaseOutput(
-            phase=1, key_findings=[], summary="", entities=[],
-            open_questions=[], contradictions=[], confidence_avg=0.5,
+            phase=1,
+            key_findings=[],
+            summary="",
+            entities=[],
+            open_questions=[],
+            contradictions=[],
+            confidence_avg=0.5,
         )
 
-        beliefs, _changes, filled = await pipeline._pass_synthesize(
-            extraction, None, "Test Topic", "test_domain", 1.0
-        )
+        beliefs, _changes, filled = await pipeline._pass_synthesize(extraction, None, "Test Topic", "test_domain", 1.0)
 
         assert len(beliefs) == 1
         assert beliefs[0]["statement"] == "New belief"
@@ -243,25 +264,30 @@ class TestPassSynthesize:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "beliefs": [{"statement": "Belief", "confidence": 0.70, "evidence": []}],
-            "changes": [],
-            "gap_filled": True,
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "beliefs": [{"statement": "Belief", "confidence": 0.70, "evidence": []}],
+                "changes": [],
+                "gap_filled": True,
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         pipeline = MultiPassPipeline(client=mock_client)
         from deepr.services.context_chainer import StructuredPhaseOutput
 
         extraction = StructuredPhaseOutput(
-            phase=1, key_findings=[], summary="", entities=[],
-            open_questions=[], contradictions=[], confidence_avg=0.5,
+            phase=1,
+            key_findings=[],
+            summary="",
+            entities=[],
+            open_questions=[],
+            contradictions=[],
+            confidence_avg=0.5,
         )
         cross_ref = CrossReferenceResult(confidence_adjustment=0.1)
 
-        beliefs, _, _ = await pipeline._pass_synthesize(
-            extraction, cross_ref, "Topic", "domain", 1.0
-        )
+        beliefs, _, _ = await pipeline._pass_synthesize(extraction, cross_ref, "Topic", "domain", 1.0)
 
         assert beliefs[0]["confidence"] == pytest.approx(0.80)
 
@@ -284,24 +310,26 @@ class TestFillGap:
         # Cross-reference response
         xref_response = MagicMock()
         xref_response.choices = [MagicMock()]
-        xref_response.choices[0].message.content = json.dumps({
-            "confirmations": ["Confirms existing"],
-            "contradictions": [],
-            "novel_facts": ["New info"],
-        })
+        xref_response.choices[0].message.content = json.dumps(
+            {
+                "confirmations": ["Confirms existing"],
+                "contradictions": [],
+                "novel_facts": ["New info"],
+            }
+        )
 
         # Synthesize response
         synth_response = MagicMock()
         synth_response.choices = [MagicMock()]
-        synth_response.choices[0].message.content = json.dumps({
-            "beliefs": [{"statement": "Result", "confidence": 0.8, "evidence": ["research"]}],
-            "changes": [{"type": "created", "description": "New"}],
-            "gap_filled": True,
-        })
-
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=[extract_response, xref_response, synth_response]
+        synth_response.choices[0].message.content = json.dumps(
+            {
+                "beliefs": [{"statement": "Result", "confidence": 0.8, "evidence": ["research"]}],
+                "changes": [{"type": "created", "description": "New"}],
+                "gap_filled": True,
+            }
         )
+
+        mock_client.chat.completions.create = AsyncMock(side_effect=[extract_response, xref_response, synth_response])
 
         pipeline = MultiPassPipeline(client=mock_client)
 

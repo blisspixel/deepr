@@ -40,7 +40,7 @@ def initialize_database():
 
     if db_path.exists():
         response = input(f"Database already exists at {db_path}. Recreate? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("  Skipping database initialization")
             return
 

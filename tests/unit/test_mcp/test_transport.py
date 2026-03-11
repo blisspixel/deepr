@@ -433,4 +433,3 @@ async def test_http_client_stream_loop_logs_errors(caplog):
         await client._stream_loop("http://localhost:9999/mcp/stream")
 
     assert "MCP HTTP stream loop terminated with error" in caplog.text
-

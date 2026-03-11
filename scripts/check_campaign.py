@@ -1,4 +1,5 @@
 """Check campaign results from OpenAI."""
+
 import asyncio
 from pathlib import Path
 
@@ -8,18 +9,18 @@ from deepr.providers import create_provider
 
 async def main():
     config = load_config()
-    provider = create_provider('openai', api_key=config.get('api_key'))
+    provider = create_provider("openai", api_key=config.get("api_key"))
 
     # Both campaign jobs
     job_ids = [
-        'resp_02aa624448173687006902998a8fb4819bac346ec5619289b2',  # task-1
-        'resp_0f55dc3c1516aa68006902998b1a8481959e327f708f4123a8',  # task-2
+        "resp_02aa624448173687006902998a8fb4819bac346ec5619289b2",  # task-1
+        "resp_0f55dc3c1516aa68006902998b1a8481959e327f708f4123a8",  # task-2
     ]
 
     for i, provider_job_id in enumerate(job_ids, 1):
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Campaign Task {i}")
-        print('='*70)
+        print("=" * 70)
 
         response = await provider.get_status(provider_job_id)
 
@@ -31,10 +32,10 @@ async def main():
             content = ""
             if response.output:
                 for block in response.output:
-                    if block.get('type') == 'message':
-                        for item in block.get('content', []):
-                            if item.get('type') in ['output_text', 'text']:
-                                text = item.get('text', '')
+                    if block.get("type") == "message":
+                        for item in block.get("content", []):
+                            if item.get("type") in ["output_text", "text"]:
+                                text = item.get("text", "")
                                 if text:
                                     content += text + "\n"
 
@@ -46,8 +47,9 @@ async def main():
 
             # Save to file
             output_file = Path(f"campaign_task_{i}_results.md")
-            output_file.write_text(content, encoding='utf-8')
+            output_file.write_text(content, encoding="utf-8")
             print(f"\nSaved to: {output_file}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

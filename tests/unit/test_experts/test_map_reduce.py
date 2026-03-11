@@ -96,9 +96,11 @@ class TestMapChunk:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "facts": ["Fact 1", "Fact 2", "Fact 3"],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "facts": ["Fact 1", "Fact 2", "Fact 3"],
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         ingester = MapReduceIngester(client=mock_client)
@@ -155,9 +157,7 @@ class TestReduceDocument:
     @pytest.mark.asyncio
     async def test_empty_facts(self):
         ingester = MapReduceIngester()
-        result = await ingester._reduce_document(
-            [{"facts": []}], "doc.md", "domain"
-        )
+        result = await ingester._reduce_document([{"facts": []}], "doc.md", "domain")
         assert "No facts extracted" in result
 
     @pytest.mark.asyncio

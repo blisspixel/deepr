@@ -89,9 +89,7 @@ class TestMergeAnswers:
         self.engine = ConsensusEngine()
 
     def _make_response(self, provider: str, answer: str) -> ProviderResponse:
-        return ProviderResponse(
-            provider=provider, model="test", answer=answer, citations=[], cost=0.05, latency=1.0
-        )
+        return ProviderResponse(provider=provider, model="test", answer=answer, citations=[], cost=0.05, latency=1.0)
 
     def test_empty_responses(self):
         assert self.engine._merge_answers([], 0.5) == ""
@@ -131,9 +129,7 @@ class TestHeuristicAgreement:
         self.engine = ConsensusEngine()
 
     def _make_response(self, answer: str) -> ProviderResponse:
-        return ProviderResponse(
-            provider="test", model="test", answer=answer, citations=[], cost=0.0, latency=0.0
-        )
+        return ProviderResponse(provider="test", model="test", answer=answer, citations=[], cost=0.0, latency=0.0)
 
     def test_identical_answers(self):
         responses = [
@@ -183,8 +179,12 @@ class TestResearchWithConsensus:
         engine._select_providers = MagicMock(return_value=[("openai", "gpt-5.2")])
         engine._query_provider = AsyncMock(
             return_value=ProviderResponse(
-                provider="openai", model="gpt-5.2", answer="Test answer",
-                citations=[], cost=0.05, latency=1.0,
+                provider="openai",
+                model="gpt-5.2",
+                answer="Test answer",
+                citations=[],
+                cost=0.05,
+                latency=1.0,
             )
         )
         result = await engine.research_with_consensus("test", 0.05, "expert")
@@ -199,12 +199,20 @@ class TestResearchWithConsensus:
         engine._query_provider = AsyncMock(
             side_effect=[
                 ProviderResponse(
-                    provider="openai", model="gpt-5.2", answer="Answer A",
-                    citations=[], cost=0.05, latency=1.0,
+                    provider="openai",
+                    model="gpt-5.2",
+                    answer="Answer A",
+                    citations=[],
+                    cost=0.05,
+                    latency=1.0,
                 ),
                 ProviderResponse(
-                    provider="xai", model="grok", answer="Answer B is longer and more detailed",
-                    citations=[], cost=0.08, latency=1.5,
+                    provider="xai",
+                    model="grok",
+                    answer="Answer B is longer and more detailed",
+                    citations=[],
+                    cost=0.08,
+                    latency=1.5,
                 ),
             ]
         )

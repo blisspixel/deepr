@@ -390,6 +390,7 @@ class TestSubscriptionValidation:
         assert not sub.matches("")
         assert not sub.matches(None)
 
+
 @pytest.mark.asyncio
 async def test_emit_callback_failure_logs_and_continues(caplog):
     """Callback exceptions should be logged and should not stop other subscribers."""

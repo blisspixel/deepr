@@ -4,18 +4,18 @@ from typing import Optional
 
 # Security headers for all responses
 SECURITY_HEADERS: dict[str, str] = {
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-    'Cache-Control': 'no-store, no-cache, must-revalidate',
-    'Pragma': 'no-cache',
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
 }
 
 # CORS headers for cross-origin requests
 CORS_HEADERS: dict[str, str] = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key',
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Api-Key",
 }
 
 
@@ -24,15 +24,11 @@ def get_all_response_headers() -> dict[str, str]:
     return {
         **SECURITY_HEADERS,
         **CORS_HEADERS,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
     }
 
 
-def validate_api_key_from_headers(
-    auth_header: Optional[str],
-    api_key_header: Optional[str],
-    expected_key: str
-) -> bool:
+def validate_api_key_from_headers(auth_header: Optional[str], api_key_header: Optional[str], expected_key: str) -> bool:
     """
     Validate API key from request headers.
 
@@ -50,7 +46,7 @@ def validate_api_key_from_headers(
         return True  # No key configured, allow all requests
 
     # Check Authorization Bearer token
-    if auth_header and auth_header.startswith('Bearer '):
+    if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
         if token == expected_key:
             return True

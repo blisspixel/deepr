@@ -129,15 +129,21 @@ class TestSQLiteQueue:
         mock_dashboard = MagicMock()
         with patch("deepr.queue.local_queue.CostDashboard", return_value=mock_dashboard):
             # First write records full cost
-            success = await queue.update_results(sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000)
+            success = await queue.update_results(
+                sample_job.id, report_paths={"md": "a.md"}, cost=2.50, tokens_used=10000
+            )
             assert success is True
 
             # Same cost update should not record again
-            success = await queue.update_results(sample_job.id, report_paths={"md": "b.md"}, cost=2.50, tokens_used=10000)
+            success = await queue.update_results(
+                sample_job.id, report_paths={"md": "b.md"}, cost=2.50, tokens_used=10000
+            )
             assert success is True
 
             # Higher updated cost records only delta
-            success = await queue.update_results(sample_job.id, report_paths={"md": "c.md"}, cost=3.00, tokens_used=12000)
+            success = await queue.update_results(
+                sample_job.id, report_paths={"md": "c.md"}, cost=3.00, tokens_used=12000
+            )
             assert success is True
 
         assert mock_dashboard.record.call_count == 2
@@ -381,4 +387,3 @@ class TestSQLiteQueueAdvanced:
         assert stats["total"] == 0
         assert stats["queued"] == 0
         assert stats["processing"] == 0
-

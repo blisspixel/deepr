@@ -23,20 +23,16 @@ from deepr.branding import print_banner
 
 def run_command(cmd, description):
     """Run command and report results."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"{description}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Split command for shell=False (safer)
     import shlex
+
     cmd_list = shlex.split(cmd) if isinstance(cmd, str) else cmd
 
-    result = subprocess.run(
-        cmd_list,
-        shell=False,
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(cmd_list, shell=False, capture_output=True, text=True)
 
     print(result.stdout)
     if result.stderr:
@@ -55,39 +51,28 @@ def main():
     results = {}
 
     # 1. Cost estimation tests
-    results['costs'] = run_command(
-        "python -m pytest tests/unit/test_costs.py -v",
-        "1. Cost Estimation Tests"
-    )
+    results["costs"] = run_command("python -m pytest tests/unit/test_costs.py -v", "1. Cost Estimation Tests")
 
     # 2. Queue system tests
-    results['queue'] = run_command(
-        "python -m pytest tests/unit/test_queue/test_local_queue.py -v",
-        "2. Queue System Tests"
+    results["queue"] = run_command(
+        "python -m pytest tests/unit/test_queue/test_local_queue.py -v", "2. Queue System Tests"
     )
 
     # 3. Provider tests (unit only, skip integration)
-    results['providers'] = run_command(
-        "python -m pytest tests/unit/test_providers/ -v -m 'not integration'",
-        "3. Provider Tests (Mocked)"
+    results["providers"] = run_command(
+        "python -m pytest tests/unit/test_providers/ -v -m 'not integration'", "3. Provider Tests (Mocked)"
     )
 
     # 4. Storage tests
-    results['storage'] = run_command(
-        "python -m pytest tests/unit/test_storage/ -v",
-        "4. Storage Backend Tests"
-    )
+    results["storage"] = run_command("python -m pytest tests/unit/test_storage/ -v", "4. Storage Backend Tests")
 
     # 5. Configuration tests
-    results['config'] = run_command(
-        "python -m pytest tests/unit/test_config.py -v",
-        "5. Configuration Tests"
-    )
+    results["config"] = run_command("python -m pytest tests/unit/test_config.py -v", "5. Configuration Tests")
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Test Summary")
-    print("="*60)
+    print("=" * 60)
 
     total = len(results)
     passed = sum(1 for v in results.values() if v)
@@ -99,7 +84,7 @@ def main():
 
     print()
     print(f"Total: {passed}/{total} test suites passed")
-    print("="*60)
+    print("=" * 60)
 
     if passed == total:
         print("\n✓ All tests passed - code validated locally without API costs")

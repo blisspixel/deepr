@@ -14,6 +14,7 @@ from deepr.experts.skills.manager import SkillManager
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _create_skill_dir(
     base: Path,
     name: str,
@@ -43,6 +44,7 @@ def _create_skill_dir(
 # ---------------------------------------------------------------------------
 # Initialization
 # ---------------------------------------------------------------------------
+
 
 class TestSkillManagerInit:
     """SkillManager.__init__ scans built-in and global dirs."""
@@ -103,6 +105,7 @@ class TestSkillManagerInit:
 # ---------------------------------------------------------------------------
 # _scan_tier
 # ---------------------------------------------------------------------------
+
 
 class TestScanTier:
     """_scan_tier picks up valid skills and handles edge cases."""
@@ -197,6 +200,7 @@ class TestScanTier:
 # get_skill
 # ---------------------------------------------------------------------------
 
+
 class TestGetSkill:
     """get_skill returns a SkillDefinition or None."""
 
@@ -225,6 +229,7 @@ class TestGetSkill:
 # ---------------------------------------------------------------------------
 # list_all
 # ---------------------------------------------------------------------------
+
 
 class TestListAll:
     """list_all returns all discovered skills."""
@@ -269,6 +274,7 @@ class TestListAll:
 # ---------------------------------------------------------------------------
 # get_installed_skills
 # ---------------------------------------------------------------------------
+
 
 class TestGetInstalledSkills:
     """get_installed_skills returns matching skills, skips unknowns."""
@@ -338,6 +344,7 @@ class TestGetInstalledSkills:
 # ---------------------------------------------------------------------------
 # detect_skills_for_query
 # ---------------------------------------------------------------------------
+
 
 class TestDetectSkillsForQuery:
     """detect_skills_for_query matches keywords from installed skills."""
@@ -417,17 +424,13 @@ class TestDetectSkillsForQuery:
     def test_pattern_based_trigger(self, tmp_path, monkeypatch):
         builtin = tmp_path / "builtin"
         builtin.mkdir()
-        _create_skill_dir(
-            builtin, "regex-skill", keywords=[], patterns=[r"\bP/E\b"]
-        )
+        _create_skill_dir(builtin, "regex-skill", keywords=[], patterns=[r"\bP/E\b"])
 
         monkeypatch.setattr(manager_mod, "_BUILTIN_DIR", builtin)
         monkeypatch.setattr(manager_mod, "_USER_GLOBAL_DIR", tmp_path / "empty")
 
         mgr = SkillManager()
-        matches = mgr.detect_skills_for_query(
-            "What is the P/E ratio?", ["regex-skill"]
-        )
+        matches = mgr.detect_skills_for_query("What is the P/E ratio?", ["regex-skill"])
         assert len(matches) == 1
 
     def test_empty_installed_names(self, tmp_path, monkeypatch):
@@ -460,6 +463,7 @@ class TestDetectSkillsForQuery:
 # ---------------------------------------------------------------------------
 # suggest_skills_for_domain
 # ---------------------------------------------------------------------------
+
 
 class TestSuggestSkillsForDomain:
     """suggest_skills_for_domain matches domain tags bidirectionally."""
@@ -561,6 +565,7 @@ class TestSuggestSkillsForDomain:
 # ---------------------------------------------------------------------------
 # Tier override behaviour
 # ---------------------------------------------------------------------------
+
 
 class TestTierOverride:
     """Later tiers override earlier tiers for same-name skills."""

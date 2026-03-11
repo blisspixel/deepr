@@ -20,7 +20,7 @@ python -m pytest tests/test_expert_keyboards_simple.py -v
 ```
 
 ### 2. CLI Scripts (Cheap, Real)
-**Files:** 
+**Files:**
 - `tests/test_keyboards_cli.bat` (Windows)
 - `tests/test_keyboards_cli.sh` (Linux/Mac)
 

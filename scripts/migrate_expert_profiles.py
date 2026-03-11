@@ -63,7 +63,7 @@ def load_profile(path: Path) -> Optional[dict]:
         Profile dict or None if failed
     """
     try:
-        with open(path, encoding='utf-8') as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"  Error loading {path}: {e}")
@@ -81,7 +81,7 @@ def save_profile(path: Path, data: dict) -> bool:
         True if successful
     """
     try:
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         return True
     except Exception as e:
@@ -103,37 +103,37 @@ def migrate_profile(data: dict, verbose: bool = False) -> tuple[dict, list[str]]
     migrated = data.copy()
 
     # Remove any accidentally serialized composed components
-    if '_temporal_state' in migrated:
-        del migrated['_temporal_state']
+    if "_temporal_state" in migrated:
+        del migrated["_temporal_state"]
         changes.append("Removed _temporal_state (now composed at runtime)")
 
-    if '_freshness_checker' in migrated:
-        del migrated['_freshness_checker']
+    if "_freshness_checker" in migrated:
+        del migrated["_freshness_checker"]
         changes.append("Removed _freshness_checker (now composed at runtime)")
 
     # Add missing fields with defaults
     defaults = {
-        'description': None,
-        'domain': None,
-        'source_files': [],
-        'research_jobs': [],
-        'total_documents': 0,
-        'knowledge_cutoff_date': None,
-        'last_knowledge_refresh': None,
-        'refresh_frequency_days': 90,
-        'domain_velocity': 'medium',
-        'system_message': None,
-        'temperature': 0.7,
-        'max_tokens': None,
-        'conversations': 0,
-        'research_triggered': 0,
-        'total_research_cost': 0.0,
-        'monthly_learning_budget': 5.0,
-        'monthly_spending': 0.0,
-        'monthly_spending_reset_date': None,
-        'refresh_history': [],
-        'provider': 'openai',
-        'model': 'gpt-5',
+        "description": None,
+        "domain": None,
+        "source_files": [],
+        "research_jobs": [],
+        "total_documents": 0,
+        "knowledge_cutoff_date": None,
+        "last_knowledge_refresh": None,
+        "refresh_frequency_days": 90,
+        "domain_velocity": "medium",
+        "system_message": None,
+        "temperature": 0.7,
+        "max_tokens": None,
+        "conversations": 0,
+        "research_triggered": 0,
+        "total_research_cost": 0.0,
+        "monthly_learning_budget": 5.0,
+        "monthly_spending": 0.0,
+        "monthly_spending_reset_date": None,
+        "refresh_history": [],
+        "provider": "openai",
+        "model": "gpt-5",
     }
 
     for field, default in defaults.items():
@@ -143,25 +143,28 @@ def migrate_profile(data: dict, verbose: bool = False) -> tuple[dict, list[str]]
 
     # Ensure datetime fields are strings (ISO format)
     datetime_fields = [
-        'created_at', 'updated_at', 'knowledge_cutoff_date',
-        'last_knowledge_refresh', 'monthly_spending_reset_date'
+        "created_at",
+        "updated_at",
+        "knowledge_cutoff_date",
+        "last_knowledge_refresh",
+        "monthly_spending_reset_date",
     ]
 
     for field in datetime_fields:
         value = migrated.get(field)
         if value is not None and not isinstance(value, str):
             # Convert datetime to ISO string
-            if hasattr(value, 'isoformat'):
+            if hasattr(value, "isoformat"):
                 migrated[field] = value.isoformat()
                 changes.append(f"Converted {field} to ISO format")
 
     # Add schema version
-    if 'schema_version' not in migrated:
-        migrated['schema_version'] = CURRENT_SCHEMA_VERSION
+    if "schema_version" not in migrated:
+        migrated["schema_version"] = CURRENT_SCHEMA_VERSION
         changes.append(f"Added schema_version: {CURRENT_SCHEMA_VERSION}")
-    elif migrated['schema_version'] != CURRENT_SCHEMA_VERSION:
-        old_version = migrated['schema_version']
-        migrated['schema_version'] = CURRENT_SCHEMA_VERSION
+    elif migrated["schema_version"] != CURRENT_SCHEMA_VERSION:
+        old_version = migrated["schema_version"]
+        migrated["schema_version"] = CURRENT_SCHEMA_VERSION
         changes.append(f"Updated schema_version: {old_version} -> {CURRENT_SCHEMA_VERSION}")
 
     return migrated, changes
@@ -179,15 +182,18 @@ def validate_profile(data: dict) -> list[str]:
     errors = []
 
     # Required fields
-    required = ['name', 'vector_store_id', 'created_at', 'updated_at']
+    required = ["name", "vector_store_id", "created_at", "updated_at"]
     for field in required:
         if field not in data:
             errors.append(f"Missing required field: {field}")
 
     # Validate datetime fields
     datetime_fields = [
-        'created_at', 'updated_at', 'knowledge_cutoff_date',
-        'last_knowledge_refresh', 'monthly_spending_reset_date'
+        "created_at",
+        "updated_at",
+        "knowledge_cutoff_date",
+        "last_knowledge_refresh",
+        "monthly_spending_reset_date",
     ]
 
     for field in datetime_fields:
@@ -200,14 +206,14 @@ def validate_profile(data: dict) -> list[str]:
 
     # Validate numeric fields
     numeric_fields = {
-        'temperature': (0.0, 2.0),
-        'conversations': (0, None),
-        'research_triggered': (0, None),
-        'total_research_cost': (0.0, None),
-        'monthly_learning_budget': (0.0, None),
-        'monthly_spending': (0.0, None),
-        'total_documents': (0, None),
-        'refresh_frequency_days': (1, 365),
+        "temperature": (0.0, 2.0),
+        "conversations": (0, None),
+        "research_triggered": (0, None),
+        "total_research_cost": (0.0, None),
+        "monthly_learning_budget": (0.0, None),
+        "monthly_spending": (0.0, None),
+        "total_documents": (0, None),
+        "refresh_frequency_days": (1, 365),
     }
 
     for field, (min_val, max_val) in numeric_fields.items():
@@ -219,8 +225,8 @@ def validate_profile(data: dict) -> list[str]:
                 errors.append(f"{field} above maximum: {value} > {max_val}")
 
     # Validate domain_velocity
-    valid_velocities = ['slow', 'medium', 'fast']
-    velocity = data.get('domain_velocity')
+    valid_velocities = ["slow", "medium", "fast"]
+    velocity = data.get("domain_velocity")
     if velocity and velocity not in valid_velocities:
         errors.append(f"Invalid domain_velocity: {velocity} (must be one of {valid_velocities})")
 
@@ -228,9 +234,9 @@ def validate_profile(data: dict) -> list[str]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Migrate expert profiles to new format')
-    parser.add_argument('--dry-run', action='store_true', help='Show changes without applying')
-    parser.add_argument('--verbose', action='store_true', help='Show detailed information')
+    parser = argparse.ArgumentParser(description="Migrate expert profiles to new format")
+    parser.add_argument("--dry-run", action="store_true", help="Show changes without applying")
+    parser.add_argument("--verbose", action="store_true", help="Show detailed information")
     args = parser.parse_args()
 
     experts_dir = get_experts_dir()
@@ -268,7 +274,7 @@ def main():
             continue
 
         # Check if already migrated
-        if data.get('schema_version') == CURRENT_SCHEMA_VERSION:
+        if data.get("schema_version") == CURRENT_SCHEMA_VERSION:
             if args.verbose:
                 print(f"  Already at schema version {CURRENT_SCHEMA_VERSION}")
             skipped_count += 1
@@ -317,5 +323,5 @@ def main():
     return 0 if error_count == 0 else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-API_VERSION = '2.6.0'
+API_VERSION = "2.6.0"
 DEFAULT_TTL_DAYS = 90
 
 
@@ -42,12 +42,12 @@ def estimate_cost(model: str) -> dict[str, Any]:
         Dict with min_cost, max_cost, estimated_cost, currency
     """
     # Mini models are cheaper
-    avg_cost = 0.5 if 'mini' in model.lower() else 5.0
+    avg_cost = 0.5 if "mini" in model.lower() else 5.0
     return {
-        'min_cost': avg_cost * 0.5,
-        'max_cost': avg_cost * 2.0,
-        'estimated_cost': avg_cost,
-        'currency': 'USD',
+        "min_cost": avg_cost * 0.5,
+        "max_cost": avg_cost * 2.0,
+        "estimated_cost": avg_cost,
+        "currency": "USD",
     }
 
 
@@ -58,7 +58,7 @@ def create_job_document(
     priority: int,
     enable_web_search: bool,
     metadata: dict[str, Any],
-    user_id: str = 'anonymous',
+    user_id: str = "anonymous",
     include_ttl: bool = True,
 ) -> dict[str, Any]:
     """
@@ -78,19 +78,19 @@ def create_job_document(
         Job document dict ready for storage
     """
     doc = {
-        'job_id': job_id,
-        'prompt': prompt,
-        'model': model,
-        'priority': priority,
-        'enable_web_search': enable_web_search,
-        'status': 'queued',
-        'submitted_at': get_current_timestamp(),
-        'metadata': metadata,
-        'user_id': user_id,
+        "job_id": job_id,
+        "prompt": prompt,
+        "model": model,
+        "priority": priority,
+        "enable_web_search": enable_web_search,
+        "status": "queued",
+        "submitted_at": get_current_timestamp(),
+        "metadata": metadata,
+        "user_id": user_id,
     }
 
     if include_ttl:
-        doc['ttl'] = calculate_ttl()
+        doc["ttl"] = calculate_ttl()
 
     return doc
 
@@ -106,13 +106,13 @@ def create_queue_message(job: dict[str, Any]) -> dict[str, Any]:
         Queue message dict
     """
     return {
-        'id': job['job_id'],
-        'prompt': job['prompt'],
-        'model': job['model'],
-        'priority': job['priority'],
-        'enable_web_search': job['enable_web_search'],
-        'submitted_at': job['submitted_at'],
-        'metadata': job['metadata'],
+        "id": job["job_id"],
+        "prompt": job["prompt"],
+        "model": job["model"],
+        "priority": job["priority"],
+        "enable_web_search": job["enable_web_search"],
+        "submitted_at": job["submitted_at"],
+        "metadata": job["metadata"],
     }
 
 
@@ -127,8 +127,8 @@ def format_job_response(job: dict[str, Any]) -> dict[str, Any]:
         Job dict with 'id' instead of 'job_id'
     """
     result = dict(job)
-    if 'job_id' in result:
-        result['id'] = result.pop('job_id')
+    if "job_id" in result:
+        result["id"] = result.pop("job_id")
     return result
 
 
@@ -140,7 +140,7 @@ def health_response() -> dict[str, Any]:
         Health check response dict
     """
     return {
-        'status': 'healthy',
-        'service': 'deepr-api',
-        'version': API_VERSION,
+        "status": "healthy",
+        "service": "deepr-api",
+        "version": API_VERSION,
     }

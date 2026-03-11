@@ -24,12 +24,7 @@ def check_azure_cli():
     import subprocess
 
     try:
-        result = subprocess.run(
-            ["az", "--version"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = subprocess.run(["az", "--version"], capture_output=True, text=True, check=True)
         print("✓ Azure CLI installed")
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("✗ Azure CLI not found")
@@ -37,12 +32,7 @@ def check_azure_cli():
         return False
 
     try:
-        result = subprocess.run(
-            ["az", "account", "show"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = subprocess.run(["az", "account", "show"], capture_output=True, text=True, check=True)
         account = json.loads(result.stdout)
         print(f"✓ Logged in as: {account['user']['name']}")
         print(f"  Subscription: {account['name']}")
@@ -61,13 +51,7 @@ def create_resource_group(name, location):
 
     try:
         subprocess.run(
-            [
-                "az", "group", "create",
-                "--name", name,
-                "--location", location
-            ],
-            check=True,
-            capture_output=True
+            ["az", "group", "create", "--name", name, "--location", location], check=True, capture_output=True
         )
         print("  ✓ Resource group created")
         return True
@@ -88,15 +72,23 @@ def create_storage_account(resource_group, name, location):
     try:
         subprocess.run(
             [
-                "az", "storage", "account", "create",
-                "--name", name,
-                "--resource-group", resource_group,
-                "--location", location,
-                "--sku", "Standard_LRS",
-                "--kind", "StorageV2"
+                "az",
+                "storage",
+                "account",
+                "create",
+                "--name",
+                name,
+                "--resource-group",
+                resource_group,
+                "--location",
+                location,
+                "--sku",
+                "Standard_LRS",
+                "--kind",
+                "StorageV2",
             ],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         print("  ✓ Storage account created")
         return True
@@ -116,14 +108,20 @@ def get_storage_connection_string(resource_group, account_name):
     try:
         result = subprocess.run(
             [
-                "az", "storage", "account", "show-connection-string",
-                "--name", account_name,
-                "--resource-group", resource_group,
-                "--output", "json"
+                "az",
+                "storage",
+                "account",
+                "show-connection-string",
+                "--name",
+                account_name,
+                "--resource-group",
+                resource_group,
+                "--output",
+                "json",
             ],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         data = json.loads(result.stdout)
         return data["connectionString"]
@@ -142,13 +140,9 @@ def create_storage_containers(connection_string):
     for container in containers:
         try:
             subprocess.run(
-                [
-                    "az", "storage", "container", "create",
-                    "--name", container,
-                    "--connection-string", connection_string
-                ],
+                ["az", "storage", "container", "create", "--name", container, "--connection-string", connection_string],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
             print(f"  ✓ {container}")
         except subprocess.CalledProcessError:
@@ -164,14 +158,21 @@ def create_service_bus(resource_group, namespace, location):
     try:
         subprocess.run(
             [
-                "az", "servicebus", "namespace", "create",
-                "--name", namespace,
-                "--resource-group", resource_group,
-                "--location", location,
-                "--sku", "Standard"
+                "az",
+                "servicebus",
+                "namespace",
+                "create",
+                "--name",
+                namespace,
+                "--resource-group",
+                resource_group,
+                "--location",
+                location,
+                "--sku",
+                "Standard",
             ],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         print("  ✓ Service Bus namespace created")
         return True
@@ -193,13 +194,19 @@ def create_service_bus_queue(resource_group, namespace, queue_name):
     try:
         subprocess.run(
             [
-                "az", "servicebus", "queue", "create",
-                "--name", queue_name,
-                "--namespace-name", namespace,
-                "--resource-group", resource_group
+                "az",
+                "servicebus",
+                "queue",
+                "create",
+                "--name",
+                queue_name,
+                "--namespace-name",
+                namespace,
+                "--resource-group",
+                resource_group,
             ],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         print("  ✓ Queue created")
         return True
@@ -219,15 +226,24 @@ def get_service_bus_connection_string(resource_group, namespace):
     try:
         result = subprocess.run(
             [
-                "az", "servicebus", "namespace", "authorization-rule", "keys", "list",
-                "--name", "RootManageSharedAccessKey",
-                "--namespace-name", namespace,
-                "--resource-group", resource_group,
-                "--output", "json"
+                "az",
+                "servicebus",
+                "namespace",
+                "authorization-rule",
+                "keys",
+                "list",
+                "--name",
+                "RootManageSharedAccessKey",
+                "--namespace-name",
+                namespace,
+                "--resource-group",
+                resource_group,
+                "--output",
+                "json",
             ],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         data = json.loads(result.stdout)
         return data["primaryConnectionString"]
@@ -253,13 +269,13 @@ AZURE_OPENAI_API_VERSION=2024-05-01-preview
 
 # Storage Configuration
 DEEPR_STORAGE=blob
-AZURE_STORAGE_CONNECTION_STRING={config_data.get('storage_connection_string', 'YOUR_CONNECTION_STRING')}
-AZURE_STORAGE_ACCOUNT_NAME={config_data.get('storage_account_name', 'YOUR_ACCOUNT_NAME')}
+AZURE_STORAGE_CONNECTION_STRING={config_data.get("storage_connection_string", "YOUR_CONNECTION_STRING")}
+AZURE_STORAGE_ACCOUNT_NAME={config_data.get("storage_account_name", "YOUR_ACCOUNT_NAME")}
 
 # Queue Configuration
 DEEPR_QUEUE=azure
-AZURE_SERVICE_BUS_CONNECTION_STRING={config_data.get('servicebus_connection_string', 'YOUR_CONNECTION_STRING')}
-AZURE_SERVICE_BUS_QUEUE_NAME={config_data.get('queue_name', 'research-jobs')}
+AZURE_SERVICE_BUS_CONNECTION_STRING={config_data.get("servicebus_connection_string", "YOUR_CONNECTION_STRING")}
+AZURE_SERVICE_BUS_QUEUE_NAME={config_data.get("queue_name", "research-jobs")}
 
 # Cost Limits (USD)
 DEEPR_MAX_COST_PER_JOB=5.00
@@ -283,40 +299,24 @@ def main():
 
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Set up Azure resources for Deepr"
+    parser = argparse.ArgumentParser(description="Set up Azure resources for Deepr")
+    parser.add_argument(
+        "--resource-group", default="deepr-resources", help="Resource group name (default: deepr-resources)"
+    )
+    parser.add_argument("--location", default="eastus", help="Azure region (default: eastus)")
+    parser.add_argument(
+        "--storage-account", default="deeprstorage", help="Storage account name (default: deeprstorage)"
     )
     parser.add_argument(
-        "--resource-group",
-        default="deepr-resources",
-        help="Resource group name (default: deepr-resources)"
+        "--servicebus-namespace", default="deepr-bus", help="Service Bus namespace (default: deepr-bus)"
     )
-    parser.add_argument(
-        "--location",
-        default="eastus",
-        help="Azure region (default: eastus)"
-    )
-    parser.add_argument(
-        "--storage-account",
-        default="deeprstorage",
-        help="Storage account name (default: deeprstorage)"
-    )
-    parser.add_argument(
-        "--servicebus-namespace",
-        default="deepr-bus",
-        help="Service Bus namespace (default: deepr-bus)"
-    )
-    parser.add_argument(
-        "--queue-name",
-        default="research-jobs",
-        help="Queue name (default: research-jobs)"
-    )
+    parser.add_argument("--queue-name", default="research-jobs", help="Queue name (default: research-jobs)")
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("Deepr Azure Environment Setup")
-    print("="*60)
+    print("=" * 60)
 
     # Check prerequisites
     if not check_azure_cli():
@@ -330,7 +330,7 @@ def main():
     print(f"  Queue: {args.queue_name}")
 
     response = input("\nProceed with setup? (y/N): ")
-    if response.lower() != 'y':
+    if response.lower() != "y":
         print("Cancelled")
         return 0
 
@@ -359,22 +359,22 @@ def main():
 
     # Save configuration
     config_data = {
-        'storage_connection_string': storage_conn_str,
-        'storage_account_name': args.storage_account,
-        'servicebus_connection_string': servicebus_conn_str,
-        'queue_name': args.queue_name,
+        "storage_connection_string": storage_conn_str,
+        "storage_account_name": args.storage_account,
+        "servicebus_connection_string": servicebus_conn_str,
+        "queue_name": args.queue_name,
     }
 
     save_azure_config(config_data)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✓ Azure setup complete!")
     print()
     print("Next steps:")
     print("  1. Edit .env.azure with your Azure OpenAI credentials")
     print("  2. Deploy worker: See docs/deployment/azure-worker.md")
     print("  3. Deploy web app: See docs/deployment/azure-webapp.md")
-    print("="*60)
+    print("=" * 60)
 
     return 0
 

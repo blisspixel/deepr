@@ -47,4 +47,3 @@ def test_health_reports_file_and_counts(tmp_path: Path):
     assert health["writable"] is True
     assert health["event_count"] == 1
     assert health["total_cost_usd"] == 0.5
-
