@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.2
+    rev: v0.15.1
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -14,3 +14,4 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=500]
       - id: debug-statements
+
