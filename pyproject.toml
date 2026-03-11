@@ -183,4 +183,3 @@ deepr = ["py.typed"]
 where = ["."]
 include = ["deepr*"]
 exclude = ["tests*", "docs*"]
-

@@ -10,16 +10,12 @@ These prompts are designed to be:
 CHEAP_PROMPTS = [
     # Minimal research - should cost pennies
     "Write a 3-line haiku about software testing",
-
     # Small factual query - cheap and quick
     "List 3 benefits of cost optimization in cloud computing",
-
     # Tiny synthesis task - validates research flow
     "Summarize in 2 sentences: What is SQLite used for?",
-
     # Quick current info - validates API connectivity
     "What day of the week is it today?",
-
     # Small structured output - validates formatting
     "Create a bullet list of 3 programming languages and their primary use case",
 ]

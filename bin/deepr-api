@@ -1,19 +1,17 @@
 #!/usr/bin/env python
 """Run Deepr API server."""
 
+import logging
 import os
 import sys
-import logging
+
 from deepr.api.app import create_app, socketio
 
 
 def main():
     """Start the API server."""
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Create app
     app = create_app()
@@ -53,7 +51,7 @@ Press Ctrl+C to stop
             host=host,
             port=port,
             debug=debug,
-            allow_unsafe_werkzeug=True  # For development only
+            allow_unsafe_werkzeug=True,  # For development only
         )
     except KeyboardInterrupt:
         print("\n\nShutting down API server...")

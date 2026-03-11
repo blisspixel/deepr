@@ -19,22 +19,13 @@ def check_azure_cli():
     import subprocess
 
     try:
-        subprocess.run(
-            ["az", "--version"],
-            capture_output=True,
-            check=True
-        )
+        subprocess.run(["az", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("✗ Azure CLI not found")
         return False
 
     try:
-        result = subprocess.run(
-            ["az", "account", "show"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = subprocess.run(["az", "account", "show"], capture_output=True, text=True, check=True)
         account = json.loads(result.stdout)
         print(f"Logged in as: {account['user']['name']}")
         print(f"Subscription: {account['name']}")
@@ -60,15 +51,7 @@ def delete_resource_group(name, force=False):
     print("This may take several minutes...")
 
     try:
-        subprocess.run(
-            [
-                "az", "group", "delete",
-                "--name", name,
-                "--yes",
-                "--no-wait"
-            ],
-            check=True
-        )
+        subprocess.run(["az", "group", "delete", "--name", name, "--yes", "--no-wait"], check=True)
         print("  ✓ Deletion started (running in background)")
         print(f"  Check status: az group show --name {name}")
         return True
@@ -86,13 +69,19 @@ def delete_service_bus_queue(resource_group, namespace, queue_name):
     try:
         subprocess.run(
             [
-                "az", "servicebus", "queue", "delete",
-                "--name", queue_name,
-                "--namespace-name", namespace,
-                "--resource-group", resource_group
+                "az",
+                "servicebus",
+                "queue",
+                "delete",
+                "--name",
+                queue_name,
+                "--namespace-name",
+                namespace,
+                "--resource-group",
+                resource_group,
             ],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         print("  ✓ Queue deleted")
         return True
@@ -113,13 +102,9 @@ def delete_service_bus_namespace(resource_group, namespace):
 
     try:
         subprocess.run(
-            [
-                "az", "servicebus", "namespace", "delete",
-                "--name", namespace,
-                "--resource-group", resource_group
-            ],
+            ["az", "servicebus", "namespace", "delete", "--name", namespace, "--resource-group", resource_group],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         print("  ✓ Namespace deleted")
         return True
@@ -142,13 +127,9 @@ def delete_storage_containers(connection_string):
     for container in containers:
         try:
             subprocess.run(
-                [
-                    "az", "storage", "container", "delete",
-                    "--name", container,
-                    "--connection-string", connection_string
-                ],
+                ["az", "storage", "container", "delete", "--name", container, "--connection-string", connection_string],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
             print(f"  ✓ {container}")
         except subprocess.CalledProcessError:
@@ -162,14 +143,20 @@ def get_storage_connection_string(resource_group, account_name):
     try:
         result = subprocess.run(
             [
-                "az", "storage", "account", "show-connection-string",
-                "--name", account_name,
-                "--resource-group", resource_group,
-                "--output", "json"
+                "az",
+                "storage",
+                "account",
+                "show-connection-string",
+                "--name",
+                account_name,
+                "--resource-group",
+                resource_group,
+                "--output",
+                "json",
             ],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         data = json.loads(result.stdout)
         return data["connectionString"]
@@ -185,14 +172,9 @@ def delete_storage_account(resource_group, account_name):
 
     try:
         subprocess.run(
-            [
-                "az", "storage", "account", "delete",
-                "--name", account_name,
-                "--resource-group", resource_group,
-                "--yes"
-            ],
+            ["az", "storage", "account", "delete", "--name", account_name, "--resource-group", resource_group, "--yes"],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         print("  ✓ Storage account deleted")
         return True
@@ -209,45 +191,27 @@ def main():
     """Run Azure teardown."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Destroy Azure resources for Deepr"
+    parser = argparse.ArgumentParser(description="Destroy Azure resources for Deepr")
+    parser.add_argument(
+        "--resource-group", default="deepr-resources", help="Resource group name (default: deepr-resources)"
     )
     parser.add_argument(
-        "--resource-group",
-        default="deepr-resources",
-        help="Resource group name (default: deepr-resources)"
+        "--storage-account", default="deeprstorage", help="Storage account name (default: deeprstorage)"
     )
     parser.add_argument(
-        "--storage-account",
-        default="deeprstorage",
-        help="Storage account name (default: deeprstorage)"
+        "--servicebus-namespace", default="deepr-bus", help="Service Bus namespace (default: deepr-bus)"
     )
+    parser.add_argument("--queue-name", default="research-jobs", help="Queue name (default: research-jobs)")
     parser.add_argument(
-        "--servicebus-namespace",
-        default="deepr-bus",
-        help="Service Bus namespace (default: deepr-bus)"
+        "--delete-resource-group", action="store_true", help="Delete entire resource group (deletes ALL resources)"
     )
-    parser.add_argument(
-        "--queue-name",
-        default="research-jobs",
-        help="Queue name (default: research-jobs)"
-    )
-    parser.add_argument(
-        "--delete-resource-group",
-        action="store_true",
-        help="Delete entire resource group (deletes ALL resources)"
-    )
-    parser.add_argument(
-        "-f", "--force",
-        action="store_true",
-        help="Skip confirmation prompts"
-    )
+    parser.add_argument("-f", "--force", action="store_true", help="Skip confirmation prompts")
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("Deepr Azure Environment Teardown")
-    print("="*60)
+    print("=" * 60)
     print()
 
     if not check_azure_cli():
@@ -267,7 +231,7 @@ def main():
     if not args.force:
         print("\n⚠  WARNING: This will DELETE Azure resources and all data")
         response = input("Continue? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Cancelled")
             return 0
 
@@ -285,12 +249,12 @@ def main():
     # Delete storage account
     delete_storage_account(args.resource_group, args.storage_account)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✓ Teardown complete")
     print()
     print("Note: Resource group still exists (but should be empty)")
     print("To delete resource group: python scripts/destroy_azure.py --delete-resource-group")
-    print("="*60)
+    print("=" * 60)
 
     return 0
 
