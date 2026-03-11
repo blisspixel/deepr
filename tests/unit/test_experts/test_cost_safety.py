@@ -451,7 +451,6 @@ class TestCostSafetyManager:
 
         assert manager.get_session_cost("unknown") == 0.0
 
-
     def test_record_cost_writes_ledger_event(self):
         """record_cost should write canonical ledger event metadata."""
         with patch("deepr.experts.cost_safety.CostLedger") as mock_ledger_cls:
@@ -497,6 +496,7 @@ class TestCostSafetyManager:
                     operation_type="research_submit",
                     actual_cost=0.10,
                 )
+
     def test_reset_clears_all_state(self):
         """Test that reset clears all tracking state."""
         manager = CostSafetyManager()
@@ -565,4 +565,3 @@ class TestResetCostSafetyManager:
         """Test that reset is safe when no manager exists."""
         reset_cost_safety_manager()  # First reset
         reset_cost_safety_manager()  # Should not raise
-

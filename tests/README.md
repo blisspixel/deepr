@@ -11,7 +11,7 @@ Test expert creation with minimal cost (~$0.004):
 # Windows
 tests\test_keyboards_cli.bat
 
-# Linux/Mac  
+# Linux/Mac
 ./tests/test_keyboards_cli.sh
 
 # Validate learning

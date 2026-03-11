@@ -172,7 +172,7 @@ deepr brain delete vs_XXXXX
 **Solution:** Check API keys, try `--no-discovery` flag
 
 ### Issue: Expert gives generic answers
-**Solution:** 
+**Solution:**
 - Add more initial documents
 - Increase topic counts
 - Run synthesis: `deepr expert refresh "Name" --synthesize`

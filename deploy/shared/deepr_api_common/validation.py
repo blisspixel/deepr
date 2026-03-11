@@ -8,17 +8,15 @@ from typing import Any, Optional
 MAX_PROMPT_LENGTH = 10000
 MAX_METADATA_SIZE = 4096
 VALID_MODELS = [
-    'o4-mini-deep-research',
-    'o3-deep-research',
-    'gemini-2.0-flash-thinking-exp',
-    'gemini-2.5-pro-exp-03-25',
-    'grok-3-mini-fast',
-    'grok-3-fast',
+    "o4-mini-deep-research",
+    "o3-deep-research",
+    "gemini-2.0-flash-thinking-exp",
+    "gemini-2.5-pro-exp-03-25",
+    "grok-3-mini-fast",
+    "grok-3-fast",
 ]
-VALID_STATUSES = ['queued', 'running', 'completed', 'failed', 'cancelled']
-UUID_PATTERN = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-)
+VALID_STATUSES = ["queued", "running", "completed", "failed", "cancelled"]
+UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
 def validate_job_id(job_id: str) -> bool:
@@ -31,7 +29,7 @@ def validate_job_id(job_id: str) -> bool:
 def sanitize_string(value: str, max_length: int = 1000) -> str:
     """Sanitize string input by truncating and stripping whitespace."""
     if not isinstance(value, str):
-        return ''
+        return ""
     return value[:max_length].strip()
 
 
@@ -43,11 +41,11 @@ def validate_prompt(prompt: Any) -> tuple[bool, Optional[str], Optional[str]]:
         Tuple of (valid, sanitized_prompt, error_message)
     """
     if not prompt:
-        return False, None, 'Prompt required'
+        return False, None, "Prompt required"
     if not isinstance(prompt, str):
-        return False, None, 'Prompt must be a string'
+        return False, None, "Prompt must be a string"
     if len(prompt) > MAX_PROMPT_LENGTH:
-        return False, None, f'Prompt exceeds maximum length of {MAX_PROMPT_LENGTH}'
+        return False, None, f"Prompt exceeds maximum length of {MAX_PROMPT_LENGTH}"
     return True, sanitize_string(prompt, MAX_PROMPT_LENGTH), None
 
 
@@ -59,9 +57,9 @@ def validate_model(model: Optional[str]) -> tuple[bool, str, Optional[str]]:
         Tuple of (valid, model_or_default, error_message)
     """
     if model is None:
-        return True, 'o4-mini-deep-research', None
+        return True, "o4-mini-deep-research", None
     if model not in VALID_MODELS:
-        return False, '', f'Invalid model. Valid options: {", ".join(VALID_MODELS)}'
+        return False, "", f"Invalid model. Valid options: {', '.join(VALID_MODELS)}"
     return True, model, None
 
 
@@ -75,7 +73,7 @@ def validate_priority(priority: Any) -> tuple[bool, int, Optional[str]]:
     if priority is None:
         return True, 3, None
     if not isinstance(priority, int) or priority < 1 or priority > 5:
-        return False, 0, 'Priority must be an integer between 1 and 5'
+        return False, 0, "Priority must be an integer between 1 and 5"
     return True, priority, None
 
 
@@ -89,7 +87,7 @@ def validate_enable_web_search(value: Any) -> tuple[bool, bool, Optional[str]]:
     if value is None:
         return True, True, None
     if not isinstance(value, bool):
-        return False, False, 'enable_web_search must be a boolean'
+        return False, False, "enable_web_search must be a boolean"
     return True, value, None
 
 
@@ -103,9 +101,9 @@ def validate_metadata(metadata: Any) -> tuple[bool, dict, Optional[str]]:
     if metadata is None:
         return True, {}, None
     if not isinstance(metadata, dict):
-        return False, {}, 'Metadata must be an object'
+        return False, {}, "Metadata must be an object"
     if len(json.dumps(metadata)) > MAX_METADATA_SIZE:
-        return False, {}, f'Metadata exceeds maximum size of {MAX_METADATA_SIZE} bytes'
+        return False, {}, f"Metadata exceeds maximum size of {MAX_METADATA_SIZE} bytes"
     return True, metadata, None
 
 
@@ -120,7 +118,7 @@ def validate_status_filter(status: Optional[str]) -> tuple[bool, Optional[str], 
         return True, None, None
     status = sanitize_string(status, 20)
     if status not in VALID_STATUSES:
-        return False, None, f'Invalid status. Valid options: {", ".join(VALID_STATUSES)}'
+        return False, None, f"Invalid status. Valid options: {', '.join(VALID_STATUSES)}"
     return True, status, None
 
 
@@ -139,7 +137,7 @@ def validate_limit(limit_str: Optional[str], max_limit: int = 1000) -> tuple[boo
             limit = 1
         return True, limit, None
     except ValueError:
-        return False, 0, 'Invalid limit parameter'
+        return False, 0, "Invalid limit parameter"
 
 
 def validate_job_request(body: dict[str, Any]) -> tuple[bool, dict[str, Any], Optional[str]]:
@@ -153,34 +151,38 @@ def validate_job_request(body: dict[str, Any]) -> tuple[bool, dict[str, Any], Op
         Tuple of (valid, validated_data, error_message)
     """
     # Validate prompt
-    valid, prompt, error = validate_prompt(body.get('prompt'))
+    valid, prompt, error = validate_prompt(body.get("prompt"))
     if not valid:
         return False, {}, error
 
     # Validate model
-    valid, model, error = validate_model(body.get('model'))
+    valid, model, error = validate_model(body.get("model"))
     if not valid:
         return False, {}, error
 
     # Validate priority
-    valid, priority, error = validate_priority(body.get('priority'))
+    valid, priority, error = validate_priority(body.get("priority"))
     if not valid:
         return False, {}, error
 
     # Validate web search flag
-    valid, enable_web_search, error = validate_enable_web_search(body.get('enable_web_search'))
+    valid, enable_web_search, error = validate_enable_web_search(body.get("enable_web_search"))
     if not valid:
         return False, {}, error
 
     # Validate metadata
-    valid, metadata, error = validate_metadata(body.get('metadata'))
+    valid, metadata, error = validate_metadata(body.get("metadata"))
     if not valid:
         return False, {}, error
 
-    return True, {
-        'prompt': prompt,
-        'model': model,
-        'priority': priority,
-        'enable_web_search': enable_web_search,
-        'metadata': metadata,
-    }, None
+    return (
+        True,
+        {
+            "prompt": prompt,
+            "model": model,
+            "priority": priority,
+            "enable_web_search": enable_web_search,
+            "metadata": metadata,
+        },
+        None,
+    )

@@ -61,21 +61,21 @@ switch ($choice) {
         Write-Host ""
         Write-Host "Running All Tests..." -ForegroundColor Cyan
         Write-Host ""
-        
+
         Write-Host "1/2: Quick Test" -ForegroundColor Cyan
         python tests/test_expert_quick.py
         $quickResult = $LASTEXITCODE
-        
+
         Write-Host ""
         Write-Host "2/2: Full Workflow Test" -ForegroundColor Cyan
         python tests/test_expert_agentic_workflow.py
         $workflowResult = $LASTEXITCODE
-        
+
         Write-Host ""
         Write-Host "======================================================================" -ForegroundColor Cyan
         Write-Host "  ALL TESTS COMPLETE" -ForegroundColor Cyan
         Write-Host "======================================================================" -ForegroundColor Cyan
-        
+
         if ($quickResult -eq 0 -and $workflowResult -eq 0) {
             Write-Host "✓ All tests passed!" -ForegroundColor Green
             exit 0

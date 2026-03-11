@@ -125,4 +125,3 @@ def test_duration_override_env(monkeypatch):
 def test_duration_override_invalid_falls_back(monkeypatch):
     monkeypatch.setenv("DEEPR_BANNER_DURATION", "not-a-number")
     assert _duration_for_mode("light") == 0.8
-

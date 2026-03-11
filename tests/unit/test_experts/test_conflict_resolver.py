@@ -162,10 +162,12 @@ class TestResolve:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "winner": "a",
-            "explanation": "Claim A has stronger evidence",
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "winner": "a",
+                "explanation": "Claim A has stronger evidence",
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         resolver = ConflictResolver(client=mock_client)
@@ -183,11 +185,13 @@ class TestResolve:
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "winner": "merge",
-            "explanation": "Both claims partially correct",
-            "merged_claim": "Combined truth",
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "winner": "merge",
+                "explanation": "Both claims partially correct",
+                "merged_claim": "Combined truth",
+            }
+        )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         resolver = ConflictResolver(client=mock_client)
@@ -242,8 +246,10 @@ class TestResolveAll:
         resolver.detect_contradictions = AsyncMock(return_value=[(a, b)])
         resolver.resolve = AsyncMock(
             return_value=ConflictResolutionResult(
-                belief_a_id=a.id, belief_b_id=b.id,
-                outcome="a_wins", explanation="A wins",
+                belief_a_id=a.id,
+                belief_b_id=b.id,
+                outcome="a_wins",
+                explanation="A wins",
             )
         )
 
@@ -259,8 +265,10 @@ class TestResolveAll:
         resolver.detect_contradictions = AsyncMock(return_value=pairs)
         resolver.resolve = AsyncMock(
             return_value=ConflictResolutionResult(
-                belief_a_id="a", belief_b_id="b",
-                outcome="merged", explanation="Merged",
+                belief_a_id="a",
+                belief_b_id="b",
+                outcome="merged",
+                explanation="Merged",
             )
         )
 

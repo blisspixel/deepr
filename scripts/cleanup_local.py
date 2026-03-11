@@ -28,7 +28,7 @@ def cleanup_queue(force=False):
 
     if not force:
         response = input(f"Delete queue database at {db_path}? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("  Skipped")
             return
 
@@ -52,7 +52,7 @@ def cleanup_results(force=False):
     if not force:
         print(f"  Found {len(files)} result files")
         response = input("Delete all result files? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("  Skipped")
             return
 
@@ -79,7 +79,7 @@ def cleanup_logs(force=False):
     if not force:
         print(f"  Found {len(files)} log files")
         response = input("Delete all log files? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("  Skipped")
             return
 
@@ -105,7 +105,7 @@ def cleanup_uploads(force=False):
     if not force:
         print(f"  Found {len(files)} uploaded files")
         response = input("Delete all uploaded files? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("  Skipped")
             return
 
@@ -123,7 +123,7 @@ def cleanup_all(force=False):
     if not force:
         print("\n⚠  WARNING: This will delete ALL local data")
         response = input("Continue? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Cancelled")
             return
 
@@ -142,45 +142,19 @@ def main():
 
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Clean up local Deepr environment"
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Remove all local data directories"
-    )
-    parser.add_argument(
-        "--queue",
-        action="store_true",
-        help="Clean queue database"
-    )
-    parser.add_argument(
-        "--results",
-        action="store_true",
-        help="Clean result files"
-    )
-    parser.add_argument(
-        "--logs",
-        action="store_true",
-        help="Clean log files"
-    )
-    parser.add_argument(
-        "--uploads",
-        action="store_true",
-        help="Clean uploaded files"
-    )
-    parser.add_argument(
-        "-f", "--force",
-        action="store_true",
-        help="Skip confirmation prompts"
-    )
+    parser = argparse.ArgumentParser(description="Clean up local Deepr environment")
+    parser.add_argument("--all", action="store_true", help="Remove all local data directories")
+    parser.add_argument("--queue", action="store_true", help="Clean queue database")
+    parser.add_argument("--results", action="store_true", help="Clean result files")
+    parser.add_argument("--logs", action="store_true", help="Clean log files")
+    parser.add_argument("--uploads", action="store_true", help="Clean uploaded files")
+    parser.add_argument("-f", "--force", action="store_true", help="Skip confirmation prompts")
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("Deepr Local Environment Cleanup")
-    print("="*60)
+    print("=" * 60)
     print()
 
     # If no specific flags, clean everything except all
@@ -217,9 +191,9 @@ def main():
                 print()
 
     print()
-    print("="*60)
+    print("=" * 60)
     print("Cleanup complete")
-    print("="*60)
+    print("=" * 60)
 
     return 0
 
