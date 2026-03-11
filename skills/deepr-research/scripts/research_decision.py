@@ -12,6 +12,7 @@ from typing import Optional
 
 class ResearchMode(Enum):
     """Available research modes with increasing depth and cost."""
+
     QUICK = "quick"
     STANDARD = "standard"
     DEEP_FAST = "deep_fast"
@@ -21,6 +22,7 @@ class ResearchMode(Enum):
 @dataclass(frozen=True)
 class CostEstimate:
     """Cost and time estimates for a research operation."""
+
     min_cost: float
     max_cost: float
     min_time_seconds: int
@@ -48,6 +50,7 @@ class CostEstimate:
 @dataclass(frozen=True)
 class ResearchDecision:
     """Complete recommendation for a research query."""
+
     mode: ResearchMode
     model: str
     cost: CostEstimate
@@ -71,17 +74,42 @@ MODE_MODELS: dict[ResearchMode, str] = {
 }
 
 # Query complexity indicators
-DEEP_INDICATORS = frozenset({
-    "comprehensive", "thorough", "detailed", "in-depth", "exhaustive",
-    "analyze", "compare", "evaluate", "assess", "investigate",
-    "market research", "competitive analysis", "due diligence",
-    "strategic", "long-term", "implications", "trends",
-})
+DEEP_INDICATORS = frozenset(
+    {
+        "comprehensive",
+        "thorough",
+        "detailed",
+        "in-depth",
+        "exhaustive",
+        "analyze",
+        "compare",
+        "evaluate",
+        "assess",
+        "investigate",
+        "market research",
+        "competitive analysis",
+        "due diligence",
+        "strategic",
+        "long-term",
+        "implications",
+        "trends",
+    }
+)
 
-QUICK_INDICATORS = frozenset({
-    "what is", "define", "quick", "brief", "simple",
-    "lookup", "find", "check", "verify", "confirm",
-})
+QUICK_INDICATORS = frozenset(
+    {
+        "what is",
+        "define",
+        "quick",
+        "brief",
+        "simple",
+        "lookup",
+        "find",
+        "check",
+        "verify",
+        "confirm",
+    }
+)
 
 
 def classify_query(

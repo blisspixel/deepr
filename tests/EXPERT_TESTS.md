@@ -31,8 +31,8 @@ Fast smoke test to verify basic functionality:
 python tests/test_expert_quick.py
 ```
 
-**Time:** ~30 seconds  
-**Cost:** ~$0.01  
+**Time:** ~30 seconds
+**Cost:** ~$0.01
 **Tests:** 1 simple question
 
 ### Full Workflow Test
@@ -43,8 +43,8 @@ Tests all 4 scenarios (except expensive deep research):
 python tests/test_expert_agentic_workflow.py
 ```
 
-**Time:** ~2-3 minutes  
-**Cost:** ~$0.05  
+**Time:** ~2-3 minutes
+**Cost:** ~$0.05
 **Tests:** 4 scenarios
 
 ### Full + Expensive Test
@@ -59,8 +59,8 @@ $env:RUN_EXPENSIVE_TESTS = "1"  # PowerShell
 python tests/test_expert_agentic_workflow.py
 ```
 
-**Time:** ~20 minutes  
-**Cost:** ~$0.15-0.35  
+**Time:** ~20 minutes
+**Cost:** ~$0.15-0.35
 **Tests:** 4 scenarios including deep research
 
 ### Interactive Test Runner
@@ -146,10 +146,10 @@ Use the test runner script for an interactive menu:
 
 ### Success Indicators
 
-- **Response received** - Expert generated a response  
-- **Cost tracked** - Token usage calculated correctly  
-- **Tool calls logged** - Reasoning trace captured  
-- **Appropriate tools used** - Right tool for the question  
+- **Response received** - Expert generated a response
+- **Cost tracked** - Token usage calculated correctly
+- **Tool calls logged** - Reasoning trace captured
+- **Appropriate tools used** - Right tool for the question
 
 ### What to Look For
 
@@ -198,7 +198,7 @@ XAI_API_KEY=xai-...
 FAIL: Request timed out
 ```
 
-**Solution:** 
+**Solution:**
 - Check internet connection
 - Verify API keys are valid
 - Try again (web search can be slow)

@@ -284,6 +284,7 @@ class TestCostAggregatorExpert:
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
+
 class TestCostsDoctor:
     """Tests for deepr costs doctor command."""
 
@@ -332,4 +333,3 @@ class TestCostsDoctor:
         assert result.exit_code == 0
         assert "FAIL" in result.output
         assert "drift=$" in result.output
-

@@ -42,8 +42,7 @@ class TestSource:
         assert src.content_hash == ""
 
     def test_to_dict(self):
-        src = Source.create(title="test.md", trust_class=TrustClass.PRIMARY,
-                           url="https://example.com")
+        src = Source.create(title="test.md", trust_class=TrustClass.PRIMARY, url="https://example.com")
         d = src.to_dict()
         assert d["title"] == "test.md"
         assert d["trust_class"] == "primary"
@@ -51,9 +50,13 @@ class TestSource:
         assert "retrieved_at" in d
 
     def test_round_trip(self):
-        src = Source.create(title="test.md", trust_class=TrustClass.SECONDARY,
-                           extraction_method="scrape", url="https://x.com",
-                           content_hash="abc123")
+        src = Source.create(
+            title="test.md",
+            trust_class=TrustClass.SECONDARY,
+            extraction_method="scrape",
+            url="https://x.com",
+            content_hash="abc123",
+        )
         d = src.to_dict()
         restored = Source.from_dict(d)
         assert restored.id == src.id
@@ -78,8 +81,7 @@ class TestClaim:
         assert c1.id == c2.id  # ID based on statement+domain, not confidence
 
     def test_to_dict(self):
-        claim = Claim.create(statement="test", domain="d", confidence=0.75,
-                             tags=["inferred"])
+        claim = Claim.create(statement="test", domain="d", confidence=0.75, tags=["inferred"])
         d = claim.to_dict()
         assert d["statement"] == "test"
         assert d["domain"] == "d"
@@ -90,8 +92,12 @@ class TestClaim:
     def test_round_trip(self):
         src = Source.create(title="evidence.md")
         claim = Claim.create(
-            statement="A claim", domain="test", confidence=0.8,
-            sources=[src], contradicts=["abc"], supersedes="xyz",
+            statement="A claim",
+            domain="test",
+            confidence=0.8,
+            sources=[src],
+            contradicts=["abc"],
+            supersedes="xyz",
             tags=["learned"],
         )
         d = claim.to_dict()
@@ -152,8 +158,7 @@ class TestGap:
         assert gap.filled_by_job is None
 
     def test_to_dict(self):
-        gap = Gap.create(topic="ML", questions=["What is?", "How?"], priority=5,
-                         times_asked=3)
+        gap = Gap.create(topic="ML", questions=["What is?", "How?"], priority=5, times_asked=3)
         d = gap.to_dict()
         assert d["topic"] == "ML"
         assert d["questions"] == ["What is?", "How?"]
@@ -164,9 +169,16 @@ class TestGap:
     def test_round_trip(self):
         ts = datetime(2025, 6, 1, tzinfo=timezone.utc)
         gap = Gap.create(
-            topic="testing", questions=["Q1"], priority=4,
-            estimated_cost=1.5, expected_value=0.8, ev_cost_ratio=0.533,
-            times_asked=7, identified_at=ts, filled=True, filled_at=ts,
+            topic="testing",
+            questions=["Q1"],
+            priority=4,
+            estimated_cost=1.5,
+            expected_value=0.8,
+            ev_cost_ratio=0.533,
+            times_asked=7,
+            identified_at=ts,
+            filled=True,
+            filled_at=ts,
             filled_by_job="job_123",
         )
         d = gap.to_dict()
@@ -260,18 +272,9 @@ class TestExpertManifest:
     """Test ExpertManifest dataclass."""
 
     def _make_manifest(self, n_claims=3, n_gaps=2, n_decisions=1):
-        claims = [
-            Claim.create(f"claim_{i}", "test", confidence=0.5 + i * 0.1)
-            for i in range(n_claims)
-        ]
-        gaps = [
-            Gap.create(f"gap_{i}", priority=i + 1, ev_cost_ratio=float(i + 1))
-            for i in range(n_gaps)
-        ]
-        decisions = [
-            DecisionRecord.create(DecisionType.ROUTING, f"dec_{i}", "reason")
-            for i in range(n_decisions)
-        ]
+        claims = [Claim.create(f"claim_{i}", "test", confidence=0.5 + i * 0.1) for i in range(n_claims)]
+        gaps = [Gap.create(f"gap_{i}", priority=i + 1, ev_cost_ratio=float(i + 1)) for i in range(n_gaps)]
+        decisions = [DecisionRecord.create(DecisionType.ROUTING, f"dec_{i}", "reason") for i in range(n_decisions)]
         return ExpertManifest(
             expert_name="test_expert",
             domain="testing",

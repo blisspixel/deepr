@@ -1,4 +1,5 @@
 """Check vector store file status"""
+
 import asyncio
 import os
 
@@ -6,6 +7,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 load_dotenv()
+
 
 async def check_vector_store():
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -34,6 +36,7 @@ async def check_vector_store():
         print(f"  {f.id}: status={f.status}, created={f.created_at}")
 
     await client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(check_vector_store())
