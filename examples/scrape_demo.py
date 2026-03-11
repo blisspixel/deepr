@@ -6,7 +6,7 @@ This demonstrates the different ways to scrape websites for research purposes.
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from deepr.utils.scrape import (
     ScrapeConfig,
@@ -16,9 +16,9 @@ from deepr.utils.scrape import (
 
 def demo_basic_scrape():
     """Basic scraping example."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Demo 1: Basic Website Scraping")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Scrape a simple website
     results = scrape_website(
@@ -35,9 +35,9 @@ def demo_basic_scrape():
 
 def demo_company_research():
     """Company research example."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Demo 2: Company Research (using scrape_website)")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     config = ScrapeConfig(
         max_pages=5,
@@ -56,15 +56,15 @@ def demo_company_research():
     print(f"Success: {results['success']}")
     print(f"Pages scraped: {results['pages_scraped']}")
     print("\nScraped URLs:")
-    for i, url in enumerate(results['scraped_urls'], 1):
+    for i, url in enumerate(results["scraped_urls"], 1):
         print(f"  {i}. {url}")
 
 
 def demo_documentation_scraping():
     """Documentation scraping example."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Demo 3: Documentation Scraping (using scrape_website)")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     config = ScrapeConfig(
         max_pages=3,
@@ -82,9 +82,9 @@ def demo_documentation_scraping():
     print(f"Success: {results['success']}")
     print(f"Pages scraped: {results['pages_scraped']}")
 
-    if results['scraped_data']:
-        first_url = next(iter(results['scraped_data'].keys()))
-        content = results['scraped_data'][first_url]
+    if results["scraped_data"]:
+        first_url = next(iter(results["scraped_data"].keys()))
+        content = results["scraped_data"][first_url]
         print(f"\nSample content from {first_url}:")
         print(f"  Length: {len(content)} chars")
         print(f"  Preview: {content[:200]}...")
@@ -92,9 +92,9 @@ def demo_documentation_scraping():
 
 def demo_configuration_modes():
     """Show different configuration modes."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Demo 4: Configuration Modes")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Default mode (aggressive, for research)
     default_config = ScrapeConfig()
@@ -124,9 +124,9 @@ def demo_configuration_modes():
 def main():
     """Run all demos."""
     print("\n")
-    print("="*70)
+    print("=" * 70)
     print("deepr Web Scraping Skill - Demonstration")
-    print("="*70)
+    print("=" * 70)
 
     try:
         demo_basic_scrape()
@@ -134,13 +134,14 @@ def main():
         demo_documentation_scraping()
         demo_configuration_modes()
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("All demos completed successfully")
-        print("="*70 + "\n")
+        print("=" * 70 + "\n")
 
     except Exception as e:
         print(f"\nDemo failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 

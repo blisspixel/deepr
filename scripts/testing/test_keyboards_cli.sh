@@ -15,7 +15,7 @@ cat > /tmp/keyboard_guide.md << 'EOF'
 
 ## What are Mechanical Keyboards?
 
-Mechanical keyboards use individual mechanical switches for each key, 
+Mechanical keyboards use individual mechanical switches for each key,
 providing tactile feedback and durability.
 
 ## Popular Switch Types

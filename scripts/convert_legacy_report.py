@@ -52,6 +52,7 @@ def convert_report(txt_path, convert_pdf=False):
         except Exception as e:
             print(f"⚠️ PDF conversion failed: {e}")
 
+
 # --- CLI entry point ---
 def main():
     """
@@ -68,6 +69,7 @@ def main():
     else:
         txt_path = input("Enter path to .txt file: ").strip()
         convert_report(txt_path, convert_pdf=args.pdf)
+
 
 if __name__ == "__main__":
     main()

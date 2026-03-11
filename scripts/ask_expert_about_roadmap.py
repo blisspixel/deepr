@@ -1,4 +1,5 @@
 """Ask the Agentic Digital Consciousness expert about our roadmap."""
+
 import asyncio
 
 from deepr.experts.chat import start_chat_session
@@ -6,23 +7,19 @@ from deepr.experts.chat import start_chat_session
 
 async def main():
     # Read project context
-    with open('temp_project_context.md', encoding='utf-8') as f:
+    with open("temp_project_context.md", encoding="utf-8") as f:
         context = f.read()
 
     # Read relevant parts of roadmap
-    with open('ROADMAP.md', encoding='utf-8') as f:
+    with open("ROADMAP.md", encoding="utf-8") as f:
         roadmap = f.read()
 
     # Start chat
-    session = await start_chat_session(
-        "Agentic Digital Consciousness",
-        budget=3.0,
-        agentic=True
-    )
+    session = await start_chat_session("Agentic Digital Consciousness", budget=3.0, agentic=True)
 
-    print("="*70)
+    print("=" * 70)
     print("  Asking Expert About Deepr Roadmap Refinement")
-    print("="*70)
+    print("=" * 70)
     print()
 
     question = f"""I need your expert feedback on refining our project roadmap based on what we accomplished today.
@@ -62,20 +59,21 @@ Be specific and actionable. Reference actual files and systems we've built.
 
     response = await session.send_message(question)
 
-    print("="*70)
+    print("=" * 70)
     print("EXPERT RESPONSE:")
-    print("="*70)
+    print("=" * 70)
     print()
     print(response)
     print()
-    print("="*70)
+    print("=" * 70)
     print(f"Cost: ${session.cost_accumulated:.4f}")
     print(f"Budget remaining: ${session.budget - session.cost_accumulated:.4f}")
-    print("="*70)
+    print("=" * 70)
 
     # Save conversation
     session_id = session.save_conversation()
     print(f"\nConversation saved: {session_id}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

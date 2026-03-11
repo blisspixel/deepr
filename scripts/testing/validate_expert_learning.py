@@ -18,9 +18,9 @@ from deepr.experts.profile import ExpertStore
 async def validate_expert(expert_name: str):
     """Validate an expert's learning and capabilities."""
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  Validating Expert: {expert_name}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     # Load expert
     store = ExpertStore()
@@ -55,14 +55,14 @@ async def validate_expert(expert_name: str):
     # Check 2: Beliefs (if available)
     print("2. Beliefs Check")
 
-    if hasattr(profile, 'beliefs') and profile.beliefs:
+    if hasattr(profile, "beliefs") and profile.beliefs:
         print(f"   ✓ Formed {len(profile.beliefs)} belief(s)")
 
         # Show sample beliefs
         for i, (key, belief) in enumerate(list(profile.beliefs.items())[:5], 1):
-            confidence = belief.get('confidence', 0)
-            statement = belief.get('statement', '')
-            sources = belief.get('sources', [])
+            confidence = belief.get("confidence", 0)
+            statement = belief.get("statement", "")
+            sources = belief.get("sources", [])
 
             print(f"\n   Belief {i}:")
             print(f"     Statement: {statement[:100]}...")
@@ -82,18 +82,18 @@ async def validate_expert(expert_name: str):
     # Test questions based on domain
     domain_lower = (profile.domain or profile.name).lower()
 
-    if 'keyboard' in domain_lower:
+    if "keyboard" in domain_lower:
         test_questions = [
             "What are the main types of mechanical keyboard switches?",
             "What are the benefits of mechanical keyboards?",
-            "What brands make mechanical keyboards?"
+            "What brands make mechanical keyboards?",
         ]
     else:
         # Generic questions
         test_questions = [
             f"What are the key concepts in {profile.domain or profile.name}?",
             "What are the main benefits or advantages?",
-            "What are common best practices?"
+            "What are common best practices?",
         ]
 
     passed = 0
@@ -149,18 +149,18 @@ async def validate_expert(expert_name: str):
 
     if profile.knowledge_cutoff_date:
         freshness = profile.get_freshness_status()
-        age_days = freshness.get('age_days', 0)
-        status = freshness.get('status', 'unknown')
+        age_days = freshness.get("age_days", 0)
+        status = freshness.get("status", "unknown")
         print(f"   Knowledge age: {age_days} days [{status}]")
 
     # Final verdict
     print()
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     all_checks_passed = (
-        profile.total_documents >= 2 and
-        len(profile.research_jobs) > 0 and
-        passed >= len(test_questions) * 0.6  # At least 60% of questions
+        profile.total_documents >= 2
+        and len(profile.research_jobs) > 0
+        and passed >= len(test_questions) * 0.6  # At least 60% of questions
     )
 
     if all_checks_passed:
@@ -170,7 +170,7 @@ async def validate_expert(expert_name: str):
         print("  ⚠ VALIDATION INCOMPLETE")
         print("  Expert may need more learning or synthesis")
 
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     return all_checks_passed
 

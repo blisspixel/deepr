@@ -60,21 +60,21 @@ case $choice in
         echo ""
         echo "Running All Tests..."
         echo ""
-        
+
         echo "1/2: Quick Test"
         python tests/test_expert_quick.py
         quick_result=$?
-        
+
         echo ""
         echo "2/2: Full Workflow Test"
         python tests/test_expert_agentic_workflow.py
         workflow_result=$?
-        
+
         echo ""
         echo "======================================================================"
         echo "  ALL TESTS COMPLETE"
         echo "======================================================================"
-        
+
         if [ $quick_result -eq 0 ] && [ $workflow_result -eq 0 ]; then
             echo "✓ All tests passed!"
             exit 0
