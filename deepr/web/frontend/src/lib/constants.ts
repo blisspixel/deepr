@@ -2,6 +2,7 @@ export const MODELS = [
   { value: 'o4-mini-deep-research', label: 'o4-mini Deep Research', description: 'Fast, ~$2/query, ~1 min' },
   { value: 'o3-deep-research', label: 'o3 Deep Research', description: 'Thorough, ~$0.50/query, 2-5 min' },
   { value: 'gemini/deep-research', label: 'Gemini Deep Research', description: 'Google Search, ~$1/query, 5-20 min' },
+  { value: 'xai/grok-4-20-multi-agent', label: 'Grok 4.20 Multi-Agent', description: 'xAI parallel agents, ~$0.50/query, 30-120s' },
 ] as const
 
 export const PRIORITIES = [

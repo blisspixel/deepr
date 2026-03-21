@@ -38,7 +38,7 @@ def _make_output_context(mode=OutputMode.QUIET):
     return OutputContext(mode=mode)
 
 
-def _make_mock_router(fallback_result=("xai", "grok-4-fast")):
+def _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning")):
     """Create a mock AutonomousProviderRouter."""
     router = MagicMock()
     router.select_provider.return_value = ("openai", "o4-mini-deep-research")
@@ -125,7 +125,7 @@ class TestFallbackOnRateLimit:
             # Fallback provider succeeds
             return
 
-        router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
+        router = _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning"))
 
         with (
             patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
@@ -183,7 +183,7 @@ class TestFallbackOnTimeout:
                 raise ProviderTimeoutError("openai", timeout_seconds=30)
             return
 
-        router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
+        router = _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning"))
 
         with (
             patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
@@ -215,7 +215,7 @@ class TestFallbackOnTimeout:
             assert len(calls) == 3  # openai, openai (retry), xai
             assert calls[0] == ("openai", "o4-mini-deep-research")
             assert calls[1] == ("openai", "o4-mini-deep-research")
-            assert calls[2] == ("xai", "grok-4-fast")
+            assert calls[2] == ("xai", "grok-4-1-fast-non-reasoning")
 
 
 class TestFallbackOnAuth:
@@ -355,7 +355,7 @@ class TestRouterSelection:
     async def test_router_selection_when_no_provider(self, mock_queue, mock_budget):
         """Without explicit --provider, router should select provider."""
         router = _make_mock_router()
-        router.select_provider.return_value = ("xai", "grok-4-fast")
+        router.select_provider.return_value = ("xai", "grok-4-1-fast-non-reasoning")
 
         submitted_providers = []
 
@@ -411,7 +411,7 @@ class TestVectorStoreDegradation:
                 raise ProviderUnavailableError("openai")
             return
 
-        router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
+        router = _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning"))
 
         with (
             patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
@@ -475,7 +475,7 @@ class TestMaxFallbackAttempts:
 
         # Router returns different fallbacks each time
         fallback_sequence = [
-            ("xai", "grok-4-fast"),
+            ("xai", "grok-4-1-fast-non-reasoning"),
             ("gemini", "gemini-2.5-flash"),
             ("anthropic", "claude-3-5-sonnet"),
             ("openai", "gpt-4o-mini"),  # Should not reach this
@@ -580,7 +580,7 @@ class TestFallbackTraceEvents:
                 raise ProviderRateLimitError("openai")
             return
 
-        router = _make_mock_router(fallback_result=("xai", "grok-4-fast"))
+        router = _make_mock_router(fallback_result=("xai", "grok-4-1-fast-non-reasoning"))
 
         with (
             patch("deepr.observability.provider_router.AutonomousProviderRouter", return_value=router),
@@ -614,4 +614,4 @@ class TestFallbackTraceEvents:
             assert event_name == "fallback_triggered"
             assert event_attrs["from_provider"] == "openai"
             assert event_attrs["to_provider"] == "xai"
-            assert event_attrs["to_model"] == "grok-4-fast"
+            assert event_attrs["to_model"] == "grok-4-1-fast-non-reasoning"

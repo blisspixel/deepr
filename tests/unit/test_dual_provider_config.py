@@ -14,7 +14,7 @@ def test_default_configuration():
 
     # Verify defaults
     assert config.default_provider == "xai", "Default provider should be xai"
-    assert config.default_model == "grok-4-fast", "Default model should be grok-4-fast"
+    assert config.default_model == "grok-4-1-fast-non-reasoning", "Default model should be grok-4-1-fast-non-reasoning"
     assert config.deep_research_provider == "openai", "Deep research provider should be openai"
     assert config.deep_research_model == "o3-deep-research", (
         "Deep research model should be o3-deep-research (BEST model)"
@@ -94,12 +94,12 @@ def test_use_case_routing():
     print("Operation                    Provider  Model")
     print("-" * 60)
     print("Deep Research                openai    o3-deep-research (BEST)")
-    print("Expert Chat                  xai       grok-4-fast")
-    print("Team Research                xai       grok-4-fast")
-    print("Planning/Synthesis           xai       grok-4-fast")
-    print("Context Summarization        xai       grok-4-fast")
-    print("Link Filtering (Scraping)    xai       grok-4-fast")
-    print("Document Processing          xai       grok-4-fast")
+    print("Expert Chat                  xai       grok-4-1-fast-non-reasoning")
+    print("Team Research                xai       grok-4-1-fast-non-reasoning")
+    print("Planning/Synthesis           xai       grok-4-1-fast-non-reasoning")
+    print("Context Summarization        xai       grok-4-1-fast-non-reasoning")
+    print("Link Filtering (Scraping)    xai       grok-4-1-fast-non-reasoning")
+    print("Document Processing          xai       grok-4-1-fast-non-reasoning")
     print("\nStrategy: Use xAI for 80% of operations, OpenAI o3 for deep research")
     print("Expected total cost reduction: ~78%\n")
 
@@ -126,7 +126,7 @@ def run_all_tests():
         print()
         print("Dual provider configuration working correctly:")
         print("- Deep Research -> OpenAI (o3-deep-research) - BEST model")
-        print("- General Operations -> xAI (grok-4-fast)")
+        print("- General Operations -> xAI (grok-4-1-fast-non-reasoning)")
         print("- Expected cost savings: 78%")
         print()
         return 0

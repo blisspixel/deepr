@@ -56,6 +56,46 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
         raise click.ClickException(f"Benchmark exited with status {result.returncode}")
 
 
+@evaluate.command("status")
+def eval_status():
+    """Show which models have benchmark data vs provisional rankings."""
+    from deepr.providers.registry import MODEL_CAPABILITIES
+    from deepr.routing.auto_mode import _compute_registry_hash, _load_benchmark_rankings
+
+    real = _load_benchmark_rankings()
+    benchmarked: set[str] = set()
+    if real:
+        for entries in real.values():
+            for provider, model, _q, _c in entries:
+                benchmarked.add(f"{provider}/{model}")
+
+    all_models = sorted(MODEL_CAPABILITIES.keys())
+    missing = [m for m in all_models if m not in benchmarked]
+
+    click.echo(f"Registry models: {len(all_models)}")
+    click.echo(f"Benchmarked:     {len(benchmarked)}")
+    click.echo(f"Provisional:     {len(missing)}")
+
+    if missing:
+        click.echo("\nModels using provisional (estimated) rankings:")
+        for m in missing:
+            cap = MODEL_CAPABILITIES[m]
+            click.echo(f"  {m:45s}  cost=${cap.cost_per_query:.3f}  specs={','.join(cap.specializations[:3])}")
+
+    hash_file = Path("data/benchmarks/.registry_hash")
+    if hash_file.exists():
+        stored = hash_file.read_text().strip()
+        current = _compute_registry_hash()
+        if stored == current:
+            click.echo("\nRegistry hash: up to date")
+        else:
+            click.echo("\nRegistry hash: STALE (new models added since last eval)")
+            click.echo("  Run: deepr eval new --dry-run")
+    else:
+        click.echo("\nRegistry hash: not found (no auto-eval has run yet)")
+        click.echo("  Run: deepr eval new --dry-run")
+
+
 @evaluate.command("all")
 @click.option("--dry-run", is_flag=True, help="Only show plan + estimated cost.")
 @click.option("--quick", is_flag=True, help="Use smaller prompt set.")

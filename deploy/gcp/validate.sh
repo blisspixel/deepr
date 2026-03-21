@@ -49,11 +49,11 @@ if [ -n "$API_KEY" ]; then
     SUBMIT_RESPONSE=$(curl -s -X POST "$API_URL/jobs" \
         -H "Content-Type: application/json" \
         -H "X-Api-Key: $API_KEY" \
-        -d '{"prompt": "What is 2+2? Answer in one word.", "model": "grok-4-fast"}' 2>/dev/null || echo "{}")
+        -d '{"prompt": "What is 2+2? Answer in one word.", "model": "grok-4-1-fast-non-reasoning"}' 2>/dev/null || echo "{}")
 else
     SUBMIT_RESPONSE=$(curl -s -X POST "$API_URL/jobs" \
         -H "Content-Type: application/json" \
-        -d '{"prompt": "What is 2+2? Answer in one word.", "model": "grok-4-fast"}' 2>/dev/null || echo "{}")
+        -d '{"prompt": "What is 2+2? Answer in one word.", "model": "grok-4-1-fast-non-reasoning"}' 2>/dev/null || echo "{}")
 fi
 
 JOB_ID=$(echo "$SUBMIT_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('job_id',''))" 2>/dev/null || echo "")

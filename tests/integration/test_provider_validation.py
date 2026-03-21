@@ -82,7 +82,7 @@ async def test_grok_provider_basic():
 
     request = ResearchRequest(
         prompt="What are the latest developments from xAI in 2024?",
-        model="grok-4-fast",
+        model="grok-4-1-fast-non-reasoning",
         system_message="You are a helpful research assistant. Provide concise, accurate information.",
         tools=[ToolConfig(type="web_search_preview")],
         background=False,
@@ -182,7 +182,7 @@ async def test_grok_cost_tracking():
 
     request = ResearchRequest(
         prompt="What is 2+2?",  # Simple query for predictable cost
-        model="grok-4-fast",
+        model="grok-4-1-fast-non-reasoning",
         system_message="You are a helpful assistant.",
         tools=[],
         background=False,

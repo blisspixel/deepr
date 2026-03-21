@@ -363,8 +363,8 @@ class SecuritySettings:
 
 # Maps task types to (provider, model) tuples for optimal routing
 TASK_MODEL_MAP: dict[str, tuple[str, str]] = {
-    "quick_lookup": ("xai", "grok-4-fast"),
-    "fact_check": ("xai", "grok-4-fast"),
+    "quick_lookup": ("xai", "grok-4-1-fast-non-reasoning"),
+    "fact_check": ("xai", "grok-4-1-fast-non-reasoning"),
     "deep_research": ("openai", "o3-deep-research"),
     "synthesis": ("openai", "gpt-5.2"),
     "chat": ("openai", "gpt-5.2"),
@@ -415,7 +415,7 @@ class Settings:
 
     # Provider selection
     default_provider: str = "xai"
-    default_model: str = "grok-4-fast"
+    default_model: str = "grok-4-1-fast-non-reasoning"
     deep_research_provider: str = "openai"
     deep_research_model: str = "o3-deep-research"
 
@@ -534,8 +534,8 @@ class Settings:
         self._load_provider_from_env("openai", "OPENAI_API_KEY", "OPENAI_BASE_URL", "gpt-5.2")
         self._load_provider_from_env("anthropic", "ANTHROPIC_API_KEY", None, "claude-opus-4-5-20251101")
         self._load_provider_from_env("gemini", "GEMINI_API_KEY", None, "gemini-2.0-flash")
-        self._load_provider_from_env("grok", "XAI_API_KEY", None, "grok-4-fast")
-        self._load_provider_from_env("xai", "XAI_API_KEY", None, "grok-4-fast")
+        self._load_provider_from_env("grok", "XAI_API_KEY", None, "grok-4-1-fast-non-reasoning")
+        self._load_provider_from_env("xai", "XAI_API_KEY", None, "grok-4-1-fast-non-reasoning")
 
         # Azure (special handling)
         azure_key = os.getenv("AZURE_OPENAI_KEY")

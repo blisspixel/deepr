@@ -338,7 +338,7 @@ EVAL_PROMPTS = [
             "  openai/o3-deep-research:     $1,240  (62 queries, avg $20.00)\n"
             "  openai/gpt-5:                  $180  (1,200 queries, avg $0.15)\n"
             "  openai/gpt-4.1-mini:            $45  (4,500 queries, avg $0.01)\n"
-            "  xai/grok-4-fast:                $12  (1,200 queries, avg $0.01)\n"
+            "  xai/grok-4-1-fast-non-reasoning:                $12  (1,200 queries, avg $0.01)\n"
             "  gemini/gemini-2.5-flash:          $8  (4,000 queries, avg $0.002)\n"
             "  Total: $1,485\n"
             "```\n"
@@ -618,12 +618,15 @@ DEFAULT_MODELS = [
     "openai/gpt-4.1",  # 1M context ($0.04/query)
     "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
     "openai/o4-mini",  # Fast reasoning ($0.04/query)
+    # xAI flagship
+    "xai/grok-4-20-reasoning",  # xAI flagship reasoning ($0.10/query)
+    "xai/grok-4-20-non-reasoning",  # xAI flagship non-reasoning ($0.08/query)
     # Budget models
     "openai/gpt-5-mini",  # Budget reasoning ($0.03/query)
     "openai/gpt-4.1-mini",  # Cheap 1M context ($0.01/query)
     "openai/gpt-5-nano",  # Cheapest GPT-5 ($0.005/query)
     "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
-    "xai/grok-4-fast",  # Cheapest overall ($0.01/query)
+    "xai/grok-4-1-fast-non-reasoning",  # Cheapest overall ($0.01/query)
     "gemini/gemini-3-flash-preview",  # Newest gen, fast ($0.01/query)
     "gemini/gemini-3.1-flash-lite-preview",  # Lowest-cost Gemini 3.1
     "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
@@ -638,8 +641,9 @@ NEWS_MODELS = [
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
     # xAI (native web search)
+    "xai/grok-4-20-reasoning",
+    "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4-fast-reasoning",
     "xai/grok-4-1-fast-non-reasoning",
     # Gemini (Google grounding)
     "gemini/gemini-3.1-pro-preview",
@@ -668,8 +672,9 @@ ORCHESTRATED_RESEARCH_MODELS = [
     "gemini/gemini-2.5-pro",
     "gemini/gemini-3.1-flash-lite-preview",
     # xAI (Responses API + web_search)
+    "xai/grok-4-20-reasoning",
+    "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4-fast-reasoning",
     "xai/grok-4-1-fast-non-reasoning",
 ]
 
@@ -681,8 +686,9 @@ DOCS_MODELS = [
     "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-2.5-pro",
     "gemini/gemini-3.1-flash-lite-preview",
+    "xai/grok-4-20-reasoning",
+    "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4-fast-reasoning",
     "xai/grok-4-1-fast-non-reasoning",
 ]
 
@@ -775,6 +781,7 @@ def _is_thinking_model(model_key: str) -> bool:
         or model.startswith("o4")
         or model.startswith("gemini-2.5")
         or model.startswith("gemini-3")
+        or ("4-20" in model and "reasoning" in model)
     )
 
 
@@ -786,7 +793,7 @@ def estimate_cost(models: list[str], prompts: list[EvalPrompt], registry: dict) 
       News:     ~400 in, ~800 out (+500 thinking, web search adds ~20%)
       Research: ~2000 in, ~15000 out (deep research uses massive token budgets)
 
-    Models not in registry (e.g. grok-4-fast-reasoning) use a fallback estimate.
+    Models not in registry (e.g. grok-4-1-fast-reasoning) use a fallback estimate.
     """
     # Per-query fallback cost for models not in registry
     _FALLBACK_COST = {
@@ -1355,6 +1362,14 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
     return text, latency_ms, citations
 
 
+# Registry model names → actual API model IDs (where they differ)
+_API_MODEL_IDS = {
+    "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
+    "grok-4-20-non-reasoning": "grok-4.20-0309-non-reasoning",
+    "grok-4-20-multi-agent": "grok-4.20-multi-agent-0309",
+}
+
+
 def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat") -> tuple[str, int, list[dict]]:
     """Route a call to the right provider API. Returns (response_text, latency_ms, citations).
 
@@ -1362,6 +1377,7 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
     uses specialized API callers with web search and citation extraction.
     """
     provider, model = model_key.split("/", 1)
+    model = _API_MODEL_IDS.get(model, model)  # Translate registry name → API model ID
     env_var, base_url = _PROVIDER_CONFIG[provider]
     api_key = os.environ.get(env_var, "")
 
@@ -1881,7 +1897,7 @@ DOCS_JUDGE_WEIGHTS = {
 def pick_judge_model(models_being_tested: list[str], forced_judge: str | None) -> str | None:
     """Pick a judge model that isn't being tested.
 
-    Preference: gpt-4.1-mini > claude-haiku-4-5 > grok-4-fast > gemini-2.5-flash
+    Preference: gpt-4.1-mini > claude-haiku-4-5 > grok-4-1-fast-non-reasoning > gemini-2.5-flash
     """
     if forced_judge:
         return forced_judge
@@ -1890,7 +1906,7 @@ def pick_judge_model(models_being_tested: list[str], forced_judge: str | None) -
     candidates = [
         ("openai", "gpt-4.1-mini", "OPENAI_API_KEY"),
         ("anthropic", "claude-haiku-4-5", "ANTHROPIC_API_KEY"),
-        ("xai", "grok-4-fast", "XAI_API_KEY"),
+        ("xai", "grok-4-1-fast-non-reasoning", "XAI_API_KEY"),
         ("gemini", "gemini-2.5-flash", "GEMINI_API_KEY"),
     ]
 
@@ -2330,6 +2346,11 @@ def emit_routing_config(summaries: list[ModelSummary], results: list[EvalResult]
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "routing_preferences.json"
 
+    # Filter to models still in registry (merged data may include removed models)
+    registry = load_registry()
+    summaries = [s for s in summaries if s.model_key in registry]
+    results = [r for r in results if r.model_key in registry]
+
     task_types = sorted({r.task_type for r in results})
     preferences = {}
     for tt in task_types:
@@ -2416,7 +2437,8 @@ def run_validation(tier: str = "chat"):
         test_models = [
             ("openai", "openai/gpt-4.1-mini"),
             ("openai", "openai/gpt-5-mini"),
-            ("xai", "xai/grok-4-fast"),
+            ("xai", "xai/grok-4-20-non-reasoning"),
+            ("xai", "xai/grok-4-1-fast-non-reasoning"),
             ("gemini", "gemini/gemini-2.5-flash"),
             ("gemini", "gemini/gemini-2.5-pro"),
             ("gemini", "gemini/gemini-3-flash-preview"),
@@ -2452,8 +2474,8 @@ def run_validation(tier: str = "chat"):
     if tier in ("news", "all"):
         news_prompt = "What day is it today? Include the date."
         news_tests = [
+            ("xai", "xai/grok-4-20-reasoning"),
             ("xai", "xai/grok-4-1-fast-reasoning"),
-            ("xai", "xai/grok-4-fast-reasoning"),
             ("gemini", "gemini/gemini-3-flash-preview"),
             ("gemini", "gemini/gemini-3.1-pro-preview"),
             ("gemini", "gemini/gemini-2.5-flash"),
@@ -2521,7 +2543,8 @@ def run_validation(tier: str = "chat"):
         docs_tests = [
             ("openai", "openai/gpt-5-mini"),
             ("gemini", "gemini/gemini-3-flash-preview"),
-            ("xai", "xai/grok-4-fast-reasoning"),
+            ("xai", "xai/grok-4-20-reasoning"),
+            ("xai", "xai/grok-4-1-fast-reasoning"),
         ]
 
         print()
