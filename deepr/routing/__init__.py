@@ -12,7 +12,7 @@ Usage:
 
     router = AutoModeRouter()
     decision = router.route("What is Python?")
-    # → grok-4-fast ($0.01)
+    # → grok-4-1-fast-non-reasoning ($0.01)
 
     decision = router.route("Analyze Tesla's competitive position")
     # → o3-deep-research ($0.50)

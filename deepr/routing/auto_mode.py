@@ -8,12 +8,22 @@ When benchmark results exist (data/benchmarks/benchmark_*.json), the router
 uses per-task-type quality rankings to select the best model whose provider
 has an API key configured.
 
+Models added to the registry without benchmark data receive provisional
+quality scores derived from pricing tier and specializations, so they
+participate in routing immediately. Background auto-eval refines these
+estimates when new models are detected.
+
 This enables processing 20+ queries for $1-2 instead of $20-40.
 """
 
+import hashlib
 import json
 import logging
 import os
+import subprocess
+import sys
+import threading
+import time as _time
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -146,10 +156,14 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
         return None
 
     # Merge scores across tiers for the same model (take best score per task type)
+    # Only include models that are still in the registry (benchmark data may
+    # reference removed/superseded models from prior runs).
     model_scores: dict[str, dict[str, float]] = defaultdict(dict)
     for r in rankings_data:
         model_key = r.get("model_key", "")
         if "/" not in model_key:
+            continue
+        if model_key not in MODEL_CAPABILITIES:
             continue
         for task_type, score in r.get("scores_by_type", {}).items():
             prev = model_scores[model_key].get(task_type, 0)
@@ -195,8 +209,246 @@ def _load_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
     return rankings
 
 
-# Load once at module import
-_BENCHMARK_RANKINGS: dict[str, list[_RankingEntry]] | None = _load_benchmark_rankings()
+# ─── Provisional Rankings ─────────────────────────────────────────────────────
+# Models without benchmark data get synthetic quality scores from registry
+# metadata so they participate in routing immediately.
+
+# Map registry specializations → benchmark task types
+_SPEC_TO_TASK_TYPES: dict[str, list[str]] = {
+    "speed": ["quick_lookup"],
+    "factual": ["quick_lookup", "knowledge_base"],
+    "reasoning": ["reasoning", "knowledge_base"],
+    "research": ["comprehensive_research", "synthesis"],
+    "analysis": ["document_analysis", "synthesis"],
+    "synthesis": ["synthesis", "comprehensive_research"],
+    "coding": ["technical_docs"],
+    "news": ["quick_lookup"],
+    "general": ["quick_lookup", "knowledge_base"],
+    "high_throughput": ["quick_lookup"],
+    "agentic": ["comprehensive_research", "synthesis"],
+    "cost": ["quick_lookup"],
+    "developer_workflows": ["technical_docs"],
+}
+
+
+def _estimate_quality_from_cost(cap) -> float:
+    """Estimate provisional quality from pricing tier (0.50-0.78).
+
+    Higher-priced models are assumed more capable. Capped at 0.78 so real
+    benchmark scores (which can reach 1.0) always take priority.
+    """
+    output_cost = cap.output_cost_per_1m
+    if output_cost >= 10.0:
+        return 0.78  # Frontier (Opus, GPT-5, deep research)
+    if output_cost >= 4.0:
+        return 0.72  # Strong (o3, Sonnet, Gemini Pro, Grok 4.20)
+    if output_cost >= 1.5:
+        return 0.65  # Mid (Flash, grok-code-fast)
+    if output_cost >= 0.4:
+        return 0.58  # Budget (nano, flash-lite)
+    return 0.50  # Ultra-cheap
+
+
+def _enrich_with_provisional(
+    real_rankings: dict[str, list[_RankingEntry]] | None,
+) -> dict[str, list[_RankingEntry]] | None:
+    """Merge provisional entries for unbenchmarked models into real rankings.
+
+    Models already in real_rankings are skipped. Provisional quality is capped
+    at 0.78 so verified benchmark winners always sort higher.
+    """
+    rankings: dict[str, list[_RankingEntry]] = {}
+    if real_rankings:
+        rankings = {k: list(v) for k, v in real_rankings.items()}
+
+    # Collect models that already have real benchmark data
+    benchmarked: set[str] = set()
+    if real_rankings:
+        for entries in real_rankings.values():
+            for provider, model, _q, _c in entries:
+                benchmarked.add(f"{provider}/{model}")
+
+    # Generate provisional entries for unbenchmarked registry models
+    added = 0
+    for model_key, cap in MODEL_CAPABILITIES.items():
+        if model_key in benchmarked:
+            continue
+
+        quality = _estimate_quality_from_cost(cap)
+        provider, model = model_key.split("/", 1)
+        entry: _RankingEntry = (provider, model, quality, cap.cost_per_query)
+
+        # Map specializations to task types
+        task_types: set[str] = set()
+        for spec in cap.specializations:
+            task_types.update(_SPEC_TO_TASK_TYPES.get(spec, []))
+        task_types.add("quick_lookup")  # Every model gets at least quick_lookup
+
+        for tt in task_types:
+            rankings.setdefault(tt, []).append(entry)
+        rankings.setdefault("_overall", []).append(entry)
+        added += 1
+
+    if added:
+        _logger.debug("Added %d provisional ranking entries for unbenchmarked models", added)
+
+    # Re-sort all lists: quality desc, cost asc
+    for tt in rankings:
+        rankings[tt].sort(key=lambda r: (-r[2], r[3]))
+
+    return rankings if rankings else None
+
+
+# ─── Hot-Reload Cache ─────────────────────────────────────────────────────────
+# Rankings are served through a function with mtime-based invalidation instead
+# of a module-level constant, so background eval results are picked up live.
+
+_rankings_cache: dict[str, list[_RankingEntry]] | None = None
+_rankings_mtime: float = 0.0
+_rankings_check_ts: float = 0.0
+_RANKINGS_CHECK_INTERVAL = 5.0  # seconds between filesystem stat calls
+
+
+def _get_benchmark_rankings() -> dict[str, list[_RankingEntry]] | None:
+    """Return benchmark rankings, reloading from disk if the file changed.
+
+    Checks file mtime at most every 5 seconds. Enriches with provisional
+    entries for any registry models without benchmark data.
+    """
+    global _rankings_cache, _rankings_mtime, _rankings_check_ts
+
+    now = _time.monotonic()
+    if now - _rankings_check_ts < _RANKINGS_CHECK_INTERVAL and _rankings_cache is not None:
+        return _rankings_cache
+
+    _rankings_check_ts = now
+
+    bench_dir = Path("data/benchmarks")
+    if not bench_dir.exists():
+        if _rankings_cache is None:
+            _rankings_cache = _enrich_with_provisional(None)
+        return _rankings_cache
+
+    files = sorted(bench_dir.glob("benchmark_*.json"))
+    if not files:
+        if _rankings_cache is None:
+            _rankings_cache = _enrich_with_provisional(None)
+        return _rankings_cache
+
+    latest = files[-1]
+    try:
+        mtime = latest.stat().st_mtime
+    except OSError:
+        return _rankings_cache
+
+    if mtime != _rankings_mtime or _rankings_cache is None:
+        _rankings_mtime = mtime
+        loaded = _load_benchmark_rankings()
+        _rankings_cache = _enrich_with_provisional(loaded)
+        _logger.info("Reloaded benchmark rankings from %s", latest.name)
+
+    return _rankings_cache
+
+
+# ─── Background Auto-Eval ─────────────────────────────────────────────────────
+# When new models are added to the registry, automatically run quick evals
+# in the background so routing data stays current.
+
+_auto_eval_started = False
+_auto_eval_lock = threading.Lock()
+
+
+def _compute_registry_hash() -> str:
+    """Compute a stable hash of all registry model keys."""
+    keys = sorted(MODEL_CAPABILITIES.keys())
+    return hashlib.md5("|".join(keys).encode()).hexdigest()
+
+
+def trigger_background_eval_if_needed(
+    cost_cap: float = 1.0,
+    enabled: bool | None = None,
+) -> bool:
+    """Check for new models and start background eval if gaps detected.
+
+    Compares a hash of registry model keys against a stored hash file.
+    If they differ, spawns a daemon thread running ``deepr eval new --quick``.
+
+    Args:
+        cost_cap: Maximum estimated cost for the background eval run.
+        enabled: Override for DEEPR_AUTO_EVAL env var. None = check env.
+
+    Returns:
+        True if a background eval was started, False otherwise.
+    """
+    global _auto_eval_started
+
+    if enabled is None:
+        enabled = os.environ.get("DEEPR_AUTO_EVAL", "true").lower() not in (
+            "false",
+            "0",
+            "no",
+            "off",
+        )
+    if not enabled:
+        return False
+
+    with _auto_eval_lock:
+        if _auto_eval_started:
+            return False
+        _auto_eval_started = True
+
+    hash_file = Path("data/benchmarks/.registry_hash")
+    current_hash = _compute_registry_hash()
+
+    try:
+        if hash_file.exists() and hash_file.read_text().strip() == current_hash:
+            return False
+    except OSError:
+        pass
+
+    _logger.info(
+        "New models detected in registry, starting background eval (cost cap: $%.2f)",
+        cost_cap,
+    )
+
+    def _run_eval():
+        try:
+            script = Path(__file__).resolve().parents[1].parent / "scripts" / "benchmark_models.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--new-models",
+                    "--tier",
+                    "all",
+                    "--quick",
+                    "--save",
+                    "--max-estimated-cost",
+                    str(cost_cap),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if result.returncode == 0:
+                hash_file.parent.mkdir(parents=True, exist_ok=True)
+                hash_file.write_text(current_hash)
+                _logger.info("Background eval completed successfully")
+            else:
+                _logger.warning(
+                    "Background eval failed (rc=%d): %s",
+                    result.returncode,
+                    result.stderr[:200],
+                )
+        except subprocess.TimeoutExpired:
+            _logger.warning("Background eval timed out after 10 minutes")
+        except Exception as exc:
+            _logger.warning("Background eval error: %s", exc)
+
+    thread = threading.Thread(target=_run_eval, daemon=True, name="deepr-auto-eval")
+    thread.start()
+    return True
+
 
 # Map (complexity, task_type) to benchmark task types
 _TASK_MAP = {
@@ -246,6 +498,9 @@ class AutoModeRouter:
 
         # Cache which providers have API keys configured
         self._available_providers = {p for p in _PROVIDER_KEY_ENV if _has_api_key(p)}
+
+        # Trigger background eval for new/unbenchmarked models (non-blocking)
+        trigger_background_eval_if_needed()
 
     def _is_provider_usable(self, provider: str) -> bool:
         """Check if a provider has an API key configured.
@@ -399,10 +654,10 @@ class AutoModeRouter:
         Returns:
             (provider, model, cost, quality_score) or None
         """
-        if not _BENCHMARK_RANKINGS:
+        if not _get_benchmark_rankings():
             return None
 
-        ranked = _BENCHMARK_RANKINGS.get(task_type)
+        ranked = _get_benchmark_rankings().get(task_type)
         if not ranked:
             return None
 
@@ -522,12 +777,12 @@ class AutoModeRouter:
 
         # Try grok as universal fallback
         if self._is_provider_usable("xai"):
-            if self._provider_router.is_circuit_available("xai", "grok-4-fast"):
+            if self._provider_router.is_circuit_available("xai", "grok-4-1-fast-non-reasoning"):
                 return (
                     "xai",
-                    "grok-4-fast",
+                    "grok-4-1-fast-non-reasoning",
                     0.01,
-                    "Fallback to grok-4-fast (primary provider unavailable)",
+                    "Fallback to grok-4-1-fast-non-reasoning (primary provider unavailable)",
                 )
 
         # Last resort: return openai gpt-4.1-mini even if circuit might be open

@@ -388,17 +388,25 @@ class AutonomousProviderRouter:
     DEFAULT_FALLBACK_CHAIN = [
         ("openai", "o3-deep-research"),
         ("openai", "o4-mini-deep-research"),
-        ("xai", "grok-4-fast"),
+        ("xai", "grok-4-1-fast-non-reasoning"),
         ("gemini", "gemini-2.5-flash"),
     ]
 
     # Task-specific preferences (only supported providers)
     TASK_PREFERENCES = {
         "research": [("openai", "o3-deep-research"), ("openai", "o4-mini-deep-research")],
-        "chat": [("openai", "o4-mini-deep-research"), ("xai", "grok-4-fast"), ("anthropic", "claude-sonnet-4-5")],
-        "synthesis": [("openai", "o4-mini-deep-research"), ("xai", "grok-4-fast"), ("anthropic", "claude-sonnet-4-5")],
-        "fact_check": [("xai", "grok-4-fast"), ("openai", "o4-mini-deep-research")],
-        "quick": [("xai", "grok-4-fast"), ("openai", "o4-mini-deep-research")],
+        "chat": [
+            ("openai", "o4-mini-deep-research"),
+            ("xai", "grok-4-1-fast-non-reasoning"),
+            ("anthropic", "claude-sonnet-4-5"),
+        ],
+        "synthesis": [
+            ("openai", "o4-mini-deep-research"),
+            ("xai", "grok-4-1-fast-non-reasoning"),
+            ("anthropic", "claude-sonnet-4-5"),
+        ],
+        "fact_check": [("xai", "grok-4-1-fast-non-reasoning"), ("openai", "o4-mini-deep-research")],
+        "quick": [("xai", "grok-4-1-fast-non-reasoning"), ("openai", "o4-mini-deep-research")],
     }
 
     # Auto-disable settings

@@ -116,7 +116,7 @@ This is expected behavior - Deepr prevents overspending.
 
 Solutions:
 - Increase budget: `deepr run --budget 10.00 "query"`
-- Use cheaper model: `deepr run --model grok-4-fast "query"`
+- Use cheaper model: `deepr run --model grok-4-1-fast-non-reasoning "query"`
 - Reduce scope of research
 
 ### Unexpected High Costs

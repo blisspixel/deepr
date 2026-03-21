@@ -156,7 +156,7 @@ Use MCP's `elicitation/create` to request structured input from the user, revers
 | Decision | Effect |
 |----------|--------|
 | `approve_override` | Continue with original plan at higher cost |
-| `optimize_for_cost` | Switch to cheaper models (e.g., grok-4-fast) and reduce iterations |
+| `optimize_for_cost` | Switch to cheaper models (e.g., grok-4-1-fast-non-reasoning) and reduce iterations |
 | `abort` | Cancel and return partial results |
 
 See `references/cost_guidance.md` for detailed elicitation handling and model switching chain.

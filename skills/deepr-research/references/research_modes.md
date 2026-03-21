@@ -7,7 +7,7 @@ This document details the research modes available in Deepr and when to use each
 | Mode | Model | Cost | Time | Best For |
 |------|-------|------|------|----------|
 | Quick Lookup | Web Search | FREE | <5 sec | Simple facts, definitions |
-| Standard | grok-4-fast | $0.001-0.01 | 30-60 sec | Current info, moderate analysis |
+| Standard | grok-4-1-fast-non-reasoning | $0.001-0.01 | 30-60 sec | Current info, moderate analysis |
 | Deep Mini | o4-mini-deep-research | $2.00 | 5-10 min | Comprehensive analysis |
 | Deep Full | o3-deep-research | $0.50 | 10-20 min | Critical decisions, novel problems |
 | Agentic | Multi-model orchestration | $1-10 | 15-60 min | Multi-step autonomous research |
@@ -60,7 +60,7 @@ Is it a simple factual question?
 - "Define machine learning"
 - "Who founded Tesla?"
 
-### Standard Research (grok-4-fast)
+### Standard Research (grok-4-1-fast-non-reasoning)
 
 **When to use:**
 - Current events and recent developments

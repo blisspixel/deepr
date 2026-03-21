@@ -42,7 +42,7 @@ _ALLOWED_MODELS = {
     "gpt-5.2",
     "gemini-2.5-flash",
     "grok-4",
-    "grok-4-fast",
+    "grok-4-1-fast-non-reasoning",
     "claude-sonnet-4-5-20250929",
 }
 

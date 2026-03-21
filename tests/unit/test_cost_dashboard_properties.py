@@ -37,7 +37,16 @@ providers = st.sampled_from(["openai", "anthropic", "xai", "google", "azure", "l
 
 # Valid model names
 models = st.sampled_from(
-    ["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "claude-3-haiku", "grok-4", "grok-4-fast", "gemini-pro", ""]
+    [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "claude-3-5-sonnet",
+        "claude-3-haiku",
+        "grok-4",
+        "grok-4-1-fast-non-reasoning",
+        "gemini-pro",
+        "",
+    ]
 )
 
 # Non-negative costs (realistic range)
