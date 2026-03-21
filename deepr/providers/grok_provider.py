@@ -1,8 +1,10 @@
 """xAI Grok provider implementation for research.
 
 Grok uses chat completions API (OpenAI-compatible) with:
-- Reasoning models (grok-4, grok-4-fast-reasoning)
-- Server-side tool calling (web_search, x_search, code_interpreter)
+- Grok 4.20 flagship models (reasoning, non-reasoning, multi-agent)
+- Grok 4.1 Fast budget models (reasoning, non-reasoning)
+- Full agentic tool calling (web_search, x_search, code_interpreter)
+- Multi-agent mode (4/16 parallel agents) via Responses API
 - Document collections for file upload
 """
 
@@ -59,31 +61,41 @@ class GrokProvider(DeepResearchProvider):
 
         # Grok model mappings
         self.model_mappings = {
-            "grok-4": "grok-4",
-            "grok-4-fast": "grok-4-fast-non-reasoning",  # Default to non-reasoning for speed
-            "grok-4-fast-reasoning": "grok-4-fast-reasoning",
+            # Grok 4.20 flagship (March 2026)
+            "grok-4.20-0309-reasoning": "grok-4.20-0309-reasoning",
+            "grok-4.20-0309-non-reasoning": "grok-4.20-0309-non-reasoning",
+            "grok-4.20-multi-agent-0309": "grok-4.20-multi-agent-0309",
+            "grok-4.20-reasoning": "grok-4.20-0309-reasoning",
+            "grok-4.20-non-reasoning": "grok-4.20-0309-non-reasoning",
+            "grok-4.20-multi-agent": "grok-4.20-multi-agent-0309",
+            "grok-4.20": "grok-4.20-0309-non-reasoning",
+            # Grok 4.1 Fast budget tier
             "grok-4-1-fast-reasoning": "grok-4-1-fast-reasoning",
-            "grok-4-fast-non-reasoning": "grok-4-fast-non-reasoning",
             "grok-4-1-fast-non-reasoning": "grok-4-1-fast-non-reasoning",
+            # Legacy / other
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
-            # Aliases (prefer non-reasoning for speed, use explicit -reasoning if needed)
-            "grok": "grok-4-fast-non-reasoning",
-            "grok-fast": "grok-4-fast-non-reasoning",
+            # Aliases
+            "grok": "grok-4.20-0309-non-reasoning",  # Flagship default
+            "grok-fast": "grok-4-1-fast-non-reasoning",  # Cheap tier
+            "grok-flagship": "grok-4.20-0309-reasoning",  # Explicit flagship
             "grok-mini": "grok-3-mini",
         }
 
-        # Pricing (per million tokens) -- grok-4-fast from registry, rest local
+        # Pricing (per million tokens) -- from registry where possible
         from .registry import get_token_pricing
 
-        _grok_fast = get_token_pricing("grok-4-fast")
+        _grok_4_1_fast = get_token_pricing("grok-4-1-fast-non-reasoning")
         self.pricing = {
-            "grok-4": {"input": 3.00, "output": 15.00},
-            "grok-4-fast-reasoning": _grok_fast,
-            "grok-4-1-fast-reasoning": _grok_fast,
-            "grok-4-fast-non-reasoning": _grok_fast,
-            "grok-4-1-fast-non-reasoning": _grok_fast,
+            # Grok 4.20 flagship ($2/$6 per MTok)
+            "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
+            "grok-4.20-0309-non-reasoning": {"input": 2.00, "output": 6.00},
+            "grok-4.20-multi-agent-0309": {"input": 2.00, "output": 6.00},
+            # Grok 4.1 Fast budget ($0.20/$0.50 per MTok)
+            "grok-4-1-fast-reasoning": _grok_4_1_fast,
+            "grok-4-1-fast-non-reasoning": _grok_4_1_fast,
+            # Other
             "grok-3": {"input": 3.00, "output": 15.00},
             "grok-3-mini": {"input": 0.30, "output": 0.50},
             "grok-code-fast-1": {"input": 0.20, "output": 1.50},
@@ -255,7 +267,7 @@ class GrokProvider(DeepResearchProvider):
     ) -> float:
         """Calculate cost for Grok models including reasoning tokens."""
         # Get pricing for model
-        prices = self.pricing.get(model, self.pricing["grok-4-fast-reasoning"])
+        prices = self.pricing.get(model, self.pricing["grok-4-1-fast-reasoning"])
 
         # Input cost (prompt tokens)
         input_cost = (prompt_tokens / 1_000_000) * prices["input"]
@@ -296,32 +308,32 @@ class GrokProvider(DeepResearchProvider):
         raise NotImplementedError("Grok vector store not yet implemented")
 
 
-# Grok's Capabilities:
+# Grok's Capabilities (March 2026):
 #
-# 1. Reasoning Models (grok-4, grok-4-fast-reasoning)
-#    - Extended thinking for complex problems
-#    - reasoning_tokens tracked separately in usage
-#    - No reasoning_effort parameter (always full reasoning)
+# 1. Grok 4.20 Flagship (grok-4.20-0309-reasoning/non-reasoning)
+#    - Lowest hallucination rate, strict prompt adherence
+#    - Full agentic tool calling, native vision
+#    - $2/$6 per MTok (input/output), 2M context, 607 RPM
 #
-# 2. Server-Side Tools (autonomous execution)
-#    - live_search: Internet search + page browsing (formerly web_search)
+# 2. Grok 4.20 Multi-Agent (grok-4.20-multi-agent-0309)
+#    - 4 or 16 parallel agents for deep research
+#    - Server-side orchestration via Responses API
+#    - Same pricing as flagship ($2/$6 per MTok)
+#
+# 3. Grok 4.1 Fast Budget (grok-4-1-fast-reasoning/non-reasoning)
+#    - $0.20/$0.50 per MTok — cheapest option
+#    - 2M context, good for high-volume factual tasks
+#
+# 4. Server-Side Tools (autonomous execution)
+#    - web_search: Internet search + page browsing
 #    - x_search: X posts, users, threads
-#    - code_interpreter: Python execution
-#    - Agent autonomously decides when/how to use tools
-#
-# 3. Document Collections (file upload)
-#    - Upload files to collections
-#    - Query across documents
-#    - $2.50 per 1k requests
-#
-# 4. Vision Models (grok-2-vision)
-#    - Image understanding
-#    - Multimodal analysis
+#    - code_interpreter: Python sandbox
+#    - collections_search: Uploaded docs/RAG
 #
 # 5. Cost Structure
 #    - Token-based pricing
 #    - Tool invocation costs ($10/1k calls for search/code)
 #    - Reasoning tokens count as output tokens
 #
-# Note: Grok 4 is always-on reasoning (no non-reasoning mode)
-# Some parameters not supported: presencePenalty, frequencyPenalty, stop
+# Unsupported params: logprobs (ignored on 4.20),
+# presence_penalty/frequency_penalty/stop (reasoning models)

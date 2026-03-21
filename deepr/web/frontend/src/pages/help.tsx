@@ -52,8 +52,8 @@ const API_KEYS: ProviderKey[] = [
     provider: 'xAI (Grok)',
     envVar: 'XAI_API_KEY',
     url: 'https://console.x.ai/',
-    description: 'Grok 4 with live web search and news citations',
-    models: ['grok-4-fast', 'grok-4-fast-reasoning', 'grok-4-1-fast-reasoning'],
+    description: 'Grok 4.20 flagship + 4.1 Fast budget tier with live web search',
+    models: ['grok-4.20-reasoning', 'grok-4.20-non-reasoning', 'grok-4.20-multi-agent', 'grok-4-1-fast-reasoning', 'grok-4-1-fast-non-reasoning'],
     free: false,
   },
 ]

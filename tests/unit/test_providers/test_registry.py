@@ -21,7 +21,7 @@ class TestModelCapabilities:
         assert len(MODEL_CAPABILITIES) > 0
         assert "openai/gpt-5.4" in MODEL_CAPABILITIES
         assert "openai/gpt-5.4-pro" in MODEL_CAPABILITIES
-        assert "xai/grok-4-fast" in MODEL_CAPABILITIES
+        assert "xai/grok-4-20-reasoning" in MODEL_CAPABILITIES
 
     def test_all_capabilities_valid(self):
         """Test that all model capabilities have required fields."""
@@ -114,7 +114,7 @@ class TestModelCapabilities:
 
     def test_xai_models(self):
         """Test xAI (Grok) model capabilities."""
-        grok = get_model_capability("xai", "grok-4-fast")
+        grok = get_model_capability("xai", "grok-4-1-fast-non-reasoning")
         assert grok is not None
         assert "speed" in grok.specializations
         assert grok.cost_per_query < 0.05  # Should be very cheap
@@ -167,7 +167,7 @@ class TestModelCapabilities:
         cheapest = get_cheapest_model()
         fastest = get_fastest_model()
 
-        # Cheapest and fastest might be the same model (grok-4-fast)
+        # Cheapest and fastest might be the same model (grok-4-1-fast-non-reasoning)
         # But deep research should be expensive and slow
         deep_research = get_model_capability("openai", "o4-mini-deep-research")
 

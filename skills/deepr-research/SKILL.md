@@ -49,7 +49,7 @@ You have access to Deepr — the same deep research APIs behind ChatGPT and Gemi
 | Multi-step autonomous investigation | Agentic | $1-10 | 15-60 min |
 | Unsure of complexity | Auto | varies | varies |
 
-**When in doubt, use auto mode.** It analyzes query complexity and routes to the cheapest sufficient model — simple questions go to grok-4-fast ($0.01) instead of o3-deep-research ($0.50). This saves 10-20x on costs.
+**When in doubt, use auto mode.** It analyzes query complexity and routes to the cheapest sufficient model — simple questions go to grok-4-1-fast-non-reasoning ($0.01) instead of o3-deep-research ($0.50). This saves 10-20x on costs.
 
 ```
 Can I answer this confidently from training data?

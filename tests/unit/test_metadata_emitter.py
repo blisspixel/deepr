@@ -106,7 +106,7 @@ class TestTaskMetadata:
             task_id="task-005",
             task_type="fact_check",
             prompt="Is the sky blue?",
-            model="grok-4-fast",
+            model="grok-4-1-fast-non-reasoning",
             provider="xai",
             tokens_input=50,
             tokens_output=100,
@@ -121,7 +121,7 @@ class TestTaskMetadata:
         assert data["task_id"] == "task-005"
         assert data["task_type"] == "fact_check"
         assert data["prompt"] == "Is the sky blue?"
-        assert data["model"] == "grok-4-fast"
+        assert data["model"] == "grok-4-1-fast-non-reasoning"
         assert data["provider"] == "xai"
         assert data["tokens_input"] == 50
         assert data["tokens_output"] == 100

@@ -44,7 +44,7 @@ class ProviderConfig(BaseModel):
     )
 
     # Model/Deployment Mappings
-    default_model: str = Field(default="grok-4-fast", description="Default model to use")
+    default_model: str = Field(default="grok-4-1-fast-non-reasoning", description="Default model to use")
     model_mappings: dict[str, str] = Field(
         default_factory=dict, description="Model key to deployment name mappings (Azure)"
     )
@@ -57,8 +57,8 @@ class ProviderConfig(BaseModel):
     # Task-specific model mappings
     # Maps task types to (provider, model) tuples
     TASK_MODEL_MAP: dict[str, tuple] = {
-        "quick_lookup": ("xai", "grok-4-fast"),  # Fast, cheap fact checks
-        "fact_check": ("xai", "grok-4-fast"),  # Fact verification
+        "quick_lookup": ("xai", "grok-4-1-fast-non-reasoning"),  # Fast, cheap fact checks
+        "fact_check": ("xai", "grok-4-1-fast-non-reasoning"),  # Fact verification
         "deep_research": ("openai", "o3-deep-research"),  # Deep research (BEST model)
         "synthesis": ("openai", "gpt-5.2"),  # Knowledge synthesis
         "chat": ("openai", "gpt-5.2"),  # Expert chat
@@ -155,7 +155,11 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_default_model(cls, v: Any) -> str:
         """Load default model from environment."""
-        return os.getenv("DEEPR_DEFAULT_MODEL", v) if v else os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-fast")
+        return (
+            os.getenv("DEEPR_DEFAULT_MODEL", v)
+            if v
+            else os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-1-fast-non-reasoning")
+        )
 
     @field_validator("deep_research_provider", mode="before")
     @classmethod
@@ -279,7 +283,7 @@ class ExpertConfig(BaseModel):
         description="Average cost per deep research topic (CAMPAIGN mode: o4-mini-deep-research / Gemini deep research)",
     )
     quick_research_cost: float = Field(
-        default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4-fast)"
+        default=0.002, description="Average cost per quick research topic (FOCUS mode: grok-4-1-fast-non-reasoning)"
     )
 
     # Synthesis

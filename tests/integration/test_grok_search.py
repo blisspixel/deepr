@@ -26,7 +26,7 @@ async def test_grok():
     client = Client(api_key=xai_key, timeout=60)
 
     chat = client.chat.create(
-        model="grok-4-fast",
+        model="grok-4-1-fast-non-reasoning",
         tools=[
             web_search(),
             x_search(),
@@ -47,7 +47,7 @@ async def test_grok():
         for url in response.citations[:5]:
             print(f"  - {url}")
 
-    print("\n\nModel used: grok-4-fast")
+    print("\n\nModel used: grok-4-1-fast-non-reasoning")
     print("SUCCESS: Found real information about Microsoft Agent 365!")
 
 

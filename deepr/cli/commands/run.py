@@ -276,7 +276,7 @@ def focus(
         deepr run focus "Latest quantum computing trends" -m o3-deep-research
         deepr run focus "Company analysis" --upload data.csv --limit 5.00
         deepr run focus "Query" --provider gemini -m gemini-2.5-flash
-        deepr run focus "Latest from xAI" --provider grok -m grok-4-fast
+        deepr run focus "Latest from xAI" --provider grok -m grok-4-1-fast-non-reasoning
         deepr run focus "AI trends" --explain --timeline
     """
     trace_flags = TraceFlags(explain=explain, timeline=timeline, full_trace=full_trace)

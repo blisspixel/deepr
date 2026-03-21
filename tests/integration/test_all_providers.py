@@ -147,7 +147,7 @@ async def test_grok_provider_basic():
 
     request = ResearchRequest(
         prompt="What is Python? Provide a one-sentence answer.",
-        model="grok-4-fast",
+        model="grok-4-1-fast-non-reasoning",
         system_message="You are a helpful assistant.",
         tools=[],
         background=False,
@@ -224,7 +224,7 @@ async def test_all_providers_cost_tracking():
     if os.getenv("GEMINI_API_KEY"):
         providers_to_test.append(("Gemini", GeminiProvider(), "gemini-2.5-flash", 60))
     if os.getenv("XAI_API_KEY"):
-        providers_to_test.append(("Grok", GrokProvider(), "grok-4-fast", 60))
+        providers_to_test.append(("Grok", GrokProvider(), "grok-4-1-fast-non-reasoning", 60))
 
     if not providers_to_test:
         pytest.skip("No API keys configured for testing")
@@ -274,7 +274,7 @@ async def test_provider_response_format_consistency():
     if os.getenv("GEMINI_API_KEY"):
         providers_to_test.append(("Gemini", GeminiProvider(), "gemini-2.5-flash"))
     if os.getenv("XAI_API_KEY"):
-        providers_to_test.append(("Grok", GrokProvider(), "grok-4-fast"))
+        providers_to_test.append(("Grok", GrokProvider(), "grok-4-1-fast-non-reasoning"))
 
     if not providers_to_test:
         pytest.skip("No immediate-completion providers configured")

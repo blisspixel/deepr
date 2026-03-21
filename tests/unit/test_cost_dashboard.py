@@ -100,7 +100,7 @@ class TestCostEntry:
             operation="fact_check",
             provider="xai",
             cost=0.02,
-            model="grok-4-fast",
+            model="grok-4-1-fast-non-reasoning",
             tokens_input=100,
             tokens_output=200,
             task_id="task-002",
@@ -112,7 +112,7 @@ class TestCostEntry:
         assert data["operation"] == "fact_check"
         assert data["provider"] == "xai"
         assert data["cost"] == 0.02
-        assert data["model"] == "grok-4-fast"
+        assert data["model"] == "grok-4-1-fast-non-reasoning"
         assert data["tokens_input"] == 100
         assert data["tokens_output"] == 200
         assert data["task_id"] == "task-002"

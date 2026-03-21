@@ -306,7 +306,7 @@ class TestCostOptimizer:
 
     def test_suggest_cheaper_model(self, optimizer):
         """suggest_cheaper_model should find cheaper alternative."""
-        # o4-mini costs $3/M tokens, grok-4-fast costs $0.60/M
+        # o4-mini costs $3/M tokens, grok-4-1-fast-non-reasoning costs $0.60/M
         cheaper = optimizer.suggest_cheaper_model(
             current_model="o4-mini", target_budget=1.00, estimated_tokens=1_000_000
         )
@@ -401,7 +401,7 @@ class TestPropertyBased:
         assert decision.value == decision_str
 
     @given(
-        current_model=st.sampled_from(["o3", "o4-mini", "grok-4-fast"]),
+        current_model=st.sampled_from(["o3", "o4-mini", "grok-4-1-fast-non-reasoning"]),
         target_budget=st.floats(min_value=0.1, max_value=10.0),
         tokens=st.integers(min_value=100_000, max_value=5_000_000),
     )

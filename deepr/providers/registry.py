@@ -255,27 +255,72 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         output_cost_per_1m=4.40,
     ),
     # xAI Models (Grok)
-    "xai/grok-4-fast": ModelCapability(
+    # Grok 4.20 — Flagship (March 2026)
+    "xai/grok-4-20-reasoning": ModelCapability(
         provider="xai",
-        model="grok-4-fast",
-        cost_per_query=0.01,
-        latency_ms=1000,
-        context_window=128_000,
-        specializations=["speed", "factual", "news"],
+        model="grok-4-20-reasoning",
+        cost_per_query=0.10,
+        latency_ms=3000,
+        context_window=2_000_000,
+        specializations=["reasoning", "analysis", "synthesis", "coding", "factual"],
         strengths=[
-            "Very fast responses",
-            "Very cheap ($0.01)",
-            "Good for simple factual queries",
-            "Real-time information access",
+            "xAI flagship model (March 2026)",
+            "Lowest hallucination rate across benchmarks",
+            "Strict prompt adherence",
+            "Full agentic tool calling (web, X, code interpreter)",
+            "Native vision support",
+            "2M token context window",
         ],
         weaknesses=[
-            "Less capable at complex reasoning",
-            "Not ideal for multi-step analysis",
-            "Lower quality for strategic work",
+            "10x more expensive than Grok 4.1 Fast ($2/$6 vs $0.20/$0.50)",
+            "Slower than non-reasoning variant",
         ],
-        input_cost_per_1m=0.20,
-        output_cost_per_1m=0.50,
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=6.00,
     ),
+    "xai/grok-4-20-non-reasoning": ModelCapability(
+        provider="xai",
+        model="grok-4-20-non-reasoning",
+        cost_per_query=0.08,
+        latency_ms=2000,
+        context_window=2_000_000,
+        specializations=["speed", "factual", "news", "general", "high_throughput"],
+        strengths=[
+            "Flagship Grok without reasoning overhead",
+            "Low-latency for high-volume tasks",
+            "Strict prompt adherence",
+            "Native vision support",
+            "2M token context window",
+        ],
+        weaknesses=[
+            "More expensive than 4.1 Fast tier ($2/$6 vs $0.20/$0.50)",
+            "Weaker than reasoning variant on complex analysis",
+        ],
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=6.00,
+    ),
+    "xai/grok-4-20-multi-agent": ModelCapability(
+        provider="xai",
+        model="grok-4-20-multi-agent",
+        cost_per_query=0.50,
+        latency_ms=60_000,
+        context_window=2_000_000,
+        specializations=["research", "analysis", "synthesis", "agentic"],
+        strengths=[
+            "4 or 16 parallel agents for deep research",
+            "Autonomous web + X + code search",
+            "Comprehensive multi-step analysis and synthesis",
+            "2M token context window",
+        ],
+        weaknesses=[
+            "Expensive ($2/$6 per MTok, multiplied by agent count)",
+            "Slow (30-120 seconds depending on agent count)",
+            "Requires Responses API for full multi-agent mode",
+        ],
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=6.00,
+    ),
+    # Grok 4.1 Fast — Budget tier (still live)
     "xai/grok-4-1-fast-reasoning": ModelCapability(
         provider="xai",
         model="grok-4-1-fast-reasoning",
@@ -284,14 +329,14 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         context_window=2_000_000,
         specializations=["reasoning", "speed", "news", "factual"],
         strengths=[
-            "Latest Grok generation with reasoning",
+            "Grok 4.1 generation with reasoning",
             "2M token context window",
             "Web search via Responses API",
-            "Same low pricing as Grok 4 Fast",
+            "Very cheap ($0.20/$0.50 per M tokens)",
         ],
         weaknesses=[
             "Slightly slower than non-reasoning variant",
-            "Preview model",
+            "Superseded by Grok 4.20 for quality",
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=0.50,
@@ -331,25 +376,6 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=1.50,
-    ),
-    "xai/grok-4-fast-reasoning": ModelCapability(
-        provider="xai",
-        model="grok-4-fast-reasoning",
-        cost_per_query=0.01,
-        latency_ms=2000,
-        context_window=2_000_000,
-        specializations=["reasoning", "speed", "news", "factual"],
-        strengths=[
-            "Reasoning-capable Grok 4",
-            "2M token context window",
-            "Web search via Responses API",
-            "Very cheap ($0.20/$0.50 per M tokens)",
-        ],
-        weaknesses=[
-            "Superseded by Grok 4.1",
-        ],
-        input_cost_per_1m=0.20,
-        output_cost_per_1m=0.50,
     ),
     # Google Models (Gemini)
     "gemini/gemini-3-flash-preview": ModelCapability(
@@ -720,7 +746,7 @@ def get_token_pricing(model: str) -> dict[str, float]:
     Searches registry by model name across all providers.
 
     Args:
-        model: Model name (e.g., "o3-deep-research", "grok-4-fast")
+        model: Model name (e.g., "o3-deep-research", "grok-4-1-fast-non-reasoning")
 
     Returns:
         Dict with "input" and "output" costs per 1M tokens.

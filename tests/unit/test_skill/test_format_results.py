@@ -43,7 +43,7 @@ def metadata_strategy(draw):
     """Generate valid ResearchMetadata objects."""
     return ResearchMetadata(
         mode=draw(st.sampled_from(["quick", "standard", "deep_fast", "deep_premium"])),
-        model=draw(st.sampled_from(["grok-4-fast", "o4-mini", "o3"])),
+        model=draw(st.sampled_from(["grok-4-1-fast-non-reasoning", "o4-mini", "o3"])),
         duration_seconds=draw(st.integers(min_value=1, max_value=3600)),
         cost=draw(st.floats(min_value=0, max_value=10, allow_nan=False, allow_infinity=False)),
         job_id=draw(st.text(min_size=8, max_size=32, alphabet="abcdef0123456789")),

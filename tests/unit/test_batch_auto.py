@@ -304,7 +304,7 @@ class TestFormatBatchPreview:
         decisions = [
             AutoModeDecision(
                 provider="xai",
-                model="grok-4-fast",
+                model="grok-4-1-fast-non-reasoning",
                 complexity="simple",
                 task_type="factual",
                 cost_estimate=0.01,
@@ -323,7 +323,7 @@ class TestFormatBatchPreview:
         ]
 
         summary = {
-            "simple": {"count": 1, "cost_estimate": 0.01, "models": {"xai/grok-4-fast": 1}},
+            "simple": {"count": 1, "cost_estimate": 0.01, "models": {"xai/grok-4-1-fast-non-reasoning": 1}},
             "complex": {"count": 1, "cost_estimate": 0.50, "models": {"openai/o3-deep-research": 1}},
         }
 

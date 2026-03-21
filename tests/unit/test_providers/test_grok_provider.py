@@ -29,11 +29,14 @@ class TestGrokProvider:
                 GrokProvider(api_key=None)
 
     def test_model_name_mapping(self, provider):
-        """Test model name mapping for Grok 4 Fast."""
-        # Default grok-4-fast maps to non-reasoning mode for speed
-        assert provider.get_model_name("grok-4-fast") == "grok-4-fast-non-reasoning"
-        assert provider.get_model_name("grok-4-fast-reasoning") == "grok-4-fast-reasoning"
-        assert provider.get_model_name("grok-4-fast-non-reasoning") == "grok-4-fast-non-reasoning"
+        """Test model name mapping for Grok 4.20 and 4.1 Fast."""
+        # Grok 4.20 flagship models
+        assert provider.get_model_name("grok-4.20-0309-reasoning") == "grok-4.20-0309-reasoning"
+        assert provider.get_model_name("grok-4.20-0309-non-reasoning") == "grok-4.20-0309-non-reasoning"
+        assert provider.get_model_name("grok-4.20-multi-agent-0309") == "grok-4.20-multi-agent-0309"
+        assert provider.get_model_name("grok-4.20") == "grok-4.20-0309-non-reasoning"
+
+        # Grok 4.1 Fast budget tier
         assert provider.get_model_name("grok-4-1-fast-non-reasoning") == "grok-4-1-fast-non-reasoning"
         assert provider.get_model_name("grok-4-1-fast-reasoning") == "grok-4-1-fast-reasoning"
 
@@ -41,8 +44,9 @@ class TestGrokProvider:
         assert provider.get_model_name("grok-4") == "grok-4"
 
         # Aliases
-        assert provider.get_model_name("grok") == "grok-4-fast-non-reasoning"
-        assert provider.get_model_name("grok-fast") == "grok-4-fast-non-reasoning"
+        assert provider.get_model_name("grok") == "grok-4.20-0309-non-reasoning"
+        assert provider.get_model_name("grok-fast") == "grok-4-1-fast-non-reasoning"
+        assert provider.get_model_name("grok-flagship") == "grok-4.20-0309-reasoning"
 
         # Legacy models
         assert provider.get_model_name("grok-3") == "grok-3"
@@ -53,34 +57,39 @@ class TestGrokProvider:
         """Test pricing is configured for Grok models."""
         assert hasattr(provider, "pricing")
 
-        # Grok 4 Fast pricing (cost-effective)
-        assert "grok-4-fast-reasoning" in provider.pricing
-        assert "grok-4-1-fast-reasoning" in provider.pricing
-        assert "grok-4-fast-non-reasoning" in provider.pricing
-        assert "grok-4-1-fast-non-reasoning" in provider.pricing
-        assert provider.pricing["grok-4-fast-reasoning"]["input"] == 0.20
-        assert provider.pricing["grok-4-fast-reasoning"]["output"] == 0.50
+        # Grok 4.20 flagship pricing
+        assert "grok-4.20-0309-reasoning" in provider.pricing
+        assert "grok-4.20-0309-non-reasoning" in provider.pricing
+        assert "grok-4.20-multi-agent-0309" in provider.pricing
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 2.00
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 6.00
 
-        # Grok 4 pricing (expensive reasoning model)
-        assert "grok-4" in provider.pricing
-        assert provider.pricing["grok-4"]["input"] == 3.00
-        assert provider.pricing["grok-4"]["output"] == 15.00
+        # Grok 4.1 Fast budget pricing
+        assert "grok-4-1-fast-reasoning" in provider.pricing
+        assert "grok-4-1-fast-non-reasoning" in provider.pricing
+        assert provider.pricing["grok-4-1-fast-reasoning"]["input"] == 0.20
+        assert provider.pricing["grok-4-1-fast-reasoning"]["output"] == 0.50
+
+        # Grok 4.20 flagship pricing
+        assert "grok-4.20-0309-reasoning" in provider.pricing
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 2.00
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 6.00
 
         # Grok 3 pricing
         assert "grok-3" in provider.pricing
         assert "grok-3-mini" in provider.pricing
 
-    def test_calculate_cost_grok_4_fast(self, provider):
-        """Test cost calculation for Grok 4 Fast (cost-effective model)."""
+    def test_calculate_cost_grok_4_1_fast(self, provider):
+        """Test cost calculation for Grok 4.1 Fast (budget model)."""
         # 1M input tokens + 1M output tokens = $0.20 + $0.50 = $0.70
         cost = provider._calculate_cost(
-            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4-fast-reasoning"
+            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4-1-fast-reasoning"
         )
         assert cost == 0.70
 
         # Test non-reasoning mode (same pricing)
         cost_non_reasoning = provider._calculate_cost(
-            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4-fast-non-reasoning"
+            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4-1-fast-non-reasoning"
         )
         assert cost_non_reasoning == 0.70
 
@@ -90,7 +99,7 @@ class TestGrokProvider:
         cost = provider._calculate_cost(
             prompt_tokens=1_000_000,
             completion_tokens=500_000,
-            model="grok-4-fast-reasoning",
+            model="grok-4-1-fast-reasoning",
             reasoning_tokens=500_000,  # Additional reasoning tokens
         )
         # Total output = 500k + 500k = 1M at $0.50 = $0.50
@@ -98,15 +107,17 @@ class TestGrokProvider:
         # Total = $0.70
         assert cost == 0.70
 
-    def test_calculate_cost_grok_4(self, provider):
-        """Test cost calculation for Grok 4 (expensive reasoning model)."""
-        # 1M input + 1M output = $3.00 + $15.00 = $18.00
-        cost = provider._calculate_cost(prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4")
-        assert cost == 18.00
+    def test_calculate_cost_grok_4_20(self, provider):
+        """Test cost calculation for Grok 4.20 (flagship model)."""
+        # 1M input + 1M output = $2.00 + $6.00 = $8.00
+        cost = provider._calculate_cost(
+            prompt_tokens=1_000_000, completion_tokens=1_000_000, model="grok-4.20-0309-reasoning"
+        )
+        assert cost == 8.00
 
     def test_cost_scales_linearly(self, provider):
         """Test that cost scales linearly with token count."""
-        model = "grok-4-fast-reasoning"
+        model = "grok-4-1-fast-reasoning"
 
         cost_1k = provider._calculate_cost(1000, 1000, model)
         cost_2k = provider._calculate_cost(2000, 2000, model)
@@ -138,7 +149,7 @@ class TestGrokProvider:
 
             request = ResearchRequest(
                 prompt="What is Python?",
-                model="grok-4-fast",
+                model="grok-4-1-fast-non-reasoning",
                 system_message="You are a helpful assistant.",
                 tools=[],
             )
@@ -197,7 +208,7 @@ class TestGrokToolConfiguration:
 
             request = ResearchRequest(
                 prompt="Search for Python tutorials",
-                model="grok-4-fast",
+                model="grok-4-1-fast-non-reasoning",
                 system_message="You are a helpful assistant.",
                 tools=[
                     ToolConfig(type="web_search"),
@@ -222,25 +233,31 @@ class TestGrokCapabilities:
         """Create provider instance for testing."""
         return GrokProvider(api_key="test-key")
 
-    def test_grok_4_fast_features(self, provider):
-        """Document Grok 4 Fast key features.
+    def test_grok_4_20_features(self, provider):
+        """Document Grok 4.20 flagship key features.
 
-        Grok 4 Fast:
+        Grok 4.20:
+        - Flagship: $2.00 input / $6.00 output per 1M tokens
+        - Lowest hallucination rate, strict prompt adherence
+        - 2M token context window
+        - Multi-agent variant for deep research
+
+        Grok 4.1 Fast (budget tier):
         - Cost-effective: $0.20 input / $0.50 output per 1M tokens
-        - 98% cheaper than GPT-5 at comparable intelligence
         - 2M token context window
         - Unified reasoning/non-reasoning in single model
-        - Native tool calling (web_search, x_search, code_execution)
-        - #1 on LMArena Search Arena
-        - 40% fewer thinking tokens than Grok 4
         """
-        # Verify pricing
-        assert provider.pricing["grok-4-fast-reasoning"]["input"] == 0.20
-        assert provider.pricing["grok-4-fast-reasoning"]["output"] == 0.50
+        # Verify flagship pricing
+        assert provider.pricing["grok-4.20-0309-reasoning"]["input"] == 2.00
+        assert provider.pricing["grok-4.20-0309-reasoning"]["output"] == 6.00
+
+        # Verify budget tier pricing
+        assert provider.pricing["grok-4-1-fast-reasoning"]["input"] == 0.20
+        assert provider.pricing["grok-4-1-fast-reasoning"]["output"] == 0.50
 
         # Verify model mappings
-        assert provider.get_model_name("grok-4-fast") == "grok-4-fast-non-reasoning"
-        assert provider.get_model_name("grok-4-fast-reasoning") == "grok-4-fast-reasoning"
+        assert provider.get_model_name("grok") == "grok-4.20-0309-non-reasoning"
+        assert provider.get_model_name("grok-fast") == "grok-4-1-fast-non-reasoning"
 
     def test_grok_use_cases(self, provider):
         """Document Grok's ideal use cases.
@@ -260,25 +277,25 @@ class TestGrokCapabilities:
         pass
 
     def test_grok_vs_gpt5_cost_comparison(self, provider):
-        """Compare Grok 4 Fast vs GPT-5 costs.
+        """Compare Grok 4.1 Fast vs GPT-5 costs.
 
         For 1M input + 1M output tokens:
         - GPT-5: $3 + $15 = $18.00
-        - Grok 4 Fast: $0.20 + $0.50 = $0.70
+        - Grok 4.1 Fast: $0.20 + $0.50 = $0.70
         - Savings: 96% (25x cheaper)
 
         For 10M input + 10M output tokens:
         - GPT-5: $30 + $150 = $180.00
-        - Grok 4 Fast: $2 + $5 = $7.00
+        - Grok 4.1 Fast: $2 + $5 = $7.00
         - Savings: 96% (25x cheaper)
         """
         # 1M tokens
-        grok_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4-fast-reasoning")
-        gpt5_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4")  # Grok-4 pricing similar to GPT-5
+        grok_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4-1-fast-reasoning")
+        flagship_cost = provider._calculate_cost(1_000_000, 1_000_000, "grok-4.20-0309-reasoning")
 
         assert grok_cost == 0.70
-        assert gpt5_cost == 18.00
-        assert grok_cost < gpt5_cost * 0.05  # More than 95% cheaper
+        assert flagship_cost == 8.00
+        assert grok_cost < flagship_cost * 0.10  # More than 90% cheaper
 
     def test_context_window_size(self, provider):
         """Document Grok 4 Fast context window.
@@ -311,7 +328,7 @@ class TestGrokErrorHandling:
 
             request = ResearchRequest(
                 prompt="Test query",
-                model="grok-4-fast",
+                model="grok-4-1-fast-non-reasoning",
                 system_message="You are a helpful assistant.",
             )
 
@@ -344,7 +361,7 @@ class TestGrokErrorHandling:
 
             request = ResearchRequest(
                 prompt="Test",
-                model="grok-4-fast",
+                model="grok-4-1-fast-non-reasoning",
                 system_message="You are a helpful assistant.",
             )
 

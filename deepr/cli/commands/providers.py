@@ -315,7 +315,7 @@ def benchmark(quick: bool, target_provider: Optional[str], iterations: int, hist
     test_providers = [
         ("openai", "gpt-5-mini"),
         ("gemini", "gemini-2.5-flash"),
-        ("xai", "grok-4-fast"),
+        ("xai", "grok-4-1-fast-non-reasoning"),
     ]
 
     if target_provider:

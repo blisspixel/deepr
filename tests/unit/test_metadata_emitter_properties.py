@@ -38,7 +38,7 @@ prompts = st.text(min_size=0, max_size=500).filter(lambda x: x == x.strip())
 
 # Valid model names
 model_names = st.sampled_from(
-    ["gpt-4o", "gpt-5", "grok-4-fast", "o4-mini-deep-research", "claude-3-opus", "gemini-pro"]
+    ["gpt-4o", "gpt-5", "grok-4-1-fast-non-reasoning", "o4-mini-deep-research", "claude-3-opus", "gemini-pro"]
 )
 
 # Valid provider names
