@@ -135,7 +135,7 @@ deepr news "Kubernetes latest developments" > knowledge/news/news-kubernetes.md
 # 2. DOCS: What are the fundamentals?
 deepr research "Summarize Kubernetes core concepts" \
   --scrape https://kubernetes.io/docs/concepts \
-  --model grok-4-fast \
+  --model grok-4-1-fast-non-reasoning \
   > knowledge/docs/docs-kubernetes-core.md
 
 # 3. RESEARCH: How does it work? What are trade-offs?
@@ -146,7 +146,7 @@ deepr research "Kubernetes networking deep dive - CNI, Services, Ingress" \
 # 4. TEAM: Should we adopt it? What are risks?
 deepr team "Should we self-host Kubernetes or use EKS/GKE?" \
   --perspectives 6 \
-  --model grok-4-fast \
+  --model grok-4-1-fast-non-reasoning \
   > knowledge/team/team-kubernetes-hosting-decision.md
 ```
 

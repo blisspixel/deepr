@@ -9,7 +9,7 @@ This document provides detailed cost information and budget management guidance 
 | Operation | Model | Typical Cost | Range |
 |-----------|-------|--------------|-------|
 | Web Search | N/A | FREE | $0 |
-| Standard Research | grok-4-fast | $0.005 | $0.001-0.01 |
+| Standard Research | grok-4-1-fast-non-reasoning | $0.005 | $0.001-0.01 |
 | Deep Research Mini | o4-mini-deep-research | $2.00 | $1.50-2.50 |
 | Deep Research Full | o3-deep-research | $0.50 | $0.30-0.70 |
 | Agentic Research | Multi-model | $3.00 | $1-10 |
@@ -79,8 +79,8 @@ When costs exceed budget, the system pauses and offers choices:
 
 Model switching:
 - o3-deep-research -> o4-mini-deep-research
-- o4-mini-deep-research -> grok-4-fast
-- grok-4-fast -> gemini-flash
+- o4-mini-deep-research -> grok-4-1-fast-non-reasoning
+- grok-4-1-fast-non-reasoning -> gemini-flash
 
 ### ABORT
 - Cancel the operation

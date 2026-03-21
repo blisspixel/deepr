@@ -37,7 +37,16 @@ provider_names = st.sampled_from(["openai", "anthropic", "xai", "azure", "gemini
 
 # Strategy for generating model names
 model_names = st.sampled_from(
-    ["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "grok-4-fast", "gemini-pro", "command-r", "mistral-large", ""]
+    [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "claude-3-5-sonnet",
+        "grok-4-1-fast-non-reasoning",
+        "gemini-pro",
+        "command-r",
+        "mistral-large",
+        "",
+    ]
 )
 
 # Strategy for generating costs (non-negative)

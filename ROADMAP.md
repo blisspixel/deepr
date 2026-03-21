@@ -41,7 +41,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.20 Reasoning/Non-Reasoning/Multi-Agent, 4.1 Fast Reasoning/Non-Reasoning), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -54,13 +54,13 @@ These features work but APIs or behavior may change:
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
-- **Grok provider**: Basic support, less tested than OpenAI/Gemini
+- **Grok provider**: Grok 4.20 flagship + 4.1 Fast budget tier; multi-agent deep research registered but Responses API integration pending
 - **Anthropic provider**: Uses Extended Thinking + orchestration (no native deep research API)
 - **Azure AI Foundry provider**: Agent/Thread/Run pattern with Bing grounding; 7 models (o3-deep-research, gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini)
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.1 Pro/Flash-Lite/2.5, Grok 4.1 Fast variants, Anthropic Claude, Azure, Azure AI Foundry)
+- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.1 Pro/Flash-Lite/2.5, Grok 4.20/4.1 Fast, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
@@ -142,6 +142,7 @@ Goal: make Deepr more agentic in a controlled, infrastructure-first way.
 - [ ] Explicit handoff semantics (agent-as-tools + deterministic orchestration path)
 - [ ] Bounded parallel fan-out for council/task planning with circuit-breaker safeguards
 - [ ] Return artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) from all MCP tools
+- [ ] Grok 4.20 multi-agent deep research via xAI Responses API (4/16 parallel agents)
 - [ ] Finish Azure Foundry parity work:
   - [ ] MODELS.md documentation
   - [ ] Live integration tests with Azure credentials

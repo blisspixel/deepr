@@ -32,7 +32,7 @@ _PROVIDER_KEY_ENV = {
 
 # Provider → preferred model for web research
 _PROVIDER_MODELS = {
-    "xai": "grok-4-fast",
+    "xai": "grok-4-1-fast-non-reasoning",
     "openai": "gpt-5.2",
     "gemini": "gemini-3.1-pro-preview",
     "anthropic": "claude-sonnet-4-5-20250929",
