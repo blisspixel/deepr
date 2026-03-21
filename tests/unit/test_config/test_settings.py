@@ -131,7 +131,7 @@ class TestSettings:
         assert settings.debug is False
         assert settings.log_level == "INFO"
         assert settings.default_provider == "xai"
-        assert settings.default_model == "grok-4-fast"
+        assert settings.default_model == "grok-4-1-fast-non-reasoning"
         assert settings.deep_research_provider == "openai"
         assert settings.deep_research_model == "o3-deep-research"
 
@@ -244,7 +244,7 @@ class TestSettings:
 
         provider, model = settings.get_model_for_task("quick_lookup")
         assert provider == "xai"
-        assert model == "grok-4-fast"
+        assert model == "grok-4-1-fast-non-reasoning"
 
     def test_get_model_for_unknown_task(self):
         """Test get_model_for_task() falls back to defaults."""

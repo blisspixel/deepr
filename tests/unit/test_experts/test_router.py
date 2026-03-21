@@ -28,7 +28,7 @@ class TestModelConfig:
 
     def test_create_config_with_confidence(self):
         """Test creating config with custom confidence."""
-        config = ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.95)
+        config = ModelConfig(provider="xai", model="grok-4-1-fast-non-reasoning", cost_estimate=0.01, confidence=0.95)
         assert config.confidence == 0.95
 
 
@@ -268,7 +268,7 @@ class TestFallbackModel:
         """Test fallback model without provider constraint."""
         config = router._fallback_free_model("test query", "simple")
         assert config.provider == "xai"
-        assert config.model == "grok-4-fast"
+        assert config.model == "grok-4-1-fast-non-reasoning"
         assert config.confidence == 0.6
 
     def test_fallback_with_openai_constraint(self, router):

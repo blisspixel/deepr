@@ -10,7 +10,7 @@
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them, builds persistent expert agents that learn over time, and runs from scripts, cron jobs, and AI agent workflows. One report is easy. Scaling research, keeping experts current, and feeding knowledge into automated pipelines — that's what Deepr is for.
 
 ```bash
-# Auto-routes to the best model per query: Grok Fast ($0.01) -> GPT-5.4 -> o3-deep-research
+# Auto-routes to the best model per query: Grok 4.1 Fast ($0.01) -> GPT-5.4 -> o3-deep-research
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3
 
 # Expert accumulates knowledge across sessions, fills its own gaps
@@ -205,7 +205,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 - **One API key** from any supported provider:
   - [OpenAI](https://platform.openai.com/api-keys) — deep research + GPT models
   - [Gemini](https://aistudio.google.com/app/apikey) — cost-effective, large context
-  - [xAI Grok](https://console.x.ai/) — cheapest, real-time web search
+  - [xAI Grok](https://console.x.ai/) — Grok 4.20 flagship + 4.1 Fast budget, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) — complex reasoning
 - Optional: More API keys for smarter auto-routing
 - Optional: Node.js 18+ for web dashboard development
