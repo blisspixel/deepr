@@ -117,7 +117,9 @@ def providers():
         "Deep research, synthesis, complex reasoning",
     )
     table.add_row(
-        "xai", "grok-4-1-fast-reasoning, grok-4-fast, grok-code-fast-1", "Quick lookups, coding, fact checking"
+        "xai",
+        "grok-4-1-fast-reasoning, grok-4-1-fast-non-reasoning, grok-code-fast-1",
+        "Quick lookups, coding, fact checking",
     )
     table.add_row("gemini", "gemini-3.1-pro-preview, gemini-3.1-flash-lite-preview", "Multimodal tasks, long context")
     table.add_row("azure", "(your deployments)", "Enterprise deployments with Azure OpenAI")
@@ -127,7 +129,7 @@ def providers():
 
     console.print("[bold]Default Routing:[/bold]")
     console.print("  - Deep research: openai/o4-mini-deep-research")
-    console.print("  - Quick operations: xai/grok-4-fast")
+    console.print("  - Quick operations: xai/grok-4-1-fast-non-reasoning")
     console.print()
     console.print("[dim]Override with --provider and --model flags[/dim]")
     console.print()

@@ -918,7 +918,7 @@ Include current pricing and any recent updates. Keep under 400 words."""
 
         request = ResearchRequest(
             prompt=prompt,
-            model="grok-4-fast",
+            model="grok-4-1-fast-non-reasoning",
             system_message="You are a technology news analyst. Provide current, well-sourced information.",
             tools=[ToolConfig(type="web_search_preview")],
             metadata={"test": "grok_fast_agentic"},
@@ -966,7 +966,7 @@ Include current pricing and any recent updates. Keep under 400 words."""
         result_data = {
             "test": "grok_fast_agentic",
             "provider": "grok",
-            "model": "grok-4-fast",
+            "model": "grok-4-1-fast-non-reasoning",
             "cost": actual_cost,
             "time_seconds": actual_time,
             "response_length": len(content),
@@ -1014,14 +1014,14 @@ Include current pricing and any recent updates. Keep under 400 words."""
 
 1. OpenAI: o3-deep-research, o4-mini-deep-research ($/M tokens input/output)
 2. Google Gemini: 2.5-pro, 2.5-flash, 2.5-flash-lite ($/M tokens)
-3. xAI Grok: grok-4, grok-4-fast, grok-3-mini ($/M tokens)
+3. xAI Grok: grok-4, grok-4-1-fast-non-reasoning, grok-3-mini ($/M tokens)
 
 Include: exact current pricing, any recent changes, context window limits, special features.
 Cite official sources. Keep under 400 words with specific numbers."""
 
         results = {}
 
-        for model in ["grok-4-fast", "grok-3-mini"]:
+        for model in ["grok-4-1-fast-non-reasoning", "grok-3-mini"]:
             start_time = time.time()
 
             request = ResearchRequest(

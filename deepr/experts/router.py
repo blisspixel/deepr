@@ -288,7 +288,7 @@ class ModelRouter:
         # No provider constraint - use best model across all providers
         if complexity == "simple" and task_type == "factual":
             # Simple factual queries → fast cheap model
-            return ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.95)
+            return ModelConfig(provider="xai", model="grok-4-1-fast-non-reasoning", cost_estimate=0.01, confidence=0.95)
 
         if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
             # Deep research → o3-deep-research (best quality for deep research)
@@ -307,7 +307,9 @@ class ModelRouter:
         if complexity == "moderate":
             # Moderate complexity → GPT-5.2 with medium reasoning or Grok if budget tight
             if budget_remaining is not None and budget_remaining < 0.20:
-                return ModelConfig(provider="xai", model="grok-4-fast", cost_estimate=0.01, confidence=0.75)
+                return ModelConfig(
+                    provider="xai", model="grok-4-1-fast-non-reasoning", cost_estimate=0.01, confidence=0.75
+                )
             return ModelConfig(
                 provider="openai", model="gpt-5.2", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
             )
@@ -402,10 +404,10 @@ class ModelRouter:
                 confidence=0.6,
             )
 
-        # Otherwise use grok-4-fast as cheapest option
+        # Otherwise use grok-4-1-fast-non-reasoning as cheapest option
         return ModelConfig(
             provider="xai",
-            model="grok-4-fast",
+            model="grok-4-1-fast-non-reasoning",
             cost_estimate=0.01,
             confidence=0.6,  # Lower confidence due to budget constraint
         )
@@ -431,7 +433,7 @@ class ModelRouter:
         explanation += f"Confidence: {selected_model.confidence:.0%}\n"
 
         # Add reasoning
-        if complexity == "simple" and selected_model.model == "grok-4-fast":
+        if complexity == "simple" and selected_model.model == "grok-4-1-fast-non-reasoning":
             explanation += "Reason: Simple query routed to fast, cheap model for cost efficiency\n"
         elif task_type == "research" and selected_model.model == "o3-deep-research":
             explanation += "Reason: Research task routed to deep reasoning model for quality\n"

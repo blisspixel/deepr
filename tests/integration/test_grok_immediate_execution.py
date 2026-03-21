@@ -16,7 +16,7 @@ async def test_immediate_execution():
     # Create request without tools first
     request = ResearchRequest(
         prompt="What is 2+2? Answer in one short sentence.",
-        model="grok-4-fast",
+        model="grok-4-1-fast-non-reasoning",
         system_message="You are a helpful assistant.",
         tools=None,
         background=False,

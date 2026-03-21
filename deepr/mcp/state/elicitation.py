@@ -410,7 +410,7 @@ class CostOptimizer:
     MODEL_COSTS = {
         "o3": 15.00,
         "o4-mini": 3.00,
-        "grok-4-fast": 0.60,
+        "grok-4-1-fast-non-reasoning": 0.60,
         "gemini-flash": 0.075,
         "grok-3-mini": 0.30,
     }
@@ -419,7 +419,7 @@ class CostOptimizer:
     MODEL_CAPABILITIES = {
         "o3": {"reasoning": "excellent", "speed": "slow", "depth": "maximum"},
         "o4-mini": {"reasoning": "good", "speed": "medium", "depth": "high"},
-        "grok-4-fast": {"reasoning": "good", "speed": "fast", "depth": "medium"},
+        "grok-4-1-fast-non-reasoning": {"reasoning": "good", "speed": "fast", "depth": "medium"},
         "gemini-flash": {"reasoning": "basic", "speed": "very_fast", "depth": "low"},
         "grok-3-mini": {"reasoning": "basic", "speed": "fast", "depth": "low"},
     }

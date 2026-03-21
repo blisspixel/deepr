@@ -107,7 +107,7 @@ def test_focus_command_complete_workflow_grok():
             "--provider",
             "grok",
             "-m",
-            "grok-4-fast",
+            "grok-4-1-fast-non-reasoning",
             "--yes",
             "--no-web",
             "--no-code",

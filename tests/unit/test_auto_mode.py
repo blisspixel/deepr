@@ -16,7 +16,7 @@ _MOCK_RANKINGS = {
     "quick_lookup": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
         ("openai", "gpt-5.2", 1.0, 0.25),
-        ("xai", "grok-4-fast", 0.85, 0.01),
+        ("xai", "grok-4-1-fast-non-reasoning", 0.85, 0.01),
         ("gemini", "gemini-2.5-flash", 0.80, 0.02),
     ],
     "knowledge_base": [
@@ -27,7 +27,7 @@ _MOCK_RANKINGS = {
     "reasoning": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
         ("openai", "gpt-5.2", 1.0, 0.25),
-        ("xai", "grok-4-fast", 0.82, 0.01),
+        ("xai", "grok-4-1-fast-non-reasoning", 0.82, 0.01),
     ],
     "synthesis": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
@@ -35,7 +35,7 @@ _MOCK_RANKINGS = {
     ],
     "comprehensive_research": [
         ("openai", "gpt-5.2", 0.97, 0.25),
-        ("xai", "grok-4-fast-reasoning", 0.89, 0.01),
+        ("xai", "grok-4-1-fast-reasoning", 0.89, 0.01),
     ],
     "technical_docs": [
         ("openai", "gpt-4.1-nano", 1.0, 0.003),
@@ -48,9 +48,9 @@ _MOCK_RANKINGS = {
     "_overall": [
         ("openai", "gpt-4.1-nano", 0.95, 0.003),
         ("openai", "gpt-5.2", 0.90, 0.25),
-        ("xai", "grok-4-fast-reasoning", 0.88, 0.01),
+        ("xai", "grok-4-1-fast-reasoning", 0.88, 0.01),
         ("gemini", "gemini-2.5-pro", 0.85, 0.12),
-        ("xai", "grok-4-fast", 0.80, 0.01),
+        ("xai", "grok-4-1-fast-non-reasoning", 0.80, 0.01),
         ("gemini", "gemini-2.5-flash", 0.75, 0.02),
     ],
 }
@@ -63,7 +63,7 @@ class TestAutoModeDecision:
         """Test serialization to dict."""
         decision = AutoModeDecision(
             provider="xai",
-            model="grok-4-fast",
+            model="grok-4-1-fast-non-reasoning",
             complexity="simple",
             task_type="factual",
             cost_estimate=0.01,
@@ -74,7 +74,7 @@ class TestAutoModeDecision:
         d = decision.to_dict()
 
         assert d["provider"] == "xai"
-        assert d["model"] == "grok-4-fast"
+        assert d["model"] == "grok-4-1-fast-non-reasoning"
         assert d["complexity"] == "simple"
         assert d["task_type"] == "factual"
         assert d["cost_estimate"] == 0.01
@@ -111,7 +111,9 @@ class TestAutoModeRouter:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         monkeypatch.setenv("XAI_API_KEY", "xai-test")
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
-        monkeypatch.setattr(auto_mode_module, "_BENCHMARK_RANKINGS", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
         return AutoModeRouter()
 
     def test_simple_factual_uses_benchmark_winner(self, router):
@@ -233,7 +235,9 @@ class TestAutoModeRouterApiKeyAwareness:
     @pytest.fixture(autouse=True)
     def _mock_benchmarks(self, monkeypatch):
         """Use mock benchmarks for all tests in this class."""
-        monkeypatch.setattr(auto_mode_module, "_BENCHMARK_RANKINGS", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
 
     def test_routes_to_available_provider(self, monkeypatch):
         """Router should only route to providers with API keys set."""
@@ -255,7 +259,7 @@ class TestAutoModeRouterApiKeyAwareness:
 
         router = AutoModeRouter()
 
-        # quick_lookup has xai/grok-4-fast ranked 3rd, should pick it
+        # quick_lookup has xai/grok-4-1-fast-non-reasoning ranked 3rd, should pick it
         decision = router.route("What is Python?")
         assert decision.provider == "xai"
 
@@ -278,7 +282,7 @@ class TestAutoModeRouterApiKeyAwareness:
         router = AutoModeRouter()
 
         decision = router.route("Research the latest developments in quantum computing")
-        # comprehensive_research has xai/grok-4-fast-reasoning ranked 2nd
+        # comprehensive_research has xai/grok-4-1-fast-reasoning ranked 2nd
         assert decision.provider == "xai"
 
     def test_no_benchmark_uses_cheapest(self, monkeypatch):
@@ -286,7 +290,9 @@ class TestAutoModeRouterApiKeyAwareness:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.setattr(auto_mode_module, "_BENCHMARK_RANKINGS", None)
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", {})
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
 
         router = AutoModeRouter()
 
@@ -305,7 +311,9 @@ class TestAutoModeRouterBatch:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         monkeypatch.setenv("XAI_API_KEY", "xai-test")
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
-        monkeypatch.setattr(auto_mode_module, "_BENCHMARK_RANKINGS", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
         return AutoModeRouter()
 
     def test_batch_routes_multiple(self, router):
@@ -377,7 +385,9 @@ class TestAutoModeRouterExplain:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         monkeypatch.setenv("XAI_API_KEY", "xai-test")
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
-        monkeypatch.setattr(auto_mode_module, "_BENCHMARK_RANKINGS", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_cache", _MOCK_RANKINGS)
+        monkeypatch.setattr(auto_mode_module, "_rankings_check_ts", float("inf"))
+        monkeypatch.setattr(auto_mode_module, "_auto_eval_started", True)
         return AutoModeRouter()
 
     def test_explain_routing(self, router):

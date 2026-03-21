@@ -644,7 +644,7 @@ Budget remaining: ${budget_remaining:.2f}
 
             # Create chat with agentic search tools
             chat = xai_client.chat.create(
-                model="grok-4-fast",  # Specifically trained for agentic search
+                model="grok-4-1-fast-non-reasoning",  # Specifically trained for agentic search
                 tools=[
                     web_search(),  # Real-time web search
                     x_search(),  # X/Twitter search
