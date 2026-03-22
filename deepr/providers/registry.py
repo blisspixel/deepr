@@ -22,6 +22,8 @@ class ModelCapability:
     weaknesses: list[str]  # Known limitations
     input_cost_per_1m: float = 0.0  # Cost per 1M input tokens (USD)
     output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
+    deprecated: bool = False  # Whether this model is deprecated
+    successor: str | None = None  # Model key to migrate to (e.g. "openai/gpt-4.1")
 
 
 # Model capabilities registry
