@@ -158,6 +158,7 @@ class AsyncTaskDispatcher:
         tasks: list[dict[str, Any]],
         on_progress: Optional[ProgressCallback] = None,
         timeout: Optional[float] = None,
+        cost_checker: Optional[Callable[[str], tuple[bool, str]]] = None,
     ) -> DispatchResult:
         """Dispatch independent tasks in parallel.
 
@@ -165,6 +166,8 @@ class AsyncTaskDispatcher:
             tasks: List of task dicts with 'id' and 'coro' keys
             on_progress: Optional progress callback
             timeout: Optional overall timeout in seconds
+            cost_checker: Optional guard called before each task starts.
+                Returns (allowed, reason). If not allowed, task is CANCELLED.
 
         Returns:
             DispatchResult with all task results
@@ -190,6 +193,15 @@ class AsyncTaskDispatcher:
                     task.status = DispatchStatus.CANCELLED
                     return
 
+                # Cost guard: check before starting
+                if cost_checker is not None:
+                    allowed, reason = cost_checker(task.id)
+                    if not allowed:
+                        task.status = DispatchStatus.CANCELLED
+                        task.error = f"Cost check failed: {reason}"
+                        task.completed_at = _utc_now()
+                        return
+
                 task.status = DispatchStatus.RUNNING
                 task.started_at = _utc_now()
 
@@ -206,7 +218,7 @@ class AsyncTaskDispatcher:
                     task.status = DispatchStatus.FAILED
                     task.error = str(e)
                 finally:
-                    task.completed_at = _utc_now()
+                    task.completed_at = task.completed_at or _utc_now()
 
                     if on_progress:
                         progress = 1.0 if task.status == DispatchStatus.COMPLETED else 0.5

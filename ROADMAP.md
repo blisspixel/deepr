@@ -134,69 +134,85 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Ship capabilities that improve measurable quality, cost-efficiency, and reliability.
 - Keep orchestration bounded: no unbounded swarms, no opaque autonomy.
 
-### Phase 1 (v2.10): Agentic Infrastructure Core
+### Phase 1: Agentic Infrastructure Core
 
-Goal: make Deepr more agentic in a controlled, infrastructure-first way.
+Goal: make the agentic layer production-ready — subagent contracts, multi-agent support, provider resilience.
 
-- [ ] Subagent runtime contract (planner -> delegated workers -> synthesizer) with per-subagent budget and trace IDs
+- [ ] Subagent runtime contract (planner → delegated workers → synthesizer) with per-subagent budget and trace IDs
 - [ ] Explicit handoff semantics (agent-as-tools + deterministic orchestration path)
 - [ ] Bounded parallel fan-out for council/task planning with circuit-breaker safeguards
 - [ ] Return artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) from all MCP tools
-- [ ] Grok 4.20 multi-agent deep research via xAI Responses API (4/16 parallel agents)
+- [ ] Grok 4.20 multi-agent deep research via xAI Responses API:
+  - [ ] Dynamic agent count (4–16) based on query complexity and budget
+  - [ ] Parallel tool use with shared trace IDs and per-agent spend caps
+  - [ ] Integrate with existing bounded fan-out + circuit breakers
+- [ ] Legacy deep-research deprecation handling:
+  - [ ] Detect legacy `o3-deep-research` calls and warn
+  - [ ] Transparent auto-migration to `o3`/`o4-mini-deep-research` equivalents
+  - [ ] Routing confidence preserved through migration
 - [ ] Finish Azure Foundry parity work:
   - [ ] MODELS.md documentation
   - [ ] Live integration tests with Azure credentials
   - [ ] Deploy/test o3-deep-research + Bing grounding
   - [ ] Add Foundry model discovery and benchmark coverage
 
-### Phase 2 (v2.10-v2.11): MCP Client Reliability
+### Phase 2: MCP Client Reliability
 
 Goal: Deepr works as both MCP provider and consumer for real workflows.
 
 - [ ] MCP client connections (stdio + SSE)
+- [ ] Configurable MCP client profiles (named server presets with connection details, auth, budget propagation, trace ID stitching, and automatic fallback)
 - [ ] Async durability (resume/reconnect, timeout/cancel, progress notifications)
 - [ ] Parallel dispatch across MCP servers with backpressure controls
-- [ ] Elicitation routing for blocked operations (CAPTCHA/paywall/credential pass-through)
+- [ ] Elicitation routing + external request sandboxing (safe pass-through for CAPTCHA/paywall/credential flows from remote MCP tools; per-server rate limits)
 - [ ] GitHub release workflow for skill distribution
-- [ ] External request rate limiting + scraper sampling integration
 
-### Phase 3 (v2.11): Routing and Evaluation Confidence
+### Phase 3: Routing and Evaluation Confidence
 
-Goal: continuously validate routing quality/cost claims.
+Goal: continuously validate routing quality/cost claims with measurable feedback.
 
 - [ ] `deepr providers models` command (model discovery UX)
 - [ ] Stale-model CI checks + provider-family alerting
+- [ ] Routing preview: `deepr research --preview --auto` shows exact model choice, estimated cost, and confidence before executing
 - [ ] Eval methodology v2:
-  - [ ] citation quality, grounding, synthesis depth, temporal accuracy
-  - [ ] expert-specific metrics (gap detection, integration quality, belief revision)
-  - [ ] task-level cost-efficiency scoring
-  - [ ] methodology versioning for run comparability
-- [ ] Routing A/B mode and comparison vs single-model defaults
+  - [ ] Citation quality, grounding, synthesis depth, temporal accuracy
+  - [ ] Expert-specific metrics: gap-detection success rate, belief-revision accuracy, citation freshness score, integration quality
+  - [ ] Task-level cost-efficiency scoring
+  - [ ] Methodology versioning for run comparability
+- [ ] A/B shadow mode (opt-in): run shadow query in parallel against baseline for continuous routing comparison
 
-### Phase 4 (v2.11-v2.12): Expert and Skills Quality Loop
+### Phase 4: Expert and Skills Quality Loop
 
 Goal: improve expert outcomes with measurable impact, not feature sprawl.
 
 - [ ] Expert manifest diff (`Delta`) and explicit `ExpertPolicy` type
 - [ ] Optional `--high-trust-only` mode (primary/secondary sources only)
-- [ ] Skill efficacy measurement (impact on citations, gap-fill success, cost)
+- [ ] Structured corpus import as first-class skill:
+  - [ ] One-command ingest of MD/JSON/JSONL bundles as permanent expert knowledge
+  - [ ] Auto-gap detection and citation mapping on imported corpora
+  - [ ] Works with any structured output (research reports, synthesis docs, company briefs)
+- [ ] Skill auto-generation from research artifacts:
+  - [ ] `expert skill make "Topic" --from-report artifact.md` generates skill with tools and triggers
+  - [ ] Dependency tracking between generated skills
+  - [ ] Efficacy scoring (citations added, gaps closed, cost impact)
 - [ ] Skill templates + versioning/dependency management
-- [ ] Skill format conversion (Claude Skills <-> OpenClaw Skills)
+- [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
 - [ ] Keep skill design constrained (focused modules, measurable outcomes)
 
-### Phase 5 (v2.12): Operations, Team, and Security Hardening
+### Phase 5: Operations, Team, and Security Hardening
 
 Goal: production posture for multi-user and autonomous deployments.
 
 - [ ] Web operations analytics:
-  - [ ] cost-vs-quality frontier
-  - [ ] failure-mode breakdown
-  - [ ] routing decision analytics
-  - [ ] expert gap velocity / citation freshness / recommended actions
+  - [ ] Cost-vs-quality frontier scatter (every routing decision plotted)
+  - [ ] Failure-mode breakdown
+  - [ ] Routing decision analytics
+  - [ ] Expert gap velocity / citation freshness / recommended actions
+  - [ ] Anomaly alerts: routing drift, gap velocity spikes, cost outliers after model releases
 - [ ] Benchmark UX completion:
   - [ ] WebSocket benchmark progress
-  - [ ] run comparison deltas
-  - [ ] provider validation action in UI
+  - [ ] Run comparison deltas
+  - [ ] Provider validation action in UI
 - [ ] Team features (auth, workspaces, RBAC, audit log)
 - [ ] Permission boundaries (`--allow-write`, tool allowlists, budget policy enforcement)
 - [ ] Execution isolation (sandboxed parsing, resource limits, egress controls)
@@ -204,16 +220,19 @@ Goal: production posture for multi-user and autonomous deployments.
 
 ### Backlog (Not in Active Sequence)
 
-- [ ] Local model support on NVIDIA hardware (DGX Spark, Jetson Orin Nano Super)
+- [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)
+- [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
+- [ ] Expert watch sources: pull from configured MCP or REST endpoints into relevant experts on schedule (`deepr expert sync`)
+- [ ] Local model support on NVIDIA hardware (DGX Spark, Jetson Orin Nano Super) with automatic offload when cloud budget exhausted
 - [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
 - [ ] Skill marketplace and meta-skills
 - [ ] Multi-agent swarm support beyond bounded subagent orchestration
 - [ ] `deepr ui` Textual dashboard
 - [ ] README demo GIF
 - [ ] Code quality carry-over:
-  - [ ] profile schema versioning
-  - [ ] provider fallback integration tests
-  - [ ] performance regression tests
+  - [ ] Profile schema versioning
+  - [ ] Provider fallback integration tests
+  - [ ] Performance regression tests
   - [ ] 80% coverage target on core modules
 
 ---
@@ -234,10 +253,11 @@ We welcome contributions. Here's where help is most valuable:
 
 | Area | Examples | Impact |
 |------|----------|--------|
-| **Expert formalization** | Expert diffs, policy types, high-trust-only mode | Medium |
-| **MCP client mode** | Client connections, async tasks, elicitation | High |
+| **MCP client mode** | Client connections, profiles, async tasks, elicitation | High |
+| **Expert quality loop** | Corpus import, skill auto-gen, expert diffs, efficacy scoring | High |
 | **Testing** | Integration tests, provider mocks, 80% coverage | High |
-| **Web dashboard** | Operational analytics, expert diff, comparison view | High |
+| **Web dashboard** | Operational analytics, anomaly alerts, cost frontier | High |
+| **Provider resilience** | Legacy deprecation handling, routing preview, A/B shadow | Medium |
 | **Security** | Permission boundaries, sandboxing, isolation | Medium |
 | **Documentation** | Examples, tutorials, API docs | Medium |
 
@@ -265,10 +285,12 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
 | v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
-| v2.10 | Agentic infrastructure core, Azure Foundry parity, MCP client reliability (start) | Planned |
-| v2.11 | Routing/evaluation confidence, expert+skills quality loop | Planned |
-| v2.12 | Ops analytics, team readiness, security hardening | Planned |
-| v3.0+ | Self-improvement, autonomous learning | Future |
+| v2.10 | Agentic infrastructure core, legacy migration, Azure Foundry parity | Planned |
+| v2.10+ | MCP client reliability, configurable profiles, elicitation sandboxing | Planned |
+| v2.11 | Routing preview, eval methodology v2, expert-specific metrics, A/B shadow | Planned |
+| v2.11+ | Expert quality loop, corpus import, skill auto-gen, efficacy scoring | Planned |
+| v2.12 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
+| v3.0+ | Self-improving routing, autonomous learning | Future |
 
 ---
 

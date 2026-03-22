@@ -14,7 +14,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from deepr.experts.constants import SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
+from deepr.experts.constants import MAX_COUNCIL_CONCURRENCY, SYNTHESIS_BUDGET_FRACTION, UTILITY_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,7 @@ class ExpertCouncil:
         experts: list[dict] | None = None,
         budget: float = 5.0,
         progress_callback: Any = None,
+        agent_identity: Any = None,
     ) -> dict:
         """Run a multi-expert consultation.
 
@@ -128,7 +129,23 @@ class ExpertCouncil:
             domain = exp.get("domain", "")
             _notify(name, "querying")
             try:
-                session = await start_chat_session(name, budget=per_expert_budget, agentic=True, quiet=True)
+                # Create child agent identity if parent identity is provided
+                child_identity = None
+                if agent_identity is not None:
+                    from deepr.agents.contract import AgentRole
+
+                    child_identity = agent_identity.child(
+                        role=AgentRole.WORKER,
+                        name=f"council-{name}",
+                    )
+
+                session = await start_chat_session(
+                    name,
+                    budget=per_expert_budget,
+                    agentic=True,
+                    quiet=True,
+                    agent_identity=child_identity,
+                )
                 response = await session.send_message(
                     f"As a domain expert, please provide your perspective on: {query}"
                 )
@@ -150,8 +167,20 @@ class ExpertCouncil:
                     cost=0.0,
                 )
 
-        # Query all experts in parallel
-        perspectives = await asyncio.gather(*[_query_expert(e) for e in experts])
+        # Query all experts in parallel with bounded concurrency
+        from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
+
+        dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_COUNCIL_CONCURRENCY)
+        dispatch_tasks = [
+            {"id": exp["name"], "coro": _query_expert(exp)}
+            for exp in experts
+        ]
+        dispatch_result = await dispatcher.dispatch(dispatch_tasks)
+        perspectives = [
+            dispatch_result.tasks[exp["name"]].result
+            for exp in experts
+            if dispatch_result.tasks[exp["name"]].result is not None
+        ]
         total_cost = sum(p.cost for p in perspectives)
 
         # Synthesise

@@ -32,9 +32,10 @@ class CostLedgerEvent:
     source: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     idempotency_key: str = ""
+    agent_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "timestamp": self.timestamp.isoformat(),
             "operation": self.operation,
             "provider": self.provider,
@@ -49,6 +50,9 @@ class CostLedgerEvent:
             "metadata": self.metadata,
             "idempotency_key": self.idempotency_key,
         }
+        if self.agent_id:
+            d["agent_id"] = self.agent_id
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CostLedgerEvent":
@@ -66,6 +70,7 @@ class CostLedgerEvent:
             source=data.get("source", ""),
             metadata=data.get("metadata", {}) or {},
             idempotency_key=data.get("idempotency_key", ""),
+            agent_id=data.get("agent_id", ""),
         )
 
 
@@ -112,6 +117,7 @@ class CostLedger:
         source: str = "",
         metadata: Optional[dict[str, Any]] = None,
         idempotency_key: str = "",
+        agent_id: str = "",
     ) -> tuple[CostLedgerEvent, bool]:
         if cost_usd < 0:
             logger.warning("Negative cost_usd=%s for %s/%s, clamping to 0", cost_usd, operation, provider)
@@ -130,6 +136,7 @@ class CostLedger:
             source=source,
             metadata=metadata or {},
             idempotency_key=idempotency_key,
+            agent_id=agent_id,
         )
 
         with self._lock:
