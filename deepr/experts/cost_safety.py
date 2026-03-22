@@ -630,6 +630,7 @@ class CostSafetyManager:
         idempotency_key: str = "",
         source: str = "cost_safety.record_cost",
         metadata: Optional[dict] = None,
+        agent_id: str = "",
     ) -> bool:
         """Record a cost event.
 
@@ -680,6 +681,7 @@ class CostSafetyManager:
                 source=source,
                 idempotency_key=idempotency_key,
                 metadata=event_metadata,
+                agent_id=agent_id,
             )
         except OSError as e:
             if self._strict_tracking:
