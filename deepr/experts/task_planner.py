@@ -6,7 +6,6 @@ visible progress, and synthesises results.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -16,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from openai import AsyncOpenAI
 
-from deepr.experts.constants import UTILITY_MODEL
+from deepr.experts.constants import MAX_PLAN_CONCURRENCY, UTILITY_MODEL
 
 if TYPE_CHECKING:
     from deepr.experts.chat import ExpertChatSession
@@ -207,21 +206,26 @@ class TaskPlanner:
                     except Exception:
                         pass
 
-        # Topological execution
-        max_iterations = len(steps) + 1
-        iteration = 0
-        while len(completed) < len(steps) and iteration < max_iterations:
-            iteration += 1
-            ready = [
-                s
-                for s in steps.values()
-                if s.id not in completed
-                and s.status == StepStatus.PENDING
-                and all(d in completed for d in s.depends_on)
-            ]
-            if not ready:
-                break
-            await asyncio.gather(*[_run_step(s) for s in ready])
+        # Topological execution with bounded concurrency
+        from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
+
+        dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_PLAN_CONCURRENCY)
+
+        # Build dispatcher tasks with dependency mapping
+        dispatch_tasks = []
+        dep_map: dict[str, list[str]] = {}
+        for s in steps.values():
+            task_id = str(s.id)
+            dispatch_tasks.append({
+                "id": task_id,
+                "coro": _run_step(s),
+            })
+            dep_map[task_id] = [str(d) for d in s.depends_on]
+
+        await dispatcher.dispatch_with_dependencies(
+            tasks=dispatch_tasks,
+            dependencies=dep_map,
+        )
 
         # Synthesise
         parts = []
