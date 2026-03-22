@@ -59,8 +59,9 @@ class TaskPlanner:
 
     MAX_STEPS = 10
 
-    def __init__(self, session: ExpertChatSession):
+    def __init__(self, session: ExpertChatSession, agent_identity: Any = None):
         self.session = session
+        self.agent_identity = agent_identity
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     async def decompose(self, query: str) -> dict:
@@ -159,12 +160,24 @@ class TaskPlanner:
         completed: set[int] = set()
 
         async def _run_step(step: PlanStep) -> None:
+            # Create child agent identity for cost/trace attribution
+            step_identity = None
+            if self.agent_identity is not None:
+                from deepr.agents.contract import AgentRole
+
+                step_identity = self.agent_identity.child(
+                    role=AgentRole.WORKER,
+                    name=f"plan-step-{step.id}",
+                )
+
             step.status = StepStatus.RUNNING
             if status_callback:
                 try:
                     status_callback(step.id, step.title, "running")
                 except Exception:
                     pass
+
+            cost_before = self.session.cost_accumulated
             try:
                 response = await self.session.send_message(
                     step.query,
@@ -176,6 +189,17 @@ class TaskPlanner:
                 step.error = str(e)
                 step.status = StepStatus.FAILED
             finally:
+                # Track per-step cost delta
+                step_cost = self.session.cost_accumulated - cost_before
+                if step_identity is not None:
+                    logger.debug(
+                        "Plan step %d (%s) cost: $%.4f agent_id=%s trace_id=%s",
+                        step.id,
+                        step.title,
+                        step_cost,
+                        step_identity.agent_id,
+                        step_identity.trace_id,
+                    )
                 completed.add(step.id)
                 if status_callback:
                     try:
