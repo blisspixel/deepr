@@ -536,21 +536,28 @@ class DeeprMCPServer:
             spending = cost_safety.get_spending_summary()
             resource_uris = self.resource_handler.get_resource_uri_for_job(job_id)
 
-            return {
-                "job_id": job_id,
-                "trace_id": trace_id,
-                "status": "submitted",
-                "estimated_time": estimated_time,
-                "cost_estimate": cost_estimate,
-                "daily_spent": spending["daily"]["spent"],
-                "daily_remaining": spending["daily"]["remaining"],
-                "resource_uris": resource_uris,
-                "message": (
-                    f"Research job submitted. Use deepr_check_status with job_id "
-                    f"'{job_id}' to check progress, or subscribe to "
-                    f"{resource_uris['status']} for push notifications."
-                ),
-            }
+            from deepr.mcp.artifacts import inject_artifact_ids
+
+            return inject_artifact_ids(
+                {
+                    "job_id": job_id,
+                    "trace_id": trace_id,
+                    "status": "submitted",
+                    "estimated_time": estimated_time,
+                    "cost_estimate": cost_estimate,
+                    "daily_spent": spending["daily"]["spent"],
+                    "daily_remaining": spending["daily"]["remaining"],
+                    "resource_uris": resource_uris,
+                    "message": (
+                        f"Research job submitted. Use deepr_check_status with job_id "
+                        f"'{job_id}' to check progress, or subscribe to "
+                        f"{resource_uris['status']} for push notifications."
+                    ),
+                },
+                trace_id=trace_id,
+                job_id=job_id,
+                session_id=session_id,
+            )
 
         except ValueError as ve:
             return _make_error("VALIDATION_ERROR", str(ve))
@@ -591,14 +598,20 @@ class DeeprMCPServer:
                     )
                     self.resource_handler.persist_job(job_id)
 
-                    return {
-                        "job_id": job_id,
-                        "status": status["status"],
-                        "progress": status.get("progress"),
-                        "elapsed_time": status.get("elapsed_time"),
-                        "cost_so_far": status.get("cost", 0.0),
-                        "submitted_at": job_cache.get("submitted_at"),
-                    }
+                    from deepr.mcp.artifacts import inject_artifact_ids
+
+                    return inject_artifact_ids(
+                        {
+                            "job_id": job_id,
+                            "status": status["status"],
+                            "progress": status.get("progress"),
+                            "elapsed_time": status.get("elapsed_time"),
+                            "cost_so_far": status.get("cost", 0.0),
+                            "submitted_at": job_cache.get("submitted_at"),
+                        },
+                        job_id=job_id,
+                        trace_id=(state.metadata.get("trace_id", "") if state else ""),
+                    )
                 except Exception as e:
                     logger.warning("Provider status check failed for job %s: %s", job_id, e)
 
@@ -678,30 +691,42 @@ class DeeprMCPServer:
                     if next_section > 0 and next_section < 3000:
                         summary_text = report[:next_section]
 
-                return {
+                from deepr.mcp.artifacts import inject_artifact_ids
+
+                return inject_artifact_ids(
+                    {
+                        "job_id": job_id,
+                        "status": "completed",
+                        "summary": summary_text + "\n\n... (truncated)",
+                        "full_report_uri": f"deepr://reports/{job_id}/final.md",
+                        "report_length": len(report),
+                        "cost_final": cost_final,
+                        "metadata": metadata,
+                        "sources_count": len(sources),
+                        "hint": (
+                            "Report truncated for context efficiency. "
+                            "Use resources/read with the full_report_uri to get the complete report."
+                        ),
+                    },
+                    job_id=job_id,
+                    report_id=f"deepr://reports/{job_id}/final.md",
+                )
+
+            from deepr.mcp.artifacts import inject_artifact_ids as _inject
+
+            return _inject(
+                {
                     "job_id": job_id,
                     "status": "completed",
-                    "summary": summary_text + "\n\n... (truncated)",
-                    "full_report_uri": f"deepr://reports/{job_id}/final.md",
-                    "report_length": len(report),
+                    "markdown_report": report,
                     "cost_final": cost_final,
                     "metadata": metadata,
-                    "sources_count": len(sources),
-                    "hint": (
-                        "Report truncated for context efficiency. "
-                        "Use resources/read with the full_report_uri to get the complete report."
-                    ),
-                }
-
-            return {
-                "job_id": job_id,
-                "status": "completed",
-                "markdown_report": report,
-                "cost_final": cost_final,
-                "metadata": metadata,
-                "sources": sources,
-                "resource_uri": f"deepr://reports/{job_id}/final.md",
-            }
+                    "sources": sources,
+                    "resource_uri": f"deepr://reports/{job_id}/final.md",
+                },
+                job_id=job_id,
+                report_id=f"deepr://reports/{job_id}/final.md",
+            )
 
         except Exception as e:
             return _make_error("RESULT_FETCH_FAILED", str(e))
@@ -813,21 +838,29 @@ class DeeprMCPServer:
 
             logger.info("Agentic workflow %s started (trace=%s)", workflow_id, trace_id)
 
-            return {
-                "workflow_id": workflow_id,
-                "trace_id": trace_id,
-                "status": "in_progress",
-                "expert_name": expert.name,
-                "budget_allocated": max_agentic_budget,
-                "daily_spent": spending["daily"]["spent"],
-                "daily_remaining": spending["daily"]["remaining"],
-                "initial_response": (response[:500] + "..." if len(response) > 500 else response),
-                "resource_uris": resource_uris,
-                "message": (
-                    f"Agentic workflow started. Use deepr_check_status with "
-                    f"workflow_id '{workflow_id}' to monitor progress."
-                ),
-            }
+            from deepr.mcp.artifacts import inject_artifact_ids
+
+            return inject_artifact_ids(
+                {
+                    "workflow_id": workflow_id,
+                    "trace_id": trace_id,
+                    "status": "in_progress",
+                    "expert_name": expert.name,
+                    "budget_allocated": max_agentic_budget,
+                    "daily_spent": spending["daily"]["spent"],
+                    "daily_remaining": spending["daily"]["remaining"],
+                    "initial_response": (response[:500] + "..." if len(response) > 500 else response),
+                    "resource_uris": resource_uris,
+                    "message": (
+                        f"Agentic workflow started. Use deepr_check_status with "
+                        f"workflow_id '{workflow_id}' to monitor progress."
+                    ),
+                },
+                trace_id=trace_id,
+                workflow_id=workflow_id,
+                expert_id=expert.name,
+                session_id=session_id,
+            )
 
         except Exception as e:
             logger.exception("deepr_agentic_research failed")
