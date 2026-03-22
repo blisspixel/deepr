@@ -2333,6 +2333,11 @@ async def start_chat_session(
         raise ValueError(f"Expert '{expert_name}' not found")
 
     return ExpertChatSession(
-        expert, budget, agentic, enable_router, verbose, quiet,
+        expert,
+        budget,
+        agentic,
+        enable_router,
+        verbose,
+        quiet,
         agent_identity=agent_identity,
     )

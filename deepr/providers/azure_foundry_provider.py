@@ -635,6 +635,37 @@ class AzureFoundryProvider(DeepResearchProvider):
         return False
 
     # =========================================================================
+    # Model discovery
+    # =========================================================================
+
+    def list_available_models(self) -> list[dict[str, Any]]:
+        """Return all Azure Foundry models registered in the provider.
+
+        Includes pricing, capabilities, and regional availability from the registry.
+        Used for model discovery UX and benchmark participation.
+        """
+        from .registry import MODEL_CAPABILITIES
+
+        models = []
+        for key, cap in MODEL_CAPABILITIES.items():
+            if not key.startswith("azure-foundry/"):
+                continue
+            models.append(
+                {
+                    "provider": cap.provider,
+                    "model": cap.model,
+                    "registry_key": key,
+                    "cost_per_query": cap.cost_per_query,
+                    "context_window": cap.context_window,
+                    "input_cost_per_1m": cap.input_cost_per_1m,
+                    "output_cost_per_1m": cap.output_cost_per_1m,
+                    "specializations": cap.specializations,
+                    "is_deep_research": _is_deep_research_model(cap.model),
+                }
+            )
+        return models
+
+    # =========================================================================
     # Cleanup
     # =========================================================================
 

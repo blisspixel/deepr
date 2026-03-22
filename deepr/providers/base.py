@@ -34,6 +34,9 @@ class ResearchRequest:
     reasoning_effort: Optional[Literal["minimal", "low", "medium", "high"]] = None
     text_verbosity: Optional[Literal["low", "medium", "high"]] = None
     previous_response_id: Optional[str] = None  # For reasoning persistence
+    # Multi-agent parameters (Grok 4.20 multi-agent)
+    agent_count: Optional[int] = None  # Number of parallel agents (4-16)
+    per_agent_budget: Optional[float] = None  # Max cost per agent in USD
 
 
 @dataclass
