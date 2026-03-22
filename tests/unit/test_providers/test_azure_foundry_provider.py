@@ -600,3 +600,45 @@ class TestAzureFoundryProviderRegistration:
         from deepr.cli.commands.provider_factory import supports_vector_stores
 
         assert supports_vector_stores("azure-foundry") is False
+
+    def test_list_available_models(self):
+        """Test model discovery returns all registered Foundry models."""
+        from unittest.mock import MagicMock, patch
+
+        # Create a minimal provider instance with mocked Azure modules
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure": MagicMock(),
+                "azure.ai": MagicMock(),
+                "azure.ai.projects": MagicMock(AIProjectClient=MagicMock()),
+                "azure.ai.agents": MagicMock(AgentsClient=MagicMock()),
+                "azure.ai.agents.models": MagicMock(
+                    DeepResearchTool=MagicMock(),
+                    MessageRole=MagicMock(AGENT="assistant"),
+                ),
+                "azure.identity": MagicMock(DefaultAzureCredential=MagicMock()),
+            },
+        ):
+            from deepr.providers.azure_foundry_provider import AzureFoundryProvider
+
+            provider = AzureFoundryProvider(project_endpoint="https://test.azure.com")
+            models = provider.list_available_models()
+        assert len(models) >= 7
+
+        model_names = [m["model"] for m in models]
+        assert "o3-deep-research" in model_names
+        assert "gpt-4.1" in model_names
+        assert "gpt-5" in model_names
+
+        # Verify structure
+        for m in models:
+            assert m["provider"] == "azure-foundry"
+            assert "cost_per_query" in m
+            assert "is_deep_research" in m
+
+        # Verify deep research flag
+        o3 = next(m for m in models if m["model"] == "o3-deep-research")
+        assert o3["is_deep_research"] is True
+        gpt41 = next(m for m in models if m["model"] == "gpt-4.1")
+        assert gpt41["is_deep_research"] is False

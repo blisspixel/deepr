@@ -40,9 +40,21 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### Azure AI Foundry (`AZURE_PROJECT_ENDPOINT`)
 - **Deep Research**: o3-deep-research via Agent Service with Bing grounding
-- **Models**: o3-deep-research, GPT-5, GPT-5-mini, GPT-4.1, GPT-4.1-mini, GPT-4o
+- **Models**: o3-deep-research, GPT-5, GPT-5-mini, GPT-4.1, GPT-4.1-mini, GPT-4o, GPT-4o-mini
 - **Best for**: Enterprise deep research with Bing web grounding, Azure compliance
-- **Note**: Deep research limited to West US / Norway East / South Central US; GPT models available in 20+ regions
+- **Auth**: Azure AD / Managed Identity via `DefaultAzureCredential` (no API key option)
+- **Architecture**: Agent/Thread/Run pattern for deep research; lightweight agents for regular models
+- **Note**: Deep research limited to West US / Norway East / South Central US; GPT models available in 20+ regions via Global Standard deployment
+
+| Model | Cost/Query | Context | Regions | Use Case |
+|-------|-----------|---------|---------|----------|
+| o3-deep-research | $0.50 | N/A | 3 regions | Enterprise deep research with Bing |
+| GPT-5 | $0.15 | 400K | 10+ (Global Standard) | Frontier reasoning and synthesis |
+| GPT-5-mini | $0.03 | 400K | Global Standard | Cost-effective GPT-5 alternative |
+| GPT-4.1 | $0.04 | 1M+ | 19 regions (widest) | Long-context analysis, planning |
+| GPT-4.1-mini | $0.01 | 1M+ | 19 regions | Budget long-context tasks |
+| GPT-4o | $0.03 | 128K | Global Standard | General multimodal |
+| GPT-4o-mini | $0.005 | 128K | Global Standard | Cheapest option |
 
 ## Model Selection by Task
 
