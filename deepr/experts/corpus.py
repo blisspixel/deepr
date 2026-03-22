@@ -359,6 +359,178 @@ async def import_corpus(
     return profile
 
 
+async def import_structured_bundle(
+    expert_name: str,
+    bundle_path: Path,
+    store: Any,  # ExpertStore
+    auto_detect_gaps: bool = True,
+) -> dict[str, Any]:
+    """Import a structured document bundle into an existing expert's knowledge.
+
+    Supports MD, JSON, and JSONL files. Does not require a provider or vector
+    store — documents are stored locally and integrated into the worldview.
+
+    This is the "one-command ingest" for research reports, synthesis docs,
+    company briefs, or any structured output.
+
+    Args:
+        expert_name: Name of the target expert (must exist).
+        bundle_path: Path to a file or directory of files to import.
+        store: ExpertStore instance.
+        auto_detect_gaps: If True, scan imports for unanswered questions.
+
+    Returns:
+        Dict with import results: documents_imported, gaps_detected, citations_mapped.
+    """
+    profile = store.load(expert_name)
+    if not profile:
+        raise ValueError(f"Expert not found: {expert_name}")
+
+    docs_dir = store.get_documents_dir(expert_name)
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Collect files to import
+    files_to_import: list[Path] = []
+    bundle = Path(bundle_path)
+
+    if bundle.is_file():
+        files_to_import.append(bundle)
+    elif bundle.is_dir():
+        for ext in ("*.md", "*.json", "*.jsonl"):
+            files_to_import.extend(bundle.glob(ext))
+    else:
+        raise ValueError(f"Bundle path does not exist: {bundle_path}")
+
+    if not files_to_import:
+        raise ValueError(f"No importable files (MD/JSON/JSONL) found in {bundle_path}")
+
+    documents_imported = 0
+    citations_mapped = 0
+    gaps_detected: list[dict[str, str]] = []
+
+    for file_path in sorted(files_to_import):
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning("Failed to read %s: %s", file_path, e)
+            continue
+
+        # Convert JSON/JSONL to markdown for storage
+        if file_path.suffix == ".json":
+            content = _json_to_markdown(content, file_path.name)
+        elif file_path.suffix == ".jsonl":
+            content = _jsonl_to_markdown(content, file_path.name)
+
+        # Write to expert's documents directory
+        dest_name = file_path.stem + ".md"
+        dest = docs_dir / dest_name
+        # Avoid overwriting by appending counter
+        counter = 1
+        while dest.exists():
+            dest = docs_dir / f"{file_path.stem}_{counter}.md"
+            counter += 1
+
+        dest.write_text(content, encoding="utf-8")
+        documents_imported += 1
+
+        # Count citations (links/references in content)
+        citations_mapped += content.count("http://") + content.count("https://")
+
+        # Auto-detect gaps (questions without answers)
+        if auto_detect_gaps:
+            for line in content.split("\n"):
+                stripped = line.strip()
+                if stripped.endswith("?") and len(stripped) > 15:
+                    gaps_detected.append({"question": stripped, "source": file_path.name})
+
+    # Update profile
+    profile.total_documents = (profile.total_documents or 0) + documents_imported
+    profile.source_files = list(set((profile.source_files or []) + [f.name for f in files_to_import]))
+    profile.last_knowledge_refresh = datetime.now(timezone.utc)
+    store.save(profile)
+
+    logger.info(
+        "Imported %d documents into expert '%s' (%d citations, %d gaps detected)",
+        documents_imported,
+        expert_name,
+        citations_mapped,
+        len(gaps_detected),
+    )
+
+    return {
+        "expert_name": expert_name,
+        "documents_imported": documents_imported,
+        "citations_mapped": citations_mapped,
+        "gaps_detected": gaps_detected[:20],  # Cap at 20 for display
+        "files": [f.name for f in files_to_import],
+    }
+
+
+def _json_to_markdown(content: str, filename: str) -> str:
+    """Convert JSON content to markdown for expert knowledge storage."""
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return f"# {filename}\n\n```json\n{content}\n```"
+
+    lines = [f"# {filename}", ""]
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, str):
+                lines.append(f"## {key}")
+                lines.append("")
+                lines.append(value)
+                lines.append("")
+            elif isinstance(value, list):
+                lines.append(f"## {key}")
+                lines.append("")
+                for item in value:
+                    lines.append(f"- {item}")
+                lines.append("")
+            else:
+                lines.append(f"**{key}**: {value}")
+                lines.append("")
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            lines.append(f"## Entry {i + 1}")
+            lines.append("")
+            if isinstance(item, dict):
+                for k, v in item.items():
+                    lines.append(f"**{k}**: {v}")
+            else:
+                lines.append(str(item))
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _jsonl_to_markdown(content: str, filename: str) -> str:
+    """Convert JSONL content to markdown for expert knowledge storage."""
+    lines = [f"# {filename}", ""]
+    entry_num = 0
+
+    for line in content.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+            entry_num += 1
+            lines.append(f"## Entry {entry_num}")
+            lines.append("")
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    lines.append(f"**{k}**: {v}")
+            else:
+                lines.append(str(data))
+            lines.append("")
+        except json.JSONDecodeError:
+            continue
+
+    return "\n".join(lines)
+
+
 def validate_corpus(corpus_dir: Path) -> dict[str, Any]:
     """Validate a corpus directory structure.
 

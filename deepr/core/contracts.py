@@ -6,6 +6,8 @@ Defines shared contracts used across CLI, web dashboard, and MCP server:
 - Gap: A recognized knowledge gap with EV/cost scoring
 - DecisionRecord: A structured decision made during research
 - ExpertManifest: A complete snapshot of an expert's state
+- ExpertPolicy: Explicit refresh/budget/velocity configuration
+- ManifestDelta: Diff between two manifests
 
 All types follow the Evidence pattern: dataclass + to_dict/from_dict.
 Existing Belief/KnowledgeGap classes get adapter methods (to_claim/to_gap)
@@ -460,4 +462,192 @@ class ExpertManifest:
             decisions=[DecisionRecord.from_dict(d) for d in data.get("decisions", [])],
             policies=data.get("policies", {}),
             generated_at=datetime.fromisoformat(data["generated_at"]) if data.get("generated_at") else _utc_now(),
+        )
+
+
+@dataclass
+class ExpertPolicy:
+    """Explicit configuration policy for an expert's autonomous behavior.
+
+    Controls how the expert refreshes knowledge, spends budget,
+    and prioritizes gaps.
+    """
+
+    refresh_frequency_days: int = 7
+    budget_cap_monthly: float = 50.0
+    domain_velocity: str = "medium"  # slow | medium | fast
+    auto_refresh_enabled: bool = True
+    high_trust_only: bool = False  # If True, only use primary/secondary sources
+    max_concurrent_research: int = 3
+    gap_fill_strategy: str = "ev_cost_ratio"  # ev_cost_ratio | priority | recency
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "refresh_frequency_days": self.refresh_frequency_days,
+            "budget_cap_monthly": self.budget_cap_monthly,
+            "domain_velocity": self.domain_velocity,
+            "auto_refresh_enabled": self.auto_refresh_enabled,
+            "high_trust_only": self.high_trust_only,
+            "max_concurrent_research": self.max_concurrent_research,
+            "gap_fill_strategy": self.gap_fill_strategy,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExpertPolicy":
+        return cls(
+            refresh_frequency_days=int(data.get("refresh_frequency_days", 7)),
+            budget_cap_monthly=float(data.get("budget_cap_monthly", 50.0)),
+            domain_velocity=data.get("domain_velocity", "medium"),
+            auto_refresh_enabled=bool(data.get("auto_refresh_enabled", True)),
+            high_trust_only=bool(data.get("high_trust_only", False)),
+            max_concurrent_research=int(data.get("max_concurrent_research", 3)),
+            gap_fill_strategy=data.get("gap_fill_strategy", "ev_cost_ratio"),
+        )
+
+
+@dataclass
+class ManifestDelta:
+    """Diff between two ExpertManifest snapshots.
+
+    Computes added/removed/changed claims, new/resolved gaps,
+    and summary statistics. Useful for version control, auditing,
+    and understanding how an expert evolves over time.
+    """
+
+    expert_name: str
+    from_time: datetime
+    to_time: datetime
+
+    # Claims
+    claims_added: list[Claim] = field(default_factory=list)
+    claims_removed: list[Claim] = field(default_factory=list)
+    claims_confidence_changed: list[dict[str, Any]] = field(default_factory=list)
+
+    # Gaps
+    gaps_new: list[Gap] = field(default_factory=list)
+    gaps_resolved: list[Gap] = field(default_factory=list)
+
+    # Decisions
+    decisions_added: int = 0
+
+    # Policies
+    policy_changes: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def has_changes(self) -> bool:
+        return bool(
+            self.claims_added
+            or self.claims_removed
+            or self.claims_confidence_changed
+            or self.gaps_new
+            or self.gaps_resolved
+            or self.decisions_added
+            or self.policy_changes
+        )
+
+    @property
+    def summary(self) -> str:
+        parts = []
+        if self.claims_added:
+            parts.append(f"+{len(self.claims_added)} claims")
+        if self.claims_removed:
+            parts.append(f"-{len(self.claims_removed)} claims")
+        if self.claims_confidence_changed:
+            parts.append(f"~{len(self.claims_confidence_changed)} confidence changes")
+        if self.gaps_new:
+            parts.append(f"+{len(self.gaps_new)} gaps")
+        if self.gaps_resolved:
+            parts.append(f"✓{len(self.gaps_resolved)} gaps resolved")
+        if self.decisions_added:
+            parts.append(f"+{self.decisions_added} decisions")
+        return ", ".join(parts) if parts else "no changes"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "expert_name": self.expert_name,
+            "from_time": self.from_time.isoformat(),
+            "to_time": self.to_time.isoformat(),
+            "claims_added": [c.to_dict() for c in self.claims_added],
+            "claims_removed": [c.to_dict() for c in self.claims_removed],
+            "claims_confidence_changed": self.claims_confidence_changed,
+            "gaps_new": [g.to_dict() for g in self.gaps_new],
+            "gaps_resolved": [g.to_dict() for g in self.gaps_resolved],
+            "decisions_added": self.decisions_added,
+            "policy_changes": self.policy_changes,
+            "summary": self.summary,
+            "has_changes": self.has_changes,
+        }
+
+    @classmethod
+    def compute(cls, before: "ExpertManifest", after: "ExpertManifest") -> "ManifestDelta":
+        """Compute the delta between two manifest snapshots.
+
+        Uses claim/gap IDs (content-hashes) for stable comparison.
+        """
+        before_claim_ids = {c.id for c in before.claims}
+        after_claim_ids = {c.id for c in after.claims}
+        before_claims_by_id = {c.id: c for c in before.claims}
+        after_claims_by_id = {c.id: c for c in after.claims}
+
+        # Claims added/removed
+        added_ids = after_claim_ids - before_claim_ids
+        removed_ids = before_claim_ids - after_claim_ids
+        shared_ids = before_claim_ids & after_claim_ids
+
+        # Confidence changes
+        confidence_changes = []
+        for cid in shared_ids:
+            old_conf = before_claims_by_id[cid].confidence
+            new_conf = after_claims_by_id[cid].confidence
+            if abs(old_conf - new_conf) > 0.01:
+                confidence_changes.append(
+                    {
+                        "claim_id": cid,
+                        "statement": after_claims_by_id[cid].statement[:200],
+                        "old_confidence": round(old_conf, 3),
+                        "new_confidence": round(new_conf, 3),
+                        "delta": round(new_conf - old_conf, 3),
+                    }
+                )
+
+        # Gaps
+        before_gap_ids = {g.id for g in before.gaps}
+        after_gap_ids = {g.id for g in after.gaps}
+        before_gaps_by_id = {g.id: g for g in before.gaps}
+        after_gaps_by_id = {g.id: g for g in after.gaps}
+
+        new_gap_ids = after_gap_ids - before_gap_ids
+        # Resolved = was unfilled before, now filled or removed
+        resolved = []
+        for gid in before_gap_ids:
+            bg = before_gaps_by_id[gid]
+            if bg.filled:
+                continue  # Already filled before
+            if gid not in after_gap_ids:
+                resolved.append(bg)  # Removed entirely
+            elif after_gaps_by_id[gid].filled:
+                resolved.append(after_gaps_by_id[gid])  # Now filled
+
+        # Decisions
+        decisions_added = max(0, len(after.decisions) - len(before.decisions))
+
+        # Policy changes
+        policy_changes = {}
+        for key in set(list(before.policies.keys()) + list(after.policies.keys())):
+            old_val = before.policies.get(key)
+            new_val = after.policies.get(key)
+            if old_val != new_val:
+                policy_changes[key] = {"old": old_val, "new": new_val}
+
+        return cls(
+            expert_name=after.expert_name,
+            from_time=before.generated_at,
+            to_time=after.generated_at,
+            claims_added=[after_claims_by_id[cid] for cid in added_ids],
+            claims_removed=[before_claims_by_id[cid] for cid in removed_ids],
+            claims_confidence_changed=confidence_changes,
+            gaps_new=[after_gaps_by_id[gid] for gid in new_gap_ids],
+            gaps_resolved=resolved,
+            decisions_added=decisions_added,
+            policy_changes=policy_changes,
         )
