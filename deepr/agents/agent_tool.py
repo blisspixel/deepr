@@ -79,7 +79,15 @@ class AgentTool:
         if isinstance(arguments, str):
             arguments = json.loads(arguments)
 
-        query = arguments.get("query", "")
+        query = arguments.get("query")
+        if not query:
+            return AgentResult(
+                agent_id=parent_identity.agent_id,
+                trace_id=parent_identity.trace_id,
+                output="Missing required 'query' parameter",
+                status=AgentStatus.FAILED,
+                metadata={"error": "missing_query"},
+            )
         child_identity = parent_identity.child(
             role=AgentRole.WORKER,
             name=f"tool-{self.name}",
