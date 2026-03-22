@@ -82,9 +82,10 @@ def check_deprecation(model: str) -> DeprecationEntry | None:
         return DEPRECATION_REGISTRY[model]
 
     # Prefix match for versioned variants (e.g. "gpt-4o-2024-08-06")
-    for key, entry in DEPRECATION_REGISTRY.items():
+    # Sort by key length descending so "gpt-4o-mini" matches before "gpt-4o"
+    for key in sorted(DEPRECATION_REGISTRY, key=len, reverse=True):
         if model.startswith(key + "-") or model.startswith(key + "/"):
-            return entry
+            return DEPRECATION_REGISTRY[key]
 
     return None
 

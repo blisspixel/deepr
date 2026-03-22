@@ -271,6 +271,7 @@ class MCPClient:
         effective_timeout = timeout or self.timeout
         start = time.monotonic()
 
+        # Stats count logical calls (one per call_tool invocation), not retries
         last_error = ""
         for attempt in range(self.max_retries):
             try:
@@ -286,10 +287,11 @@ class MCPClient:
                 )
 
                 elapsed = (time.monotonic() - start) * 1000
-                self._stats.total_calls += 1
 
                 if "error" in response:
+                    # Protocol error from server — not retryable
                     error_msg = str(response["error"])
+                    self._stats.total_calls += 1
                     self._stats.failed_calls += 1
                     self._stats.last_error = error_msg
                     self._stats.last_error_time = time.time()
@@ -308,6 +310,7 @@ class MCPClient:
                 if isinstance(content_parts, list):
                     text = "\n".join(c.get("text", "") for c in content_parts if c.get("type") == "text")
 
+                self._stats.total_calls += 1
                 self._stats.successful_calls += 1
                 self._stats.total_latency_ms += elapsed
 
@@ -346,7 +349,7 @@ class MCPClient:
                 delay = self.retry_delay * (2**attempt)
                 await asyncio.sleep(delay)
 
-        # All retries exhausted
+        # All retries exhausted — count as one failed logical call
         elapsed = (time.monotonic() - start) * 1000
         self._stats.total_calls += 1
         self._stats.failed_calls += 1
