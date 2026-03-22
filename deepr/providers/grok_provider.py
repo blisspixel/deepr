@@ -112,23 +112,29 @@ class GrokProvider(DeepResearchProvider):
         """
         Submit research to Grok using chat completions.
 
-        Executes immediately (synchronous completion).
+        For multi-agent models (grok-4.20-multi-agent*), delegates to
+        client-side parallel fan-out with per-agent budget isolation.
+        Otherwise executes as a single synchronous completion.
         """
         import uuid
 
         # Generate job ID
         job_id = f"grok-{uuid.uuid4().hex[:16]}"
+        resolved_model = self.get_model_name(request.model)
 
         # Store job
         self.jobs[job_id] = {
             "status": "processing",
             "request": request,
             "created_at": datetime.now(timezone.utc),
-            "model": self.get_model_name(request.model),
+            "model": resolved_model,
         }
 
-        # Execute research immediately
-        await self._execute_research(job_id)
+        # Route to multi-agent if appropriate
+        if "multi-agent" in resolved_model:
+            await self._execute_multi_agent_research(job_id)
+        else:
+            await self._execute_research(job_id)
 
         return job_id
 
@@ -261,6 +267,266 @@ class GrokProvider(DeepResearchProvider):
                 self.jobs[job_id]["status"] = "cancelled"
                 return True
         return False
+
+    def _determine_agent_count(self, request: ResearchRequest) -> int:
+        """Determine number of parallel agents based on query complexity and budget.
+
+        Heuristic: longer/more complex prompts get more agents, capped by budget.
+        Range: 4-16 agents.
+        """
+        if request.agent_count is not None:
+            return max(4, min(16, request.agent_count))
+
+        # Complexity heuristic based on prompt characteristics
+        prompt = request.prompt
+        word_count = len(prompt.split())
+        question_marks = prompt.count("?")
+        has_comparison = any(w in prompt.lower() for w in ["compare", "contrast", "versus", "difference"])
+        has_multi_aspect = any(w in prompt.lower() for w in ["aspects", "dimensions", "factors", "perspectives"])
+
+        # Base: 4 agents
+        agent_count = 4
+        if word_count > 50:
+            agent_count += 2
+        if word_count > 100:
+            agent_count += 2
+        if question_marks > 2:
+            agent_count += 2
+        if has_comparison or has_multi_aspect:
+            agent_count += 2
+
+        # Cap by budget (each agent costs roughly $0.10-0.50)
+        if request.per_agent_budget and request.per_agent_budget < 0.05:
+            agent_count = min(agent_count, 4)
+
+        return max(4, min(16, agent_count))
+
+    async def _execute_multi_agent_research(self, job_id: str) -> None:
+        """Execute multi-agent research via client-side parallel fan-out.
+
+        Splits the query into N sub-queries, runs them in parallel using
+        the AsyncTaskDispatcher, and synthesises results.
+
+        When xAI releases the native Responses API for multi-agent mode,
+        this method should be updated to use server-side orchestration instead.
+        The entry point (submit_research) and result format stay the same.
+        """
+        import uuid
+
+        from deepr.agents.contract import AgentBudget, AgentIdentity, AgentRole
+        from deepr.experts.constants import MAX_PLAN_CONCURRENCY
+        from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
+
+        job_data = self.jobs[job_id]
+        request = job_data["request"]
+
+        # Use single-agent model for individual completions
+        single_model = "grok-4.20-0309-reasoning"
+
+        agent_count = self._determine_agent_count(request)
+        per_agent_budget = request.per_agent_budget or 0.50
+
+        # Create root identity for trace correlation
+        trace_id = uuid.uuid4().hex[:16]
+        root_identity = AgentIdentity(
+            role=AgentRole.PLANNER,
+            trace_id=trace_id,
+            name=f"grok-multi-agent-{job_id[:8]}",
+        )
+
+        # Generate sub-queries (fan-out perspectives)
+        sub_queries = self._generate_sub_queries(request.prompt, agent_count)
+
+        # Execute sub-queries in parallel
+        dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_PLAN_CONCURRENCY)
+
+        total_cost = 0.0
+        agent_results: list[dict[str, Any]] = []
+
+        async def _run_agent(idx: int, sub_query: str) -> dict[str, Any]:
+            child_identity = root_identity.child(
+                role=AgentRole.WORKER,
+                name=f"agent-{idx}",
+            )
+            agent_budget = AgentBudget(max_cost=per_agent_budget)
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        request.system_message
+                        or "You are a research agent. Provide thorough analysis with evidence and citations."
+                    )
+                    + f"\n\nYou are agent {idx + 1} of {agent_count} working on different aspects of the same query.",
+                },
+                {"role": "user", "content": sub_query},
+            ]
+
+            try:
+                response = await self.client.chat.completions.create(
+                    model=single_model,
+                    messages=messages,
+                    temperature=request.temperature if request.temperature is not None else 0.7,
+                )
+                content = response.choices[0].message.content or ""
+                usage = response.usage
+                cost = self._calculate_cost(
+                    usage.prompt_tokens,
+                    usage.completion_tokens,
+                    single_model,
+                )
+                agent_budget.record(cost)
+
+                return {
+                    "agent_id": child_identity.agent_id,
+                    "trace_id": child_identity.trace_id,
+                    "content": content,
+                    "cost": cost,
+                    "tokens_input": usage.prompt_tokens,
+                    "tokens_output": usage.completion_tokens,
+                    "status": "completed",
+                }
+            except Exception as e:
+                return {
+                    "agent_id": child_identity.agent_id,
+                    "trace_id": child_identity.trace_id,
+                    "content": f"Agent {idx} failed: {e}",
+                    "cost": 0.0,
+                    "tokens_input": 0,
+                    "tokens_output": 0,
+                    "status": "failed",
+                }
+
+        dispatch_tasks = [{"id": f"agent-{i}", "coro": _run_agent(i, sub_queries[i])} for i in range(len(sub_queries))]
+
+        try:
+            dispatch_result = await dispatcher.dispatch(dispatch_tasks)
+
+            for task_id in sorted(dispatch_result.tasks):
+                task = dispatch_result.tasks[task_id]
+                if task.result is not None:
+                    agent_results.append(task.result)
+                    total_cost += task.result.get("cost", 0.0)
+
+            # Synthesise agent outputs
+            agent_outputs = [r["content"] for r in agent_results if r["status"] == "completed"]
+            synthesis = await self._synthesise_multi_agent(request.prompt, agent_outputs, single_model)
+            total_cost += synthesis.get("cost", 0.0)
+
+            total_input = sum(r.get("tokens_input", 0) for r in agent_results)
+            total_output = sum(r.get("tokens_output", 0) for r in agent_results)
+            total_input += synthesis.get("tokens_input", 0)
+            total_output += synthesis.get("tokens_output", 0)
+
+            self.jobs[job_id].update(
+                {
+                    "status": "completed",
+                    "content": synthesis.get("content", ""),
+                    "cost": total_cost,
+                    "completed_at": datetime.now(timezone.utc),
+                    "agent_count": len(agent_results),
+                    "agent_results": agent_results,
+                    "trace_id": trace_id,
+                    "usage": type(
+                        "Usage",
+                        (),
+                        {
+                            "prompt_tokens": total_input,
+                            "completion_tokens": total_output,
+                            "total_tokens": total_input + total_output,
+                        },
+                    )(),
+                }
+            )
+
+        except Exception as e:
+            self.jobs[job_id].update(
+                {
+                    "status": "failed",
+                    "error": f"Multi-agent orchestration failed: {e}",
+                    "completed_at": datetime.now(timezone.utc),
+                }
+            )
+            raise
+
+    def _generate_sub_queries(self, prompt: str, agent_count: int) -> list[str]:
+        """Split a research prompt into agent-specific sub-queries.
+
+        Each agent gets the full context but a different analytical focus.
+        """
+        perspectives = [
+            "Focus on factual claims, data points, and primary sources.",
+            "Focus on historical context, trends, and how this has evolved over time.",
+            "Focus on counterarguments, risks, limitations, and alternative viewpoints.",
+            "Focus on practical implications, applications, and actionable insights.",
+            "Focus on technical details, mechanisms, and implementation specifics.",
+            "Focus on comparative analysis with related topics or competitors.",
+            "Focus on expert opinions, consensus views, and areas of debate.",
+            "Focus on recent developments, breaking news, and emerging trends.",
+            "Focus on quantitative data, statistics, and measurable outcomes.",
+            "Focus on stakeholder perspectives and impact on different groups.",
+            "Focus on regulatory, legal, and compliance aspects.",
+            "Focus on economic and financial implications.",
+            "Focus on ethical considerations and societal impact.",
+            "Focus on future outlook, predictions, and potential scenarios.",
+            "Focus on methodology, evidence quality, and research design.",
+            "Focus on cross-domain connections and interdisciplinary insights.",
+        ]
+
+        sub_queries = []
+        for i in range(agent_count):
+            perspective = perspectives[i % len(perspectives)]
+            sub_queries.append(f"{prompt}\n\n[Research Directive: {perspective}]")
+        return sub_queries
+
+    async def _synthesise_multi_agent(
+        self, original_query: str, agent_outputs: list[str], model: str
+    ) -> dict[str, Any]:
+        """Synthesise outputs from multiple agents into a unified report."""
+        if not agent_outputs:
+            return {"content": "No agent outputs to synthesise.", "cost": 0.0, "tokens_input": 0, "tokens_output": 0}
+
+        parts = "\n\n---\n\n".join(
+            f"**Agent {i + 1} findings:**\n{output[:2000]}" for i, output in enumerate(agent_outputs)
+        )
+
+        synth_prompt = (
+            f"You are synthesising research from {len(agent_outputs)} parallel research agents.\n\n"
+            f"Original query: {original_query}\n\n"
+            f"Agent findings:\n{parts}\n\n"
+            f"Create a comprehensive, unified research report that:\n"
+            f"1. Integrates the best insights from all agents\n"
+            f"2. Resolves any contradictions between agents\n"
+            f"3. Identifies areas of agreement and disagreement\n"
+            f"4. Provides a clear, structured final answer\n"
+        )
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "Synthesise multi-agent research into a unified report."},
+                    {"role": "user", "content": synth_prompt[:12000]},
+                ],
+                temperature=0.3,
+            )
+            content = response.choices[0].message.content or ""
+            usage = response.usage
+            cost = self._calculate_cost(usage.prompt_tokens, usage.completion_tokens, model)
+            return {
+                "content": content,
+                "cost": cost,
+                "tokens_input": usage.prompt_tokens,
+                "tokens_output": usage.completion_tokens,
+            }
+        except Exception as e:
+            # Fallback: concatenate agent outputs
+            return {
+                "content": f"Synthesis failed ({e}). Raw agent outputs:\n\n{parts}",
+                "cost": 0.0,
+                "tokens_input": 0,
+                "tokens_output": 0,
+            }
 
     def _calculate_cost(
         self, prompt_tokens: int, completion_tokens: int, model: str, reasoning_tokens: int = 0

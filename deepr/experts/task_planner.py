@@ -216,10 +216,12 @@ class TaskPlanner:
         dep_map: dict[str, list[str]] = {}
         for s in steps.values():
             task_id = str(s.id)
-            dispatch_tasks.append({
-                "id": task_id,
-                "coro": _run_step(s),
-            })
+            dispatch_tasks.append(
+                {
+                    "id": task_id,
+                    "coro": _run_step(s),
+                }
+            )
             dep_map[task_id] = [str(d) for d in s.depends_on]
 
         await dispatcher.dispatch_with_dependencies(
