@@ -109,3 +109,13 @@ class TestAgentToolExecution:
         assert result.status == AgentStatus.FAILED
         assert "Agent tool failed" in result.output
         assert "exploded" in result.metadata.get("error", "")
+
+    @pytest.mark.asyncio
+    async def test_execute_missing_query(self):
+        tool = AgentTool(name="worker", description="Worker", agent=MockAgent())
+        parent = AgentIdentity()
+
+        result = await tool.execute({"not_query": "oops"}, parent)
+
+        assert result.status == AgentStatus.FAILED
+        assert "Missing required" in result.output

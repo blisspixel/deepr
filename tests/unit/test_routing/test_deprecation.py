@@ -33,6 +33,18 @@ class TestCheckDeprecation:
         assert check_deprecation("o4-mini-deep-research") is None
         assert check_deprecation("grok-4.20-0309-reasoning") is None
 
+    def test_versioned_gpt4o_mini_matches_correctly(self):
+        """gpt-4o-mini-2024-08-06 should match gpt-4o-mini, NOT gpt-4o."""
+        entry = check_deprecation("gpt-4o-mini-2024-08-06")
+        assert entry is not None
+        assert entry.new_model == "gpt-4.1-mini"  # NOT gpt-4.1
+
+    def test_versioned_gpt4o_matches_correctly(self):
+        """gpt-4o-2024-08-06 should match gpt-4o."""
+        entry = check_deprecation("gpt-4o-2024-08-06")
+        assert entry is not None
+        assert entry.new_model == "gpt-4.1"
+
     def test_unknown_model(self):
         assert check_deprecation("totally-fake-model") is None
 
