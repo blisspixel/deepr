@@ -445,7 +445,16 @@ async def import_structured_bundle(
 
     # Update profile
     profile.total_documents = (profile.total_documents or 0) + documents_imported
-    profile.source_files = list(set((profile.source_files or []) + [f.name for f in files_to_import]))
+    # Preserve order while deduplicating
+    existing = profile.source_files or []
+    new_names = [f.name for f in files_to_import]
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for name in existing + new_names:
+        if name not in seen:
+            seen.add(name)
+            deduped.append(name)
+    profile.source_files = deduped
     profile.last_knowledge_refresh = datetime.now(timezone.utc)
     store.save(profile)
 
