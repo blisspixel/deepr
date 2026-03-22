@@ -68,6 +68,20 @@ class AutoModeDecision:
             "reasoning": self.reasoning,
         }
 
+    def preview_text(self) -> str:
+        """Return a human-readable preview of this routing decision."""
+        conf_pct = f"{self.confidence * 100:.0f}%"
+        lines = [
+            f"  Provider:   {self.provider}",
+            f"  Model:      {self.model}",
+            f"  Complexity: {self.complexity}",
+            f"  Task type:  {self.task_type}",
+            f"  Est. cost:  ${self.cost_estimate:.4f}",
+            f"  Confidence: {conf_pct}",
+            f"  Reasoning:  {self.reasoning}",
+        ]
+        return "\n".join(lines)
+
     @classmethod
     def from_dict(cls, data: dict) -> "AutoModeDecision":
         """Create from dictionary."""
@@ -665,10 +679,16 @@ class AutoModeRouter:
             # Re-sort by cost-per-quality ascending (best value first)
             ranked = sorted(ranked, key=lambda r: r[3] / max(r[2], 0.001))
 
+        from deepr.routing.deprecation import check_deprecation
+
         for provider, model, quality, cost in ranked:
             if not self._is_provider_usable(provider):
                 continue
             if budget is not None and cost > budget:
+                continue
+            # Skip deprecated models — route to successor if available
+            dep = check_deprecation(model)
+            if dep is not None:
                 continue
             return (provider, model, cost, quality)
 
@@ -683,11 +703,14 @@ class AutoModeRouter:
         Returns:
             Tuple of (provider, model, cost_estimate, reasoning)
         """
+        from deepr.routing.deprecation import check_deprecation
+
         candidates = []
         for cap in MODEL_CAPABILITIES.values():
             if self._is_provider_usable(cap.provider):
                 if budget is None or cap.cost_per_query <= budget:
-                    candidates.append((cap.provider, cap.model, cap.cost_per_query))
+                    if check_deprecation(cap.model) is None:
+                        candidates.append((cap.provider, cap.model, cap.cost_per_query))
 
         if candidates:
             candidates.sort(key=lambda x: x[2])  # Cheapest first
