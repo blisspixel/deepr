@@ -48,7 +48,9 @@ class ExpertChatSession:
         enable_router: bool = True,
         verbose: bool = False,
         quiet: bool = False,
+        agent_identity: Any = None,
     ):
+        self.agent_identity = agent_identity
         self.expert = expert
         self.budget = budget or 10.0  # Default $10 budget if not specified
         self.agentic = agentic  # Enable research triggering
@@ -93,7 +95,10 @@ class ExpertChatSession:
         from deepr.experts.cost_safety import get_cost_safety_manager
 
         self.cost_safety = get_cost_safety_manager()
-        self.session_id = f"chat_{expert.name}_{uuid.uuid4().hex[:8]}"
+        if self.agent_identity:
+            self.session_id = f"chat_{expert.name}_{self.agent_identity.agent_id}"
+        else:
+            self.session_id = f"chat_{expert.name}_{uuid.uuid4().hex[:8]}"
         self.cost_session = self.cost_safety.create_session(
             session_id=self.session_id, session_type="chat", budget_limit=self.budget
         )
@@ -2305,6 +2310,7 @@ async def start_chat_session(
     enable_router: bool = True,
     verbose: bool = False,
     quiet: bool = False,
+    agent_identity: Optional[Any] = None,
 ) -> ExpertChatSession:
     """Start a new chat session with an expert.
 
@@ -2315,6 +2321,7 @@ async def start_chat_session(
         enable_router: Enable dynamic model routing (Phase 3a)
         verbose: Show detailed thinking in terminal
         quiet: Hide all thinking (only final answers)
+        agent_identity: Optional AgentIdentity for trace/cost attribution
 
     Returns:
         ExpertChatSession instance
@@ -2325,4 +2332,7 @@ async def start_chat_session(
     if not expert:
         raise ValueError(f"Expert '{expert_name}' not found")
 
-    return ExpertChatSession(expert, budget, agentic, enable_router, verbose, quiet)
+    return ExpertChatSession(
+        expert, budget, agentic, enable_router, verbose, quiet,
+        agent_identity=agent_identity,
+    )

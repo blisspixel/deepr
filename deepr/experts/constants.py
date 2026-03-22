@@ -22,3 +22,7 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
 
 # Budget constants
 SYNTHESIS_BUDGET_FRACTION = 0.1  # 10% of budget reserved for synthesis
+
+# Concurrency limits for bounded fan-out
+MAX_COUNCIL_CONCURRENCY = 5  # Max parallel experts in council consultation
+MAX_PLAN_CONCURRENCY = 4  # Max parallel steps in task plan execution
