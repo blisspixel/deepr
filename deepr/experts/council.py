@@ -170,10 +170,7 @@ class ExpertCouncil:
         from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
 
         dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_COUNCIL_CONCURRENCY)
-        dispatch_tasks = [
-            {"id": exp["name"], "coro": _query_expert(exp)}
-            for exp in experts
-        ]
+        dispatch_tasks = [{"id": exp["name"], "coro": _query_expert(exp)} for exp in experts]
         dispatch_result = await dispatcher.dispatch(dispatch_tasks)
         perspectives = [
             dispatch_result.tasks[exp["name"]].result
