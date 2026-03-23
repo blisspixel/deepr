@@ -1,10 +1,17 @@
 """Tests for AgentIdentity propagation through TaskPlanner."""
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from deepr.agents.contract import AgentIdentity, AgentRole
+
+
+@pytest.fixture(autouse=True)
+def _fake_openai_key(monkeypatch):
+    """Provide a dummy OPENAI_API_KEY so AsyncOpenAI() doesn't raise."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake-key")
 
 
 @pytest.fixture
