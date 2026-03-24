@@ -5,9 +5,9 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-latest-orange)](ROADMAP.md)
 
-**Research infrastructure, not another chat window.**
+**Domain experts, not another chat window.**
 
-ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them, builds persistent expert agents that learn over time, and runs from scripts, cron jobs, and AI agent workflows. One report is easy. Scaling research, keeping experts current, and feeding knowledge into automated pipelines — that's what Deepr is for.
+ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows — so your experts are always available as team members, not just tools you invoke manually.
 
 ```bash
 # Auto-routes to the best model per query: Grok 4.1 Fast ($0.01) -> GPT-5.4 -> o3-deep-research
@@ -40,6 +40,7 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 - **Scaling research** — Batch 50 queries at $2 instead of clicking "Deep Research" 50 times. Auto-mode routes each query to the cheapest model that can handle it.
 - **Building persistent experts** — Agents that accumulate knowledge across sessions, track beliefs with confidence, detect their own gaps, and research to fill them.
 - **Feeding AI workflows** — Your coding agents call Deepr experts via MCP mid-task. They get living knowledge with citations, not hallucinations or stale training data.
+- **Composing into agent teams** — Experts expose structured outputs with handoff-ready artifacts. An upstream signal agent can feed findings into a Deepr expert, which produces research that a downstream strategy or proposal agent consumes. Deepr doesn't orchestrate the team — it plays a role on it.
 - **Running continuously** — Scripts, cron jobs, CI pipelines. No browser, no manual clicking.
 - **Auditing everything** — Every routing choice, source trust decision, and cost is captured as a structured decision record.
 - **Avoiding lock-in** — Reports and experts are local files you own. If one provider goes down, auto-fallback routes to another.
@@ -97,9 +98,9 @@ Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus
 
 See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
-### MCP Integration
+### MCP Integration — Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr as a tool via MCP — query experts, trigger research, fill knowledge gaps, all mid-task with budget controls. 16 MCP tools, resource subscriptions, prompt templates. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 16 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
 ### Web Dashboard
 
@@ -136,10 +137,11 @@ See [docs/MODELS.md](docs/MODELS.md) for provider comparison and pricing.
 
 ## Design
 
-Two patterns run through Deepr:
+Three patterns run through Deepr:
 
 - **Budgeted autonomy** — Every autonomous job runs under a contract: max spend, stop conditions, acceptable uncertainty, required citations, audit trail.
 - **Decision records as artifacts** — The system captures *why* it chose a model, trusted a source, stopped searching, or flagged a knowledge gap. These feed back into routing, expert learning, and cost optimization.
+- **Experts as roles, not tools** — Each expert is a persistent, named role with its own knowledge state, beliefs, and gaps. You don't "run Deepr" — you consult a domain expert. This makes experts composable: they can receive structured input from upstream agents, produce handoff-ready artifacts for downstream agents, and participate in multi-agent workflows without being the orchestrator.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
 

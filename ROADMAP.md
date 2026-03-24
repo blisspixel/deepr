@@ -26,6 +26,8 @@ Deepr is organized in three layers. When contributing, it helps to know which la
 
 The kernel is designed to be embeddable in other agent projects. The primitives are specific to research but follow patterns (belief states, gap backlogs, refresh policies) that generalize. The interfaces are thin wrappers over the lower layers.
 
+**Interoperability model:** Deepr is built to be one role on a larger agent team, not the orchestrator. Experts produce structured, handoff-ready artifacts (reports with citations, belief states, gap backlogs) that downstream agents can consume directly. An external orchestrator assigns work to a Deepr expert the same way it would assign work to any other role — via MCP tool calls with budget contracts and trace IDs that stitch across agent boundaries. This means Deepr doesn't need to know about the full workflow; it just needs to do its job well and hand off cleanly.
+
 ---
 
 ## Current Status (v2.9.1)
@@ -133,13 +135,14 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Preserve budgeted autonomy, auditability, and provider portability.
 - Ship capabilities that improve measurable quality, cost-efficiency, and reliability.
 - Keep orchestration bounded: no unbounded swarms, no opaque autonomy.
+- Design for composability: experts are roles that receive input, produce handoff-ready output, and participate in multi-agent teams without owning the workflow.
 
 ### Phase 1: Agentic Infrastructure Core
 
-Goal: make the agentic layer production-ready — subagent contracts, multi-agent support, provider resilience.
+Goal: make the agentic layer production-ready — subagent contracts, role-based handoffs, provider resilience.
 
 - [ ] Subagent runtime contract (planner → delegated workers → synthesizer) with per-subagent budget and trace IDs
-- [ ] Explicit handoff semantics (agent-as-tools + deterministic orchestration path)
+- [ ] Explicit handoff semantics: structured input/output contracts so experts can receive work from upstream agents and produce artifacts that downstream agents consume without custom integration
 - [ ] Bounded parallel fan-out for council/task planning with circuit-breaker safeguards
 - [ ] Return artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) from all MCP tools
 - [ ] Grok 4.20 multi-agent deep research via xAI Responses API:
@@ -242,6 +245,7 @@ Goal: production posture for multi-user and autonomous deployments.
 Explicitly out of scope:
 
 - **General-purpose chat** — Expert chat is domain-focused; for open-ended conversation, use ChatGPT, Claude, Gemini, etc.
+- **Workflow orchestration** — Deepr experts are roles that participate in multi-agent teams, but Deepr is not the orchestrator. It handles its domain (research, knowledge, gap detection) and hands off cleanly. Workflow coordination belongs to a separate orchestration layer.
 - **Real-time responses** — Deep research takes minutes by design; this is a feature, not a bug
 - **Sub-$1 comprehensive research** — Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
 - **Mobile apps** — CLI and web dashboard cover the use cases
