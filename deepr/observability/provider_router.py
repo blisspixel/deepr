@@ -23,6 +23,9 @@ import json
 import logging
 import math
 import os
+import sys
+import tempfile
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -885,21 +888,36 @@ class AutonomousProviderRouter:
             "saved_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Atomic write: write to temp file, then rename
-        temp_path = self.storage_path.with_suffix(".tmp")
+        # Atomic write: write to temp file in same directory, then rename
         try:
-            with open(temp_path, "w", encoding="utf-8") as f:
+            fd, tmp_name = tempfile.mkstemp(
+                dir=self.storage_path.parent,
+                suffix=".tmp",
+                prefix=".metrics_",
+            )
+            temp_path = Path(tmp_name)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            # Atomic rename (on POSIX systems; best-effort on Windows)
-            os.replace(temp_path, self.storage_path)
+            # Atomic rename — retry on Windows where file locking
+            # can cause transient Access Denied errors
+            max_attempts = 5 if sys.platform == "win32" else 1
+            for attempt in range(max_attempts):
+                try:
+                    os.replace(temp_path, self.storage_path)
+                    break
+                except PermissionError:
+                    if attempt < max_attempts - 1:
+                        time.sleep(0.05 * (attempt + 1))
+                    else:
+                        raise
         except OSError as e:
             logger.error(f"Failed to save provider metrics: {e}")
             # Clean up temp file if it exists
-            if temp_path.exists():
-                try:
+            try:
+                if temp_path.exists():
                     temp_path.unlink()
-                except OSError:
-                    pass
+            except (OSError, UnboundLocalError):
+                pass
 
     def _load(self):
         """Load metrics from disk.
