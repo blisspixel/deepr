@@ -9,26 +9,26 @@
 
 ## Reporting a Vulnerability
 
-**Do not open a public issue for security vulnerabilities.**
+**Do not report security vulnerabilities via public GitHub issues.**
 
-Please report security issues by emailing [nick@pueo.io](mailto:nick@pueo.io) with:
+Email [nick@pueo.io](mailto:nick@pueo.io) with:
 
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if any)
+1. Description of the vulnerability
+2. Steps to reproduce
+3. Potential impact
+4. Suggested fix (if any)
 
-You should receive an acknowledgment within 72 hours. Fixes for confirmed vulnerabilities will be released as patch versions.
+You should receive a response within 72 hours. Critical issues will be patched and released as soon as possible.
 
 ## Security Measures
 
-Deepr includes several security layers:
+Deepr includes:
 
-- **Input validation** on all CLI and API inputs
-- **SSRF protection** for URL-based operations
-- **API key redaction** in logs and error messages
-- **Budget enforcement** to prevent runaway spend
-- **Pre-commit hooks** running ruff lint and debug statement detection
-- **4300+ tests** (Python 3.12) including security-focused test markers
+- Input validation and request sanitization
+- SSRF protection on user-supplied URLs
+- API key redaction in logs and error output
+- Budget enforcement to prevent runaway spend
+- Pre-commit hooks (ruff lint, debug statement detection)
+- 4300+ tests (Python 3.12)
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical security details.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
