@@ -67,8 +67,8 @@ MODE_COSTS: dict[ResearchMode, CostEstimate] = {
 }
 
 MODE_MODELS: dict[ResearchMode, str] = {
-    ResearchMode.QUICK: "grok-4-1-fast-non-reasoning",
-    ResearchMode.STANDARD: "grok-4-1-fast-non-reasoning",
+    ResearchMode.QUICK: "grok-4.3",
+    ResearchMode.STANDARD: "grok-4.3",
     ResearchMode.DEEP_FAST: "o4-mini",
     ResearchMode.DEEP_PREMIUM: "o3",
 }

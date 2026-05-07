@@ -44,9 +44,11 @@ class TestGrokProvider:
         assert provider.get_model_name("grok-4") == "grok-4"
 
         # Aliases
-        assert provider.get_model_name("grok") == "grok-4.20-0309-non-reasoning"
-        assert provider.get_model_name("grok-fast") == "grok-4-1-fast-non-reasoning"
-        assert provider.get_model_name("grok-flagship") == "grok-4.20-0309-reasoning"
+        assert provider.get_model_name("grok") == "grok-4-3"
+        assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
+        assert provider.get_model_name("grok-flagship") == "grok-4-3"
+        assert provider.get_model_name("grok-reasoning") == "grok-4-3"
+        assert provider.get_model_name("grok-multi-agent") == "grok-4.20-multi-agent-0309"
 
         # Legacy models
         assert provider.get_model_name("grok-3") == "grok-3"
@@ -256,8 +258,8 @@ class TestGrokCapabilities:
         assert provider.pricing["grok-4-1-fast-reasoning"]["output"] == 0.50
 
         # Verify model mappings
-        assert provider.get_model_name("grok") == "grok-4.20-0309-non-reasoning"
-        assert provider.get_model_name("grok-fast") == "grok-4-1-fast-non-reasoning"
+        assert provider.get_model_name("grok") == "grok-4-3"
+        assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
 
     def test_grok_use_cases(self, provider):
         """Document Grok's ideal use cases.

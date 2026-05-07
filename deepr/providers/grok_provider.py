@@ -3,14 +3,17 @@
 Grok uses chat completions API (OpenAI-compatible) with:
 - Grok 4.20 flagship models (reasoning, non-reasoning, multi-agent)
 - Grok 4.1 Fast budget models (reasoning, non-reasoning)
+- Grok 4.3 reasoning model with configurable reasoning effort
 - Full agentic tool calling (web_search, x_search, code_interpreter)
 - Multi-agent mode (4/16 parallel agents) via Responses API
 - Document collections for file upload
 """
 
+from __future__ import annotations
+
 import os
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import openai
 
@@ -31,7 +34,7 @@ class GrokProvider(DeepResearchProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         base_url: str = "https://api.x.ai/v1",
         timeout: int = 3600,
     ):
@@ -72,14 +75,19 @@ class GrokProvider(DeepResearchProvider):
             # Grok 4.1 Fast budget tier
             "grok-4-1-fast-reasoning": "grok-4-1-fast-reasoning",
             "grok-4-1-fast-non-reasoning": "grok-4-1-fast-non-reasoning",
+            # Grok 4.3 (May 2026)
+            "grok-4-3": "grok-4.3",
+            "grok-4.3": "grok-4.3",
             # Legacy / other
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
             # Aliases
-            "grok": "grok-4.20-0309-non-reasoning",  # Flagship default
-            "grok-fast": "grok-4-1-fast-non-reasoning",  # Cheap tier
-            "grok-flagship": "grok-4.20-0309-reasoning",  # Explicit flagship
+            "grok": "grok-4-3",  # Default: newest flagship (reasoning + agentic)
+            "grok-fast": "grok-4.20-0309-non-reasoning",  # Fast non-reasoning
+            "grok-flagship": "grok-4-3",  # Explicit flagship → 4.3
+            "grok-reasoning": "grok-4-3",  # Reasoning workloads → 4.3
+            "grok-multi-agent": "grok-4.20-multi-agent-0309",  # Multi-agent stays 4.20
             "grok-mini": "grok-3-mini",
         }
 
@@ -92,6 +100,8 @@ class GrokProvider(DeepResearchProvider):
             "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
             "grok-4.20-0309-non-reasoning": {"input": 2.00, "output": 6.00},
             "grok-4.20-multi-agent-0309": {"input": 2.00, "output": 6.00},
+            # Grok 4.3 ($1.25/$2.50 per MTok)
+            "grok-4.3": {"input": 1.25, "output": 2.50},
             # Grok 4.1 Fast budget ($0.20/$0.50 per MTok)
             "grok-4-1-fast-reasoning": _grok_4_1_fast,
             "grok-4-1-fast-non-reasoning": _grok_4_1_fast,
@@ -107,6 +117,16 @@ class GrokProvider(DeepResearchProvider):
     def get_model_name(self, model: str) -> str:
         """Map user-friendly model names to xAI model IDs."""
         return self.model_mappings.get(model, model)
+
+    def _get_reasoning_effort(self, request: ResearchRequest, model: str) -> str | None:
+        """Determine reasoning effort for Grok 4.3 requests.
+
+        Returns None for non-4.3 models (parameter not applicable).
+        Returns request.reasoning_effort if specified, else "medium".
+        """
+        if "grok-4.3" not in model and "grok-4-3" not in model:
+            return None
+        return request.reasoning_effort or "medium"
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """
@@ -170,6 +190,11 @@ class GrokProvider(DeepResearchProvider):
             # Add tools if specified
             if tools:
                 completion_params["tools"] = tools
+
+            # Add reasoning_effort for Grok 4.3
+            reasoning_effort = self._get_reasoning_effort(request, model)
+            if reasoning_effort is not None:
+                completion_params["reasoning_effort"] = reasoning_effort
 
             # Execute chat completion
             response = await self.client.chat.completions.create(**completion_params)
@@ -304,18 +329,16 @@ class GrokProvider(DeepResearchProvider):
     async def _execute_multi_agent_research(self, job_id: str) -> None:
         """Execute multi-agent research via client-side parallel fan-out.
 
-        Splits the query into N sub-queries, runs them in parallel using
-        the AsyncTaskDispatcher, and synthesises results.
+        Integrates with SubagentRuntime and CircuitBreaker for bounded
+        fan-out with per-agent budget isolation and shared trace IDs.
 
-        When xAI releases the native Responses API for multi-agent mode,
-        this method should be updated to use server-side orchestration instead.
-        The entry point (submit_research) and result format stay the same.
+        Splits the query into N sub-queries, runs them in parallel using
+        the SubagentRuntime, and synthesises results with per-agent attribution.
         """
         import uuid
 
-        from deepr.agents.contract import AgentBudget, AgentIdentity, AgentRole
-        from deepr.experts.constants import MAX_PLAN_CONCURRENCY
-        from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
+        from deepr.agents.contract import AgentBudget, AgentIdentity, AgentResult, AgentRole, AgentStatus
+        from deepr.agents.runtime import FanOutConfig, SubagentRuntime
 
         job_data = self.jobs[job_id]
         request = job_data["request"]
@@ -324,32 +347,32 @@ class GrokProvider(DeepResearchProvider):
         single_model = "grok-4.20-0309-reasoning"
 
         agent_count = self._determine_agent_count(request)
-        per_agent_budget = request.per_agent_budget or 0.50
 
-        # Create root identity for trace correlation
-        trace_id = uuid.uuid4().hex[:16]
+        # Calculate total budget: (budget * 0.8) / agent_count with 20% synthesis reserve
+        total_budget = request.per_agent_budget * agent_count if request.per_agent_budget else 5.0
+
+        # Create root identity for trace correlation (shared across all agents)
+        trace_id = request.trace_id or uuid.uuid4().hex[:16]
         root_identity = AgentIdentity(
             role=AgentRole.PLANNER,
             trace_id=trace_id,
             name=f"grok-multi-agent-{job_id[:8]}",
         )
 
+        # Configure fan-out with circuit breaker
+        fan_out_config = FanOutConfig(
+            max_concurrent=min(agent_count, 16),
+            operation_budget=total_budget,
+            failure_rate_threshold=0.5,
+            synthesis_reserve_fraction=0.2,
+        )
+        runtime = SubagentRuntime(config=fan_out_config)
+
         # Generate sub-queries (fan-out perspectives)
         sub_queries = self._generate_sub_queries(request.prompt, agent_count)
 
-        # Execute sub-queries in parallel
-        dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_PLAN_CONCURRENCY)
-
-        total_cost = 0.0
-        agent_results: list[dict[str, Any]] = []
-
-        async def _run_agent(idx: int, sub_query: str) -> dict[str, Any]:
-            child_identity = root_identity.child(
-                role=AgentRole.WORKER,
-                name=f"agent-{idx}",
-            )
-            agent_budget = AgentBudget(max_cost=per_agent_budget)
-
+        async def _agent_factory(query: str, budget: AgentBudget, identity: AgentIdentity) -> AgentResult:
+            """Factory that creates and runs a worker agent."""
             messages = [
                 {
                     "role": "system",
@@ -357,9 +380,9 @@ class GrokProvider(DeepResearchProvider):
                         request.system_message
                         or "You are a research agent. Provide thorough analysis with evidence and citations."
                     )
-                    + f"\n\nYou are agent {idx + 1} of {agent_count} working on different aspects of the same query.",
+                    + f"\n\nYou are one of {agent_count} agents working on different aspects of the same query.",
                 },
-                {"role": "user", "content": sub_query},
+                {"role": "user", "content": query},
             ]
 
             try:
@@ -375,48 +398,60 @@ class GrokProvider(DeepResearchProvider):
                     usage.completion_tokens,
                     single_model,
                 )
-                agent_budget.record(cost)
+                budget.record(cost)
 
-                return {
-                    "agent_id": child_identity.agent_id,
-                    "trace_id": child_identity.trace_id,
-                    "content": content,
-                    "cost": cost,
-                    "tokens_input": usage.prompt_tokens,
-                    "tokens_output": usage.completion_tokens,
-                    "status": "completed",
-                }
+                return AgentResult(
+                    agent_id=identity.agent_id,
+                    trace_id=identity.trace_id,
+                    output=content,
+                    cost=cost,
+                    status=AgentStatus.SUCCESS if cost <= budget.max_cost else AgentStatus.BUDGET_EXCEEDED,
+                    metadata={
+                        "tokens_input": usage.prompt_tokens,
+                        "tokens_output": usage.completion_tokens,
+                    },
+                )
             except Exception as e:
-                return {
-                    "agent_id": child_identity.agent_id,
-                    "trace_id": child_identity.trace_id,
-                    "content": f"Agent {idx} failed: {e}",
-                    "cost": 0.0,
-                    "tokens_input": 0,
-                    "tokens_output": 0,
-                    "status": "failed",
-                }
-
-        dispatch_tasks = [{"id": f"agent-{i}", "coro": _run_agent(i, sub_queries[i])} for i in range(len(sub_queries))]
+                return AgentResult(
+                    agent_id=identity.agent_id,
+                    trace_id=identity.trace_id,
+                    output=f"Agent failed: {e}",
+                    cost=budget.cost_accumulated,
+                    status=AgentStatus.FAILED,
+                    metadata={"error": str(e)},
+                )
 
         try:
-            dispatch_result = await dispatcher.dispatch(dispatch_tasks)
+            # Execute fan-out via SubagentRuntime (handles circuit breaker + concurrency)
+            fan_out_result = await runtime.fan_out(
+                queries=sub_queries,
+                agent_factory=_agent_factory,
+                planner_identity=root_identity,
+                operation_budget=total_budget,
+            )
 
-            for task_id in sorted(dispatch_result.tasks):
-                task = dispatch_result.tasks[task_id]
-                if task.result is not None:
-                    agent_results.append(task.result)
-                    total_cost += task.result.get("cost", 0.0)
+            # Collect successful agent outputs for synthesis
+            agent_outputs = [r.output for r in fan_out_result.results if r.status == AgentStatus.SUCCESS]
 
-            # Synthesise agent outputs
-            agent_outputs = [r["content"] for r in agent_results if r["status"] == "completed"]
+            # Synthesise results into single output with per-agent attribution
             synthesis = await self._synthesise_multi_agent(request.prompt, agent_outputs, single_model)
-            total_cost += synthesis.get("cost", 0.0)
+            total_cost = fan_out_result.total_cost + synthesis.get("cost", 0.0)
 
-            total_input = sum(r.get("tokens_input", 0) for r in agent_results)
-            total_output = sum(r.get("tokens_output", 0) for r in agent_results)
+            total_input = sum(r.metadata.get("tokens_input", 0) for r in fan_out_result.results)
+            total_output = sum(r.metadata.get("tokens_output", 0) for r in fan_out_result.results)
             total_input += synthesis.get("tokens_input", 0)
             total_output += synthesis.get("tokens_output", 0)
+
+            # Build per-agent attribution
+            agent_attribution = [
+                {
+                    "agent_id": r.agent_id,
+                    "trace_id": r.trace_id,
+                    "status": r.status.value,
+                    "cost": r.cost,
+                }
+                for r in fan_out_result.results
+            ]
 
             self.jobs[job_id].update(
                 {
@@ -424,9 +459,10 @@ class GrokProvider(DeepResearchProvider):
                     "content": synthesis.get("content", ""),
                     "cost": total_cost,
                     "completed_at": datetime.now(timezone.utc),
-                    "agent_count": len(agent_results),
-                    "agent_results": agent_results,
+                    "agent_count": len(fan_out_result.results),
+                    "agent_attribution": agent_attribution,
                     "trace_id": trace_id,
+                    "circuit_breaker_tripped": fan_out_result.circuit_breaker_tripped,
                     "usage": type(
                         "Usage",
                         (),
@@ -545,7 +581,7 @@ class GrokProvider(DeepResearchProvider):
 
         return round(input_cost + output_cost, 6)
 
-    async def upload_document(self, file_path: str, collection_id: Optional[str] = None) -> dict[str, Any]:
+    async def upload_document(self, file_path: str, collection_id: str | None = None) -> dict[str, Any]:
         """
         Upload document to Grok collections.
 
@@ -553,7 +589,7 @@ class GrokProvider(DeepResearchProvider):
         """
         raise NotImplementedError("Grok document upload not yet implemented")
 
-    async def create_vector_store(self, name: str, description: Optional[str] = None) -> str:
+    async def create_vector_store(self, name: str, description: str | None = None) -> str:
         """
         Create Grok collection for document storage.
 
