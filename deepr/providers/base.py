@@ -37,6 +37,8 @@ class ResearchRequest:
     # Multi-agent parameters (Grok 4.20 multi-agent)
     agent_count: Optional[int] = None  # Number of parallel agents (4-16)
     per_agent_budget: Optional[float] = None  # Max cost per agent in USD
+    # Trace correlation
+    trace_id: str = ""  # Trace ID for distributed tracing across agent boundaries
 
 
 @dataclass

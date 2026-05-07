@@ -256,10 +256,13 @@ class TestAutoModeRouterApiKeyAwareness:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "xai-test-123")
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_PROJECT_ENDPOINT", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         router = AutoModeRouter()
 
-        # quick_lookup has xai/grok-4-1-fast-non-reasoning ranked 3rd, should pick it
+        # Should pick an xai model (grok-4-3 or grok-4-20-non-reasoning)
         decision = router.route("What is Python?")
         assert decision.provider == "xai"
 
@@ -278,11 +281,13 @@ class TestAutoModeRouterApiKeyAwareness:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "xai-test-123")
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_PROJECT_ENDPOINT", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         router = AutoModeRouter()
 
         decision = router.route("Research the latest developments in quantum computing")
-        # comprehensive_research has xai/grok-4-1-fast-reasoning ranked 2nd
         assert decision.provider == "xai"
 
     def test_no_benchmark_uses_cheapest(self, monkeypatch):
