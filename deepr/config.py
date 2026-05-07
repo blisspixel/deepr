@@ -155,11 +155,7 @@ class ProviderConfig(BaseModel):
     @classmethod
     def validate_default_model(cls, v: Any) -> str:
         """Load default model from environment."""
-        return (
-            os.getenv("DEEPR_DEFAULT_MODEL", v)
-            if v
-            else os.getenv("DEEPR_DEFAULT_MODEL", "grok-4.3")
-        )
+        return os.getenv("DEEPR_DEFAULT_MODEL", v) if v else os.getenv("DEEPR_DEFAULT_MODEL", "grok-4.3")
 
     @field_validator("deep_research_provider", mode="before")
     @classmethod
