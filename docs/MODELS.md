@@ -22,10 +22,48 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Best for**: Large context windows (1M+ tokens), document analysis, cost-effective research, agentic workflows
 
 ### xAI Grok (`XAI_API_KEY`)
-- **Deep Research**: Grok 4.20 Multi-Agent (4/16 parallel agents with autonomous tool use)
-- **Models**: Grok 4.20 Reasoning, Grok 4.20 Non-Reasoning, Grok 4.20 Multi-Agent, Grok 4.1 Fast Reasoning, Grok 4.1 Fast Non-Reasoning, Grok Code Fast 1
-- **Best for**: Flagship quality on 4.20 ($2/$6 per MTok), cheapest general operations on 4.1 Fast ($0.01/query), real-time web + X search
-- **Note**: Grok 4.20 is xAI's flagship (March 2026) with lowest hallucination rate; 4.1 Fast variants remain the cheapest option
+- **Deep Research**: Grok 4.20 Multi-Agent (4–16 parallel agents with autonomous tool use)
+- **Models**: Grok 4.3 (flagship), Grok 4.20 Reasoning, Grok 4.20 Non-Reasoning, Grok 4.20 Multi-Agent
+- **Best for**: Grok 4.3 tops leaderboards in agentic tool calling and instruction following; flagship quality on 4.20 ($2/$6 per MTok); real-time web + X search
+- **Note**: Grok 4.3 is xAI's latest flagship with reasoning effort control (low/medium/high). Grok 4.20 remains the multi-agent deep research workhorse.
+
+#### Grok 4.3 (Flagship)
+
+| Feature | Details |
+|---------|---------|
+| Pricing | $1.25/1M input tokens, $2.50/1M output tokens |
+| Context Window | 1,000,000 tokens |
+| Capabilities | Reasoning (low/medium/high effort), agentic tool calling, instruction following |
+| Strengths | #1 on agentic tool calling and instruction following leaderboards |
+| Reasoning Effort | `low` (fast, cheap), `medium` (default), `high` (deep multi-step reasoning) |
+
+```bash
+# Use Grok 4.3 with default reasoning effort (medium)
+deepr research "Topic" --model xai/grok-4-3
+
+# Specify reasoning effort for complex tasks
+deepr research "Complex multi-step analysis" --model xai/grok-4-3  # auto-routes to high effort in auto mode
+```
+
+#### Deprecated Grok Models (Retiring May 15, 2026)
+
+The following legacy models will stop accepting API requests on **May 15, 2026 at 12:00pm PT**. Deepr auto-migrates requests to their successors transparently.
+
+| Deprecated Model | Successor | Migration Notes |
+|-----------------|-----------|-----------------|
+| grok-4-1-fast-reasoning | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
+| grok-4-fast-reasoning | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
+| grok-4-0709 | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
+| grok-3 | xai/grok-4-3 | Reasoning workloads → Grok 4.3 |
+| grok-code-fast-1 | xai/grok-4-3 | Code workloads → Grok 4.3 |
+| grok-4-1-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads → Grok 4.20 Non-Reasoning |
+| grok-4-fast-non-reasoning | xai/grok-4-20-non-reasoning | Non-reasoning workloads → Grok 4.20 Non-Reasoning |
+| grok-imagine-image-pro | xai/grok-imagine-image | Image generation → Grok Imagine Image |
+
+**Migration recommendations:**
+- **Reasoning workloads** → `xai/grok-4-3` (better quality, competitive pricing)
+- **Non-reasoning workloads** → `xai/grok-4-20-non-reasoning` (optimized for throughput)
+- **Image generation** → `xai/grok-imagine-image` (direct successor)
 
 ### Anthropic Claude (`ANTHROPIC_API_KEY`)
 - **Deep Research**: No turnkey API — uses Extended Thinking + tool use + web search orchestration
@@ -56,6 +94,54 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 | GPT-4o | $0.03 | 128K | Global Standard | General multimodal |
 | GPT-4o-mini | $0.005 | 128K | Global Standard | Cheapest option |
 
+#### Azure Foundry Setup Guide
+
+**Prerequisites:**
+1. An Azure subscription with Azure AI Foundry access
+2. A project created in Azure AI Foundry (formerly Azure AI Studio)
+3. Model deployments provisioned (Global Standard or Provisioned Throughput)
+4. Azure CLI installed and authenticated (`az login`)
+
+**Configuration:**
+
+```bash
+# Required: Azure AI Foundry project endpoint
+AZURE_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project-id
+
+# Optional: Override default model deployments
+AZURE_DEEP_RESEARCH_DEPLOYMENT=o3-deep-research    # Default
+AZURE_GPT_DEPLOYMENT=gpt-4.1                       # Default
+AZURE_BING_RESOURCE_NAME=your-bing-connection      # For Bing grounding
+```
+
+**Authentication:** Azure Foundry uses `DefaultAzureCredential` (Azure AD). No API key option. For local development, run `az login`. In production, use Managed Identity.
+
+**Agent/Thread/Run Pattern:**
+
+Azure Foundry uses the Agent Service pattern for all operations:
+1. **Agent** — A reusable model configuration with tools (created once, cached)
+2. **Thread** — A conversation context (created per research job)
+3. **Run** — An execution of the agent on a thread (one per query)
+
+Deep research agents include `DeepResearchTool` + `BingGroundingTool`. Regular agents use a lightweight configuration without research tools.
+
+**o3-deep-research with Bing Grounding:**
+
+To enable Bing-grounded deep research:
+1. Create a Bing Search resource in Azure Portal
+2. Add a Bing connection in your Azure AI Foundry project
+3. Set `AZURE_BING_RESOURCE_NAME` to the connection name
+4. Deploy `o3-deep-research` in a supported region (West US, Norway East, or South Central US)
+
+```bash
+# Example usage
+deepr run focus "Market analysis of EV batteries" --provider azure --model o3-deep-research
+```
+
+The agent automatically uses Bing web grounding to find and cite current sources. Citations are returned in standard Deepr format.
+
+**Pricing:** Azure Foundry pricing follows Azure AI Services rates. See [Azure AI Services pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) for current per-token costs. The cost/query estimates above assume typical research workloads.
+
 ## Model Selection by Task
 
 | Task | Recommended Model | Cost/query | Latency | Notes |
@@ -65,10 +151,11 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 | Deep Research (Azure) | o3-deep-research | $0.50 | 5-20 min | Bing grounding, enterprise |
 | Deep Research (xAI) | grok-4.20-multi-agent | ~$0.50 | 30-120s | 4/16 parallel agents, web + X search |
 | Complex Research | gpt-5.4 | see registry | ~seconds to minutes | strong reasoning/synthesis default |
+| Agentic / Tool Calling | Grok 4.3 | ~$0.08 | ~2s | #1 agentic tool calling + instruction following |
 | Quality Research (xAI) | Grok 4.20 Reasoning | ~$0.10 | ~3s | Flagship xAI, lowest hallucination rate |
 | Planning/Curriculum | GPT-4.1 | $0.04 | ~2s | 1M+ context, cost-effective |
-| Quick Lookups | Grok 4.1 Fast Non-Reasoning | see registry | ~1s | best value for freshness/citation tasks |
-| Latest News / Web | Grok 4.1 Fast Non-Reasoning | see registry | ~1s | real-time web + strong value |
+| Quick Lookups | Grok 4.20 Non-Reasoning | see registry | ~1s | best value for freshness/citation tasks |
+| Latest News / Web | Grok 4.20 Non-Reasoning | see registry | ~1s | real-time web + strong value |
 | Large Documents | Gemini 3.1 Pro | $0.20* | ~40s | 1M token context, configurable thinking |
 | Coding Tasks | Claude Sonnet 4.5 | $0.48 | ~3s | Best for code |
 | Complex Reasoning | Claude Opus 4.6 | see registry | ~seconds | high-end complex reasoning |
@@ -87,7 +174,7 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 - **Note**: OpenAI and Gemini use async background jobs; Grok 4.20 multi-agent uses 4/16 parallel agents
 
 ### Fast/General Operations (~80% of operations)
-- **Models**: Grok 4.1 Fast Non-Reasoning, Gemini 2.5 Flash
+- **Models**: Grok 4.20 Non-Reasoning, Grok 4.3 (low effort), Gemini 2.5 Flash
 - **Cost**: $0.001-$0.01 per query (96-99% cheaper)
 - **Use for**: News, docs, team research, learning, expert chat, planning
 
@@ -111,7 +198,7 @@ deepr research "Topic" --model gemini-deep-research
 - **Campaign mode (deep)**: o3-deep-research / o4-mini-deep-research (provider + budget dependent)
 - **Focus mode (quick)**: GPT-4.1 ($0.04/query, 1M+ context)
 - **Expert chat**: Provider-dependent (OpenAI for vector store experts)
-- **Quick lookups**: Grok 4 Fast ($0.01, when XAI_API_KEY available)
+- **Quick lookups**: Grok 4.20 Non-Reasoning ($0.01, when XAI_API_KEY available)
 
 ### Adaptive Routing
 Deepr's model router (`deepr/experts/router.py`) automatically selects models based on:
