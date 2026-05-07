@@ -115,6 +115,18 @@ def submit(
 
     resolved_provider = provider or config.get("provider", "openai")
 
+    # Check for deprecated model and display warning
+    from deepr.routing.deprecation import check_deprecation
+
+    dep_entry = check_deprecation(model)
+    if dep_entry:
+        retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
+        msg = (
+            f"⚠ Model '{dep_entry.old_model}' is deprecated{retirement_info}. "
+            f"Recommended successor: {dep_entry.new_model}"
+        )
+        click.echo(msg, err=True)
+
     click.echo("\nConfiguration:")
     click.echo(f"   Provider: {resolved_provider}")
     click.echo(f"   Model: {model}")

@@ -283,7 +283,7 @@ def research(
         if is_deep_research:
             model = os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o3-deep-research")
         else:
-            model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4-1-fast-non-reasoning")
+            model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4.3")
         if output_context.mode == OutputMode.VERBOSE:
             click.echo(f"[Using {model} model (default for {provider})]")
 

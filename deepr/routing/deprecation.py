@@ -31,20 +31,71 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
         old_model="o3-deep-research",
         new_model="o3-deep-research-2025-06-26",
         sunset_date="2026-03-26",
-        warning="OpenAI is removing the unversioned 'o3-deep-research' alias. Use 'o3-deep-research-2025-06-26' or 'o4-mini-deep-research'.",
+        warning="OpenAI is removing the unversioned 'o3-deep-research' alias. Use 'o3-deep-research-2025-06-26' or 'o4-mini-deep-research'. This is a legacy model.",
     ),
-    # Legacy Grok models
+    # Grok retirement wave (May 15, 2026)
+    "grok-4-1-fast-reasoning": DeprecationEntry(
+        old_model="grok-4-1-fast-reasoning",
+        new_model="xai/grok-4-3",
+        sunset_date="2026-05-15",
+        warning="Grok 4.1 Fast Reasoning retires May 15, 2026. Successor: Grok 4.3.",
+        auto_migrate=True,
+    ),
+    "grok-4-1-fast-non-reasoning": DeprecationEntry(
+        old_model="grok-4-1-fast-non-reasoning",
+        new_model="xai/grok-4-20-non-reasoning",
+        sunset_date="2026-05-15",
+        warning="Grok 4.1 Fast Non-Reasoning retires May 15, 2026. Successor: Grok 4.20 Non-Reasoning.",
+        auto_migrate=True,
+    ),
+    "grok-4-fast-reasoning": DeprecationEntry(
+        old_model="grok-4-fast-reasoning",
+        new_model="xai/grok-4-3",
+        sunset_date="2026-05-15",
+        warning="Grok 4 Fast Reasoning retires May 15, 2026. Successor: Grok 4.3.",
+        auto_migrate=True,
+    ),
+    "grok-4-fast-non-reasoning": DeprecationEntry(
+        old_model="grok-4-fast-non-reasoning",
+        new_model="xai/grok-4-20-non-reasoning",
+        sunset_date="2026-05-15",
+        warning="Grok 4 Fast Non-Reasoning retires May 15, 2026. Successor: Grok 4.20 Non-Reasoning.",
+        auto_migrate=True,
+    ),
+    "grok-4-0709": DeprecationEntry(
+        old_model="grok-4-0709",
+        new_model="xai/grok-4-3",
+        sunset_date="2026-05-15",
+        warning="Grok 4 (0709) retires May 15, 2026. Successor: Grok 4.3.",
+        auto_migrate=True,
+    ),
+    "grok-code-fast-1": DeprecationEntry(
+        old_model="grok-code-fast-1",
+        new_model="xai/grok-4-3",
+        sunset_date="2026-05-15",
+        warning="Grok Code Fast 1 retires May 15, 2026. Successor: Grok 4.3.",
+        auto_migrate=True,
+    ),
     "grok-3": DeprecationEntry(
         old_model="grok-3",
-        new_model="grok-4.20-0309-reasoning",
-        sunset_date="",
-        warning="Grok 3 is superseded by Grok 4.20. Auto-migrating to grok-4.20-0309-reasoning.",
+        new_model="xai/grok-4-3",
+        sunset_date="2026-05-15",
+        warning="Grok 3 retires May 15, 2026. Successor: Grok 4.3.",
+        auto_migrate=True,
     ),
+    "grok-imagine-image-pro": DeprecationEntry(
+        old_model="grok-imagine-image-pro",
+        new_model="xai/grok-imagine-image",
+        sunset_date="2026-05-15",
+        warning="Grok Imagine Image Pro retires May 15, 2026. Successor: Grok Imagine Image.",
+        auto_migrate=True,
+    ),
+    # Legacy Grok models (older deprecations)
     "grok-3-mini": DeprecationEntry(
         old_model="grok-3-mini",
-        new_model="grok-4-1-fast-reasoning",
-        sunset_date="",
-        warning="Grok 3 Mini is superseded by Grok 4.1 Fast. Auto-migrating.",
+        new_model="xai/grok-4-3",
+        sunset_date="2026-05-15",
+        warning="Grok 3 Mini retires May 15, 2026. Successor: Grok 4.3.",
     ),
     # Legacy Gemini
     "gemini-3-pro": DeprecationEntry(
@@ -90,22 +141,34 @@ def check_deprecation(model: str) -> DeprecationEntry | None:
     return None
 
 
-def migrate_model(model: str) -> tuple[str, str | None]:
+def migrate_model(model: str, confidence: float = 1.0) -> tuple[str, float, str | None]:
     """Resolve a model, auto-migrating if deprecated.
 
     Returns:
-        (resolved_model, warning_or_none)
-        If model is not deprecated, returns (model, None).
-        If deprecated and auto_migrate is True, returns (new_model, warning).
-        If deprecated but auto_migrate is False, returns (model, warning).
+        (resolved_model, confidence, warning_or_none)
+        If model is not deprecated, returns (model, confidence, None).
+        If deprecated and auto_migrate is True, returns (new_model, confidence, warning).
+        If deprecated but auto_migrate is False, returns (model, confidence, warning).
+        Confidence is preserved through migration (passed through unchanged).
     """
     entry = check_deprecation(model)
     if entry is None:
-        return model, None
+        return model, confidence, None
 
-    logger.warning("Model deprecation: %s -> %s (%s)", model, entry.new_model, entry.warning)
+    # Handle edge case: deprecated model with no successor
+    if not entry.new_model:
+        logger.error("Model %s is retired with no migration path", model)
+        return model, confidence, f"Model {model} is retired with no migration path."
+
+    logger.warning(
+        "Model deprecation: %s -> %s (confidence=%.4f) (%s)",
+        model,
+        entry.new_model,
+        confidence,
+        entry.warning,
+    )
 
     if entry.auto_migrate:
-        return entry.new_model, entry.warning
+        return entry.new_model, confidence, entry.warning
 
-    return model, entry.warning
+    return model, confidence, entry.warning

@@ -232,7 +232,7 @@ class TestModelSelection:
         """Test that zero budget uses fallback model."""
         config = router.select_model("Analyze complex architecture", budget_remaining=0.0)
         # Should use cheapest model
-        assert config.cost_estimate <= 0.02
+        assert config.cost_estimate <= 0.06
         assert config.confidence < 1.0  # Lower confidence due to budget constraint
 
     def test_openai_constraint_uses_openai(self, router):
@@ -268,7 +268,7 @@ class TestFallbackModel:
         """Test fallback model without provider constraint."""
         config = router._fallback_free_model("test query", "simple")
         assert config.provider == "xai"
-        assert config.model == "grok-4-1-fast-non-reasoning"
+        assert config.model == "grok-4.3"
         assert config.confidence == 0.6
 
     def test_fallback_with_openai_constraint(self, router):

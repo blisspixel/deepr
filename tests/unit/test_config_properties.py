@@ -91,7 +91,7 @@ class TestProviderConfigUnit:
     def test_default_model(self):
         """Test default model is set."""
         config = ProviderConfig()
-        assert config.default_model == "grok-4-1-fast-non-reasoning"
+        assert config.default_model == "grok-4.3"
 
     def test_azure_provider_type(self):
         """Test azure provider type can be set."""

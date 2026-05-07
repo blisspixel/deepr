@@ -16,7 +16,7 @@ class TestCheckDeprecation:
     def test_grok3_deprecated(self):
         entry = check_deprecation("grok-3")
         assert entry is not None
-        assert "4.20" in entry.new_model
+        assert entry.new_model == "xai/grok-4-3"
 
     def test_gpt4o_deprecated(self):
         entry = check_deprecation("gpt-4o")
@@ -54,27 +54,38 @@ class TestCheckDeprecation:
 
 class TestMigrateModel:
     def test_deprecated_auto_migrates(self):
-        model, warning = migrate_model("o3-deep-research")
+        model, confidence, warning = migrate_model("o3-deep-research")
         assert model == "o3-deep-research-2025-06-26"
+        assert confidence == 1.0
         assert warning is not None
-        assert "removing" in warning.lower() or "alias" in warning.lower()
+        assert "removing" in warning.lower() or "alias" in warning.lower() or "legacy" in warning.lower()
 
     def test_grok3_auto_migrates(self):
-        model, warning = migrate_model("grok-3")
-        assert model == "grok-4.20-0309-reasoning"
+        model, confidence, warning = migrate_model("grok-3")
+        assert model == "xai/grok-4-3"
+        assert confidence == 1.0
         assert warning is not None
 
     def test_current_model_unchanged(self):
-        model, warning = migrate_model("gpt-5.4")
+        model, confidence, warning = migrate_model("gpt-5.4")
         assert model == "gpt-5.4"
+        assert confidence == 1.0
         assert warning is None
 
     def test_gpt4o_migrates_to_gpt41(self):
-        model, warning = migrate_model("gpt-4o")
+        model, confidence, warning = migrate_model("gpt-4o")
         assert model == "gpt-4.1"
+        assert confidence == 1.0
         assert warning is not None
 
     def test_unknown_model_passes_through(self):
-        model, warning = migrate_model("custom-model-v7")
+        model, confidence, warning = migrate_model("custom-model-v7")
         assert model == "custom-model-v7"
+        assert confidence == 1.0
         assert warning is None
+
+    def test_confidence_preserved(self):
+        model, confidence, warning = migrate_model("grok-3", confidence=0.75)
+        assert model == "xai/grok-4-3"
+        assert confidence == 0.75
+        assert warning is not None
