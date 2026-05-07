@@ -535,7 +535,9 @@ class TestCitationUrlResolution:
         mock_client = AsyncMock()
         mock_client.head.return_value = mock_response
 
-        with patch("httpx.AsyncClient") as mock_cls:
+        with patch("httpx.AsyncClient") as mock_cls, patch(
+            "deepr.utils.security.is_safe_url", return_value=True
+        ):
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
