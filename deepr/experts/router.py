@@ -307,9 +307,7 @@ class ModelRouter:
         if complexity == "moderate":
             # Moderate complexity → GPT-5.2 with medium reasoning or Grok if budget tight
             if budget_remaining is not None and budget_remaining < 0.20:
-                return ModelConfig(
-                    provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.75
-                )
+                return ModelConfig(provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.75)
             return ModelConfig(
                 provider="openai", model="gpt-5.2", cost_estimate=0.20, reasoning_effort="medium", confidence=0.85
             )
