@@ -30,7 +30,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.9.1)
+## Current Status (v2.10)
 
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 4300+ tests. Pre-commit hooks with ruff.
 
@@ -43,7 +43,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.20 Reasoning/Non-Reasoning/Multi-Agent, 4.1 Fast Reasoning/Non-Reasoning), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.3 flagship, 4.20 Reasoning/Non-Reasoning/Multi-Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -56,13 +56,13 @@ These features work but APIs or behavior may change:
 - **Agentic expert chat**: `--agentic` flag triggers autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
-- **Grok provider**: Grok 4.20 flagship + 4.1 Fast budget tier; multi-agent deep research registered but Responses API integration pending
+- **Grok provider**: Grok 4.3 flagship + 4.20 multi-agent deep research; legacy models deprecated (retiring May 15, 2026) with auto-migration
 - **Anthropic provider**: Uses Extended Thinking + orchestration (no native deep research API)
 - **Azure AI Foundry provider**: Agent/Thread/Run pattern with Bing grounding; 7 models (o3-deep-research, gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini)
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.1 Pro/Flash-Lite/2.5, Grok 4.20/4.1 Fast, Anthropic Claude, Azure, Azure AI Foundry)
+- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.1 Pro/Flash-Lite/2.5, Grok 4.3/4.20, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
@@ -141,20 +141,20 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 
 Goal: make the agentic layer production-ready — subagent contracts, role-based handoffs, provider resilience.
 
-- [ ] Subagent runtime contract (planner → delegated workers → synthesizer) with per-subagent budget and trace IDs
-- [ ] Explicit handoff semantics: structured input/output contracts so experts can receive work from upstream agents and produce artifacts that downstream agents consume without custom integration
-- [ ] Bounded parallel fan-out for council/task planning with circuit-breaker safeguards
-- [ ] Return artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) from all MCP tools
-- [ ] Grok 4.20 multi-agent deep research via xAI Responses API:
-  - [ ] Dynamic agent count (4–16) based on query complexity and budget
-  - [ ] Parallel tool use with shared trace IDs and per-agent spend caps
-  - [ ] Integrate with existing bounded fan-out + circuit breakers
-- [ ] Legacy deep-research deprecation handling:
-  - [ ] Detect legacy `o3-deep-research` calls and warn
-  - [ ] Transparent auto-migration to `o3`/`o4-mini-deep-research` equivalents
-  - [ ] Routing confidence preserved through migration
+- [x] Subagent runtime contract (planner → delegated workers → synthesizer) with per-subagent budget and trace IDs
+- [x] Explicit handoff semantics: structured input/output contracts so experts can receive work from upstream agents and produce artifacts that downstream agents consume without custom integration
+- [x] Bounded parallel fan-out for council/task planning with circuit-breaker safeguards
+- [x] Return artifact IDs (`job_id`, `report_id`, `expert_id`, `trace_id`) from all MCP tools
+- [x] Grok 4.20 multi-agent deep research via xAI Responses API:
+  - [x] Dynamic agent count (4–16) based on query complexity and budget
+  - [x] Parallel tool use with shared trace IDs and per-agent spend caps
+  - [x] Integrate with existing bounded fan-out + circuit breakers
+- [x] Legacy deep-research deprecation handling:
+  - [x] Detect legacy `o3-deep-research` calls and warn
+  - [x] Transparent auto-migration to `o3`/`o4-mini-deep-research` equivalents
+  - [x] Routing confidence preserved through migration
 - [ ] Finish Azure Foundry parity work:
-  - [ ] MODELS.md documentation
+  - [x] MODELS.md documentation
   - [ ] Live integration tests with Azure credentials
   - [ ] Deploy/test o3-deep-research + Bing grounding
   - [ ] Add Foundry model discovery and benchmark coverage
@@ -289,7 +289,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
 | v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
-| v2.10 | Agentic infrastructure core, legacy migration, Azure Foundry parity | Planned |
+| v2.10 | Agentic infrastructure core, Grok 4.3 flagship, legacy migration, Azure Foundry parity | In Progress |
 | v2.10+ | MCP client reliability, configurable profiles, elicitation sandboxing | Planned |
 | v2.11 | Routing preview, eval methodology v2, expert-specific metrics, A/B shadow | Planned |
 | v2.11+ | Expert quality loop, corpus import, skill auto-gen, efficacy scoring | Planned |

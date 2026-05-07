@@ -263,6 +263,48 @@ async def check_database(config) -> list[DiagnosticCheck]:
     return checks
 
 
+async def check_deprecated_models(config) -> list[DiagnosticCheck]:
+    """Check if any configured default models are deprecated."""
+    from deepr.config import AppConfig
+    from deepr.routing.deprecation import check_deprecation
+
+    checks = []
+
+    try:
+        app_config = AppConfig.from_env()
+        models_to_check = {
+            "Default Model": app_config.provider.default_model,
+            "Deep Research Model": app_config.provider.deep_research_model,
+        }
+
+        for label, model in models_to_check.items():
+            if not model:
+                continue
+            dep_entry = check_deprecation(model)
+            if dep_entry:
+                check = DiagnosticCheck(f"{label}: {model}", "Deprecated Models")
+                check.passed = False
+                retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
+                check.message = f"Deprecated{retirement_info}"
+                check.details.append(f"Successor: {dep_entry.new_model}")
+                check.details.append(dep_entry.warning)
+                checks.append(check)
+
+        if not checks:
+            check = DiagnosticCheck("Model Deprecation", "Deprecated Models")
+            check.passed = True
+            check.message = "No deprecated models in use"
+            checks.append(check)
+
+    except Exception as e:
+        check = DiagnosticCheck("Model Deprecation", "Deprecated Models")
+        check.message = f"Check failed: {str(e)[:50]}"
+        check.details.append(str(e))
+        checks.append(check)
+
+    return checks
+
+
 def print_checks(checks: list[DiagnosticCheck]):
     """Print diagnostic checks in a formatted way."""
     from deepr.cli.colors import console, get_symbol
@@ -333,7 +375,7 @@ def doctor(skip_connectivity: bool):
             return
 
         # Run all checks
-        with click.progressbar(length=4, label="Running checks") as bar:
+        with click.progressbar(length=5, label="Running checks") as bar:
             all_checks.extend(await check_api_keys(config))
             bar.update(1)
 
@@ -345,6 +387,9 @@ def doctor(skip_connectivity: bool):
             bar.update(1)
 
             all_checks.extend(await check_database(config))
+            bar.update(1)
+
+            all_checks.extend(await check_deprecated_models(config))
             bar.update(1)
 
         # Print results

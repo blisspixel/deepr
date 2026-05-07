@@ -609,7 +609,8 @@ DOCS_EVAL_PROMPTS = [
 # Azure Foundry runs the same models as OpenAI — test it separately for latency.
 DEFAULT_MODELS = [
     # Frontier models
-    "openai/gpt-5.4",  # Current OpenAI frontier default (1M+ context)
+    "openai/gpt-5.5",  # Newest OpenAI frontier (April 2026, 1M+ context)
+    "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
     "anthropic/claude-opus-4-6",  # Most capable Claude ($0.80/query)
     "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
@@ -619,32 +620,33 @@ DEFAULT_MODELS = [
     "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
     "openai/o4-mini",  # Fast reasoning ($0.04/query)
     # xAI flagship
-    "xai/grok-4-20-reasoning",  # xAI flagship reasoning ($0.10/query)
+    "xai/grok-4-3",  # xAI newest flagship — agentic + reasoning ($0.05/query)
+    "xai/grok-4-20-reasoning",  # xAI multi-agent workhorse ($0.10/query)
     "xai/grok-4-20-non-reasoning",  # xAI flagship non-reasoning ($0.08/query)
     # Budget models
     "openai/gpt-5-mini",  # Budget reasoning ($0.03/query)
     "openai/gpt-4.1-mini",  # Cheap 1M context ($0.01/query)
     "openai/gpt-5-nano",  # Cheapest GPT-5 ($0.005/query)
     "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
-    "xai/grok-4-1-fast-non-reasoning",  # Cheapest overall ($0.01/query)
     "gemini/gemini-3-flash-preview",  # Newest gen, fast ($0.01/query)
     "gemini/gemini-3.1-flash-lite-preview",  # Lowest-cost Gemini 3.1
     "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
 ]
 
 EXPENSIVE_MODELS: list[str] = [
-    "openai/gpt-5.4-pro",  # Highest-end variant; opt-in due high cost
+    "openai/gpt-5.5-pro",  # Highest-end GPT-5.5 variant; opt-in due high cost
+    "openai/gpt-5.4-pro",  # Highest-end GPT-5.4 variant; opt-in due high cost
 ]
 
 NEWS_MODELS = [
     # OpenAI (via Responses API web_search tool)
+    "openai/gpt-5.5",
     "openai/gpt-5.4",
     "openai/gpt-5-mini",
     # xAI (native web search)
+    "xai/grok-4-3",
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
-    "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4-1-fast-non-reasoning",
     # Gemini (Google grounding)
     "gemini/gemini-3.1-pro-preview",
     "gemini/gemini-3-flash-preview",
@@ -675,7 +677,7 @@ ORCHESTRATED_RESEARCH_MODELS = [
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4-1-fast-non-reasoning",
+    "xai/grok-4.3",
 ]
 
 # Documentation tier models: web-search-capable models that can fetch + document APIs.
@@ -689,7 +691,7 @@ DOCS_MODELS = [
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4-1-fast-non-reasoning",
+    "xai/grok-4.3",
 ]
 
 # Provider → (env var, API base URL)
@@ -1367,6 +1369,7 @@ _API_MODEL_IDS = {
     "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
     "grok-4-20-non-reasoning": "grok-4.20-0309-non-reasoning",
     "grok-4-20-multi-agent": "grok-4.20-multi-agent-0309",
+    "grok-4-3": "grok-4.3",
 }
 
 
@@ -1416,7 +1419,10 @@ def call_model(model_key: str, prompt: str, max_tokens: int, tier: str = "chat")
                 return call_gemini_news(api_key, model, prompt, max_tokens)
 
     # Chat tier (default): standard chat completions
-    if provider in ("openai", "xai"):
+    if provider == "xai" and "grok-4.3" in model:
+        # Grok 4.3 requires the Responses API, not chat completions
+        return call_grok_news(api_key, model, prompt, max_tokens)
+    elif provider in ("openai", "xai"):
         return call_openai_compatible(api_key, base_url, model, prompt, max_tokens)
     elif provider == "anthropic":
         return call_anthropic(api_key, model, prompt, max_tokens)
@@ -1897,7 +1903,7 @@ DOCS_JUDGE_WEIGHTS = {
 def pick_judge_model(models_being_tested: list[str], forced_judge: str | None) -> str | None:
     """Pick a judge model that isn't being tested.
 
-    Preference: gpt-4.1-mini > claude-haiku-4-5 > grok-4-1-fast-non-reasoning > gemini-2.5-flash
+    Preference: gpt-4.1-mini > claude-haiku-4-5 > grok-4.3 > gemini-2.5-flash
     """
     if forced_judge:
         return forced_judge
@@ -1906,7 +1912,7 @@ def pick_judge_model(models_being_tested: list[str], forced_judge: str | None) -
     candidates = [
         ("openai", "gpt-4.1-mini", "OPENAI_API_KEY"),
         ("anthropic", "claude-haiku-4-5", "ANTHROPIC_API_KEY"),
-        ("xai", "grok-4-1-fast-non-reasoning", "XAI_API_KEY"),
+        ("xai", "grok-4.3", "XAI_API_KEY"),
         ("gemini", "gemini-2.5-flash", "GEMINI_API_KEY"),
     ]
 
@@ -2438,7 +2444,7 @@ def run_validation(tier: str = "chat"):
             ("openai", "openai/gpt-4.1-mini"),
             ("openai", "openai/gpt-5-mini"),
             ("xai", "xai/grok-4-20-non-reasoning"),
-            ("xai", "xai/grok-4-1-fast-non-reasoning"),
+            ("xai", "xai/grok-4.3"),
             ("gemini", "gemini/gemini-2.5-flash"),
             ("gemini", "gemini/gemini-2.5-pro"),
             ("gemini", "gemini/gemini-3-flash-preview"),

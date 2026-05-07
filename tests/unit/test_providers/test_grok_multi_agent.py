@@ -119,9 +119,7 @@ class TestMultiAgentExecution:
     @pytest.mark.asyncio
     async def test_multi_agent_model_routes_correctly(self, mock_grok_provider):
         """Multi-agent model should trigger _execute_multi_agent_research."""
-        mock_grok_provider.client.chat.completions.create = AsyncMock(
-            return_value=_make_mock_response("result")
-        )
+        mock_grok_provider.client.chat.completions.create = AsyncMock(return_value=_make_mock_response("result"))
 
         request = ResearchRequest(
             prompt="Research AI safety",
@@ -140,9 +138,7 @@ class TestMultiAgentExecution:
     @pytest.mark.asyncio
     async def test_single_model_routes_normally(self, mock_grok_provider):
         """Non-multi-agent model should use normal execution."""
-        mock_grok_provider.client.chat.completions.create = AsyncMock(
-            return_value=_make_mock_response("single result")
-        )
+        mock_grok_provider.client.chat.completions.create = AsyncMock(return_value=_make_mock_response("single result"))
 
         request = ResearchRequest(
             prompt="Simple question",
@@ -203,8 +199,9 @@ class TestMultiAgentExecution:
 
         # Should still complete (some agents succeeded + synthesis)
         assert job["status"] == "completed"
-        # At least some agents should have results
-        completed_agents = [r for r in job.get("agent_results", []) if r["status"] == "completed"]
+        # At least some agents should have results via agent_attribution
+        agent_attribution = job.get("agent_attribution", [])
+        completed_agents = [r for r in agent_attribution if r["status"] == "success"]
         assert len(completed_agents) >= 3  # 3 out of 4 succeeded
 
 
@@ -236,9 +233,7 @@ class TestSynthesiseMultiAgent:
 
     @pytest.mark.asyncio
     async def test_synthesis_fallback_on_error(self, mock_grok_provider):
-        mock_grok_provider.client.chat.completions.create = AsyncMock(
-            side_effect=Exception("API error")
-        )
+        mock_grok_provider.client.chat.completions.create = AsyncMock(side_effect=Exception("API error"))
 
         result = await mock_grok_provider._synthesise_multi_agent(
             "test query",

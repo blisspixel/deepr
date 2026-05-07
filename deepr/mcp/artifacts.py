@@ -68,3 +68,48 @@ def inject_artifact_ids(response: dict[str, Any], **kwargs: str) -> dict[str, An
     """
     response["artifact_ids"] = build_artifact_ids(**kwargs)
     return response
+
+
+def ensure_trace_id(response: dict[str, Any]) -> dict[str, Any]:
+    """Guarantee trace_id is present in the response artifact_ids.
+
+    If ``artifact_ids`` already exists and contains a ``trace_id``, the
+    response is returned unchanged. Otherwise a UUID-based trace_id is
+    generated and injected.
+
+    Args:
+        response: MCP tool response dict (mutated in-place).
+
+    Returns:
+        The same response dict with trace_id guaranteed present.
+    """
+    artifact_ids = response.get("artifact_ids")
+    if artifact_ids is None:
+        response["artifact_ids"] = {"trace_id": _new_trace_id()}
+    elif not artifact_ids.get("trace_id"):
+        artifact_ids["trace_id"] = _new_trace_id()
+    return response
+
+
+def inject_referenced_artifact(
+    response: dict[str, Any],
+    referenced_id: str,
+    status: str = "found",
+) -> dict[str, Any]:
+    """Add a referenced artifact ID to the response metadata.
+
+    Used when a tool response references an artifact produced by another
+    tool (e.g., a report referencing a research job).
+
+    Args:
+        response: MCP tool response dict (mutated in-place).
+        referenced_id: The artifact ID being referenced.
+        status: Status of the referenced artifact ("found" or "not_found").
+
+    Returns:
+        The same response dict with referenced artifact metadata added.
+    """
+    metadata = response.setdefault("metadata", {})
+    referenced = metadata.setdefault("referenced_artifacts", [])
+    referenced.append({"artifact_id": referenced_id, "status": status})
+    return response
