@@ -315,7 +315,7 @@ def benchmark(quick: bool, target_provider: Optional[str], iterations: int, hist
     test_providers = [
         ("openai", "gpt-5-mini"),
         ("gemini", "gemini-2.5-flash"),
-        ("xai", "grok-4-1-fast-non-reasoning"),
+        ("xai", "grok-4.3"),
     ]
 
     if target_provider:
@@ -471,15 +471,26 @@ def list():
     table.add_column("Specialization")
     table.add_column("Cost/Query", justify="right", style="yellow")
     table.add_column("Latency", justify="right")
+    table.add_column("Status")
 
     for _key, cap in sorted(MODEL_CAPABILITIES.items()):
         specializations = ", ".join(cap.specializations[:2]) if cap.specializations else "-"
+
+        if cap.deprecated:
+            model_display = f"[dim strikethrough]{cap.model}[/dim strikethrough] [red]\\[DEPRECATED][/red]"
+            successor_info = f"→ {cap.successor}" if cap.successor else "No successor"
+            status = f"[red]{successor_info}[/red]"
+        else:
+            model_display = cap.model
+            status = "[green]Active[/green]"
+
         table.add_row(
             cap.provider,
-            cap.model,
+            model_display,
             specializations,
             f"${cap.cost_per_query:.2f}",
             f"{cap.latency_ms:,}ms",
+            status,
         )
 
     console.print(table)

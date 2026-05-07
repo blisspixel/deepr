@@ -665,6 +665,28 @@ class AzureFoundryProvider(DeepResearchProvider):
             )
         return models
 
+    def discover_models(self):
+        """Discover available Azure Foundry models and their capabilities.
+
+        Returns a list of ModelCapability objects for all Azure Foundry models
+        registered in the model registry. This method reports available models
+        and their capabilities to the Auto-Router for routing decisions and
+        benchmark/routing preference scoring.
+
+        Returns:
+            List of ModelCapability objects for Azure Foundry models.
+        """
+        from .registry import MODEL_CAPABILITIES
+
+        discovered = []
+        for key, cap in MODEL_CAPABILITIES.items():
+            if not key.startswith("azure-foundry/"):
+                continue
+            # Only include non-deprecated models for routing
+            if not cap.deprecated:
+                discovered.append(cap)
+        return discovered
+
     # =========================================================================
     # Cleanup
     # =========================================================================

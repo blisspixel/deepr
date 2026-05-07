@@ -25,9 +25,9 @@ import sys
 import threading
 import time as _time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
@@ -55,10 +55,11 @@ class AutoModeDecision:
     cost_estimate: float
     confidence: float
     reasoning: str
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
-        return {
+        d = {
             "provider": self.provider,
             "model": self.model,
             "complexity": self.complexity,
@@ -67,6 +68,9 @@ class AutoModeDecision:
             "confidence": self.confidence,
             "reasoning": self.reasoning,
         }
+        if self.metadata:
+            d["metadata"] = self.metadata
+        return d
 
     def preview_text(self) -> str:
         """Return a human-readable preview of this routing decision."""
@@ -93,6 +97,7 @@ class AutoModeDecision:
             cost_estimate=data["cost_estimate"],
             confidence=data["confidence"],
             reasoning=data["reasoning"],
+            metadata=data.get("metadata", {}),
         )
 
 
@@ -240,6 +245,8 @@ _SPEC_TO_TASK_TYPES: dict[str, list[str]] = {
     "general": ["quick_lookup", "knowledge_base"],
     "high_throughput": ["quick_lookup"],
     "agentic": ["comprehensive_research", "synthesis"],
+    "tool_calling": ["comprehensive_research", "technical_docs"],
+    "instruction_following": ["reasoning", "technical_docs"],
     "cost": ["quick_lookup"],
     "developer_workflows": ["technical_docs"],
 }
@@ -286,6 +293,9 @@ def _enrich_with_provisional(
     added = 0
     for model_key, cap in MODEL_CAPABILITIES.items():
         if model_key in benchmarked:
+            continue
+        # Skip deprecated models — they shouldn't participate in routing
+        if cap.deprecated:
             continue
 
         quality = _estimate_quality_from_cost(cap)
@@ -483,6 +493,25 @@ _TASK_MAP = {
     ("complex", "factual"): "knowledge_base",
 }
 
+# Reasoning effort mapping based on query complexity (for Grok 4.3)
+COMPLEXITY_TO_REASONING_EFFORT: dict[str, str] = {
+    "simple": "low",
+    "moderate": "medium",
+    "complex": "high",
+}
+
+
+def _apply_reasoning_effort(decision: AutoModeDecision) -> AutoModeDecision:
+    """Set reasoning_effort metadata when Grok 4.3 is selected.
+
+    Maps query complexity to reasoning effort level and stores it in
+    the decision metadata for downstream use by the provider.
+    """
+    if "grok-4.3" in decision.model or "grok-4-3" in decision.model:
+        effort = COMPLEXITY_TO_REASONING_EFFORT.get(decision.complexity, "medium")
+        decision.metadata["reasoning_effort"] = effort
+    return decision
+
 
 class AutoModeRouter:
     """Routes queries to optimal models based on benchmark quality data.
@@ -545,6 +574,8 @@ class AutoModeRouter:
         Returns:
             AutoModeDecision with provider, model, and metadata
         """
+        from deepr.routing.deprecation import migrate_model
+
         # Analyze query complexity and task type
         complexity = self._model_router._classify_complexity(query)
         task_type = self._model_router._detect_task_type(query)
@@ -568,15 +599,31 @@ class AutoModeRouter:
         if not self._provider_router.is_circuit_available(provider, model):
             provider, model, cost_estimate, reasoning = self._get_fallback(complexity, task_type, budget)
 
-        return AutoModeDecision(
+        # Check for deprecated model and auto-migrate
+        metadata: dict[str, Any] = {}
+        resolved_model, confidence, migration_warning = migrate_model(model, confidence=model_config.confidence)
+        if migration_warning is not None:
+            metadata["migrated_from"] = model
+            model = resolved_model
+            # Update provider if successor includes provider prefix
+            if "/" in model:
+                provider, model = model.split("/", 1)
+
+        decision = AutoModeDecision(
             provider=provider,
             model=model,
             complexity=complexity,
             task_type=task_type,
             cost_estimate=cost_estimate,
-            confidence=model_config.confidence,
+            confidence=confidence,
             reasoning=reasoning,
+            metadata=metadata,
         )
+
+        # Apply reasoning effort for Grok 4.3
+        decision = _apply_reasoning_effort(decision)
+
+        return decision
 
     def route_batch(
         self,
@@ -800,12 +847,12 @@ class AutoModeRouter:
 
         # Try grok as universal fallback
         if self._is_provider_usable("xai"):
-            if self._provider_router.is_circuit_available("xai", "grok-4-1-fast-non-reasoning"):
+            if self._provider_router.is_circuit_available("xai", "grok-4-3"):
                 return (
                     "xai",
-                    "grok-4-1-fast-non-reasoning",
-                    0.01,
-                    "Fallback to grok-4-1-fast-non-reasoning (primary provider unavailable)",
+                    "grok-4-3",
+                    0.05,
+                    "Fallback to grok-4-3 (primary provider unavailable)",
                 )
 
         # Last resort: return openai gpt-4.1-mini even if circuit might be open

@@ -379,6 +379,18 @@ async def _run_single(
         except Exception as exc:
             logger.debug("Router selection failed; using requested/default provider: %s", exc, exc_info=exc)
 
+    # Check for deprecated model and display warning
+    from deepr.routing.deprecation import check_deprecation
+
+    dep_entry = check_deprecation(model)
+    if dep_entry:
+        retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
+        msg = (
+            f"⚠ Model '{dep_entry.old_model}' is deprecated{retirement_info}. "
+            f"Recommended successor: {dep_entry.new_model}"
+        )
+        click.echo(msg, err=True)
+
     # Initialize trace emitter
     emitter = MetadataEmitter()
     op = emitter.start_task(

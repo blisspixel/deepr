@@ -14,7 +14,7 @@ def test_default_configuration():
 
     # Verify defaults
     assert config.default_provider == "xai", "Default provider should be xai"
-    assert config.default_model == "grok-4-1-fast-non-reasoning", "Default model should be grok-4-1-fast-non-reasoning"
+    assert config.default_model == "grok-4.3", "Default model should be grok-4.3"
     assert config.deep_research_provider == "openai", "Deep research provider should be openai"
     assert config.deep_research_model == "o3-deep-research", (
         "Deep research model should be o3-deep-research (BEST model)"
