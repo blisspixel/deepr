@@ -9,7 +9,6 @@ Requirements: 9.1, 10.1, 11.3
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import pytest
@@ -211,19 +210,21 @@ class TestPromptTemplates:
 class TestSamplingFallback:
     """Test sampling fallback when client doesn't support it."""
 
-    def test_fallback_when_no_client(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fallback_when_no_client(self) -> None:
         """Falls back to own provider when no client configured."""
         fallback = FakeFallbackProvider()
         trace_log = FakeTraceLog()
         handler = SamplingHandler(client=None, fallback=fallback, trace_log=trace_log)
 
         request = SamplingRequest(prompt="Analyze market trends")
-        response = asyncio.get_event_loop().run_until_complete(handler.sample(request))
+        response = await handler.sample(request)
 
         assert response.used_fallback is True
         assert response.content.startswith("fallback:")
 
-    def test_fallback_when_client_returns_none(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fallback_when_client_returns_none(self) -> None:
         """Falls back when client returns None (doesn't support sampling)."""
         client = FakeSamplingClient()
         fallback = FakeFallbackProvider()
@@ -231,19 +232,20 @@ class TestSamplingFallback:
         handler = SamplingHandler(client=client, fallback=fallback, trace_log=trace_log)
 
         request = SamplingRequest(prompt="Synthesize findings")
-        response = asyncio.get_event_loop().run_until_complete(handler.sample(request))
+        response = await handler.sample(request)
 
         assert response.used_fallback is True
         assert response.content.startswith("fallback:")
 
-    def test_trace_recorded_on_fallback(self) -> None:
+    @pytest.mark.asyncio
+    async def test_trace_recorded_on_fallback(self) -> None:
         """Trace entry is recorded even when using fallback."""
         trace_log = FakeTraceLog()
         fallback = FakeFallbackProvider()
         handler = SamplingHandler(client=None, fallback=fallback, trace_log=trace_log)
 
         request = SamplingRequest(prompt="Test prompt")
-        asyncio.get_event_loop().run_until_complete(handler.sample(request))
+        await handler.sample(request)
 
         assert len(trace_log.entries) == 1
         entry = trace_log.entries[0]
