@@ -157,13 +157,16 @@ class SamplingHandler:
         self._trace_entries.append(entry)
 
         if self._trace_log is not None:
-            self._trace_log.record("sampling", {
-                "prompt_length": entry.prompt_length,
-                "response_length": entry.response_length,
-                "latency_ms": entry.latency_ms,
-                "model": entry.model,
-                "used_fallback": entry.used_fallback,
-            })
+            self._trace_log.record(
+                "sampling",
+                {
+                    "prompt_length": entry.prompt_length,
+                    "response_length": entry.response_length,
+                    "latency_ms": entry.latency_ms,
+                    "model": entry.model,
+                    "used_fallback": entry.used_fallback,
+                },
+            )
 
         return SamplingResponse(
             content=content,
