@@ -56,9 +56,7 @@ class A2AServer:
     async def start(self, host: str = "localhost", port: int = 8080) -> None:
         """Start the A2A HTTP server."""
         self._running = True
-        self._server = await asyncio.start_server(
-            self._handle_connection, host, port
-        )
+        self._server = await asyncio.start_server(self._handle_connection, host, port)
         logger.info("A2A server started on %s:%d", host, port)
 
     async def stop(self) -> None:
