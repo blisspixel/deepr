@@ -36,10 +36,14 @@ class MCPClientProfile:
     name: str
     description: str = ""
 
-    # Transport (stdio)
+    # Transport
     command: str = ""
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+    transport: str = "stdio"  # "stdio" | "sse"
+
+    # Lifecycle
+    enabled: bool = True
 
     # Connection settings
     timeout: float = 30.0  # Per-call timeout in seconds
@@ -55,6 +59,13 @@ class MCPClientProfile:
     circuit_breaker_threshold: int = 5  # Failures before circuit opens
     circuit_breaker_recovery: float = 60.0  # Seconds before retry after circuit opens
 
+    # Approval
+    auto_approve: list[str] = field(default_factory=list)
+    require_approval: list[str] = field(default_factory=list)
+
+    # Progress
+    progress: bool = False
+
     # Metadata
     tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -65,10 +76,22 @@ class MCPClientProfile:
             "description": self.description,
             "command": self.command,
             "args": self.args,
+            "env": self.env,
+            "transport": self.transport,
+            "enabled": self.enabled,
             "timeout": self.timeout,
             "max_retries": self.max_retries,
+            "retry_delay": self.retry_delay,
+            "connect_timeout": self.connect_timeout,
             "budget_limit": self.budget_limit,
+            "cost_per_call": self.cost_per_call,
+            "circuit_breaker_threshold": self.circuit_breaker_threshold,
+            "circuit_breaker_recovery": self.circuit_breaker_recovery,
+            "auto_approve": self.auto_approve,
+            "require_approval": self.require_approval,
+            "progress": self.progress,
             "tags": self.tags,
+            "metadata": self.metadata,
         }
 
     @classmethod
@@ -80,6 +103,8 @@ class MCPClientProfile:
             command=data.get("command", ""),
             args=data.get("args", []),
             env=data.get("env", {}),
+            transport=data.get("transport", "stdio"),
+            enabled=data.get("enabled", True),
             timeout=float(data.get("timeout", 30.0)),
             max_retries=int(data.get("max_retries", 3)),
             retry_delay=float(data.get("retry_delay", 1.0)),
@@ -88,6 +113,9 @@ class MCPClientProfile:
             cost_per_call=float(data.get("cost_per_call", 0.0)),
             circuit_breaker_threshold=int(data.get("circuit_breaker_threshold", 5)),
             circuit_breaker_recovery=float(data.get("circuit_breaker_recovery", 60.0)),
+            auto_approve=data.get("auto_approve", []),
+            require_approval=data.get("require_approval", []),
+            progress=data.get("progress", False),
             tags=data.get("tags", []),
             metadata=data.get("metadata", {}),
         )

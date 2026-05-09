@@ -8,6 +8,8 @@
 |----------|-------------|
 | [Models](docs/MODELS.md) | Provider comparison, costs, model selection |
 | [Experts](docs/EXPERTS.md) | Creating and using domain experts |
+| [Integrations](docs/INTEGRATIONS.md) | First-party tool integrations (recon, distillr, primr) |
+| [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
 | [Changelog](docs/CHANGELOG.md) | Release history with migration notes |
 | [Vision](docs/VISION.md) | Long-term direction (v3.0+) |
@@ -136,6 +138,9 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Ship capabilities that improve measurable quality, cost-efficiency, and reliability.
 - Keep orchestration bounded: no unbounded swarms, no opaque autonomy.
 - Design for composability: experts are roles that receive input, produce handoff-ready output, and participate in multi-agent teams without owning the workflow.
+- Make experts genuinely agentic: they plan, reflect, self-correct, and learn — not just wrap LLM calls.
+- Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
+- Autonomy earns trust incrementally: start supervised, prove reliability, then expand bounds.
 
 ### Phase 1: Agentic Infrastructure Core
 
@@ -159,16 +164,51 @@ Goal: make the agentic layer production-ready — subagent contracts, role-based
   - [ ] Deploy/test o3-deep-research + Bing grounding
   - [ ] Add Foundry model discovery and benchmark coverage
 
-### Phase 2: MCP Client Reliability
+### Phase 2: MCP Client Reliability + Agent Interoperability
 
-Goal: Deepr works as both MCP provider and consumer for real workflows.
+Goal: Deepr works as both MCP provider and consumer for real workflows, and speaks A2A for agent-to-agent coordination.
+
+See [docs/AGENTIC_VISION.md](docs/AGENTIC_VISION.md) for the full agentic architecture rationale.
 
 - [ ] MCP client connections (stdio + SSE)
 - [ ] Configurable MCP client profiles (named server presets with connection details, auth, budget propagation, trace ID stitching, and automatic fallback)
 - [ ] Async durability (resume/reconnect, timeout/cancel, progress notifications)
 - [ ] Parallel dispatch across MCP servers with backpressure controls
 - [ ] Elicitation routing + external request sandboxing (safe pass-through for CAPTCHA/paywall/credential flows from remote MCP tools; per-server rate limits)
+- [ ] MCP provider enhancements:
+  - [ ] Resources: expose expert knowledge state, gap backlogs, cost summaries as MCP resources
+  - [ ] Prompts: reusable prompt templates for research workflows, expert consultation, sector analysis
+  - [ ] Sampling: server-initiated completions (leverage host model for collaborative synthesis)
+  - [ ] Streaming progress for long-running research operations
+- [ ] A2A protocol support:
+  - [ ] `deepr a2a` command to start A2A server
+  - [ ] Agent Card at `/.well-known/agent.json` describing expert capabilities as skills
+  - [ ] Task lifecycle (submitted → working → completed/failed) with streaming updates
+  - [ ] Budget propagation and trace ID stitching via A2A task metadata
+  - [ ] Multi-expert council exposed as A2A skill
 - [ ] GitHub release workflow for skill distribution
+- [ ] Skill portability: package experts as agentskills.io SKILL.md for Claude Code, Kiro, Cursor
+
+### Phase 2b: First-Party Tool Integrations
+
+Goal: give experts access to specialized research instruments from sibling projects — grounding facts, source ingestion, and strategic synthesis.
+
+See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the full integration contract and implementation details.
+
+- [ ] Recon integration (`pip install recon-tool`):
+  - [ ] MCP client connection to recon's domain_lookup, batch_lookup, delta tools
+  - [ ] Expert skill with auto-trigger on company domain mentions (grounding pre-flight)
+  - [ ] Trace ID pass-through for cross-tool observability
+- [ ] Distillr integration (`pip install distillr`):
+  - [ ] MCP client connection to distillr's ingest and query tools
+  - [ ] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge
+  - [ ] Async handling with progress notifications for long ingestion runs
+  - [ ] Budget propagation (cap model spend per ingestion)
+- [ ] Primr integration (`pip install primr`):
+  - [ ] MCP client connection to primr's analyze_company and batch tools
+  - [ ] Expert skill for autonomous company deep-dive delegation
+  - [ ] Async durability for 35-50 min runs (progress, resume, budget awareness)
+  - [ ] Quick-mode tool for lighter/faster company context
 
 ### Phase 3: Routing and Evaluation Confidence
 
@@ -184,10 +224,28 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
   - [ ] Methodology versioning for run comparability
 - [ ] A/B shadow mode (opt-in): run shadow query in parallel against baseline for continuous routing comparison
 
-### Phase 4: Expert and Skills Quality Loop
+### Phase 4: Expert Intelligence and Quality Loop
 
-Goal: improve expert outcomes with measurable impact, not feature sprawl.
+Goal: make experts genuinely agentic — self-correcting, strategically autonomous, graph-structured memory.
 
+- [ ] Reflection loop (self-correction before delivery):
+  - [ ] Post-research quality evaluation: citation grounding, logical gaps, confidence calibration
+  - [ ] Automatic re-research on specific gaps identified by reflection
+  - [ ] Reflection metadata in output (what was revised, why, quality score)
+  - [ ] Configurable reflection depth (0 = no reflection, 1 = single pass, 2 = iterative)
+- [ ] Graph-structured expert memory:
+  - [ ] Knowledge graph with typed nodes (fact, signal, inference, belief) and edges (supports, contradicts, enables)
+  - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
+  - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
+  - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically
+- [ ] Dynamic tool selection via gap analysis:
+  - [ ] Gap-to-tool mapping engine (infrastructure gaps → recon, academic gaps → distillr, strategic gaps → primr)
+  - [ ] Value/cost estimation per gap-fill option
+  - [ ] Strategic prioritization: fill highest-value gaps first within budget
+- [ ] Expert-as-guardrail mode:
+  - [ ] `validate` tool alongside `research` and `chat` — expert applies knowledge as a filter/validator
+  - [ ] PASS/WARN/FAIL assessment with citations and confidence
+  - [ ] Useful for downstream agents that need domain validation before acting
 - [ ] Expert manifest diff (`Delta`) and explicit `ExpertPolicy` type
 - [ ] Optional `--high-trust-only` mode (primary/secondary sources only)
 - [ ] Structured corpus import as first-class skill:
@@ -199,13 +257,31 @@ Goal: improve expert outcomes with measurable impact, not feature sprawl.
   - [ ] Dependency tracking between generated skills
   - [ ] Efficacy scoring (citations added, gaps closed, cost impact)
 - [ ] Skill templates + versioning/dependency management
-- [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills)
+- [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills ↔ agentskills.io)
 - [ ] Keep skill design constrained (focused modules, measurable outcomes)
+
+### Phase 4b: Autonomous Research Campaigns
+
+Goal: experts that run multi-day research investigations autonomously within budget bounds.
+
+- [ ] Campaign definition: goal, budget, duration, checkpoint frequency, stop conditions
+- [ ] Background campaign executor (queue-based, persists state, survives process restarts)
+- [ ] Multi-phase planning: expert decomposes goal into research phases, executes sequentially
+- [ ] Checkpoint system: periodic summaries of progress, spend, gaps remaining, next steps
+- [ ] Human-in-the-loop gates: configurable approval thresholds (budget %, high-risk operations)
+- [ ] Campaign resume/pause/cancel with state preservation
+- [ ] Multi-expert campaigns: council of experts works on shared goal over time
+- [ ] Campaign artifacts: final synthesis + all intermediate checkpoints as auditable trail
+- [ ] `deepr expert campaign` CLI command + MCP tool + A2A skill
 
 ### Phase 5: Operations, Team, and Security Hardening
 
 Goal: production posture for multi-user and autonomous deployments.
 
+- [ ] Structured handoff contracts:
+  - [ ] Versioned JSON schemas for expert output (claims, confidence, citations, gaps, staleness)
+  - [ ] Downstream agents can validate handoff artifacts against published schemas
+  - [ ] Schema registry with backward compatibility guarantees
 - [ ] Web operations analytics:
   - [ ] Cost-vs-quality frontier scatter (every routing decision plotted)
   - [ ] Failure-mode breakdown
@@ -257,10 +333,13 @@ We welcome contributions. Here's where help is most valuable:
 
 | Area | Examples | Impact |
 |------|----------|--------|
+| **Agent interoperability** | A2A protocol, MCP resources/prompts/sampling, skill portability | High |
 | **MCP client mode** | Client connections, profiles, async tasks, elicitation | High |
+| **First-party integrations** | Recon grounding, Distillr corpus import, Primr company analysis | High |
+| **Expert intelligence** | Reflection loop, graph memory, dynamic tool selection, guardrail mode | High |
 | **Expert quality loop** | Corpus import, skill auto-gen, expert diffs, efficacy scoring | High |
 | **Testing** | Integration tests, provider mocks, 80% coverage | High |
-| **Web dashboard** | Operational analytics, anomaly alerts, cost frontier | High |
+| **Web dashboard** | Operational analytics, anomaly alerts, cost frontier | Medium |
 | **Provider resilience** | Legacy deprecation handling, routing preview, A/B shadow | Medium |
 | **Security** | Permission boundaries, sandboxing, isolation | Medium |
 | **Documentation** | Examples, tutorials, API docs | Medium |
@@ -290,11 +369,13 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
 | v2.10 | Agentic infrastructure core, Grok 4.3 flagship, legacy migration, Azure Foundry parity | In Progress |
-| v2.10+ | MCP client reliability, configurable profiles, elicitation sandboxing | Planned |
+| v2.10+ | MCP client + A2A protocol, agent interoperability, skill portability | Planned |
+| v2.10+ | First-party integrations: recon, distillr, primr | Planned |
 | v2.11 | Routing preview, eval methodology v2, expert-specific metrics, A/B shadow | Planned |
-| v2.11+ | Expert quality loop, corpus import, skill auto-gen, efficacy scoring | Planned |
-| v2.12 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
-| v3.0+ | Self-improving routing, autonomous learning | Future |
+| v2.11+ | Expert intelligence: reflection loop, graph memory, dynamic tool selection, guardrail mode | Planned |
+| v2.12 | Autonomous research campaigns, multi-day expert investigations | Planned |
+| v2.13 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
+| v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
 
 ---
 
