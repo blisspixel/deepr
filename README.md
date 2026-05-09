@@ -195,6 +195,8 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 | [Models](docs/MODELS.md) | Provider comparison and model selection |
 | [Architecture](docs/ARCHITECTURE.md) | Technical architecture, security, budget protection |
 | [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
+| [Integrations](docs/INTEGRATIONS.md) | First-party tool integrations (recon, distillr, primr) |
+| [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
 | [Deployment](deploy/README.md) | Cloud deployment (AWS, Azure, GCP) |
 | [Changelog](docs/CHANGELOG.md) | Release history |
 | [Roadmap](ROADMAP.md) | Development priorities and future plans |
