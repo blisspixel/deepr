@@ -99,15 +99,9 @@ class BudgetPropagator:
 
         shortfall = estimated_cost - effective_cap
         if per_call_limit > 0 and per_call_limit < session_remaining:
-            reason = (
-                f"Estimated cost {estimated_cost:.2f} exceeds "
-                f"per-call limit {per_call_limit:.2f}"
-            )
+            reason = f"Estimated cost {estimated_cost:.2f} exceeds per-call limit {per_call_limit:.2f}"
         else:
-            reason = (
-                f"Estimated cost {estimated_cost:.2f} exceeds "
-                f"remaining budget {session_remaining:.2f}"
-            )
+            reason = f"Estimated cost {estimated_cost:.2f} exceeds remaining budget {session_remaining:.2f}"
 
         return BudgetDecision(
             allowed=False,
