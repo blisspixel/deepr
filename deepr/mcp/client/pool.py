@@ -172,9 +172,7 @@ class MCPClientPool:
 
         # 1. Budget check
         if self._budget_propagator and profile and estimated_cost > 0:
-            decision = self._budget_propagator.check_budget(
-                profile, estimated_cost, session_remaining
-            )
+            decision = self._budget_propagator.check_budget(profile, estimated_cost, session_remaining)
             if not decision.allowed:
                 return StructuredError(
                     code=MCPErrorCode.BUDGET_EXCEEDED,
@@ -214,9 +212,7 @@ class MCPClientPool:
         if self._budget_propagator and profile:
             actual_cost = result.raw.get("cost", 0.0) if result.ok else 0.0
             if actual_cost > 0:
-                self._budget_propagator.record_cost(
-                    server_name, tool_name, actual_cost, trace_id
-                )
+                self._budget_propagator.record_cost(server_name, tool_name, actual_cost, trace_id)
 
         if span and self._trace_stitcher:
             cost = result.raw.get("cost", 0.0) if result.ok else 0.0
@@ -236,9 +232,7 @@ class MCPClientPool:
         Preserves order of requested servers. Failed servers produce
         error results in their slot without blocking others.
         """
-        targets = server_names or [
-            name for name, client in self._clients.items() if client.connected
-        ]
+        targets = server_names or [name for name, client in self._clients.items() if client.connected]
         if not targets:
             return []
 
