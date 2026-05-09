@@ -27,11 +27,13 @@ class TaskState(str, Enum):
 # Valid state transitions
 VALID_TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.SUBMITTED: frozenset({TaskState.WORKING, TaskState.CANCELLED}),
-    TaskState.WORKING: frozenset({
-        TaskState.COMPLETED,
-        TaskState.FAILED,
-        TaskState.CANCELLED,
-    }),
+    TaskState.WORKING: frozenset(
+        {
+            TaskState.COMPLETED,
+            TaskState.FAILED,
+            TaskState.CANCELLED,
+        }
+    ),
     TaskState.COMPLETED: frozenset(),
     TaskState.FAILED: frozenset(),
     TaskState.CANCELLED: frozenset(),
@@ -45,12 +47,8 @@ class AgentSkill:
     name: str
     description: str
     domain: str
-    input_modes: list[str] = field(
-        default_factory=lambda: ["text/plain"]
-    )
-    output_modes: list[str] = field(
-        default_factory=lambda: ["application/json"]
-    )
+    input_modes: list[str] = field(default_factory=lambda: ["text/plain"])
+    output_modes: list[str] = field(default_factory=lambda: ["application/json"])
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,15 +65,11 @@ class AgentCard:
     """Agent card served at /.well-known/agent.json."""
 
     name: str = "deepr"
-    description: str = (
-        "Multi-provider research automation with persistent expert agents"
-    )
+    description: str = "Multi-provider research automation with persistent expert agents"
     version: str = ""
     url: str = ""
     skills: list[AgentSkill] = field(default_factory=list)
-    supported_modes: list[str] = field(
-        default_factory=lambda: ["text/plain", "application/json"]
-    )
+    supported_modes: list[str] = field(default_factory=lambda: ["text/plain", "application/json"])
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -111,12 +105,8 @@ class Task:
     error: Any = None
     cost: float = 0.0
     trace_id: str = ""
-    created_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
-    updated_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

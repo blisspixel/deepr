@@ -20,16 +20,16 @@ from deepr.mcp.client.profile import MCPClientProfile
 logger = logging.getLogger(__name__)
 
 # Pattern for detecting company domains in text
-_DOMAIN_PATTERN = re.compile(
-    r"\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,})\b"
-)
+_DOMAIN_PATTERN = re.compile(r"\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,})\b")
 
 # Error codes that are retryable
-_RETRYABLE_CODES = frozenset({
-    MCPErrorCode.TIMEOUT,
-    MCPErrorCode.CONNECTION_LOST,
-    MCPErrorCode.SERVER_ERROR,
-})
+_RETRYABLE_CODES = frozenset(
+    {
+        MCPErrorCode.TIMEOUT,
+        MCPErrorCode.CONNECTION_LOST,
+        MCPErrorCode.SERVER_ERROR,
+    }
+)
 
 
 @dataclass
@@ -109,26 +109,30 @@ class ExpertSkillWrapper:
         domains = self._detect_domains(context)
         for domain in domains:
             if "domain_lookup" in tool_names:
-                suggestions.append(ToolSuggestion(
-                    server_name=self._profile.name,
-                    tool_name="domain_lookup",
-                    arguments={"domain": domain},
-                    reason=f"Detected domain: {domain}",
-                    requires_approval=self._needs_approval("domain_lookup"),
-                ))
+                suggestions.append(
+                    ToolSuggestion(
+                        server_name=self._profile.name,
+                        tool_name="domain_lookup",
+                        arguments={"domain": domain},
+                        reason=f"Detected domain: {domain}",
+                        requires_approval=self._needs_approval("domain_lookup"),
+                    )
+                )
 
         # Knowledge gap matching
         for gap in context.knowledge_gaps:
             matching_tools = _GAP_TOOL_MAP.get(gap.category, [])
             for tool_name in matching_tools:
                 if tool_name in tool_names:
-                    suggestions.append(ToolSuggestion(
-                        server_name=self._profile.name,
-                        tool_name=tool_name,
-                        arguments={},
-                        reason=f"Knowledge gap: {gap.description}",
-                        requires_approval=self._needs_approval(tool_name),
-                    ))
+                    suggestions.append(
+                        ToolSuggestion(
+                            server_name=self._profile.name,
+                            tool_name=tool_name,
+                            arguments={},
+                            reason=f"Knowledge gap: {gap.description}",
+                            requires_approval=self._needs_approval(tool_name),
+                        )
+                    )
 
         return suggestions
 
