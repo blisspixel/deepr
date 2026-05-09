@@ -25,10 +25,7 @@ class InvalidTransitionError(Exception):
         self.task_id = task_id
         self.current_state = current
         self.target_state = target
-        super().__init__(
-            f"Invalid transition for task {task_id}: "
-            f"{current.value} → {target.value}"
-        )
+        super().__init__(f"Invalid transition for task {task_id}: {current.value} → {target.value}")
 
 
 class TaskNotFoundError(Exception):

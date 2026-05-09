@@ -49,9 +49,7 @@ class AgentCardGenerator:
         self._version = version
         self._url = url
         self._name = name
-        self._description = description or (
-            "Multi-provider research automation with persistent expert agents"
-        )
+        self._description = description or ("Multi-provider research automation with persistent expert agents")
         self._experts: list[ExpertInfo] = []
 
     def register_expert(self, expert: ExpertInfo) -> None:

@@ -119,26 +119,30 @@ class KnowledgeAbsorber:
             text = item.get("text", "") or item.get("value", "") or str(item)
             confidence = self._compute_confidence(item, base_confidence)
 
-            findings.append(AbsorbedFinding(
-                text=str(text),
-                category=category,
-                confidence=confidence,
-                source_type=source_type,
-                source_tool=source_tool,
-                raw_data=item if isinstance(item, dict) else {"value": item},
-            ))
+            findings.append(
+                AbsorbedFinding(
+                    text=str(text),
+                    category=category,
+                    confidence=confidence,
+                    source_type=source_type,
+                    source_tool=source_tool,
+                    raw_data=item if isinstance(item, dict) else {"value": item},
+                )
+            )
 
         # If no items extracted, create a single finding from the response
         if not findings and tool_response:
             text = tool_response.get("summary", "") or str(tool_response)
-            findings.append(AbsorbedFinding(
-                text=str(text)[:200],
-                category=category,
-                confidence=base_confidence,
-                source_type=source_type,
-                source_tool=source_tool,
-                raw_data=tool_response,
-            ))
+            findings.append(
+                AbsorbedFinding(
+                    text=str(text)[:200],
+                    category=category,
+                    confidence=base_confidence,
+                    source_type=source_type,
+                    source_tool=source_tool,
+                    raw_data=tool_response,
+                )
+            )
 
         return findings
 
