@@ -23,6 +23,8 @@
 ## Project
 
 - **[../ROADMAP.md](../ROADMAP.md)** - Development priorities and status
+- **[INTEGRATIONS.md](INTEGRATIONS.md)** - First-party tool integrations (recon, distillr, primr)
+- **[AGENTIC_VISION.md](AGENTIC_VISION.md)** - Agentic architecture, A2A protocol, reflection, campaigns
 - **[VISION.md](VISION.md)** - Future direction (aspirational)
 
 ## Reference
