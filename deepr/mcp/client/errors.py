@@ -22,11 +22,13 @@ class MCPErrorCode(str, Enum):
 
 
 # Which error codes are retryable by default
-_RETRYABLE_CODES = frozenset({
-    MCPErrorCode.TIMEOUT,
-    MCPErrorCode.CONNECTION_LOST,
-    MCPErrorCode.SERVER_ERROR,
-})
+_RETRYABLE_CODES = frozenset(
+    {
+        MCPErrorCode.TIMEOUT,
+        MCPErrorCode.CONNECTION_LOST,
+        MCPErrorCode.SERVER_ERROR,
+    }
+)
 
 
 @dataclass
