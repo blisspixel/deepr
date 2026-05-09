@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from deepr.mcp.client.base import MCPToolResult
-from deepr.mcp.client.pool import MCPClientPool, _CircuitState
+from deepr.mcp.client.circuit_breaker import CircuitBreaker as _CircuitState
+from deepr.mcp.client.pool import MCPClientPool
 from deepr.mcp.client.profile import MCPClientProfile
 
 
@@ -38,7 +39,7 @@ class TestCircuitState:
         cs.record_failure()
         assert cs.is_open
         # Manually set opened_at to the past so recovery period has elapsed
-        cs.opened_at = 0.0
+        cs._opened_at = 0.0
         assert cs.is_available()
 
 
@@ -76,8 +77,9 @@ class TestMCPClientPool:
         pool = MCPClientPool()
         pool.register(self._make_profile("server-a"))
         # Force circuit open
-        pool._circuits["server-a"].is_open = True
-        pool._circuits["server-a"].opened_at = 9999999999.0  # Far future
+        from deepr.mcp.client.circuit_breaker import CircuitState
+        pool._circuits["server-a"]._state = CircuitState.OPEN
+        pool._circuits["server-a"]._opened_at = 9999999999.0  # Far future
 
         result = await pool.call_tool("server-a", "tool", {})
         assert not result.ok
