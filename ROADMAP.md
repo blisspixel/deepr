@@ -170,24 +170,24 @@ Goal: Deepr works as both MCP provider and consumer for real workflows, and spea
 
 See [docs/AGENTIC_VISION.md](docs/AGENTIC_VISION.md) for the full agentic architecture rationale.
 
-- [ ] MCP client connections (stdio + SSE)
-- [ ] Configurable MCP client profiles (named server presets with connection details, auth, budget propagation, trace ID stitching, and automatic fallback)
-- [ ] Async durability (resume/reconnect, timeout/cancel, progress notifications)
-- [ ] Parallel dispatch across MCP servers with backpressure controls
+- [x] MCP client connections (stdio + SSE)
+- [x] Configurable MCP client profiles (named server presets with connection details, auth, budget propagation, trace ID stitching, and automatic fallback)
+- [x] Async durability (resume/reconnect, timeout/cancel, progress notifications)
+- [x] Parallel dispatch across MCP servers with backpressure controls
 - [ ] Elicitation routing + external request sandboxing (safe pass-through for CAPTCHA/paywall/credential flows from remote MCP tools; per-server rate limits)
-- [ ] MCP provider enhancements:
-  - [ ] Resources: expose expert knowledge state, gap backlogs, cost summaries as MCP resources
-  - [ ] Prompts: reusable prompt templates for research workflows, expert consultation, sector analysis
-  - [ ] Sampling: server-initiated completions (leverage host model for collaborative synthesis)
-  - [ ] Streaming progress for long-running research operations
-- [ ] A2A protocol support:
-  - [ ] `deepr a2a` command to start A2A server
-  - [ ] Agent Card at `/.well-known/agent.json` describing expert capabilities as skills
-  - [ ] Task lifecycle (submitted → working → completed/failed) with streaming updates
-  - [ ] Budget propagation and trace ID stitching via A2A task metadata
+- [x] MCP provider enhancements:
+  - [x] Resources: expose expert knowledge state, gap backlogs, cost summaries as MCP resources
+  - [x] Prompts: reusable prompt templates for research workflows, expert consultation, sector analysis
+  - [x] Sampling: server-initiated completions (leverage host model for collaborative synthesis)
+  - [x] Streaming progress for long-running research operations
+- [x] A2A protocol support:
+  - [x] `deepr a2a` command to start A2A server
+  - [x] Agent Card at `/.well-known/agent.json` describing expert capabilities as skills
+  - [x] Task lifecycle (submitted → working → completed/failed) with streaming updates
+  - [x] Budget propagation and trace ID stitching via A2A task metadata
   - [ ] Multi-expert council exposed as A2A skill
 - [ ] GitHub release workflow for skill distribution
-- [ ] Skill portability: package experts as agentskills.io SKILL.md for Claude Code, Kiro, Cursor
+- [x] Skill portability: package experts as agentskills.io SKILL.md for Claude Code, Kiro, Cursor
 
 ### Phase 2b: First-Party Tool Integrations
 
@@ -369,7 +369,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
 | v2.10 | Agentic infrastructure core, Grok 4.3 flagship, legacy migration, Azure Foundry parity | In Progress |
-| v2.10+ | MCP client + A2A protocol, agent interoperability, skill portability | Planned |
+| v2.10.1 | MCP client + A2A protocol, agent interoperability, skill portability | Complete |
 | v2.10+ | First-party integrations: recon, distillr, primr | Planned |
 | v2.11 | Routing preview, eval methodology v2, expert-specific metrics, A/B shadow | Planned |
 | v2.11+ | Expert intelligence: reflection loop, graph memory, dynamic tool selection, guardrail mode | Planned |
