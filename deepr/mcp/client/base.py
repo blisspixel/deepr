@@ -142,6 +142,12 @@ class MCPClient:
         self._stats = _ConnectionStats()
         self._server_capabilities: dict[str, Any] = {}
         self._available_tools: list[dict[str, Any]] = []
+        # Serializes _send_request so concurrent callers on a shared MCPClient
+        # (e.g. via MCPClientPool) cannot race against the single stdio
+        # connection. Without this, caller A's readline could pick up caller
+        # B's response, leaking results across sessions and breaking
+        # JSON-RPC id correlation. Also re-validates the response id below.
+        self._send_lock = asyncio.Lock()
 
     @property
     def connected(self) -> bool:
@@ -369,29 +375,57 @@ class MCPClient:
     # ------------------------------------------------------------------
 
     async def _send_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Send a JSON-RPC request and read the response."""
-        if not self._process or self._process.stdin is None or self._process.stdout is None:
-            return {"error": "MCP process not available"}
+        """Send a JSON-RPC request and read the response.
 
-        self._request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "id": self._request_id,
-            "method": method,
-            "params": params,
-        }
-        line = json.dumps(request) + "\n"
-        self._process.stdin.write(line.encode())
-        await self._process.stdin.drain()
+        Serializes the write/read pair under a per-client lock so concurrent
+        callers on a shared MCPClient (e.g. through MCPClientPool) cannot
+        interleave on the single stdio stream — without this, caller A's
+        readline could pick up caller B's response and leak results across
+        sessions. Also validates that the response id matches the request id;
+        any mismatch is rejected rather than silently returned to the caller.
+        """
+        async with self._send_lock:
+            if not self._process or self._process.stdin is None or self._process.stdout is None:
+                return {"error": "MCP process not available"}
 
-        response_line = await self._process.stdout.readline()
-        if not response_line:
-            return {"error": "MCP server closed connection"}
+            self._request_id += 1
+            request_id = self._request_id
+            request = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": method,
+                "params": params,
+            }
+            line = json.dumps(request) + "\n"
+            self._process.stdin.write(line.encode())
+            await self._process.stdin.drain()
 
-        try:
-            return json.loads(response_line)
-        except json.JSONDecodeError:
-            return {"error": f"Invalid JSON from MCP server: {response_line[:200]}"}
+            # Drain notifications/unexpected frames until we receive a response
+            # whose id matches the request we just sent. Bounded so a chatty
+            # server cannot hang the caller forever.
+            for _ in range(64):
+                response_line = await self._process.stdout.readline()
+                if not response_line:
+                    return {"error": "MCP server closed connection"}
+
+                try:
+                    payload = json.loads(response_line)
+                except json.JSONDecodeError:
+                    return {"error": f"Invalid JSON from MCP server: {response_line[:200]}"}
+
+                # Drop pure notifications (no id) silently.
+                if "id" not in payload:
+                    continue
+                if payload.get("id") == request_id:
+                    return payload
+                logger.warning(
+                    "MCP %s: dropping response with mismatched id (got %r, expected %r)",
+                    self.name,
+                    payload.get("id"),
+                    request_id,
+                )
+
+            return {"error": "MCP server returned too many unmatched responses"}
 
     async def _send_notification(self, method: str, params: dict[str, Any]) -> None:
         """Send a JSON-RPC notification (no response expected)."""

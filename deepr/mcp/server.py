@@ -1039,8 +1039,31 @@ def _register_new_tools(registry: ToolRegistry) -> None:
 # ------------------------------------------------------------------ #
 
 
+def _validate_expert_name_component(value: str) -> str | None:
+    """Return an error string if value is unsafe to use as a filesystem path component.
+
+    The MCP tool surface accepts expert_name from clients; without validation,
+    SkillManager appends it directly to data/experts, allowing absolute paths
+    or '..' traversal to escape the intended expert directory and expose
+    arbitrary readable skill manifests. Mirrors the web validator behavior.
+    """
+    if not value:
+        return None
+    if "/" in value or "\\" in value or ".." in value:
+        return "expert_name contains illegal path characters"
+    # PurePath splits an absolute path into a non-empty anchor.
+    from pathlib import PurePath
+
+    if PurePath(value).is_absolute() or PurePath(value).anchor:
+        return "expert_name cannot be an absolute path"
+    return None
+
+
 async def _list_skills(expert_name: str) -> dict:
     """List available/installed skills for an expert."""
+    err = _validate_expert_name_component(expert_name or "")
+    if err:
+        return {"error": err}
     try:
         from deepr.experts.skills import SkillManager
 
@@ -1075,6 +1098,9 @@ async def _install_skill(expert_name: str, skill_name: str) -> dict:
     """Install a skill on an expert."""
     if not expert_name or not skill_name:
         return {"error": "expert_name and skill_name are required"}
+    err = _validate_expert_name_component(expert_name)
+    if err:
+        return {"error": err}
     try:
         from deepr.experts.skills import SkillManager
 
