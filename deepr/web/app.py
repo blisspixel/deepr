@@ -1532,9 +1532,25 @@ def get_expert(name):
         return jsonify({"error": "Internal server error"}), 500
 
 
+# Cooldown window between portrait generations per expert. The portrait
+# endpoint calls paid image-generation APIs, so without this any caller able
+# to reach the route can run up provider spend in a tight loop.
+_PORTRAIT_COOLDOWN_SECONDS = 60
+_PORTRAIT_LAST_GENERATED: dict[str, float] = {}
+_PORTRAIT_ALLOWED_PROVIDERS = {"openai", "google", "xai"}
+
+
 @app.route("/api/experts/<name>/generate-portrait", methods=["POST"])
+@(limiter.limit("5 per hour") if limiter else (lambda f: f))
 def generate_expert_portrait(name):
-    """Generate an AI portrait for a domain expert."""
+    """Generate an AI portrait for a domain expert.
+
+    Hardened against cost-abuse:
+    - Tight per-route rate limit (5/hour) when flask-limiter is installed.
+    - Per-expert cooldown stops the same expert being regenerated in a loop.
+    - Provider override is validated against an allowlist; arbitrary strings
+      cannot be passed through to portraits.generate_portrait.
+    """
     try:
         from deepr.experts.portraits import generate_portrait
         from deepr.experts.profile_store import ExpertStore
@@ -1546,10 +1562,27 @@ def generate_expert_portrait(name):
         if not store.exists(decoded_name):
             return jsonify({"error": "Expert not found"}), 404
 
+        now = time.monotonic()
+        last = _PORTRAIT_LAST_GENERATED.get(decoded_name, 0.0)
+        wait = _PORTRAIT_COOLDOWN_SECONDS - (now - last)
+        if wait > 0:
+            return jsonify(
+                {
+                    "error": "Portrait was generated recently. Try again later.",
+                    "retry_after_seconds": int(wait) + 1,
+                }
+            ), 429
+
         profile = store.load(decoded_name)
 
         data = request.json or {}
-        provider = data.get("provider")  # optional override
+        provider = data.get("provider")
+        if provider is not None and provider not in _PORTRAIT_ALLOWED_PROVIDERS:
+            return jsonify(
+                {
+                    "error": f"Invalid provider. Allowed: {sorted(_PORTRAIT_ALLOWED_PROVIDERS)}",
+                }
+            ), 400
 
         loop = asyncio.new_event_loop()
         try:
@@ -1565,6 +1598,7 @@ def generate_expert_portrait(name):
         finally:
             loop.close()
 
+        _PORTRAIT_LAST_GENERATED[decoded_name] = time.monotonic()
         profile.portrait_url = portrait_url
         store.save(profile)
 
@@ -2016,9 +2050,23 @@ def fill_expert_gaps(name):
         return jsonify({"error": "Internal server error"}), 500
 
 
+# Maximum number of (belief, source) pairs to validate per request. The
+# validator fans out one paid LLM call per batch of five, so without a cap a
+# populated expert can cost-amplify a single GET into many provider calls.
+_CITATION_VALIDATION_PAIR_CAP = 50
+
+
 @app.route("/api/experts/<name>/citation-validations", methods=["GET"])
+@(limiter.limit("5 per minute") if limiter else (lambda f: f))
 def get_citation_validations(name):
-    """Get citation validation results for an expert."""
+    """Get citation validation results for an expert.
+
+    Hardened against cost-abuse:
+    - Tight per-route rate limit (5/min) when flask-limiter is installed.
+    - Caps the number of beliefs forwarded to the LLM-backed validator. The
+      validator fans out one paid call per batch of five pairs, so an
+      uncapped GET could be amplified into many provider calls per request.
+    """
     try:
         import asyncio
 
@@ -2043,6 +2091,9 @@ def get_citation_validations(name):
         if not worldview.beliefs:
             return jsonify({"validations": [], "summary": {}})
 
+        beliefs = worldview.beliefs[:_CITATION_VALIDATION_PAIR_CAP]
+        truncated = len(worldview.beliefs) > _CITATION_VALIDATION_PAIR_CAP
+
         async def _do_validate():
             from deepr.config import AppConfig
             from deepr.experts.citation_validator import CitationValidator
@@ -2052,7 +2103,7 @@ def get_citation_validations(name):
             provider = create_provider("openai", api_key=config.provider.openai_api_key)
             validator = CitationValidator(client=provider.client)
 
-            claims = [b.to_claim() for b in worldview.beliefs]
+            claims = [b.to_claim() for b in beliefs]
             docs_dir = store.get_documents_dir(decoded_name)
             doc_dict = {}
             for doc_path in docs_dir.glob("*.md"):
@@ -2066,7 +2117,14 @@ def get_citation_validations(name):
             return [v.to_dict() for v in validations], summary
 
         validations, summary = asyncio.run(_do_validate())
-        return jsonify({"validations": validations, "summary": summary})
+        return jsonify(
+            {
+                "validations": validations,
+                "summary": summary,
+                "truncated": truncated,
+                "pair_cap": _CITATION_VALIDATION_PAIR_CAP,
+            }
+        )
     except ImportError:
         return jsonify({"validations": [], "summary": {}})
     except Exception as e:
@@ -2504,13 +2562,58 @@ def list_benchmarks():
         return jsonify({"error": "Internal server error"}), 500
 
 
+# Same patterns as scripts/benchmark_models.py:redact_secrets — duplicated here so
+# the web app does not require the benchmark script to be importable as a module.
+_BENCHMARK_SECRET_PATTERNS = [
+    re.compile(r"(?i)([?&](?:key|api[_-]?key|access[_-]?token)=)[^&\s\"'<>]+"),
+    re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s\"'<>]+"),
+    re.compile(r"(?i)(x[_-](?:api[_-]?key|goog[_-]api[_-]key)\s*[:=]\s*)[^\s\"'<>]+"),
+]
+
+
+def _redact_secrets(text):
+    """Replace embedded provider API keys / bearer tokens with REDACTED."""
+    if not isinstance(text, str) or not text:
+        return text
+    out = text
+    for pattern in _BENCHMARK_SECRET_PATTERNS:
+        out = pattern.sub(r"\1REDACTED", out)
+    return out
+
+
+def _redact_in_place(obj):
+    """Walk a JSON-serializable structure and redact secrets in string values.
+
+    Returns the same object for convenience. Mutates dicts/lists in place; for
+    bare strings, callers should reassign the returned value.
+    """
+    if isinstance(obj, dict):
+        for k, v in list(obj.items()):
+            if isinstance(v, str):
+                obj[k] = _redact_secrets(v)
+            else:
+                _redact_in_place(v)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            if isinstance(v, str):
+                obj[i] = _redact_secrets(v)
+            else:
+                _redact_in_place(v)
+    return obj
+
+
 def _sanitize_benchmark(data: dict) -> dict:
-    """Replace Infinity/NaN with JSON-safe values in benchmark data."""
+    """Replace Infinity/NaN with JSON-safe values and strip any leaked secrets.
+
+    Historical benchmark JSON may contain raw exception strings (e.g. Gemini
+    URLs with ?key=...). Redact those before returning data to API clients.
+    """
     for ranking in data.get("rankings", []):
         for key in ("cost_per_quality", "avg_quality", "avg_latency_ms", "total_cost"):
             val = ranking.get(key)
             if isinstance(val, float) and (math.isinf(val) or math.isnan(val)):
                 ranking[key] = 0.0
+    _redact_in_place(data)
     return data
 
 
@@ -2693,11 +2796,13 @@ def start_benchmark():
                 }
             )
 
-            # Reader thread to capture output
+            # Reader thread to capture output. Redact secrets per-line so any
+            # exception strings that contain ?key=... or Authorization headers
+            # never reach API consumers via /api/benchmarks/status.
             def _read_output():
                 try:
                     for line in proc.stdout:
-                        output_lines.append(line.rstrip("\n"))
+                        output_lines.append(_redact_secrets(line.rstrip("\n")))
                 except Exception as exc:
                     logger.debug("Benchmark reader output loop terminated: %s", exc, exc_info=exc)
 
@@ -2801,9 +2906,40 @@ def get_model_registry():
 # =============================================================================
 
 
+def _demo_mode_enabled() -> bool:
+    """Return True if demo mode is explicitly enabled via DEEPR_DEMO env var."""
+    return os.environ.get("DEEPR_DEMO", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _confirm_destructive(data: dict | None) -> bool:
+    """Caller must include {"confirm": "DELETE_ALL_DATA"} in request body."""
+    return isinstance(data, dict) and data.get("confirm") == "DELETE_ALL_DATA"
+
+
 @app.route("/api/demo/load", methods=["POST"])
 def load_demo_data():
-    """Load demo experts and sample completed jobs."""
+    """Load demo experts and sample completed jobs.
+
+    Destructive: clears the research_queue table before seeding. Gated behind:
+      - DEEPR_DEMO=1 environment variable, AND
+      - request body containing {"confirm": "DELETE_ALL_DATA"}
+    Returns 403 otherwise to prevent accidental or unauthenticated wipes.
+    """
+    if not _demo_mode_enabled():
+        return jsonify(
+            {
+                "error": "Demo mode is disabled. Set DEEPR_DEMO=1 to enable.",
+            }
+        ), 403
+
+    if not _confirm_destructive(request.json if request.is_json else None):
+        return jsonify(
+            {
+                "error": "Destructive action requires explicit confirmation.",
+                "hint": 'POST {"confirm": "DELETE_ALL_DATA"} to acknowledge that this clears the queue.',
+            }
+        ), 400
+
     import subprocess
 
     errors = []
@@ -2833,6 +2969,21 @@ def load_demo_data():
         conn.close()
     except Exception as e:
         errors.append(f"Clear jobs: {e}")
+
+    # Also clean up orphaned report directories. Without this, each demo
+    # load saves new report.md/metadata.json under fresh UUIDs while leaving
+    # the previous batch behind, so repeated calls accumulate persistent
+    # disk usage even though the queue stays bounded.
+    try:
+        import shutil as _shutil
+
+        storage_dir = Path(storage.base_path)
+        if storage_dir.exists():
+            for job_dir in storage_dir.iterdir():
+                if job_dir.is_dir():
+                    _shutil.rmtree(job_dir, ignore_errors=True)
+    except Exception as e:
+        errors.append(f"Clear orphaned reports: {e}")
 
     created_jobs = 0
     now = datetime.now(timezone.utc)
@@ -3421,7 +3572,29 @@ def load_demo_data():
 
 @app.route("/api/demo/clear", methods=["POST"])
 def clear_demo_data():
-    """Clear all jobs and demo data."""
+    """Clear all jobs and stored reports.
+
+    Destructive: deletes every row in research_queue and every directory in
+    the storage base_path. Gated behind:
+      - DEEPR_DEMO=1 environment variable, AND
+      - request body containing {"confirm": "DELETE_ALL_DATA"}
+    Returns 403 otherwise to prevent accidental or unauthenticated wipes.
+    """
+    if not _demo_mode_enabled():
+        return jsonify(
+            {
+                "error": "Demo mode is disabled. Set DEEPR_DEMO=1 to enable.",
+            }
+        ), 403
+
+    if not _confirm_destructive(request.json if request.is_json else None):
+        return jsonify(
+            {
+                "error": "Destructive action requires explicit confirmation.",
+                "hint": 'POST {"confirm": "DELETE_ALL_DATA"} to acknowledge that this wipes jobs and reports.',
+            }
+        ), 400
+
     import sqlite3
 
     errors = []
@@ -3486,14 +3659,20 @@ def health_check():
 
 def _auto_load_demo():
     """Auto-load demo data if DEEPR_DEMO=1 is set."""
-    if os.environ.get("DEEPR_DEMO", "").strip() in ("1", "true", "yes"):
+    if _demo_mode_enabled():
         with app.app_context():
             try:
                 logger.info("DEEPR_DEMO is set — auto-loading demo data")
                 # Check if jobs already exist to avoid duplicate loads
                 jobs = run_async(queue.list_jobs(limit=1))
                 if not jobs:
-                    with app.test_request_context():
+                    # Use a synthetic request body with the confirm token so the
+                    # gated load_demo_data() handler proceeds. The DEEPR_DEMO
+                    # env var has already opted in to destructive demo behavior.
+                    with app.test_request_context(
+                        method="POST",
+                        json={"confirm": "DELETE_ALL_DATA"},
+                    ):
                         load_demo_data()
                     logger.info("Demo data loaded successfully")
                 else:
@@ -3506,11 +3685,16 @@ _auto_load_demo()
 
 
 if __name__ == "__main__":
-    print("\n" + "=" * 70)
-    print("  Deepr Research Dashboard")
-    print("  Running on http://localhost:5000")
-    print("=" * 70 + "\n")
     import os as _os
 
     debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
-    socketio.run(app, debug=debug, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
+    host = _os.environ.get("DEEPR_HOST", "127.0.0.1")
+    port = int(_os.environ.get("DEEPR_PORT", "5000") or "5000")
+    print("\n" + "=" * 70)
+    print("  Deepr Research Dashboard")
+    print(f"  Running on http://{host}:{port}")
+    if host not in ("127.0.0.1", "localhost", "::1") and not _API_KEY:
+        print("  WARNING: binding non-loopback interface without DEEPR_API_KEY.")
+        print("  Any reachable network peer can submit jobs and read reports.")
+    print("=" * 70 + "\n")
+    socketio.run(app, debug=debug, host=host, port=port, allow_unsafe_werkzeug=True)

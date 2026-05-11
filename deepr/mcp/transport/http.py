@@ -12,8 +12,11 @@ Use Cases:
 """
 
 import asyncio
+import hmac
+import ipaddress
 import json
 import logging
+import os
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -23,6 +26,27 @@ import aiohttp
 from aiohttp import web
 
 logger = logging.getLogger(__name__)
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return True if host is a loopback address ('localhost', 127.0.0.0/8, ::1)."""
+    if host in ("localhost", ""):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _extract_bearer(request: "web.Request") -> Optional[str]:
+    """Return the Bearer token from Authorization, or X-Api-Key value, if any."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:].strip()
+        if token:
+            return token
+    api_key = request.headers.get("X-Api-Key", "").strip()
+    return api_key or None
 
 
 @dataclass
@@ -100,13 +124,31 @@ class StreamingHttpTransport:
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 8765,
         path: str = "/mcp",
+        auth_token: Optional[str] = None,
+        allow_unauthenticated_public_bind: bool = False,
     ):
+        """Initialize the streaming HTTP transport.
+
+        Args:
+            host: Interface to bind. Defaults to loopback. Use 0.0.0.0 only with
+                an auth_token configured.
+            port: TCP port to bind.
+            path: Base path for the MCP routes.
+            auth_token: Shared secret required as `Authorization: Bearer <token>`
+                or `X-Api-Key` on POST and SSE. If None, falls back to
+                MCP_AUTH_TOKEN / DEEPR_MCP_AUTH_TOKEN environment variables.
+            allow_unauthenticated_public_bind: Set True to bind a non-loopback
+                interface without auth. Refused otherwise so the unauthenticated
+                MCP tool surface is not silently exposed.
+        """
         self._host = host
         self._port = port
         self._path = path
+        self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
+        self._allow_unauthenticated_public_bind = allow_unauthenticated_public_bind
         self._handler: Optional[Callable[[HttpMessage], Awaitable[Optional[HttpMessage]]]] = None
         self._app: Optional[web.Application] = None
         self._runner: Optional[web.AppRunner] = None
@@ -119,9 +161,31 @@ class StreamingHttpTransport:
         self._handler = handler
 
     async def start(self) -> None:
-        """Start the HTTP server."""
+        """Start the HTTP server.
+
+        Refuses to bind a non-loopback interface without an auth_token unless
+        the caller explicitly opted in via allow_unauthenticated_public_bind.
+        The MCP tool surface exposes research submission, result retrieval,
+        expert queries, and agentic workflows backed by provider API keys, so
+        exposing it unauthenticated would let any reachable peer consume the
+        operator's provider budget and read private expert/research data.
+        """
         if self._running:
             return
+
+        loopback = _is_loopback_host(self._host)
+        if not loopback and not self._auth_token and not self._allow_unauthenticated_public_bind:
+            raise RuntimeError(
+                f"Refusing to bind MCP HTTP transport to {self._host!r} without an auth token. "
+                "Set MCP_AUTH_TOKEN (or DEEPR_MCP_AUTH_TOKEN), pass auth_token=..., "
+                "or set allow_unauthenticated_public_bind=True if you accept the risk."
+            )
+        if not loopback and not self._auth_token:
+            logger.warning(
+                "MCP HTTP transport binding %s without authentication. Any reachable peer can "
+                "invoke MCP tools (research submission, expert queries) and consume provider budget.",
+                self._host,
+            )
 
         self._app = web.Application()
         self._app.router.add_post(self._path, self._handle_post)
@@ -148,8 +212,31 @@ class StreamingHttpTransport:
         if self._runner:
             await self._runner.cleanup()
 
+    def _check_auth(self, request: "web.Request") -> Optional[web.Response]:
+        """Return an unauthorized response if auth fails, else None.
+
+        Authentication is required whenever a token is configured. When the
+        transport is bound to loopback and no token is configured, requests
+        are allowed (local-dev mode). When the transport is bound to a
+        non-loopback interface, configuring a token is enforced at start().
+        """
+        token = self._auth_token
+        if not token:
+            return None
+        provided = _extract_bearer(request)
+        if not provided or not hmac.compare_digest(provided, token):
+            return web.json_response(
+                {"jsonrpc": "2.0", "error": {"code": -32001, "message": "Unauthorized"}, "id": None},
+                status=401,
+            )
+        return None
+
     async def _handle_post(self, request: web.Request) -> web.Response:
         """Handle incoming POST requests (JSON-RPC messages)."""
+        unauthorized = self._check_auth(request)
+        if unauthorized is not None:
+            self._stats.errors += 1
+            return unauthorized
         try:
             body = await request.read()
             self._stats.bytes_received += len(body)
@@ -194,6 +281,10 @@ class StreamingHttpTransport:
         Clients connect here to receive push notifications
         (e.g., resource updates, job progress).
         """
+        unauthorized = self._check_auth(request)
+        if unauthorized is not None:
+            self._stats.errors += 1
+            return unauthorized
         subscriber_id = request.query.get("subscriber_id", str(id(request)))
 
         response = web.StreamResponse(
@@ -302,12 +393,16 @@ class HttpClient:
     needs to connect to it over HTTP.
     """
 
-    def __init__(self, base_url: str, timeout: float = 30.0):
+    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: Optional[str] = None):
         self._base_url = base_url.rstrip("/")
         self._timeout = aiohttp.ClientTimeout(total=timeout)
+        self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
         self._session: Optional[aiohttp.ClientSession] = None
         self._stream_task: Optional[asyncio.Task] = None
         self._notification_handler: Optional[Callable[[dict], Awaitable[None]]] = None
+
+    def _auth_headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._auth_token}"} if self._auth_token else {}
 
     async def connect(self) -> None:
         """Establish connection to the server."""
@@ -348,7 +443,7 @@ class HttpClient:
         async with self._session.post(
             self._base_url,
             json=message.to_dict(),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", **self._auth_headers()},
         ) as response:
             if response.status == 204:
                 return None
@@ -388,7 +483,7 @@ class HttpClient:
     async def _stream_loop(self, url: str) -> None:
         """Internal loop for processing SSE stream."""
         try:
-            async with self._session.get(url) as response:
+            async with self._session.get(url, headers=self._auth_headers()) as response:
                 async for line in response.content:
                     line_str = line.decode("utf-8").strip()
 
