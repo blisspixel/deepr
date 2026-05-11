@@ -902,13 +902,36 @@ def get_cost_summary():
 
 
 if __name__ == "__main__":
+    import ipaddress as _ipaddress
+
     debug = os.getenv("DEEPR_DEBUG", "").lower() in ("1", "true", "yes")
     host = os.getenv("DEEPR_HOST", "127.0.0.1")
     port = int(os.getenv("DEEPR_PORT", "5000") or "5000")
+    allow_public = os.getenv("DEEPR_ALLOW_PUBLIC_BIND", "").lower() in ("1", "true", "yes")
+
+    def _loopback(h: str) -> bool:
+        if h in ("localhost", ""):
+            return True
+        try:
+            return _ipaddress.ip_address(h).is_loopback
+        except ValueError:
+            return False
+
+    if not _loopback(host) and not _api_token and not allow_public:
+        import sys as _sys
+
+        _sys.stderr.write(
+            f"ERROR: refusing to bind '{host}' without DEEPR_API_TOKEN. "
+            "Set DEEPR_API_TOKEN, bind 127.0.0.1, or DEEPR_ALLOW_PUBLIC_BIND=1 to override.\n"
+        )
+        raise SystemExit(2)
+
     print("\n" + "=" * 70)
     print("  Deepr API Server")
     print(f"  Running on http://{host}:{port}")
     if debug:
         print("  WARNING: Debug mode enabled -- do not use in production")
+    if not _loopback(host) and not _api_token:
+        print("  WARNING: non-loopback bind without auth (DEEPR_ALLOW_PUBLIC_BIND is set)")
     print("=" * 70 + "\n")
     app.run(debug=debug, host=host, port=port)

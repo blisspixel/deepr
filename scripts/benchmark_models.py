@@ -50,6 +50,7 @@ import importlib.util
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
@@ -71,6 +72,30 @@ except ImportError:
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+# ─── Secret redaction ─────────────────────────────────────────────────────────
+
+# Redact ?key=, ?api_key=, &key=, &api_key= query parameters and Authorization
+# header / x-api-key values from error strings and other text written to logs,
+# subprocess output, or saved JSON. requests.HTTPError stringifies to include
+# the request URL, which would otherwise leak provider keys passed as query
+# parameters (e.g. Gemini's generativelanguage.googleapis.com).
+_SECRET_PATTERNS = [
+    re.compile(r"(?i)([?&](?:key|api[_-]?key|access[_-]?token)=)[^&\s\"'<>]+"),
+    re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s\"'<>]+"),
+    re.compile(r"(?i)(x[_-](?:api[_-]?key|goog[_-]api[_-]key)\s*[:=]\s*)[^\s\"'<>]+"),
+]
+
+
+def redact_secrets(text: str) -> str:
+    """Replace any embedded API keys / bearer tokens with REDACTED."""
+    if not isinstance(text, str) or not text:
+        return text
+    out = text
+    for pattern in _SECRET_PATTERNS:
+        out = pattern.sub(r"\1REDACTED", out)
+    return out
 
 
 # ─── Data types ───────────────────────────────────────────────────────────────
@@ -951,8 +976,11 @@ def call_gemini(api_key: str, model: str, prompt: str, max_tokens: int) -> tuple
 
     start = time.monotonic()
     resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-        headers={"Content-Type": "application/json"},
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
         json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": gen_config,
@@ -1150,8 +1178,11 @@ def call_gemini_news(api_key: str, model: str, prompt: str, max_tokens: int) -> 
 
     start = time.monotonic()
     resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-        headers={"Content-Type": "application/json"},
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
         json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": gen_config,
@@ -1280,7 +1311,8 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
     }
 
     start = time.monotonic()
-    resp = requests.post(f"{base}/interactions?key={api_key}", headers=headers, json=body, timeout=60)
+    headers = {**headers, "x-goog-api-key": api_key}
+    resp = requests.post(f"{base}/interactions", headers=headers, json=body, timeout=60)
     resp.raise_for_status()
     interaction = resp.json()
     interaction_id = interaction.get("id") or interaction.get("name", "").split("/")[-1]
@@ -1304,7 +1336,11 @@ def call_gemini_deep_research(api_key: str, prompt: str) -> tuple[str, int, list
         else:
             time.sleep(30)
 
-        poll_resp = requests.get(f"{base}/interactions/{interaction_id}?key={api_key}", timeout=30)
+        poll_resp = requests.get(
+            f"{base}/interactions/{interaction_id}",
+            headers={"x-goog-api-key": api_key},
+            timeout=30,
+        )
         poll_resp.raise_for_status()
         status_data = poll_resp.json()
 
@@ -1578,8 +1614,11 @@ def _eval_single(model_key: str, ep: EvalPrompt, registry: dict) -> tuple[EvalRe
             fallback = {"research": 1.50, "news": 0.02, "docs": 0.03, "chat": 0.005}
             cost = fallback.get(ep.tier, 0.005)
     except Exception as e:
-        result.error = str(e)
-        logger.warning("Error evaluating %s: %s", model_key, e)
+        # Redact any embedded API keys / bearer tokens before storing or logging.
+        # requests.HTTPError stringifies to include the request URL, which is the
+        # most common path for provider keys passed as query parameters to leak.
+        result.error = redact_secrets(str(e))
+        logger.warning("Error evaluating %s: %s", model_key, result.error)
 
     result.reference_score = score_reference(result.response, ep.expected_contains)
     return result, cost
@@ -1647,7 +1686,7 @@ def run_evaluations(
                     prompt=ep.prompt,
                     response="",
                     latency_ms=0,
-                    error=str(e),
+                    error=redact_secrets(str(e)),
                     tier=ep.tier,
                 )
                 cost = 0.0
@@ -2470,7 +2509,7 @@ def run_validation(tier: str = "chat"):
                 print(f"  [+] {model_key:<35} {status} ({latency_ms}ms)")
                 passed += 1
             except Exception as e:
-                print(f"  [X] {model_key:<35} FAILED: {str(e)[:60]}")
+                print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
 
         print()
@@ -2504,7 +2543,7 @@ def run_validation(tier: str = "chat"):
                 print(f"  [+] {model_key:<35} OK ({latency_ms}ms, {cite_count} citations)")
                 passed += 1
             except Exception as e:
-                print(f"  [X] {model_key:<35} FAILED: {str(e)[:60]}")
+                print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
 
         print()
@@ -2537,7 +2576,7 @@ def run_validation(tier: str = "chat"):
                 print(f"  [+] {model_key:<35} OK ({latency_ms}ms, {cite_count} cites, {words} words)")
                 passed += 1
             except Exception as e:
-                print(f"  [X] {model_key:<35} FAILED: {str(e)[:60]}")
+                print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
 
         print()
@@ -2569,7 +2608,7 @@ def run_validation(tier: str = "chat"):
                 print(f"  [+] {model_key:<35} OK ({latency_ms}ms, {cite_count} citations)")
                 passed += 1
             except Exception as e:
-                print(f"  [X] {model_key:<35} FAILED: {str(e)[:60]}")
+                print(f"  [X] {model_key:<35} FAILED: {redact_secrets(str(e))[:60]}")
                 failed += 1
 
         print()

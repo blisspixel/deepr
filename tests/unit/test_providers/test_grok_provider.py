@@ -43,11 +43,13 @@ class TestGrokProvider:
         # Grok 4 full reasoning model
         assert provider.get_model_name("grok-4") == "grok-4"
 
-        # Aliases
-        assert provider.get_model_name("grok") == "grok-4-3"
+        # Aliases — map to the canonical "grok-4.3" id so cost lookups match
+        # the pricing table (previous "grok-4-3" alias fell through to the
+        # cheaper Grok 4.1 Fast pricing).
+        assert provider.get_model_name("grok") == "grok-4.3"
         assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
-        assert provider.get_model_name("grok-flagship") == "grok-4-3"
-        assert provider.get_model_name("grok-reasoning") == "grok-4-3"
+        assert provider.get_model_name("grok-flagship") == "grok-4.3"
+        assert provider.get_model_name("grok-reasoning") == "grok-4.3"
         assert provider.get_model_name("grok-multi-agent") == "grok-4.20-multi-agent-0309"
 
         # Legacy models
@@ -258,7 +260,7 @@ class TestGrokCapabilities:
         assert provider.pricing["grok-4-1-fast-reasoning"]["output"] == 0.50
 
         # Verify model mappings
-        assert provider.get_model_name("grok") == "grok-4-3"
+        assert provider.get_model_name("grok") == "grok-4.3"
         assert provider.get_model_name("grok-fast") == "grok-4.20-0309-non-reasoning"
 
     def test_grok_use_cases(self, provider):
