@@ -82,11 +82,13 @@ class GrokProvider(DeepResearchProvider):
             "grok-3": "grok-3",
             "grok-3-mini": "grok-3-mini",
             "grok-code-fast": "grok-code-fast-1",
-            # Aliases
-            "grok": "grok-4-3",  # Default: newest flagship (reasoning + agentic)
+            # Aliases — map to canonical "grok-4.3" so the pricing table lookup
+            # matches and cost accounting does not silently fall back to the
+            # much cheaper Grok 4.1 Fast pricing.
+            "grok": "grok-4.3",  # Default: newest flagship (reasoning + agentic)
             "grok-fast": "grok-4.20-0309-non-reasoning",  # Fast non-reasoning
-            "grok-flagship": "grok-4-3",  # Explicit flagship → 4.3
-            "grok-reasoning": "grok-4-3",  # Reasoning workloads → 4.3
+            "grok-flagship": "grok-4.3",  # Explicit flagship → 4.3
+            "grok-reasoning": "grok-4.3",  # Reasoning workloads → 4.3
             "grok-multi-agent": "grok-4.20-multi-agent-0309",  # Multi-agent stays 4.20
             "grok-mini": "grok-3-mini",
         }
@@ -100,8 +102,11 @@ class GrokProvider(DeepResearchProvider):
             "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
             "grok-4.20-0309-non-reasoning": {"input": 2.00, "output": 6.00},
             "grok-4.20-multi-agent-0309": {"input": 2.00, "output": 6.00},
-            # Grok 4.3 ($1.25/$2.50 per MTok)
+            # Grok 4.3 ($1.25/$2.50 per MTok). Listed under both the canonical
+            # name and the hyphenated alias so any caller / older code path
+            # that submits "grok-4-3" still gets accurate cost accounting.
             "grok-4.3": {"input": 1.25, "output": 2.50},
+            "grok-4-3": {"input": 1.25, "output": 2.50},
             # Grok 4.1 Fast budget ($0.20/$0.50 per MTok)
             "grok-4-1-fast-reasoning": _grok_4_1_fast,
             "grok-4-1-fast-non-reasoning": _grok_4_1_fast,
@@ -385,6 +390,27 @@ class GrokProvider(DeepResearchProvider):
                 {"role": "user", "content": query},
             ]
 
+            # Pre-flight budget check. Estimate cost from prompt size + a
+            # bounded completion budget at this model's price, then refuse
+            # the spend if the per-agent budget can't cover the worst case.
+            # Without this check AgentBudget.record() only accumulates after
+            # the API call has already happened, so a small per_agent_budget
+            # does nothing to stop multi-call provider spend amplification.
+            prompt_chars = sum(len(m["content"]) for m in messages)
+            est_input_tokens = max(prompt_chars // 4, 1)
+            est_output_tokens = 2048
+            est_cost = self._calculate_cost(est_input_tokens, est_output_tokens, single_model)
+            allowed, reason = budget.check(est_cost)
+            if not allowed:
+                return AgentResult(
+                    agent_id=identity.agent_id,
+                    trace_id=identity.trace_id,
+                    output=f"Agent skipped: {reason}",
+                    cost=0.0,
+                    status=AgentStatus.BUDGET_EXCEEDED,
+                    metadata={"estimated_cost": est_cost},
+                )
+
             try:
                 response = await self.client.chat.completions.create(
                     model=single_model,
@@ -433,8 +459,21 @@ class GrokProvider(DeepResearchProvider):
             # Collect successful agent outputs for synthesis
             agent_outputs = [r.output for r in fan_out_result.results if r.status == AgentStatus.SUCCESS]
 
-            # Synthesise results into single output with per-agent attribution
-            synthesis = await self._synthesise_multi_agent(request.prompt, agent_outputs, single_model)
+            # Refuse synthesis if the operation budget has already been
+            # consumed by the worker fan-out — otherwise an exhausted budget
+            # would still pay for one more provider call here.
+            synthesis_reserve = total_budget * fan_out_config.synthesis_reserve_fraction
+            remaining = max(0.0, total_budget - fan_out_result.total_cost)
+            if remaining < synthesis_reserve:
+                synthesis = {
+                    "content": "Synthesis skipped: operation budget exhausted by worker fan-out.",
+                    "cost": 0.0,
+                    "tokens_input": 0,
+                    "tokens_output": 0,
+                }
+            else:
+                # Synthesise results into single output with per-agent attribution
+                synthesis = await self._synthesise_multi_agent(request.prompt, agent_outputs, single_model)
             total_cost = fan_out_result.total_cost + synthesis.get("cost", 0.0)
 
             total_input = sum(r.metadata.get("tokens_input", 0) for r in fan_out_result.results)
