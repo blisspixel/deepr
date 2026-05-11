@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlparse
 
 import requests
 
-from deepr.utils.security import SSRFError, validate_url
+from deepr.utils.security import SSRFError, is_safe_url, validate_url
 
 from .config import USER_AGENTS, ScrapeConfig
 
@@ -262,7 +262,15 @@ class ContentFetcher:
         return asyncio.run(self._fetch_playwright_async(url))
 
     async def _fetch_playwright_async(self, url: str) -> FetchResult:
-        """Async Playwright fetch implementation."""
+        """Async Playwright fetch implementation.
+
+        Blocks SSRF after JavaScript navigation:
+        - Per-request routing rejects any request the browser issues to a
+          private/loopback/link-local/non-HTTP target, even if it originates
+          from JS inside an attacker-controlled public page.
+        - After page.goto() completes, page.url is re-validated to catch top-
+          level redirects/window.location navigations to internal targets.
+        """
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -270,12 +278,43 @@ class ContentFetcher:
                     user_agent=self.config.user_agent or random.choice(USER_AGENTS),
                     viewport={"width": 1920, "height": 1080},
                 )
+
+                async def _ssrf_guard(route, request_obj):
+                    """Abort any browser request that targets a private/internal host."""
+                    try:
+                        target = request_obj.url
+                        if not is_safe_url(target, allow_private=False):
+                            logger.warning("Playwright SSRF guard blocked %s", target)
+                            await route.abort("blockedbyclient")
+                            return
+                    except Exception as exc:
+                        logger.debug("SSRF guard error, aborting request: %s", exc)
+                        await route.abort("failed")
+                        return
+                    await route.continue_()
+
+                await context.route("**/*", _ssrf_guard)
                 page = await context.new_page()
 
                 try:
                     # Navigate - use domcontentloaded instead of networkidle
                     # (networkidle can timeout on sites with continuous activity)
                     await page.goto(url, wait_until="domcontentloaded", timeout=self.config.timeout * 1000)
+
+                    # Re-validate the final URL — JS may have called
+                    # window.location = "http://169.254.169.254/..." or a top-
+                    # level redirect may have moved us to an internal host.
+                    final_url = page.url
+                    if final_url and final_url != url:
+                        try:
+                            validate_url(final_url, allow_private=False)
+                        except SSRFError as exc:
+                            logger.warning("Playwright final URL blocked: %s (%s)", final_url, exc)
+                            return FetchResult(
+                                url=url,
+                                success=False,
+                                error=f"Final URL blocked for security reasons: {final_url}",
+                            )
 
                     # Wait for body to be present
                     await page.wait_for_selector("body", timeout=5000)
