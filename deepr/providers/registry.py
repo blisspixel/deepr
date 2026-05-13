@@ -916,23 +916,46 @@ def get_token_pricing(model: str) -> dict[str, float]:
     return {"input": 1.10, "output": 4.40}
 
 
-def get_cost_estimate(model: str) -> float:
+# Models whose published pricing doubles for prompts exceeding a per-model
+# input-token threshold. Used by get_cost_estimate() so pre-flight budget
+# checks reflect tiered pricing rather than the base cost_per_query rate.
+_TIERED_PRICING: dict[str, tuple[int, float]] = {
+    "gemini-3.1-pro-preview": (200_000, 2.0),
+    "gemini-3-pro-preview": (200_000, 2.0),
+}
+
+
+def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
     """Get per-query cost estimate for a model.
 
     Args:
         model: Model name
+        input_tokens: Optional prompt size in tokens. When provided and the
+            model has tiered pricing (e.g. Gemini 3.x Pro 2x above 200K
+            input tokens), the returned estimate reflects the tier so that
+            budget checks do not approve large-context jobs against an
+            underestimated cost.
 
     Returns:
         Estimated cost per query in USD. Returns 0.20 if model not found.
     """
+    base = 0.20
     for cap in MODEL_CAPABILITIES.values():
         if cap.model == model:
-            return cap.cost_per_query
-    # Partial match
-    for cap in MODEL_CAPABILITIES.values():
-        if cap.model in model:
-            return cap.cost_per_query
-    return 0.20
+            base = cap.cost_per_query
+            break
+    else:
+        for cap in MODEL_CAPABILITIES.values():
+            if cap.model in model:
+                base = cap.cost_per_query
+                break
+
+    if input_tokens is not None:
+        for tiered_model, (threshold, multiplier) in _TIERED_PRICING.items():
+            if tiered_model in model and input_tokens > threshold:
+                return round(base * multiplier, 4)
+
+    return base
 
 
 def get_model_capability(provider: str, model: str) -> Optional[ModelCapability]:
