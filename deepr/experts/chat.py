@@ -30,6 +30,36 @@ from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 # Observability infrastructure
 from deepr.observability.metadata import MetadataEmitter
 
+# Fallback token prices used when the registry has no entry for the
+# currently selected chat model. Matches the legacy GPT-5 rates so behavior
+# is unchanged for unknown models.
+_DEFAULT_CHAT_INPUT_PRICE_PER_1M = 1.25
+_DEFAULT_CHAT_OUTPUT_PRICE_PER_1M = 10.00
+
+
+def _chat_token_cost(usage: Any, model_name: str) -> float:
+    """Compute chat-completion cost from token usage using the model registry.
+
+    Replaces the previous hard-coded GPT-5 rates: when the chat session
+    routes to gpt-5.2 the registry rates ($1.75/$14 per 1M) are applied
+    instead of the GPT-5 rates ($1.25/$10 per 1M), so cost_accumulated and
+    budget_remaining no longer under-count gpt-5.2 spend by ~28.6%.
+    """
+    if not usage:
+        return 0.0
+    try:
+        from deepr.providers.registry import get_token_pricing
+
+        prices = get_token_pricing(model_name)
+        input_price = prices.get("input", _DEFAULT_CHAT_INPUT_PRICE_PER_1M)
+        output_price = prices.get("output", _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M)
+    except Exception:
+        input_price = _DEFAULT_CHAT_INPUT_PRICE_PER_1M
+        output_price = _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+    return (prompt_tokens / 1_000_000) * input_price + (completion_tokens / 1_000_000) * output_price
+
 
 class ExpertChatSession:
     """Manages an interactive chat session with a domain expert using GPT-5 + tool calling.
@@ -1543,20 +1573,16 @@ Budget remaining: ${budget_remaining:.2f}
 
                 current_message = next_response.choices[0].message
 
-                # Track costs (GPT-5: $1.25/M input, $10.00/M output = $0.00125/1K input, $0.01/1K output)
-                if next_response.usage:
-                    input_cost = (next_response.usage.prompt_tokens / 1000) * 0.00125
-                    output_cost = (next_response.usage.completion_tokens / 1000) * 0.01
-                    self.cost_accumulated += input_cost + output_cost
+                # Track costs using the selected model's registry pricing
+                # rather than hard-coded GPT-5 rates.
+                self.cost_accumulated += _chat_token_cost(next_response.usage, selected_model.model)
 
             # Get final message
             final_message = current_message.content
 
-            # Track initial call costs (GPT-5: $1.25/M input, $10.00/M output = $0.00125/1K input, $0.01/1K output)
-            if first_response.usage:
-                input_cost = (first_response.usage.prompt_tokens / 1000) * 0.00125
-                output_cost = (first_response.usage.completion_tokens / 1000) * 0.01
-                self.cost_accumulated += input_cost + output_cost
+            # Track initial call costs using registry pricing for the
+            # selected model (handles gpt-5.2's $1.75/$14 per-1M rates).
+            self.cost_accumulated += _chat_token_cost(first_response.usage, selected_model.model)
 
             # Detect uncertainty in final response and track knowledge gaps
             if self.metacognition and final_message:
@@ -1980,10 +2006,7 @@ Budget remaining: ${budget_remaining:.2f}
                 next_response = await self.client.chat.completions.create(**api_params_next)
                 current_message = next_response.choices[0].message
 
-                if next_response.usage:
-                    input_cost = (next_response.usage.prompt_tokens / 1000) * 0.00125
-                    output_cost = (next_response.usage.completion_tokens / 1000) * 0.01
-                    self.cost_accumulated += input_cost + output_cost
+                self.cost_accumulated += _chat_token_cost(next_response.usage, selected_model.model)
 
             # --- Final response: stream it ---
             if current_message.content is not None:
@@ -2013,11 +2036,9 @@ Budget remaining: ${budget_remaining:.2f}
                         if token_callback:
                             token_callback(delta.content)
 
-            # Track initial call costs
-            if first_response.usage:
-                input_cost = (first_response.usage.prompt_tokens / 1000) * 0.00125
-                output_cost = (first_response.usage.completion_tokens / 1000) * 0.01
-                self.cost_accumulated += input_cost + output_cost
+            # Track initial call costs using registry pricing for the
+            # selected model.
+            self.cost_accumulated += _chat_token_cost(first_response.usage, selected_model.model)
 
             # Add to history
             self.messages.append({"role": "assistant", "content": final_message})
