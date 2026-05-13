@@ -158,10 +158,23 @@ class TestToolsList:
 class TestToolsCall:
     @pytest.mark.asyncio
     async def test_call_unknown_tool(self, mock_server):
-        result = await _handle_tools_call(mock_server, {"name": "nonexistent_tool", "arguments": {}})
+        # Unknown tools are now blocked by the confirmation gate before
+        # dispatch in standard mode. With explicit approval the call
+        # reaches the dispatcher and falls through to TOOL_NOT_FOUND.
+        result = await _handle_tools_call(
+            mock_server,
+            {"name": "nonexistent_tool", "arguments": {"_approved": True}},
+        )
         assert result["isError"] is True
         data = json.loads(result["content"][0]["text"])
         assert data["error_code"] == "TOOL_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_call_unknown_tool_blocked_without_approval(self, mock_server):
+        result = await _handle_tools_call(mock_server, {"name": "nonexistent_tool", "arguments": {}})
+        assert result["isError"] is True
+        data = json.loads(result["content"][0]["text"])
+        assert data["error_code"] == "CONFIRMATION_REQUIRED"
 
     @pytest.mark.asyncio
     async def test_call_deepr_status(self, mock_server):
@@ -181,9 +194,12 @@ class TestToolsCall:
 
     @pytest.mark.asyncio
     async def test_call_deepr_cancel_nonexistent(self, mock_server):
+        # deepr_cancel_job is a WRITE tool that requires confirmation in
+        # standard mode; supply explicit approval so the cancel dispatch
+        # runs and falls through to JOB_NOT_FOUND.
         result = await _handle_tools_call(
             mock_server,
-            {"name": "deepr_cancel_job", "arguments": {"job_id": "fake"}},
+            {"name": "deepr_cancel_job", "arguments": {"job_id": "fake", "_approved": True}},
         )
         data = json.loads(result["content"][0]["text"])
         assert data["error_code"] == "JOB_NOT_FOUND"

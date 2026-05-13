@@ -924,6 +924,14 @@ _TIERED_PRICING: dict[str, tuple[int, float]] = {
     "gemini-3-pro-preview": (200_000, 2.0),
 }
 
+# Caller-facing aliases that resolve to expensive deep-research provider
+# paths. Without these, both the orchestrator and MCP fall back to the
+# generic $0.20 default and approve jobs that cost ~$2.50 to run.
+_MODEL_ALIASES: dict[str, str] = {
+    "gemini-deep-research": "deep-research-pro-preview-12-2025",
+    "deep-research": "deep-research-pro-preview-12-2025",
+}
+
 
 def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
     """Get per-query cost estimate for a model.
@@ -939,20 +947,21 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
     Returns:
         Estimated cost per query in USD. Returns 0.20 if model not found.
     """
+    resolved = _MODEL_ALIASES.get(model, model)
     base = 0.20
     for cap in MODEL_CAPABILITIES.values():
-        if cap.model == model:
+        if cap.model == resolved:
             base = cap.cost_per_query
             break
     else:
         for cap in MODEL_CAPABILITIES.values():
-            if cap.model in model:
+            if cap.model in resolved:
                 base = cap.cost_per_query
                 break
 
     if input_tokens is not None:
         for tiered_model, (threshold, multiplier) in _TIERED_PRICING.items():
-            if tiered_model in model and input_tokens > threshold:
+            if tiered_model in resolved and input_tokens > threshold:
                 return round(base * multiplier, 4)
 
     return base
