@@ -20,10 +20,19 @@ logger = logging.getLogger("deepr.worker")
 sqs = boto3.client("sqs")
 s3 = boto3.client("s3")
 secrets_client = boto3.client("secretsmanager")
+dynamodb = boto3.resource("dynamodb")
 
 QUEUE_URL = os.environ.get("QUEUE_URL")
 RESULTS_BUCKET = os.environ.get("RESULTS_BUCKET")
 SECRETS_ARN = os.environ.get("SECRETS_ARN")
+JOBS_TABLE = os.environ.get("JOBS_TABLE")
+
+# DynamoDB is the API's source of truth for job lifecycle (status,
+# cancellation, completion). The worker must read/write DynamoDB rather than
+# a parallel S3 metadata.json that the API never creates — otherwise
+# cancelled jobs still execute and completed reports never become visible
+# to the result endpoint.
+jobs_table = dynamodb.Table(JOBS_TABLE) if JOBS_TABLE else None
 
 
 def load_secrets():
@@ -43,35 +52,70 @@ def load_secrets():
 
 
 def update_job_status(job_id: str, status: str, **kwargs):
-    """Update job status in S3."""
+    """Update job status in DynamoDB (the API's source of truth).
+
+    Previously this wrote to an S3 jobs/{id}/metadata.json object that the
+    API never creates, so completed/failed/cancelled state never reached
+    the result endpoint. Use DynamoDB UpdateItem instead so the API
+    observes cancellations and can serve completed reports.
+    """
+    if jobs_table is None:
+        logger.error("JOBS_TABLE not configured; cannot update job %s", job_id)
+        return
     try:
-        # Get current metadata
-        response = s3.get_object(Bucket=RESULTS_BUCKET, Key=f"jobs/{job_id}/metadata.json")
-        job = json.loads(response["Body"].read())
+        names = {"#status": "status", "#updated_at": "updated_at"}
+        values = {
+            ":status": status,
+            ":updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        sets = ["#status = :status", "#updated_at = :updated_at"]
+        for i, (k, v) in enumerate(kwargs.items()):
+            placeholder = f"#k{i}"
+            value_key = f":v{i}"
+            names[placeholder] = k
+            values[value_key] = v
+            sets.append(f"{placeholder} = {value_key}")
 
-        # Update status and additional fields
-        job["status"] = status
-        job["updated_at"] = datetime.now(timezone.utc).isoformat()
-        job.update(kwargs)
-
-        # Save back to S3
-        s3.put_object(
-            Bucket=RESULTS_BUCKET,
-            Key=f"jobs/{job_id}/metadata.json",
-            Body=json.dumps(job),
-            ContentType="application/json",
+        jobs_table.update_item(
+            Key={"job_id": job_id},
+            UpdateExpression="SET " + ", ".join(sets),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
         )
-        logger.info(f"Updated job {job_id} status to {status}")
+        logger.info("Updated job %s status to %s", job_id, status)
     except Exception as e:
-        logger.error(f"Failed to update job status: {e}")
+        logger.error("Failed to update job %s status in DynamoDB: %s", job_id, e)
+
+
+def is_job_cancelled(job_id: str) -> bool:
+    """Read the authoritative DynamoDB status to detect cancellation.
+
+    Returns False on lookup failure rather than swallowing the error
+    silently — the previous behavior caused cancelled jobs to still call
+    paid providers when S3 metadata was unreadable.
+    """
+    if jobs_table is None:
+        return False
+    try:
+        result = jobs_table.get_item(Key={"job_id": job_id})
+        item = result.get("Item")
+        if not item:
+            return False
+        return item.get("status") == "cancelled"
+    except Exception as e:
+        logger.warning("Could not read DynamoDB status for job %s: %s", job_id, e)
+        return False
 
 
 def save_result(job_id: str, content: str):
-    """Save research result to S3."""
+    """Save research result to S3 under the prefix the API reads from."""
     s3.put_object(
-        Bucket=RESULTS_BUCKET, Key=f"jobs/{job_id}/report.md", Body=content.encode("utf-8"), ContentType="text/markdown"
+        Bucket=RESULTS_BUCKET,
+        Key=f"results/{job_id}/report.md",
+        Body=content.encode("utf-8"),
+        ContentType="text/markdown",
     )
-    logger.info(f"Saved result for job {job_id}")
+    logger.info("Saved result for job %s", job_id)
 
 
 async def execute_research(job: dict) -> tuple[str, float, int]:
@@ -145,15 +189,10 @@ async def process_message(message):
 
         logger.info(f"Processing job {job_id}")
 
-        # Check if job was cancelled
-        try:
-            response = s3.get_object(Bucket=RESULTS_BUCKET, Key=f"jobs/{job_id}/metadata.json")
-            current_job = json.loads(response["Body"].read())
-            if current_job.get("status") == "cancelled":
-                logger.info(f"Job {job_id} was cancelled, skipping")
-                return True
-        except Exception:
-            pass
+        # Check cancellation in DynamoDB before spending any provider call.
+        if is_job_cancelled(job_id):
+            logger.info("Job %s was cancelled in DynamoDB, skipping provider call", job_id)
+            return True
 
         # Update status to processing
         update_job_status(job_id, "processing", started_at=datetime.now(timezone.utc).isoformat())
