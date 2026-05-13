@@ -7,17 +7,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Canonical append-only cost ledger at `data/costs/cost_ledger.jsonl` with idempotency-key support (`deepr/observability/cost_ledger.py`)
-- `deepr costs doctor` command for zero-cost tracker integrity checks (ledger writable + drift vs dashboard totals)
-- Queue cost persistence now records positive cost deltas with idempotency metadata to avoid duplicate attribution
-- Cost safety manager (`CostSafetyManager.record_cost`) now writes canonical ledger events for non-queue spend paths
-- Rich animated ASCII startup banner with cross-platform fallbacks (compact/narrow terminals, legacy Windows, non-UTF output)
-- Startup banner env controls: `DEEPR_BANNER_MODE=off|static|light|full` and `DEEPR_BANNER_DURATION=<seconds>`
+---
+
+## [2.10.2] - 2026-05-13
+
+Security and hardening patch. No breaking changes for default operation;
+adds explicit opt-out flags for previously implicit unsafe behavior.
+
+### Security
+- **Web dashboard refuses unsafe Werkzeug binds.** `python -m deepr.web.app`
+  now refuses to start the Werkzeug development server on any non-loopback
+  host, drops `allow_unsafe_werkzeug=True`, and requires either
+  `DEEPR_API_KEY` or `DEEPR_ALLOW_PUBLIC_BIND=1` to bind beyond `127.0.0.1`.
+- **MCP confirmation gate enforced.** Tools that require confirmation in
+  the current research mode now return `CONFIRMATION_REQUIRED` instead of
+  being dispatched silently. Callers must pass `arguments._approved=true`
+  or set `DEEPR_MCP_AUTO_APPROVE=1` to opt back into the legacy
+  log-and-continue behavior.
+- **MCP tool allowlist covers the real surface.** Registered
+  `deepr_research`, `deepr_agentic_research`, `deepr_cancel_job`,
+  `deepr_expert_manifest`, `deepr_rank_gaps`, `deepr_query_expert`, and
+  six read-only Deepr tools with explicit categories so allowlist
+  decisions reflect the actual exposed tools instead of treating each as
+  "unknown".
+- **Bearer-token compare handles non-ASCII headers.** Both
+  `deepr/api/app.py` and `deepr/web/app.py` now catch the `TypeError`
+  that `hmac.compare_digest` raises for non-ASCII `str` inputs and
+  return `401 Unauthorized` instead of letting it escape into the
+  generic 500 handler.
+- **`POST /api/experts` validates string fields.** `description` and
+  `domain` must be strings and are truncated to 1000/200 characters,
+  preventing persisted objects/arrays from tripping the React Expert
+  Hub error boundary across all clients.
+- **`POST /api/jobs` (modular API) enforces guards before provider call.**
+  Added 1 MB body cap, 50K prompt-length cap, model allowlist, and
+  pre-submit `CostController.check_cost_limit()` check.
+- **`/api/demo/clear` gated behind `DEEPR_DEMO=1`** plus an explicit
+  `{"confirm": "DELETE_ALL_DATA"}` body. Returns 403/400 otherwise.
+- **`/api/benchmarks/estimate` cannot fan out subprocesses.** Per-route
+  6/min rate limit, module-level execution lock, and a 2-minute
+  per-(tier, quick, no_judge) result cache so concurrent estimates
+  serialize on a single Python child.
+- **Portrait endpoint records cost and is rate-limited.** Cooldown +
+  provider allowlist already shipped; v2.10.2 adds a 5/hour route
+  limiter and writes generated portraits to the canonical cost ledger
+  via `CostSafetyManager.record_cost`.
+- **Citation-validation GET caches results.** Per-expert mtime-keyed
+  10-minute TTL cache prevents dashboard polling from re-fanning out
+  paid LLM validation batches.
+- **AWS worker reads cancellation from DynamoDB.** Worker now consults
+  the API's `JobsTable` instead of an S3 `metadata.json` the API never
+  creates; status/cost/completion updates flow back via `UpdateItem`,
+  and reports are written under `results/{job_id}/report.md` so the API
+  `get_result` endpoint can serve them.
+- **Grok multi-agent budget pre-flight.** `AgentBudget.check()` runs
+  before each worker chat-completion call and synthesis is skipped when
+  the operation budget has been exhausted.
+- **Removed dead `deepr/api/routes/` submodule.** The never-imported
+  modular routes (job/result/cost/config blueprints) shipped with stale
+  `check_job_limit`/`to_dict()` calls and would have been an
+  unauthenticated provider-spend surface if wired in.
 
 ### Changed
-- `CostDashboard.record` and buffered cost recording now emit canonical ledger events
-- `DEEPR_COST_TRACKING_STRICT=1` now enables fail-fast behavior when ledger writes fail in cost dashboard/safety paths
+- **GPT-5.2 chat sessions cost at registry rates.** `ExpertChatSession`
+  now computes token cost via a `_chat_token_cost(usage, model)` helper
+  that pulls input/output prices from the model registry instead of
+  hard-coding the legacy GPT-5 $1.25/$10 per-1M rates. GPT-5.2 sessions
+  accumulate at the correct $1.75/$14 per-1M.
+- **Gemini Deep Research priced from the registry.** `gemini-deep-research`
+  and `deep-research` aliases now resolve to
+  `deep-research-pro-preview-12-2025` ($2.50/job) in both
+  `get_cost_estimate()` and `MODEL_COST_ESTIMATES`, so orchestrator and
+  MCP budget guards no longer approve $1+ jobs against the $0.20
+  unknown-model default.
+- **Gemini 3.x Pro tiered pricing.** `_calculate_cost` applies the 2x
+  multiplier for prompts above 200K input tokens; `get_cost_estimate()`
+  accepts an optional `input_tokens` hint so pre-flight budget checks
+  reflect the tier.
+- **Consensus engine Gemini cost.** Bumped provider budget estimate to
+  $0.20 (Gemini 3.1 Pro Preview base) and replaced the flat $0.05
+  placeholder with token-accurate cost from `usage_metadata` including
+  the tiered multiplier.
+- `CostDashboard.record` and buffered cost recording now emit canonical
+  ledger events.
+- `DEEPR_COST_TRACKING_STRICT=1` enables fail-fast behavior when ledger
+  writes fail in cost dashboard/safety paths.
+
+### Added
+- Canonical append-only cost ledger at `data/costs/cost_ledger.jsonl`
+  with idempotency-key support (`deepr/observability/cost_ledger.py`).
+- `deepr costs doctor` command for zero-cost tracker integrity checks
+  (ledger writable + drift vs dashboard totals).
+- Queue cost persistence records positive cost deltas with idempotency
+  metadata to avoid duplicate attribution.
+- `CostSafetyManager.record_cost` writes canonical ledger events for
+  non-queue spend paths (used by the portrait endpoint).
+- Rich animated ASCII startup banner with cross-platform fallbacks
+  (compact/narrow terminals, legacy Windows, non-UTF output).
+- Startup banner env controls: `DEEPR_BANNER_MODE=off|static|light|full`
+  and `DEEPR_BANNER_DURATION=<seconds>`.
 
 ---
 ## [2.9.1] - 2026-02-16
