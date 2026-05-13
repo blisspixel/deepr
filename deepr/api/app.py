@@ -65,7 +65,18 @@ def _check_auth():
     if request.path.startswith("/flasgger_static"):
         return
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or len(auth) <= 7 or not hmac.compare_digest(auth[7:], _api_token):
+    if not auth.startswith("Bearer ") or len(auth) <= 7:
+        return jsonify({"error": "Unauthorized"}), 401
+    # hmac.compare_digest raises TypeError for str inputs containing
+    # non-ASCII characters. Treat any TypeError as Unauthorized rather
+    # than letting it escape into the generic 500 handler — the latter
+    # turned malformed Authorization headers into an availability/log-
+    # amplification primitive.
+    try:
+        valid = hmac.compare_digest(auth[7:], _api_token)
+    except TypeError:
+        return jsonify({"error": "Unauthorized"}), 401
+    if not valid:
         return jsonify({"error": "Unauthorized"}), 401
 
 
