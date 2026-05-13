@@ -29,6 +29,9 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+# 1 MB request body limit prevents oversized prompts/payloads from tying up
+# workers before they reach the per-route guards below.
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 
 # CORS: use env var in production, default to localhost dev servers
 _cors_origins = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:3000")
@@ -36,6 +39,19 @@ CORS(app, origins=[o.strip() for o in _cors_origins.split(",")])
 
 # Bearer token authentication
 _api_token = os.getenv("DEEPR_API_TOKEN")
+
+# Server-side guards applied to job submission (defence in depth on top of
+# cost controller and rate limiter). Sized to match deepr/web/app.py.
+_MAX_PROMPT_LENGTH = 50_000  # characters
+_ALLOWED_MODELS = {
+    "o3-deep-research",
+    "o4-mini-deep-research",
+    "gpt-5.2",
+    "gemini-2.5-flash",
+    "grok-4",
+    "grok-4-1-fast-non-reasoning",
+    "claude-sonnet-4-5-20250929",
+}
 
 
 @app.before_request
@@ -559,8 +575,43 @@ def submit_job():
     priority = data.get("priority", 3)
     enable_web_search = data.get("enable_web_search", True)
 
+    if not prompt or not isinstance(prompt, str):
+        return jsonify({"error": "Prompt required"}), 400
+    prompt = prompt.strip()
     if not prompt:
         return jsonify({"error": "Prompt required"}), 400
+    if len(prompt) > _MAX_PROMPT_LENGTH:
+        return jsonify({"error": f"Prompt exceeds {_MAX_PROMPT_LENGTH} character limit"}), 400
+    if not isinstance(model, str) or model not in _ALLOWED_MODELS:
+        return jsonify({"error": "Invalid model"}), 400
+
+    # Pre-submit budget check using the canonical cost controller before any
+    # provider call. Without this, an authenticated caller could fan out
+    # arbitrary paid jobs before the cost ledger noticed.
+    try:
+        from deepr.core.costs import CostController, CostEstimator
+
+        _estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=enable_web_search)
+        _controller = CostController(
+            max_cost_per_job=float(os.getenv("DEEPR_PER_JOB_LIMIT", "20") or "20"),
+            max_daily_cost=float(os.getenv("DEEPR_DAILY_LIMIT", "100") or "100"),
+            max_monthly_cost=float(os.getenv("DEEPR_MONTHLY_LIMIT", "1000") or "1000"),
+        )
+        allowed, reason = _controller.check_cost_limit(_estimate)
+        if not allowed:
+            return jsonify(
+                {
+                    "error": reason,
+                    "estimated_cost": {
+                        "min_cost": _estimate.min_cost,
+                        "max_cost": _estimate.max_cost,
+                        "estimated_cost": _estimate.expected_cost,
+                        "currency": "USD",
+                    },
+                }
+            ), 429
+    except Exception as _e:  # pragma: no cover - defensive; cost paths are well-tested
+        logger.warning("Cost guard skipped due to internal error: %s", _e)
 
     # Create job
     job_id = str(uuid.uuid4())
