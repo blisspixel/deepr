@@ -38,11 +38,13 @@ _PROVIDER_MODELS = {
     "anthropic": "claude-sonnet-4-5-20250929",
 }
 
-# Rough cost per query by provider (used for budget planning)
+# Rough cost per query by provider (used for budget planning). Gemini bumped
+# to 0.20 to reflect Gemini 3.1 Pro Preview's base rate (cost_per_query in
+# the registry) rather than the stale Gemini 2.x Flash $0.08 estimate.
 _ESTIMATED_COST = {
     "xai": 0.15,
     "openai": 0.10,
-    "gemini": 0.08,
+    "gemini": 0.20,
     "anthropic": 0.12,
 }
 
@@ -313,7 +315,26 @@ class ConsensusEngine:
                 for chunk in getattr(cand.grounding_metadata, "grounding_chunks", []):
                     if hasattr(chunk, "web") and hasattr(chunk.web, "uri"):
                         citations.append(chunk.web.uri)
-        cost = 0.05  # Estimated
+        # Use token-accurate cost when usage_metadata is available so the
+        # ledger reflects Gemini 3.x Pro's tiered pricing (2x above 200K
+        # input tokens) instead of a flat $0.05 placeholder.
+        cost = 0.05
+        usage = getattr(response, "usage_metadata", None)
+        if usage is not None:
+            input_tokens = getattr(usage, "prompt_token_count", 0) or 0
+            output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            try:
+                from deepr.providers.registry import get_token_pricing
+
+                prices = get_token_pricing(model)
+                multiplier = 2.0 if ("gemini-3" in model and "pro" in model and input_tokens > 200_000) else 1.0
+                cost = round(
+                    ((input_tokens / 1_000_000) * prices["input"] + (output_tokens / 1_000_000) * prices["output"])
+                    * multiplier,
+                    6,
+                )
+            except Exception:
+                pass
         return answer, citations, cost
 
     async def _query_anthropic(self, model: str, query: str) -> tuple[str, list[str], float]:
