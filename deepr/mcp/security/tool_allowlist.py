@@ -147,6 +147,79 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        # ----------------------------------------------------------------
+        # Deepr MCP tools — registered so allowlist decisions reflect the
+        # actual exposed surface instead of treating every tool as
+        # "unknown". Without these entries, deepr_research, the agentic
+        # workflow, and expert manifest/gap data inherit the unknown-tool
+        # fallback and confirmation requirements are not enforced
+        # uniformly.
+        # ----------------------------------------------------------------
+        # Status / discovery (safe reads)
+        "deepr_status": ToolConfig(name="deepr_status", category=ToolCategory.READ, description="Server status"),
+        "deepr_tool_search": ToolConfig(
+            name="deepr_tool_search", category=ToolCategory.READ, description="Search MCP tool registry"
+        ),
+        "deepr_check_status": ToolConfig(
+            name="deepr_check_status", category=ToolCategory.READ, description="Check research job status"
+        ),
+        "deepr_get_result": ToolConfig(
+            name="deepr_get_result", category=ToolCategory.READ, description="Fetch completed research result"
+        ),
+        "deepr_list_experts": ToolConfig(
+            name="deepr_list_experts", category=ToolCategory.READ, description="List configured experts"
+        ),
+        "deepr_get_expert_info": ToolConfig(
+            name="deepr_get_expert_info", category=ToolCategory.READ, description="Public expert summary"
+        ),
+        # Expert state — SENSITIVE: aggregates beliefs, claims, gaps,
+        # decision records, and policy/budget metadata. Requires
+        # confirmation outside read-only/unrestricted modes; blocked in
+        # read-only mode.
+        "deepr_expert_manifest": ToolConfig(
+            name="deepr_expert_manifest",
+            category=ToolCategory.SENSITIVE,
+            description="Full expert state including beliefs, gaps, decisions, policies",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_rank_gaps": ToolConfig(
+            name="deepr_rank_gaps",
+            category=ToolCategory.SENSITIVE,
+            description="Ranked knowledge gaps for an expert",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        # Expert query — may return private knowledge. Sensitive.
+        "deepr_query_expert": ToolConfig(
+            name="deepr_query_expert",
+            category=ToolCategory.SENSITIVE,
+            description="Query an expert's private knowledge",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        # Cost-incurring writes — paid provider calls and state changes.
+        "deepr_research": ToolConfig(
+            name="deepr_research",
+            category=ToolCategory.WRITE,
+            description="Submit a paid research job to a provider",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_agentic_research": ToolConfig(
+            name="deepr_agentic_research",
+            category=ToolCategory.WRITE,
+            description="Autonomous multi-step research; $1-$10 per call",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_cancel_job": ToolConfig(
+            name="deepr_cancel_job",
+            category=ToolCategory.WRITE,
+            description="Cancel a queued/running research job",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
     }
 
     # Category-level rules per mode
