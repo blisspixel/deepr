@@ -1538,6 +1538,10 @@ def get_expert(name):
 _PORTRAIT_COOLDOWN_SECONDS = 60
 _PORTRAIT_LAST_GENERATED: dict[str, float] = {}
 _PORTRAIT_ALLOWED_PROVIDERS = {"openai", "google", "xai"}
+# Conservative per-call estimate for image generation, in USD. Used purely
+# for the canonical cost ledger entry — provider-specific actuals are not
+# returned by the image APIs uniformly.
+_PORTRAIT_COST_ESTIMATE_USD = 0.04
 
 
 @app.route("/api/experts/<name>/generate-portrait", methods=["POST"])
@@ -1601,6 +1605,23 @@ def generate_expert_portrait(name):
         _PORTRAIT_LAST_GENERATED[decoded_name] = time.monotonic()
         profile.portrait_url = portrait_url
         store.save(profile)
+
+        # Best-effort cost ledger entry so portrait spend shows up in
+        # `deepr costs` like other paid operations. Failures here must not
+        # break the response since the portrait has already been generated.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            get_cost_safety_manager().record_cost(
+                session_id=f"portrait_{decoded_name}",
+                operation_type="portrait_generation",
+                actual_cost=_PORTRAIT_COST_ESTIMATE_USD,
+                provider=provider or "auto",
+                source="web.generate_expert_portrait",
+                metadata={"expert": decoded_name},
+            )
+        except Exception as _cost_exc:
+            logger.debug("Portrait cost ledger entry skipped: %s", _cost_exc)
 
         return jsonify({"portrait_url": portrait_url})
     except RuntimeError as e:
@@ -2054,6 +2075,27 @@ def fill_expert_gaps(name):
 # validator fans out one paid LLM call per batch of five, so without a cap a
 # populated expert can cost-amplify a single GET into many provider calls.
 _CITATION_VALIDATION_PAIR_CAP = 50
+# Validation results are deterministic for a given (worldview, documents)
+# tuple, so cache them per expert for a window long enough to absorb dashboard
+# polling without redoing paid LLM calls.
+_CITATION_VALIDATION_CACHE_TTL = 600  # seconds
+_CITATION_VALIDATION_CACHE: dict[str, tuple[float, str, dict]] = {}
+
+
+def _citation_validation_cache_key(worldview_path: Path, docs_dir: Path) -> str:
+    """Build a cache key from the latest mtime of the worldview + documents.
+
+    Any edit to the worldview or any markdown source invalidates the cache
+    because the underlying claims/sources have moved.
+    """
+    parts = [str(worldview_path.stat().st_mtime_ns)]
+    if docs_dir.exists():
+        for doc_path in sorted(docs_dir.glob("*.md")):
+            try:
+                parts.append(f"{doc_path.name}:{doc_path.stat().st_mtime_ns}")
+            except OSError:
+                continue
+    return "|".join(parts)
 
 
 @app.route("/api/experts/<name>/citation-validations", methods=["GET"])
@@ -2066,6 +2108,8 @@ def get_citation_validations(name):
     - Caps the number of beliefs forwarded to the LLM-backed validator. The
       validator fans out one paid call per batch of five pairs, so an
       uncapped GET could be amplified into many provider calls per request.
+    - Caches results per expert with worldview/document mtime invalidation so
+      repeated polling does not re-trigger paid LLM validation calls.
     """
     try:
         import asyncio
@@ -2093,6 +2137,13 @@ def get_citation_validations(name):
 
         beliefs = worldview.beliefs[:_CITATION_VALIDATION_PAIR_CAP]
         truncated = len(worldview.beliefs) > _CITATION_VALIDATION_PAIR_CAP
+        docs_dir = store.get_documents_dir(decoded_name)
+        cache_key = _citation_validation_cache_key(worldview_path, docs_dir)
+        cached = _CITATION_VALIDATION_CACHE.get(decoded_name)
+        if cached and cached[1] == cache_key and (time.time() - cached[0]) < _CITATION_VALIDATION_CACHE_TTL:
+            payload = dict(cached[2])
+            payload["cached"] = True
+            return jsonify(payload)
 
         async def _do_validate():
             from deepr.config import AppConfig
@@ -2104,7 +2155,6 @@ def get_citation_validations(name):
             validator = CitationValidator(client=provider.client)
 
             claims = [b.to_claim() for b in beliefs]
-            docs_dir = store.get_documents_dir(decoded_name)
             doc_dict = {}
             for doc_path in docs_dir.glob("*.md"):
                 try:
@@ -2117,14 +2167,15 @@ def get_citation_validations(name):
             return [v.to_dict() for v in validations], summary
 
         validations, summary = asyncio.run(_do_validate())
-        return jsonify(
-            {
-                "validations": validations,
-                "summary": summary,
-                "truncated": truncated,
-                "pair_cap": _CITATION_VALIDATION_PAIR_CAP,
-            }
-        )
+        payload = {
+            "validations": validations,
+            "summary": summary,
+            "truncated": truncated,
+            "pair_cap": _CITATION_VALIDATION_PAIR_CAP,
+            "cached": False,
+        }
+        _CITATION_VALIDATION_CACHE[decoded_name] = (time.time(), cache_key, payload)
+        return jsonify(payload)
     except ImportError:
         return jsonify({"validations": [], "summary": {}})
     except Exception as e:
