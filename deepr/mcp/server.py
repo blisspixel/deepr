@@ -429,15 +429,27 @@ class DeeprMCPServer:
             # Generate trace_id for end-to-end request tracking
             trace_id = uuid.uuid4().hex[:16]
 
-            # Estimate cost based on model
+            # Estimate cost based on model. Defer to the registry so
+            # provider aliases like `gemini-deep-research`/`deep-research`
+            # are priced at the real ~$2.50 deep-research rate instead of
+            # the generic $0.20 unknown-model fallback. Without this, a
+            # caller can pass the Gemini Deep Research alias and have an
+            # explicit budget_limit/cost_safety check approve a much more
+            # expensive provider job.
+            from deepr.providers.registry import get_cost_estimate as _registry_cost_estimate
+
+            registry_cost = _registry_cost_estimate(model)
             if "o4-mini" in model:
-                cost_estimate = 0.15
+                cost_estimate = max(0.15, registry_cost)
                 estimated_time = "5-10 minutes"
             elif "o3" in model:
-                cost_estimate = 0.50
+                cost_estimate = max(0.50, registry_cost)
+                estimated_time = "10-20 minutes"
+            elif "deep-research" in model:
+                cost_estimate = max(registry_cost, 1.00)
                 estimated_time = "10-20 minutes"
             else:
-                cost_estimate = 0.20
+                cost_estimate = max(registry_cost, 0.20)
                 estimated_time = "5-15 minutes"
 
             # CRITICAL: Validate budget BEFORE any API calls
@@ -1198,11 +1210,49 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
             "isError": True,
         }
 
-    # Security: Check if confirmation is required (for future elicitation integration)
+    # Security: Enforce confirmation requirement before dispatch. Previously
+    # this branch only logged that confirmation was required and proceeded,
+    # which defeated the allowlist's risk gating for write/sensitive tools.
+    # Callers must either:
+    #   - run in DEEPR_RESEARCH_MODE=unrestricted (no confirmation required),
+    #   - supply an explicit approval token in arguments["_approved"]=True,
+    #     or
+    #   - set DEEPR_MCP_AUTO_APPROVE=1 to opt back into the legacy log-only
+    #     behaviour for trusted local-stdio environments.
     if validation["requires_confirmation"]:
-        logger.info("Tool '%s' requires confirmation in mode '%s'", name, validation["mode"])
-        # Note: Full elicitation integration would prompt user here
-        # For now, we log and proceed (confirmation handling is in elicitation module)
+        approved = bool(arguments.get("_approved"))
+        auto_approve = os.environ.get("DEEPR_MCP_AUTO_APPROVE", "").strip().lower() in ("1", "true", "yes")
+        if not approved and not auto_approve:
+            logger.warning(
+                "Tool '%s' blocked: confirmation required in mode '%s'",
+                name,
+                validation["mode"],
+            )
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            _make_error(
+                                "CONFIRMATION_REQUIRED",
+                                validation["reason"],
+                                retry_hint=(
+                                    "Re-invoke with arguments._approved=true after operator review, or "
+                                    "set DEEPR_MCP_AUTO_APPROVE=1 in trusted environments."
+                                ),
+                                fallback=f"Current research mode: {validation['mode']}",
+                            )
+                        ),
+                    }
+                ],
+                "isError": True,
+            }
+        logger.info(
+            "Tool '%s' confirmation %s in mode '%s'",
+            name,
+            "auto-approved" if auto_approve else "approved by caller",
+            validation["mode"],
+        )
 
     # Security: Sign the instruction for audit trail
     instruction = {"tool": name, "arguments": arguments}

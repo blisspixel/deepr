@@ -101,7 +101,16 @@ def _check_auth():
     if not token:
         token = request.headers.get("X-Api-Key", "")
 
-    if not token or not hmac.compare_digest(token, _API_KEY):
+    if not token:
+        return jsonify({"error": "Unauthorized"}), 401
+    # hmac.compare_digest raises TypeError on non-ASCII str inputs; treat
+    # that as Unauthorized so a malformed Authorization header cannot
+    # exit through the generic 500 handler.
+    try:
+        valid = hmac.compare_digest(token, _API_KEY)
+    except TypeError:
+        return jsonify({"error": "Unauthorized"}), 401
+    if not valid:
         return jsonify({"error": "Unauthorized"}), 401
 
 
@@ -1456,6 +1465,18 @@ def create_expert():
         if name_err:
             return jsonify({"error": name_err}), 400
 
+        # Description and domain must be strings — the React Expert Hub
+        # calls .toLowerCase() and renders them directly. A persisted object
+        # or array would trip the frontend error boundary for every client.
+        raw_description = data.get("description", "")
+        raw_domain = data.get("domain", "")
+        if not isinstance(raw_description, str):
+            return jsonify({"error": "description must be a string"}), 400
+        if not isinstance(raw_domain, str):
+            return jsonify({"error": "domain must be a string"}), 400
+        description = raw_description.strip()[:1000]
+        domain = raw_domain.strip()[:200]
+
         store = ExpertStore(str(_experts_dir))
         if store.exists(name):
             return jsonify({"error": "Expert already exists"}), 409
@@ -1463,8 +1484,8 @@ def create_expert():
         profile = ExpertProfile(
             name=name,
             vector_store_id="",
-            description=data.get("description", ""),
-            domain=data.get("domain", ""),
+            description=description,
+            domain=domain,
         )
         store.save(profile)
 
@@ -2729,19 +2750,44 @@ def get_benchmark(filename):
         return jsonify({"error": "Internal server error"}), 500
 
 
+# Serialize and cache benchmark-estimate runs so concurrent POSTs cannot
+# spawn many Python subprocesses. Each unique (tier, quick, no_judge) tuple
+# is memoised for `_BENCHMARK_ESTIMATE_TTL` seconds; the lock ensures only
+# one subprocess runs at a time even on cache miss.
+_benchmark_estimate_lock = threading.Lock()
+_benchmark_estimate_cache: dict[tuple[str, bool, bool], tuple[float, dict]] = {}
+_BENCHMARK_ESTIMATE_TTL = 120  # seconds
+
+
 @app.route("/api/benchmarks/estimate", methods=["POST"])
+@(limiter.limit("6 per minute") if limiter else (lambda f: f))
 def estimate_benchmark():
-    """Estimate cost for a benchmark run (dry-run)."""
+    """Estimate cost for a benchmark run (dry-run).
+
+    Hardened against subprocess-spawn DoS:
+    - Per-route 6/min rate limit when flask-limiter is installed.
+    - Module-level lock serialises subprocess execution; concurrent requests
+      block on the lock rather than each spawning their own Python child.
+    - Results are cached per (tier, quick, no_judge) for 2 minutes so a
+      burst of identical estimates returns the prior result instead of
+      re-running the script.
+    """
     import subprocess
 
     try:
         data = request.json or {}
         tier = data.get("tier", "all")
-        quick = data.get("quick", False)
-        no_judge = data.get("no_judge", False)
+        quick = bool(data.get("quick", False))
+        no_judge = bool(data.get("no_judge", False))
 
         if tier not in ("all", "chat", "news", "research", "docs"):
             return jsonify({"error": "Invalid tier"}), 400
+
+        cache_key = (tier, quick, no_judge)
+        now = time.monotonic()
+        cached = _benchmark_estimate_cache.get(cache_key)
+        if cached and (now - cached[0]) < _BENCHMARK_ESTIMATE_TTL:
+            return jsonify({**cached[1], "cached": True})
 
         cmd = [sys.executable, "scripts/benchmark_models.py", "--dry-run", "--tier", tier]
         if quick:
@@ -2749,40 +2795,51 @@ def estimate_benchmark():
         if no_judge:
             cmd.append("--no-judge")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=15,
-            cwd=str(Path(__file__).resolve().parent.parent.parent),
-        )
+        # acquire(timeout=...) prevents request workers from stacking up
+        # waiting on a stuck subprocess; refuse fast and let the client retry.
+        if not _benchmark_estimate_lock.acquire(timeout=20):
+            return jsonify({"error": "Estimator busy, try again shortly"}), 503
+        try:
+            cached = _benchmark_estimate_cache.get(cache_key)
+            if cached and (time.monotonic() - cached[0]) < _BENCHMARK_ESTIMATE_TTL:
+                return jsonify({**cached[1], "cached": True})
 
-        estimated_cost = 0.0
-        model_count = 0
-        provider_count = 0
-        for line in result.stdout.splitlines():
-            stripped = line.strip()
-            if "Estimated cost:" in stripped:
-                try:
-                    estimated_cost = float(stripped.split("$")[1])
-                except (IndexError, ValueError):
-                    pass
-            if "models selected" in stripped:
-                try:
-                    parts = stripped.split(",")
-                    provider_count = int(parts[0].strip().split()[0])
-                    model_count = int(parts[1].strip().split()[0])
-                except (IndexError, ValueError):
-                    pass
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                cwd=str(Path(__file__).resolve().parent.parent.parent),
+            )
 
-        return jsonify(
-            {
+            estimated_cost = 0.0
+            model_count = 0
+            provider_count = 0
+            for line in result.stdout.splitlines():
+                stripped = line.strip()
+                if "Estimated cost:" in stripped:
+                    try:
+                        estimated_cost = float(stripped.split("$")[1])
+                    except (IndexError, ValueError):
+                        pass
+                if "models selected" in stripped:
+                    try:
+                        parts = stripped.split(",")
+                        provider_count = int(parts[0].strip().split()[0])
+                        model_count = int(parts[1].strip().split()[0])
+                    except (IndexError, ValueError):
+                        pass
+
+            payload = {
                 "estimated_cost": estimated_cost,
                 "model_count": model_count,
                 "provider_count": provider_count,
                 "tier": tier,
             }
-        )
+            _benchmark_estimate_cache[cache_key] = (time.monotonic(), payload)
+            return jsonify({**payload, "cached": False})
+        finally:
+            _benchmark_estimate_lock.release()
 
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Estimation timed out"}), 504
@@ -3736,16 +3793,52 @@ _auto_load_demo()
 
 
 if __name__ == "__main__":
+    import ipaddress as _ipaddress
     import os as _os
+    import sys as _sys
 
     debug = _os.environ.get("FLASK_DEBUG", "0") == "1"
     host = _os.environ.get("DEEPR_HOST", "127.0.0.1")
     port = int(_os.environ.get("DEEPR_PORT", "5000") or "5000")
+    allow_public = _os.environ.get("DEEPR_ALLOW_PUBLIC_BIND", "").strip().lower() in ("1", "true", "yes")
+
+    def _is_loopback(h: str) -> bool:
+        if h in ("localhost", ""):
+            return True
+        try:
+            return _ipaddress.ip_address(h).is_loopback
+        except ValueError:
+            return False
+
+    if not _is_loopback(host) and not _API_KEY and not allow_public:
+        _sys.stderr.write(
+            f"ERROR: refusing to bind '{host}' without DEEPR_API_KEY. The Flask web\n"
+            "dashboard ships destructive APIs, provider-backed research, and ledger\n"
+            "endpoints; unauthenticated network peers must not reach them.\n"
+            "  - Set DEEPR_API_KEY to require a bearer token, or\n"
+            "  - Use DEEPR_HOST=127.0.0.1 (the safe default), or\n"
+            "  - Set DEEPR_ALLOW_PUBLIC_BIND=1 to accept the risk on a trusted network.\n"
+        )
+        raise SystemExit(2)
+
+    # Werkzeug is a development server, not a hardened production WSGI host.
+    # Only opt out of Flask-SocketIO's production-safety check when the
+    # operator has explicitly bound to loopback. For any non-loopback bind
+    # the operator must front the app with a real server (gunicorn+eventlet,
+    # uvicorn workers, etc.) — we surface that requirement instead of
+    # silently running the dev server on a reachable interface.
+    use_werkzeug = _is_loopback(host)
+
     print("\n" + "=" * 70)
     print("  Deepr Research Dashboard")
     print(f"  Running on http://{host}:{port}")
-    if host not in ("127.0.0.1", "localhost", "::1") and not _API_KEY:
+    if not _is_loopback(host) and not _API_KEY:
         print("  WARNING: binding non-loopback interface without DEEPR_API_KEY.")
         print("  Any reachable network peer can submit jobs and read reports.")
+    if not use_werkzeug:
+        print("  ERROR: refusing to start Werkzeug dev server on a non-loopback host.")
+        print("  Run behind gunicorn/eventlet or uvicorn for production.")
+        print("=" * 70 + "\n")
+        raise SystemExit(2)
     print("=" * 70 + "\n")
-    socketio.run(app, debug=debug, host=host, port=port, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=debug, host=host, port=port, allow_unsafe_werkzeug=False)
