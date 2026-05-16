@@ -36,6 +36,7 @@ version_st = st.from_regex(r"[0-9]+\.[0-9]+\.[0-9]+", fullmatch=True)
 
 # --- Property 29: SKILL.md completeness ---
 
+
 @settings(max_examples=100)
 @given(
     tools=st.lists(tool_manifest_st, min_size=1, max_size=5),
@@ -78,9 +79,7 @@ def test_skill_md_completeness(
     # Every tool appears
     for tool in tools:
         assert tool.name in content, f"Tool '{tool.name}' missing from SKILL.md"
-        assert tool.description in content, (
-            f"Tool description '{tool.description}' missing from SKILL.md"
-        )
+        assert tool.description in content, f"Tool description '{tool.description}' missing from SKILL.md"
 
 
 @settings(max_examples=100)

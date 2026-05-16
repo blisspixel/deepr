@@ -168,7 +168,16 @@ def migrate_model(model: str, confidence: float = 1.0) -> tuple[str, float, str 
         entry.warning,
     )
 
+    # Strip any provider prefix ("openai/", "xai/", "anthropic/", …)
+    # from the successor before returning. Callers like auto_mode pass
+    # plain model strings to provider clients which don't understand the
+    # prefix form; without this, post-migration calls fail with "model
+    # not found" against the new model.
+    successor = entry.new_model
+    if successor and "/" in successor:
+        successor = successor.split("/", 1)[1]
+
     if entry.auto_migrate:
-        return entry.new_model, confidence, entry.warning
+        return successor, confidence, entry.warning
 
     return model, confidence, entry.warning

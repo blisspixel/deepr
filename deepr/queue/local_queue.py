@@ -52,6 +52,20 @@ class SQLiteQueue(QueueBackend):
     def _init_db(self):
         """Initialize database schema."""
         conn = sqlite3.connect(self.db_path)
+        # Concurrent reader/writer protection. The web app's request
+        # handlers and the background poller hit this DB from different
+        # threads; without WAL the default rollback-journal mode blocks
+        # readers during every write, producing visible UI stalls and
+        # "database is locked" errors. ``synchronous=NORMAL`` keeps WAL
+        # crash-safe within a power-loss window while halving fsync
+        # overhead. PRAGMAs apply per-connection so they're also set in
+        # ``_open_conn`` below.
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+        except sqlite3.DatabaseError:
+            pass
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -103,6 +117,20 @@ class SQLiteQueue(QueueBackend):
             CREATE INDEX IF NOT EXISTS idx_tenant
             ON research_queue(tenant_id, status)
         """)
+
+        # Partial unique index on provider_job_id. A retry / resubmit
+        # race previously allowed two distinct queue rows to point at
+        # the same provider job, double-billing the user when the
+        # completion poll landed twice.
+        try:
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uniq_provider_job_id
+                ON research_queue(provider_job_id)
+                WHERE provider_job_id IS NOT NULL
+            """)
+        except sqlite3.OperationalError:
+            # Older SQLite without partial-index support; degrade gracefully.
+            pass
 
         # Migrations: Add columns that may not exist in older databases
         _migrations = [
@@ -377,7 +405,17 @@ class SQLiteQueue(QueueBackend):
     def _update_results_sync(
         self, job_id: str, report_paths: dict[str, str], cost: Optional[float], tokens_used: Optional[int]
     ) -> bool:
-        """Synchronous results update."""
+        """Synchronous results update.
+
+        Writes the cost-ledger event **before** committing the SQLite
+        row. The previous order (commit then ledger.record) could lose
+        the billing row if the process crashed between the two writes:
+        the queue showed the job completed with cost recorded in the
+        row, but the canonical cost_ledger.jsonl had no entry. With the
+        ledger appended (and fsync'd) first, the ledger may briefly hold
+        an entry for a row that didn't land — far less harmful than the
+        inverse, and idempotency_key prevents a retry from double-billing.
+        """
         conn = sqlite3.connect(self.db_path)
         try:
             cursor = conn.cursor()
@@ -387,19 +425,9 @@ class SQLiteQueue(QueueBackend):
                 return False
             provider, model, previous_cost = existing_row
 
-            cursor.execute(
-                """
-                UPDATE research_queue
-                SET report_paths = ?, cost = ?, tokens_used = ?
-                WHERE id = ?
-            """,
-                (json.dumps(report_paths), cost, tokens_used, job_id),
-            )
-
-            success = cursor.rowcount > 0
-            conn.commit()
-
-            if success and cost is not None and cost > 0:
+            # Stage the ledger event first if there's a non-zero delta.
+            ledger_recorded = False
+            if cost is not None and cost > 0:
                 prior = float(previous_cost) if previous_cost is not None else 0.0
                 delta = float(cost) - prior
                 if delta > 0:
@@ -417,8 +445,27 @@ class SQLiteQueue(QueueBackend):
                                 "idempotency_key": f"queue:update_results:{job_id}:{float(cost):.6f}",
                             },
                         )
+                        ledger_recorded = True
                     except Exception as e:
                         logger.warning("Failed to persist cost event for job %s: %s", job_id, e)
+
+            cursor.execute(
+                """
+                UPDATE research_queue
+                SET report_paths = ?, cost = ?, tokens_used = ?
+                WHERE id = ?
+            """,
+                (json.dumps(report_paths), cost, tokens_used, job_id),
+            )
+
+            success = cursor.rowcount > 0
+            conn.commit()
+
+            if not success and ledger_recorded:
+                logger.warning(
+                    "Cost ledger event recorded but queue update failed for job %s; ledger has the expense, queue row is stale",
+                    job_id,
+                )
 
             return success
         except Exception:

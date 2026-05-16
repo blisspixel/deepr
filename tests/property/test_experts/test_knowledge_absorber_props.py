@@ -15,24 +15,28 @@ from deepr.experts.skills.knowledge_absorber import (
     KnowledgeAbsorber,
 )
 
-
 # --- Strategies ---
 
 source_type_st = st.sampled_from(["DNS", "dns", "whois", "paper", "citation", "scrape", "api", "market"])
 
 category_st = st.sampled_from(["infrastructure", "academic", "strategic"])
 
-finding_item_st = st.fixed_dictionaries({
-    "text": st.text(min_size=1, max_size=50),
-    "value": st.text(min_size=1, max_size=50),
-})
+finding_item_st = st.fixed_dictionaries(
+    {
+        "text": st.text(min_size=1, max_size=50),
+        "value": st.text(min_size=1, max_size=50),
+    }
+)
 
-tool_response_st = st.fixed_dictionaries({
-    "results": st.lists(finding_item_st, min_size=1, max_size=5),
-})
+tool_response_st = st.fixed_dictionaries(
+    {
+        "results": st.lists(finding_item_st, min_size=1, max_size=5),
+    }
+)
 
 
 # --- Property 27: Knowledge absorption categorization and confidence ---
+
 
 @settings(max_examples=100)
 @given(
@@ -61,18 +65,13 @@ def test_absorption_categorization_and_confidence(
     valid_categories = {"infrastructure", "academic", "strategic"}
     for finding in findings:
         assert isinstance(finding, AbsorbedFinding)
-        assert finding.category in valid_categories, (
-            f"Invalid category: {finding.category}"
-        )
-        assert 0.0 <= finding.confidence <= 1.0, (
-            f"Confidence out of range: {finding.confidence}"
-        )
-        assert finding.source_type == source_type, (
-            f"Source type mismatch: {finding.source_type} != {source_type}"
-        )
+        assert finding.category in valid_categories, f"Invalid category: {finding.category}"
+        assert 0.0 <= finding.confidence <= 1.0, f"Confidence out of range: {finding.confidence}"
+        assert finding.source_type == source_type, f"Source type mismatch: {finding.source_type} != {source_type}"
 
 
 # --- Property 31: Recon absorption produces high-confidence DNS beliefs ---
+
 
 @settings(max_examples=100)
 @given(
@@ -124,8 +123,6 @@ def test_recon_absorption_high_confidence_dns(
     assert len(findings) > 0, "Should produce findings from recon response"
 
     for finding in findings:
-        assert finding.confidence >= 0.8, (
-            f"DNS findings should have confidence >= 0.8, got {finding.confidence}"
-        )
+        assert finding.confidence >= 0.8, f"DNS findings should have confidence >= 0.8, got {finding.confidence}"
         assert finding.source_type == "DNS"
         assert finding.category == "infrastructure"

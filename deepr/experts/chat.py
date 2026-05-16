@@ -40,10 +40,11 @@ _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M = 10.00
 def _chat_token_cost(usage: Any, model_name: str) -> float:
     """Compute chat-completion cost from token usage using the model registry.
 
-    Replaces the previous hard-coded GPT-5 rates: when the chat session
-    routes to gpt-5.2 the registry rates ($1.75/$14 per 1M) are applied
-    instead of the GPT-5 rates ($1.25/$10 per 1M), so cost_accumulated and
-    budget_remaining no longer under-count gpt-5.2 spend by ~28.6%.
+    Uses ``get_token_pricing`` so any model in the registry (gpt-5.2 at
+    $1.75/$14, etc.) is priced correctly. When ``usage`` exposes
+    ``prompt_tokens_details.cached_tokens`` (OpenAI caching), the cached
+    portion is billed at 50% — without this discount users hit their
+    session budget earlier than necessary on cache-hit-heavy workloads.
     """
     if not usage:
         return 0.0
@@ -58,7 +59,16 @@ def _chat_token_cost(usage: Any, model_name: str) -> float:
         output_price = _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M
     prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
     completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-    return (prompt_tokens / 1_000_000) * input_price + (completion_tokens / 1_000_000) * output_price
+
+    cached_tokens = 0
+    details = getattr(usage, "prompt_tokens_details", None)
+    if details is not None:
+        cached_tokens = getattr(details, "cached_tokens", 0) or 0
+    uncached_input = max(prompt_tokens - cached_tokens, 0)
+
+    input_cost = (uncached_input / 1_000_000) * input_price + (cached_tokens / 1_000_000) * input_price * 0.5
+    output_cost = (completion_tokens / 1_000_000) * output_price
+    return input_cost + output_cost
 
 
 class ExpertChatSession:
@@ -125,10 +135,19 @@ class ExpertChatSession:
         from deepr.experts.cost_safety import get_cost_safety_manager
 
         self.cost_safety = get_cost_safety_manager()
+        # Sanitize identifiers feeding into session_id — agent_identity
+        # is caller-supplied (downstream MCP / A2A may forward arbitrary
+        # strings) and the session_id ends up in cost-safety keys and
+        # potentially thought-stream log filenames.
+        import re as _re
+
+        _safe_re = _re.compile(r"[^\w\-]+")
+        _expert_part = _safe_re.sub("_", str(expert.name))[:64]
         if self.agent_identity:
-            self.session_id = f"chat_{expert.name}_{self.agent_identity.agent_id}"
+            _agent_part = _safe_re.sub("_", str(self.agent_identity.agent_id))[:64]
+            self.session_id = f"chat_{_expert_part}_{_agent_part}"
         else:
-            self.session_id = f"chat_{expert.name}_{uuid.uuid4().hex[:8]}"
+            self.session_id = f"chat_{_expert_part}_{uuid.uuid4().hex[:8]}"
         self.cost_session = self.cost_safety.create_session(
             session_id=self.session_id, session_type="chat", budget_limit=self.budget
         )
@@ -610,6 +629,21 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Dict with answer and sources
         """
+        # Pre-flight budget check. The previous implementation called the
+        # model first and accounted afterwards; that can blow past a tight
+        # session budget on a single call. Estimate via worst-case upper
+        # bound (4K input + 2K output at gpt-5.2 rates ≈ $0.035) and let
+        # the cost-safety layer veto if there's no room.
+        estimated_cost = 0.05
+        allowed, reason, _ = self.cost_safety.check_operation(
+            session_id=self.session_id,
+            operation_type="quick_lookup",
+            estimated_cost=estimated_cost,
+            require_confirmation=False,
+        )
+        if not allowed:
+            return {"error": f"Quick lookup blocked: {reason}", "mode": "quick_lookup_gpt52", "status": "blocked"}
+
         try:
             # Use GPT-5.2 with low reasoning effort for knowledge lookups
             response = await self.client.chat.completions.create(
@@ -626,14 +660,19 @@ Budget remaining: ${budget_remaining:.2f}
 
             answer = response.choices[0].message.content or ""
 
-            # Track cost (GPT-5.2: $1.75 input, $14 output per 1M tokens)
-            if response.usage:
-                input_cost = (response.usage.prompt_tokens / 1_000_000) * 1.75
-                output_cost = (response.usage.completion_tokens / 1_000_000) * 14.00
-                cost = input_cost + output_cost
-                self.cost_accumulated += cost
-            else:
-                cost = 0.01  # Estimate ~5-10 cents for typical query
+            # Token-priced via the registry so future rate changes for
+            # gpt-5.2 don't silently drift from the budget bookkeeping.
+            cost = _chat_token_cost(response.usage, "gpt-5.2") if response.usage else 0.01
+            self.cost_accumulated += cost
+            self.cost_safety.record_cost(
+                session_id=self.session_id,
+                operation_type="quick_lookup",
+                actual_cost=cost,
+                provider="openai",
+                model="gpt-5.2",
+                tokens_input=getattr(response.usage, "prompt_tokens", 0) if response.usage else 0,
+                tokens_output=getattr(response.usage, "completion_tokens", 0) if response.usage else 0,
+            )
 
             return {"answer": answer, "mode": "quick_lookup_gpt52", "cost": cost}
         except Exception as e:
@@ -694,8 +733,14 @@ Budget remaining: ${budget_remaining:.2f}
             )
             chat.append(user(query))
 
-            # Get response with automatic agentic search
-            response = chat.sample()
+            # xAI SDK's chat.sample() is a synchronous network call. Running
+            # it directly here would freeze the event loop for 5-15s per
+            # call, stalling every concurrent chat session, WebSocket emit,
+            # and MCP request handler that shares this loop. Push it to a
+            # worker thread so async behaviour holds.
+            import asyncio as _asyncio_local
+
+            response = await _asyncio_local.to_thread(chat.sample)
 
             # Extract answer and citations
             answer = response.content
@@ -751,11 +796,7 @@ Budget remaining: ${budget_remaining:.2f}
 
                 answer = f"{response.choices[0].message.content or ''}\n\n[Note: Grok web search unavailable, using GPT-5.2 knowledge instead]"
 
-                cost = 0.01
-                if response.usage:
-                    input_cost = (response.usage.prompt_tokens / 1_000_000) * 1.75
-                    output_cost = (response.usage.completion_tokens / 1_000_000) * 14.00
-                    cost = input_cost + output_cost
+                cost = _chat_token_cost(response.usage, "gpt-5.2") if response.usage else 0.01
                 self.cost_accumulated += cost
 
                 # Record fallback cost
@@ -784,7 +825,16 @@ Budget remaining: ${budget_remaining:.2f}
         Returns:
             Dict with job_id and estimated_cost
         """
-        estimated_cost = 0.20  # Average estimate
+        # Use the registry estimate as the budget reservation. The previous
+        # hard-coded $0.20 was ~10x lower than the registry cost ($2.00)
+        # for o4-mini-deep-research, so the session/daily budgets were
+        # silently exhausted ten times faster than tracked.
+        from deepr.providers.registry import get_cost_estimate as _get_cost_estimate
+
+        try:
+            estimated_cost = float(_get_cost_estimate("o4-mini-deep-research"))
+        except Exception:
+            estimated_cost = 2.00  # registry default for o4-mini-deep-research
 
         # Check cost safety before proceeding
         allowed, reason, _needs_confirm = self.cost_safety.check_operation(
@@ -1293,9 +1343,34 @@ Budget remaining: ${budget_remaining:.2f}
 
             max_rounds = 5  # Prevent infinite loops
             round_count = 0
+            # Worst-case per-round estimate used for the mid-loop budget
+            # guard. Cheaper models will under-use this, but a tool round
+            # that runs a multi-thousand-token reasoning call shouldn't
+            # silently blow past the session budget between rounds.
+            _per_round_estimate = max(
+                _chat_token_cost(getattr(first_response, "usage", None), selected_model.model) * 1.5, 0.05
+            )
 
             while current_message.tool_calls and round_count < max_rounds:
                 round_count += 1
+
+                # Re-check the session budget between rounds. The previous
+                # implementation only checked once at the start of the
+                # request, so a 5-round loop on a frontier model could
+                # blow well past `self.budget` before any guard tripped.
+                _can_continue, _round_reason = self.cost_session.can_proceed(_per_round_estimate)
+                if not _can_continue:
+                    logger.warning(
+                        "Tool loop aborted at round %d: %s (accumulated $%.4f, budget $%.4f)",
+                        round_count,
+                        _round_reason,
+                        self.cost_accumulated,
+                        self.budget,
+                    )
+                    current_message.content = (
+                        current_message.content or ""
+                    ) + f"\n\n[Tool loop stopped after {round_count - 1} rounds: {_round_reason}]"
+                    break
 
                 # Process each tool call
                 tool_messages = []
@@ -1881,9 +1956,25 @@ Budget remaining: ${budget_remaining:.2f}
             conversation_messages = [{"role": "system", "content": self.get_system_message()}, *self.messages]
             max_rounds = 5
             round_count = 0
+            _per_round_estimate = max(
+                _chat_token_cost(getattr(first_response, "usage", None), selected_model.model) * 1.5, 0.05
+            )
 
             while current_message.tool_calls and round_count < max_rounds:
                 round_count += 1
+                # Mirror the non-streaming branch: re-check budget between
+                # rounds so the tool loop can't run away on its own.
+                _can_continue, _round_reason = self.cost_session.can_proceed(_per_round_estimate)
+                if not _can_continue:
+                    logger.warning(
+                        "Tool loop (streaming) aborted at round %d: %s",
+                        round_count,
+                        _round_reason,
+                    )
+                    current_message.content = (
+                        current_message.content or ""
+                    ) + f"\n\n[Tool loop stopped after {round_count - 1} rounds: {_round_reason}]"
+                    break
                 tool_messages = []
 
                 for tool_call in current_message.tool_calls:

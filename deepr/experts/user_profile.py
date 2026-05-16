@@ -174,8 +174,9 @@ class UserProfileTracker:
                 "notes": profile.notes,
             }
 
-            with open(profile_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            from deepr.utils.atomic_io import atomic_write_json
+
+            atomic_write_json(profile_path, data)
 
         except Exception as e:
             logger.error("Error saving user profile: %s", e)

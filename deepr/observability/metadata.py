@@ -370,8 +370,9 @@ class MetadataEmitter:
         if self._temporal_tracker:
             trace_data["temporal"] = self._temporal_tracker.export_for_job_manager()
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(trace_data, f, indent=2)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(path, trace_data)
 
     @classmethod
     def load_trace(cls, path: Path) -> "MetadataEmitter":

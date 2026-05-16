@@ -187,12 +187,17 @@ def _load_persisted_limits() -> dict:
 
 
 def _save_limits(per_job: float, daily: float, monthly: float):
-    """Persist budget limits to disk."""
+    """Persist budget limits to disk (atomic write)."""
     try:
-        with open(_LIMITS_FILE, "w", encoding="utf-8") as f:
-            _json.dump({"per_job": per_job, "daily": daily, "monthly": monthly}, f)
-    except Exception:
-        logger.warning("Could not write %s", _LIMITS_FILE)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(_LIMITS_FILE, {"per_job": per_job, "daily": daily, "monthly": monthly})
+    except Exception as exc:
+        # Surface the failure so operators see why their saved limits
+        # never took effect; the previous silent warning meant the UI
+        # would return 200 OK while the file write quietly failed.
+        logger.error("Could not write budget limits to %s: %s", _LIMITS_FILE, exc)
+        raise
 
 
 # Initialize cost tracking
@@ -605,17 +610,36 @@ def submit_job():
 
         # Estimate cost first
         estimated_cost = None
+        estimate_obj = None
         if cost_estimator:
             try:
-                estimate = cost_estimator.estimate_cost(prompt, model)
+                estimate_obj = cost_estimator.estimate_cost(prompt, model)
                 estimated_cost = {
-                    "min_cost": estimate.min_cost,
-                    "max_cost": estimate.max_cost,
-                    "expected_cost": estimate.expected_cost,
+                    "min_cost": estimate_obj.min_cost,
+                    "max_cost": estimate_obj.max_cost,
+                    "expected_cost": estimate_obj.expected_cost,
                 }
             except Exception as e:
                 logger.warning(f"Cost estimation failed: {e}")
                 estimated_cost = {"min_cost": 1.0, "max_cost": 5.0, "expected_cost": 2.0}
+
+        # Enforce per-job, daily, and monthly cost limits BEFORE submitting
+        # to the provider. Without this gate an authenticated UI/API caller
+        # could fire unbounded paid jobs (only flask-limiter's 10/min
+        # throttle would constrain spend, which at $5/job = $50/min cap).
+        if cost_controller and estimate_obj is not None:
+            try:
+                allowed, deny_reason = cost_controller.check_cost_limit(estimate_obj)
+            except Exception as exc:
+                logger.warning(f"CostController.check_cost_limit failed: {exc}")
+                allowed, deny_reason = True, None
+            if not allowed:
+                return jsonify(
+                    {
+                        "error": deny_reason or "Cost limit exceeded",
+                        "estimated_cost": estimated_cost,
+                    }
+                ), 429
 
         # Create job
         job_id = str(uuid.uuid4())
@@ -1678,8 +1702,20 @@ def chat_with_expert(name):
         message = data["message"]
         session_id = data.get("session_id")
 
+        # Clamp the chat budget against the cost-safety per-op ceiling.
+        # The previous hard-coded 10.0 ignored the manager's daily
+        # spend ceiling, letting every fresh chat session start with a
+        # full $10 budget regardless of how much of the daily limit
+        # had already been consumed.
+        from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
+
+        _cs = get_cost_safety_manager()
+        _spending = _cs.get_spending_summary()
+        _daily_left = float(_spending.get("daily", {}).get("remaining", CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION))
+        chat_budget = min(10.0, max(0.5, _daily_left))
+
         # Create or restore session
-        session = run_async(start_chat_session(decoded_name, budget=10.0, agentic=True, quiet=True))
+        session = run_async(start_chat_session(decoded_name, budget=chat_budget, agentic=True, quiet=True))
 
         if session_id:
             _restore_session_messages(session, decoded_name, session_id)
@@ -1735,6 +1771,7 @@ def chat_with_expert(name):
 
 
 @app.route("/api/experts/council", methods=["POST"])
+@(limiter.limit("5 per minute") if limiter else (lambda f: f))
 def expert_council():
     """Consult multiple experts on a query."""
     try:
@@ -1742,13 +1779,25 @@ def expert_council():
         if not data or not data.get("query"):
             return jsonify({"error": "query required"}), 400
 
+        from deepr.experts.cost_safety import CostSafetyManager
         from deepr.experts.council import ExpertCouncil
+
+        # Clamp the caller-supplied budget. The endpoint previously
+        # forwarded `data.get("budget", 5.0)` directly to council.consult,
+        # which fans out to 5 parallel experts (each running its own
+        # agentic chat session). With no upper bound, a single request
+        # could authorise tens of dollars of paid model calls in seconds.
+        try:
+            raw_budget = float(data.get("budget", 5.0))
+        except (TypeError, ValueError):
+            raw_budget = 5.0
+        budget = max(0.0, min(raw_budget, CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION))
 
         council = ExpertCouncil()
         result = run_async(
             council.consult(
                 query=data["query"],
-                budget=data.get("budget", 5.0),
+                budget=budget,
             )
         )
         return jsonify(result)
@@ -2101,6 +2150,20 @@ _CITATION_VALIDATION_PAIR_CAP = 50
 # polling without redoing paid LLM calls.
 _CITATION_VALIDATION_CACHE_TTL = 600  # seconds
 _CITATION_VALIDATION_CACHE: dict[str, tuple[float, str, dict]] = {}
+# Per-expert fill lock for the citation cache. Without this, two
+# concurrent uncached requests both miss the cache and fan out paid
+# LLM batches; the rate limiter only constrains a single client IP.
+_CITATION_VALIDATION_LOCKS: dict[str, threading.Lock] = {}
+_CITATION_VALIDATION_LOCKS_LOCK = threading.Lock()
+
+
+def _citation_cache_lock_for(expert_name: str) -> threading.Lock:
+    with _CITATION_VALIDATION_LOCKS_LOCK:
+        lock = _CITATION_VALIDATION_LOCKS.get(expert_name)
+        if lock is None:
+            lock = threading.Lock()
+            _CITATION_VALIDATION_LOCKS[expert_name] = lock
+        return lock
 
 
 def _citation_validation_cache_key(worldview_path: Path, docs_dir: Path) -> str:
@@ -2160,6 +2223,8 @@ def get_citation_validations(name):
         truncated = len(worldview.beliefs) > _CITATION_VALIDATION_PAIR_CAP
         docs_dir = store.get_documents_dir(decoded_name)
         cache_key = _citation_validation_cache_key(worldview_path, docs_dir)
+
+        # Fast path: cache hit outside the lock.
         cached = _CITATION_VALIDATION_CACHE.get(decoded_name)
         if cached and cached[1] == cache_key and (time.time() - cached[0]) < _CITATION_VALIDATION_CACHE_TTL:
             payload = dict(cached[2])
@@ -2187,16 +2252,27 @@ def get_citation_validations(name):
             summary = validator.summarize(validations)
             return [v.to_dict() for v in validations], summary
 
-        validations, summary = asyncio.run(_do_validate())
-        payload = {
-            "validations": validations,
-            "summary": summary,
-            "truncated": truncated,
-            "pair_cap": _CITATION_VALIDATION_PAIR_CAP,
-            "cached": False,
-        }
-        _CITATION_VALIDATION_CACHE[decoded_name] = (time.time(), cache_key, payload)
-        return jsonify(payload)
+        # Slow path: serialize cache fills per expert so concurrent
+        # callers don't all fan out paid LLM batches when the cache is
+        # cold. Re-check the cache after acquiring the lock.
+        fill_lock = _citation_cache_lock_for(decoded_name)
+        with fill_lock:
+            cached = _CITATION_VALIDATION_CACHE.get(decoded_name)
+            if cached and cached[1] == cache_key and (time.time() - cached[0]) < _CITATION_VALIDATION_CACHE_TTL:
+                payload = dict(cached[2])
+                payload["cached"] = True
+                return jsonify(payload)
+
+            validations, summary = asyncio.run(_do_validate())
+            payload = {
+                "validations": validations,
+                "summary": summary,
+                "truncated": truncated,
+                "pair_cap": _CITATION_VALIDATION_PAIR_CAP,
+                "cached": False,
+            }
+            _CITATION_VALIDATION_CACHE[decoded_name] = (time.time(), cache_key, payload)
+            return jsonify(payload)
     except ImportError:
         return jsonify({"validations": [], "summary": {}})
     except Exception as e:

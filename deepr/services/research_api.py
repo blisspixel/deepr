@@ -52,6 +52,31 @@ class ResearchAPI:
             else:  # focus
                 model = "o4-mini-deep-research"
 
+        # Pre-flight budget check. Without this, any caller of
+        # ResearchAPI.submit_research could enqueue an unbounded number
+        # of paid deep-research jobs without ever touching the cost
+        # safety layer that gates the MCP and Web surfaces.
+        from deepr.experts.cost_safety import get_cost_safety_manager
+        from deepr.providers.registry import get_cost_estimate as _get_cost_estimate
+
+        try:
+            estimated_cost = float(_get_cost_estimate(model))
+        except Exception:
+            estimated_cost = 2.0  # conservative default for deep-research
+
+        if cost_limit is not None:
+            estimated_cost = min(estimated_cost, float(cost_limit))
+
+        cost_safety = get_cost_safety_manager()
+        allowed, deny_reason, _ = cost_safety.check_operation(
+            session_id=f"research_api_{prompt[:32]}",
+            operation_type="research_api_submit",
+            estimated_cost=estimated_cost,
+            require_confirmation=False,
+        )
+        if not allowed:
+            raise RuntimeError(f"Research submission blocked by cost-safety: {deny_reason}")
+
         # Generate job ID
         import uuid
 

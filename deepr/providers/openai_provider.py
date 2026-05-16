@@ -149,12 +149,21 @@ class OpenAIProvider(DeepResearchProvider):
                     await asyncio.sleep(wait_time)
                     continue
                 elif fallback_model:
-                    # All retries exhausted: try fallback model with fresh retries
+                    # All retries exhausted: try fallback model with fresh retries.
+                    # Build a shallow copy of the request rather than mutating
+                    # the caller's instance — the caller may inspect it after
+                    # the call, retry against a different provider, or persist
+                    # it as a decision record. Silently swapping their chosen
+                    # model on rate-limit also degraded quality (e.g.
+                    # o3-deep-research $11/$44 → o4-mini-deep-research
+                    # $1.10/$4.40 per MTok) without their knowledge.
+                    import dataclasses as _dc
+
                     logger.warning("Max retries reached for %s", request.model)
                     logger.warning("Graceful degradation: Falling back to %s", fallback_model)
-                    request.model = fallback_model
+                    fallback_request = _dc.replace(request, model=fallback_model)
                     fallback_model = None  # Prevent infinite fallback loop
-                    return await self.submit_research(request)
+                    return await self.submit_research(fallback_request)
                 else:
                     raise ProviderError(
                         message=f"Failed after {max_retries} retries: {e}",
@@ -183,7 +192,15 @@ class OpenAIProvider(DeepResearchProvider):
             if hasattr(response, "usage") and response.usage:
                 input_tokens = getattr(response.usage, "input_tokens", 0)
                 output_tokens = getattr(response.usage, "output_tokens", 0)
-                model = getattr(response, "model", "o4-mini-deep-research-2025-06-26")
+                # If response.model is missing, log a warning rather than
+                # silently defaulting to o4-mini pricing — for an
+                # o3-deep-research job (10x more expensive: $11/$44 per
+                # MTok vs $1.10/$4.40) that mis-attribution would
+                # massively under-bill the user.
+                model = getattr(response, "model", None)
+                if not model:
+                    logger.warning("OpenAI response missing model field for job %s; pricing may be inaccurate", job_id)
+                    model = "o4-mini-deep-research-2025-06-26"
 
                 usage = UsageStats(
                     input_tokens=input_tokens,

@@ -65,9 +65,7 @@ class TestBudgetIntegration:
         mock_manager.get_remaining_budget.return_value = 1.0
         mock_ledger = MagicMock()
 
-        propagator = BudgetPropagator(
-            budget_manager=mock_manager, cost_ledger=mock_ledger
-        )
+        propagator = BudgetPropagator(budget_manager=mock_manager, cost_ledger=mock_ledger)
 
         pool = MCPClientPool(budget_propagator=propagator)
         pool.register(
@@ -99,9 +97,7 @@ class TestBudgetIntegration:
         mock_manager.get_remaining_budget.return_value = 10.0
         mock_ledger = MagicMock()
 
-        propagator = BudgetPropagator(
-            budget_manager=mock_manager, cost_ledger=mock_ledger
-        )
+        propagator = BudgetPropagator(budget_manager=mock_manager, cost_ledger=mock_ledger)
 
         pool = MCPClientPool(budget_propagator=propagator)
         pool.register(_make_profile("server-a"))
@@ -110,9 +106,7 @@ class TestBudgetIntegration:
             return_value=MCPToolResult(content="ok", server_name="server-a", tool_name="t")
         )
 
-        result = await pool.call_tool(
-            "server-a", "t", {}, estimated_cost=1.0, session_remaining=10.0
-        )
+        result = await pool.call_tool("server-a", "t", {}, estimated_cost=1.0, session_remaining=10.0)
 
         assert isinstance(result, MCPToolResult)
         assert result.ok
@@ -167,9 +161,7 @@ class TestBroadcastPartialResults:
             return_value=MCPToolResult(error="connection lost", server_name="bad-server", tool_name="search")
         )
 
-        results = await pool.broadcast_tool(
-            "search", {"q": "test"}, server_names=["good-server", "bad-server"]
-        )
+        results = await pool.broadcast_tool("search", {"q": "test"}, server_names=["good-server", "bad-server"])
 
         assert len(results) == 2
         # First result (good-server) should succeed

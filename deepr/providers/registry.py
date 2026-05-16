@@ -887,6 +887,19 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
 }
 
 
+def _normalize_model_name(name: str) -> str:
+    """Normalize a model name so dot/hyphen variants compare equal.
+
+    The Grok provider reports model IDs with dots (``grok-4.20-...``) but
+    the registry keys them with hyphens (``grok-4-20-...``). Without this
+    normalization, a substring match on the dotted form falls through to
+    the o4-mini default — a ~80% under-charge on every Grok 4.20 call.
+    """
+    if not name:
+        return name
+    return name.replace(".", "-").lower()
+
+
 def get_token_pricing(model: str) -> dict[str, float]:
     """Get per-token pricing for a model.
 
@@ -899,14 +912,27 @@ def get_token_pricing(model: str) -> dict[str, float]:
         Dict with "input" and "output" costs per 1M tokens.
         Returns default pricing if model not found.
     """
-    # Try exact match first
+    # Resolve alias first so callers using ``gemini-deep-research`` or
+    # ``deep-research`` see the real provider model's per-token pricing
+    # instead of the o4-mini default.
+    resolved = _MODEL_ALIASES.get(model, model)
+    needle = _normalize_model_name(resolved)
+
+    # Exact match (normalized)
     for cap in MODEL_CAPABILITIES.values():
-        if cap.model == model and cap.input_cost_per_1m > 0:
+        if cap.input_cost_per_1m > 0 and _normalize_model_name(cap.model) == needle:
             return {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m}
 
-    # Try partial match (e.g., "o4-mini-deep-research-2025-06-26" matches "o4-mini-deep-research")
-    for cap in MODEL_CAPABILITIES.values():
-        if cap.model in model and cap.input_cost_per_1m > 0:
+    # Partial match — longest cap.model first so e.g. ``gemini-2.5-flash-lite``
+    # matches its own entry before the shorter ``gemini-2.5-flash`` prefix
+    # (which would have charged Flash-Lite at Flash rates, ~3x overcharge).
+    candidates = sorted(
+        (cap for cap in MODEL_CAPABILITIES.values() if cap.input_cost_per_1m > 0),
+        key=lambda c: len(c.model or ""),
+        reverse=True,
+    )
+    for cap in candidates:
+        if _normalize_model_name(cap.model) in needle:
             return {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m}
 
     # Default to o4-mini pricing

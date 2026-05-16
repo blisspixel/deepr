@@ -326,7 +326,10 @@ class TestGrokErrorHandling:
 
     @pytest.mark.asyncio
     async def test_api_error_handling(self, provider):
-        """Test that API errors are re-raised after recording failure."""
+        """API errors mark the job failed and return the job_id (matching
+        Gemini's contract). The previous behaviour re-raised mid-submit
+        so the caller never received the job_id while the failure was
+        simultaneously stored under that orphaned id."""
         with patch.object(provider.client.chat.completions, "create", new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = openai.OpenAIError("API Error")
 
@@ -336,8 +339,10 @@ class TestGrokErrorHandling:
                 system_message="You are a helpful assistant.",
             )
 
-            with pytest.raises(openai.OpenAIError, match="API Error"):
-                await provider.submit_research(request)
+            job_id = await provider.submit_research(request)
+            assert job_id in provider.jobs
+            assert provider.jobs[job_id]["status"] == "failed"
+            assert "API Error" in provider.jobs[job_id]["error"]
 
     @pytest.mark.asyncio
     async def test_invalid_job_id(self, provider):

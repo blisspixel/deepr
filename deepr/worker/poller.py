@@ -189,6 +189,32 @@ class JobPoller:
             cost = response.usage.cost if response.usage else 0
             tokens = response.usage.total_tokens if response.usage else 0
 
+            # Settle the cost against CostController and the cost-safety
+            # ledger. The CostController instance was previously created
+            # but never consulted, so daily/monthly spend was never
+            # observed by the poller path. Recording here ensures the
+            # ledger is authoritative regardless of submission-time
+            # bookkeeping by the API or batch executor.
+            try:
+                self.cost_controller.record_cost(actual_cost=float(cost or 0))
+            except Exception:
+                logger.debug("CostController.record_cost failed for job %s", job.id, exc_info=True)
+            try:
+                from deepr.experts.cost_safety import get_cost_safety_manager
+
+                get_cost_safety_manager().record_cost(
+                    session_id=f"poller_{job.id}",
+                    operation_type="research_completion",
+                    actual_cost=float(cost or 0),
+                    provider=getattr(job, "provider", "") or "",
+                    model=getattr(job, "model", "") or "",
+                    request_id=getattr(job, "provider_job_id", "") or "",
+                    idempotency_key=f"job:{job.id}:completion",
+                    source="worker.poller._handle_completion",
+                )
+            except Exception:
+                logger.debug("cost_safety.record_cost failed for job %s", job.id, exc_info=True)
+
             # Update queue with results
             results_updated = await self.queue.update_results(
                 job_id=job.id, report_paths={"markdown": "report.md"}, cost=cost, tokens_used=tokens
