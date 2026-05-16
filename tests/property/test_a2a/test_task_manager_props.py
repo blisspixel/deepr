@@ -13,7 +13,6 @@ from hypothesis import strategies as st
 from deepr.a2a.models import TaskRequest, TaskState
 from deepr.a2a.task_manager import InvalidTransitionError, TaskManager
 
-
 # --- Strategies ---
 
 skill_st = st.sampled_from(["recon", "distillr", "primr", "analyst"])
@@ -28,6 +27,7 @@ trace_id_st = st.text(
 
 
 # --- Property 17: Task lifecycle state machine ---
+
 
 @settings(max_examples=200)
 @given(
@@ -135,6 +135,7 @@ def test_invalid_transitions_rejected(
 
 # --- Property 18: A2A budget propagation ---
 
+
 @settings(max_examples=100)
 @given(
     skill=skill_st,
@@ -159,6 +160,4 @@ def test_budget_propagation(
     task = manager.create_task(request)
 
     assert "budget_cap" in task.metadata, "Task should have budget_cap in metadata"
-    assert task.metadata["budget_cap"] == budget, (
-        f"Budget cap {task.metadata['budget_cap']} != request budget {budget}"
-    )
+    assert task.metadata["budget_cap"] == budget, f"Budget cap {task.metadata['budget_cap']} != request budget {budget}"

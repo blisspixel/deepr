@@ -230,6 +230,12 @@ class GrokProvider(DeepResearchProvider):
             )
 
         except openai.OpenAIError as e:
+            # Match the Gemini contract: record failure in the jobs dict
+            # and let the caller poll get_status, instead of re-raising
+            # from inside submit_research. The previous behaviour caused
+            # submit_research to throw mid-call so the caller never got
+            # the job_id back, while the failure was simultaneously stored
+            # under that orphaned id — making the failure invisible.
             self.jobs[job_id].update(
                 {
                     "status": "failed",
@@ -237,7 +243,6 @@ class GrokProvider(DeepResearchProvider):
                     "completed_at": datetime.now(timezone.utc),
                 }
             )
-            raise
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """Get research job status."""
@@ -398,7 +403,13 @@ class GrokProvider(DeepResearchProvider):
             # does nothing to stop multi-call provider spend amplification.
             prompt_chars = sum(len(m["content"]) for m in messages)
             est_input_tokens = max(prompt_chars // 4, 1)
-            est_output_tokens = 2048
+            # Reasoning models on the multi-agent path emit unbounded
+            # reasoning tokens (billed as output). A 2048-token worst
+            # case lets a single agent blow past the per-agent budget
+            # by 5-10x before AgentBudget.record catches up. Use the
+            # model's max-output token ceiling (~16K) when estimating
+            # so the pre-flight reflects reality.
+            est_output_tokens = 16384
             est_cost = self._calculate_cost(est_input_tokens, est_output_tokens, single_model)
             allowed, reason = budget.check(est_cost)
             if not allowed:

@@ -115,7 +115,12 @@ All errors return a consistent JSON structure:
 ```
 
 ## Authentication
-Currently, the API does not require authentication. Rate limiting is based on client IP address.
+Bearer token via ``Authorization: Bearer <token>`` is required when the server is
+started with ``DEEPR_API_TOKEN`` set, which is the recommended configuration for
+any non-loopback bind. Local-development binds to 127.0.0.1 may run without a
+token; the server refuses to start on a non-loopback host without either
+``DEEPR_API_TOKEN`` or ``DEEPR_ALLOW_PUBLIC_BIND=1``. Rate limiting is applied
+per client IP on top of authentication.
         """,
         "version": "1.0.0",
         "contact": {"name": "Deepr Support", "url": "https://github.com/deepr-ai/deepr"},
@@ -621,8 +626,18 @@ def submit_job():
                     },
                 }
             ), 429
-    except Exception as _e:  # pragma: no cover - defensive; cost paths are well-tested
-        logger.warning("Cost guard skipped due to internal error: %s", _e)
+    except ImportError as _e:
+        # CostController/Estimator missing is a deployment problem, not a
+        # situation we should silently fall through. Fail-closed so the
+        # cost-gate cannot be bypassed by a broken dependency.
+        logger.error("Cost guard unavailable (ImportError): %s", _e)
+        return jsonify({"error": "Cost controller unavailable"}), 503
+    except (ValueError, TypeError) as _e:
+        # Estimator-input problems are the caller's; everything else
+        # should propagate and surface as a 500 instead of bypassing the
+        # gate the way the previous broad except did.
+        logger.warning("Cost guard input rejected: %s", _e)
+        return jsonify({"error": f"Invalid cost-guard input: {_e}"}), 400
 
     # Create job
     job_id = str(uuid.uuid4())

@@ -1,13 +1,14 @@
 """Azure OpenAI provider implementation for Deep Research."""
 
 import asyncio
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional
 
 from azure.identity.aio import DefaultAzureCredential
+from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
 from openai import APIError as OpenAIAPIError
-from openai import AsyncAzureOpenAI
 
 from .base import (
     DeepResearchProvider,
@@ -17,6 +18,8 @@ from .base import (
     UsageStats,
     VectorStore,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AzureProvider(DeepResearchProvider):
@@ -87,56 +90,80 @@ class AzureProvider(DeepResearchProvider):
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """Submit research job to Azure OpenAI."""
-        try:
-            # Map model to deployment name
-            deployment = self.get_model_name(request.model)
+        # Map model to deployment name
+        deployment = self.get_model_name(request.model)
 
-            # Convert tools to Azure format (same as OpenAI)
-            tools = []
-            for tool in request.tools:
-                tool_dict = {"type": tool.type}
-                if tool.type == "file_search" and tool.vector_store_ids:
-                    tool_dict["vector_store_ids"] = tool.vector_store_ids
-                elif tool.type == "code_interpreter" and tool.container:
-                    tool_dict["container"] = tool.container
-                tools.append(tool_dict)
+        # Convert tools to Azure format (same as OpenAI)
+        tools = []
+        for tool in request.tools:
+            tool_dict = {"type": tool.type}
+            if tool.type == "file_search" and tool.vector_store_ids:
+                tool_dict["vector_store_ids"] = tool.vector_store_ids
+            elif tool.type == "code_interpreter" and tool.container:
+                tool_dict["container"] = tool.container
+            tools.append(tool_dict)
 
-            # Build request payload
-            payload = {
-                "model": deployment,  # Use deployment name for Azure
-                "input": [
-                    {
-                        "role": "developer",
-                        "content": [{"type": "input_text", "text": request.system_message}],
-                    },
-                    {"role": "user", "content": [{"type": "input_text", "text": request.prompt}]},
-                ],
-                "reasoning": {"summary": "auto"},
-                "tools": tools if tools else None,
-                "tool_choice": request.tool_choice,
-                "metadata": request.metadata,
-                "store": request.store,
-                "background": request.background,
-            }
+        # Build request payload
+        payload = {
+            "model": deployment,  # Use deployment name for Azure
+            "input": [
+                {
+                    "role": "developer",
+                    "content": [{"type": "input_text", "text": request.system_message}],
+                },
+                {"role": "user", "content": [{"type": "input_text", "text": request.prompt}]},
+            ],
+            "reasoning": {"summary": "auto"},
+            "tools": tools if tools else None,
+            "tool_choice": request.tool_choice,
+            "metadata": request.metadata,
+            "store": request.store,
+            "background": request.background,
+        }
 
-            # Add webhook if provided
-            if request.webhook_url:
-                payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
+        # Add webhook if provided
+        if request.webhook_url:
+            payload["extra_headers"] = {"OpenAI-Hook-URL": request.webhook_url}
 
-            # Add temperature if specified
-            if request.temperature is not None:
-                payload["temperature"] = request.temperature
+        # Add temperature if specified
+        if request.temperature is not None:
+            payload["temperature"] = request.temperature
 
-            # Submit request
-            response = await self.client.responses.create(**payload)
-            return response.id
+        # Retry transient failures the same way the OpenAI provider does
+        # — Azure throttles aggressively and a single 429 shouldn't fail
+        # a whole job. Authentication / invalid-request errors are still
+        # raised immediately as ProviderError.
+        max_retries = 3
+        retry_delay = 1.0
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.responses.create(**payload)
+                return response.id
+            except (RateLimitError, APIConnectionError, APITimeoutError) as e:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2**attempt)
+                    logger.warning(
+                        "Azure transient error (attempt %d/%d): %s. Retrying in %ss.",
+                        attempt + 1,
+                        max_retries,
+                        e,
+                        wait_time,
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                raise ProviderError(
+                    message=f"Azure failed after {max_retries} retries: {e}",
+                    provider="azure",
+                    original_error=e,
+                )
+            except OpenAIAPIError as e:
+                raise ProviderError(
+                    message=f"Failed to submit research to Azure: {e!s}",
+                    provider="azure",
+                    original_error=e,
+                )
 
-        except OpenAIAPIError as e:
-            raise ProviderError(
-                message=f"Failed to submit research to Azure: {e!s}",
-                provider="azure",
-                original_error=e,
-            )
+        raise ProviderError(message="Failed to submit research after all retries", provider="azure")
 
     async def get_status(self, job_id: str) -> ResearchResponse:
         """Get research job status from Azure OpenAI."""
@@ -148,7 +175,12 @@ class AzureProvider(DeepResearchProvider):
             if hasattr(response, "usage") and response.usage:
                 input_tokens = getattr(response.usage, "input_tokens", 0)
                 output_tokens = getattr(response.usage, "output_tokens", 0)
-                model = getattr(response, "model", None)
+                # Azure occasionally omits ``response.model``. The
+                # registry's calculate_cost walks substring matches and
+                # raises ``TypeError: argument of type 'NoneType' is not
+                # iterable`` on None, crashing get_status. Default to a
+                # safe deployment-known fallback.
+                model = getattr(response, "model", None) or "o4-mini-deep-research"
                 usage = UsageStats(
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,

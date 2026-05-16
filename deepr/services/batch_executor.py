@@ -308,10 +308,32 @@ class BatchExecutor:
     ) -> str:
         """Submit a single task to the queue."""
 
+        from deepr.experts.cost_safety import get_cost_safety_manager
         from deepr.providers.base import ResearchRequest, ToolConfig
+        from deepr.providers.registry import get_cost_estimate as _get_cost_estimate
 
         # Generate unique job ID for this task
         job_id = f"{campaign_id}-task-{task_id}"
+
+        # Pre-flight budget check. _submit_task was previously
+        # firing provider.submit_research() with no cost-safety gate,
+        # so a 50-task batch could rack up $100+ of o4-mini-deep-research
+        # spend silently. Estimate per-task cost from the registry and
+        # let cost_safety veto if the daily/session budget can't cover it.
+        try:
+            est_cost = float(_get_cost_estimate("o4-mini-deep-research"))
+        except Exception:
+            est_cost = 2.0
+
+        cost_safety = get_cost_safety_manager()
+        allowed, deny_reason, _ = cost_safety.check_operation(
+            session_id=f"batch_{campaign_id}",
+            operation_type="batch_research",
+            estimated_cost=est_cost,
+            require_confirmation=False,
+        )
+        if not allowed:
+            raise RuntimeError(f"Batch task {task_id} blocked by cost-safety: {deny_reason}")
 
         # Create job in queue
         job = ResearchJob(

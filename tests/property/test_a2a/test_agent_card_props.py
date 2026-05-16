@@ -12,7 +12,6 @@ from hypothesis import strategies as st
 
 from deepr.a2a.agent_card import AgentCardGenerator, ExpertInfo
 
-
 # --- Strategies ---
 
 expert_info_st = st.builds(
@@ -28,6 +27,7 @@ expert_info_st = st.builds(
 
 
 # --- Property 16: Agent card lists all registered experts ---
+
 
 @settings(max_examples=100)
 @given(experts=st.lists(expert_info_st, min_size=0, max_size=10))
@@ -45,16 +45,12 @@ def test_agent_card_lists_all_experts(experts: list[ExpertInfo]) -> None:
     card = generator.generate()
 
     # Same number of skills as experts
-    assert len(card.skills) == len(experts), (
-        f"Expected {len(experts)} skills, got {len(card.skills)}"
-    )
+    assert len(card.skills) == len(experts), f"Expected {len(experts)} skills, got {len(card.skills)}"
 
     # Each expert appears as a skill with correct fields
     for i, expert in enumerate(experts):
         skill = card.skills[i]
-        assert skill.name == expert.name, (
-            f"Skill name mismatch: {skill.name} != {expert.name}"
-        )
+        assert skill.name == expert.name, f"Skill name mismatch: {skill.name} != {expert.name}"
         assert skill.description == expert.description
         assert skill.domain == expert.domain
 

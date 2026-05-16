@@ -139,10 +139,7 @@ def test_property_9_unique_span_ids(
     emitter = FakeMetadataEmitter()
     stitcher = TraceStitcher(metadata_emitter=emitter)
 
-    spans = [
-        stitcher.create_span(trace_id, server_name, f"{tool_name}_{i}")
-        for i in range(num_calls)
-    ]
+    spans = [stitcher.create_span(trace_id, server_name, f"{tool_name}_{i}") for i in range(num_calls)]
 
     # All spans share the same trace_id
     for span in spans:

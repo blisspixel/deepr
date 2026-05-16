@@ -99,9 +99,7 @@ class CircuitBreakerStateMachine(RuleBasedStateMachine):
 
 
 TestCircuitBreakerStateMachine = CircuitBreakerStateMachine.TestCase
-TestCircuitBreakerStateMachine.settings = settings(
-    max_examples=200, stateful_step_count=20
-)
+TestCircuitBreakerStateMachine.settings = settings(max_examples=200, stateful_step_count=20)
 
 
 # --- Additional property tests for circuit breaker ---

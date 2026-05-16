@@ -481,16 +481,11 @@ class KnowledgeConsolidator:
         }
 
     def _save(self):
-        """Save entries to disk."""
-        # Save active entries
-        entries_data = [e.to_dict() for e in self.entries]
-        with open(self.entries_path, "w", encoding="utf-8") as f:
-            json.dump(entries_data, f, indent=2)
+        """Save entries to disk (atomic writes)."""
+        from deepr.utils.atomic_io import atomic_write_json
 
-        # Save archived entries
-        archive_data = [e.to_dict() for e in self.archived]
-        with open(self.archive_path, "w", encoding="utf-8") as f:
-            json.dump(archive_data, f, indent=2)
+        atomic_write_json(self.entries_path, [e.to_dict() for e in self.entries])
+        atomic_write_json(self.archive_path, [e.to_dict() for e in self.archived])
 
     def _load(self):
         """Load entries from disk."""

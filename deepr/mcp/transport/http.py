@@ -224,7 +224,17 @@ class StreamingHttpTransport:
         if not token:
             return None
         provided = _extract_bearer(request)
-        if not provided or not hmac.compare_digest(provided, token):
+        # hmac.compare_digest raises TypeError on str inputs that contain
+        # non-ASCII characters; treat that as Unauthorized so a malformed
+        # Authorization / X-Api-Key header cannot escape into the generic
+        # 500 handler (same fix as deepr/web/app.py and deepr/api/app.py).
+        ok = False
+        if provided:
+            try:
+                ok = hmac.compare_digest(provided, token)
+            except TypeError:
+                ok = False
+        if not ok:
             return web.json_response(
                 {"jsonrpc": "2.0", "error": {"code": -32001, "message": "Unauthorized"}, "id": None},
                 status=401,
@@ -298,7 +308,19 @@ class StreamingHttpTransport:
         )
         await response.prepare(request)
 
-        # Create queue for this subscriber
+        # Create queue for this subscriber. If a previous connection
+        # used the same subscriber_id (reconnect, or two clients omitting
+        # the id and id(request) colliding), signal that handler to
+        # close cleanly before replacing the queue. Without this the
+        # old handler keeps draining a queue nobody ever puts to —
+        # a zombie stream that only times out 30s later.
+        old_queue = self._subscribers.pop(subscriber_id, None)
+        if old_queue is not None:
+            try:
+                old_queue.put_nowait(None)  # Sentinel triggers `break` in the old loop
+            except asyncio.QueueFull:
+                pass
+
         queue: asyncio.Queue = asyncio.Queue()
         self._subscribers[subscriber_id] = queue
         self._stats.active_streams += 1

@@ -1,6 +1,5 @@
 """Tests for AgentIdentity propagation through TaskPlanner."""
 
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
