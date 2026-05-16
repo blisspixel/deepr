@@ -8,6 +8,7 @@ Feature: mcp-client-agent-interop
 
 from __future__ import annotations
 
+import threading
 import time
 from enum import Enum
 
@@ -51,6 +52,11 @@ class CircuitBreaker:
         self._state = CircuitState.CLOSED
         self._opened_at: float = 0.0
         self._probe_in_flight = False
+        # Single-probe contract requires check + set to be atomic;
+        # without this lock two coroutines reaching HALF_OPEN at the
+        # same time both see ``_probe_in_flight=False`` and both fire
+        # a probe, defeating the per-recovery-window throttle.
+        self._probe_lock = threading.Lock()
 
     @property
     def state(self) -> CircuitState:
@@ -71,14 +77,19 @@ class CircuitBreaker:
         Returns True for CLOSED state.
         Returns True for HALF_OPEN if no probe is already in flight.
         Returns False for OPEN (recovery period not elapsed).
+
+        The HALF_OPEN check + claim happens under a lock so two
+        concurrent callers can't both observe ``_probe_in_flight=False``
+        and both fire probe requests.
         """
         current = self.state
         if current == CircuitState.CLOSED:
             return True
         if current == CircuitState.HALF_OPEN:
-            if not self._probe_in_flight:
-                self._probe_in_flight = True
-                return True
+            with self._probe_lock:
+                if not self._probe_in_flight:
+                    self._probe_in_flight = True
+                    return True
             return False
         return False
 

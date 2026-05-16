@@ -430,6 +430,13 @@ class GeminiProvider(DeepResearchProvider):
 
                 response_parts = []
                 thought_parts = []
+                # Per-chunk usage from the Gemini SDK. The previous
+                # implementation discarded these and substituted a
+                # len(text) // 4 estimate, which dramatically under-counts
+                # prompts (no system instructions, no embedded media) and
+                # drops thinking tokens entirely — for gemini-2.5-pro
+                # (mandatory thinking) that's often 10x the visible output.
+                last_usage: Any = None
 
                 if config:
                     response_stream = self.client.models.generate_content_stream(
@@ -448,13 +455,29 @@ class GeminiProvider(DeepResearchProvider):
                                         thought_parts.append(part.text)
                                     else:
                                         response_parts.append(part.text)
+                    # usage_metadata lands on the final chunk; keep the
+                    # latest non-None reference.
+                    chunk_usage = getattr(chunk, "usage_metadata", None)
+                    if chunk_usage is not None:
+                        last_usage = chunk_usage
 
                 full_response = "".join(response_parts)
                 thoughts_summary = "".join(thought_parts) if thought_parts else None
 
-                # Token estimation: ~4 chars per token is more accurate than word-based
-                input_tokens = len(request.prompt) // 4
-                output_tokens = len(full_response) // 4
+                if last_usage is not None:
+                    prompt_tokens = int(getattr(last_usage, "prompt_token_count", 0) or 0)
+                    candidates_tokens = int(getattr(last_usage, "candidates_token_count", 0) or 0)
+                    thoughts_tokens = int(getattr(last_usage, "thoughts_token_count", 0) or 0)
+                    total_tokens = int(getattr(last_usage, "total_token_count", 0) or 0)
+                    input_tokens = prompt_tokens
+                    output_tokens = candidates_tokens + thoughts_tokens
+                    if total_tokens <= 0:
+                        total_tokens = input_tokens + output_tokens
+                else:
+                    # Fallback only if the SDK didn't emit usage_metadata.
+                    input_tokens = len(request.prompt) // 4
+                    output_tokens = len(full_response) // 4
+                    total_tokens = input_tokens + output_tokens
 
                 job_data.update(
                     {
@@ -465,7 +488,7 @@ class GeminiProvider(DeepResearchProvider):
                         "usage": {
                             "input_tokens": int(input_tokens),
                             "output_tokens": int(output_tokens),
-                            "total_tokens": int(input_tokens + output_tokens),
+                            "total_tokens": int(total_tokens),
                         },
                     }
                 )
@@ -550,8 +573,33 @@ class GeminiProvider(DeepResearchProvider):
             # else: still pending/in_progress
 
         except Exception as e:
-            logger.warning(f"Error polling deep research {interaction_id}: {e}")
-            # Don't fail — might be a transient network error. Keep status as-is.
+            # Whitelist transient errors — anything else (401/403/404,
+            # ``not found``) should promote the job to failed so the
+            # orchestrator stops polling and cleans up the file_search
+            # store (Gemini stores have no TTL). Bare ``except Exception``
+            # previously kept ``in_progress`` forever on hard failures,
+            # leaking the file store and burning poll budget.
+            err_str = str(e).lower()
+            transient = any(
+                marker in err_str for marker in ("timeout", "timed out", "connection", "503", "504", "temporarily")
+            )
+            if transient:
+                logger.warning(f"Transient error polling deep research {interaction_id}: {e}")
+            else:
+                logger.error(f"Fatal error polling deep research {interaction_id}: {e}")
+                job_data.update(
+                    {
+                        "status": "failed",
+                        "error": f"Polling failed: {e}",
+                        "completed_at": datetime.now(timezone.utc),
+                    }
+                )
+                file_store = job_data.get("file_store_name")
+                if file_store:
+                    try:
+                        await self._cleanup_file_search_store(file_store)
+                    except Exception:
+                        logger.debug("File store cleanup failed during poll-error cleanup")
 
         return self._build_deep_research_response(interaction_id, job_data)
 

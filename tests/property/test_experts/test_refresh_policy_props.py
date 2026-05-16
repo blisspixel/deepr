@@ -14,7 +14,6 @@ from hypothesis import strategies as st
 
 from deepr.experts.skills.refresh_policy import RefreshPolicy
 
-
 # --- Strategies ---
 
 max_age_st = st.integers(min_value=1, max_value=365)
@@ -22,6 +21,7 @@ days_since_st = st.integers(min_value=0, max_value=730)
 
 
 # --- Property 26: Refresh policy staleness detection ---
+
 
 @settings(max_examples=100)
 @given(
@@ -48,8 +48,7 @@ def test_staleness_detection(max_age_days: int, days_since_refresh: int) -> None
     expected = days_since_refresh > max_age_days
 
     assert result == expected, (
-        f"is_stale()={result} but expected {expected} "
-        f"(age={days_since_refresh} days, max={max_age_days} days)"
+        f"is_stale()={result} but expected {expected} (age={days_since_refresh} days, max={max_age_days} days)"
     )
 
 

@@ -15,7 +15,6 @@ Usage:
     stream.decision("Using vector search", confidence=0.9, evidence=["doc1.md"])
 """
 
-import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -338,8 +337,12 @@ class ThoughtStream:
             if original_text and original_text != thought.public_text:
                 log_entry["original_text"] = original_text
 
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_entry) + "\n")
+            # Durable JSONL append (flush + fsync). The previous bare
+            # ``open + write`` left the last line in libc/kernel buffers,
+            # so a kill -9 between write() and process exit truncated it.
+            from deepr.utils.atomic_io import append_jsonl_durable
+
+            append_jsonl_durable(self.log_path, log_entry, fsync=False)
         except Exception as e:
             logger.debug("Failed to write thought log to %s: %s", self.log_path, e)
 
@@ -690,18 +693,17 @@ class ThoughtStream:
         Args:
             path: Path to save the decision log (e.g., reports/{job_id}/decisions.md)
         """
+        from deepr.utils.atomic_io import atomic_write_json, atomic_write_text
+
         path.parent.mkdir(parents=True, exist_ok=True)
 
         summary = self.generate_decision_summary()
-
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(summary)
+        atomic_write_text(path, summary)
 
         # Also save structured decisions as JSON alongside the markdown
         if self.decision_records:
             json_path = path.with_suffix(".json")
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(self.get_decision_records(), f, indent=2)
+            atomic_write_json(json_path, self.get_decision_records())
 
     def get_why_summary(self) -> str:
         """Get a concise one-line summary for --why flag output.

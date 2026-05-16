@@ -366,8 +366,9 @@ class ConfidenceCalibrator:
         }
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(path, data)
 
     @classmethod
     def load(cls, path: Path) -> "ConfidenceCalibrator":

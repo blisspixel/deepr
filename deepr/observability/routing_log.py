@@ -99,11 +99,15 @@ class RoutingDecisionLog:
         self._lock = threading.Lock()
 
     def record(self, event: RoutingDecisionEvent) -> None:
-        """Append a routing decision to the log."""
+        """Append a routing decision to the log (durable append).
+
+        Routing decisions feed downstream analytics; losing the last
+        entries on crash would silently bias post-incident reviews.
+        """
+        from deepr.utils.atomic_io import append_jsonl_durable
+
         with self._lock:
-            line = json.dumps(event.to_dict(), ensure_ascii=True)
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            append_jsonl_durable(self.log_path, event.to_dict(), fsync=True)
 
     def get_events(
         self,

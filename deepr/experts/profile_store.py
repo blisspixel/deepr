@@ -275,8 +275,13 @@ class ExpertStore:
         data["schema_version"] = PROFILE_SCHEMA_VERSION
 
         path = self._get_profile_path(profile.name)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        # Crash-safe write: tempfile + rename so a crash mid-write can't
+        # leave a half-written profile.json. Expert profiles are
+        # load-bearing identity data; corruption silently hides experts
+        # from list_all().
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(path, data)
 
     def load(self, name: str, migrate: bool = True) -> ExpertProfile | None:
         """Load expert profile from disk.
@@ -306,8 +311,9 @@ class ExpertStore:
 
             # Save migrated data if version changed
             if data.get("schema_version", 1) > original_version:
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2)
+                from deepr.utils.atomic_io import atomic_write_json
+
+                atomic_write_json(path, data)
                 logger.info(
                     "Migrated profile '%s' from v%d to v%d",
                     name,
@@ -328,7 +334,14 @@ class ExpertStore:
         """
         from deepr.experts.profile import ExpertProfile
 
-        profiles = []
+        # Use a list subclass so we can attach the ``.errors`` attribute
+        # without changing the public return type (plain ``list`` rejects
+        # attribute assignment in CPython).
+        class _ProfileList(list):
+            errors: list[tuple[Path, str]] = []
+
+        profiles = _ProfileList()
+        profiles.errors = []
         for expert_dir in self.base_path.iterdir():
             if expert_dir.is_dir():
                 profile_path = expert_dir / "profile.json"
@@ -339,11 +352,20 @@ class ExpertStore:
                             data = migrate_profile_data(data)
                             profiles.append(ExpertProfile.from_dict(data))
                     except Exception as e:
-                        logger.warning("Could not load %s: %s", profile_path, e)
-                        if include_errors:
-                            continue
+                        # Log at ERROR — the previous WARNING was easy to
+                        # miss, so corrupted profiles silently disappeared
+                        # from the UI's expert list. Operators saw their
+                        # expert "deleted" with no indication of why.
+                        logger.error(
+                            "Failed to load expert profile %s: %s. This expert will be hidden until the file is repaired.",
+                            profile_path,
+                            e,
+                        )
+                        profiles.errors.append((profile_path, str(e)))
 
-        return sorted(profiles, key=lambda p: p.updated_at, reverse=True)
+        sorted_profiles = _ProfileList(sorted(profiles, key=lambda p: p.updated_at, reverse=True))
+        sorted_profiles.errors = profiles.errors
+        return sorted_profiles
 
     def delete(self, name: str, remove_directory: bool = False) -> bool:
         """Delete expert profile.
