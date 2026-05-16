@@ -76,12 +76,39 @@ def update_job_status(job_id: str, status: str, **kwargs):
             values[value_key] = v
             sets.append(f"{placeholder} = {value_key}")
 
-        jobs_table.update_item(
+        # Guard against the cancel/complete race: once a user has
+        # marked the job cancelled, a late "completed"/"failed" update
+        # from this worker must not overwrite that. The worker checks
+        # cancellation once at the start of execution, but the multi-hour
+        # research window leaves plenty of time for a cancel to land
+        # while the call is in flight.
+        update_kwargs = dict(
             Key={"job_id": job_id},
             UpdateExpression="SET " + ", ".join(sets),
             ExpressionAttributeNames=names,
             ExpressionAttributeValues=values,
         )
+        if status != "cancelled":
+            update_kwargs["ConditionExpression"] = "attribute_not_exists(#status) OR #status <> :cancelled_state"
+            update_kwargs["ExpressionAttributeValues"] = {
+                **values,
+                ":cancelled_state": "cancelled",
+            }
+        try:
+            jobs_table.update_item(**update_kwargs)
+        except Exception as inner_e:
+            # ConditionalCheckFailedException is normal when a cancel
+            # raced ahead of completion; log at info level so it's
+            # observable without spamming error metrics.
+            err_name = getattr(inner_e, "response", {}).get("Error", {}).get("Code", "")
+            if err_name == "ConditionalCheckFailedException":
+                logger.info(
+                    "Skipping %s update for job %s: already cancelled",
+                    status,
+                    job_id,
+                )
+                return
+            raise
         logger.info("Updated job %s status to %s", job_id, status)
     except Exception as e:
         logger.error("Failed to update job %s status in DynamoDB: %s", job_id, e)
@@ -253,8 +280,22 @@ async def poll_queue():
 
 def main():
     """Main entry point."""
-    if not QUEUE_URL or not RESULTS_BUCKET or not SECRETS_ARN:
-        logger.error("Missing required environment variables")
+    # JOBS_TABLE was previously omitted from this check. Without it the
+    # worker would still poll SQS, run paid research jobs, then silently
+    # discard the completion update — the API row stayed "queued" forever
+    # while the user paid the provider. Fail fast instead.
+    missing = [
+        name
+        for name, value in (
+            ("QUEUE_URL", QUEUE_URL),
+            ("RESULTS_BUCKET", RESULTS_BUCKET),
+            ("SECRETS_ARN", SECRETS_ARN),
+            ("JOBS_TABLE", JOBS_TABLE),
+        )
+        if not value
+    ]
+    if missing:
+        logger.error("Missing required environment variables: %s", ", ".join(missing))
         sys.exit(1)
 
     # Load secrets into environment

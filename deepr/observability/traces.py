@@ -335,14 +335,15 @@ class TraceContext:
         }
 
     def save(self, path: Path):
-        """Save trace to JSON file.
+        """Save trace to JSON file (crash-safe atomic write).
 
         Args:
             path: Path to save to
         """
+        from deepr.utils.atomic_io import atomic_write_json
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2)
+        atomic_write_json(path, self.to_dict())
 
     @classmethod
     def load(cls, path: Path) -> "TraceContext":

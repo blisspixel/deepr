@@ -16,6 +16,7 @@ from deepr.mcp.provider.resources import ResourceHandler
 
 # --- Mock implementations ---
 
+
 class MockExpertState:
     """Mock expert state for testing."""
 
@@ -72,6 +73,7 @@ spend_st = st.floats(min_value=0.0, max_value=1000.0, allow_nan=False)
 
 # --- Property 19: Expert knowledge resource accuracy ---
 
+
 @settings(max_examples=100)
 @given(
     claim_count=claim_count_st,
@@ -108,6 +110,7 @@ def test_expert_knowledge_resource_accuracy(
 
 # --- Property 20: Expert gaps resource ordering ---
 
+
 @settings(max_examples=100)
 @given(
     priorities=st.lists(priority_st, min_size=1, max_size=10),
@@ -120,10 +123,7 @@ def test_expert_gaps_resource_ordering(priorities: list[float]) -> None:
 
     **Validates: Requirements 9.3**
     """
-    gaps = [
-        {"description": f"Gap {i}", "category": "infrastructure", "priority": p}
-        for i, p in enumerate(priorities)
-    ]
+    gaps = [{"description": f"Gap {i}", "category": "infrastructure", "priority": p} for i, p in enumerate(priorities)]
     state = MockExpertState({"analyst": {"gaps": gaps}})
     handler = ResourceHandler(expert_state=state)
 
@@ -134,12 +134,11 @@ def test_expert_gaps_resource_ordering(priorities: list[float]) -> None:
 
     # Verify descending order
     for i in range(len(result_priorities) - 1):
-        assert result_priorities[i] >= result_priorities[i + 1], (
-            f"Gaps not sorted descending: {result_priorities}"
-        )
+        assert result_priorities[i] >= result_priorities[i + 1], f"Gaps not sorted descending: {result_priorities}"
 
 
 # --- Property 21: Cost summary resource accuracy ---
+
 
 @settings(max_examples=100)
 @given(

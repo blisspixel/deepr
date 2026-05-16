@@ -829,23 +829,23 @@ class HierarchicalMemory:
             profile.update_expertise(keyword, expertise_signal)
 
     def _save(self):
-        """Persist memory to disk."""
-        # Save episodic memory
-        episodic_path = self.storage_dir / "episodic.json"
-        episodic_data = [ep.to_dict() for ep in self.episodic_memory]
-        with open(episodic_path, "w", encoding="utf-8") as f:
-            json.dump(episodic_data, f, indent=2)
+        """Persist memory to disk (crash-safe atomic writes).
 
-        # Save user profiles
-        profiles_path = self.storage_dir / "profiles.json"
-        profiles_data = {uid: p.to_dict() for uid, p in self.user_profiles.items()}
-        with open(profiles_path, "w", encoding="utf-8") as f:
-            json.dump(profiles_data, f, indent=2)
+        Each of the three files is written atomically. A power loss
+        between writes can still leave episodic.json updated while
+        profiles.json is at the previous version — these files are not
+        cross-file transactional. For full consistency we'd need a
+        snapshot file; for now this at least prevents partial-write
+        corruption of any individual file.
+        """
+        from deepr.utils.atomic_io import atomic_write_json
 
-        # Save meta-knowledge
-        meta_path = self.storage_dir / "meta_knowledge.json"
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(self.meta_knowledge.to_dict(), f, indent=2)
+        atomic_write_json(self.storage_dir / "episodic.json", [ep.to_dict() for ep in self.episodic_memory])
+        atomic_write_json(
+            self.storage_dir / "profiles.json",
+            {uid: p.to_dict() for uid, p in self.user_profiles.items()},
+        )
+        atomic_write_json(self.storage_dir / "meta_knowledge.json", self.meta_knowledge.to_dict())
 
     def _load(self):
         """Load memory from disk."""

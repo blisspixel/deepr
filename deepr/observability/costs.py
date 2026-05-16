@@ -828,25 +828,18 @@ class CostDashboard:
             "saved_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Atomic write: write to temp file, then rename
-        temp_path = self.storage_path.with_suffix(".tmp")
+        # Atomic write using the shared helper (tempfile + os.replace +
+        # Windows retry). The previous ad-hoc ``.tmp`` pattern raced with
+        # Windows indexers and could leave .tmp orphans.
         try:
-            # Skip save if parent directory no longer exists (e.g. temp dir cleaned up)
             if not self.storage_path.parent.exists():
                 logger.debug("Cost data directory no longer exists, skipping save")
                 return
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            # Atomic rename (on POSIX systems; best-effort on Windows)
-            os.replace(temp_path, self.storage_path)
+            from deepr.utils.atomic_io import atomic_write_json
+
+            atomic_write_json(self.storage_path, data)
         except OSError as e:
             logger.debug(f"Failed to save cost data: {e}")
-            # Clean up temp file if it exists
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except OSError:
-                    pass
 
     def _load(self):
         """Load entries from disk.

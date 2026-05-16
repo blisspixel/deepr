@@ -269,12 +269,34 @@ class TestAnthropicProviderGetStatus:
                     return AnthropicProvider()
 
     @pytest.mark.asyncio
-    async def test_get_status_returns_completed(self, provider):
-        """Should return completed status (Anthropic is synchronous)."""
-        response = await provider.get_status("job-123")
+    async def test_get_status_unknown_job_returns_failed(self, provider):
+        """Unknown job_id returns failed (the old behaviour returned completed
+        with $0 cost for any string, masking provider spend in the cost ledger)."""
+        response = await provider.get_status("unknown-job-id")
+
+        assert response.status == "failed"
+        assert response.id == "unknown-job-id"
+        assert response.error and "Unknown Anthropic job id" in response.error
+
+    @pytest.mark.asyncio
+    async def test_get_status_returns_stored_completed(self, provider):
+        """A job_id from a real submit_research returns the stored
+        ResearchResponse, including accumulated usage and output."""
+        from deepr.providers.base import ResearchResponse, UsageStats
+
+        usage = UsageStats(input_tokens=100, output_tokens=200, reasoning_tokens=0)
+        provider._jobs["job-real"] = ResearchResponse(
+            id="job-real",
+            status="completed",
+            output=[{"type": "message", "content": [{"type": "text", "text": "ok"}]}],
+            usage=usage,
+        )
+
+        response = await provider.get_status("job-real")
 
         assert response.status == "completed"
-        assert response.id == "job-123"
+        assert response.id == "job-real"
+        assert response.usage is not None and response.usage.input_tokens == 100
 
 
 @pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic SDK not installed")

@@ -73,19 +73,18 @@ class EmbeddingCache:
             self.embeddings = np.load(self.embeddings_path)
 
     def _save_cache(self):
-        """Save cache to disk."""
-        # Save index
-        with open(self.index_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "expert_name": self.expert_name,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "document_count": len(self.index),
-                    "documents": self.index,
-                },
-                f,
-                indent=2,
-            )
+        """Save cache to disk (atomic write)."""
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(
+            self.index_path,
+            {
+                "expert_name": self.expert_name,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "document_count": len(self.index),
+                "documents": self.index,
+            },
+        )
 
         # Save embeddings
         if self.embeddings is not None:
