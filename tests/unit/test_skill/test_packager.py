@@ -109,9 +109,7 @@ class TestFrontmatter:
 class TestToolsList:
     """Test all public tools appear in tools list."""
 
-    def test_all_tools_present(
-        self, packager: SkillPackager, sample_tools: list[ToolManifest]
-    ) -> None:
+    def test_all_tools_present(self, packager: SkillPackager, sample_tools: list[ToolManifest]) -> None:
         """All registered tools appear in rendered output."""
         content = packager.render()
         for tool in sample_tools:
@@ -125,9 +123,7 @@ class TestToolsList:
         assert "topic" in content
         assert "budget" in content
 
-    def test_get_tools_manifest(
-        self, packager: SkillPackager, sample_tools: list[ToolManifest]
-    ) -> None:
+    def test_get_tools_manifest(self, packager: SkillPackager, sample_tools: list[ToolManifest]) -> None:
         """get_tools_manifest returns all registered tools."""
         manifest = packager.get_tools_manifest()
         assert len(manifest) == len(sample_tools)
@@ -211,9 +207,7 @@ class TestGenerate:
         result_path = packager.generate(output)
         assert result_path.exists()
 
-    def test_generate_content_matches_render(
-        self, packager: SkillPackager, tmp_path: Path
-    ) -> None:
+    def test_generate_content_matches_render(self, packager: SkillPackager, tmp_path: Path) -> None:
         """File content matches render() output."""
         result_path = packager.generate(tmp_path)
         file_content = result_path.read_text(encoding="utf-8")

@@ -325,18 +325,27 @@ class AsyncTaskDispatcher:
             return True
 
         async def run_task(task: DispatchedTask):
+            # Wait for dependencies *before* acquiring the concurrency slot.
+            # Holding the semaphore while awaiting a dependency that itself
+            # needs a slot deadlocks any chain of length > max_concurrent
+            # (e.g. max=2 with B→A, C→A, D→A: B and C hold both slots, A
+            # can never acquire one, B and C wait forever).
+            if self._cancel_event.is_set():
+                task.status = DispatchStatus.CANCELLED
+                completion_events[task.id].set()
+                return
+
+            if task.depends_on:
+                deps_ok = await wait_for_dependencies(task)
+                if not deps_ok:
+                    completion_events[task.id].set()
+                    return
+
             async with self._semaphore:
                 if self._cancel_event.is_set():
                     task.status = DispatchStatus.CANCELLED
                     completion_events[task.id].set()
                     return
-
-                # Wait for dependencies
-                if task.depends_on:
-                    deps_ok = await wait_for_dependencies(task)
-                    if not deps_ok:
-                        completion_events[task.id].set()
-                        return
 
                 task.status = DispatchStatus.RUNNING
                 task.started_at = _utc_now()

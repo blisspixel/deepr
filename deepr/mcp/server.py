@@ -1254,6 +1254,14 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
             validation["mode"],
         )
 
+    # Strip the confirmation token before it reaches handler signatures.
+    # Several dispatch entries below use **args; passing _approved through
+    # would raise TypeError on handlers that don't declare it, which would
+    # turn every approved deepr_research/deepr_agentic_research call into
+    # a generic TOOL_EXECUTION_FAILED.
+    if "_approved" in arguments:
+        arguments = {k: v for k, v in arguments.items() if k != "_approved"}
+
     # Security: Sign the instruction for audit trail
     instruction = {"tool": name, "arguments": arguments}
     signed = server.instruction_signer.sign(instruction)

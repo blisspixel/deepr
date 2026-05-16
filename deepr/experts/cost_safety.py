@@ -7,6 +7,7 @@ Requirements: 8.2 - Implement rapid cost accumulation detection and circuit brea
 """
 
 import os
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -528,6 +529,15 @@ class CostSafetyManager:
         )
     """
 
+    # Hard ceilings the manager will never permit, regardless of any
+    # caller-supplied "budget". These act as a last-line safety net for
+    # MCP/CLI surfaces that accept user-controlled budget values.
+    # Kept as class attributes so callers (mcp/server.py, cli/commands/
+    # budget.py) can reference them without instantiating a manager.
+    ABSOLUTE_MAX_PER_OPERATION: float = 10.0
+    ABSOLUTE_MAX_DAILY: float = 50.0
+    ABSOLUTE_MAX_MONTHLY: float = 500.0
+
     def __init__(self, circuit_breaker: Optional[CostCircuitBreaker] = None):
         """Initialize cost safety manager.
 
@@ -548,6 +558,18 @@ class CostSafetyManager:
         self.max_monthly: float = 500.0  # Default $500/month limit
         self._last_daily_reset: float = time.time()
         self._last_monthly_reset: float = time.time()
+
+        # Cross-thread lock guarding check_operation + record_cost as a single
+        # critical section. ExpertCouncil.consult and TaskPlanner.execute_plan
+        # both fan out to a shared singleton manager; without this lock N
+        # parallel checks all observe the same stale daily_cost and pass,
+        # then over-commit by N times. Reservation pattern: reserve in
+        # check_operation, settle in record_cost.
+        self._budget_lock = threading.Lock()
+        # In-flight reservations keyed by (session_id, reservation_id) →
+        # estimated_cost. record_cost / refund_reservation drain them.
+        self._reserved_daily: float = 0.0
+        self._reservations: dict[str, float] = {}
 
     @property
     def circuit_breaker(self) -> CostCircuitBreaker:
@@ -583,7 +605,11 @@ class CostSafetyManager:
     def check_operation(
         self, session_id: str, operation_type: str, estimated_cost: float, require_confirmation: bool = False
     ) -> tuple[bool, str, bool]:
-        """Check if an operation should be allowed.
+        """Check if an operation should be allowed (no reservation).
+
+        For new callers that need over-commit protection across parallel
+        fan-out (ExpertCouncil, TaskPlanner), prefer ``check_and_reserve``
+        which returns a reservation_id you pass back to ``record_cost``.
 
         Args:
             session_id: Session identifier for tracking
@@ -593,28 +619,100 @@ class CostSafetyManager:
 
         Returns:
             Tuple of (allowed, reason, needs_confirmation)
-            - allowed: True if operation should proceed
-            - reason: Explanation message
-            - needs_confirmation: True if user confirmation needed
         """
-        # Check circuit breaker
-        allowed, reason = self._circuit_breaker.allow_request(estimated_cost)
+        allowed, reason, needs_confirm, _ = self.check_and_reserve(
+            session_id=session_id,
+            operation_type=operation_type,
+            estimated_cost=estimated_cost,
+            require_confirmation=require_confirmation,
+            reserve=False,
+        )
+        return allowed, reason, needs_confirm
 
-        if not allowed:
-            return False, reason, False
+    def check_and_reserve(
+        self,
+        session_id: str,
+        operation_type: str,
+        estimated_cost: float,
+        require_confirmation: bool = False,
+        reserve: bool = True,
+    ) -> tuple[bool, str, bool, str]:
+        """Atomic check + (optional) reservation of estimated_cost.
 
-        # Check session budget if session exists
-        session = self._sessions.get(session_id)
-        if session:
-            can_proceed, session_reason = session.can_proceed(estimated_cost)
-            if not can_proceed:
-                return False, session_reason, False
+        Holds ``self._budget_lock`` across the read-modify-write so N
+        parallel callers can't all see the same stale daily_cost. When
+        ``reserve=True`` and the operation is allowed, the estimated cost
+        is added to an in-flight reservation pool that subsequent
+        ``check_operation`` calls treat as already-spent. ``record_cost``
+        clears the reservation when the actual cost lands; if a caller
+        forgets to record, call ``refund_reservation(reservation_id)``.
 
-        # Check if confirmation needed for high-cost operations
-        if require_confirmation and estimated_cost > 1.0:
-            return True, f"High cost operation: ${estimated_cost:.2f}", True
+        Returns ``(allowed, reason, needs_confirmation, reservation_id)``.
+        ``reservation_id`` is empty when no reservation was placed.
+        """
+        with self._budget_lock:
+            # Per-op hard ceiling — any caller value above this is silently
+            # treated as a denial regardless of session/daily room.
+            if estimated_cost > self.ABSOLUTE_MAX_PER_OPERATION:
+                return (
+                    False,
+                    f"Estimated cost ${estimated_cost:.2f} exceeds absolute per-op ceiling ${self.ABSOLUTE_MAX_PER_OPERATION:.2f}",
+                    False,
+                    "",
+                )
 
-        return True, "OK", False
+            # Circuit breaker
+            allowed, reason = self._circuit_breaker.allow_request(estimated_cost)
+            if not allowed:
+                return False, reason or "circuit breaker tripped", False, ""
+
+            # Session budget
+            session = self._sessions.get(session_id)
+            if session:
+                can_proceed, session_reason = session.can_proceed(estimated_cost)
+                if not can_proceed:
+                    return False, session_reason, False, ""
+
+            # Daily projection including in-flight reservations
+            projected_daily = self.daily_cost + self._reserved_daily + estimated_cost
+            if projected_daily > self.max_daily:
+                return (
+                    False,
+                    f"Daily limit ${self.max_daily:.2f} would be exceeded (spent ${self.daily_cost:.2f}, reserved ${self._reserved_daily:.2f}, +${estimated_cost:.2f})",
+                    False,
+                    "",
+                )
+            projected_monthly = self.monthly_cost + estimated_cost
+            if projected_monthly > self.max_monthly:
+                return (
+                    False,
+                    f"Monthly limit ${self.max_monthly:.2f} would be exceeded",
+                    False,
+                    "",
+                )
+
+            # Reserve
+            reservation_id = ""
+            if reserve:
+                import uuid as _uuid
+
+                reservation_id = _uuid.uuid4().hex[:16]
+                self._reservations[reservation_id] = estimated_cost
+                self._reserved_daily += estimated_cost
+
+            # Confirmation needed?
+            if require_confirmation and estimated_cost > 1.0:
+                return True, f"High cost operation: ${estimated_cost:.2f}", True, reservation_id
+
+            return True, "OK", False, reservation_id
+
+    def refund_reservation(self, reservation_id: str) -> None:
+        """Release a reservation without recording a cost (e.g. on caller error)."""
+        if not reservation_id:
+            return
+        with self._budget_lock:
+            held = self._reservations.pop(reservation_id, 0.0)
+            self._reserved_daily = max(0.0, self._reserved_daily - held)
 
     def record_cost(
         self,
@@ -631,37 +729,30 @@ class CostSafetyManager:
         source: str = "cost_safety.record_cost",
         metadata: Optional[dict] = None,
         agent_id: str = "",
+        reservation_id: str = "",
     ) -> bool:
-        """Record a cost event.
+        """Record a cost event and settle any reservation.
 
-        Args:
-            session_id: Session identifier
-            operation_type: Type of operation
-            actual_cost: Actual cost incurred
-            details: Optional details about the operation
-            provider: Provider that incurred cost
-            model: Model that incurred cost
-            tokens_input: Input tokens if available
-            tokens_output: Output tokens if available
-            request_id: Optional provider request/response ID
-            idempotency_key: Optional dedupe key for canonical ledger
-            source: Event source label for observability
-            metadata: Optional metadata map for ledger event
-
-        Returns:
-            True if circuit is still closed, False if it tripped
+        Pass ``reservation_id`` returned from ``check_and_reserve`` to
+        release the reservation pool slot as part of this commit.
         """
-        # Track session cost (legacy)
-        self._session_costs[session_id] = self._session_costs.get(session_id, 0.0) + actual_cost
+        # Settle reservation + commit daily/monthly atomically.
+        with self._budget_lock:
+            if reservation_id:
+                held = self._reservations.pop(reservation_id, 0.0)
+                self._reserved_daily = max(0.0, self._reserved_daily - held)
 
-        # Track in session if exists
-        session = self._sessions.get(session_id)
-        if session:
-            session.record_operation(operation_type, actual_cost, details)
+            # Track session cost (legacy)
+            self._session_costs[session_id] = self._session_costs.get(session_id, 0.0) + actual_cost
 
-        # Track daily/monthly
-        self.daily_cost += actual_cost
-        self.monthly_cost += actual_cost
+            # Track in session if exists
+            session = self._sessions.get(session_id)
+            if session:
+                session.record_operation(operation_type, actual_cost, details)
+
+            # Track daily/monthly
+            self.daily_cost += actual_cost
+            self.monthly_cost += actual_cost
 
         # Record canonical ledger event
         event_metadata = dict(metadata or {})

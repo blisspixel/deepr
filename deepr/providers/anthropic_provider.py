@@ -97,6 +97,12 @@ class AnthropicProvider(DeepResearchProvider):
 
         self.model = model
         self.thinking_budget = max(1024, thinking_budget)
+        # In-memory store for completed jobs. Anthropic responses are
+        # synchronous, but the poller/queue contract expects a job_id we
+        # can re-query for usage + output. Previously submit_research
+        # discarded both, leaving every Anthropic call to be billed by
+        # the provider while the cost ledger recorded $0.
+        self._jobs: dict[str, ResearchResponse] = {}
         self.client = Anthropic(api_key=self.api_key, timeout=1200.0)  # 20 min timeout
 
         # Initialize tool executor
@@ -132,6 +138,15 @@ class AnthropicProvider(DeepResearchProvider):
             response_content = []
             tool_calls_made = []
 
+            # Per-turn token accumulation. The previous implementation
+            # dropped response.usage entirely so every Anthropic research
+            # call was billed by the provider but recorded as $0 in the
+            # cost ledger / get_status response.
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_cache_read_tokens = 0
+            total_cache_creation_tokens = 0
+
             # Multi-turn loop for tool use
             max_turns = 5  # Prevent infinite loops
             for _turn in range(max_turns):
@@ -143,6 +158,14 @@ class AnthropicProvider(DeepResearchProvider):
                     messages=messages,
                     tools=tools,
                 )
+
+                # Accumulate usage from this turn
+                turn_usage = getattr(response, "usage", None)
+                if turn_usage is not None:
+                    total_input_tokens += getattr(turn_usage, "input_tokens", 0) or 0
+                    total_output_tokens += getattr(turn_usage, "output_tokens", 0) or 0
+                    total_cache_read_tokens += getattr(turn_usage, "cache_read_input_tokens", 0) or 0
+                    total_cache_creation_tokens += getattr(turn_usage, "cache_creation_input_tokens", 0) or 0
 
                 # Extract thinking + content + collect tool uses
                 has_tool_use = False
@@ -161,12 +184,22 @@ class AnthropicProvider(DeepResearchProvider):
                             {"tool": block.name, "input": block.input, "success": tool_result.success}
                         )
 
-                        # Collect tool result for next message
+                        # Collect tool result for next message. The
+                        # Anthropic spec accepts a string OR a list of
+                        # blocks; ensure we always send a non-empty
+                        # string so a None error doesn't produce a
+                        # malformed message body.
+                        if tool_result.success:
+                            result_payload = json.dumps(tool_result.data)
+                        else:
+                            err_text = tool_result.error or "tool execution failed"
+                            result_payload = str(err_text) or "tool execution failed"
                         tool_results_to_send.append(
                             {
                                 "type": "tool_result",
                                 "tool_use_id": block.id,
-                                "content": json.dumps(tool_result.data) if tool_result.success else tool_result.error,
+                                "content": result_payload,
+                                **({"is_error": True} if not tool_result.success else {}),
                             }
                         )
 
@@ -179,7 +212,7 @@ class AnthropicProvider(DeepResearchProvider):
                     break
 
             # Format report with thinking trace (for transparency)
-            self._format_research_report(
+            report_markdown = self._format_research_report(
                 thinking="\n\n".join(thinking_content),
                 findings="\n\n".join(response_content),
                 tool_calls=tool_calls_made,
@@ -187,10 +220,38 @@ class AnthropicProvider(DeepResearchProvider):
             )
 
             # Generate job ID (Anthropic doesn't return one)
-            job_id = f"anthropic-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+            job_id = f"anthropic-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 
-            # Store result internally
-            # TODO: Integrate with storage system
+            # Compute cost from accumulated usage. Anthropic bills cache
+            # reads at a reduced rate (0.1x base input) and cache creation
+            # at 1.25x base input; the registry's UsageStats.calculate_cost
+            # treats prompt+completion at the base rate so we settle the
+            # cache adjustment by passing the effective billable tokens.
+            billable_input = total_input_tokens + total_cache_creation_tokens
+            usage_stats = UsageStats(
+                input_tokens=billable_input,
+                output_tokens=total_output_tokens,
+                reasoning_tokens=0,
+                total_tokens=billable_input + total_output_tokens + total_cache_read_tokens,
+            )
+            try:
+                usage_stats.cost = UsageStats.calculate_cost(billable_input, total_output_tokens, self.model)
+            except Exception:
+                usage_stats.cost = 0.0
+
+            self._jobs[job_id] = ResearchResponse(
+                id=job_id,
+                status="completed",
+                output=[
+                    {
+                        "type": "message",
+                        "content": [{"type": "text", "text": report_markdown}],
+                    }
+                ],
+                usage=usage_stats,
+                created_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(timezone.utc),
+            )
 
             return job_id
 
@@ -205,18 +266,23 @@ class AnthropicProvider(DeepResearchProvider):
         """
         Get status of research job.
 
-        Note: Anthropic responses are synchronous (no polling needed).
-        This method exists for interface compatibility.
+        Returns the stored response built during ``submit_research``.
+        Anthropic responses are synchronous, so a job is always either
+        present-and-completed or unknown. Previously this method returned
+        ``output=None`` and ``cost=0.0`` for every call, which meant the
+        poller recorded $0 for every Anthropic spend.
         """
-        # Since Anthropic is synchronous, jobs complete immediately
-        # This is a compatibility shim
+        stored = self._jobs.get(job_id)
+        if stored is not None:
+            return stored
         return ResearchResponse(
             id=job_id,
-            status="completed",
-            output=None,  # Synchronous - no stored output
+            status="failed",
+            output=None,
             usage=UsageStats(input_tokens=0, output_tokens=0, reasoning_tokens=0, cost=0.0),
             created_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
+            error=f"Unknown Anthropic job id {job_id}",
         )
 
     async def cancel_job(self, job_id: str) -> bool:

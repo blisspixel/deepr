@@ -23,16 +23,20 @@ from deepr.a2a.task_manager import TaskManager
 def a2a_server() -> A2AServer:
     """Create an A2A server with test configuration."""
     gen = AgentCardGenerator(version="2.10.0", url="http://localhost:9090")
-    gen.register_expert(ExpertInfo(
-        name="recon",
-        description="DNS reconnaissance",
-        domain="infrastructure",
-    ))
-    gen.register_expert(ExpertInfo(
-        name="analyst",
-        description="Market analysis",
-        domain="strategic",
-    ))
+    gen.register_expert(
+        ExpertInfo(
+            name="recon",
+            description="DNS reconnaissance",
+            domain="infrastructure",
+        )
+    )
+    gen.register_expert(
+        ExpertInfo(
+            name="analyst",
+            description="Market analysis",
+            domain="strategic",
+        )
+    )
     mgr = TaskManager()
     return A2AServer(card_generator=gen, task_manager=mgr)
 
@@ -83,11 +87,13 @@ class TestTaskLifecycleIntegration:
 
         async def _test() -> None:
             # Create task
-            payload = json.dumps({
-                "skill": "recon",
-                "input": "example.com",
-                "budget": 5.0,
-            })
+            payload = json.dumps(
+                {
+                    "skill": "recon",
+                    "input": "example.com",
+                    "budget": 5.0,
+                }
+            )
             status, body = await a2a_server.handle_request("POST", "/tasks", payload)
             assert status == 201
             task_id = body["id"]
@@ -127,9 +133,7 @@ class TestTaskLifecycleIntegration:
             _, body = await a2a_server.handle_request("POST", "/tasks", payload)
             task_id = body["id"]
 
-            status, body = await a2a_server.handle_request(
-                "POST", f"/tasks/{task_id}/cancel"
-            )
+            status, body = await a2a_server.handle_request("POST", f"/tasks/{task_id}/cancel")
             assert status == 200
             assert body["state"] == "cancelled"
 
@@ -147,9 +151,7 @@ class TestSSEStreamIntegration:
             _, body = await a2a_server.handle_request("POST", "/tasks", payload)
             task_id = body["id"]
 
-            status, body = await a2a_server.handle_request(
-                "GET", f"/tasks/{task_id}/stream"
-            )
+            status, body = await a2a_server.handle_request("GET", f"/tasks/{task_id}/stream")
             assert status == 200
             assert body["stream"] == "text/event-stream"
 
@@ -219,9 +221,7 @@ class TestErrorPaths:
         """Cancelling a non-existent task returns 404."""
 
         async def _test() -> None:
-            status, _body = await a2a_server.handle_request(
-                "POST", "/tasks/nonexistent/cancel"
-            )
+            status, _body = await a2a_server.handle_request("POST", "/tasks/nonexistent/cancel")
             assert status == 404
 
         asyncio.get_event_loop().run_until_complete(_test())
@@ -236,14 +236,10 @@ class TestErrorPaths:
 
             # Transition to working then completed
             a2a_server._task_manager.transition(task_id, TaskState.WORKING)
-            a2a_server._task_manager.transition(
-                task_id, TaskState.COMPLETED, result={"data": "done"}
-            )
+            a2a_server._task_manager.transition(task_id, TaskState.COMPLETED, result={"data": "done"})
 
             # Try to cancel completed task
-            status, body = await a2a_server.handle_request(
-                "POST", f"/tasks/{task_id}/cancel"
-            )
+            status, body = await a2a_server.handle_request("POST", f"/tasks/{task_id}/cancel")
             assert status == 409
 
         asyncio.get_event_loop().run_until_complete(_test())
@@ -252,9 +248,7 @@ class TestErrorPaths:
         """Stream endpoint for non-existent task returns 404."""
 
         async def _test() -> None:
-            status, _body = await a2a_server.handle_request(
-                "GET", "/tasks/nonexistent/stream"
-            )
+            status, _body = await a2a_server.handle_request("GET", "/tasks/nonexistent/stream")
             assert status == 404
 
         asyncio.get_event_loop().run_until_complete(_test())

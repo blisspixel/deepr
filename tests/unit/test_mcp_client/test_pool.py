@@ -78,6 +78,7 @@ class TestMCPClientPool:
         pool.register(self._make_profile("server-a"))
         # Force circuit open
         from deepr.mcp.client.circuit_breaker import CircuitState
+
         pool._circuits["server-a"]._state = CircuitState.OPEN
         pool._circuits["server-a"]._opened_at = 9999999999.0  # Far future
 

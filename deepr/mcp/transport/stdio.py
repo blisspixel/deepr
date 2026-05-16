@@ -183,9 +183,15 @@ class StdioTransport:
         Main read loop for incoming messages.
 
         Reads newline-delimited JSON-RPC messages from stdin and
-        dispatches them to the registered handler. Handles parse
-        errors gracefully by sending error responses.
+        dispatches them to the registered handler. Handler dispatch is
+        offloaded to ``asyncio.create_task`` so a single long-running
+        tool call (deepr_research, deepr_agentic_research) doesn't
+        block subsequent reads — including cancellations of itself.
         """
+        # Track in-flight handler tasks so close() can drain them.
+        if not hasattr(self, "_in_flight"):
+            self._in_flight: set[asyncio.Task] = set()
+
         while self._running:
             try:
                 # Read a line (JSON-RPC messages are newline-delimited)
@@ -215,16 +221,23 @@ class StdioTransport:
                     await self._send_error(None, -32700, "Parse error")
                     continue
 
-                # Handle message
+                # Handle message — dispatch in a background task so the
+                # next line can be read immediately.
                 if self._handler:
-                    try:
-                        response = await self._handler(message)
-                        if response:
-                            await self.send(response)
-                    except Exception as e:
-                        self._stats.record_error()
-                        if message.id:
-                            await self._send_error(message.id, -32603, f"Internal error: {e}")
+
+                    async def _dispatch(msg=message) -> None:
+                        try:
+                            response = await self._handler(msg)
+                            if response:
+                                await self.send(response)
+                        except Exception as e:
+                            self._stats.record_error()
+                            if msg.id:
+                                await self._send_error(msg.id, -32603, f"Internal error: {e}")
+
+                    task = asyncio.create_task(_dispatch())
+                    self._in_flight.add(task)
+                    task.add_done_callback(self._in_flight.discard)
 
             except asyncio.CancelledError:
                 break

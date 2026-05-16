@@ -52,12 +52,14 @@ class MockCostLedger:
         cost: float,
         trace_id: str,
     ) -> None:
-        self.events.append({
-            "profile_name": profile_name,
-            "tool_name": tool_name,
-            "cost": cost,
-            "trace_id": trace_id,
-        })
+        self.events.append(
+            {
+                "profile_name": profile_name,
+                "tool_name": tool_name,
+                "cost": cost,
+                "trace_id": trace_id,
+            }
+        )
 
 
 class MockMetadataEmitter:
@@ -205,9 +207,7 @@ class TestReconDomainLookupWithMock:
         profile = get_recon_profile()
 
         # Budget check for free tool
-        decision = propagator.check_budget(
-            profile, estimated_cost=0.0, session_remaining=10.0
-        )
+        decision = propagator.check_budget(profile, estimated_cost=0.0, session_remaining=10.0)
         assert decision.allowed is True
 
         # Create trace span
@@ -217,12 +217,14 @@ class TestReconDomainLookupWithMock:
 
         # Simulate tool result
         result = MCPToolResult(
-            content=json.dumps({
-                "provider": "cloudflare",
-                "services": ["cdn", "dns"],
-                "related_domains": ["example.net"],
-                "insights": ["Uses Cloudflare CDN"],
-            }),
+            content=json.dumps(
+                {
+                    "provider": "cloudflare",
+                    "services": ["cdn", "dns"],
+                    "related_domains": ["example.net"],
+                    "insights": ["Uses Cloudflare CDN"],
+                }
+            ),
             raw={"cost": 0.0},
             server_name="recon",
             tool_name="domain_lookup",
@@ -255,9 +257,7 @@ class TestReconDomainLookupWithMock:
         assert profile.budget_limit == 0  # Free tool
 
         # Even with low session budget, free tool is allowed
-        decision = propagator.check_budget(
-            profile, estimated_cost=0.0, session_remaining=0.5
-        )
+        decision = propagator.check_budget(profile, estimated_cost=0.0, session_remaining=0.5)
         assert decision.allowed is True
 
 

@@ -12,8 +12,6 @@ import asyncio
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from deepr.mcp.client.errors import MCPErrorCode, StructuredError
-from deepr.mcp.client.profile import MCPClientProfile
 from deepr.experts.skills.expert_skill import (
     ExpertSkillWrapper,
     KnowledgeGap,
@@ -21,15 +19,22 @@ from deepr.experts.skills.expert_skill import (
     ToolInfo,
     ToolSuggestion,
 )
-
+from deepr.mcp.client.errors import MCPErrorCode, StructuredError
+from deepr.mcp.client.profile import MCPClientProfile
 
 # --- Strategies ---
 
-tool_names_st = st.sampled_from([
-    "domain_lookup", "batch_lookup", "dns_check",
-    "paper_search", "citation_lookup",
-    "company_analysis", "market_data",
-])
+tool_names_st = st.sampled_from(
+    [
+        "domain_lookup",
+        "batch_lookup",
+        "dns_check",
+        "paper_search",
+        "citation_lookup",
+        "company_analysis",
+        "market_data",
+    ]
+)
 
 domain_st = st.from_regex(r"[a-z]{3,10}\.(com|org|net|io)", fullmatch=True)
 
@@ -43,6 +48,7 @@ profile_st = st.builds(
 
 
 # --- Property 5: Approval decision matches profile configuration ---
+
 
 @settings(max_examples=100)
 @given(
@@ -80,6 +86,7 @@ def test_approval_decision_matches_profile(
 
 # --- Property 24: Domain trigger detection ---
 
+
 @settings(max_examples=100)
 @given(domain=domain_st)
 def test_domain_trigger_detection(domain: str) -> None:
@@ -104,12 +111,13 @@ def test_domain_trigger_detection(domain: str) -> None:
 
     domain_suggestions = [s for s in suggestions if s.tool_name == "domain_lookup"]
     assert len(domain_suggestions) >= 1, f"Expected domain_lookup suggestion for {domain}"
-    assert any(
-        domain in s.arguments.get("domain", "") for s in domain_suggestions
-    ), f"Expected domain {domain} in suggestion arguments"
+    assert any(domain in s.arguments.get("domain", "") for s in domain_suggestions), (
+        f"Expected domain {domain} in suggestion arguments"
+    )
 
 
 # --- Property 25: Knowledge gap triggers matching tools ---
+
 
 @settings(max_examples=100)
 @given(
@@ -143,12 +151,11 @@ def test_knowledge_gap_triggers_matching_tools(category: str) -> None:
 
     suggested_names = {s.tool_name for s in suggestions}
     for tool_name in expected_tools:
-        assert tool_name in suggested_names, (
-            f"Expected {tool_name} suggestion for {category} gap"
-        )
+        assert tool_name in suggested_names, f"Expected {tool_name} suggestion for {category} gap"
 
 
 # --- Property 28: Graceful degradation for missing tools ---
+
 
 @settings(max_examples=100)
 @given(
@@ -179,13 +186,16 @@ def test_graceful_degradation_missing_tools(category: str) -> None:
 
 # --- Property 33: Retryable errors trigger exactly one retry ---
 
+
 @settings(max_examples=100)
 @given(
-    error_code=st.sampled_from([
-        MCPErrorCode.TIMEOUT,
-        MCPErrorCode.CONNECTION_LOST,
-        MCPErrorCode.SERVER_ERROR,
-    ]),
+    error_code=st.sampled_from(
+        [
+            MCPErrorCode.TIMEOUT,
+            MCPErrorCode.CONNECTION_LOST,
+            MCPErrorCode.SERVER_ERROR,
+        ]
+    ),
 )
 def test_retryable_errors_trigger_one_retry(error_code: MCPErrorCode) -> None:
     """Property 33: Retryable errors trigger exactly one retry.
@@ -214,22 +224,23 @@ def test_retryable_errors_trigger_one_retry(error_code: MCPErrorCode) -> None:
         arguments={"domain": "test.com"},
     )
 
-    asyncio.get_event_loop().run_until_complete(
-        wrapper.execute(suggestion, mock_call)
-    )
+    asyncio.get_event_loop().run_until_complete(wrapper.execute(suggestion, mock_call))
 
     assert call_count == 2, f"Expected 2 attempts (initial + 1 retry), got {call_count}"
 
 
 # --- Property 34: Exhausted retries create knowledge gaps ---
 
+
 @settings(max_examples=100)
 @given(
-    error_code=st.sampled_from([
-        MCPErrorCode.TIMEOUT,
-        MCPErrorCode.CONNECTION_LOST,
-        MCPErrorCode.SERVER_ERROR,
-    ]),
+    error_code=st.sampled_from(
+        [
+            MCPErrorCode.TIMEOUT,
+            MCPErrorCode.CONNECTION_LOST,
+            MCPErrorCode.SERVER_ERROR,
+        ]
+    ),
 )
 def test_exhausted_retries_return_error(error_code: MCPErrorCode) -> None:
     """Property 34: Exhausted retries create knowledge gaps.
@@ -255,9 +266,7 @@ def test_exhausted_retries_return_error(error_code: MCPErrorCode) -> None:
         arguments={},
     )
 
-    result = asyncio.get_event_loop().run_until_complete(
-        wrapper.execute(suggestion, mock_call)
-    )
+    result = asyncio.get_event_loop().run_until_complete(wrapper.execute(suggestion, mock_call))
 
     assert isinstance(result, StructuredError), "Exhausted retries should return StructuredError"
     assert result.code == error_code

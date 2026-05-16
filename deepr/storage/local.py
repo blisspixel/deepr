@@ -1,6 +1,5 @@
 """Local filesystem storage implementation."""
 
-import json
 import re
 import shutil
 from datetime import datetime, timedelta, timezone
@@ -257,7 +256,9 @@ class LocalStorage(StorageBackend):
                     "size_bytes": len(content),
                     **metadata,  # Include all additional metadata
                 }
-                metadata_path.write_text(json.dumps(metadata_content, indent=2))
+                from deepr.utils.atomic_io import atomic_write_json
+
+                atomic_write_json(metadata_path, metadata_content)
 
             # Get file stats
             stat = report_path.stat()
