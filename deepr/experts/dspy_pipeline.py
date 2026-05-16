@@ -419,10 +419,10 @@ class FeedbackCollector:
         }
 
     def _save(self):
-        """Save feedback to disk."""
-        data = [e.to_dict() for e in self.entries]
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        """Save feedback to disk (atomic write)."""
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(self.storage_path, [e.to_dict() for e in self.entries])
 
     def _load(self):
         """Load feedback from disk."""
@@ -707,8 +707,9 @@ class DSPyOptimizer:
             elif hasattr(module, "demos"):
                 prompts = {"demos": [str(d) for d in module.demos]}
 
-            with open(self.optimized_prompts_path, "w", encoding="utf-8") as f:
-                json.dump(prompts, f, indent=2, default=str)
+            from deepr.utils.atomic_io import atomic_write_json
+
+            atomic_write_json(self.optimized_prompts_path, prompts, default=str)
         except Exception as e:
             logger.debug("Failed to save optimized module to %s: %s", self.optimized_prompts_path, e)
 
@@ -751,8 +752,9 @@ class DSPyOptimizer:
         # Keep last 50 optimizations
         history = history[-50:]
 
-        with open(self.optimization_history_path, "w", encoding="utf-8") as f:
-            json.dump(history, f, indent=2)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(self.optimization_history_path, history)
 
     def get_optimization_history(self) -> list[dict[str, Any]]:
         """Get optimization history.

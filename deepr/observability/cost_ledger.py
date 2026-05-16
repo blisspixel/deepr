@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -89,7 +90,7 @@ class CostLedger:
             return
         try:
             with open(self.ledger_path, encoding="utf-8") as f:
-                for line in f:
+                for line_no, line in enumerate(f, start=1):
                     line = line.strip()
                     if not line:
                         continue
@@ -98,7 +99,17 @@ class CostLedger:
                         key = data.get("idempotency_key")
                         if key:
                             self._idempotency_keys.add(key)
-                    except (json.JSONDecodeError, TypeError, ValueError):
+                    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                        # Surface ledger corruption — the previous silent
+                        # ``continue`` let partial-write lines drop out of
+                        # the idempotency index, which then allowed the
+                        # same operation to be billed twice on retry.
+                        logger.error(
+                            "Corrupted cost ledger line %d at %s: %s",
+                            line_no,
+                            self.ledger_path,
+                            exc,
+                        )
                         continue
         except OSError as e:
             logger.warning("Failed loading cost ledger index: %s", e)
@@ -143,9 +154,20 @@ class CostLedger:
             if idempotency_key and idempotency_key in self._idempotency_keys:
                 return event, False
 
+            # Durable append: flush + fsync before releasing the lock so
+            # a crash between write() and process exit can't truncate the
+            # last record of the canonical cost ledger.
             line = json.dumps(event.to_dict(), ensure_ascii=True)
             with open(self.ledger_path, "a", encoding="utf-8") as f:
                 f.write(line + "\n")
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    # fsync is unavailable on some filesystems / network
+                    # mounts. We've already buffered the line; downgrade
+                    # silently rather than failing the API call.
+                    pass
 
             if idempotency_key:
                 self._idempotency_keys.add(idempotency_key)

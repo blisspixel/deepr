@@ -148,8 +148,9 @@ class MetaCognitionTracker:
                 "uncertainty_log": self.uncertainty_log,
             }
 
-            with open(self.meta_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            from deepr.utils.atomic_io import atomic_write_json
+
+            atomic_write_json(self.meta_file, data)
 
         except Exception as e:
             logger.error("Error saving meta-knowledge: %s", e)

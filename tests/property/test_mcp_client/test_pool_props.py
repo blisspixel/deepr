@@ -10,7 +10,7 @@ Feature: mcp-client-agent-interop
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -95,15 +95,11 @@ def test_property_14_broadcast_preserves_order(
         client._connected = True
         if name in fail_set:
             client.call_tool = AsyncMock(
-                return_value=MCPToolResult(
-                    error=f"fail-{name}", server_name=name, tool_name="search"
-                )
+                return_value=MCPToolResult(error=f"fail-{name}", server_name=name, tool_name="search")
             )
         else:
             client.call_tool = AsyncMock(
-                return_value=MCPToolResult(
-                    content=f"ok-{name}", server_name=name, tool_name="search"
-                )
+                return_value=MCPToolResult(content=f"ok-{name}", server_name=name, tool_name="search")
             )
 
     results = asyncio.get_event_loop().run_until_complete(
@@ -162,9 +158,7 @@ def test_property_15_concurrency_limit(
         pool._clients[name]._connected = True
         pool._clients[name].call_tool = _tracked_call
 
-    asyncio.get_event_loop().run_until_complete(
-        pool.broadcast_tool("search", {}, server_names=names)
-    )
+    asyncio.get_event_loop().run_until_complete(pool.broadcast_tool("search", {}, server_names=names))
 
     assert peak_concurrent <= max_concurrent
 
@@ -202,9 +196,7 @@ def test_property_30_tool_discovery_aggregation(
         mock_proc = MagicMock()
         mock_proc.returncode = None
         client._process = mock_proc
-        client._available_tools = [
-            {"name": t, "description": f"desc-{t}", "inputSchema": {}} for t in tools
-        ]
+        client._available_tools = [{"name": t, "description": f"desc-{t}", "inputSchema": {}} for t in tools]
         expected_total += len(tools)
 
     all_tools = pool.list_all_tools()

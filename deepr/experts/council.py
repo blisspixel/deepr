@@ -99,6 +99,7 @@ class ExpertCouncil:
             Dict with perspectives, synthesis, agreements, disagreements, total_cost
         """
         from deepr.experts.chat import start_chat_session
+        from deepr.experts.cost_safety import get_cost_safety_manager
 
         if not experts:
             experts = await self.select_experts(query)
@@ -108,6 +109,30 @@ class ExpertCouncil:
                 "query": query,
                 "perspectives": [],
                 "synthesis": "No experts available for this query.",
+                "agreements": [],
+                "disagreements": [],
+                "total_cost": 0.0,
+            }
+
+        # Reserve the full council budget against the global cost-safety
+        # manager upfront. Without this, N=5 parallel experts each pass
+        # their own session-budget check while the daily cap is observed
+        # as if no other call is pending — classic fan-out over-commit.
+        cost_safety = get_cost_safety_manager()
+        council_session_id = f"council_{id(self):x}_{int(__import__('time').time())}"
+        allowed, deny_reason, _confirm, reservation_id = cost_safety.check_and_reserve(
+            session_id=council_session_id,
+            operation_type="council_consult",
+            estimated_cost=min(budget, cost_safety.ABSOLUTE_MAX_PER_OPERATION),
+            require_confirmation=False,
+            reserve=True,
+        )
+        if not allowed:
+            logger.warning("Council blocked by cost-safety: %s", deny_reason)
+            return {
+                "query": query,
+                "perspectives": [],
+                "synthesis": f"Council blocked: {deny_reason}",
                 "agreements": [],
                 "disagreements": [],
                 "total_cost": 0.0,
@@ -182,6 +207,15 @@ class ExpertCouncil:
         # Synthesise
         synthesis = await self._synthesise(query, perspectives, budget * SYNTHESIS_BUDGET_FRACTION)
         total_cost += synthesis.get("cost", 0.0)
+
+        # Settle the reservation against the actual total spend. Child
+        # sessions already wrote their own ledger events via record_cost,
+        # so we only need to release the reservation slot here without
+        # double-billing.
+        try:
+            cost_safety.refund_reservation(reservation_id)
+        except Exception:  # never let cost-bookkeeping mask the result
+            logger.debug("Council reservation %s could not be refunded", reservation_id, exc_info=True)
 
         return {
             "query": query,

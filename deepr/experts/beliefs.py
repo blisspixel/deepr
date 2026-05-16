@@ -21,12 +21,15 @@ Usage:
 """
 
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Claim
@@ -629,16 +632,32 @@ class BeliefStore:
             ],
         }
 
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(self.storage_path, data)
 
     def _load(self):
-        """Load beliefs from disk."""
+        """Load beliefs from disk.
+
+        Catches corrupt/oversized files and starts fresh rather than
+        crashing the expert load entirely. A 50 MB ceiling guards
+        against poisoned belief files from corpus imports.
+        """
         if not self.storage_path.exists():
             return
 
-        with open(self.storage_path, encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            if self.storage_path.stat().st_size > 50 * 1024 * 1024:
+                logger.error(
+                    "Belief store at %s exceeds 50 MB; refusing to load. Inspect and reduce manually.",
+                    self.storage_path,
+                )
+                return
+            with open(self.storage_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to load beliefs from %s: %s. Starting fresh.", self.storage_path, exc)
+            return
 
         self.beliefs = {bid: Belief.from_dict(bdata) for bid, bdata in data.get("beliefs", {}).items()}
 
@@ -891,8 +910,9 @@ class SharedBeliefStore:
             "contributors": {bid: list(experts) for bid, experts in self.contributors.items()},
         }
 
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(self.storage_path, data)
 
     def _load(self):
         """Load shared beliefs from disk."""

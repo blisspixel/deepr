@@ -26,6 +26,7 @@ safe_text_st = st.text(
 
 # --- Property 22: Prompt template rendering ---
 
+
 @settings(max_examples=100)
 @given(
     topic=safe_text_st,
@@ -47,12 +48,15 @@ def test_research_workflow_rendering(
     **Validates: Requirements 10.4**
     """
     renderer = PromptRenderer()
-    result = renderer.render("research-workflow", {
-        "topic": topic,
-        "budget": budget,
-        "expert": expert,
-        "depth": depth,
-    })
+    result = renderer.render(
+        "research-workflow",
+        {
+            "topic": topic,
+            "budget": budget,
+            "expert": expert,
+            "depth": depth,
+        },
+    )
 
     # All values should appear in output
     assert topic in result, f"Topic '{topic}' not in rendered output"
@@ -83,11 +87,14 @@ def test_expert_consult_rendering(
     **Validates: Requirements 10.4**
     """
     renderer = PromptRenderer()
-    result = renderer.render("expert-consult", {
-        "expert": expert,
-        "question": question,
-        "context": context,
-    })
+    result = renderer.render(
+        "expert-consult",
+        {
+            "expert": expert,
+            "question": question,
+            "context": context,
+        },
+    )
 
     assert expert in result
     assert question in result
@@ -113,11 +120,14 @@ def test_sector_analysis_rendering(
     **Validates: Requirements 10.4**
     """
     renderer = PromptRenderer()
-    result = renderer.render("sector-analysis", {
-        "sector": sector,
-        "companies": companies,
-        "timeframe": timeframe,
-    })
+    result = renderer.render(
+        "sector-analysis",
+        {
+            "sector": sector,
+            "companies": companies,
+            "timeframe": timeframe,
+        },
+    )
 
     assert sector in result
     assert companies in result

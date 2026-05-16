@@ -220,6 +220,46 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        # Task durability — read-only status surfaces. Listed explicitly
+        # so the allowlist treats them as READ instead of unknown-tool;
+        # otherwise confirmation enforcement breaks polling.
+        "deepr_get_task_progress": ToolConfig(
+            name="deepr_get_task_progress",
+            category=ToolCategory.READ,
+            description="Get progress of a recoverable task",
+        ),
+        "deepr_list_recoverable_tasks": ToolConfig(
+            name="deepr_list_recoverable_tasks",
+            category=ToolCategory.READ,
+            description="List tasks that can be resumed",
+        ),
+        "deepr_resume_task": ToolConfig(
+            name="deepr_resume_task",
+            category=ToolCategory.WRITE,
+            description="Resume a paused/interrupted task",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_pause_task": ToolConfig(
+            name="deepr_pause_task",
+            category=ToolCategory.WRITE,
+            description="Pause a running task",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        # Skill management
+        "deepr_list_skills": ToolConfig(
+            name="deepr_list_skills",
+            category=ToolCategory.READ,
+            description="List installed skills for an expert",
+        ),
+        "deepr_install_skill": ToolConfig(
+            name="deepr_install_skill",
+            category=ToolCategory.WRITE,
+            description="Install a skill for an expert (writes to expert state)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
     }
 
     # Category-level rules per mode

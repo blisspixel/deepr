@@ -764,8 +764,27 @@ class AutoModeRouter:
             p, m, c = candidates[0]
             return (p, m, c, f"Cheapest available → {p}/{m} (${c:.3f})")
 
-        # Absolute last resort
-        return ("openai", "gpt-4.1-mini", 0.01, "Last resort → openai/gpt-4.1-mini")
+        # Absolute last resort — but pick a USABLE provider. The previous
+        # behaviour hard-coded ``openai/gpt-4.1-mini`` regardless of
+        # which providers had API keys, so a user with only Gemini/XAI
+        # configured would receive an openai model the dispatcher
+        # couldn't actually call.
+        for cap in sorted(MODEL_CAPABILITIES.values(), key=lambda c: c.cost_per_query):
+            if self._is_provider_usable(cap.provider) and check_deprecation(cap.model) is None:
+                return (
+                    cap.provider,
+                    cap.model,
+                    cap.cost_per_query,
+                    f"Last resort (no candidates under budget) → {cap.provider}/{cap.model}",
+                )
+
+        # If we reach here, no provider is usable at all. Surface that
+        # honestly rather than handing back a model that will fail at
+        # provider creation.
+        raise RuntimeError(
+            "No provider with credentials is configured; cannot route research. "
+            "Set at least one of: OPENAI_API_KEY, GEMINI_API_KEY, XAI_API_KEY, ANTHROPIC_API_KEY."
+        )
 
     def _apply_auto_rules(
         self,

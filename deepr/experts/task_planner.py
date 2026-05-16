@@ -6,6 +6,7 @@ visible progress, and synthesises results.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -157,6 +158,14 @@ class TaskPlanner:
         }
 
         completed: set[int] = set()
+        # ExpertChatSession is not safe for concurrent mutation:
+        # send_message appends to self.messages and updates cost_accumulated
+        # / research_count without a lock. The dispatcher below fans out
+        # _run_step coroutines on the same session object, so we serialise
+        # the actual send through this lock. We lose the in-step
+        # parallelism, but the dispatcher still resolves dependencies
+        # topologically and chat history / cost totals stay consistent.
+        session_lock = asyncio.Lock()
 
         async def _run_step(step: PlanStep) -> None:
             # Create child agent identity for cost/trace attribution
@@ -178,10 +187,11 @@ class TaskPlanner:
 
             cost_before = self.session.cost_accumulated
             try:
-                response = await self.session.send_message(
-                    step.query,
-                    status_callback=lambda s: None,
-                )
+                async with session_lock:
+                    response = await self.session.send_message(
+                        step.query,
+                        status_callback=lambda s: None,
+                    )
                 step.result = response
                 step.status = StepStatus.DONE
             except Exception as e:

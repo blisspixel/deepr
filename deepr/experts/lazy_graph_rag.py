@@ -1335,8 +1335,9 @@ class SubgraphCache:
 
         data = {"max_size": self.max_size, "entries": {h: s.to_dict() for h, s in self.cache.items()}}
 
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        from deepr.utils.atomic_io import atomic_write_json
+
+        atomic_write_json(self.storage_path, data)
 
     def _load(self):
         """Load cache from disk."""
@@ -1581,18 +1582,11 @@ class KnowledgeGraph:
         return [concept for _, concept in scored[:top_k]]
 
     def save(self):
-        """Persist graph to disk."""
-        # Save concepts
-        concepts_path = self.storage_dir / "concepts.json"
-        concepts_data = [c.to_dict() for c in self.concepts.values()]
-        with open(concepts_path, "w", encoding="utf-8") as f:
-            json.dump(concepts_data, f, indent=2)
+        """Persist graph to disk (atomic writes)."""
+        from deepr.utils.atomic_io import atomic_write_json
 
-        # Save edges
-        edges_path = self.storage_dir / "edges.json"
-        edges_data = [e.to_dict() for e in self.edges.values()]
-        with open(edges_path, "w", encoding="utf-8") as f:
-            json.dump(edges_data, f, indent=2)
+        atomic_write_json(self.storage_dir / "concepts.json", [c.to_dict() for c in self.concepts.values()])
+        atomic_write_json(self.storage_dir / "edges.json", [e.to_dict() for e in self.edges.values()])
 
     def _load(self):
         """Load graph from disk.
