@@ -440,6 +440,27 @@ class CurriculumGenerator:
                     # Use the cheapest curriculum model (sorted by cost)
                     model_name = curriculum_models[0].model if curriculum_models else "gpt-5.2"
 
+                    # Cost-safety gate before the curriculum LLM call.
+                    try:
+                        from deepr.experts.cost_safety import get_cost_safety_manager
+
+                        _cost_safety = get_cost_safety_manager()
+                        _est_cost = 0.05  # Curriculum prompts are larger; bumpier estimate
+                        _allowed, _deny_reason, _ = _cost_safety.check_operation(
+                            session_id="curriculum",
+                            operation_type="curriculum_plan",
+                            estimated_cost=_est_cost,
+                            require_confirmation=False,
+                        )
+                        if not _allowed:
+                            logger.warning("Curriculum planning blocked by cost-safety: %s", _deny_reason)
+                            raise RuntimeError(f"Curriculum blocked: {_deny_reason}")
+                    except RuntimeError:
+                        raise
+                    except Exception:
+                        _cost_safety = None  # type: ignore[assignment]
+                        _est_cost = 0.0
+
                     response_obj = await client.chat.completions.create(
                         model=model_name,
                         messages=[
@@ -455,6 +476,23 @@ class CurriculumGenerator:
 
                     # Extract response from chat completion
                     response = response_obj.choices[0].message.content or ""
+
+                    # Settle the cost into the canonical ledger.
+                    if _cost_safety is not None:
+                        try:
+                            from deepr.experts.chat import _chat_token_cost as _tc
+
+                            _actual_cost = _tc(response_obj.usage, model_name) if response_obj.usage else _est_cost
+                            _cost_safety.record_cost(
+                                session_id="curriculum",
+                                operation_type="curriculum_plan",
+                                actual_cost=float(_actual_cost),
+                                provider="openai",
+                                model=model_name,
+                                source="experts.curriculum.generate_curriculum",
+                            )
+                        except Exception:
+                            pass
 
                     if progress:
                         progress.complete("Done")

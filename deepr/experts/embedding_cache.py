@@ -135,6 +135,16 @@ class EmbeddingCache:
         if not uncached:
             return 0
 
+        # Cost-safety gate. Embedding a corpus is cheap-per-doc but can
+        # add up over thousands of files; the rate limit also exposes a
+        # real-money path through misconfigured loops. Gate per-document.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            _cost_safety = get_cost_safety_manager()
+        except Exception:
+            _cost_safety = None  # type: ignore[assignment]
+
         # Batch embed new documents (more efficient than one-by-one)
         new_embeddings = []
         new_metadata = []
@@ -146,9 +156,38 @@ class EmbeddingCache:
             # Truncate content for embedding (model limit)
             embed_content = content[:8000]
 
+            if _cost_safety is not None:
+                try:
+                    _est = 0.0002  # text-embedding-3-small ~$0.02/M tokens
+                    _allowed, _reason, _ = _cost_safety.check_operation(
+                        session_id=f"embed:{self.expert_name}",
+                        operation_type="embed_document",
+                        estimated_cost=_est,
+                        require_confirmation=False,
+                    )
+                    if not _allowed:
+                        logger.warning("Embedding for %s blocked by cost-safety: %s", filename, _reason)
+                        continue
+                except Exception:
+                    _est = 0.0
+            else:
+                _est = 0.0
+
             try:
                 response = await client.embeddings.create(model=model, input=embed_content)
                 embedding = np.array(response.data[0].embedding)
+                if _cost_safety is not None:
+                    try:
+                        _cost_safety.record_cost(
+                            session_id=f"embed:{self.expert_name}",
+                            operation_type="embed_document",
+                            actual_cost=float(_est),
+                            provider="openai",
+                            model=model,
+                            source="experts.embedding_cache.add_documents",
+                        )
+                    except Exception:
+                        pass
 
                 content_hash = self._content_hash(content)
 
@@ -205,10 +244,41 @@ class EmbeddingCache:
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
 
+        # Cost-safety gate for query embedding.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            _cost_safety = get_cost_safety_manager()
+            _est = 0.0001
+            _allowed, _reason, _ = _cost_safety.check_operation(
+                session_id=f"embed_query:{self.expert_name}",
+                operation_type="embed_query",
+                estimated_cost=_est,
+                require_confirmation=False,
+            )
+            if not _allowed:
+                logger.warning("Query embedding blocked by cost-safety: %s", _reason)
+                return []
+        except Exception:
+            _cost_safety = None  # type: ignore[assignment]
+            _est = 0.0
+
         # Embed query (single API call)
         try:
             response = await client.embeddings.create(model=model, input=query)
             query_embedding = np.array(response.data[0].embedding)
+            if _cost_safety is not None:
+                try:
+                    _cost_safety.record_cost(
+                        session_id=f"embed_query:{self.expert_name}",
+                        operation_type="embed_query",
+                        actual_cost=float(_est),
+                        provider="openai",
+                        model=model,
+                        source="experts.embedding_cache.search",
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             logger.error("Error embedding query: %s", e)
             return []

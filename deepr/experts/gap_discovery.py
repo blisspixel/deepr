@@ -204,6 +204,26 @@ class GapDiscoverer:
             "Priority 1-5 (5=most important). Output ONLY the JSON."
         )
 
+        # Pre-flight cost-safety gate so the gap-discovery pipeline can't
+        # silently fan out paid LLM calls without daily-budget enforcement.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            cost_safety = get_cost_safety_manager()
+            est_cost = 0.02
+            allowed, deny_reason, _ = cost_safety.check_operation(
+                session_id="gap_discovery",
+                operation_type="gap_discovery_thin_areas",
+                estimated_cost=est_cost,
+                require_confirmation=False,
+            )
+            if not allowed:
+                logger.warning("Gap discovery (thin areas) blocked by cost-safety: %s", deny_reason)
+                return []
+        except Exception:
+            cost_safety = None  # type: ignore[assignment]
+            est_cost = 0.0
+
         try:
             client = await self._get_client()
             response = await client.chat.completions.create(
@@ -217,7 +237,23 @@ class GapDiscoverer:
             text = response.choices[0].message.content or "[]"
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
-            return json.loads(text)
+            result = json.loads(text)
+            if cost_safety is not None:
+                try:
+                    from deepr.experts.chat import _chat_token_cost as _tc
+
+                    actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
+                    cost_safety.record_cost(
+                        session_id="gap_discovery",
+                        operation_type="gap_discovery_thin_areas",
+                        actual_cost=float(actual_cost),
+                        provider="openai",
+                        model="gpt-5.2",
+                        source="experts.gap_discovery._generate_gaps_for_thin_areas",
+                    )
+                except Exception:
+                    pass
+            return result
         except Exception as e:
             logger.warning("Gap generation failed: %s", e)
             return []

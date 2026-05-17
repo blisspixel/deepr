@@ -102,6 +102,7 @@ export default function ResultsLibrary() {
           <Input
             type="text"
             placeholder="Search results..."
+            aria-label="Search research results"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"

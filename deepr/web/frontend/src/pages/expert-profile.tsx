@@ -619,7 +619,7 @@ export default function ExpertProfile() {
           <div className="flex h-full">
             {/* Conversation sidebar */}
             {conversations && conversations.length > 0 && (
-              <div className="w-56 border-r flex-shrink-0 flex flex-col overflow-hidden">
+              <div className="hidden md:flex w-56 border-r flex-shrink-0 flex-col overflow-hidden">
                 <div className="p-3 border-b">
                   <Button size="sm" className="w-full" variant="outline" onClick={startNewChat}>
                     New Chat

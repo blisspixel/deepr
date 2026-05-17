@@ -233,6 +233,31 @@ class MCPClientPool:
             cost = _safe_cost(result.raw.get("cost", 0.0)) if result.ok else 0.0
             self._trace_stitcher.complete_span(span, result, cost)
 
+        # Emit a terminal progress event so subscribers learn the call
+        # completed. Round 2/3 audits flagged that ``_progress_notifier``
+        # was stored but never triggered — every subscriber saw zero
+        # events. Server-pushed mid-flight progress frames still need
+        # wiring from ``MCPClient._send_request`` (deferred — would
+        # require threading a callback through the client).
+        if self._progress_notifier is not None:
+            try:
+                from datetime import datetime, timezone
+
+                from deepr.mcp.client.progress_notifier import ProgressEvent
+
+                self._progress_notifier.emit(
+                    ProgressEvent(
+                        server_name=server_name,
+                        tool_name=tool_name,
+                        progress_pct=100.0 if result.ok else None,
+                        phase="completed" if result.ok else "error",
+                        elapsed_seconds=(result.latency_ms or 0) / 1000.0,
+                        timestamp=datetime.now(timezone.utc),
+                    )
+                )
+            except Exception:
+                logger.debug("progress_notifier.emit failed", exc_info=True)
+
         return result
 
     async def broadcast_tool(
