@@ -121,6 +121,12 @@ class RoutingDecisionLog:
         if not self.log_path.exists():
             return []
 
+        # Read all matching events first, then return the last ``limit``.
+        # The previous implementation broke out of the loop after collecting
+        # the FIRST ``limit`` rows — chronologically the OLDEST. Every
+        # downstream "last_n" analytic (cost_distribution, model_usage,
+        # detect_routing_drift, detect_cost_anomalies) was therefore
+        # analysing the wrong slice of history.
         events: list[RoutingDecisionEvent] = []
         with open(self.log_path, encoding="utf-8") as f:
             for line in f:
@@ -143,9 +149,9 @@ class RoutingDecisionLog:
                     continue
 
                 events.append(event)
-                if len(events) >= limit:
-                    break
 
+        if limit > 0 and len(events) > limit:
+            return events[-limit:]
         return events
 
     # ------------------------------------------------------------------

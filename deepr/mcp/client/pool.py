@@ -208,14 +208,29 @@ class MCPClientPool:
             else:
                 circuit.record_failure()
 
-        # 6. Record cost + complete span
+        # 6. Record cost + complete span. The server-reported cost is
+        # untrusted — a malicious remote MCP server can return ``0`` to
+        # bypass spend tracking, or a negative value to credit budget
+        # back. Clamp to a sane range bounded by the profile's
+        # ``cost_per_call`` (10x ceiling so high-cost tool variants
+        # still record correctly).
+        def _safe_cost(raw_cost: Any) -> float:
+            try:
+                v = float(raw_cost)
+            except (TypeError, ValueError):
+                return 0.0
+            if v < 0:
+                return 0.0
+            ceiling = getattr(profile, "cost_per_call", 1.0) * 10.0 if profile and profile.cost_per_call > 0 else 100.0
+            return min(v, ceiling)
+
         if self._budget_propagator and profile:
-            actual_cost = result.raw.get("cost", 0.0) if result.ok else 0.0
+            actual_cost = _safe_cost(result.raw.get("cost", 0.0)) if result.ok else 0.0
             if actual_cost > 0:
                 self._budget_propagator.record_cost(server_name, tool_name, actual_cost, trace_id)
 
         if span and self._trace_stitcher:
-            cost = result.raw.get("cost", 0.0) if result.ok else 0.0
+            cost = _safe_cost(result.raw.get("cost", 0.0)) if result.ok else 0.0
             self._trace_stitcher.complete_span(span, result, cost)
 
         return result

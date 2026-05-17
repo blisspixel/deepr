@@ -96,11 +96,15 @@ class AgentOrchestrator:
             subtasks = [query]  # Fallback: treat original query as single task
 
         # --- Phase 2: Workers (parallel, bounded) ---
-        num_workers = min(len(subtasks), len(self.workers)) if self.workers else 0
-        if num_workers == 0:
+        # Every subtask gets dispatched; workers are picked round-robin
+        # via ``idx % len(self.workers)``. The previous implementation
+        # capped dispatch at ``min(len(subtasks), len(self.workers))``,
+        # silently dropping subtasks 4..N when there were only 3 workers.
+        if not self.workers:
             worker_outputs: list[str] = [plan_result.output]
         else:
-            worker_budget_each = (budget * self.WORKER_BUDGET_FRACTION) / num_workers
+            num_subtasks = len(subtasks)
+            worker_budget_each = (budget * self.WORKER_BUDGET_FRACTION) / max(num_subtasks, 1)
             dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_PLAN_CONCURRENCY)
 
             async def _run_worker(idx: int, subtask: str) -> AgentResult:
@@ -112,14 +116,20 @@ class AgentOrchestrator:
                 wb = AgentBudget(max_cost=worker_budget_each)
                 return await worker.execute(subtask, wb, worker_identity)
 
-            dispatch_tasks = [
-                {"id": f"worker-{i}", "coro": _run_worker(i, subtasks[i])}
-                for i in range(min(len(subtasks), num_workers))
-            ]
+            dispatch_tasks = [{"id": f"worker-{i}", "coro": _run_worker(i, subtasks[i])} for i in range(num_subtasks)]
             dispatch_result = await dispatcher.dispatch(dispatch_tasks)
 
+            # Numeric sort so worker-10 lands AFTER worker-2 — lex sort
+            # produced ``worker-0, worker-1, worker-10, worker-11,
+            # worker-2, …``, mis-attributing subtask outputs at >10 workers.
+            def _worker_index(task_id: str) -> int:
+                try:
+                    return int(task_id.rsplit("-", 1)[1])
+                except (IndexError, ValueError):
+                    return 0
+
             worker_outputs = []
-            for task_id in sorted(dispatch_result.tasks):
+            for task_id in sorted(dispatch_result.tasks, key=_worker_index):
                 task = dispatch_result.tasks[task_id]
                 if task.result is not None:
                     result: AgentResult = task.result
@@ -156,7 +166,7 @@ class AgentOrchestrator:
             status=synth_result.status,
             metadata={
                 "subtask_count": len(subtasks),
-                "worker_count": num_workers,
+                "worker_count": len(self.workers) if self.workers else 0,
                 "phases_completed": ["planning", "workers", "synthesis"],
             },
         )

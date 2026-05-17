@@ -118,8 +118,12 @@ class ExpertCouncil:
         # manager upfront. Without this, N=5 parallel experts each pass
         # their own session-budget check while the daily cap is observed
         # as if no other call is pending — classic fan-out over-commit.
+        import uuid as _uuid
+
         cost_safety = get_cost_safety_manager()
-        council_session_id = f"council_{id(self):x}_{int(__import__('time').time())}"
+        # Use a uuid so two near-simultaneous consult() calls on the same
+        # ExpertCouncil instance can't collide on the cost-safety session map.
+        council_session_id = f"council_{_uuid.uuid4().hex[:16]}"
         allowed, deny_reason, _confirm, reservation_id = cost_safety.check_and_reserve(
             session_id=council_session_id,
             operation_type="council_consult",
@@ -191,31 +195,36 @@ class ExpertCouncil:
                     cost=0.0,
                 )
 
-        # Query all experts in parallel with bounded concurrency
+        # Query all experts in parallel with bounded concurrency. The
+        # reservation must always be refunded — even if dispatch or
+        # synthesis raises — so we wrap the rest of the body in
+        # try/finally. The previous code refunded only on the happy path,
+        # leaking the daily-cap slot whenever ``_synthesise`` raised.
         from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
 
         dispatcher = AsyncTaskDispatcher(max_concurrent=MAX_COUNCIL_CONCURRENCY)
         dispatch_tasks = [{"id": exp["name"], "coro": _query_expert(exp)} for exp in experts]
-        dispatch_result = await dispatcher.dispatch(dispatch_tasks)
-        perspectives = [
-            dispatch_result.tasks[exp["name"]].result
-            for exp in experts
-            if dispatch_result.tasks[exp["name"]].result is not None
-        ]
-        total_cost = sum(p.cost for p in perspectives)
-
-        # Synthesise
-        synthesis = await self._synthesise(query, perspectives, budget * SYNTHESIS_BUDGET_FRACTION)
-        total_cost += synthesis.get("cost", 0.0)
-
-        # Settle the reservation against the actual total spend. Child
-        # sessions already wrote their own ledger events via record_cost,
-        # so we only need to release the reservation slot here without
-        # double-billing.
         try:
-            cost_safety.refund_reservation(reservation_id)
-        except Exception:  # never let cost-bookkeeping mask the result
-            logger.debug("Council reservation %s could not be refunded", reservation_id, exc_info=True)
+            dispatch_result = await dispatcher.dispatch(dispatch_tasks)
+            perspectives = [
+                dispatch_result.tasks[exp["name"]].result
+                for exp in experts
+                if dispatch_result.tasks[exp["name"]].result is not None
+            ]
+            total_cost = sum(p.cost for p in perspectives)
+
+            # Synthesise
+            synthesis = await self._synthesise(query, perspectives, budget * SYNTHESIS_BUDGET_FRACTION)
+            total_cost += synthesis.get("cost", 0.0)
+        finally:
+            # Always release the council-level reservation. Child sessions
+            # already wrote their own ledger events via record_cost, so
+            # we only release the in-flight pool slot here without
+            # double-billing.
+            try:
+                cost_safety.refund_reservation(reservation_id)
+            except Exception:  # never let cost-bookkeeping mask the result
+                logger.debug("Council reservation %s could not be refunded", reservation_id, exc_info=True)
 
         return {
             "query": query,
