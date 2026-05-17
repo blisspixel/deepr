@@ -51,6 +51,13 @@ All three cloud deployments follow the same security-hardened pattern:
 | Encryption | KMS | Azure Key Vault | Cloud KMS |
 | Network | VPC + Private Subnets | VNet + Private Endpoints | VPC + Serverless Connector |
 
+> **Note on workers:** AWS ships a complete worker implementation in
+> `deploy/aws/src/worker/`. Azure (Container Apps) and GCP (Cloud Run)
+> currently ship only the infrastructure templates — the worker
+> container source is not yet included. Bring your own image or port
+> the AWS worker as a starting point (it uses DynamoDB; rework the
+> queue/state plumbing to Cosmos DB / Firestore for the other clouds).
+
 ## Project Structure
 
 ```

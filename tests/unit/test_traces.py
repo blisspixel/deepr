@@ -322,9 +322,16 @@ class TestGetOrCreateTrace:
     """Tests for get_or_create_trace helper."""
 
     def test_creates_new_trace(self):
-        """Test that get_or_create_trace creates a new trace when none exists."""
-        # Clear any existing context
-        TraceContext._local.current = None
+        """Test that get_or_create_trace creates a new trace when none exists.
+
+        Round-3 fix: ``TraceContext`` switched from ``threading.local`` to
+        ``contextvars.ContextVar`` so async coroutines on the same thread
+        each see their own context. We clear the contextvar instead of
+        a threading.local attribute.
+        """
+        from deepr.observability.traces import _current_trace
+
+        _current_trace.set(None)
 
         ctx = get_or_create_trace()
 

@@ -196,7 +196,20 @@ class MCPClient:
             )
 
         # Drain stderr to a logger so the subprocess pipe never fills up.
-        self._stderr_task = asyncio.create_task(self._drain_stderr())
+        # Cancel any prior drain task without awaiting — awaiting can
+        # block on AsyncMock-based test harnesses where cancellation
+        # propagation through ``wait_for`` doesn't unwind cleanly.
+        if self._stderr_task is not None and not self._stderr_task.done():
+            self._stderr_task.cancel()
+        # Only spawn the real drainer when stderr is an actual
+        # ``asyncio.StreamReader``. AsyncMock instances synthesise every
+        # attribute on access, so a ``hasattr`` check would always
+        # return True; an isinstance check correctly excludes mocks.
+        stderr = self._process.stderr
+        if isinstance(stderr, asyncio.StreamReader):
+            self._stderr_task = asyncio.create_task(self._drain_stderr())
+        else:
+            self._stderr_task = None
 
         # Initialize handshake
         response = await self._send_request(
@@ -408,6 +421,14 @@ class MCPClient:
                     attempt + 1,
                     self.max_retries,
                 )
+                # NOTE: We do not force a reconnect here. Doing so
+                # introduces JSON-RPC framing risk (the prior write
+                # reached the server; the response was cancelled
+                # mid-read so the next ``readline`` could dequeue it
+                # under a fresh id). The mitigation is to surface
+                # repeated timeouts through ``_stats.failed_calls``;
+                # the pool's circuit breaker then takes the server
+                # OPEN and a healthy probe forces a clean reconnect.
             except (BrokenPipeError, ConnectionError, OSError) as e:
                 last_error = str(e)
                 logger.warning(

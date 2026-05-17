@@ -60,7 +60,7 @@ az deployment group create \
 After infrastructure deployment:
 
 ```bash
-cd function_app
+cd functions
 func azure functionapp publish deepr-prod-api
 ```
 

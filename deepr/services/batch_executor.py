@@ -368,6 +368,25 @@ class BatchExecutor:
             provider_job_id=provider_job_id,
         )
 
+        # Settle the estimated cost into the cost-safety manager so
+        # daily / monthly totals don't drift below reality. The
+        # pre-flight check at the top of this method had registered an
+        # implicit "intent to spend" but never committed it; long-running
+        # campaigns previously kept passing the daily cap because
+        # ``record_cost`` was never called.
+        try:
+            cost_safety.record_cost(
+                session_id=f"batch_{campaign_id}",
+                operation_type="batch_research",
+                actual_cost=est_cost,
+                provider=getattr(self.provider, "name", "openai"),
+                model="o4-mini-deep-research",
+                idempotency_key=f"batch:{campaign_id}:task:{task_id}:submit",
+                source="services.batch_executor._submit_task",
+            )
+        except Exception:
+            pass
+
         return job.id
 
     async def _wait_for_completion(
