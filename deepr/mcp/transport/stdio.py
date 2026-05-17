@@ -132,6 +132,10 @@ class StdioTransport:
         self._running = False
         self._stats = TransportStats()
         self._read_task: Optional[asyncio.Task] = None
+        # Track in-flight handler tasks so stop() can drain them. Initialised
+        # in __init__ rather than lazily inside _read_loop so callers that
+        # interrogate the transport before the first message still see the set.
+        self._in_flight: set[asyncio.Task] = set()
 
     def on_message(self, handler: Callable[[Message], Awaitable[Optional[Message]]]) -> None:
         """
@@ -169,7 +173,15 @@ class StdioTransport:
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def stop(self) -> None:
-        """Stop the transport."""
+        """Stop the transport.
+
+        Cancels the read loop and waits up to a few seconds for any
+        in-flight handler tasks (paid research calls, expert queries) to
+        finish so their responses are written back to stdout before the
+        process exits. Without this drain the round-1 fix that offloaded
+        handler dispatch to background tasks would silently drop responses
+        when the transport was stopped mid-call.
+        """
         self._running = False
         if self._read_task:
             self._read_task.cancel()
@@ -177,6 +189,26 @@ class StdioTransport:
                 await self._read_task
             except asyncio.CancelledError:
                 pass
+
+        if self._in_flight:
+            try:
+                # Allow handlers a short grace period to complete and send
+                # their response; cancel anything still pending after that.
+                await asyncio.wait_for(
+                    asyncio.gather(*self._in_flight, return_exceptions=True),
+                    timeout=5.0,
+                )
+            except asyncio.TimeoutError:
+                for task in list(self._in_flight):
+                    if not task.done():
+                        task.cancel()
+                # Final gather to collect cancellations cleanly.
+                try:
+                    await asyncio.gather(*self._in_flight, return_exceptions=True)
+                except Exception:
+                    pass
+            finally:
+                self._in_flight.clear()
 
     async def _read_loop(self) -> None:
         """
@@ -188,10 +220,7 @@ class StdioTransport:
         tool call (deepr_research, deepr_agentic_research) doesn't
         block subsequent reads — including cancellations of itself.
         """
-        # Track in-flight handler tasks so close() can drain them.
-        if not hasattr(self, "_in_flight"):
-            self._in_flight: set[asyncio.Task] = set()
-
+        assert self._input is not None  # set by start() before the read loop launches
         while self._running:
             try:
                 # Read a line (JSON-RPC messages are newline-delimited)

@@ -116,11 +116,15 @@ Provide your analysis from this perspective."""
 
         # Submit to provider
         try:
+            # OpenAI's deep-research tool name is "web_search_preview".
+            # xAI auto-enables web search and rejects unknown tool entries,
+            # so leave its tool list empty.
+            tool_type = "web_search_preview"
             request = ResearchRequest(
                 prompt=prompt,
                 model=model,
                 system_message=f"You are a research expert analyzing from the perspective of: {member['role']}. Focus on: {member['focus']}",
-                tools=[ToolConfig(type="web_search")] if provider != "xai" else [],  # xAI auto-enables web search
+                tools=[ToolConfig(type=tool_type)] if provider != "xai" else [],
             )
 
             provider_job_id = await provider_instance.submit_research(request)
