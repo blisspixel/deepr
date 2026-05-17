@@ -24,11 +24,14 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -348,27 +351,33 @@ class InstructionSigner:
 # Convenience functions
 
 
+# Module-level singleton signer. The previous implementation instantiated
+# ``InstructionSigner()`` fresh inside ``sign_instruction`` and
+# ``verify_instruction`` — when ``DEEPR_SIGNING_KEY`` was unset each call
+# generated a random key, so verification of any signed instruction always
+# failed. Sharing one signer guarantees the same key is used end-to-end.
+_default_signer: Optional["InstructionSigner"] = None
+
+
+def _get_default_signer() -> "InstructionSigner":
+    global _default_signer
+    if _default_signer is None:
+        if not os.environ.get(SIGNING_KEY_ENV):
+            logger.warning(
+                "%s is not set; generating an ephemeral signing key. Signatures will not "
+                "verify across processes — set %s for production deployments.",
+                SIGNING_KEY_ENV,
+                SIGNING_KEY_ENV,
+            )
+        _default_signer = InstructionSigner()
+    return _default_signer
+
+
 def sign_instruction(instruction: dict[str, Any]) -> SignedInstruction:
-    """Sign an instruction using default signer.
-
-    Args:
-        instruction: Instruction to sign
-
-    Returns:
-        SignedInstruction
-    """
-    signer = InstructionSigner()
-    return signer.sign(instruction)
+    """Sign an instruction using the module-level singleton signer."""
+    return _get_default_signer().sign(instruction)
 
 
 def verify_instruction(signed: SignedInstruction) -> bool:
-    """Verify a signed instruction using default signer.
-
-    Args:
-        signed: SignedInstruction to verify
-
-    Returns:
-        True if valid
-    """
-    signer = InstructionSigner()
-    return signer.verify(signed)
+    """Verify a signed instruction using the module-level singleton signer."""
+    return _get_default_signer().verify(signed)

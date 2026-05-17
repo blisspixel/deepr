@@ -388,11 +388,27 @@ def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_co
 
     queue = SQLiteQueue()
 
+    # Map the model name to its actual provider. The previous fallback
+    # routed everything that wasn't o3/o4 to ``gemini`` — including Grok,
+    # Claude, and any explicit GPT-5/GPT-4.1 selection — producing instant
+    # auth failures or, worse, wrong-vendor charges.
+    def _provider_for(m: str) -> str:
+        lm = (m or "").lower()
+        if "claude" in lm or lm.startswith("anthropic"):
+            return "anthropic"
+        if "grok" in lm or lm.startswith("xai"):
+            return "xai"
+        if "gemini" in lm or lm.startswith("google") or "deep-research-pro" in lm:
+            return "gemini"
+        # All OpenAI families (o3*, o4*, gpt-5*, gpt-4*, …) and the
+        # generic fall-through belong to openai by default.
+        return "openai"
+
     job = ResearchJob(
         id=str(uuid.uuid4()),
         prompt=prompt,
         model=model,
-        provider="openai" if "o3" in model or "o4" in model else "gemini",
+        provider=_provider_for(model),
         priority=3,
         enable_web_search=web_search,
         status=JobStatus.QUEUED,

@@ -20,9 +20,12 @@ Comparison to OpenAI:
 """
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from anthropic import Anthropic, AnthropicError
@@ -210,6 +213,21 @@ class AnthropicProvider(DeepResearchProvider):
                 else:
                     # No tool use, we're done
                     break
+            else:
+                # for-else: ran ``max_turns`` iterations without an early
+                # break. The final turn may have requested tool use that
+                # was executed but never sent back for the model to
+                # synthesise. Add an explicit note so the consumer can
+                # detect a truncated response instead of silently
+                # accepting a partial report.
+                logger.warning(
+                    "Anthropic research hit max_turns=%d without convergence; report may be incomplete",
+                    max_turns,
+                )
+                response_content.append(
+                    f"\n\n_[Report truncated: research loop reached the {max_turns}-turn ceiling. "
+                    "Consider re-running with a higher max_turns or a narrower query.]_"
+                )
 
             # Format report with thinking trace (for transparency)
             report_markdown = self._format_research_report(

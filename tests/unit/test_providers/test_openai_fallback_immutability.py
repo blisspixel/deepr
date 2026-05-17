@@ -50,18 +50,14 @@ async def test_rate_limit_fallback_does_not_mutate_request():
             raise rate_limit_err
         return fallback_resp
 
-    with patch.object(
-        provider.client.responses, "create", new=AsyncMock(side_effect=fake_create)
-    ):
+    with patch.object(provider.client.responses, "create", new=AsyncMock(side_effect=fake_create)):
         job_id = await provider.submit_research(request)
 
     # The caller's request object is unchanged. This is the core
     # invariant — the silent quality downgrade in the previous code
     # mutated request.model, so a caller persisting the request as a
     # decision record would see the wrong model.
-    assert request.model == original_model, (
-        "submit_research mutated the caller's request.model on rate-limit fallback"
-    )
+    assert request.model == original_model, "submit_research mutated the caller's request.model on rate-limit fallback"
     # The fallback path actually ran.
     assert job_id == "fallback-job-id"
     # Multiple distinct models were attempted (original then fallback).
