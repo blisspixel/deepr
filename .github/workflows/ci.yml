@@ -51,4 +51,8 @@ jobs:
         run: pip install -e ".[dev,full]"
 
       - name: Unit tests with coverage
-        run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing --cov-fail-under=60
+        # Coverage threshold lives in pyproject.toml (currently 75%).
+        # Do NOT pass --cov-fail-under here — it would silently override
+        # the pyproject setting and allow coverage to drop without
+        # tripping CI (R4 audit caught this discrepancy).
+        run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing

@@ -294,6 +294,13 @@ class FreshnessChecker:
             if "date" in source:
                 try:
                     source_date = datetime.fromisoformat(source["date"])
+                    # Naive datetimes (no tz in the input string) raise
+                    # ``TypeError`` when subtracted from ``now`` (aware) —
+                    # the previous bare except swallowed every such call,
+                    # so source-freshness analysis returned ``dated_count=0``
+                    # for the common case of dates without explicit tz.
+                    if source_date.tzinfo is None:
+                        source_date = source_date.replace(tzinfo=timezone.utc)
                     ages.append((now - source_date).days)
                 except (ValueError, TypeError):
                     pass

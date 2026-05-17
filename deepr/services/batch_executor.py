@@ -16,7 +16,7 @@ to detect diminishing returns and optimize research efficiency.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from deepr.observability.information_gain import InformationGainTracker
@@ -95,7 +95,7 @@ class BatchExecutor:
         completed_tasks = {}
         campaign_results = {
             "campaign_id": campaign_id,
-            "started_at": datetime.now().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "phases": {},
             "tasks": {},
             "quality_metrics": {},
@@ -158,7 +158,7 @@ class BatchExecutor:
                 break
 
         # Save campaign results
-        campaign_results["completed_at"] = datetime.now().isoformat()
+        campaign_results["completed_at"] = datetime.now(timezone.utc).isoformat()
         campaign_results["total_cost"] = sum(t.get("cost", 0.0) for t in campaign_results["tasks"].values())
 
         # Add quality metrics summary
@@ -393,6 +393,7 @@ class BatchExecutor:
         self,
         job_ids: dict[int, str],
         tasks: list[dict],
+        max_wait_seconds: float = 3600.0,
     ) -> dict[int, dict]:
         """
         Wait for all jobs to complete and retrieve results.
@@ -400,17 +401,42 @@ class BatchExecutor:
         Args:
             job_ids: Dict mapping task_id to job_id
             tasks: Task definitions
+            max_wait_seconds: Hard ceiling on total wall-clock time
+                (default: 1 hour). Without this the loop could run
+                forever if a provider hung or the queue dropped the
+                completion event — campaigns would hold coroutines and
+                resources indefinitely.
 
         Returns:
             Dict mapping task_id to results
         """
+        import time as _time
+
         results = {}
         pending = set(job_ids.keys())
 
         # Create lookup for task titles
         task_titles = {t["id"]: t["title"] for t in tasks}
 
+        wait_started = _time.monotonic()
         while pending:
+            if _time.monotonic() - wait_started > max_wait_seconds:
+                # Mark any still-pending tasks as failed and exit.
+                for task_id in list(pending):
+                    results[task_id] = {
+                        "title": task_titles.get(task_id, ""),
+                        "job_id": job_ids[task_id],
+                        "status": "failed",
+                        "result": "",
+                        "cost": 0.0,
+                        "error": f"Batch wait timed out after {max_wait_seconds:.0f}s",
+                    }
+                logger.warning(
+                    "BatchExecutor._wait_for_completion timed out after %ss with %d jobs still pending",
+                    max_wait_seconds,
+                    len(pending),
+                )
+                return results
             await asyncio.sleep(5)  # Poll every 5 seconds
 
             # Check status of pending jobs
