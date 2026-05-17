@@ -559,14 +559,19 @@ async def _cancel_job(job_id: str):
         click.echo(f"Job already {job.status.value}, cannot cancel")
         return
 
-    # Try to cancel with provider if it's processing
+    # Try to cancel with provider if it's processing. Use the job's
+    # OWN provider — falling back to the config default sent the cancel
+    # request to whichever vendor was configured last, leaking job IDs
+    # cross-vendor and failing auth.
     if job.provider_job_id and job.status == JobStatus.PROCESSING:
         try:
             from deepr.config import load_config
             from deepr.providers import create_provider
 
             config = load_config()
-            provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+            provider_name = getattr(job, "provider", None) or config.get("provider", "openai")
+            api_key_for_provider = config.get(f"{provider_name}_api_key") or config.get("api_key")
+            provider = create_provider(provider_name, api_key=api_key_for_provider)
 
             cancelled = await provider.cancel_job(job.provider_job_id)
             if cancelled:

@@ -313,22 +313,44 @@ def get_job(job_id: str):
 
 
 def cancel_job(job_id: str):
-    """Cancel a job by updating its status in Firestore."""
+    """Cancel a job by updating its status in Firestore.
+
+    Uses a Firestore transaction so a worker completion that lands
+    concurrently can't be overwritten (and vice versa).
+    """
     if not validate_job_id(job_id):
         return response(400, {"error": "Invalid job ID format"})
 
+    from google.cloud import firestore as _firestore
+
     doc_ref = db.collection(JOBS_COLLECTION).document(job_id)
-    doc = doc_ref.get()
 
-    if not doc.exists:
+    transaction = db.transaction()
+
+    @_firestore.transactional
+    def _do_cancel(transaction):
+        snapshot = doc_ref.get(transaction=transaction)
+        if not snapshot.exists:
+            return ("not_found", None)
+        job = snapshot.to_dict() or {}
+        if job.get("status") in ["completed", "failed", "cancelled"]:
+            return ("terminal", job.get("status"))
+        transaction.update(
+            doc_ref,
+            {"status": "cancelled", "cancelled_at": datetime.now(timezone.utc).isoformat()},
+        )
+        return ("ok", None)
+
+    try:
+        outcome, info = _do_cancel(transaction)
+    except Exception as exc:  # pragma: no cover - transactional errors are environment-specific
+        logger.exception("Transactional cancel failed for %s", job_id)
+        return response(500, {"error": f"Cancel failed: {exc}"})
+
+    if outcome == "not_found":
         return response(404, {"error": "Job not found"})
-
-    job = doc.to_dict()
-
-    if job.get("status") in ["completed", "failed", "cancelled"]:
-        return response(400, {"error": f"Cannot cancel job in {job['status']} state"})
-
-    doc_ref.update({"status": "cancelled", "cancelled_at": datetime.now(timezone.utc).isoformat()})
+    if outcome == "terminal":
+        return response(400, {"error": f"Cannot cancel job in {info} state"})
 
     logger.info(f"Job cancelled: {job_id}")
     return response(200, {"success": True})

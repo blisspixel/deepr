@@ -56,7 +56,12 @@ def research():
 )
 @click.option("--priority", "-p", default=3, type=click.IntRange(1, 5), help="Priority (1=high, 5=low)")
 @click.option("--web-search/--no-web-search", default=True, help="Enable web search (default: enabled)")
-@click.option("--cost-limit", type=float, default=None, help="Override max cost for this job (USD)")
+@click.option(
+    "--cost-limit",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    help="Override max cost for this job (USD)",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.option("--auto-select", is_flag=True, help="Use autonomous provider router for selection")
 @click.option(
