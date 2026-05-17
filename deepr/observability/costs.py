@@ -826,6 +826,10 @@ class CostDashboard:
             "entries": [e.to_dict() for e in entries_to_save],
             "alerts": [a.to_dict() for a in self.alert_manager.triggered_alerts[-MAX_STORED_ALERTS:]],
             "saved_at": datetime.now(timezone.utc).isoformat(),
+            # Persist user-set spending limits so ``deepr costs limits
+            # --daily X --monthly Y`` survives a process restart.
+            "daily_limit": self.daily_limit,
+            "monthly_limit": self.monthly_limit,
         }
 
         # Atomic write using the shared helper (tempfile + os.replace +
@@ -877,6 +881,18 @@ class CostDashboard:
                     )
                 )
             self.alert_manager.triggered_alerts = loaded_alerts
+
+            # Restore user-set spending limits if present in the file.
+            if "daily_limit" in data:
+                try:
+                    self.daily_limit = float(data["daily_limit"])
+                except (TypeError, ValueError):
+                    pass
+            if "monthly_limit" in data:
+                try:
+                    self.monthly_limit = float(data["monthly_limit"])
+                except (TypeError, ValueError):
+                    pass
 
             logger.debug(
                 f"Loaded {len(self.entries)} cost entries and {len(self.alert_manager.triggered_alerts)} alerts"

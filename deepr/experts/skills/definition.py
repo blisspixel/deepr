@@ -186,12 +186,43 @@ class SkillDefinition:
         )
 
     def load_prompt(self) -> str:
-        """Load prompt.md content (lazy, cached)."""
+        """Load prompt.md content (lazy, cached).
+
+        The ``prompt_file`` field is read verbatim from skill.yaml. A
+        skill with ``prompt_file: ../../../etc/passwd`` (or any path
+        that resolves outside the skill directory) is silently rejected
+        here so a malicious / community-supplied manifest cannot pull
+        arbitrary host files into the system prompt.
+        """
         if self._prompt_content is not None:
             return self._prompt_content
 
-        prompt_path = self.path / self.prompt_file
-        if prompt_path.exists():
+        # Reject absolute paths and parent-traversal segments outright.
+        from pathlib import Path as _Path
+
+        if _Path(self.prompt_file).is_absolute() or ".." in _Path(self.prompt_file).parts:
+            logger.warning(
+                "Skill %s: prompt_file %r escapes skill dir; ignoring",
+                self.name,
+                self.prompt_file,
+            )
+            self._prompt_content = ""
+            return ""
+
+        skill_root = self.path.resolve()
+        prompt_path = (self.path / self.prompt_file).resolve()
+        try:
+            prompt_path.relative_to(skill_root)
+        except ValueError:
+            logger.warning(
+                "Skill %s: prompt_file %r resolves outside skill dir; ignoring",
+                self.name,
+                self.prompt_file,
+            )
+            self._prompt_content = ""
+            return ""
+
+        if prompt_path.is_file():
             self._prompt_content = prompt_path.read_text(encoding="utf-8")
         else:
             self._prompt_content = ""
