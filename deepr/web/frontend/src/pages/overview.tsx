@@ -174,7 +174,11 @@ export default function Overview() {
                 <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Live Jobs</h2>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => cleanupMutation.mutate()}
+                    onClick={() => {
+                      if (window.confirm('Mark all stuck-processing jobs as failed? Active jobs are unaffected.')) {
+                        cleanupMutation.mutate()
+                      }
+                    }}
                     disabled={cleanupMutation.isPending}
                     className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                   >

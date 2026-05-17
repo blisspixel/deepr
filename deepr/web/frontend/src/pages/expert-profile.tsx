@@ -155,6 +155,10 @@ export default function ExpertProfile() {
   const [planQuery, setPlanQuery] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
+  // Safety timer that clears streaming state if the WS chat_complete /
+  // chat_error event is dropped — UI was previously stuck on "streaming"
+  // forever in that case (R3 frontend-audit finding).
+  const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const decodedName = decodeURIComponent(name || '')
   const encodedName = encodeURIComponent(decodedName)
@@ -185,6 +189,10 @@ export default function ExpertProfile() {
         })
       }),
       wsClient.onChatComplete((data) => {
+        if (streamTimeoutRef.current) {
+          clearTimeout(streamTimeoutRef.current)
+          streamTimeoutRef.current = null
+        }
         setIsStreaming(false)
         setStreamingContent('')
         setActiveTools([])
@@ -204,6 +212,10 @@ export default function ExpertProfile() {
         }])
       }),
       wsClient.onChatError(({ error }) => {
+        if (streamTimeoutRef.current) {
+          clearTimeout(streamTimeoutRef.current)
+          streamTimeoutRef.current = null
+        }
         setIsStreaming(false)
         setStreamingContent('')
         setActiveTools([])
@@ -408,6 +420,14 @@ export default function ExpertProfile() {
       setThoughts([])
       userScrolledRef.current = false
       wsClient.startChat(decodedName, message, sessionId ?? undefined, chatMode)
+      // Safety timeout: if no chat_complete / chat_error event arrives
+      // within 60s the WS event was probably dropped (R3 audit finding).
+      // Clear streaming state so the UI doesn't hang forever.
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
+      streamTimeoutRef.current = setTimeout(() => {
+        setIsStreaming(false)
+        toast.warning('Chat stream timeout — the response may be lost. Refresh to reload the session.')
+      }, 60_000)
     } else {
       chatMutation.mutate(message)
     }
@@ -621,7 +641,12 @@ export default function ExpertProfile() {
                           {conv.message_count} msgs{conv.cost > 0 ? ` · ${formatCurrency(conv.cost)}` : ''}
                         </span>
                         <button
-                          onClick={(e) => { e.stopPropagation(); deleteConversationMutation.mutate(conv.session_id) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (window.confirm(`Delete this conversation (${conv.message_count} messages)? This cannot be undone.`)) {
+                              deleteConversationMutation.mutate(conv.session_id)
+                            }
+                          }}
                           className="text-[10px] text-destructive opacity-0 group-hover/conv:opacity-100 transition-opacity"
                           aria-label="Delete conversation"
                         >
@@ -1038,7 +1063,16 @@ export default function ExpertProfile() {
                       skill={skill}
                       installed
                       action={
-                        <Button variant="outline" size="sm" onClick={() => removeSkillMutation.mutate(skill.name)} disabled={removeSkillMutation.isPending}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (window.confirm(`Remove the '${skill.name}' skill from this expert?`)) {
+                              removeSkillMutation.mutate(skill.name)
+                            }
+                          }}
+                          disabled={removeSkillMutation.isPending}
+                        >
                           Remove
                         </Button>
                       }

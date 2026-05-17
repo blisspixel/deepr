@@ -329,9 +329,16 @@ class SQLiteQueue(QueueBackend):
             if len(rows) == 1:
                 row = rows[0]
             elif len(rows) > 1:
-                # Ambiguous prefix — refuse to guess
+                # Ambiguous prefix — raise so callers can distinguish
+                # "doesn't exist" from "refusing to guess". The previous
+                # ``return None`` silently looked identical to a missing
+                # job; cancel / status flows treated it as no-op.
+                matched_ids = [r["id"] for r in rows[:5]]
                 conn.close()
-                return None
+                raise ValueError(
+                    f"Ambiguous job-id prefix {job_id!r} matches {len(rows)} jobs "
+                    f"(e.g., {matched_ids}); supply more characters."
+                )
 
         conn.close()
 

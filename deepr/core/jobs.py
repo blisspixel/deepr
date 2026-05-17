@@ -149,9 +149,18 @@ class JobManager:
     # JSONL Backend Implementation
 
     async def _write_jsonl_record(self, record: JobRecord):
-        """Write a record to JSONL file."""
-        with open(self.log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(asdict(record)) + "\n")
+        """Write a record to JSONL file with durable append.
+
+        Uses ``append_jsonl_durable`` so the line is flushed + fsync'd
+        before returning — survives a crash between ``write()`` and
+        process exit. (POSIX appends ≤ PIPE_BUF are atomic per-process,
+        but multi-process appenders can still interleave; we'd need a
+        file lock to fully serialise across processes. Single-process
+        invariant documented at ``utils/atomic_io.append_jsonl_durable``.)
+        """
+        from deepr.utils.atomic_io import append_jsonl_durable
+
+        append_jsonl_durable(self.log_path, asdict(record), fsync=False)
 
     async def _update_jsonl_status(self, response_id: str, new_status: str):
         """Update status in JSONL file."""

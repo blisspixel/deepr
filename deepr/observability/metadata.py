@@ -199,23 +199,44 @@ class MetadataEmitter:
         self.trace_context = trace_context or get_or_create_trace()
         self.tasks: list[TaskMetadata] = []
         self._active_operations: dict[str, OperationContext] = {}
+        # Per-job tracker map. Previously a single shared field meant
+        # two concurrent ``research_async`` jobs clobbered each other —
+        # whichever job called ``set_temporal_tracker`` last "won" and
+        # the other job's findings flowed through the wrong tracker.
+        self._temporal_trackers: dict[str, TemporalKnowledgeTracker] = {}
+        # Back-compat shim: callers that don't pass ``job_id`` use this
+        # last-set tracker. Logged as a warning so we can find them.
         self._temporal_tracker: Optional[TemporalKnowledgeTracker] = None
 
-    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker"):
+    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker", job_id: Optional[str] = None):
         """Set the temporal knowledge tracker for findings/hypothesis tracking.
 
         Args:
             tracker: TemporalKnowledgeTracker instance
+            job_id: Job identifier; when provided, the tracker is stored
+                per-job so concurrent jobs don't clobber one another.
+                Omitting ``job_id`` falls back to the legacy shared field.
         """
-        self._temporal_tracker = tracker
+        if job_id:
+            self._temporal_trackers[job_id] = tracker
+        self._temporal_tracker = tracker  # legacy callers
 
-    def get_temporal_tracker(self) -> Optional["TemporalKnowledgeTracker"]:
+    def get_temporal_tracker(self, job_id: Optional[str] = None) -> Optional["TemporalKnowledgeTracker"]:
         """Get the temporal knowledge tracker if set.
+
+        Args:
+            job_id: When provided, returns the per-job tracker if registered.
 
         Returns:
             TemporalKnowledgeTracker or None
         """
+        if job_id and job_id in self._temporal_trackers:
+            return self._temporal_trackers[job_id]
         return self._temporal_tracker
+
+    def clear_temporal_tracker(self, job_id: str) -> None:
+        """Drop a per-job tracker once the job is terminal."""
+        self._temporal_trackers.pop(job_id, None)
 
     def start_task(
         self, task_type: str, prompt: str = "", attributes: Optional[dict[str, Any]] = None

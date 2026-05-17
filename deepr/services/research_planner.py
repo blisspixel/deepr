@@ -205,10 +205,24 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
             validated_tasks = []
             for task in tasks[:max_tasks]:  # Ensure we don't exceed max_tasks
                 if isinstance(task, dict) and "title" in task and "prompt" in task:
+                    # Preserve ``id``, ``phase``, ``depends_on``, ``type``,
+                    # and ``model`` if the planner emitted them — the
+                    # downstream BatchExecutor._group_by_phase requires
+                    # these. The previous validator stripped them, so
+                    # every task ended up in phase 1 with no deps.
                     validated_tasks.append(
                         {
-                            "title": str(task["title"])[:100],  # Cap title length
-                            "prompt": str(task["prompt"])[:1000],  # Cap prompt length
+                            "id": int(task.get("id", len(validated_tasks) + 1)),
+                            "title": str(task["title"])[:100],
+                            "prompt": str(task["prompt"])[:1000],
+                            "phase": int(task.get("phase", 1)),
+                            "depends_on": [
+                                int(d)
+                                for d in task.get("depends_on", [])
+                                if isinstance(d, (int, str)) and str(d).isdigit()
+                            ],
+                            "type": str(task.get("type", "research"))[:32],
+                            "model": str(task.get("model", ""))[:64] or None,
                         }
                     )
 
