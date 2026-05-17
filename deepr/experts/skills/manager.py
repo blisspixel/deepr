@@ -35,7 +35,24 @@ class SkillManager:
         self._scan_tier(_USER_GLOBAL_DIR, "global")
 
         if expert_name:
-            expert_skills_dir = Path("data/experts") / expert_name / "skills"
+            # Sanitise the expert name before using it as a path
+            # component. Without this, ``SkillManager(expert_name="../../etc")``
+            # would scan ``data/etc/skills`` (or whatever the traversal
+            # target resolves to) for skill manifests.
+            try:
+                from deepr.utils.security import sanitize_name
+
+                safe_name = sanitize_name(expert_name)
+            except Exception:
+                logger.warning("Skipping expert-local skills for invalid name %r", expert_name)
+                return
+            experts_root = Path("data/experts").resolve()
+            expert_skills_dir = (experts_root / safe_name / "skills").resolve()
+            try:
+                expert_skills_dir.relative_to(experts_root)
+            except ValueError:
+                logger.warning("Expert skill path escapes data/experts: %r", expert_skills_dir)
+                return
             self._scan_tier(expert_skills_dir, "expert-local")
 
     def _scan_tier(self, base_dir: Path, tier: str) -> None:

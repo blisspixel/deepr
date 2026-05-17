@@ -229,7 +229,7 @@ $5-$20 depending on domain complexity and number of research topics
 deepr expert chat "Azure Fabric Expert"
 
 # Agentic mode (can trigger research autonomously)
-deepr expert chat "AWS Expert" --agentic --budget 5
+deepr expert chat "AWS Expert" --budget 5  # agentic by default
 ```
 
 ### Example Conversation

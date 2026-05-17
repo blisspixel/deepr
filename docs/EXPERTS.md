@@ -30,7 +30,7 @@ deepr expert make "Azure Architect" --files docs/*.md
 deepr expert chat "Azure Architect"
 
 # Chat with research capability
-deepr expert chat "Azure Architect" --agentic --budget 5
+deepr expert chat "Azure Architect" --budget 5  # agentic by default
 ```
 
 ## Creating Experts
@@ -83,7 +83,7 @@ Expert searches its knowledge base and answers from documents.
 
 ### Agentic Mode
 ```bash
-deepr expert chat "Azure Architect" --agentic --budget 5
+deepr expert chat "Azure Architect" --budget 5  # agentic by default
 ```
 
 Expert can trigger research when it recognizes knowledge gaps:
@@ -365,7 +365,7 @@ Multiple layers prevent runaway costs:
 
 ### Per-Session Limits
 ```bash
-deepr expert chat "Name" --agentic --budget 5
+deepr expert chat "Name" --budget 5  # agentic by default; pass --no-research to disable
 ```
 
 ### Hard Limits (Cannot Override)

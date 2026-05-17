@@ -458,6 +458,13 @@ class ResearchOrchestrator:
             if vector_store_id:
                 op.add_event("vector_store_cleanup_complete")
 
+            # Drop the temporal tracker so long-running orchestrators
+            # don't accumulate one entry per completed job for the
+            # lifetime of the process. Has to happen here (not in
+            # _cleanup_vector_store) because a job may have a tracker
+            # without ever having created a vector store.
+            self._temporal_trackers.pop(job_id, None)
+
     async def _cleanup_vector_store(self, job_id: str):
         """Clean up vector store for a job."""
         vector_store_id = self.active_vector_stores.pop(job_id, None)
@@ -488,6 +495,10 @@ class ResearchOrchestrator:
             if success:
                 op.add_event("job_cancelled")
                 await self._cleanup_vector_store(job_id)
+                # Drop the temporal tracker so long-running orchestrators
+                # don't leak one entry per cancelled job. The
+                # _temporal_trackers dict was previously add-only.
+                self._temporal_trackers.pop(job_id, None)
             else:
                 op.add_event("cancel_failed")
 

@@ -99,6 +99,7 @@ class BatchResult:
     completed_at: Optional[datetime] = None
     results: list[BatchQueryResult] = field(default_factory=list)
     total_cost_estimated: float = 0.0
+    error: Optional[str] = None
     total_cost_actual: float = 0.0
     success_count: int = 0
     failure_count: int = 0
@@ -314,6 +315,58 @@ class AutoBatchExecutor:
                 success_count=0,
                 failure_count=0,
             )
+
+        # Cost-safety gate. Without this, an N-query batch could spend
+        # the full routing.total_cost_estimate (potentially hundreds of
+        # dollars on a 100-query batch) without any per-batch ceiling
+        # or daily-limit check. ``_run_single`` is invoked with yes=True
+        # which short-circuits the per-job confirmation, so the batch
+        # surface is the only place we can enforce.
+        try:
+            from deepr.experts.cost_safety import CostSafetyManager, get_cost_safety_manager
+
+            cost_safety = get_cost_safety_manager()
+            batch_total_est = float(routing.total_cost_estimate or 0.0)
+            # Clamp against the absolute per-op ceiling — a batch is a
+            # single user action even though it dispatches N jobs.
+            if batch_total_est > CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:
+                return BatchResult(
+                    batch_id=batch_id,
+                    started_at=started_at,
+                    completed_at=datetime.now(timezone.utc),
+                    results=[],
+                    total_cost_estimated=batch_total_est,
+                    total_cost_actual=0.0,
+                    success_count=0,
+                    failure_count=len(items),
+                    error=(
+                        f"Batch estimated cost ${batch_total_est:.2f} exceeds absolute per-op "
+                        f"ceiling ${CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:.2f}"
+                    ),
+                )
+            allowed, deny_reason, _ = cost_safety.check_operation(
+                session_id=f"batch_auto_{batch_id}",
+                operation_type="batch_auto_execute",
+                estimated_cost=batch_total_est,
+                require_confirmation=False,
+            )
+            if not allowed:
+                return BatchResult(
+                    batch_id=batch_id,
+                    started_at=started_at,
+                    completed_at=datetime.now(timezone.utc),
+                    results=[],
+                    total_cost_estimated=batch_total_est,
+                    total_cost_actual=0.0,
+                    success_count=0,
+                    failure_count=len(items),
+                    error=f"Batch blocked by cost-safety: {deny_reason}",
+                )
+        except Exception:
+            # Don't block on cost-safety import / runtime errors —
+            # individual ``_execute_single`` calls will still go through
+            # their own per-job cost checks downstream.
+            pass
 
         # Execute queries with concurrency limit
         semaphore = asyncio.Semaphore(self._max_concurrent)

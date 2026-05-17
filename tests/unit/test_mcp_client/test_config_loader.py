@@ -103,12 +103,17 @@ class TestEnvVarResolution:
             result = _resolve_env_vars("${MY_KEY}")
         assert result == "secret123"
 
-    def test_missing_var_resolves_empty(self) -> None:
-        """Missing environment variables resolve to empty string."""
+    def test_missing_var_raises(self) -> None:
+        """Missing environment variables raise ``ValueError`` (round-3 fix).
+
+        The previous silent-empty behaviour produced confusing downstream
+        errors — a server spawned with ``API_KEY=""`` returned 401
+        instead of a clear "var not set" message.
+        """
         env_copy = {k: v for k, v in os.environ.items() if k != "NONEXISTENT_VAR_XYZ"}
         with patch.dict(os.environ, env_copy, clear=True):
-            result = _resolve_env_vars("${NONEXISTENT_VAR_XYZ}")
-        assert result == ""
+            with pytest.raises(ValueError, match="NONEXISTENT_VAR_XYZ"):
+                _resolve_env_vars("${NONEXISTENT_VAR_XYZ}")
 
     def test_multiple_vars_resolved(self) -> None:
         """Multiple variables in one string are all resolved."""

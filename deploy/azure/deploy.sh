@@ -53,7 +53,7 @@ echo "Deployment complete!"
 echo "  API URL: $FUNCTION_APP_URL"
 echo ""
 echo "Next steps:"
-echo "  1. Deploy function app code: cd function_app && func azure functionapp publish deepr-${ENVIRONMENT}-api"
+echo "  1. Deploy function app code: cd functions && func azure functionapp publish deepr-${ENVIRONMENT}-api"
 echo "  2. Build and push worker container to ACR"
 echo "  3. Test the API: curl ${FUNCTION_APP_URL}/api/health"
 

@@ -46,7 +46,7 @@ python -m pytest tests/unit/ --ignore=tests/data --cov=deepr --cov-report=term-m
 python -m pytest tests/unit/test_config.py -v
 ```
 
-Coverage minimum is 60% on core modules. CI enforces this on every push and PR.
+Coverage minimum is 75% on core modules (raised from 60% in v2.10.3). CI enforces this on every push and PR.
 
 ## Project Structure
 

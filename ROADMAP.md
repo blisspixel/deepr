@@ -55,7 +55,7 @@ These features work but APIs or behavior may change:
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
 - **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 4 built-in skills, CLI management, web API, auto-activation triggers
 - **MCP server**: Functional with 18 tools, but MCP spec itself is still maturing
-- **Agentic expert chat**: `--agentic` flag triggers autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning
+- **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
 - **Grok provider**: Grok 4.3 flagship + 4.20 multi-agent deep research; legacy models deprecated (retiring May 15, 2026) with auto-migration
@@ -82,7 +82,7 @@ These features work but APIs or behavior may change:
 - Docker deployment option
 - Cloud deployment templates (AWS, Azure, GCP)
 - Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
-- Coverage configuration with 60% minimum threshold
+- Coverage configuration with 75% minimum threshold (raised from 60% in v2.10.3)
 - Context discovery with semantic search (`deepr search`, `--context` flag)
 - Distributed tracing with MetadataEmitter, spans, cost attribution
 

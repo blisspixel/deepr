@@ -451,12 +451,12 @@ deepr expert delete "Azure Architect" --yes
 deepr expert chat "Azure Architect"
 
 # With agentic research capability
-deepr expert chat "Azure Architect" --agentic --budget 5
+deepr expert chat "Azure Architect" --budget 5  # agentic by default
 ```
 
 ### Agentic Chat Features
 
-When using `--agentic`, expert chat supports slash commands, chat modes, visible reasoning, and more. The same features are available in both CLI and web.
+Expert chat is agentic by default; it supports slash commands, chat modes, visible reasoning, and more. The same features are available in both CLI and web. Pass `--no-research` to disable autonomous research triggers and stay in plain-chat mode.
 
 **Chat Modes** control how the expert responds:
 
@@ -952,7 +952,7 @@ deepr research "Query" --vector-store docs
 
 # Create expert from documents
 deepr expert make "Domain Expert" --files docs/*.md
-deepr expert chat "Domain Expert" --agentic --budget 5
+deepr expert chat "Domain Expert" --budget 5  # agentic by default
 
 # Batch operations
 deepr jobs list --status completed

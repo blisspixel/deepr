@@ -9,6 +9,195 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.10.3] - 2026-05-17
+
+Three-round bug-hunt sweep covering cost/budget, async/concurrency, storage
+durability, provider correctness, auth, skill subsystem, CLI flag validation,
+deploy templates, MCP client + transports, and documentation accuracy. ~270
+fixes across ~170 files. All 4,400+ unit tests pass. Coverage threshold
+raised from 60% to 75%.
+
+### Security
+- **Skill executor RCE closed.** Skill ``module``/``function`` fields are
+  now resolved with ``importlib.util.spec_from_file_location`` against a
+  path inside the skill directory; ``module: os, function: system`` is
+  refused. Function names are validated as public identifiers; dunders
+  blocked. ``sys.path`` is never modified.
+- **Skill MCP subprocess allowlist.** ``server_command`` must be on a
+  per-skill allowlist (built-ins only by default; opt in via
+  ``DEEPR_SKILL_ALLOW_MCP_COMMANDS=*``). MCP subprocesses no longer
+  inherit the full host environment — only ``server.env`` keys, plus a
+  minimal ``PATH``/``HOME`` set.
+- **Skill path traversal closed.** ``prompt_file`` rejects absolute paths
+  and any path that resolves outside the skill directory.
+  ``SkillManager(expert_name=...)`` sanitises the expert name through
+  ``deepr.utils.security.sanitize_name``.
+- **Webhook server fail-closed.** Refuses anonymous POSTs when
+  ``DEEPR_WEBHOOK_SECRET`` is unset; refuses to start on a non-loopback
+  bind without a secret. Adds a 1 MiB body cap.
+- **A2A server bearer-auth gate.** ``POST /tasks`` and
+  ``POST /tasks/{id}/cancel`` now require ``DEEPR_A2A_TOKEN`` when set.
+  Refuses non-loopback bind without a token unless
+  ``DEEPR_A2A_ALLOW_PUBLIC=1``. 1 MiB body cap, header / body read
+  timeouts.
+- **MCP HTTP transport bearer over plain HTTP** now emits a warning at
+  subscribe time when the URL is non-loopback. Body cap set explicitly.
+- **`deepr templates show/delete/use`** sanitise the template name —
+  ``../`` no longer reads or deletes arbitrary files.
+- **MCP confirmation gate** strips the ``_approved`` kwarg before
+  dispatch so handlers without that parameter no longer crash with
+  ``TypeError``.
+- **Shared cloud `security.py`** uses ``hmac.compare_digest`` with
+  ``TypeError`` catch (was raw ``==``).
+- **`InstructionSigner` convenience helpers** now share a singleton so
+  ``sign_instruction`` / ``verify_instruction`` actually round-trip when
+  ``DEEPR_SIGNING_KEY`` is unset.
+- **Azure**: legacy unauthenticated ``deploy/azure/function_app/``
+  directory removed; cancel_job uses Cosmos ETag (``If-Match``) with
+  retry loop; documents now write a top-level ``job_id`` field matching
+  the container's ``/job_id`` partition key.
+- **GCP**: cancel_job wrapped in a Firestore transactional decorator.
+
+### Cost correctness
+- **`CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION`** + ``ABSOLUTE_MAX_DAILY``
+  + ``ABSOLUTE_MAX_MONTHLY`` class attributes added (round-2 patch fixed
+  a swallowed AttributeError; this exposes the constants the MCP server
+  + CLI reference).
+- **Reservation pattern.** ``cost_safety.check_and_reserve()`` returns
+  a reservation_id; ``record_cost(reservation_id=...)`` settles the
+  reservation. N-way parallel fan-out (council, task planner, batch
+  executor) can no longer over-commit against the daily cap.
+- **`services/research_api.py`** ``cost_limit`` semantics fixed: when
+  the model's estimate exceeds the caller's cap we now reject upfront
+  instead of treating the cap as the spend.
+- **`services/batch_executor.py`** + **`services/research_api.py`** now
+  call ``record_cost`` after successful submission so daily / monthly
+  spend doesn't drift below reality.
+- **`services/batch_auto.py`** ``execute_batch`` enforces a
+  ``cost_safety.check_operation`` gate against the total routing-cost
+  estimate (previously a 100-query batch could spend $100+ unchecked).
+- **`experts/chat.py`** ``_deep_research`` uses ``get_cost_estimate``
+  from the registry (was hardcoded ``$0.20`` for a ``$2.00`` model).
+  Multi-round tool loops re-check ``cost_session.can_proceed`` between
+  rounds. ``_quick_lookup`` gets a pre-flight check and registry-driven
+  pricing; cached-token discount honoured.
+- **`mcp/client/pool.py`** clamps server-reported cost so a malicious
+  server returning ``cost=0`` cannot bypass spend tracking and ``-1``
+  cannot credit budget back.
+- **`web/app.py`** ``POST /api/jobs`` enforces ``CostController.check_cost_limit``;
+  ``/api/experts/council`` clamps caller budget against
+  ``ABSOLUTE_MAX_PER_OPERATION``; ``/api/experts/chat`` clamps against
+  daily remaining.
+- **`core/costs.py`** ``record_cost`` now calls ``reset_if_needed()``
+  first so a job recorded just after UTC midnight lands in the new
+  day's bucket.
+
+### Correctness
+- **`agents/orchestrator.py`** no longer drops subtasks beyond
+  ``len(workers)``; workers are picked round-robin via
+  ``idx % len(workers)``. Output keys sort numerically so ``worker-10``
+  lands after ``worker-2``.
+- **`observability/routing_log.py`** ``get_events`` returns the LAST N
+  rows, not the FIRST N — every analytics query in this module was
+  silently analysing the oldest history slice.
+- **`observability/circuit_breaker.py`** OPEN → HALF_OPEN transition
+  now holds ``self._lock`` so concurrent callers can't both fire a
+  probe.
+- **`observability/traces.py`** ``TraceContext.get_current`` uses a
+  ``contextvars.ContextVar`` instead of ``threading.local`` so async
+  coroutines on the same thread see their own context.
+- **`research_agent/poller.py`** treats ``cancelled``, ``canceled``,
+  ``expired`` as terminal; adds exponential backoff (capped 5 min) on
+  persistent errors. ``queued`` is a recognised no-op.
+- **`core/research.py`** ``_temporal_trackers`` is popped on
+  ``cancel_job`` and ``process_completion`` so long-running orchestrators
+  don't leak one entry per job.
+- **`core/company_research.py`** constructor + ``submit_research`` call
+  now use the real ``ResearchOrchestrator`` API. Previously every call
+  crashed at init.
+- **`providers/anthropic_provider.py`** for-else on the multi-turn
+  tool loop now surfaces a truncation note when ``max_turns`` is hit
+  without convergence; usage is accumulated across turns and ``get_status``
+  returns the stored response (previously every call recorded $0).
+- **`providers/registry.py`** ``get_token_pricing`` normalises Grok's
+  dot/hyphen aliases (was an 80% undercharge on multi-agent); cached
+  token discount applied; partial-match candidates sorted by length so
+  ``flash-lite`` doesn't match ``flash``.
+- **`providers/openai_provider.py`** rate-limit fallback uses
+  ``dataclasses.replace`` instead of mutating the caller's request.
+- **`providers/gemini_provider.py`** reads ``chunk.usage_metadata``
+  for real token counts (including thinking tokens) instead of
+  ``len(text)//4`` estimates.
+- **`providers/azure_provider.py`** adds retries on transient errors;
+  defends against ``response.model = None``.
+
+### Durability
+- **`deepr/utils/atomic_io.py`** introduced (``atomic_write_bytes``,
+  ``atomic_write_text``, ``atomic_write_json``, ``append_jsonl_durable``).
+  ~17 storage call sites migrated.
+- **Cost ledger** appends now ``flush() + os.fsync()`` so the last
+  event survives a crash.
+- **`queue/local_queue.py`** runs in WAL mode; ledger event is written
+  BEFORE the SQLite commit so a crash between the two can't leave a
+  job marked completed without a billing row. Partial UNIQUE index on
+  ``provider_job_id`` blocks double-billing on submit-retry races.
+- **`mcp/state/persistence.py`** ``save_job`` is atomic via
+  ``with self._conn:`` — all three INSERTs commit together.
+
+### Async / lifecycle
+- **`mcp/transport/stdio.py`** ``stop()`` drains in-flight handler
+  tasks with a 5-second grace; ``_in_flight`` initialised in
+  ``__init__`` rather than lazily in the read loop.
+- **`mcp/transport/http.py`** ``HttpClient.subscribe()`` cancels any
+  prior subscription task before creating a new one (was leaking
+  zombie SSE streams). ``_handle_post`` returns a generic 500 instead
+  of echoing exception text. SSE subscriber dict overwrite now signals
+  the old handler to exit cleanly.
+- **`mcp/client/base.py`** spawns a background ``_drain_stderr`` so
+  a chatty MCP server doesn't fill the ~64 KB pipe buffer and hang.
+  Reconnect backoff has full jitter. Timeout in ``_send_request``
+  forces a reconnect to prevent JSON-RPC framing corruption.
+- **`mcp/state/async_dispatcher.py`** waits for dependencies BEFORE
+  acquiring the concurrency semaphore — fixes a deadlock on chains
+  longer than ``max_concurrent``.
+- **`experts/task_planner.py`** parallel ``_run_step`` coroutines
+  serialise through an ``asyncio.Lock`` on the shared session;
+  ``ExpertChatSession`` is no longer concurrently mutated.
+- **`a2a/server.py`** writer cleanup uses ``await writer.wait_closed()``.
+- **`a2a/task_manager.py`** bounded eviction of terminal tasks.
+- **`mcp/security/output_verification.py`** chain head primed from DB
+  on init (was breaking chains on every restart).
+
+### CLI
+- **`deepr templates`** sanitises template name via ``sanitize_name``.
+- **`deepr jobs cancel`** routes by ``job.provider``, not the global
+  config default.
+- **`deepr interactive`** maps model names to providers correctly
+  (was routing Grok / Claude to ``gemini``).
+- **`--cost-limit`** accepts ``FloatRange(min=0.0)``; **``--phases``**
+  accepts ``IntRange(1, 10)``; **``--perspectives``** accepts
+  ``IntRange(1, 12)`` — runaway-spend bypasses closed.
+- **`deepr team`** uses ``web_search_preview`` for OpenAI providers
+  (was using the unknown name ``web_search``).
+- **`deepr search --keyword-only`** is now respected (precedence bug
+  ``not keyword_only or True`` evaluated to ``True``).
+- **`deepr costs limits`** now persists daily / monthly limits to
+  ``cost_data.json`` and validates ``>= 0``.
+
+### Documentation
+- This file. CHANGELOG was empty for v2.10.3 (3 commits' worth of work
+  had no release notes).
+- ``--agentic`` flag references removed — flag doesn't exist; agentic
+  is the default, ``--no-research`` disables.
+- ``deploy/azure/README.md`` + ``deploy.sh`` corrected to ``functions/``
+  (the ``function_app/`` directory was removed).
+- MCP tool count: 16 → 18 in ``README.md`` and ``mcp/README.md``.
+- Test count: 4300+ → 4400+ in ``README.md``, ``ROADMAP.md``,
+  ``SECURITY.md``, ``docs/VISION.md``.
+- Coverage threshold: 60% → 75% in ``CONTRIBUTING.md`` and ``ROADMAP.md``.
+
+---
+
 ## [2.10.2] - 2026-05-13
 
 Security and hardening patch. No breaking changes for default operation;

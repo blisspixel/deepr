@@ -203,14 +203,29 @@ def limits(daily: Optional[float], monthly: Optional[float]):
             )
         )
     else:
-        # Update limits
+        # Update limits, then persist them. The previous implementation
+        # mutated the in-memory dashboard but never called ``_save()``,
+        # so the next process started back at defaults — users saw
+        # "limit set" feedback but nothing took effect.
         if daily is not None:
+            if daily < 0:
+                console.print("[red]Daily limit must be >= 0[/red]")
+                raise click.Abort()
             dashboard.daily_limit = daily
             console.print(f"[green]✓ Daily limit set to ${daily:.2f}[/green]")
 
         if monthly is not None:
+            if monthly < 0:
+                console.print("[red]Monthly limit must be >= 0[/red]")
+                raise click.Abort()
             dashboard.monthly_limit = monthly
             console.print(f"[green]✓ Monthly limit set to ${monthly:.2f}[/green]")
+
+        try:
+            dashboard._save()
+        except Exception as exc:
+            console.print(f"[red]Failed to persist limits to disk: {exc}[/red]")
+            raise click.Abort() from exc
 
 
 @costs.command()
