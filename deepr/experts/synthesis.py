@@ -226,6 +226,25 @@ class KnowledgeSynthesizer:
         # Build synthesis prompt
         synthesis_prompt = self._build_synthesis_prompt(expert_name, domain, doc_contents, existing_worldview)
 
+        # Cost-safety gate for the synthesis LLM call.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            _cost_safety = get_cost_safety_manager()
+            _est = 0.10
+            _allowed, _reason, _ = _cost_safety.check_operation(
+                session_id=f"synthesize:{expert_name}",
+                operation_type="synthesize_new_knowledge",
+                estimated_cost=_est,
+                require_confirmation=False,
+            )
+            if not _allowed:
+                logger.warning("Knowledge synthesis blocked by cost-safety: %s", _reason)
+                return {"success": False, "error": f"Cost-safety blocked: {_reason}"}
+        except Exception:
+            _cost_safety = None  # type: ignore[assignment]
+            _est = 0.0
+
         # GPT-5.2 synthesizes knowledge (low reasoning — extraction/synthesis, not deep analysis)
         response = await self.client.chat.completions.create(
             model="gpt-5.2",
@@ -240,6 +259,21 @@ class KnowledgeSynthesizer:
         )
 
         reflection_text = response.choices[0].message.content or ""
+        if _cost_safety is not None:
+            try:
+                from deepr.experts.chat import _chat_token_cost as _tc
+
+                _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
+                _cost_safety.record_cost(
+                    session_id=f"synthesize:{expert_name}",
+                    operation_type="synthesize_new_knowledge",
+                    actual_cost=float(_actual),
+                    provider="openai",
+                    model="gpt-5.2",
+                    source="experts.synthesis.synthesize_new_knowledge",
+                )
+            except Exception:
+                pass
 
         # Parse structured beliefs from reflection
         beliefs, gaps = await self._extract_structured_knowledge(reflection_text, doc_contents, expert_name)
@@ -368,6 +402,25 @@ Focus on extracting the expert's formed beliefs and identified gaps.
 Output ONLY the JSON, no other text.
 """
 
+        # Cost-safety gate for the structure-extraction LLM call.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            _cost_safety = get_cost_safety_manager()
+            _est = 0.03
+            _allowed, _reason, _ = _cost_safety.check_operation(
+                session_id=f"synthesize:{expert_name}",
+                operation_type="extract_structured_knowledge",
+                estimated_cost=_est,
+                require_confirmation=False,
+            )
+            if not _allowed:
+                logger.warning("Knowledge extraction blocked by cost-safety: %s", _reason)
+                return [], []
+        except Exception:
+            _cost_safety = None  # type: ignore[assignment]
+            _est = 0.0
+
         response = await self.client.chat.completions.create(
             model="gpt-5.2",
             messages=[
@@ -376,6 +429,21 @@ Output ONLY the JSON, no other text.
             ],
             reasoning_effort="low",  # JSON extraction doesn't need deep reasoning
         )
+        if _cost_safety is not None:
+            try:
+                from deepr.experts.chat import _chat_token_cost as _tc
+
+                _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
+                _cost_safety.record_cost(
+                    session_id=f"synthesize:{expert_name}",
+                    operation_type="extract_structured_knowledge",
+                    actual_cost=float(_actual),
+                    provider="openai",
+                    model="gpt-5.2",
+                    source="experts.synthesis.extract_structured_knowledge",
+                )
+            except Exception:
+                pass
 
         try:
             parsed = json.loads(response.choices[0].message.content or "{}")
