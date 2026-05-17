@@ -515,25 +515,7 @@ def cancel(job_id: str, yes: bool):
                 return job, "Job already failed"
             return job, None
 
-        job, error = asyncio.run(cancel_job())
-        if error:
-            print_error(error)
-            raise click.Abort()
-
-        console.print("\nJob Details:")
-        console.print(f"   ID: {job.id}")
-        console.print(f"   Status: {job.status.name}")
-        console.print(f"   Prompt: {job.prompt[:80]}{'...' if len(job.prompt) > 80 else ''}")
-        if job.provider_job_id:
-            console.print(f"   Provider Job ID: {job.provider_job_id}")
-
-        if not yes and not click.confirm("\nCancel this job?"):
-            print_warning("Cancelled")
-            return
-
-        print_success("Cancelling job...")
-
-        async def do_cancel():
+        async def do_cancel(job):
             if job.provider_job_id:
                 try:
                     await provider.cancel_job(job.provider_job_id)
@@ -542,10 +524,38 @@ def cancel(job_id: str, yes: bool):
                     console.print(f"   Warning: Could not cancel at provider: {e}")
             await queue.update_status(job_id=job.id, status=JobStatus.FAILED, error="Cancelled by user")
 
-        import asyncio as _asyncio
+        # Single event loop spans the lookup AND the cancel so the
+        # sqlite queue / aiohttp provider connections opened during
+        # lookup stay valid for the cancel call. The previous
+        # ``asyncio.run`` per step closed the loop between them,
+        # binding any reused stateful objects to a now-closed loop
+        # and intermittently raising "got Future attached to a
+        # different loop".
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            job, error = loop.run_until_complete(cancel_job())
+            if error:
+                print_error(error)
+                raise click.Abort()
 
-        _asyncio.run(do_cancel())
-        print_success("Job cancelled successfully!")
+            console.print("\nJob Details:")
+            console.print(f"   ID: {job.id}")
+            console.print(f"   Status: {job.status.name}")
+            console.print(f"   Prompt: {job.prompt[:80]}{'...' if len(job.prompt) > 80 else ''}")
+            if job.provider_job_id:
+                console.print(f"   Provider Job ID: {job.provider_job_id}")
+
+            if not yes and not click.confirm("\nCancel this job?"):
+                print_warning("Cancelled")
+                return
+
+            print_success("Cancelling job...")
+            loop.run_until_complete(do_cancel(job))
+            print_success("Job cancelled successfully!")
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
 
     except Exception as e:
         print_error(f"Error: {e}")
