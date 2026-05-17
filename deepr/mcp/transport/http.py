@@ -187,7 +187,10 @@ class StreamingHttpTransport:
                 self._host,
             )
 
-        self._app = web.Application()
+        # Hard cap on request body size. aiohttp defaults to 1 MiB but
+        # set it explicitly so the limit is auditable and aligns with the
+        # webhook + A2A surfaces.
+        self._app = web.Application(client_max_size=1 * 1024 * 1024)
         self._app.router.add_post(self._path, self._handle_post)
         self._app.router.add_get(f"{self._path}/stream", self._handle_stream)
         self._app.router.add_get(f"{self._path}/health", self._handle_health)

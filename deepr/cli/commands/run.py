@@ -988,7 +988,7 @@ def _extract_response_content(response) -> str:
 @click.argument("scenario")
 @click.option("--model", "-m", default="o3-deep-research", help="Research model")
 @click.option("--lead", default="gpt-5", help="Lead planner model")
-@click.option("--phases", "-p", type=int, default=3, help="Number of phases")
+@click.option("--phases", "-p", type=click.IntRange(1, 10), default=3, help="Number of phases (1-10)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def project(
     scenario: str,
@@ -1116,7 +1116,7 @@ async def _run_campaign(
 @run.command()
 @click.argument("question")
 @click.option("--model", "-m", default="o3-deep-research", help="Research model")
-@click.option("--perspectives", "-p", type=int, default=6, help="Number of perspectives")
+@click.option("--perspectives", "-p", type=click.IntRange(1, 12), default=6, help="Number of perspectives (1-12)")
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 def team(
     question: str,

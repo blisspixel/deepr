@@ -9,8 +9,10 @@ Feature: mcp-client-agent-interop
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
+import os
 from typing import Any
 
 from deepr.a2a.agent_card import AgentCardGenerator
@@ -22,6 +24,10 @@ from deepr.a2a.task_manager import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Caller-supplied request bodies are capped to prevent a single malicious
+# Content-Length from buffering arbitrary memory.
+_MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024  # 1 MiB
 
 
 class A2AServer:
@@ -46,18 +52,42 @@ class A2AServer:
         self,
         card_generator: AgentCardGenerator,
         task_manager: TaskManager,
+        auth_token: str | None = None,
     ) -> None:
         self._card_generator = card_generator
         self._task_manager = task_manager
         self._server: asyncio.Server | None = None
         self._running = False
         self._progress_queues: dict[str, list[asyncio.Queue[dict[str, Any]]]] = {}
+        # Bearer token required for state-changing endpoints. Reads
+        # ``DEEPR_A2A_TOKEN`` when not provided explicitly. Agent-card
+        # discovery (``GET /.well-known/agent.json``) and task-status GETs
+        # remain public so peers can introspect skills without auth.
+        self._auth_token = auth_token if auth_token is not None else os.getenv("DEEPR_A2A_TOKEN", "")
 
     async def start(self, host: str = "localhost", port: int = 8080) -> None:
         """Start the A2A HTTP server."""
+        # Refuse to start on a non-loopback bind without an auth token —
+        # ``POST /tasks`` triggers paid expert work via the underlying
+        # task manager, so an anonymous reachable endpoint is a
+        # spend-amplification primitive.
+        loopback = host in ("localhost", "127.0.0.1", "::1", "")
+        allow_public = os.getenv("DEEPR_A2A_ALLOW_PUBLIC", "").lower() in ("1", "true", "yes")
+        if not loopback and not self._auth_token and not allow_public:
+            raise RuntimeError(
+                "A2A server refusing to bind non-loopback host without DEEPR_A2A_TOKEN. "
+                f"Set DEEPR_A2A_TOKEN, use host='localhost', or set DEEPR_A2A_ALLOW_PUBLIC=1 "
+                f"(host={host!r})."
+            )
+
         self._running = True
         self._server = await asyncio.start_server(self._handle_connection, host, port)
-        logger.info("A2A server started on %s:%d", host, port)
+        logger.info(
+            "A2A server started on %s:%d (auth=%s)",
+            host,
+            port,
+            "required" if self._auth_token else "disabled (loopback-only)",
+        )
 
     async def stop(self) -> None:
         """Gracefully stop the server."""
@@ -77,13 +107,32 @@ class A2AServer:
         method: str,
         path: str,
         body: str = "",
+        auth_header: str = "",
     ) -> tuple[int, dict[str, Any]]:
         """Route and handle an HTTP request.
 
-        Returns (status_code, response_body_dict).
+        Returns (status_code, response_body_dict). ``auth_header`` is the
+        raw value of the ``Authorization`` header (``"Bearer …"``); when
+        an auth token is configured it must match for any state-changing
+        endpoint (``POST /tasks``, ``POST /tasks/{id}/cancel``).
         """
+        # Public endpoints — discovery and read-only status.
         if method == "GET" and path == "/.well-known/agent.json":
             return self._handle_agent_card()
+
+        # Auth gate for everything else when a token is configured.
+        if self._auth_token:
+            provided = ""
+            if auth_header.startswith("Bearer "):
+                provided = auth_header[7:].strip()
+            ok = False
+            if provided:
+                try:
+                    ok = hmac.compare_digest(provided, self._auth_token)
+                except TypeError:
+                    ok = False
+            if not ok:
+                return 401, {"error": "Unauthorized"}
 
         if method == "POST" and path == "/tasks":
             return self._handle_create_task(body)
@@ -170,7 +219,12 @@ class A2AServer:
     ) -> None:
         """Handle a raw TCP connection (minimal HTTP parsing)."""
         try:
-            request_line = await reader.readline()
+            # First-line read with a timeout so slowloris peers can't pin
+            # the loop forever sending headers one byte at a time.
+            try:
+                request_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+            except asyncio.TimeoutError:
+                return
             if not request_line:
                 return
 
@@ -182,33 +236,63 @@ class A2AServer:
 
             # Read headers
             content_length = 0
+            auth_header = ""
             while True:
-                line = await reader.readline()
+                try:
+                    line = await asyncio.wait_for(reader.readline(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    return
                 if line in (b"\r\n", b"\n", b""):
                     break
-                header = line.decode().strip().lower()
-                if header.startswith("content-length:"):
-                    content_length = int(header.split(":")[1].strip())
+                raw = line.decode(errors="replace").strip()
+                header_lower = raw.lower()
+                if header_lower.startswith("content-length:"):
+                    try:
+                        content_length = int(header_lower.split(":", 1)[1].strip())
+                    except ValueError:
+                        # Bad header — refuse to read a body, return 400.
+                        await self._send_simple(writer, 400, {"error": "Invalid Content-Length"})
+                        return
+                    if content_length < 0 or content_length > _MAX_REQUEST_BODY_BYTES:
+                        await self._send_simple(
+                            writer, 413, {"error": f"Request body exceeds {_MAX_REQUEST_BODY_BYTES} bytes"}
+                        )
+                        return
+                elif header_lower.startswith("authorization:"):
+                    auth_header = raw.split(":", 1)[1].strip()
 
             # Read body
             body = ""
             if content_length > 0:
-                body_bytes = await reader.read(content_length)
-                body = body_bytes.decode()
+                try:
+                    body_bytes = await asyncio.wait_for(reader.readexactly(content_length), timeout=30.0)
+                except (asyncio.TimeoutError, asyncio.IncompleteReadError):
+                    return
+                body = body_bytes.decode(errors="replace")
 
-            status, response = await self.handle_request(method, path, body)
-            response_json = json.dumps(response)
-
-            http_response = (
-                f"HTTP/1.1 {status} OK\r\n"
-                f"Content-Type: application/json\r\n"
-                f"Content-Length: {len(response_json)}\r\n"
-                f"\r\n"
-                f"{response_json}"
-            )
-            writer.write(http_response.encode())
-            await writer.drain()
+            status, response = await self.handle_request(method, path, body, auth_header=auth_header)
+            await self._send_simple(writer, status, response)
         except Exception:
             logger.exception("Error handling A2A connection")
         finally:
-            writer.close()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+
+    @staticmethod
+    async def _send_simple(writer: asyncio.StreamWriter, status: int, body: dict[str, Any]) -> None:
+        response_json = json.dumps(body)
+        http_response = (
+            f"HTTP/1.1 {status} OK\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {len(response_json.encode('utf-8'))}\r\n"
+            f"\r\n"
+            f"{response_json}"
+        )
+        writer.write(http_response.encode())
+        try:
+            await writer.drain()
+        except ConnectionError:
+            pass
