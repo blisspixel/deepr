@@ -25,22 +25,44 @@ class SkillTrigger:
     patterns: list[str] = field(default_factory=list)
     _compiled: list[re.Pattern] = field(default_factory=list, repr=False)
 
+    # Trigger patterns come from skill.yaml which may originate from a
+    # community share. Cap length and reject obvious catastrophic-
+    # backtrack shapes so a poisoned manifest can't burn the loop.
+    _MAX_PATTERN_LENGTH = 256
+    _BACKTRACK_RE = re.compile(r"\((?:[^()]|\([^)]*\))*\)[+*]\??[+*]")
+
     def __post_init__(self):
         self._compiled = []
         for pattern in self.patterns:
+            if not isinstance(pattern, str) or len(pattern) > self._MAX_PATTERN_LENGTH:
+                logger.warning(
+                    "Skipping over-long trigger pattern (%d chars)", len(pattern) if isinstance(pattern, str) else 0
+                )
+                continue
+            if self._BACKTRACK_RE.search(pattern):
+                logger.warning("Skipping trigger pattern with nested-quantifier backtrack risk: %r", pattern)
+                continue
             try:
                 self._compiled.append(re.compile(pattern, re.IGNORECASE))
             except re.error as e:
                 logger.warning("Invalid trigger pattern %r: %s", pattern, e)
 
     def matches(self, query: str) -> bool:
-        """Return True if any keyword or pattern matches the query."""
-        query_lower = query.lower()
+        """Return True if any keyword or pattern matches the query.
+
+        Pattern search is bounded by the per-pattern length cap and
+        backtrack-shape filter applied at compile time (above), so this
+        is safe to call on attacker-controlled query strings.
+        """
+        # Cap the query length too — extremely long inputs can still
+        # exercise pathological matching against a benign pattern.
+        query_lower = query.lower()[:8192]
+        bounded_query = query[:8192]
         for keyword in self.keywords:
             if keyword.lower() in query_lower:
                 return True
         for compiled in self._compiled:
-            if compiled.search(query):
+            if compiled.search(bounded_query):
                 return True
         return False
 

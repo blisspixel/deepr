@@ -102,6 +102,35 @@ class CitationValidator:
         prompt_parts.append("Output ONLY the JSON array, no other text.")
         prompt = "\n".join(prompt_parts)
 
+        # Pre-flight cost-safety gate. Citation validation can fire many
+        # paid LLM calls in a long-running expert workflow; without this
+        # gate the daily / monthly budget is bypassed.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            cost_safety = get_cost_safety_manager()
+            est_cost = 0.02  # gpt-5.2 batch validation; low reasoning effort
+            allowed, deny_reason, _ = cost_safety.check_operation(
+                session_id="citation_validator",
+                operation_type="citation_validation",
+                estimated_cost=est_cost,
+                require_confirmation=False,
+            )
+            if not allowed:
+                logger.warning("Citation validation blocked by cost-safety: %s", deny_reason)
+                return [
+                    SourceValidation(
+                        source_id=src.id,
+                        claim_id=claim.id,
+                        support_class=SupportClass.UNCERTAIN,
+                        explanation=f"Skipped: {deny_reason}",
+                    )
+                    for claim, src, _ in pairs
+                ]
+        except Exception:  # never let cost-safety bookkeeping mask the result
+            cost_safety = None  # type: ignore[assignment]
+            est_cost = 0.0
+
         try:
             client = await self._get_client()
             response = await client.chat.completions.create(
@@ -142,6 +171,26 @@ class CitationValidator:
                             explanation=result.get("explanation", ""),
                         )
                     )
+
+            # Settle the cost into the canonical ledger.
+            if cost_safety is not None:
+                try:
+                    actual_cost = est_cost
+                    if response.usage:
+                        from deepr.experts.chat import _chat_token_cost as _tc
+
+                        actual_cost = _tc(response.usage, self.model)
+                    cost_safety.record_cost(
+                        session_id="citation_validator",
+                        operation_type="citation_validation",
+                        actual_cost=float(actual_cost),
+                        provider="openai",
+                        model=self.model,
+                        source="experts.citation_validator.validate_claims",
+                    )
+                except Exception:
+                    pass
+
             return validations
 
         except Exception as e:
