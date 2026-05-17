@@ -128,8 +128,32 @@ class OutputVerifier:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._create_tables()
 
-        # Chain tracking per job
-        self._chain_heads: dict[str, str] = {}  # job_id -> last chain_hash
+        # Chain tracking per job. Primed from DB at init so a process
+        # restart doesn't break the chain — previously ``_chain_heads``
+        # started empty, so the next ``record_output`` after restart
+        # wrote ``previous_hash=NULL`` despite prior rows existing,
+        # producing a "Chain break" report on every subsequent
+        # ``verify_chain_integrity`` call.
+        self._chain_heads: dict[str, str] = self._load_chain_heads()
+
+    def _load_chain_heads(self) -> dict[str, str]:
+        """Load the latest chain hash for each job from the DB."""
+        try:
+            rows = self._conn.execute(
+                """
+                SELECT vc.job_id, vc.chain_hash
+                FROM verification_chain vc
+                INNER JOIN (
+                    SELECT job_id, MAX(sequence) AS max_seq
+                    FROM verification_chain
+                    GROUP BY job_id
+                ) latest
+                ON vc.job_id = latest.job_id AND vc.sequence = latest.max_seq
+                """
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        return {row[0]: row[1] for row in rows}
 
     def _create_tables(self):
         """Create database tables."""

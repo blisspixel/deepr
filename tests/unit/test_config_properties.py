@@ -166,9 +166,15 @@ class TestWebhookConfigUnit:
         assert config.port == 5000
 
     def test_default_host(self):
-        """Test default host is 0.0.0.0."""
+        """Default host is loopback (R4 fix — was 0.0.0.0).
+
+        The webhook server refuses non-loopback binds without
+        DEEPR_WEBHOOK_SECRET, so the default config should bias toward
+        the safer surface; operators who actually want public bind set
+        ``host`` explicitly.
+        """
         config = WebhookConfig()
-        assert config.host == "0.0.0.0"
+        assert config.host == "127.0.0.1"
 
     def test_ngrok_enabled_by_default(self):
         """Test ngrok is enabled by default."""
