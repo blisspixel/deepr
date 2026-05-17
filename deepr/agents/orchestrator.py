@@ -136,6 +136,24 @@ class AgentOrchestrator:
                     total_cost += result.cost
                     all_artifacts.extend(result.artifact_ids)
                     worker_outputs.append(result.output)
+                    # Record cost to the canonical ledger. The orchestrator
+                    # previously accumulated ``total_cost`` locally without
+                    # touching the cost-safety / ledger surfaces — long
+                    # multi-worker runs were invisible to daily/monthly
+                    # spend tracking (R4 audit finding).
+                    try:
+                        from deepr.experts.cost_safety import get_cost_safety_manager
+
+                        get_cost_safety_manager().record_cost(
+                            session_id=f"orchestrator_{root_identity.agent_id}",
+                            operation_type="orchestrator_worker",
+                            actual_cost=float(result.cost or 0),
+                            details=f"worker-{_worker_index(task_id)}: {subtasks[_worker_index(task_id)][:60]}",
+                            source="agents.orchestrator.run",
+                        )
+                    except Exception:
+                        # Bookkeeping must never block the result.
+                        pass
 
         # --- Phase 3: Synthesis ---
         synth_input = f"Query: {query}\n\nResults:\n" + "\n---\n".join(worker_outputs)

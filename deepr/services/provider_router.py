@@ -207,7 +207,7 @@ class ProviderRouter:
             # -> "o3-deep-research" (thorough)
 
             get_model_for_task("anthropic", "analysis")
-            # -> "claude-3-5-sonnet-20250131" (Extended Thinking)
+            # -> "claude-opus-4-5" (Extended Thinking flagship)
         """
         if provider == "openai" or provider == "azure":
             if task_type == "documentation":
@@ -216,8 +216,13 @@ class ProviderRouter:
                 return "o3-deep-research"  # Thorough
 
         elif provider == "anthropic":
-            # TODO: Update after research completes with current model names
-            return "claude-3-5-sonnet-20250131"
+            # Resolved against the current registry (April 2026 set).
+            # The previous hardcode (``claude-3-5-sonnet-20250131``)
+            # was a model no longer in the registry; calls would 404 or
+            # silently route to a default.
+            if task_type == "documentation":
+                return "claude-sonnet-4-5"  # Balanced cost
+            return "claude-opus-4-5"  # Flagship for analysis
 
         else:
             raise ValueError(f"Unknown provider: {provider}")

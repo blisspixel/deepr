@@ -227,7 +227,13 @@ class WebhookConfig(BaseModel):
 
     enabled: bool = Field(default=True, description="Enable webhook server")
     port: int = Field(default=5000, description="Webhook server port")
-    host: str = Field(default="0.0.0.0", description="Webhook server host")
+    # Default to loopback. The webhook server requires DEEPR_WEBHOOK_SECRET
+    # on any non-loopback bind (see deepr/webhooks/server.py:create_webhook_server);
+    # previously this defaulted to ``0.0.0.0`` so a worker process that
+    # imported WebhookConfig without overriding ``host`` would attempt
+    # to bind every interface — and would only refuse if the secret was
+    # also unset. Defaulting to loopback is the safer baseline.
+    host: str = Field(default="127.0.0.1", description="Webhook server host (use 127.0.0.1 for local-only)")
 
     # Ngrok Configuration (for local development)
     use_ngrok: bool = Field(default=True, description="Use ngrok tunnel for local development")

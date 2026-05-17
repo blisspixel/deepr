@@ -874,13 +874,13 @@ class AutoModeRouter:
                     "Fallback to grok-4-3 (primary provider unavailable)",
                 )
 
-        # Last resort: return openai gpt-4.1-mini even if circuit might be open
-        return (
-            "openai",
-            "gpt-4.1-mini",
-            0.01,
-            "Last resort fallback to gpt-4.1-mini (all providers may be unhealthy)",
-        )
+        # Last resort: ask ``_cheapest_available`` which iterates the
+        # usable providers and raises ``RuntimeError`` if none have keys.
+        # Round-3 fixed this exact pattern in ``_cheapest_available`` but
+        # missed this sibling path — handing back ``openai/gpt-4.1-mini``
+        # when no OpenAI key is configured produced a fail-at-provider-
+        # creation downstream and a confusing error.
+        return self._cheapest_available(budget=None)
 
     def _build_summary(self, decisions: list[AutoModeDecision]) -> dict[str, dict]:
         """Build summary statistics from routing decisions.
