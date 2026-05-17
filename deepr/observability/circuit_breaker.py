@@ -176,16 +176,24 @@ class CircuitBreaker:
 
         Called automatically by is_available property.
         Transitions OPEN -> HALF_OPEN after recovery_timeout seconds.
+
+        Holds ``self._lock`` so two concurrent ``is_available`` callers
+        can't both observe OPEN-with-elapsed-timeout and each fire a
+        probe — defeating the half-open semantics.
         """
         if self.state != CircuitState.OPEN:
             return
 
-        elapsed = (datetime.now(timezone.utc) - self.last_state_change).total_seconds()
-        if elapsed >= self.recovery_timeout:
-            self._transition_to(CircuitState.HALF_OPEN)
-            logger.info(
-                f"Circuit HALF_OPEN for {self.provider}/{self.model} - testing recovery after {self.recovery_timeout}s"
-            )
+        with self._lock:
+            # Re-check under lock; another thread may have already transitioned.
+            if self.state != CircuitState.OPEN:
+                return
+            elapsed = (datetime.now(timezone.utc) - self.last_state_change).total_seconds()
+            if elapsed >= self.recovery_timeout:
+                self._transition_to(CircuitState.HALF_OPEN)
+                logger.info(
+                    f"Circuit HALF_OPEN for {self.provider}/{self.model} — testing recovery after {self.recovery_timeout}s"
+                )
 
     def _transition_to(self, new_state: CircuitState) -> None:
         """Transition to a new state.

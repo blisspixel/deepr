@@ -215,7 +215,12 @@ def submit_job(req: func.HttpRequest) -> func.HttpResponse:
     ttl = int(datetime.now(timezone.utc).timestamp()) + (90 * 24 * 60 * 60)
 
     job = {
-        "id": job_id,  # Cosmos DB partition key - no separate job_id needed
+        # Cosmos DB document id. The container's partition-key path is
+        # ``/job_id`` (see main.bicep), so the document MUST also carry
+        # a top-level ``job_id`` field — without it inserts either fail
+        # or land under the ``null`` partition, breaking every read.
+        "id": job_id,
+        "job_id": job_id,
         "prompt": prompt,
         "model": model,
         "priority": priority,
@@ -328,20 +333,41 @@ def cancel_job(req: func.HttpRequest) -> func.HttpResponse:
     if not validate_job_id(job_id):
         return response(400, {"error": "Invalid job ID format"})
 
-    try:
-        job = jobs_container.read_item(item=job_id, partition_key=job_id)
-    except Exception:
-        return response(404, {"error": "Job not found"})
+    # Retry-on-conflict loop. The previous read-modify-write had no
+    # ``if_match`` guard, so a worker completion racing with this cancel
+    # would overwrite the cancelled state (or vice versa).
+    from azure.core import MatchConditions
+    from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosResourceNotFoundError
 
-    if job.get("status") in ["completed", "failed", "cancelled"]:
-        return response(400, {"error": f"Cannot cancel job in {job['status']} state"})
+    for attempt in range(3):
+        try:
+            job = jobs_container.read_item(item=job_id, partition_key=job_id)
+        except CosmosResourceNotFoundError:
+            return response(404, {"error": "Job not found"})
+        except Exception:
+            return response(404, {"error": "Job not found"})
 
-    job["status"] = "cancelled"
-    job["cancelled_at"] = datetime.now(timezone.utc).isoformat()
-    jobs_container.replace_item(item=job_id, body=job)
+        if job.get("status") in ["completed", "failed", "cancelled"]:
+            return response(400, {"error": f"Cannot cancel job in {job['status']} state"})
 
-    logger.info(f"Job cancelled: {job_id}")
-    return response(200, {"success": True})
+        etag = job.get("_etag")
+        job["status"] = "cancelled"
+        job["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+        try:
+            jobs_container.replace_item(
+                item=job_id,
+                body=job,
+                etag=etag,
+                match_condition=MatchConditions.IfNotModified if etag else None,
+            )
+            logger.info(f"Job cancelled: {job_id}")
+            return response(200, {"success": True})
+        except CosmosAccessConditionFailedError:
+            if attempt == 2:
+                return response(409, {"error": "Job was modified concurrently; refresh and retry"})
+            continue
+
+    return response(500, {"error": "Failed to cancel job"})
 
 
 @app.route(route="results/{job_id}", methods=["GET", "OPTIONS"])

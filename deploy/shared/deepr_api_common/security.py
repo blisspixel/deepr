@@ -45,14 +45,29 @@ def validate_api_key_from_headers(auth_header: Optional[str], api_key_header: Op
     if not expected_key:
         return True  # No key configured, allow all requests
 
+    import hmac as _hmac
+
+    def _ct_eq(provided: str, expected: str) -> bool:
+        """Constant-time comparison that tolerates non-ASCII bearer tokens.
+
+        ``hmac.compare_digest`` raises ``TypeError`` when either operand
+        is a ``str`` containing characters outside the ASCII range; treat
+        that the same as a mismatch to avoid leaking into the generic
+        500-handler path.
+        """
+        try:
+            return _hmac.compare_digest(provided, expected)
+        except TypeError:
+            return False
+
     # Check Authorization Bearer token
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        if token == expected_key:
+        if _ct_eq(token, expected_key):
             return True
 
     # Check X-Api-Key header
-    if api_key_header and api_key_header == expected_key:
+    if api_key_header and _ct_eq(api_key_header, expected_key):
         return True
 
     return False

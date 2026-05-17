@@ -132,7 +132,14 @@ def show(name: str):
         import json
         from pathlib import Path
 
-        template_file = Path(f".deepr/templates/{name}.json")
+        from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
+
+        try:
+            safe_name = sanitize_name(name)
+        except (InvalidInputError, PathTraversalError) as exc:
+            print_error(f"Invalid template name: {exc}")
+            raise click.Abort()
+        template_file = Path(".deepr/templates") / f"{safe_name}.json"
 
         if not template_file.exists():
             print_error(f"Template not found: {name}")
@@ -184,7 +191,14 @@ def delete(name: str, yes: bool):
     try:
         from pathlib import Path
 
-        template_file = Path(f".deepr/templates/{name}.json")
+        from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
+
+        try:
+            safe_name = sanitize_name(name)
+        except (InvalidInputError, PathTraversalError) as exc:
+            print_error(f"Invalid template name: {exc}")
+            raise click.Abort()
+        template_file = Path(".deepr/templates") / f"{safe_name}.json"
 
         if not template_file.exists():
             print_error(f"Template not found: {name}")
@@ -225,7 +239,14 @@ def use(ctx, name: str, yes: bool, model: str):
         import json
         from pathlib import Path
 
-        template_file = Path(f".deepr/templates/{name}.json")
+        from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
+
+        try:
+            safe_name = sanitize_name(name)
+        except (InvalidInputError, PathTraversalError) as exc:
+            print_error(f"Invalid template name: {exc}")
+            raise click.Abort()
+        template_file = Path(".deepr/templates") / f"{safe_name}.json"
 
         if not template_file.exists():
             print_error(f"Template not found: {name}")

@@ -77,7 +77,13 @@ async def _search_query(query: str, top: int, threshold: float, keyword_only: bo
         query=query,
         top_k=top,
         threshold=threshold,
-        include_keyword=not keyword_only or True,  # Always include keyword as fallback
+        # ``--keyword-only`` switches off the semantic-embedding lane.
+        # The previous expression was ``not keyword_only or True`` which,
+        # because of Python's precedence (parsed as ``(not keyword_only)
+        # or True``), evaluated to True unconditionally — the flag was a
+        # no-op. The intent is: keyword pass runs by default, and stays
+        # the only retrieval pass when ``--keyword-only`` is set.
+        include_keyword=True,
     )
 
     if json_output:

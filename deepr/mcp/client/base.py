@@ -148,6 +148,11 @@ class MCPClient:
         # B's response, leaking results across sessions and breaking
         # JSON-RPC id correlation. Also re-validates the response id below.
         self._send_lock = asyncio.Lock()
+        # Background task that drains the subprocess's stderr. Without
+        # this the OS pipe buffer (~64KB on Linux) fills up on a chatty
+        # server and the child blocks on its next stderr write — every
+        # tool call then times out and ``close()`` is forced to ``kill()``.
+        self._stderr_task: asyncio.Task | None = None
 
     @property
     def connected(self) -> bool:
@@ -189,6 +194,9 @@ class MCPClient:
                 f"Failed to start MCP server: {e}",
                 server_name=self.name,
             )
+
+        # Drain stderr to a logger so the subprocess pipe never fills up.
+        self._stderr_task = asyncio.create_task(self._drain_stderr())
 
         # Initialize handshake
         response = await self._send_request(
@@ -242,15 +250,77 @@ class MCPClient:
         await self.connect()
 
     async def close(self) -> None:
-        """Terminate the MCP server subprocess gracefully."""
+        """Terminate the MCP server subprocess gracefully.
+
+        Orderly shutdown: cancel stderr drain, close stdin, send SIGTERM,
+        wait up to 5s, SIGKILL on timeout, then ``await wait()`` so no
+        zombie process is left behind.
+        """
         self._connected = False
+        if self._stderr_task and not self._stderr_task.done():
+            self._stderr_task.cancel()
+            try:
+                await self._stderr_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        self._stderr_task = None
+
         if self._process and self._process.returncode is None:
+            # Closing stdin lets a well-behaved MCP server exit on EOF.
+            try:
+                if self._process.stdin and not self._process.stdin.is_closing():
+                    self._process.stdin.close()
+            except (OSError, AttributeError):
+                pass
             self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
             except asyncio.TimeoutError:
                 self._process.kill()
+                try:
+                    await asyncio.wait_for(self._process.wait(), timeout=2)
+                except asyncio.TimeoutError:
+                    pass
         self._process = None
+
+    async def _drain_stderr(self) -> None:
+        """Continuously read the subprocess's stderr to a logger.
+
+        Exits cleanly on EOF, when the subprocess has terminated, when
+        the task is cancelled, or when the stderr stream returns
+        unexpected data (e.g. a test harness's AsyncMock returning a
+        non-bytes sentinel). The terminated-process check guards against
+        hangs on Windows where the pipe doesn't always close cleanly.
+        """
+        if not self._process or not self._process.stderr:
+            return
+        try:
+            while True:
+                if self._process.returncode is not None:
+                    return
+                try:
+                    line = await asyncio.wait_for(self._process.stderr.readline(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                except (AttributeError, TypeError):
+                    # Mock stderr or stream torn down — stop draining.
+                    return
+                # Real stderr returns ``b""`` on EOF; defensive against
+                # test mocks that emit non-bytes return values.
+                if not isinstance(line, (bytes, bytearray)):
+                    return
+                if not line:
+                    return
+                try:
+                    text = line.decode("utf-8", errors="replace").rstrip()
+                except Exception:
+                    text = repr(line)
+                if text:
+                    logger.debug("[mcp:%s stderr] %s", self.name, text)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug("Stderr drain ended for %s: %s", self.name, e)
 
     # ------------------------------------------------------------------
     # Tool calling
@@ -350,9 +420,15 @@ class MCPClient:
                 # Connection lost — reconnect on next attempt
                 await self.close()
 
-            # Exponential backoff before retry
+            # Exponential backoff before retry, with full jitter. Without
+            # jitter, N pool clients hitting a flapping server retry in
+            # lockstep at the same wall-clock instants, producing a
+            # thundering-herd reconnect storm.
             if attempt < self.max_retries - 1:
-                delay = self.retry_delay * (2**attempt)
+                import random as _random
+
+                base = self.retry_delay * (2**attempt)
+                delay = base * (0.5 + _random.random())  # 0.5x..1.5x of base
                 await asyncio.sleep(delay)
 
         # All retries exhausted — count as one failed logical call
