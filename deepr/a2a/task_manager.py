@@ -54,8 +54,15 @@ class TaskManager:
         task = manager.transition(task.id, TaskState.COMPLETED, result={"data": "..."})
     """
 
-    def __init__(self) -> None:
-        self._tasks: dict[str, Task] = {}
+    def __init__(self, max_terminal_tasks: int = 10_000) -> None:
+        # OrderedDict so we can evict oldest terminal tasks first.
+        # Without bounded eviction, a long-running A2A server leaks one
+        # Task per request — even after the consumer has read the
+        # final state, the entry stays in memory forever.
+        from collections import OrderedDict
+
+        self._tasks: OrderedDict[str, Task] = OrderedDict()
+        self._max_terminal_tasks = max_terminal_tasks
 
     def create_task(
         self,
@@ -148,7 +155,31 @@ class TaskManager:
             new_state.value,
             task.cost,
         )
+
+        # Bounded eviction: once a task reaches a terminal state, mark
+        # it as eligible for eviction and trim from the front (oldest
+        # terminal tasks) when we exceed the cap. Active states
+        # (SUBMITTED / WORKING) are never evicted.
+        if new_state in (TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELLED):
+            self._tasks.move_to_end(task_id)
+            self._evict_old_terminal()
         return task
+
+    def _evict_old_terminal(self) -> None:
+        terminal = {TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELLED}
+        terminal_count = sum(1 for t in self._tasks.values() if t.state in terminal)
+        if terminal_count <= self._max_terminal_tasks:
+            return
+        # Walk from the oldest end and drop terminal entries.
+        to_remove: list[str] = []
+        for tid, t in self._tasks.items():
+            if terminal_count <= self._max_terminal_tasks:
+                break
+            if t.state in terminal:
+                to_remove.append(tid)
+                terminal_count -= 1
+        for tid in to_remove:
+            self._tasks.pop(tid, None)
 
     @property
     def task_count(self) -> int:

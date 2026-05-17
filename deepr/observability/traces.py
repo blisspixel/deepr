@@ -34,10 +34,20 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+import contextvars
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
+
+# Async-friendly current-trace ref. ``threading.local`` was incorrect:
+# under asyncio, multiple coroutines run on the same thread and share
+# the same threading.local — so ``TraceContext.get_current()`` would
+# return whichever trace was set most recently, regardless of which
+# request was actually executing.
+_current_trace: contextvars.ContextVar[Optional["TraceContext"]] = contextvars.ContextVar(
+    "deepr_current_trace", default=None
+)
 
 
 class SpanStatus(Enum):
@@ -162,9 +172,6 @@ class TraceContext:
         current_span_id: ID of the currently active span
     """
 
-    # Thread-local storage for current context
-    _local = threading.local()
-
     def __init__(self, trace_id: Optional[str] = None):
         """Initialize trace context.
 
@@ -178,23 +185,15 @@ class TraceContext:
 
     @classmethod
     def create(cls) -> "TraceContext":
-        """Create a new trace context.
-
-        Returns:
-            New TraceContext instance
-        """
+        """Create a new trace context and set it as current."""
         ctx = cls()
-        cls._local.current = ctx
+        _current_trace.set(ctx)
         return ctx
 
     @classmethod
     def get_current(cls) -> Optional["TraceContext"]:
-        """Get the current trace context.
-
-        Returns:
-            Current TraceContext or None
-        """
-        return getattr(cls._local, "current", None)
+        """Get the current trace context (async-safe via contextvars)."""
+        return _current_trace.get()
 
     @property
     def current_span_id(self) -> Optional[str]:

@@ -64,12 +64,21 @@ class ResearchAPI:
         except Exception:
             estimated_cost = 2.0  # conservative default for deep-research
 
-        if cost_limit is not None:
-            estimated_cost = min(estimated_cost, float(cost_limit))
+        # cost_limit is a CAP. Round-1 used ``min(estimated, cap)`` which
+        # had the bug of presenting the lower of the two to the safety
+        # check — so a $0.50 cap on a $2.00 model passed the gate even
+        # though the real spend would exceed the cap. Reject upfront
+        # when the model's estimate already exceeds the cap; never
+        # downsize the value we hand to ``check_operation``.
+        if cost_limit is not None and estimated_cost > float(cost_limit):
+            raise RuntimeError(
+                f"Model {model} estimated cost ${estimated_cost:.2f} exceeds caller cost_limit ${float(cost_limit):.2f}"
+            )
 
         cost_safety = get_cost_safety_manager()
+        session_id = f"research_api_{prompt[:32]}"
         allowed, deny_reason, _ = cost_safety.check_operation(
-            session_id=f"research_api_{prompt[:32]}",
+            session_id=session_id,
             operation_type="research_api_submit",
             estimated_cost=estimated_cost,
             require_confirmation=False,
@@ -96,8 +105,24 @@ class ResearchAPI:
             cost_limit=cost_limit,
         )
 
-        # Submit to queue
+        # Submit to queue, then record the estimated cost so daily /
+        # monthly spend tracking reflects this submission. Without this
+        # ``record_cost``, the cost-safety manager's daily total drifts
+        # below reality and future calls slip past the daily cap.
         await self.queue.enqueue(job)
+        try:
+            cost_safety.record_cost(
+                session_id=session_id,
+                operation_type="research_api_submit",
+                actual_cost=estimated_cost,
+                provider=provider,
+                model=model,
+                idempotency_key=f"research_api:{job_id}:submit",
+                source="services.research_api.submit_research",
+            )
+        except Exception:
+            # Bookkeeping must never block the user's job.
+            pass
 
         return job.id
 

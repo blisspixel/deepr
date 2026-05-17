@@ -75,54 +75,60 @@ class JobPersistence:
     # ------------------------------------------------------------------ #
 
     def save_job(self, state: JobState, plan: Optional[JobPlan] = None, beliefs: Optional[JobBeliefs] = None) -> None:
-        """Save or update a job and its related data."""
+        """Save or update a job and its related data atomically.
+
+        Uses the connection as a context manager so all three INSERTs
+        either commit together or roll back. The previous implementation
+        emitted one ``commit()`` at the end, but a crash between the
+        ``jobs`` write and the ``job_plans`` write could leave the
+        job row without its plan / beliefs.
+        """
         now = datetime.now().isoformat()
-        self._conn.execute(
-            """INSERT OR REPLACE INTO jobs
-               (job_id, phase, progress, cost_so_far, estimated_remaining, error, started_at, updated_at, metadata_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                state.job_id,
-                state.phase.value,
-                state.progress,
-                state.cost_so_far,
-                state.estimated_remaining,
-                state.error,
-                state.started_at.isoformat(),
-                now,
-                json.dumps(state.metadata, default=str),
-            ),
-        )
-
-        if plan:
+        with self._conn:
             self._conn.execute(
-                """INSERT OR REPLACE INTO job_plans
-                   (job_id, goal, steps_json, estimated_cost, estimated_time, model)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                """INSERT OR REPLACE INTO jobs
+                   (job_id, phase, progress, cost_so_far, estimated_remaining, error, started_at, updated_at, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    plan.job_id,
-                    plan.goal,
-                    json.dumps(plan.steps, default=str),
-                    plan.estimated_cost,
-                    plan.estimated_time,
-                    plan.model,
+                    state.job_id,
+                    state.phase.value,
+                    state.progress,
+                    state.cost_so_far,
+                    state.estimated_remaining,
+                    state.error,
+                    state.started_at.isoformat(),
+                    now,
+                    json.dumps(state.metadata, default=str),
                 ),
             )
 
-        if beliefs:
-            self._conn.execute(
-                """INSERT OR REPLACE INTO job_beliefs
-                   (job_id, beliefs_json, sources_json, confidence)
-                   VALUES (?, ?, ?, ?)""",
-                (
-                    beliefs.job_id,
-                    json.dumps(beliefs.beliefs, default=str),
-                    json.dumps(beliefs.sources, default=str),
-                    beliefs.confidence,
-                ),
-            )
+            if plan:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO job_plans
+                       (job_id, goal, steps_json, estimated_cost, estimated_time, model)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        plan.job_id,
+                        plan.goal,
+                        json.dumps(plan.steps, default=str),
+                        plan.estimated_cost,
+                        plan.estimated_time,
+                        plan.model,
+                    ),
+                )
 
-        self._conn.commit()
+            if beliefs:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO job_beliefs
+                       (job_id, beliefs_json, sources_json, confidence)
+                       VALUES (?, ?, ?, ?)""",
+                    (
+                        beliefs.job_id,
+                        json.dumps(beliefs.beliefs, default=str),
+                        json.dumps(beliefs.sources, default=str),
+                        beliefs.confidence,
+                    ),
+                )
 
     def load_job(self, job_id: str) -> Optional[tuple[JobState, Optional[JobPlan], Optional[JobBeliefs]]]:
         """Load a job and its related data."""
