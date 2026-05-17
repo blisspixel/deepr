@@ -41,16 +41,26 @@ RECON_PROFILE_TEMPLATE: dict[str, Any] = {
 
 
 def _resolve_env_vars(value: str) -> str:
-    """Resolve ${VAR_NAME} patterns from process environment.
+    """Resolve ``${VAR_NAME}`` patterns from process environment.
 
-    Variables that don't exist in the environment are left as empty string.
+    Raises ``ValueError`` when a referenced variable is missing — the
+    previous silent-empty behaviour produced confusing downstream
+    errors (e.g. spawning an MCP server with ``API_KEY=""`` and seeing
+    a 401 instead of "OPENAI_API_KEY not set").
     """
+    missing: list[str] = []
 
     def _replace(match: re.Match[str]) -> str:
         var_name = match.group(1)
-        return os.environ.get(var_name, "")
+        if var_name not in os.environ:
+            missing.append(var_name)
+            return ""
+        return os.environ[var_name]
 
-    return _ENV_VAR_PATTERN.sub(_replace, value)
+    resolved = _ENV_VAR_PATTERN.sub(_replace, value)
+    if missing:
+        raise ValueError("MCP profile references undefined environment variable(s): " + ", ".join(sorted(set(missing))))
+    return resolved
 
 
 def _resolve_env_dict(env: dict[str, str]) -> dict[str, str]:

@@ -269,7 +269,13 @@ class CostController:
         return True, None
 
     def record_cost(self, actual_cost: float):
-        """Record actual cost after job completion."""
+        """Record actual cost after job completion.
+
+        Resets daily / monthly counters BEFORE accumulating so a job
+        recorded just after midnight (UTC) goes into the new day's
+        bucket, not yesterday's.
+        """
+        self.reset_if_needed()
         with self._lock:
             self.daily_spending += actual_cost
             self.monthly_spending += actual_cost

@@ -280,10 +280,15 @@ class StreamingHttpTransport:
                 {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
                 status=400,
             )
-        except Exception as e:
+        except Exception:
+            # Log the full exception locally but return a generic
+            # message to the caller. The previous ``str(e)`` echoed
+            # traceback fragments / internal path names to anyone who
+            # could reach the endpoint.
+            logger.exception("MCP HTTP POST handler failed")
             self._stats.errors += 1
             return web.json_response(
-                {"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}, "id": None},
+                {"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}, "id": None},
                 status=500,
             )
 
@@ -499,9 +504,34 @@ class HttpClient:
         if self._session.closed:
             raise RuntimeError("Session is closed. Call connect() to reconnect.")
 
+        # Cancel any prior subscription task before replacing it.
+        # Without this the previous task continued reading from a now-
+        # orphaned URL forever, leaking sockets and consuming the SSE
+        # response buffer.
+        if self._stream_task is not None and not self._stream_task.done():
+            self._stream_task.cancel()
+            try:
+                await self._stream_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
         url = f"{self._base_url}/stream"
         if subscriber_id:
-            url += f"?subscriber_id={subscriber_id}"
+            # urllib-quote the subscriber id so any ``&`` or ``=`` in
+            # caller-supplied ids can't corrupt the URL.
+            from urllib.parse import quote as _quote
+
+            url += f"?subscriber_id={_quote(str(subscriber_id), safe='')}"
+
+        # Warn about plaintext-bearer over HTTP — the auth token will be
+        # observable in transit. Allowed (silently) for loopback only.
+        if self._auth_token and self._base_url.startswith("http://"):
+            loopback = any(self._base_url.startswith(p) for p in ("http://127.", "http://localhost", "http://[::1]"))
+            if not loopback:
+                logger.warning(
+                    "MCP HTTP client subscribing with auth token over plaintext HTTP to %s — token will be in cleartext.",
+                    self._base_url,
+                )
 
         self._stream_task = asyncio.create_task(self._stream_loop(url))
 

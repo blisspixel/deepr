@@ -130,7 +130,7 @@ Interactive Q&A with your custom knowledge base.
 ### Enable Autonomous Research
 
 ```bash
-deepr expert chat "Web Dev Expert" --agentic --budget 3
+deepr expert chat "Web Dev Expert" --budget 3  # agentic by default
 ```
 
 Expert can trigger research when it encounters knowledge gaps.
@@ -232,7 +232,7 @@ deepr expert make "Python Async Expert" --files "reports/*/*.md"
 deepr expert make "Python Async Expert" --files "./docs/*.md" --learn --budget 5
 
 # 6. Chat with expert
-deepr expert chat "Python Async Expert" --agentic --budget 3
+deepr expert chat "Python Async Expert" --budget 3  # agentic by default
 ```
 
 ---
