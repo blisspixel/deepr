@@ -281,7 +281,7 @@ export default function TraceExplorer() {
 
       {/* Decision Sidebar */}
       {decisionPanelOpen && hasDecisions && (
-        <div className="w-80 flex-shrink-0 border-l bg-card p-4 space-y-3 overflow-auto h-[calc(100vh-4rem)]">
+        <div className="hidden lg:block w-80 flex-shrink-0 border-l bg-card p-4 space-y-3 overflow-auto h-[calc(100vh-4rem)]">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
             <GitBranch className="w-3.5 h-3.5" />
             Decisions

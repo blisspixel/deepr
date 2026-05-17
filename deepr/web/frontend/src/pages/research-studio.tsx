@@ -171,10 +171,11 @@ export default function ResearchStudio() {
         <div className="rounded-lg border bg-card overflow-hidden">
           {/* Prompt */}
           <div className="p-4">
-            <label className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="research-prompt" className="block text-sm font-medium text-foreground mb-2">
               What do you want to research?
             </label>
             <textarea
+              id="research-prompt"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => {

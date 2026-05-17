@@ -127,6 +127,14 @@ class FindingsStore:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._create_tables()
 
+        # Lock guarding the in-memory index. The connection accepts
+        # cross-thread access (``check_same_thread=False``); without
+        # this lock two concurrent ``store_finding`` calls would race
+        # on the dict mutations below.
+        import threading as _threading
+
+        self._lock = _threading.RLock()
+
         # In-memory token index for fast retrieval
         self._token_index: dict[str, dict[str, int]] = {}  # token -> {finding_id: count}
         self._doc_lengths: dict[str, int] = {}  # finding_id -> token count
@@ -234,23 +242,26 @@ class FindingsStore:
             ),
         )
 
-        # Store tokens for search
+        # Store tokens for search. Guard the in-memory index mutation
+        # with self._lock so two concurrent store_finding calls can't
+        # corrupt _token_index / _doc_lengths.
         token_counts = Counter(finding.tokens)
-        for token, count in token_counts.items():
-            self._conn.execute(
-                """INSERT OR REPLACE INTO finding_tokens
-                   (finding_id, token, count)
-                   VALUES (?, ?, ?)""",
-                (finding.id, token, count),
-            )
+        with self._lock:
+            for token, count in token_counts.items():
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO finding_tokens
+                       (finding_id, token, count)
+                       VALUES (?, ?, ?)""",
+                    (finding.id, token, count),
+                )
 
-            # Update in-memory index
-            if token not in self._token_index:
-                self._token_index[token] = {}
-            self._token_index[token][finding.id] = count
+                # Update in-memory index
+                if token not in self._token_index:
+                    self._token_index[token] = {}
+                self._token_index[token][finding.id] = count
 
-        self._doc_lengths[finding.id] = sum(token_counts.values())
-        self._conn.commit()
+            self._doc_lengths[finding.id] = sum(token_counts.values())
+            self._conn.commit()
 
         return finding
 

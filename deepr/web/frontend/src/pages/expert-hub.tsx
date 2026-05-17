@@ -137,6 +137,7 @@ export default function ExpertHub() {
             <Input
               type="text"
               placeholder="Search experts..."
+              aria-label="Search experts"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"

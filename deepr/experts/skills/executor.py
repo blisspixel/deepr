@@ -110,6 +110,7 @@ class MCPClientProxy:
         self._env = {**base, **resolved}
         self._process: asyncio.subprocess.Process | None = None
         self._request_id = 0
+        self._stderr_task: asyncio.Task | None = None
 
     @staticmethod
     def _resolve_env(env: dict[str, str]) -> dict[str, str]:
@@ -133,6 +134,10 @@ class MCPClientProxy:
                 stderr=asyncio.subprocess.PIPE,
                 env=self._env,
             )
+            # Drain stderr to logger so the ~64KB pipe buffer never
+            # fills up and blocks the subprocess. A chatty MCP server
+            # would otherwise hang the executor on its next write.
+            self._stderr_task = asyncio.create_task(self._drain_stderr())
             # Send initialize handshake
             await self._send_jsonrpc(
                 "initialize",
@@ -143,6 +148,36 @@ class MCPClientProxy:
                 },
             )
         return self._process
+
+    async def _drain_stderr(self) -> None:
+        """Continuously drain stderr to logger. Exits on EOF or cancellation."""
+        if not self._process or not self._process.stderr:
+            return
+        # Only drain if stderr is an actual StreamReader. AsyncMock test
+        # harnesses synthesise every attribute on access, so a real-type
+        # check is required to avoid hanging the test event loop.
+        if not isinstance(self._process.stderr, asyncio.StreamReader):
+            return
+        try:
+            while True:
+                if self._process.returncode is not None:
+                    return
+                try:
+                    line = await asyncio.wait_for(self._process.stderr.readline(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                if not line:
+                    return
+                try:
+                    text = line.decode("utf-8", errors="replace").rstrip()
+                except Exception:
+                    text = repr(line)
+                if text:
+                    logger.debug("[skill-mcp:%s stderr] %s", self._command, text)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return
 
     async def _send_jsonrpc(self, method: str, params: dict) -> dict:
         """Send a JSON-RPC request and read the response."""
@@ -212,13 +247,20 @@ class MCPClientProxy:
             return {"error": f"MCP error: {e}"}
 
     async def close(self):
-        """Terminate the MCP server subprocess."""
+        """Terminate the MCP server subprocess and stop draining stderr."""
+        if self._stderr_task and not self._stderr_task.done():
+            self._stderr_task.cancel()
+        self._stderr_task = None
         if self._process and self._process.returncode is None:
             self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
             except asyncio.TimeoutError:
                 self._process.kill()
+                try:
+                    await asyncio.wait_for(self._process.wait(), timeout=2)
+                except asyncio.TimeoutError:
+                    pass
             self._process = None
 
 
