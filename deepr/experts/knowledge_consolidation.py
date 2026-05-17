@@ -221,7 +221,12 @@ class KnowledgeConsolidator:
         removed = 0
         to_remove: set[str] = set()
 
-        # Compare all pairs
+        # Compare all pairs. ``break`` out of the inner loop as soon as
+        # entry1 is marked for removal so we don't keep using a "ghost"
+        # entry to drop further valid entries — the previous code only
+        # short-circuited at the start of each outer iteration, so after
+        # entry1 was removed via entry2 it would still be compared
+        # against entry3/4/… and could mark them too.
         for i, entry1 in enumerate(self.entries):
             if entry1.id in to_remove:
                 continue
@@ -244,6 +249,11 @@ class KnowledgeConsolidator:
                         to_remove.add(entry1.id)
 
                     removed += 1
+
+                    if entry1.id in to_remove:
+                        # entry1 is gone; further comparisons would be
+                        # using a ghost. Move on to the next entry.
+                        break
 
         # Remove duplicates
         self.entries = [e for e in self.entries if e.id not in to_remove]

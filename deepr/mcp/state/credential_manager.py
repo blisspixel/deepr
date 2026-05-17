@@ -29,6 +29,7 @@ Usage:
 
 import hashlib
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -38,6 +39,8 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from deepr.mcp.state.elicitation_router import ElicitationHandler, ElicitationRequest
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -164,14 +167,24 @@ class CredentialManager:
         self._value_cache: dict[str, str] = {}
 
     def _create_tables(self):
-        """Create database tables."""
+        """Create database tables.
+
+        NOTE: ``value_encrypted`` column is reserved for a future
+        encrypted-at-rest implementation. **Credential values are not
+        currently persisted** — they live only in ``self._value_cache``
+        in-memory and are lost on process restart. Callers that read a
+        ``GatedCredential`` after restart will get ``_value=None``; they
+        must re-prompt the user (via the elicitation flow) for the
+        actual secret. We keep the column to allow a backward-compatible
+        migration when proper Fernet encryption lands.
+        """
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS credentials (
                 id TEXT PRIMARY KEY,
                 domain TEXT NOT NULL,
                 credential_type TEXT NOT NULL,
                 value_hash TEXT NOT NULL,
-                value_encrypted TEXT,
+                value_encrypted TEXT,  -- reserved; not yet populated
                 expires_at TEXT,
                 created_at TEXT NOT NULL,
                 last_used_at TEXT,
@@ -289,6 +302,20 @@ class CredentialManager:
         cached_value = self._value_cache.get(cred_id)
 
         cred = GatedCredential.from_row(row, cached_value)
+
+        if cached_value is None:
+            # Row exists but the in-memory value is gone — almost
+            # always means the process restarted. Surface this loudly
+            # so callers can re-elicit; previously this returned a
+            # ``GatedCredential`` with ``_value=None`` that downstream
+            # code would happily pass as the auth header (producing
+            # confusing 401s).
+            logger.warning(
+                "Credential %s for %s/%s has no in-memory value (process restart?); caller must re-elicit",
+                cred_id,
+                cred.domain,
+                cred.credential_type.value,
+            )
 
         # Check expiration
         if cred.is_expired:
