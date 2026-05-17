@@ -431,8 +431,17 @@ class TestSkillExecutorPython:
         assert result["cost"] == 0.0
 
     @pytest.mark.asyncio
-    async def test_skill_dir_added_to_sys_path(self, tmp_path):
-        """The skill directory is added to sys.path during execution."""
+    async def test_sys_path_not_polluted(self, tmp_path):
+        """The skill directory must NOT be added to sys.path during execution.
+
+        Round-3 hardening: the previous executor used
+        ``sys.path.insert(0, skill_dir)`` which (a) persisted for the
+        process lifetime and (b) allowed two skills shipping the same
+        module name to silently collide via ``sys.modules`` cache.
+        The new executor uses ``importlib.util.spec_from_file_location``
+        with a unique qualname per skill so ``sys.path`` is left
+        untouched.
+        """
         skill_dir = _create_python_skill(tmp_path)
         tool = _make_python_tool()
         skill = SkillDefinition(
@@ -443,11 +452,12 @@ class TestSkillExecutorPython:
             tier="built-in",
             tools=[tool],
         )
+        before = list(sys.path)
         executor = SkillExecutor(skill, budget_remaining=10.0)
 
         await executor.execute_tool("add", {"a": 1, "b": 1})
 
-        assert str(skill_dir) in sys.path
+        assert sys.path == before, "Skill execution must not mutate sys.path"
 
 
 # ---------------------------------------------------------------------------

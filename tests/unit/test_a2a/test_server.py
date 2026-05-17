@@ -32,9 +32,7 @@ class TestAgentCardEndpoint:
 
     def test_returns_valid_json(self, server: A2AServer) -> None:
         """Agent card endpoint returns valid JSON with skills."""
-        status, body = asyncio.get_event_loop().run_until_complete(
-            server.handle_request("GET", "/.well-known/agent.json")
-        )
+        status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent.json"))
 
         assert status == 200
         assert body["name"] == "deepr"
@@ -45,9 +43,7 @@ class TestAgentCardEndpoint:
 
     def test_skills_have_required_fields(self, server: A2AServer) -> None:
         """Each skill has name, description, domain."""
-        status, body = asyncio.get_event_loop().run_until_complete(
-            server.handle_request("GET", "/.well-known/agent.json")
-        )
+        status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent.json"))
 
         for skill in body["skills"]:
             assert "name" in skill
@@ -61,7 +57,7 @@ class TestTaskCreation:
     def test_creates_task_in_submitted_state(self, server: A2AServer) -> None:
         """Task creation returns submitted state."""
         payload = json.dumps({"skill": "recon", "input": "example.com"})
-        status, body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", payload))
+        status, body = asyncio.run(server.handle_request("POST", "/tasks", payload))
 
         assert status == 201
         assert body["state"] == "submitted"
@@ -72,14 +68,14 @@ class TestTaskCreation:
     def test_missing_skill_returns_400(self, server: A2AServer) -> None:
         """Missing skill field returns 400."""
         payload = json.dumps({"input": "test"})
-        status, body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", payload))
+        status, body = asyncio.run(server.handle_request("POST", "/tasks", payload))
 
         assert status == 400
         assert "skill" in body["error"]
 
     def test_invalid_json_returns_400(self, server: A2AServer) -> None:
         """Invalid JSON body returns 400."""
-        status, body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", "not json{"))
+        status, body = asyncio.run(server.handle_request("POST", "/tasks", "not json{"))
 
         assert status == 400
 
@@ -90,17 +86,17 @@ class TestTaskRetrieval:
     def test_get_existing_task(self, server: A2AServer) -> None:
         """Can retrieve a created task."""
         payload = json.dumps({"skill": "recon", "input": "test.com"})
-        _, create_body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", payload))
+        _, create_body = asyncio.run(server.handle_request("POST", "/tasks", payload))
         task_id = create_body["id"]
 
-        status, body = asyncio.get_event_loop().run_until_complete(server.handle_request("GET", f"/tasks/{task_id}"))
+        status, body = asyncio.run(server.handle_request("GET", f"/tasks/{task_id}"))
 
         assert status == 200
         assert body["id"] == task_id
 
     def test_get_nonexistent_task_returns_404(self, server: A2AServer) -> None:
         """Nonexistent task returns 404."""
-        status, body = asyncio.get_event_loop().run_until_complete(server.handle_request("GET", "/tasks/nonexistent"))
+        status, body = asyncio.run(server.handle_request("GET", "/tasks/nonexistent"))
 
         assert status == 404
 
@@ -111,12 +107,10 @@ class TestTaskCancellation:
     def test_cancel_submitted_task(self, server: A2AServer) -> None:
         """Can cancel a submitted task."""
         payload = json.dumps({"skill": "recon", "input": "test.com"})
-        _, create_body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", payload))
+        _, create_body = asyncio.run(server.handle_request("POST", "/tasks", payload))
         task_id = create_body["id"]
 
-        status, body = asyncio.get_event_loop().run_until_complete(
-            server.handle_request("POST", f"/tasks/{task_id}/cancel")
-        )
+        status, body = asyncio.run(server.handle_request("POST", f"/tasks/{task_id}/cancel"))
 
         assert status == 200
         assert body["state"] == "cancelled"
@@ -124,16 +118,14 @@ class TestTaskCancellation:
     def test_cancel_completed_task_returns_409(self, server: A2AServer) -> None:
         """Cannot cancel a completed task."""
         payload = json.dumps({"skill": "recon", "input": "test.com"})
-        _, create_body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", payload))
+        _, create_body = asyncio.run(server.handle_request("POST", "/tasks", payload))
         task_id = create_body["id"]
 
         # Transition to working then completed
         server._task_manager.transition(task_id, TaskState.WORKING)
         server._task_manager.transition(task_id, TaskState.COMPLETED, result="done")
 
-        status, body = asyncio.get_event_loop().run_until_complete(
-            server.handle_request("POST", f"/tasks/{task_id}/cancel")
-        )
+        status, body = asyncio.run(server.handle_request("POST", f"/tasks/{task_id}/cancel"))
 
         assert status == 409
 
@@ -144,12 +136,10 @@ class TestSSEStream:
     def test_stream_info_for_existing_task(self, server: A2AServer) -> None:
         """Stream endpoint returns stream metadata."""
         payload = json.dumps({"skill": "recon", "input": "test.com"})
-        _, create_body = asyncio.get_event_loop().run_until_complete(server.handle_request("POST", "/tasks", payload))
+        _, create_body = asyncio.run(server.handle_request("POST", "/tasks", payload))
         task_id = create_body["id"]
 
-        status, body = asyncio.get_event_loop().run_until_complete(
-            server.handle_request("GET", f"/tasks/{task_id}/stream")
-        )
+        status, body = asyncio.run(server.handle_request("GET", f"/tasks/{task_id}/stream"))
 
         assert status == 200
         assert body["task_id"] == task_id

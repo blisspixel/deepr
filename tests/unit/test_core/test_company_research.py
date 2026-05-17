@@ -1,6 +1,6 @@
 """Tests for core company research orchestrator."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -18,8 +18,8 @@ class TestCompanyResearchOrchestratorInit:
         mock_load_config.assert_called_once()
         assert orch.config == {"key": "value"}
 
-    @patch("deepr.core.company_research.ResearchOrchestrator")
-    def test_custom_config(self, mock_research_orch):
+    @patch("deepr.core.company_research.CompanyResearchOrchestrator._build_research_orchestrator")
+    def test_custom_config(self, mock_build):
         custom = {"provider": "anthropic", "model": "claude"}
         orch = CompanyResearchOrchestrator(config=custom)
         assert orch.config == custom
@@ -105,12 +105,17 @@ class TestResearchCompany:
         assert result["pages_scraped"] == 10
 
     @pytest.mark.asyncio
-    @patch("deepr.core.company_research.ResearchOrchestrator")
+    @patch("deepr.core.company_research.CompanyResearchOrchestrator._build_research_orchestrator")
     @patch("deepr.core.company_research.load_config")
-    async def test_full_research_flow(self, mock_config, MockResearchOrch):
+    async def test_full_research_flow(self, mock_config, mock_build):
+        """``ResearchOrchestrator.submit_research`` returns a string
+        job_id (round-3 fix corrected the call signature). The previous
+        test mocked it to return a dict ``{success, job_id}`` which
+        matched the wrong-signature call the old code made."""
         mock_config.return_value = {}
-        mock_submit = AsyncMock(return_value={"success": True, "job_id": "job-123"})
-        MockResearchOrch.return_value.submit_research = mock_submit
+        mock_orch = MagicMock()
+        mock_orch.submit_research = AsyncMock(return_value="job-123")
+        mock_build.return_value = mock_orch
 
         orch = CompanyResearchOrchestrator()
 
@@ -134,12 +139,15 @@ class TestResearchCompany:
         assert result["pages_scraped"] == 15
 
     @pytest.mark.asyncio
-    @patch("deepr.core.company_research.ResearchOrchestrator")
+    @patch("deepr.core.company_research.CompanyResearchOrchestrator._build_research_orchestrator")
     @patch("deepr.core.company_research.load_config")
-    async def test_research_submission_failure(self, mock_config, MockResearchOrch):
+    async def test_research_submission_failure(self, mock_config, mock_build):
+        """Failure path: ``submit_research`` raises (real contract). The
+        wrapper catches and returns ``{success: False, error: ...}``."""
         mock_config.return_value = {}
-        mock_submit = AsyncMock(return_value={"success": False, "error": "API error"})
-        MockResearchOrch.return_value.submit_research = mock_submit
+        mock_orch = MagicMock()
+        mock_orch.submit_research = AsyncMock(side_effect=RuntimeError("API error"))
+        mock_build.return_value = mock_orch
 
         orch = CompanyResearchOrchestrator()
 
@@ -159,6 +167,7 @@ class TestResearchCompany:
             )
         assert result["success"] is False
         assert "error" in result
+        assert "API error" in result["error"]
         assert result["scraped_file"] == "/tmp/scrape.md"
 
 

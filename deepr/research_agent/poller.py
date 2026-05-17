@@ -90,17 +90,26 @@ class JobPoller:
         )
 
     async def start(self):
-        """Start the polling worker."""
+        """Start the polling worker.
+
+        Uses exponential backoff (capped at 5 minutes) when a poll cycle
+        raises so a persistent error (e.g., invalid API key, provider
+        outage) doesn't hammer the provider every ``poll_interval``
+        seconds indefinitely.
+        """
         self.running = True
         logger.info(f"Job poller started (interval: {self.poll_interval}s)")
+        backoff = self.poll_interval
 
         while self.running:
             try:
                 await self._poll_cycle()
+                backoff = self.poll_interval  # reset on success
             except Exception as e:
                 logger.error(f"Error in poll cycle: {e}")
+                backoff = min(backoff * 2, 300)
 
-            await asyncio.sleep(self.poll_interval)
+            await asyncio.sleep(backoff)
 
         logger.info("Job poller stopped")
 
@@ -148,9 +157,24 @@ class JobPoller:
                 error = response.error or "Job failed"
                 await self._handle_failure(job, error)
 
-            # Update progress if available (in_progress stays as is)
+            # Cancelled/expired are terminal too — without this, the poller
+            # kept hammering the provider forever for jobs that would
+            # never transition. Mark FAILED so the queue row exits
+            # PROCESSING and the user sees a stable terminal state.
+            elif response.status in ("cancelled", "canceled", "expired"):
+                reason = response.error or f"Job {response.status}"
+                logger.info("Job %s reached terminal state %s; marking failed", job.id, response.status)
+                await self._handle_failure(job, reason)
+
             elif response.status == "in_progress":
                 logger.debug(f"Job {job.id} still in progress")
+
+            elif response.status == "queued":
+                # Still pending at the provider; nothing to do.
+                logger.debug("Job %s still queued at provider", job.id)
+
+            else:
+                logger.debug("Job %s has unhandled provider status %r", job.id, response.status)
 
         except Exception as e:
             logger.error(f"Error checking job {job.id}: {e}")

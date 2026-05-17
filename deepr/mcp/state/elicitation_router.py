@@ -205,14 +205,16 @@ class ElicitationRouter:
                 was_default=True,
                 timeout_used=True,
             )
-        except Exception as e:
-            # Handler error, use default
+        except Exception:
+            # Handler error — log locally, return a clean default to
+            # the caller. The previous ``"error": str(e)`` echoed
+            # exception text (potentially with stack-derived class
+            # names or argument values) to whichever UI surface presented
+            # the elicitation, leaking handler internals.
+            logger.exception("Elicitation handler error for request %s", request.id)
             return ElicitationResponse(
                 request_id=request.id,
-                response={
-                    "error": str(e),
-                    **self._get_default_response(request),
-                },
+                response=self._get_default_response(request),
                 target=target,
                 was_default=True,
             )
