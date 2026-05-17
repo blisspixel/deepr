@@ -343,8 +343,9 @@ export default function Settings() {
               <h2 className="text-base font-semibold text-foreground">Budget Controls</h2>
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>Daily Spending Limit ($)</Label>
+                  <Label htmlFor="daily-limit">Daily Spending Limit ($)</Label>
                   <Input
+                    id="daily-limit"
                     type="number"
                     step={0.01}
                     min={0}
@@ -354,8 +355,9 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">Maximum per day</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Monthly Spending Limit ($)</Label>
+                  <Label htmlFor="monthly-limit">Monthly Spending Limit ($)</Label>
                   <Input
+                    id="monthly-limit"
                     type="number"
                     step={0.01}
                     min={0}

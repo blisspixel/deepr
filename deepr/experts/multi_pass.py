@@ -183,6 +183,28 @@ class MultiPassPipeline:
             )
             raw_output = consensus_result.consensus_answer
         else:
+            # Cost-safety gate before any LLM dispatch. Pass 1 uses
+            # web_search_preview which can rack up real money fast on long
+            # questions, so we check budget first and bail with an empty
+            # output (chainer will produce a degenerate StructuredPhaseOutput).
+            try:
+                from deepr.experts.cost_safety import get_cost_safety_manager
+
+                _cost_safety = get_cost_safety_manager()
+                _est = max(0.05, float(budget) * 0.5)
+                _allowed, _reason, _ = _cost_safety.check_operation(
+                    session_id="multi_pass",
+                    operation_type="pass_extract",
+                    estimated_cost=_est,
+                    require_confirmation=False,
+                )
+                if not _allowed:
+                    logger.warning("Multi-pass extract blocked by cost-safety: %s", _reason)
+                    return self.chainer.structure_phase_output(raw_output="", phase=1)
+            except Exception:
+                _cost_safety = None  # type: ignore[assignment]
+                _est = 0.0
+
             # Standard single-provider research via OpenAI
             client = await self._get_client()
             response = await client.chat.completions.create(
@@ -198,6 +220,21 @@ class MultiPassPipeline:
                 reasoning_effort="low",
             )
             raw_output = response.choices[0].message.content or ""
+            if _cost_safety is not None:
+                try:
+                    from deepr.experts.chat import _chat_token_cost as _tc
+
+                    _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
+                    _cost_safety.record_cost(
+                        session_id="multi_pass",
+                        operation_type="pass_extract",
+                        actual_cost=float(_actual),
+                        provider="openai",
+                        model="gpt-5.2",
+                        source="experts.multi_pass.pass_extract",
+                    )
+                except Exception:
+                    pass
 
         # Structure the output
         return self.chainer.structure_phase_output(raw_output=raw_output, phase=1)
@@ -238,6 +275,25 @@ class MultiPassPipeline:
             "Output ONLY the JSON."
         )
 
+        # Cost-safety gate for cross-reference pass.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            _cost_safety = get_cost_safety_manager()
+            _est = max(0.02, float(budget) * 0.5)
+            _allowed, _reason, _ = _cost_safety.check_operation(
+                session_id="multi_pass",
+                operation_type="pass_cross_reference",
+                estimated_cost=_est,
+                require_confirmation=False,
+            )
+            if not _allowed:
+                logger.warning("Multi-pass cross-ref blocked by cost-safety: %s", _reason)
+                return CrossReferenceResult()
+        except Exception:
+            _cost_safety = None  # type: ignore[assignment]
+            _est = 0.0
+
         client = await self._get_client()
         response = await client.chat.completions.create(
             model="gpt-5.2",
@@ -247,6 +303,21 @@ class MultiPassPipeline:
             ],
             reasoning_effort="low",
         )
+        if _cost_safety is not None:
+            try:
+                from deepr.experts.chat import _chat_token_cost as _tc
+
+                _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
+                _cost_safety.record_cost(
+                    session_id="multi_pass",
+                    operation_type="pass_cross_reference",
+                    actual_cost=float(_actual),
+                    provider="openai",
+                    model="gpt-5.2",
+                    source="experts.multi_pass.pass_cross_reference",
+                )
+            except Exception:
+                pass
 
         try:
             text = response.choices[0].message.content or "{}"
@@ -316,6 +387,25 @@ class MultiPassPipeline:
             "Output ONLY the JSON."
         )
 
+        # Cost-safety gate for the synthesize pass.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            _cost_safety = get_cost_safety_manager()
+            _est = max(0.02, float(budget) * 0.5)
+            _allowed, _reason, _ = _cost_safety.check_operation(
+                session_id="multi_pass",
+                operation_type="pass_synthesize",
+                estimated_cost=_est,
+                require_confirmation=False,
+            )
+            if not _allowed:
+                logger.warning("Multi-pass synthesize blocked by cost-safety: %s", _reason)
+                return [], [], False
+        except Exception:
+            _cost_safety = None  # type: ignore[assignment]
+            _est = 0.0
+
         client = await self._get_client()
         response = await client.chat.completions.create(
             model="gpt-5.2",
@@ -328,6 +418,21 @@ class MultiPassPipeline:
             ],
             reasoning_effort="low",
         )
+        if _cost_safety is not None:
+            try:
+                from deepr.experts.chat import _chat_token_cost as _tc
+
+                _actual = _tc(response.usage, "gpt-5.2") if response.usage else _est
+                _cost_safety.record_cost(
+                    session_id="multi_pass",
+                    operation_type="pass_synthesize",
+                    actual_cost=float(_actual),
+                    provider="openai",
+                    model="gpt-5.2",
+                    source="experts.multi_pass.pass_synthesize",
+                )
+            except Exception:
+                pass
 
         try:
             text = response.choices[0].message.content or "{}"

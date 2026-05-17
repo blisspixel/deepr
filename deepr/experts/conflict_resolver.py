@@ -141,6 +141,25 @@ class ConflictResolver:
 
         prompt_parts.append("\nOutput ONLY a JSON array like [0, 3, 5] or [] if none contradict.")
 
+        # Cost-safety gate on the LLM-driven contradiction scan.
+        try:
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            cost_safety = get_cost_safety_manager()
+            est_cost = 0.02
+            allowed, deny_reason, _ = cost_safety.check_operation(
+                session_id="conflict_resolver",
+                operation_type="conflict_detection",
+                estimated_cost=est_cost,
+                require_confirmation=False,
+            )
+            if not allowed:
+                logger.warning("Conflict detection blocked by cost-safety: %s", deny_reason)
+                return []
+        except Exception:
+            cost_safety = None  # type: ignore[assignment]
+            est_cost = 0.0
+
         try:
             client = await self._get_client()
             response = await client.chat.completions.create(
@@ -155,6 +174,21 @@ class ConflictResolver:
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
             indices = json.loads(text)
+            if cost_safety is not None:
+                try:
+                    from deepr.experts.chat import _chat_token_cost as _tc
+
+                    actual_cost = _tc(response.usage, "gpt-5.2") if response.usage else est_cost
+                    cost_safety.record_cost(
+                        session_id="conflict_resolver",
+                        operation_type="conflict_detection",
+                        actual_cost=float(actual_cost),
+                        provider="openai",
+                        model="gpt-5.2",
+                        source="experts.conflict_resolver.detect_pairs",
+                    )
+                except Exception:
+                    pass
             return [pairs[i] for i in indices if 0 <= i < len(pairs)]
         except Exception as e:
             logger.warning("LLM contradiction detection failed: %s", e)

@@ -291,6 +291,10 @@ export default function CostIntelligence() {
                 step={control.step}
                 value={control.value}
                 onChange={(e) => handleSliderChange(control.key, parseFloat(e.target.value))}
+                aria-label={`${control.label}, currently ${formatCurrency(control.value)}`}
+                aria-valuemin={1}
+                aria-valuemax={control.max}
+                aria-valuenow={control.value}
                 className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
               />
               <div className="flex justify-between text-[10px] text-muted-foreground/60">
