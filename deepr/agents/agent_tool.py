@@ -66,12 +66,17 @@ class AgentTool:
         self,
         arguments: dict[str, Any] | str,
         parent_identity: AgentIdentity,
+        parent_budget: AgentBudget | None = None,
     ) -> AgentResult:
         """Execute the wrapped agent with a child identity and budget slice.
 
         Args:
             arguments: Tool call arguments (dict or JSON string with 'query' key).
             parent_identity: The calling agent's identity for trace propagation.
+            parent_budget: Optional parent budget. When provided the child
+                budget is clamped to ``min(self.budget_limit,
+                parent_budget.remaining)`` so a planner with $1 remaining
+                can't fan out three tools at $5 each.
 
         Returns:
             AgentResult from the delegated execution.
@@ -92,7 +97,26 @@ class AgentTool:
             role=AgentRole.WORKER,
             name=f"tool-{self.name}",
         )
-        budget = AgentBudget(max_cost=self.budget_limit)
+        # Clamp the per-tool budget against the parent's remaining
+        # budget when available. Without this, a planner with $1
+        # remaining could fan out N tools each with their own
+        # ``budget_limit`` and exceed the parent ceiling.
+        effective_budget = self.budget_limit
+        if parent_budget is not None:
+            remaining = getattr(parent_budget, "remaining", None)
+            if remaining is None:
+                remaining = parent_budget.max_cost - parent_budget.cost_accumulated
+            if remaining <= 0:
+                return AgentResult(
+                    agent_id=child_identity.agent_id,
+                    trace_id=child_identity.trace_id,
+                    output=f"Agent tool {self.name} skipped: parent budget exhausted",
+                    cost=0.0,
+                    status=AgentStatus.BUDGET_EXCEEDED,
+                    metadata={"reason": "parent_budget_exhausted"},
+                )
+            effective_budget = min(self.budget_limit, remaining)
+        budget = AgentBudget(max_cost=effective_budget)
 
         try:
             result = await self.agent.execute(query, budget, child_identity)

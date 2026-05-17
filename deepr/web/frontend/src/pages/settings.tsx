@@ -305,7 +305,11 @@ export default function Settings() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => clearDemoMutation.mutate()}
+                      onClick={() => {
+                        if (window.confirm('Clear ALL demo data? This wipes every queued/completed job and every report in local storage. This cannot be undone.')) {
+                          clearDemoMutation.mutate()
+                        }
+                      }}
                       disabled={clearDemoMutation.isPending}
                       className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
                     >

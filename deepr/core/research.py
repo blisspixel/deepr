@@ -234,11 +234,14 @@ class ResearchOrchestrator:
             job_id = str(uuid.uuid4())
             op.set_attribute("job_id", job_id)
 
-            # Initialize temporal tracking for this job (6.4)
+            # Initialize temporal tracking for this job (6.4). Pass
+            # ``job_id`` so the emitter stores the tracker per-job
+            # rather than overwriting a single shared field (R4 audit
+            # finding — two concurrent jobs would otherwise clobber).
             if self._enable_temporal:
                 tracker = TemporalKnowledgeTracker(job_id=job_id)
                 self._temporal_trackers[job_id] = tracker
-                self._emitter.set_temporal_tracker(tracker)
+                self._emitter.set_temporal_tracker(tracker, job_id=job_id)
                 op.add_event("temporal_tracking_enabled", {"job_id": job_id})
 
             # Prepare metadata
@@ -412,7 +415,7 @@ class ResearchOrchestrator:
                         "open_questions": len(structured.open_questions),
                     },
                 )
-                self._emitter.set_temporal_tracker(tracker)
+                self._emitter.set_temporal_tracker(tracker, job_id=job_id)
 
             # Extract metadata for title generation
             title = response.metadata.get("report_title", "Research Report") if response.metadata else "Research Report"
@@ -462,8 +465,13 @@ class ResearchOrchestrator:
             # don't accumulate one entry per completed job for the
             # lifetime of the process. Has to happen here (not in
             # _cleanup_vector_store) because a job may have a tracker
-            # without ever having created a vector store.
+            # without ever having created a vector store. Also clear
+            # the emitter's per-job tracker entry so it doesn't leak.
             self._temporal_trackers.pop(job_id, None)
+            try:
+                self._emitter.clear_temporal_tracker(job_id)
+            except AttributeError:
+                pass
 
     async def _cleanup_vector_store(self, job_id: str):
         """Clean up vector store for a job."""
@@ -497,8 +505,13 @@ class ResearchOrchestrator:
                 await self._cleanup_vector_store(job_id)
                 # Drop the temporal tracker so long-running orchestrators
                 # don't leak one entry per cancelled job. The
-                # _temporal_trackers dict was previously add-only.
+                # _temporal_trackers dict was previously add-only. Also
+                # clear the emitter's per-job tracker entry.
                 self._temporal_trackers.pop(job_id, None)
+                try:
+                    self._emitter.clear_temporal_tracker(job_id)
+                except AttributeError:
+                    pass
             else:
                 op.add_event("cancel_failed")
 

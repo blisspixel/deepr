@@ -68,13 +68,31 @@ export default function ResearchStudio() {
   const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return
     const allowed = ['.txt', '.md', '.json', '.csv']
+    // Size caps — uploaded content is inlined into the prompt; a 100 MB
+    // CSV would silently push token usage into hundreds of dollars.
+    const MAX_FILE_BYTES = 1 * 1024 * 1024 // 1 MB per file
+    const MAX_TOTAL_BYTES = 5 * 1024 * 1024 // 5 MB across all files
     const filtered = files.filter(f => allowed.some(ext => f.name.toLowerCase().endsWith(ext)))
     if (filtered.length < files.length) {
       toast.warning(`${files.length - filtered.length} file(s) skipped (unsupported type)`)
     }
-    if (filtered.length === 0) return
+    const oversized = filtered.filter(f => f.size > MAX_FILE_BYTES)
+    if (oversized.length > 0) {
+      toast.error(`${oversized.length} file(s) exceed 1 MB and were skipped`, {
+        description: oversized.map(f => `${f.name} (${Math.round(f.size / 1024)} KB)`).join(', '),
+      })
+    }
+    const sized = filtered.filter(f => f.size <= MAX_FILE_BYTES)
+    const totalBytes = sized.reduce((acc, f) => acc + f.size, 0)
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      toast.error(`Combined upload size exceeds 5 MB; no files added`, {
+        description: `Got ${Math.round(totalBytes / 1024)} KB. Trim the batch.`,
+      })
+      return
+    }
+    if (finalFiles.length === 0) return
     const readResults = await Promise.all(
-      filtered.map(file =>
+      finalFiles.map(file =>
         new Promise<{ file: File; name: string; content: string }>((resolve, reject) => {
           const reader = new FileReader()
           reader.onload = (event) => {
@@ -97,8 +115,8 @@ export default function ResearchStudio() {
       setUploadedFiles(prev => [...prev, ...successful.map(s => s.file)])
       setUploadedFileContents(prev => [...prev, ...successful.map(s => ({ name: s.name, content: s.content }))])
     }
-    if (successful.length < filtered.length) {
-      toast.warning(`Failed to read ${filtered.length - successful.length} file(s)`)
+    if (successful.length < finalFiles.length) {
+      toast.warning(`Failed to read ${finalFiles.length - successful.length} file(s)`)
     }
   }, [])
 

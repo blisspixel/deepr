@@ -32,13 +32,18 @@ class InvalidInputError(SecurityError):
     pass
 
 
-def sanitize_name(name: str, allowed_chars: str = r"a-zA-Z0-9_-") -> str:
+def sanitize_name(name: str, allowed_chars: str = r"a-zA-Z0-9_-", raise_on_change: bool = False) -> str:
     """
     Sanitize a name by removing dangerous characters.
 
     Args:
         name: The name to sanitize
         allowed_chars: Regex character class of allowed characters
+        raise_on_change: When True, raise ``InvalidInputError`` if the
+            input contained characters that had to be replaced. Use this
+            from path-construction sites that want to reject
+            ``../../passwd``-style inputs outright instead of silently
+            sanitising them into a benign-looking name.
 
     Returns:
         Sanitized name
@@ -47,7 +52,11 @@ def sanitize_name(name: str, allowed_chars: str = r"a-zA-Z0-9_-") -> str:
         >>> sanitize_name("my expert")
         'my_expert'
         >>> sanitize_name("../../etc/passwd")
-        '______etc_passwd'
+        'etc_passwd'
+        >>> sanitize_name("../../etc/passwd", raise_on_change=True)
+        Traceback (most recent call last):
+            ...
+        deepr.utils.security.InvalidInputError: ...
     """
     pattern = f"[^{allowed_chars}]"
     sanitized = re.sub(pattern, "_", name)
@@ -61,6 +70,11 @@ def sanitize_name(name: str, allowed_chars: str = r"a-zA-Z0-9_-") -> str:
     # Ensure not empty
     if not sanitized:
         raise InvalidInputError("Name cannot be empty after sanitization")
+
+    if raise_on_change and sanitized != name:
+        raise InvalidInputError(
+            f"Name {name!r} contains characters that are not permitted (allowed: [{allowed_chars}])"
+        )
 
     return sanitized
 
