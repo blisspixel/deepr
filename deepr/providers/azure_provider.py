@@ -306,6 +306,31 @@ class AzureProvider(DeepResearchProvider):
                 original_error=e,
             )
 
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
+        """List Azure OpenAI vector stores.
+
+        The base class declared this abstract; previously
+        ``AzureProvider`` did not implement it, which meant the class
+        could not be instantiated at all (``TypeError: Can't instantiate
+        abstract class``). Every public Azure entrypoint went through
+        ``create_provider("azure")`` which would have crashed at
+        construction time.
+        """
+        try:
+            stores: list[VectorStore] = []
+            response = await self.client.vector_stores.list(limit=limit)
+            for vs in getattr(response, "data", []):
+                files_response = await self.client.vector_stores.files.list(vector_store_id=vs.id)
+                file_ids = [f.id for f in getattr(files_response, "data", [])]
+                stores.append(VectorStore(id=vs.id, name=getattr(vs, "name", vs.id), file_ids=file_ids))
+            return stores
+        except OpenAIAPIError as e:
+            raise ProviderError(
+                message=f"Failed to list vector stores on Azure: {e!s}",
+                provider="azure",
+                original_error=e,
+            )
+
     async def delete_vector_store(self, vector_store_id: str) -> bool:
         """Delete Azure OpenAI vector store."""
         try:
