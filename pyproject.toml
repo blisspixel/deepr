@@ -148,11 +148,15 @@ omit = [
 ]
 
 [tool.coverage.report]
-# Raised from the original 60% baseline after the v2.10.3 test pass.
-# The remaining ~22% is concentrated in LLM-driven integration paths
-# (chat.py, mcp/server.py, curriculum.py) that are exercised by
-# end-to-end and live-provider tests rather than units.
-fail_under = 75
+# Raised from the original 60% baseline after the v2.10.3 test pass,
+# then again from 75% to 80% after the post-release coverage drive
+# added focused tests on MCP server tool methods, both MCP transports,
+# Azure + Gemini provider adapters, web search backends, context index
+# / chainer, worker poller, and the utils.security helpers. The
+# remaining ~20% sits in LLM-driven integration paths (chat.py,
+# curriculum.py, lazy_graph_rag.py) that are exercised by end-to-end
+# and live-provider tests rather than units.
+fail_under = 80
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

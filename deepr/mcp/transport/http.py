@@ -354,7 +354,14 @@ class StreamingHttpTransport:
 
         finally:
             self._stats.active_streams -= 1
-            self._subscribers.pop(subscriber_id, None)
+            # Only remove the entry if it still points at THIS handler's queue.
+            # When a reconnect with the same subscriber_id replaces ``queue`` in
+            # ``_subscribers``, the old handler exits via its sentinel — but its
+            # finally block must NOT pop the new owner. An unconditional pop
+            # silently unregisters the replacement and stalls notification
+            # delivery until the next reconnect.
+            if self._subscribers.get(subscriber_id) is queue:
+                self._subscribers.pop(subscriber_id, None)
 
         return response
 
