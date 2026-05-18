@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.10.3] - 2026-05-17
 
-Three-round bug-hunt sweep covering cost/budget, async/concurrency, storage
+Five-round bug-hunt sweep covering cost/budget, async/concurrency, storage
 durability, provider correctness, auth, skill subsystem, CLI flag validation,
-deploy templates, MCP client + transports, and documentation accuracy. ~270
-fixes across ~170 files. All 4,400+ unit tests pass. Coverage threshold
-raised from 60% to 75%.
+deploy templates, MCP client + transports, frontend accessibility, and
+documentation accuracy. ~360 fixes across ~190 files. All 4,341+ unit tests
+pass. Coverage threshold raised from 60% to 75%.
 
 ### Security
 - **Skill executor RCE closed.** Skill ``module``/``function`` fields are
@@ -184,6 +184,51 @@ raised from 60% to 75%.
 - **`deepr costs limits`** now persists daily / monthly limits to
   ``cost_data.json`` and validates ``>= 0``.
 
+### Round 4 — auto-mode, emitter, agent budgets, frontend safety
+- **`research/auto_mode.py`** fallback model selection no longer crashes
+  when the configured model is missing from the registry; falls back to
+  a sane default.
+- **`observability/metadata_emitter.py`** per-job temporal tracker
+  replaces the shared field — fixes the race where parallel jobs
+  clobbered each other's elapsed-time accounting.
+- **`agents/budget.py`** ``AgentBudget.check`` propagates parent
+  remaining downward correctly when a worker spawns a sub-worker so
+  bounded fan-out no longer over-spends its slice.
+- **Frontend safety**: result-detail citation rendering no longer
+  crashes on malformed URLs (``new URL`` wrapped in try/catch);
+  budget sliders debounced (was firing mutations on every pixel drag);
+  cost-intelligence utilisation handles zero-denominator division.
+
+### Round 5 — cost gates, MCP stability, frontend a11y
+- **LLM cost-safety gates** added to seven previously uncovered call
+  sites that could otherwise drive unbounded spend on long inputs:
+  ``experts/citation_validator``, ``gap_discovery``, ``conflict_resolver``,
+  ``curriculum``, ``map_reduce`` (map + reduce), ``multi_pass``
+  (extract/cross-ref/synthesise), ``synthesis`` (synthesize + extract),
+  ``task_planner`` (decompose + synth), ``embedding_cache`` (per-doc +
+  query).
+- **`experts/skills/executor.py`** MCPClientProxy now drains stderr in a
+  background task so a chatty MCP subprocess can't fill the pipe buffer
+  and deadlock.
+- **`experts/skills/definition.py`** trigger-regex compilation protected
+  from ReDoS — pattern length capped at 256 chars, nested-quantifier
+  backtracking patterns rejected.
+- **`mcp/client/pool.py`** terminal ``ProgressEvent`` now emitted on
+  tool completion (the ``_progress_notifier`` was stored but never
+  triggered — subscribers saw zero events).
+- **`storage/findings_store.py`** in-memory index mutations now guarded
+  by ``threading.RLock``.
+- **`cli/commands/research.py`** ``cancel`` merges nested
+  ``asyncio.run()`` calls into a single event loop so lookup + cancel
+  share the same loop.
+- **Frontend a11y**: htmlFor/id pairing on settings + research-studio
+  inputs; aria-label on search and slider widgets; aria-valuemin/max/now
+  on cost-intelligence slider; responsive sidebar hiding
+  (trace-explorer ``<lg``, expert-profile ``<md``).
+- **Dead frontend code removed**: ``use-local-storage`` /
+  ``use-media-query`` hooks, ``activity-feed`` /
+  ``memory-indicator`` components.
+
 ### Documentation
 - This file. CHANGELOG was empty for v2.10.3 (3 commits' worth of work
   had no release notes).
@@ -192,7 +237,7 @@ raised from 60% to 75%.
 - ``deploy/azure/README.md`` + ``deploy.sh`` corrected to ``functions/``
   (the ``function_app/`` directory was removed).
 - MCP tool count: 16 → 18 in ``README.md`` and ``mcp/README.md``.
-- Test count: 4300+ → 4400+ in ``README.md``, ``ROADMAP.md``,
+- Test count: 4300+ → 4341+ in ``README.md``, ``ROADMAP.md``,
   ``SECURITY.md``, ``docs/VISION.md``.
 - Coverage threshold: 60% → 75% in ``CONTRIBUTING.md`` and ``ROADMAP.md``.
 
