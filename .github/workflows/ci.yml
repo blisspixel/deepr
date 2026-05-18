@@ -51,7 +51,7 @@ jobs:
         run: pip install -e ".[dev,full]"
 
       - name: Unit tests with coverage
-        # Coverage threshold lives in pyproject.toml (currently 75%).
+        # Coverage threshold lives in pyproject.toml (currently 80%).
         # Do NOT pass --cov-fail-under here — it would silently override
         # the pyproject setting and allow coverage to drop without
         # tripping CI (R4 audit caught this discrepancy).
