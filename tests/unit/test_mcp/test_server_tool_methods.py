@@ -1,0 +1,516 @@
+"""Tests for the DeeprMCPServer tool method implementations.
+
+These methods (``deepr_research``, ``deepr_check_status``, ``deepr_get_result``,
+``deepr_agentic_research``, ``deepr_cancel_job``, plus the expert tools) are the
+hottest part of the MCP surface. Coverage for them was ~37% before this file.
+
+Each test mocks the external collaborators (cost-safety, provider, orchestrator,
+storage, document manager, report generator) so we exercise the dispatcher /
+guard logic without touching any network or filesystem.
+"""
+
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from deepr.mcp.server import DeeprMCPServer
+from deepr.mcp.state.job_manager import JobPhase
+
+
+@pytest.fixture
+def mock_server():
+    """Build a DeeprMCPServer with mocked external collaborators."""
+    with (
+        patch("deepr.mcp.server.ExpertStore"),
+        patch("deepr.mcp.server.load_config", return_value={}),
+        patch("deepr.mcp.server.get_resource_handler") as mock_rh,
+    ):
+        rh = MagicMock()
+        rh.jobs = MagicMock()
+        rh.jobs.list_jobs.return_value = []
+        rh.jobs.get_state.return_value = None
+        rh.jobs.create_job = AsyncMock()
+        rh.jobs.update_phase = AsyncMock()
+        rh.persist_job = MagicMock()
+        rh.get_resource_uri_for_job.return_value = {
+            "status": "deepr://campaigns/x/status",
+            "plan": "deepr://campaigns/x/plan",
+            "beliefs": "deepr://campaigns/x/beliefs",
+        }
+        mock_rh.return_value = rh
+        server = DeeprMCPServer()
+        yield server
+
+
+def _state(phase=JobPhase.EXECUTING, cost=0.5, progress=0.3, metadata=None):
+    s = MagicMock()
+    s.phase = phase
+    s.cost_so_far = cost
+    s.progress = progress
+    s.started_at = datetime(2026, 5, 17, 12, 0, 0)
+    s.metadata = metadata or {}
+    return s
+
+
+# ---------------------------------------------------------------------- #
+# deepr_research
+# ---------------------------------------------------------------------- #
+
+
+class TestDeeprResearch:
+    @pytest.mark.asyncio
+    async def test_budget_blocked_by_cost_safety(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (False, "daily limit reached", None)
+        cost_safety.daily_cost = 12.34
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_research(prompt="p", model="o4-mini-deep-research")
+        assert out["error_code"] == "BUDGET_EXCEEDED"
+        assert "daily limit reached" in out["message"]
+
+    @pytest.mark.asyncio
+    async def test_caller_budget_below_estimate(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_research(
+                prompt="p",
+                model="o4-mini-deep-research",
+                budget=0.01,  # estimate floor is 0.15 for o4-mini
+            )
+        assert out["error_code"] == "BUDGET_INSUFFICIENT"
+
+    @pytest.mark.asyncio
+    async def test_ssrf_blocks_http_file_url(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        # Make SSRF protector reject every URL.
+        mock_server.ssrf_protector = MagicMock()
+        mock_server.ssrf_protector.validate_url.side_effect = ValueError("Internal address blocked")
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_research(
+                prompt="p",
+                model="o4-mini",
+                files=["http://169.254.169.254/latest/meta-data"],
+            )
+        assert out["error_code"] == "SSRF_BLOCKED"
+        assert "Internal address blocked" in out["message"]
+
+    @pytest.mark.asyncio
+    async def test_missing_provider_api_key(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        with (
+            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
+            patch.object(mock_server, "_get_api_key", return_value=None),
+        ):
+            out = await mock_server.deepr_research(prompt="p", model="o4-mini", provider="openai")
+        assert out["error_code"] == "PROVIDER_NOT_CONFIGURED"
+
+    @pytest.mark.asyncio
+    async def test_happy_path_returns_job(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        cost_safety.get_spending_summary.return_value = {
+            "daily": {"spent": 1.0, "remaining": 99.0},
+            "monthly": {"spent": 1.0},
+        }
+        orchestrator = MagicMock()
+        orchestrator.submit_research = AsyncMock(return_value="job_abc")
+        mock_server.resource_handler.jobs.get_state.return_value = _state(metadata={})
+        with (
+            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
+            patch.object(mock_server, "_get_api_key", return_value="k"),
+            patch("deepr.mcp.server.create_provider"),
+            patch("deepr.mcp.server.create_storage"),
+            patch("deepr.mcp.server.DocumentManager"),
+            patch("deepr.mcp.server.ReportGenerator"),
+            patch("deepr.mcp.server.ResearchOrchestrator", return_value=orchestrator),
+        ):
+            out = await mock_server.deepr_research(prompt="p", model="o4-mini")
+        assert out["job_id"] == "job_abc"
+        assert out["status"] == "submitted"
+        assert "trace_id" in out
+        assert out["daily_remaining"] == 99.0
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_mapped_to_internal_error(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        with (
+            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
+            patch.object(mock_server, "_get_api_key", return_value="k"),
+            patch("deepr.mcp.server.create_provider", side_effect=RuntimeError("boom")),
+        ):
+            out = await mock_server.deepr_research(prompt="p", model="o4-mini")
+        assert out["error_code"] == "INTERNAL_ERROR"
+
+
+# ---------------------------------------------------------------------- #
+# deepr_check_status
+# ---------------------------------------------------------------------- #
+
+
+class TestCheckStatus:
+    @pytest.mark.asyncio
+    async def test_job_not_found(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = None
+        out = await mock_server.deepr_check_status(job_id="missing")
+        assert out["error_code"] == "JOB_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_returns_provider_status_when_active(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = _state()
+        prov = MagicMock()
+        prov.get_job_status = AsyncMock(
+            return_value={
+                "status": "in_progress",
+                "progress": 0.4,
+                "elapsed_time": 30,
+                "cost": 0.25,
+            }
+        )
+        mock_server.active_jobs["j1"] = {
+            "provider_instance": prov,
+            "submitted_at": "2026-05-17T12:00:00",
+        }
+        out = await mock_server.deepr_check_status("j1")
+        assert out["status"] == "in_progress"
+        assert out["progress"] == 0.4
+        assert out["cost_so_far"] == 0.25
+
+    @pytest.mark.asyncio
+    async def test_provider_exception_falls_back_to_state(self, mock_server):
+        st = _state(phase=JobPhase.EXECUTING)
+        mock_server.resource_handler.jobs.get_state.return_value = st
+        prov = MagicMock()
+        prov.get_job_status = AsyncMock(side_effect=RuntimeError("provider down"))
+        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        out = await mock_server.deepr_check_status("j1")
+        assert out["status"] == JobPhase.EXECUTING.value
+
+    @pytest.mark.asyncio
+    async def test_state_only_returns_submitted_when_no_state(self, mock_server):
+        # Edge case: in active_jobs cache but no state. Hits final return.
+        mock_server.resource_handler.jobs.get_state.return_value = None
+        mock_server.active_jobs["j_orphan"] = {"provider_instance": None}
+        out = await mock_server.deepr_check_status("j_orphan")
+        assert out["status"] == "submitted"
+
+
+# ---------------------------------------------------------------------- #
+# deepr_get_result
+# ---------------------------------------------------------------------- #
+
+
+class TestGetResult:
+    @pytest.mark.asyncio
+    async def test_unknown_job(self, mock_server):
+        out = await mock_server.deepr_get_result(job_id="missing")
+        assert out["error_code"] == "JOB_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_provider_lost(self, mock_server):
+        mock_server.active_jobs["j1"] = {"provider_instance": None}
+        out = await mock_server.deepr_get_result("j1")
+        assert out["error_code"] == "PROVIDER_LOST"
+
+    @pytest.mark.asyncio
+    async def test_in_progress(self, mock_server):
+        prov = MagicMock()
+        prov.get_job_status = AsyncMock(return_value={"status": "in_progress"})
+        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        out = await mock_server.deepr_get_result("j1")
+        assert out["status"] == "in_progress"
+        assert "Job not yet complete" in out["message"]
+
+    @pytest.mark.asyncio
+    async def test_completed_full_report(self, mock_server):
+        prov = MagicMock()
+        prov.get_job_status = AsyncMock(return_value={"status": "completed"})
+        prov.get_job_result = AsyncMock(
+            return_value={
+                "report": "short report",
+                "cost": 0.42,
+                "metadata": {"x": 1},
+                "sources": ["a", "b"],
+            }
+        )
+        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        out = await mock_server.deepr_get_result("j1")
+        assert out["status"] == "completed"
+        assert out["markdown_report"] == "short report"
+        assert out["cost_final"] == 0.42
+        assert "j1" not in mock_server.active_jobs  # cleaned up
+
+    @pytest.mark.asyncio
+    async def test_completed_truncates_large_report(self, mock_server):
+        prov = MagicMock()
+        prov.get_job_status = AsyncMock(return_value={"status": "completed"})
+        big_report = "A" * 200 + "\n## Section\n" + "B" * 200_000
+        prov.get_job_result = AsyncMock(
+            return_value={
+                "report": big_report,
+                "cost": 1.5,
+                "metadata": {},
+                "sources": [],
+            }
+        )
+        mock_server.active_jobs["j2"] = {"provider_instance": prov}
+        with patch.dict(os.environ, {"DEEPR_MAX_INLINE_CHARS": "1000"}):
+            out = await mock_server.deepr_get_result("j2")
+        assert out["status"] == "completed"
+        assert "summary" in out
+        assert out["full_report_uri"] == "deepr://reports/j2/final.md"
+        assert out["report_length"] == len(big_report)
+
+    @pytest.mark.asyncio
+    async def test_exception_wrapped(self, mock_server):
+        prov = MagicMock()
+        prov.get_job_status = AsyncMock(side_effect=RuntimeError("boom"))
+        mock_server.active_jobs["j1"] = {"provider_instance": prov}
+        out = await mock_server.deepr_get_result("j1")
+        assert out["error_code"] == "RESULT_FETCH_FAILED"
+
+
+# ---------------------------------------------------------------------- #
+# deepr_agentic_research
+# ---------------------------------------------------------------------- #
+
+
+class TestAgenticResearch:
+    @pytest.mark.asyncio
+    async def test_no_expert_returns_expert_required(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_agentic_research(goal="research", budget=2.0)
+        assert out["error_code"] == "EXPERT_REQUIRED"
+
+    @pytest.mark.asyncio
+    async def test_unknown_expert(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        mock_server.store.load.return_value = None
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_agentic_research(goal="g", expert_name="ghost", budget=2.0)
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_blocked_by_cost_safety(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (False, "blown", None)
+        cost_safety.get_spending_summary.return_value = {
+            "daily": {"spent": 50, "remaining": 0},
+        }
+        with patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety):
+            out = await mock_server.deepr_agentic_research(goal="g", expert_name="e", budget=1.0)
+        assert out["error_code"] == "BUDGET_EXCEEDED"
+
+    @pytest.mark.asyncio
+    async def test_happy_path_starts_workflow(self, mock_server):
+        cost_safety = MagicMock()
+        cost_safety.check_operation.return_value = (True, "", None)
+        cost_safety.get_spending_summary.return_value = {
+            "daily": {"spent": 1, "remaining": 49},
+        }
+        expert = SimpleNamespace(name="myexpert")
+        mock_server.store.load.return_value = expert
+        mock_server.resource_handler.jobs.get_state.return_value = _state(metadata={})
+
+        session = MagicMock()
+        session.send_message = AsyncMock(return_value="ok answer")
+
+        with (
+            patch("deepr.experts.cost_safety.get_cost_safety_manager", return_value=cost_safety),
+            patch("deepr.mcp.server.ExpertChatSession", return_value=session),
+        ):
+            out = await mock_server.deepr_agentic_research(goal="goal", expert_name="myexpert", budget=2.0)
+        assert out["status"] == "in_progress"
+        assert out["expert_name"] == "myexpert"
+        assert "workflow_id" in out
+
+
+# ---------------------------------------------------------------------- #
+# deepr_cancel_job
+# ---------------------------------------------------------------------- #
+
+
+class TestCancelJob:
+    @pytest.mark.asyncio
+    async def test_missing(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = None
+        out = await mock_server.deepr_cancel_job("none")
+        assert out["error_code"] == "JOB_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_already_terminal(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = _state(phase=JobPhase.COMPLETED)
+        out = await mock_server.deepr_cancel_job("done")
+        assert out["error_code"] == "JOB_ALREADY_TERMINAL"
+        assert "completed" in out["message"]
+
+    @pytest.mark.asyncio
+    async def test_cancel_running(self, mock_server):
+        mock_server.resource_handler.jobs.get_state.return_value = _state(phase=JobPhase.EXECUTING)
+        mock_server.active_jobs["job"] = {"provider_instance": MagicMock()}
+        out = await mock_server.deepr_cancel_job("job")
+        assert out["status"] == "cancelled"
+        assert "job" not in mock_server.active_jobs
+
+
+# ---------------------------------------------------------------------- #
+# Expert tools (list / info / query / manifest / rank_gaps)
+# ---------------------------------------------------------------------- #
+
+
+class TestExpertTools:
+    @pytest.mark.asyncio
+    async def test_list_experts(self, mock_server):
+        mock_server.store.list_all.return_value = [
+            {
+                "name": "e1",
+                "domain": "d",
+                "description": "desc",
+                "stats": {"documents": 3, "conversations": 1},
+            }
+        ]
+        out = await mock_server.list_experts()
+        assert out[0]["name"] == "e1"
+        assert out[0]["documents"] == 3
+
+    @pytest.mark.asyncio
+    async def test_list_experts_error(self, mock_server):
+        mock_server.store.list_all.side_effect = OSError("disk gone")
+        out = await mock_server.list_experts()
+        assert isinstance(out, list)
+        assert out[0]["error_code"] == "EXPERT_LIST_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_get_expert_info_not_found(self, mock_server):
+        mock_server.store.load.return_value = None
+        out = await mock_server.get_expert_info("ghost")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_get_expert_info_found(self, mock_server):
+        expert = MagicMock()
+        expert.name = "e1"
+        expert.domain = "d"
+        expert.description = "desc"
+        expert.vector_store_id = "vs"
+        expert.total_documents = 5
+        expert.stats = {"conversations": 2, "total_cost": 1.23}
+        expert.research_jobs = ["j1", "j2"]
+        expert.created_at = datetime(2026, 1, 1)
+        expert.last_knowledge_refresh = None
+        manifest = MagicMock(claim_count=10, open_gap_count=2, avg_confidence=0.8)
+        expert.get_manifest.return_value = manifest
+        mock_server.store.load.return_value = expert
+        out = await mock_server.get_expert_info("e1")
+        assert out["name"] == "e1"
+        assert out["stats"]["research_jobs"] == 2
+        assert out["claim_count"] == 10
+
+    @pytest.mark.asyncio
+    async def test_get_expert_info_manifest_swallowed(self, mock_server):
+        expert = MagicMock()
+        expert.name = "e1"
+        expert.domain = "d"
+        expert.description = "desc"
+        expert.vector_store_id = "vs"
+        expert.total_documents = 0
+        expert.stats = {}
+        expert.research_jobs = []
+        expert.created_at = None
+        expert.last_knowledge_refresh = None
+        expert.get_manifest.side_effect = RuntimeError("manifest unavailable")
+        mock_server.store.load.return_value = expert
+        out = await mock_server.get_expert_info("e1")
+        # Manifest fields absent but core info present (exception swallowed)
+        assert out["name"] == "e1"
+        assert "claim_count" not in out
+
+    @pytest.mark.asyncio
+    async def test_query_expert_not_found(self, mock_server):
+        mock_server.store.load.return_value = None
+        out = await mock_server.query_expert(expert_name="ghost", question="?")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_query_expert_happy(self, mock_server):
+        expert = MagicMock()
+        mock_server.store.load.return_value = expert
+        session = MagicMock()
+        session.send_message = AsyncMock(return_value="answer")
+        session.get_session_summary.return_value = {
+            "cost_accumulated": 0.05,
+            "budget_remaining": 1.0,
+            "research_jobs_triggered": 0,
+        }
+        with patch("deepr.mcp.server.ExpertChatSession", return_value=session):
+            out = await mock_server.query_expert("e1", "what?")
+        assert out["answer"] == "answer"
+        assert out["cost"] == 0.05
+
+    @pytest.mark.asyncio
+    async def test_query_expert_wraps_errors(self, mock_server):
+        expert = MagicMock()
+        mock_server.store.load.return_value = expert
+        session = MagicMock()
+        session.send_message = AsyncMock(side_effect=ValueError("nope"))
+        with patch("deepr.mcp.server.ExpertChatSession", return_value=session):
+            out = await mock_server.query_expert("e1", "q")
+        assert out["error_code"] == "EXPERT_QUERY_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_expert_manifest_not_found(self, mock_server):
+        mock_server.store.load.return_value = None
+        out = await mock_server.expert_manifest("ghost")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_expert_manifest_returns_dict(self, mock_server):
+        expert = MagicMock()
+        manifest = MagicMock()
+        manifest.to_dict.return_value = {"claims": [], "gaps": []}
+        expert.get_manifest.return_value = manifest
+        mock_server.store.load.return_value = expert
+        out = await mock_server.expert_manifest("e1")
+        assert out == {"claims": [], "gaps": []}
+
+    @pytest.mark.asyncio
+    async def test_expert_manifest_error_wrapped(self, mock_server):
+        expert = MagicMock()
+        expert.get_manifest.side_effect = OSError("io")
+        mock_server.store.load.return_value = expert
+        out = await mock_server.expert_manifest("e1")
+        assert out["error_code"] == "MANIFEST_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_rank_gaps_not_found(self, mock_server):
+        mock_server.store.load.return_value = None
+        out = await mock_server.rank_gaps("ghost")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_rank_gaps_returns_top_n(self, mock_server):
+        expert = MagicMock()
+        gap = MagicMock()
+        gap.to_dict.return_value = {"topic": "x", "priority": 5}
+        manifest = MagicMock()
+        manifest.top_gaps.return_value = [gap]
+        manifest.open_gap_count = 3
+        expert.get_manifest.return_value = manifest
+        mock_server.store.load.return_value = expert
+        out = await mock_server.rank_gaps("e1", top_n=1)
+        assert out["expert_name"] == "e1"
+        assert out["gaps"][0]["topic"] == "x"
+        assert out["total_open_gaps"] == 3
