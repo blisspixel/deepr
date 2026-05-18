@@ -71,7 +71,14 @@ class A2AServer:
         # ``POST /tasks`` triggers paid expert work via the underlying
         # task manager, so an anonymous reachable endpoint is a
         # spend-amplification primitive.
-        loopback = host in ("localhost", "127.0.0.1", "::1", "")
+        #
+        # NB: ``asyncio.start_server(host='')`` (and ``host=None``) bind
+        # to ALL interfaces, not loopback only. The earlier guard
+        # mistakenly listed ``""`` alongside ``localhost`` / ``127.0.0.1``
+        # / ``::1``, so a caller passing ``host=''`` bypassed the
+        # public-bind refusal entirely. Empty/None hosts must be treated
+        # as public binds.
+        loopback = host in ("localhost", "127.0.0.1", "::1")
         allow_public = os.getenv("DEEPR_A2A_ALLOW_PUBLIC", "").lower() in ("1", "true", "yes")
         if not loopback and not self._auth_token and not allow_public:
             raise RuntimeError(

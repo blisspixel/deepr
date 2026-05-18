@@ -105,3 +105,22 @@ def test_start_refuses_non_loopback_without_token():
 
     with pytest.raises(RuntimeError, match="DEEPR_A2A_TOKEN"):
         asyncio.run(_try_start())
+
+
+def test_start_refuses_empty_host_without_token():
+    """Regression: host='' makes asyncio.start_server bind ALL interfaces,
+    not loopback. The earlier guard listed '' alongside 'localhost', so a
+    caller could bypass the public-bind refusal entirely by passing an
+    empty string. Empty/None hosts must be treated as public binds.
+    """
+    import asyncio
+
+    card = MagicMock()
+    card.to_dict.return_value = {"name": "test-agent"}
+    server = A2AServer(card_generator=card, task_manager=TaskManager(), auth_token=None)
+
+    async def _try_start():
+        await server.start("", 0)
+
+    with pytest.raises(RuntimeError, match="DEEPR_A2A_TOKEN"):
+        asyncio.run(_try_start())
