@@ -72,6 +72,12 @@ class GrokProvider(DeepResearchProvider):
             "grok-4.20-non-reasoning": "grok-4.20-0309-non-reasoning",
             "grok-4.20-multi-agent": "grok-4.20-multi-agent-0309",
             "grok-4.20": "grok-4.20-0309-non-reasoning",
+            # Hyphenated registry forms (registry keys use grok-4-20-*, not the
+            # dotted API form). Without these, a routed "grok-4-20-reasoning"
+            # falls through unmapped → wrong API id + ~11x cost undercharge.
+            "grok-4-20-reasoning": "grok-4.20-0309-reasoning",
+            "grok-4-20-non-reasoning": "grok-4.20-0309-non-reasoning",
+            "grok-4-20-multi-agent": "grok-4.20-multi-agent-0309",
             # Grok 4.1 Fast budget tier
             "grok-4-1-fast-reasoning": "grok-4-1-fast-reasoning",
             "grok-4-1-fast-non-reasoning": "grok-4-1-fast-non-reasoning",
@@ -98,10 +104,15 @@ class GrokProvider(DeepResearchProvider):
 
         _grok_4_1_fast = get_token_pricing("grok-4-1-fast-non-reasoning")
         self.pricing = {
-            # Grok 4.20 flagship ($2/$6 per MTok)
+            # Grok 4.20 flagship ($2/$6 per MTok). Keyed under the dotted API
+            # ids and the hyphenated registry forms so cost accounting is correct
+            # regardless of which name reaches _calculate_cost.
             "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
             "grok-4.20-0309-non-reasoning": {"input": 2.00, "output": 6.00},
             "grok-4.20-multi-agent-0309": {"input": 2.00, "output": 6.00},
+            "grok-4-20-reasoning": {"input": 2.00, "output": 6.00},
+            "grok-4-20-non-reasoning": {"input": 2.00, "output": 6.00},
+            "grok-4-20-multi-agent": {"input": 2.00, "output": 6.00},
             # Grok 4.3 ($1.25/$2.50 per MTok). Listed under both the canonical
             # name and the hyphenated alias so any caller / older code path
             # that submits "grok-4-3" still gets accurate cost accounting.

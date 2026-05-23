@@ -33,6 +33,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -40,6 +41,15 @@ from pathlib import Path
 # Add project root to path so we can import deepr modules
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# Load .env so keys configured there (not just exported in the shell) are
+# visible — otherwise discovery silently skips providers like Anthropic/Azure.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(PROJECT_ROOT / ".env")
+except ImportError:
+    pass
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -536,6 +546,31 @@ def _parse_llm_response(text: str) -> list[DiscoveredModel]:
 # ─── Comparison ───────────────────────────────────────────────────────────────
 
 
+_DATE_SUFFIX_RE = re.compile(r"-\d{4}-\d{2}-\d{2}\b")  # -2026-03-05
+_DATE_COMPACT_RE = re.compile(r"-\d{8}\b")  # -20251001
+_SNAPSHOT_RE = re.compile(r"-\d{4}\b(?=-|$)")  # -0309 (xAI dated builds)
+
+
+def _canonical_model(model_id: str) -> str:
+    """Reduce an API model ID to a registry-comparable canonical form.
+
+    Providers expose models with naming variations that exact-match comparison
+    treats as entirely different models, producing huge false-positive diffs:
+      - dot vs hyphen:        grok-4.3            ↔ grok-4-3
+      - trailing date stamps: claude-haiku-4-5-20251001 ↔ claude-haiku-4-5
+                              gpt-5.4-2026-03-05  ↔ gpt-5.4
+      - embedded build dates: grok-4.20-0309-reasoning ↔ grok-4-20-reasoning
+
+    Normalizing both sides before comparison collapses these to the real model.
+    """
+    s = model_id.lower().replace(".", "-")
+    s = _DATE_SUFFIX_RE.sub("", s)
+    s = _DATE_COMPACT_RE.sub("", s)
+    s = _SNAPSHOT_RE.sub("", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s
+
+
 def compare_registry(
     registry: dict[str, RegistryModel],
     discovered: list[DiscoveredModel],
@@ -547,21 +582,29 @@ def compare_registry(
     - pricing_changes: models where pricing differs
     - in_registry: models that match
     - registry_only: models in registry but not discovered
+
+    Matching is done on a canonicalized (provider, model) key so naming
+    variations (dot/hyphen, date snapshots) don't masquerade as new models.
     """
-    # Build lookup from discovered models
-    discovered_lookup: dict[str, DiscoveredModel] = {}
+    # Canonical registry index: (provider, canonical_model) -> RegistryModel
+    registry_by_canon: dict[tuple[str, str], RegistryModel] = {}
+    for rm in registry.values():
+        registry_by_canon[(rm.provider, _canonical_model(rm.model))] = rm
+
+    # Deduplicate discovered models that canonicalize to the same key (e.g. a
+    # dated snapshot plus its alias) so we don't report the same model twice.
+    discovered_by_canon: dict[tuple[str, str], DiscoveredModel] = {}
     for m in discovered:
-        # Normalize key: provider/model_id
-        key = f"{m.provider}/{m.model_id}"
-        discovered_lookup[key] = m
+        discovered_by_canon.setdefault((m.provider, _canonical_model(m.model_id)), m)
 
     new_models = []
     pricing_changes = []
     in_registry = []
 
-    for key, dm in discovered_lookup.items():
-        if key in registry:
-            rm = registry[key]
+    for canon_key, dm in discovered_by_canon.items():
+        rm = registry_by_canon.get(canon_key)
+        if rm is not None:
+            key = f"{rm.provider}/{rm.model}"
             in_registry.append({"key": key, "discovered": dm, "registry": rm})
 
             # Check pricing changes (only if LLM provided pricing)
@@ -579,14 +622,11 @@ def compare_registry(
                         }
                     )
         else:
-            # Check if any registry key contains this model ID (partial match)
-            partial = [k for k in registry if dm.model_id in k]
-            if not partial:
-                new_models.append(dm)
+            new_models.append(dm)
 
-    # Models in registry but not discovered
-    discovered_model_ids = {m.model_id for m in discovered}
-    registry_only = [rm for rm in registry.values() if rm.model not in discovered_model_ids]
+    # Models in registry but not discovered (canonical comparison)
+    discovered_canon = set(discovered_by_canon.keys())
+    registry_only = [rm for rm in registry.values() if (rm.provider, _canonical_model(rm.model)) not in discovered_canon]
 
     return {
         "new_models": new_models,
@@ -628,18 +668,152 @@ def print_registry_table(registry: dict[str, RegistryModel]):
     print(f"  Total: {len(registry)} models\n")
 
 
-def print_comparison_report(report: dict):
-    """Print a human-readable comparison report."""
+# Non-text / non-research model families we never want to surface as routing
+# candidates (image, audio, embeddings, speech, robotics, etc.).
+_NON_TEXT_MARKERS = (
+    "tts",
+    "transcribe",
+    "diarize",
+    "embedding",
+    "image",
+    "audio",
+    "realtime",
+    "robotics",
+    "computer-use",
+    "search-preview",
+    "whisper",
+    "dall-e",
+    "moderation",
+)
+
+_VERSION_TOKEN_RE = re.compile(r"^\d+(?:\.\d+)?$")
+_DATEISH_TOKEN_RE = re.compile(r"^\d{4,8}$")
+_QUALIFIER_TOKENS = {"preview", "latest", "stable", "exp", "experimental"}
+
+
+def _is_text_model(model_id: str) -> bool:
+    """True unless the model is an image/audio/embedding/etc. variant."""
+    mid = model_id.lower()
+    return not any(marker in mid for marker in _NON_TEXT_MARKERS)
+
+
+def _family_signature(model_id: str) -> str:
+    """Drop version/date/qualifier tokens so variants of one family share a key.
+
+    gpt-5.4-mini and gpt-5-mini both -> 'gpt-mini'; claude-opus-4-7 -> 'claude-opus'.
+    """
+    parts = [
+        tok
+        for tok in model_id.lower().split("-")
+        if not (_VERSION_TOKEN_RE.match(tok) or _DATEISH_TOKEN_RE.match(tok) or tok in _QUALIFIER_TOKENS)
+    ]
+    return "-".join(parts)
+
+
+def _version_key(model_id: str) -> tuple[float, ...]:
+    """Comparable numeric version (gpt-5.4-mini -> (5.4,), claude-opus-4-7 -> (4.7,))."""
+    nums = re.findall(r"\d+(?:\.\d+)?", model_id.lower().replace("-", "."))
+    return tuple(float(n) for n in nums) or (0.0,)
+
+
+def classify_new_models(
+    new_models: list[DiscoveredModel],
+    registry: dict[str, RegistryModel],
+) -> tuple[list[DiscoveredModel], list[DiscoveredModel]]:
+    """Split discovered-but-unregistered models into (relevant, other).
+
+    Relevant = a text model sharing a (provider, family) with the registry, that
+    is either a higher version than what we have, or the GA release of a family
+    we currently only have in preview. Everything else (brand-new families,
+    older versions, non-text variants) goes to 'other'.
+    """
+    fam_max: dict[tuple[str, str], tuple[float, ...]] = {}
+    reg_canon: set[tuple[str, str]] = set()
+    reg_preview_bases: set[tuple[str, str]] = set()
+    for rm in registry.values():
+        fam = (rm.provider, _family_signature(rm.model))
+        v = _version_key(rm.model)
+        fam_max[fam] = max(v, fam_max.get(fam, v))
+        canon = _canonical_model(rm.model)
+        reg_canon.add((rm.provider, canon))
+        if canon.endswith("-preview"):
+            reg_preview_bases.add((rm.provider, canon[: -len("-preview")]))
+
+    relevant, other = [], []
+    for m in new_models:
+        if not _is_text_model(m.model_id):
+            other.append(m)
+            continue
+        mc = _canonical_model(m.model_id)
+        # GA promotion: registry has <model>-preview but not the GA <model>.
+        is_ga_promotion = (
+            "preview" not in mc and (m.provider, mc) in reg_preview_bases and (m.provider, mc) not in reg_canon
+        )
+        fam = (m.provider, _family_signature(m.model_id))
+        is_newer = fam in fam_max and _version_key(m.model_id) > fam_max[fam]
+        if is_newer or is_ga_promotion:
+            relevant.append(m)
+        else:
+            other.append(m)
+    return relevant, other
+
+
+def _registry_stub(m: DiscoveredModel) -> str:
+    """Render a ready-to-paste ModelCapability stub for a discovered model.
+
+    Pricing (which provider APIs don't expose) and tuning fields are left as
+    TODOs to fill from the provider's pricing page before the entry goes live —
+    wrong pricing silently corrupts budget enforcement and the cost ledger.
+    """
+    cw = m.context_window or 0
+    return (
+        f'    "{m.provider}/{m.model_id}": ModelCapability(\n'
+        f'        provider="{m.provider}",\n'
+        f'        model="{m.model_id}",\n'
+        f"        cost_per_query=0.0,  # TODO: estimate per-query cost\n"
+        f"        latency_ms=2000,  # TODO: measure\n"
+        f"        context_window={cw if cw else 'TODO'},\n"
+        f"        specializations=[],  # TODO\n"
+        f"        strengths=[],  # TODO\n"
+        f"        weaknesses=[],\n"
+        f"        input_cost_per_1m=0.0,  # TODO: from provider pricing page\n"
+        f"        output_cost_per_1m=0.0,  # TODO: from provider pricing page\n"
+        f"    ),"
+    )
+
+
+def print_comparison_report(
+    report: dict,
+    registry: dict[str, RegistryModel] | None = None,
+    show_all: bool = False,
+    emit_stubs: bool = True,
+):
+    """Print a human-readable comparison report.
+
+    By default (when ``registry`` is provided and ``show_all`` is False), only
+    "relevant" new models are highlighted: newer versions of model families we
+    already use. Pass ``show_all=True`` to list every discovered-but-unregistered
+    model (including older versions, non-text variants, and brand-new families).
+    """
     new_models = report["new_models"]
     pricing_changes = report["pricing_changes"]
     in_registry = report["in_registry"]
     registry_only = report["registry_only"]
 
+    if registry is not None and not show_all:
+        relevant, other = classify_new_models(new_models, registry)
+        highlighted = relevant
+        other_count = len(other)
+    else:
+        highlighted = new_models
+        other_count = 0
+
     # New models
-    if new_models:
-        print(f"\n  NEW MODELS AVAILABLE ({len(new_models)}):")
+    if highlighted:
+        label = "NEW RELEVANT MODELS" if (registry is not None and not show_all) else "NEW MODELS AVAILABLE"
+        print(f"\n  {label} ({len(highlighted)}):")
         print("  " + "─" * 66)
-        for m in new_models:
+        for m in highlighted:
             pricing = ""
             if m.input_cost_per_1m > 0:
                 pricing = f"  ${m.input_cost_per_1m:.2f}/${m.output_cost_per_1m:.2f} per MTok"
@@ -647,6 +821,9 @@ def print_comparison_report(report: dict):
             notes = f"  ({m.notes})" if m.notes else ""
             print(f"    + {m.provider}/{m.model_id}{pricing}{ctx}{notes}")
         print()
+
+    if other_count:
+        print(f"  ({other_count} other discovered models hidden — older versions, new families, or non-text. Use --all.)\n")
 
     # Pricing changes
     if pricing_changes:
@@ -661,7 +838,11 @@ def print_comparison_report(report: dict):
     # Summary
     print("  SUMMARY:")
     print(f"    In registry:      {len(in_registry)}")
-    print(f"    New available:    {len(new_models)}")
+    if registry is not None and not show_all:
+        print(f"    New relevant:     {len(highlighted)}")
+        print(f"    Other (hidden):   {other_count}")
+    else:
+        print(f"    New available:    {len(new_models)}")
     print(f"    Pricing changes:  {len(pricing_changes)}")
     print(f"    Registry-only:    {len(registry_only)}")
 
@@ -670,7 +851,14 @@ def print_comparison_report(report: dict):
         for rm in sorted(registry_only, key=lambda x: x.key):
             print(f"    ? {rm.key}")
 
-    if not new_models and not pricing_changes:
+    # Draft registry stubs for the relevant new models.
+    if emit_stubs and highlighted:
+        print("\n  SUGGESTED REGISTRY ENTRIES (fill in TODOs, then paste into registry.py):")
+        print("  " + "─" * 66)
+        for m in highlighted:
+            print(_registry_stub(m))
+
+    if not highlighted and not pricing_changes:
         print("\n  Registry is up to date!")
 
 
@@ -683,11 +871,26 @@ def _format_context(tokens: int) -> str:
     return str(tokens)
 
 
-def output_json(registry: dict[str, RegistryModel], report: dict):
-    """Output report as JSON."""
+def output_json(
+    registry: dict[str, RegistryModel],
+    report: dict,
+    registry_obj: dict[str, RegistryModel] | None = None,
+    show_all: bool = False,
+):
+    """Output report as JSON.
+
+    When a registry is supplied and ``show_all`` is False, ``new_models`` holds
+    only the relevant (newer-version-of-a-known-family) models and
+    ``new_models_other`` holds the rest, so CI can alert on the relevant set.
+    """
+    if registry_obj is not None and not show_all:
+        relevant, other = classify_new_models(report["new_models"], registry_obj)
+    else:
+        relevant, other = report["new_models"], []
     result = {
         "registry_count": len(registry),
-        "new_models": [asdict(m) for m in report["new_models"]],
+        "new_models": [asdict(m) for m in relevant],
+        "new_models_other": [asdict(m) for m in other],
         "pricing_changes": report["pricing_changes"],
         "matched": len(report["in_registry"]),
         "registry_only": [asdict(m) for m in report["registry_only"]],
@@ -699,6 +902,15 @@ def output_json(registry: dict[str, RegistryModel], report: dict):
 
 
 def main():
+    # The report uses box-drawing characters (U+2500 etc.). On Windows the
+    # default console encoding (cp1252) can't encode them and the script
+    # crashes mid-report. Force UTF-8 output where the stream supports it.
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except (ValueError, OSError):
+            pass
+
     parser = argparse.ArgumentParser(
         description="Discover available AI models and compare against Deepr's registry.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -738,6 +950,16 @@ Examples:
         "--show-registry",
         action="store_true",
         help="Show current registry and exit",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Show every discovered model (default: only newer versions of families already in the registry)",
+    )
+    parser.add_argument(
+        "--no-stubs",
+        action="store_true",
+        help="Do not print suggested registry entry stubs for new relevant models",
     )
     parser.add_argument(
         "--verbose",
@@ -791,9 +1013,9 @@ Examples:
 
     # Output
     if args.format == "json":
-        output_json(registry, report)
+        output_json(registry, report, registry_obj=registry, show_all=args.all)
     else:
-        print_comparison_report(report)
+        print_comparison_report(report, registry=registry, show_all=args.all, emit_stubs=not args.no_stubs)
 
 
 if __name__ == "__main__":
