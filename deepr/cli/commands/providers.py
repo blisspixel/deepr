@@ -461,6 +461,54 @@ def benchmark(quick: bool, target_provider: Optional[str], iterations: int, hist
 
 
 @providers.command()
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    help="Show every discovered model, not just newer versions of families already in the registry",
+)
+@click.option(
+    "--provider",
+    "target_provider",
+    type=click.Choice(["openai", "anthropic", "gemini", "xai", "azure-foundry"]),
+    help="Only check this provider",
+)
+@click.option("--json", "json_output", is_flag=True, help="Output as JSON (for CI / scripting)")
+@click.option("--no-stubs", is_flag=True, help="Don't print suggested registry-entry stubs")
+def models(show_all: bool, target_provider: Optional[str], json_output: bool, no_stubs: bool):
+    """Discover newer provider models missing from the registry.
+
+    Queries each configured provider's live model list and flags newer versions
+    of model families already in the registry (e.g. a new mini/nano tier, or a
+    preview that has gone GA). Use --all to see every discovered model.
+
+    Examples:
+        deepr providers models
+        deepr providers models --provider openai
+        deepr providers models --all
+        deepr providers models --json
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[3] / "scripts" / "discover_models.py"
+    cmd = [sys.executable, str(script)]
+    if show_all:
+        cmd.append("--all")
+    if no_stubs:
+        cmd.append("--no-stubs")
+    if json_output:
+        cmd += ["--format", "json"]
+    if target_provider:
+        cmd += ["--provider", target_provider]
+
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        raise click.ClickException(f"Model discovery exited with status {result.returncode}")
+
+
+@providers.command()
 def list():
     """List all available providers and models."""
     from deepr.providers.registry import MODEL_CAPABILITIES

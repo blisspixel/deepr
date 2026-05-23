@@ -6,6 +6,7 @@ from deepr.providers.registry import (
     MODEL_CAPABILITIES,
     ModelCapability,
     get_cheapest_model,
+    get_cost_estimate,
     get_fastest_model,
     get_largest_context_model,
     get_model_capability,
@@ -173,6 +174,43 @@ class TestModelCapabilities:
 
         assert deep_research.cost_per_query > cheapest.cost_per_query
         assert deep_research.latency_ms > fastest.latency_ms
+
+
+class TestCostEstimateMatching:
+    """Regression tests: get_cost_estimate must resolve the most specific model.
+
+    A prior first-substring-match fallback resolved snapshot/variant strings to
+    the shorter, wrong family member — over-charging (mini -> full price) and,
+    worse, under-charging (gpt-5.4-pro-<date> -> cheaper gpt-5.4), which lets
+    budget pre-flight approve an expensive job against an underestimate.
+    """
+
+    def test_exact_keys(self):
+        assert get_cost_estimate("gpt-5.4") == 0.30
+        assert get_cost_estimate("gpt-5.4-mini") == 0.05
+        assert get_cost_estimate("gpt-5.4-nano") == 0.01
+
+    def test_snapshot_resolves_to_specific_model_not_prefix(self):
+        # mini/nano snapshots must NOT resolve to the more expensive gpt-5.4
+        assert get_cost_estimate("gpt-5.4-mini-2026-03-17") == 0.05
+        assert get_cost_estimate("gpt-5.4-nano-2026-03-17") == 0.01
+
+    def test_pro_snapshot_does_not_underestimate(self):
+        # The dangerous direction: must resolve to the pro price, not gpt-5.4
+        assert get_cost_estimate("gpt-5.4-pro-2026-03-05") == 0.90
+        assert get_cost_estimate("gpt-5.5-pro-2026-04-23") == 1.50
+
+    def test_dotted_and_hyphenated_grok_equivalent(self):
+        # Normalization: dotted API form and hyphenated registry form match
+        assert get_cost_estimate("grok-4.3") == get_cost_estimate("grok-4-3")
+
+    def test_tiered_pricing_preserved(self):
+        base = get_cost_estimate("gemini-3.1-pro-preview")
+        tiered = get_cost_estimate("gemini-3.1-pro-preview", input_tokens=300_000)
+        assert tiered == round(base * 2.0, 4)
+
+    def test_unknown_model_returns_default(self):
+        assert get_cost_estimate("totally-made-up-model-xyz") == 0.20
 
 
 if __name__ == "__main__":

@@ -380,3 +380,31 @@ class TestGrokErrorHandling:
             # but the method should still be callable
             result = await provider.cancel_job(job_id)
             assert isinstance(result, bool)
+
+
+class TestGrokHyphenatedRegistryForms:
+    """Regression: registry keys use hyphenated grok-4-20-* but the provider
+    mappings/pricing were keyed only by the dotted API form. A routed
+    "grok-4-20-reasoning" then went unmapped (wrong API id) and fell to the
+    grok-4-1-fast default price (~11x undercharge: $0.7 vs $8.0 per 1M/1M).
+    """
+
+    @pytest.fixture
+    def provider(self):
+        return GrokProvider(api_key="test-xai-key")
+
+    def test_hyphenated_forms_map_to_api_ids(self, provider):
+        assert provider.get_model_name("grok-4-20-reasoning") == "grok-4.20-0309-reasoning"
+        assert provider.get_model_name("grok-4-20-non-reasoning") == "grok-4.20-0309-non-reasoning"
+        assert provider.get_model_name("grok-4-20-multi-agent") == "grok-4.20-multi-agent-0309"
+
+    def test_hyphenated_forms_priced_at_flagship_rate(self, provider):
+        # $2/$6 per MTok -> $8.0 for 1M in + 1M out; NOT the $0.70 fast default
+        for model in ("grok-4-20-reasoning", "grok-4-20-non-reasoning", "grok-4-20-multi-agent"):
+            cost = provider._calculate_cost(1_000_000, 1_000_000, model)
+            assert cost == 8.0, f"{model} mispriced: {cost}"
+
+    def test_dotted_and_hyphenated_prices_match(self, provider):
+        assert provider._calculate_cost(1_000_000, 1_000_000, "grok-4-20-reasoning") == provider._calculate_cost(
+            1_000_000, 1_000_000, "grok-4.20-0309-reasoning"
+        )
