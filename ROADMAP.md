@@ -1,6 +1,6 @@
 # Deepr Roadmap
 
-> Development priorities and planned features. Model/pricing notes updated through March 2026.
+> Development priorities and planned features. Model/pricing notes updated through May 2026.
 
 ## Quick Links
 
@@ -45,7 +45,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.3 flagship, 4.20 Reasoning/Non-Reasoning/Multi-Agent), Anthropic (Claude Opus/Sonnet/Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3.5 Flash, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.3 flagship, 4.20 Reasoning/Non-Reasoning/Multi-Agent), Anthropic (Claude Opus 4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -64,7 +64,7 @@ These features work but APIs or behavior may change:
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.1 Pro/Flash-Lite/2.5, Grok 4.3/4.20, Anthropic Claude, Azure, Azure AI Foundry)
+- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.5 Flash/3.1 Pro/Flash-Lite/2.5, Grok 4.3/4.20, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
@@ -214,8 +214,10 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the full integration contra
 
 Goal: continuously validate routing quality/cost claims with measurable feedback.
 
-- [ ] `deepr providers models` command (model discovery UX)
+- [x] `deepr providers models` command (model discovery UX): live provider model lists diffed against the registry, scoped by default to newer versions of families already in use, with paste-ready registry stubs (`scripts/discover_models.py`)
 - [ ] Stale-model CI checks + provider-family alerting
+  - [x] `deepr eval` preflight warns when newer relevant models are missing from the registry
+  - [ ] Scheduled CI job that alerts on provider model drift
 - [ ] Routing preview: `deepr research --preview --auto` shows exact model choice, estimated cost, and confidence before executing
 - [ ] Eval methodology v2:
   - [ ] Citation quality, grounding, synthesis depth, temporal accuracy
