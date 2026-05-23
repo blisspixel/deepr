@@ -147,8 +147,10 @@ class GeminiProvider(DeepResearchProvider):
 
         # Model mappings for convenience
         self.model_mappings = model_mappings or {
+            "gemini-3.5-flash": "gemini-3.5-flash",
             "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
             "gemini-3.1-pro": "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite": "gemini-3.1-flash-lite",
             "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite-preview",
             "gemini-3-pro-preview": "gemini-3-pro-preview",
             "gemini-2.5-pro": "gemini-2.5-pro",
@@ -166,7 +168,9 @@ class GeminiProvider(DeepResearchProvider):
         from .registry import get_token_pricing
 
         self.pricing = {
+            "gemini-3.5-flash": get_token_pricing("gemini-3.5-flash"),
             "gemini-3.1-pro-preview": get_token_pricing("gemini-3.1-pro-preview"),
+            "gemini-3.1-flash-lite": get_token_pricing("gemini-3.1-flash-lite"),
             "gemini-3.1-flash-lite-preview": get_token_pricing("gemini-3.1-flash-lite-preview"),
             "gemini-3-pro-preview": get_token_pricing("gemini-3-pro-preview"),
             "gemini-2.5-pro": get_token_pricing("gemini-2.5-pro"),
@@ -210,7 +214,10 @@ class GeminiProvider(DeepResearchProvider):
             return self.deep_research_cost_estimate
 
         base_model = model
-        for key in self.pricing:
+        # Match the longest pricing key first so e.g. "gemini-2.5-flash-lite"
+        # resolves to its own entry instead of the shorter "gemini-2.5-flash"
+        # prefix — which would charge Flash-Lite at ~5x the Flash rate.
+        for key in sorted(self.pricing, key=len, reverse=True):
             if key in model:
                 base_model = key
                 break

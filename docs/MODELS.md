@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-> **Note**: Model information current as of March 2026. AI models evolve rapidly — verify current pricing at provider websites. The [model registry](../deepr/providers/registry.py) is the source of truth. Run `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
+> **Note**: Model information current as of May 2026. AI models evolve rapidly — verify current pricing at provider websites. The [model registry](../deepr/providers/registry.py) is the source of truth. Run `deepr providers models` to diff the registry against each provider's live model list (flags newer versions of families you already use, with paste-ready registry stubs), or `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
 
 ## Overview
 
@@ -12,14 +12,15 @@ Deepr uses a hybrid approach optimizing for both quality and cost. Different tas
 
 ### OpenAI (`OPENAI_API_KEY`)
 - **Deep Research**: Turnkey async Deep Research API via Responses endpoint
-- **Models**: o3-deep-research, o4-mini-deep-research, GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, GPT-4.1-mini
+- **Models**: o3-deep-research, o4-mini-deep-research, GPT-5.5, GPT-5.4, GPT-5.4-pro, GPT-5.4-mini, GPT-5.4-nano, GPT-5-mini, GPT-4.1, GPT-4.1-mini
 - **Best for**: Deep research, planning, expert system (vector stores require OpenAI-compatible API)
 - **Note**: GPT-5.4 is the current mainline default; use GPT-5.4-pro for hardest tasks and GPT-5-mini for value
 
 ### Google Gemini (`GEMINI_API_KEY`)
 - **Deep Research**: Native Deep Research Agent via Interactions API (async background jobs)
-- **Models**: Gemini 3.1 Pro Preview (default), Gemini 3 Flash, Gemini 2.5 Flash, Deep Research Agent (`deep-research-pro-preview-12-2025`)
+- **Models**: Gemini 3.1 Pro Preview (default), Gemini 3.5 Flash, Gemini 3 Flash, Gemini 3.1 Flash-Lite (GA), Gemini 2.5 Flash, Deep Research Agent (`deep-research-pro-preview-12-2025`)
 - **Best for**: Large context windows (1M+ tokens), document analysis, cost-effective research, agentic workflows
+- **Note**: Gemini 3.5 Flash (GA May 19, 2026, Google I/O 2026) is the newest Flash generation — it beats Gemini 3.1 Pro on coding/agentic/multimodal benchmarks at ~4x faster output, priced at $1.50/$9.00 per MTok
 
 ### xAI Grok (`XAI_API_KEY`)
 - **Deep Research**: Grok 4.20 Multi-Agent (4–16 parallel agents with autonomous tool use)
@@ -67,9 +68,9 @@ The following legacy models will stop accepting API requests on **May 15, 2026 a
 
 ### Anthropic Claude (`ANTHROPIC_API_KEY`)
 - **Deep Research**: No turnkey API — uses Extended Thinking + tool use + web search orchestration
-- **Models**: Claude Opus 4.6, Claude Sonnet 4.5, Claude Haiku 4.5
+- **Models**: Claude Opus 4.7, Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 4.5, Claude Haiku 4.5
 - **Best for**: Complex reasoning with transparent thinking, coding tasks, nuanced analysis
-- **Note**: Opus 4.6 (latest) recommended for research (~$0.80/query). All models support Extended Thinking. Requires a web search backend (Brave, Tavily, or DuckDuckGo)
+- **Note**: Opus 4.7 (GA Apr 16, 2026; leads SWE-bench Pro at 64.3%) is the latest and recommended for research (~$0.85/query, $5/$25 per MTok — note its new tokenizer uses up to ~35% more tokens for the same text). Sonnet 4.6 ($3/$15) is the best-value coding model. Opus 4.7/4.6 and Sonnet 4.6 include the full 1M context window at standard pricing. All models support Extended Thinking. Requires a web search backend (Brave, Tavily, or DuckDuckGo)
 
 ### Azure OpenAI (`AZURE_OPENAI_KEY`)
 - **Models**: Same as OpenAI, deployed through Azure
@@ -157,8 +158,9 @@ The agent automatically uses Bing web grounding to find and cite current sources
 | Quick Lookups | Grok 4.20 Non-Reasoning | see registry | ~1s | best value for freshness/citation tasks |
 | Latest News / Web | Grok 4.20 Non-Reasoning | see registry | ~1s | real-time web + strong value |
 | Large Documents | Gemini 3.1 Pro | $0.20* | ~40s | 1M token context, configurable thinking |
-| Coding Tasks | Claude Sonnet 4.5 | $0.48 | ~3s | Best for code |
-| Complex Reasoning | Claude Opus 4.6 | see registry | ~seconds | high-end complex reasoning |
+| Fast Coding / Agentic | Gemini 3.5 Flash | ~$0.03 | ~1.5s | Beats 3.1 Pro on coding/agentic at Flash speed ($1.50/$9.00 per MTok) |
+| Coding Tasks | Claude Sonnet 4.6 | $0.48 | ~3s | Best-value coding ($3/$15 per MTok) |
+| Complex Reasoning | Claude Opus 4.7 | see registry | ~seconds | Most capable Claude; leads SWE-bench Pro |
 | Budget General | GPT-4.1-mini | $0.01 | ~1s | Cheapest OpenAI, 1M context |
 
 *\*Gemini 3.1 Pro has tiered pricing: $2/$12 per 1M tokens (input/output) for prompts ≤200K tokens, $4/$18 for prompts >200K tokens. The $0.20/query estimate assumes a typical sub-200K prompt. Large document analysis (250K+ tokens) costs roughly 2x more — e.g., a 500K-token corpus costs ~$2.27 vs ~$1.18 with sub-200K prompts. Use `--dry-run` to check before running.*
