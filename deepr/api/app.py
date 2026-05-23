@@ -667,8 +667,12 @@ def submit_job():
     # Update status
     run_async(queue.update_status(job_id=job_id, status=JobStatus.PROCESSING, provider_job_id=provider_job_id))
 
-    # Calculate cost estimate
-    avg_cost = 0.5 if "mini" in model else 5.0
+    # Calculate cost estimate from the registry (source of truth). A prior
+    # name heuristic ("mini" -> $0.5 else $5.0) wildly misestimated nano /
+    # flash-lite (over) and deep-research (under) models.
+    from deepr.providers.registry import get_cost_estimate
+
+    avg_cost = get_cost_estimate(model)
     estimated_cost = {
         "min_cost": avg_cost * 0.5,
         "max_cost": avg_cost * 2.0,
