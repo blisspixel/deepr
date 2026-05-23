@@ -67,6 +67,47 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         input_cost_per_1m=30.00,
         output_cost_per_1m=180.00,
     ),
+    "openai/gpt-5.4-mini": ModelCapability(
+        provider="openai",
+        model="gpt-5.4-mini",
+        cost_per_query=0.05,
+        latency_ms=1500,
+        context_window=400_000,
+        specializations=["reasoning", "speed", "balanced", "agentic"],
+        strengths=[
+            "Newer-generation budget reasoning (GPT-5.4 family)",
+            "Good reasoning at low cost",
+            "Fast responses",
+            "400K context window",
+            "Configurable reasoning effort",
+        ],
+        weaknesses=[
+            "Pricier than gpt-5-mini ($0.75/$4.50 vs $0.25/$2.00 per MTok)",
+            "Less capable than full gpt-5.4",
+        ],
+        input_cost_per_1m=0.75,
+        output_cost_per_1m=4.50,
+    ),
+    "openai/gpt-5.4-nano": ModelCapability(
+        provider="openai",
+        model="gpt-5.4-nano",
+        cost_per_query=0.01,
+        latency_ms=800,
+        context_window=400_000,
+        specializations=["speed", "cost", "general", "summarization"],
+        strengths=[
+            "Cheapest GPT-5.4 variant ($0.20/$1.25 per MTok)",
+            "Very fast responses",
+            "400K context window",
+            "Good for summarization and classification",
+        ],
+        weaknesses=[
+            "Lowest reasoning capability in GPT-5.4 family",
+            "Pricier than gpt-5-nano ($0.20/$1.25 vs $0.05/$0.40 per MTok)",
+        ],
+        input_cost_per_1m=0.20,
+        output_cost_per_1m=1.25,
+    ),
     "openai/gpt-5.5": ModelCapability(
         provider="openai",
         model="gpt-5.5",
@@ -525,6 +566,29 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         successor="xai/grok-imagine-image",
     ),
     # Google Models (Gemini)
+    # Gemini 3.5 Flash — newest Flash generation (GA May 19, 2026, Google I/O 2026)
+    "gemini/gemini-3.5-flash": ModelCapability(
+        provider="gemini",
+        model="gemini-3.5-flash",
+        cost_per_query=0.03,
+        latency_ms=1500,
+        context_window=1_000_000,
+        specializations=["reasoning", "coding", "agentic", "multimodal", "speed", "thinking"],
+        strengths=[
+            "First model in the Gemini 3.5 family (GA May 19, 2026)",
+            "Surpasses Gemini 3.1 Pro on coding, agentic, and multimodal benchmarks",
+            "Frontier intelligence at Flash speed (~4x faster output than frontier peers)",
+            "1M token context window, 65K output",
+            "Multimodal input (text, image, audio, video, PDF)",
+            "Dynamic thinking",
+        ],
+        weaknesses=[
+            "3x pricier than Gemini 3 Flash preview ($1.50/$9.00 vs $0.50/$3.00 per MTok)",
+            "Thinking tokens add to output cost",
+        ],
+        input_cost_per_1m=1.50,
+        output_cost_per_1m=9.00,  # Includes thinking tokens; non-global regions $1.65/$9.90
+    ),
     "gemini/gemini-3-flash-preview": ModelCapability(
         provider="gemini",
         model="gemini-3-flash-preview",
@@ -538,9 +602,33 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "1M token context window",
             "Dynamic thinking",
         ],
-        weaknesses=["Preview model (may change)", "Thinking tokens add to output cost"],
+        weaknesses=[
+            "Preview model (may change)",
+            "Thinking tokens add to output cost",
+            "Superseded for quality by gemini-3.5-flash (which costs ~3x more)",
+        ],
         input_cost_per_1m=0.50,
         output_cost_per_1m=3.00,  # Includes thinking tokens
+    ),
+    # Gemini 3.1 Flash-Lite — GA (May 7, 2026); most cost-effective Gemini
+    "gemini/gemini-3.1-flash-lite": ModelCapability(
+        provider="gemini",
+        model="gemini-3.1-flash-lite",
+        cost_per_query=0.007,
+        latency_ms=1300,
+        context_window=1_000_000,
+        specializations=["speed", "cost", "general", "high_throughput", "thinking"],
+        strengths=[
+            "Most cost-effective Gemini model (GA May 7, 2026)",
+            "1M token context window",
+            "Low-cost high-throughput inference",
+            "Dynamic thinking",
+        ],
+        weaknesses=[
+            "Less capable than Pro/Flash models on deep reasoning",
+        ],
+        input_cost_per_1m=0.25,
+        output_cost_per_1m=1.50,
     ),
     "gemini/gemini-3.1-flash-lite-preview": ModelCapability(
         provider="gemini",
@@ -557,6 +645,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
         weaknesses=[
             "Preview model (lifecycle may change)",
             "Less capable than Pro models on deep reasoning",
+            "Superseded by GA gemini-3.1-flash-lite ($0.25/$1.50 per MTok)",
         ],
         input_cost_per_1m=0.20,
         output_cost_per_1m=1.20,
@@ -676,6 +765,30 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.
     # Research capability is achieved via Extended Thinking + tool use + our orchestration.
     # For research, we recommend Opus 4.6 - best reasoning with Adaptive Thinking.
+    # Claude Opus 4.7 — most capable Claude (GA Apr 16, 2026); leads SWE-bench Pro
+    "anthropic/claude-opus-4-7": ModelCapability(
+        provider="anthropic",
+        model="claude-opus-4-7",
+        cost_per_query=0.85,  # Same per-token rate as 4.6, but new tokenizer (~35% more tokens)
+        latency_ms=12000,
+        context_window=1_000_000,  # Full 1M at standard pricing
+        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks", "agents"],
+        strengths=[
+            "Most capable Claude model (GA Apr 16, 2026)",
+            "Leads SWE-bench Pro (64.3%)",
+            "Adaptive Thinking (auto-adjusts reasoning effort)",
+            "Full 1M token context window at standard pricing",
+            "128K max output tokens",
+            "Fast mode available (6x price for faster output)",
+        ],
+        weaknesses=[
+            "No native deep research API (requires orchestration)",
+            "New tokenizer uses up to 35% more tokens for the same text (higher effective cost)",
+            "Slower than Sonnet (~12s vs ~3s)",
+        ],
+        input_cost_per_1m=5.00,
+        output_cost_per_1m=25.00,
+    ),
     "anthropic/claude-opus-4-6": ModelCapability(
         provider="anthropic",
         model="claude-opus-4-6",
@@ -695,9 +808,32 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "No native deep research API (requires orchestration)",
             "Slower than Sonnet (~12s vs ~3s)",
             "Higher cost than Sonnet (~$0.80 vs ~$0.48/query)",
+            "Superseded by claude-opus-4-7 (same price)",
         ],
         input_cost_per_1m=5.00,
         output_cost_per_1m=25.00,
+    ),
+    # Claude Sonnet 4.6 — best value for everyday coding (GA Apr 2026)
+    "anthropic/claude-sonnet-4-6": ModelCapability(
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        cost_per_query=0.48,  # Estimated with 16K thinking budget
+        latency_ms=3000,
+        context_window=1_000_000,  # Full 1M at standard pricing
+        specializations=["reasoning", "coding", "analysis", "balanced", "agents"],
+        strengths=[
+            "Best speed/intelligence balance; best value for everyday coding",
+            "Fast responses (~3s)",
+            "Extended Thinking support",
+            "Full 1M token context window at standard pricing",
+            "64K max output tokens",
+        ],
+        weaknesses=[
+            "Less capable than Opus 4.7 for complex research",
+            "No native deep research API",
+        ],
+        input_cost_per_1m=3.00,
+        output_cost_per_1m=15.00,
     ),
     "anthropic/claude-sonnet-4-5": ModelCapability(
         provider="anthropic",
@@ -717,6 +853,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Less capable than Opus 4.6 for complex research",
             "No Adaptive Thinking",
             "No native deep research API",
+            "Superseded by claude-sonnet-4-6 (same price)",
         ],
         input_cost_per_1m=3.00,
         output_cost_per_1m=15.00,
@@ -974,20 +1111,29 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
         Estimated cost per query in USD. Returns 0.20 if model not found.
     """
     resolved = _MODEL_ALIASES.get(model, model)
+    needle = _normalize_model_name(resolved)
     base = 0.20
+
+    # Exact match (normalized) first.
     for cap in MODEL_CAPABILITIES.values():
-        if cap.model == resolved:
+        if _normalize_model_name(cap.model) == needle:
             base = cap.cost_per_query
             break
     else:
-        for cap in MODEL_CAPABILITIES.values():
-            if cap.model in resolved:
+        # Partial match — longest cap.model first so e.g. a "gpt-5.4-mini"
+        # snapshot matches its own entry before the shorter "gpt-5.4" prefix.
+        # Without longest-first this both over-charges (mini -> full price) and,
+        # worse, under-charges ("gpt-5.4-pro-<date>" -> cheaper "gpt-5.4"),
+        # letting budget pre-flight approve an expensive job. Mirrors
+        # get_token_pricing().
+        for cap in sorted(MODEL_CAPABILITIES.values(), key=lambda c: len(c.model or ""), reverse=True):
+            if _normalize_model_name(cap.model) in needle:
                 base = cap.cost_per_query
                 break
 
     if input_tokens is not None:
         for tiered_model, (threshold, multiplier) in _TIERED_PRICING.items():
-            if tiered_model in resolved and input_tokens > threshold:
+            if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
                 return round(base * multiplier, 4)
 
     return base

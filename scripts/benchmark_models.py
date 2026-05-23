@@ -636,11 +636,13 @@ DEFAULT_MODELS = [
     # Frontier models
     "openai/gpt-5.5",  # Newest OpenAI frontier (April 2026, 1M+ context)
     "openai/gpt-5.4",  # Previous OpenAI frontier (1M+ context)
-    "anthropic/claude-opus-4-6",  # Most capable Claude ($0.80/query)
+    "anthropic/claude-opus-4-7",  # Most capable Claude — leads SWE-bench Pro ($0.85/query)
+    "anthropic/claude-opus-4-6",  # Prior most-capable Claude ($0.80/query)
     "gemini/gemini-3.1-pro-preview",  # Latest gen, best quality ($0.20/query)
     "gemini/gemini-2.5-pro",  # Thinking model, can't disable thinking ($0.15/query)
     # Mid-tier
-    "anthropic/claude-sonnet-4-5",  # Strong reasoning ($0.48/query)
+    "anthropic/claude-sonnet-4-6",  # Best-value coding Claude ($0.48/query)
+    "anthropic/claude-sonnet-4-5",  # Prior Sonnet ($0.48/query)
     "openai/gpt-4.1",  # 1M context ($0.04/query)
     "openai/o3",  # Reasoning model for complex tasks ($0.10/query)
     "openai/o4-mini",  # Fast reasoning ($0.04/query)
@@ -649,12 +651,16 @@ DEFAULT_MODELS = [
     "xai/grok-4-20-reasoning",  # xAI multi-agent workhorse ($0.10/query)
     "xai/grok-4-20-non-reasoning",  # xAI flagship non-reasoning ($0.08/query)
     # Budget models
+    "openai/gpt-5.4-mini",  # Newer-gen budget reasoning ($0.05/query)
     "openai/gpt-5-mini",  # Budget reasoning ($0.03/query)
     "openai/gpt-4.1-mini",  # Cheap 1M context ($0.01/query)
+    "openai/gpt-5.4-nano",  # Cheapest GPT-5.4 ($0.01/query)
     "openai/gpt-5-nano",  # Cheapest GPT-5 ($0.005/query)
     "openai/gpt-4.1-nano",  # Cheapest 1M context ($0.003/query)
-    "gemini/gemini-3-flash-preview",  # Newest gen, fast ($0.01/query)
-    "gemini/gemini-3.1-flash-lite-preview",  # Lowest-cost Gemini 3.1
+    "gemini/gemini-3.5-flash",  # Newest Flash gen — beats 3.1 Pro on coding/agentic ($0.03/query)
+    "gemini/gemini-3-flash-preview",  # Prior gen, fast ($0.01/query)
+    "gemini/gemini-3.1-flash-lite",  # Most cost-effective Gemini, GA ($0.007/query)
+    "gemini/gemini-3.1-flash-lite-preview",  # Prior preview of Flash-Lite
     "anthropic/claude-haiku-4-5",  # Budget Anthropic ($0.05/query)
 ]
 
@@ -674,7 +680,9 @@ NEWS_MODELS = [
     "xai/grok-4-20-non-reasoning",
     # Gemini (Google grounding)
     "gemini/gemini-3.1-pro-preview",
+    "gemini/gemini-3.5-flash",
     "gemini/gemini-3-flash-preview",
+    "gemini/gemini-3.1-flash-lite",
     "gemini/gemini-3.1-flash-lite-preview",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-2.5-pro",
@@ -702,7 +710,7 @@ ORCHESTRATED_RESEARCH_MODELS = [
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4.3",
+    "xai/grok-4-3",
 ]
 
 # Documentation tier models: web-search-capable models that can fetch + document APIs.
@@ -711,12 +719,14 @@ DOCS_MODELS = [
     "openai/gpt-5-mini",
     "openai/o3",
     "gemini/gemini-3.1-pro-preview",
+    "gemini/gemini-3.5-flash",
     "gemini/gemini-2.5-pro",
+    "gemini/gemini-3.1-flash-lite",
     "gemini/gemini-3.1-flash-lite-preview",
     "xai/grok-4-20-reasoning",
     "xai/grok-4-20-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
-    "xai/grok-4.3",
+    "xai/grok-4-3",
 ]
 
 # Provider → (env var, API base URL)
@@ -751,6 +761,38 @@ def load_registry():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.MODEL_CAPABILITIES
+
+
+def warn_if_newer_models_available() -> None:
+    """Best-effort preflight: warn if providers expose newer models than the
+    registry knows about.
+
+    Reuses scripts/discover_models.py so the "newer version of a family we use"
+    logic lives in one place. Never raises — discovery is networked and optional,
+    and must not block a benchmark.
+    """
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "discover_models", PROJECT_ROOT / "scripts" / "discover_models.py"
+        )
+        dm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dm)
+
+        reg = dm.load_registry()
+        discovered = dm.discover_via_api()
+        if not discovered:
+            return
+        report = dm.compare_registry(reg, discovered)
+        relevant, _ = dm.classify_new_models(report["new_models"], reg)
+        if relevant:
+            names = ", ".join(f"{m.provider}/{m.model_id}" for m in relevant[:6])
+            extra = "" if len(relevant) <= 6 else f" (+{len(relevant) - 6} more)"
+            print(f"  NOTE: {len(relevant)} newer model(s) available but not in the registry: {names}{extra}")
+            print("        Run 'deepr providers models' to review them and get registry stubs.")
+            print()
+    except Exception:
+        # Discovery is best-effort; never block a benchmark on it.
+        pass
 
 
 # ─── Preflight ────────────────────────────────────────────────────────────────
@@ -2814,6 +2856,11 @@ Examples:
         help="Alias for --fill-gaps (run only newly added model+tier combos).",
     )
     parser.add_argument("--workers", type=int, default=5, help="Parallel eval workers (default: 5)")
+    parser.add_argument(
+        "--skip-discovery-check",
+        action="store_true",
+        help="Skip the preflight check for newer provider models not in the registry",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
 
     args = parser.parse_args()
@@ -2894,6 +2941,9 @@ Examples:
 
     print_preflight(key_status, all_models, est_total)
 
+    if not args.skip_discovery_check:
+        warn_if_newer_models_available()
+
     if (not args.dry_run) and args.max_estimated_cost is not None and est_total > args.max_estimated_cost:
         print(
             f"\n  ABORT: estimated cost ${est_total:.2f} exceeds --max-estimated-cost ${args.max_estimated_cost:.2f}."
@@ -2958,6 +3008,12 @@ Examples:
 
     all_results = compute_combined_scores(all_results, use_judge)
 
+    # Snapshot the results actually executed this run, BEFORE merging prior
+    # history. The merge below adds historical evals (for richer rankings),
+    # but those incurred no new spend — so the reported cost must come from
+    # this snapshot, not the merged dataset.
+    executed_results = list(all_results)
+
     # ─── Merge prior saved results (--fill-gaps) ─────────────────────────
     if args.fill_gaps and prior_saved:
         # Convert prior saved results to EvalResult objects for merged reporting
@@ -2993,8 +3049,14 @@ Examples:
     # ─── Phase 4: Report ─────────────────────────────────────────────────
     summaries = build_summaries(all_results, registry)
 
-    # Calculate actual cost
-    total_cost = sum(s.total_cost for s in summaries)
+    # Cost reflects only evals executed this run. When --fill-gaps merges
+    # prior history into the rankings, summing every summary's cost would
+    # report the (huge) cost of re-running the entire dataset rather than
+    # this run's actual spend.
+    if len(executed_results) != len(all_results):
+        total_cost = sum(s.total_cost for s in build_summaries(executed_results, registry))
+    else:
+        total_cost = sum(s.total_cost for s in summaries)
 
     # Save results first (before report printing, which can fail on encoding)
     if args.save:
