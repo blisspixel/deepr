@@ -25,7 +25,10 @@ def main():
 
     # Get config from environment. Default to loopback for safety -- the API
     # exposes job submission, result retrieval, and provider-backed work that
-    # spends operator credentials.
+    # spends operator credentials. Binding to a non-local interface without
+    # DEEPR_API_TOKEN is a serious security risk (data disclosure + provider
+    # spend abuse). The check below refuses to start in that configuration
+    # unless the operator explicitly acknowledges the risk.
     host = os.getenv("API_HOST", "127.0.0.1")
     port = int(os.getenv("API_PORT", 5000))
     debug = os.getenv("FLASK_ENV", "production") == "development"
@@ -39,7 +42,8 @@ def main():
             "peer could spend your provider budget and read stored reports.\n"
             "  - Set DEEPR_API_TOKEN to require a bearer token, or\n"
             "  - Use API_HOST=127.0.0.1 (the safe default), or\n"
-            "  - Set DEEPR_ALLOW_PUBLIC_BIND=1 to accept the risk on a trusted network.\n"
+            "  - Set DEEPR_ALLOW_PUBLIC_BIND=1 ONLY on a trusted network after\n"
+            "    you have read and accepted the risk in the documentation.\n"
         )
         sys.exit(2)
 

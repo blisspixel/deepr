@@ -195,16 +195,18 @@ Goal: give experts access to specialized research instruments from sibling proje
 
 See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the full integration contract and implementation details.
 
-- [ ] Recon integration (`pip install recon-tool`):
+Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID stitching. Ship in effort-to-value order (Recon first).
+
+- [ ] (1) Recon integration (`pip install recon-tool`):
   - [ ] MCP client connection to recon's domain_lookup, batch_lookup, delta tools
   - [ ] Expert skill with auto-trigger on company domain mentions (grounding pre-flight)
   - [ ] Trace ID pass-through for cross-tool observability
-- [ ] Distillr integration (`pip install distillr`):
+- [ ] (2) Distillr integration (`pip install distillr`):
   - [ ] MCP client connection to distillr's ingest and query tools
   - [ ] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge
   - [ ] Async handling with progress notifications for long ingestion runs
   - [ ] Budget propagation (cap model spend per ingestion)
-- [ ] Primr integration (`pip install primr`):
+- [ ] (3) Primr integration (`pip install primr`):
   - [ ] MCP client connection to primr's analyze_company and batch tools
   - [ ] Expert skill for autonomous company deep-dive delegation
   - [ ] Async durability for 35-50 min runs (progress, resume, budget awareness)
@@ -241,7 +243,7 @@ Goal: make experts genuinely agentic — self-correcting, strategically autonomo
   - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
   - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically
 - [ ] Dynamic tool selection via gap analysis:
-  - [ ] Gap-to-tool mapping engine (infrastructure gaps → recon, academic gaps → distillr, strategic gaps → primr)
+  - [ ] Gap-to-tool mapping engine (infrastructure gaps → recon, academic gaps → distillr, strategic gaps → primr; instruments delivered in Phase 2b)
   - [ ] Value/cost estimation per gap-fill option
   - [ ] Strategic prioritization: fill highest-value gaps first within budget
 - [ ] Expert-as-guardrail mode:
@@ -341,6 +343,7 @@ We welcome contributions. Here's where help is most valuable:
 | **Expert intelligence** | Reflection loop, graph memory, dynamic tool selection, guardrail mode | High |
 | **Expert quality loop** | Corpus import, skill auto-gen, expert diffs, efficacy scoring | High |
 | **Testing** | Integration tests, provider mocks, 80% coverage | High |
+| **Platform hygiene & DX** | Deprecations, lint enforcement, test collection stability, secret redaction, version truth, CI signals | High |
 | **Web dashboard** | Operational analytics, anomaly alerts, cost frontier | Medium |
 | **Provider resilience** | Legacy deprecation handling, routing preview, A/B shadow | Medium |
 | **Security** | Permission boundaries, sandboxing, isolation | Medium |

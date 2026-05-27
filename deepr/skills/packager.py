@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from deepr import __version__ as DEEPR_VERSION
 from deepr.skills.templates import (
     DEFAULT_INSTRUCTIONS,
     DEFAULT_TRIGGERS,
@@ -38,7 +39,7 @@ class SkillPackager:
         packager = SkillPackager(
             name="deepr-research",
             description="Research automation tools",
-            version="2.10.0",
+            version=DEEPR_VERSION,
             mcp_server="deepr",
         )
         packager.add_tool(ToolManifest(name="domain_lookup", description="..."))
@@ -56,7 +57,7 @@ class SkillPackager:
     ) -> None:
         self._name = name
         self._description = description
-        self._version = version
+        self._version = version or DEEPR_VERSION
         self._mcp_server = mcp_server
         self._triggers = triggers or list(DEFAULT_TRIGGERS)
         self._instructions = instructions or DEFAULT_INSTRUCTIONS
