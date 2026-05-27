@@ -56,7 +56,8 @@ class LiveShimmerStatus:
         self._thread.start()
 
     def _run(self) -> None:
-        assert self._live is not None
+        if self._live is None:
+            return
         cycle_seconds = 3.2
         while not self._stop.wait(self._policy.frame_delay):
             self._phase = (self._phase + (self._policy.frame_delay / cycle_seconds)) % 1.0

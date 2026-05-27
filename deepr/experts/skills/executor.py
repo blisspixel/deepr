@@ -66,6 +66,8 @@ _BUILTIN_MCP_COMMAND_ALLOWLIST: frozenset[str] = frozenset(
         # Node-based MCP servers (npx-distributed)
         "npx",
         "node",
+        # First-party native instruments (auto-discovered when installed)
+        "recon",  # from pip install recon-tool (passive domain intel MCP server)
     }
 )
 
@@ -243,7 +245,15 @@ class MCPClientProxy:
 
         except asyncio.TimeoutError:
             return {"error": f"MCP tool '{tool_name}' timed out after {timeout}s"}
+        except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
+            # Fatal / cancellation signals must always propagate; never swallow.
+            raise
         except Exception as e:
+            # Broad except is required here: third-party MCP servers (e.g. recon-tool,
+            # community skills) can return arbitrary error shapes or transport failures.
+            # We surface a safe error string to the caller (expert turn or CLI) and
+            # let the budget / circuit-breaker logic decide whether to continue.
+            # This mirrors the fail-closed pattern used in doc_reviewer and MCP client.
             return {"error": f"MCP error: {e}"}
 
     async def close(self):
@@ -373,7 +383,16 @@ class SkillExecutor:
 
             return {"result": result, "cost": 0.0}  # Python tools are free
 
+        except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
+            # Fatal / cancellation signals must always propagate; never swallow.
+            raise
         except Exception as e:
+            # Broad except is intentional: Python tools execute user- or community-
+            # provided code inside the skill directory (after path containment +
+            # public-identifier validation). Any exception (including novel ones
+            # from the skill) must be turned into a tool error result so the
+            # expert turn and budget accounting continue safely.
+            # Never let a skill bug crash the parent expert or leak stack traces.
             logger.warning("Python tool %s.%s failed: %s", tool.module, tool.function, e)
             return {"error": str(e), "cost": 0.0}
 

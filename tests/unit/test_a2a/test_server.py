@@ -43,7 +43,7 @@ class TestAgentCardEndpoint:
 
     def test_skills_have_required_fields(self, server: A2AServer) -> None:
         """Each skill has name, description, domain."""
-        status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent.json"))
+        _status, body = asyncio.run(server.handle_request("GET", "/.well-known/agent.json"))
 
         for skill in body["skills"]:
             assert "name" in skill
@@ -75,7 +75,7 @@ class TestTaskCreation:
 
     def test_invalid_json_returns_400(self, server: A2AServer) -> None:
         """Invalid JSON body returns 400."""
-        status, body = asyncio.run(server.handle_request("POST", "/tasks", "not json{"))
+        status, _body = asyncio.run(server.handle_request("POST", "/tasks", "not json{"))
 
         assert status == 400
 
@@ -96,7 +96,7 @@ class TestTaskRetrieval:
 
     def test_get_nonexistent_task_returns_404(self, server: A2AServer) -> None:
         """Nonexistent task returns 404."""
-        status, body = asyncio.run(server.handle_request("GET", "/tasks/nonexistent"))
+        status, _body = asyncio.run(server.handle_request("GET", "/tasks/nonexistent"))
 
         assert status == 404
 
@@ -125,7 +125,7 @@ class TestTaskCancellation:
         server._task_manager.transition(task_id, TaskState.WORKING)
         server._task_manager.transition(task_id, TaskState.COMPLETED, result="done")
 
-        status, body = asyncio.run(server.handle_request("POST", f"/tasks/{task_id}/cancel"))
+        status, _body = asyncio.run(server.handle_request("POST", f"/tasks/{task_id}/cancel"))
 
         assert status == 409
 

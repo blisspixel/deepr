@@ -38,7 +38,7 @@ async def test_agent_card_is_public(server):
 
 @pytest.mark.asyncio
 async def test_create_task_requires_auth(server):
-    status, body = await server.handle_request(
+    status, _body = await server.handle_request(
         "POST",
         "/tasks",
         '{"skill":"x","input":"y"}',
@@ -49,7 +49,7 @@ async def test_create_task_requires_auth(server):
 
 @pytest.mark.asyncio
 async def test_create_task_with_wrong_token(server):
-    status, body = await server.handle_request(
+    status, _body = await server.handle_request(
         "POST",
         "/tasks",
         '{"skill":"x","input":"y"}',
@@ -60,7 +60,7 @@ async def test_create_task_with_wrong_token(server):
 
 @pytest.mark.asyncio
 async def test_create_task_with_valid_token(server):
-    status, body = await server.handle_request(
+    status, _body = await server.handle_request(
         "POST",
         "/tasks",
         '{"skill":"deepr_research","input":"hello"}',
@@ -73,7 +73,7 @@ async def test_create_task_with_valid_token(server):
 async def test_create_task_with_non_ascii_token(server):
     """compare_digest raises TypeError on non-ASCII strings — we treat that
     as a normal 401 rather than letting it escape as 500."""
-    status, body = await server.handle_request(
+    status, _body = await server.handle_request(
         "POST",
         "/tasks",
         '{"skill":"x","input":"y"}',
@@ -85,7 +85,7 @@ async def test_create_task_with_non_ascii_token(server):
 @pytest.mark.asyncio
 async def test_no_token_configured_allows_all(server_no_auth):
     """When no token is configured (loopback-only dev mode) the gate is open."""
-    status, body = await server_no_auth.handle_request(
+    status, _body = await server_no_auth.handle_request(
         "POST",
         "/tasks",
         '{"skill":"deepr_research","input":"hello"}',

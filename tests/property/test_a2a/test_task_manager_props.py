@@ -127,7 +127,7 @@ def test_invalid_transitions_rejected(
 
     try:
         manager.transition(task.id, invalid_target)
-        assert False, f"Should have rejected {TaskState.SUBMITTED} → {invalid_target}"
+        raise AssertionError(f"Should have rejected {TaskState.SUBMITTED} → {invalid_target}")
     except InvalidTransitionError as e:
         assert e.current_state == TaskState.SUBMITTED
         assert e.target_state == invalid_target
