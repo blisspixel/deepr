@@ -347,6 +347,7 @@ class TestLegacyMethods:
             "deepr_get_expert_info",
             "deepr_query_expert",
             "deepr_expert_manifest",
+            "deepr_expert_validate",
             "deepr_rank_gaps",
         }
         for legacy, new in _LEGACY_METHOD_MAP.items():
