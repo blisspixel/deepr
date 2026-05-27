@@ -1,0 +1,79 @@
+name: recon
+version: 0.1.0
+description: Native first-party passive domain intelligence (tech stack, email security, SaaS fingerprints, related domains, identity providers). Powered by the recon-tool MCP server. Always free and fast.
+domains: ["infrastructure", "security", "vendor-diligence", "email-security"]
+
+triggers:
+  keywords: ["recon", "domain intel", "tech stack", "email security", "dmarc", "tenant", "m365", "google workspace", "related domains"]
+  patterns: []
+
+tools:
+  - name: lookup_tenant
+    type: mcp
+    description: |
+      Primary reconnaissance tool. Given a domain, returns structured intelligence including:
+      - Company/tenant name and ID (M365 or Google Workspace)
+      - Primary provider and auth type (Federated/Managed)
+      - Full list of detected services (185+ fingerprints)
+      - Related domains discovered via CNAME/CT
+      - Email security posture (DMARC policy, SPF, DKIM, BIMI, score)
+      - Insights and Bayesian posterior probabilities
+      - Evidence provenance when explain=true
+      Use format=json for downstream absorption by the expert.
+    server:
+      command: recon
+      args: ["mcp"]
+    remote_tool_name: lookup_tenant
+    parameters:
+      domain:
+        type: string
+        description: Target domain to investigate (e.g. "stripe.com", "contoso.com")
+      format:
+        type: string
+        enum: ["json", "text", "markdown"]
+        default: "json"
+        description: "json is strongly preferred when the result will be absorbed into expert knowledge"
+      explain:
+        type: boolean
+        default: false
+        description: Include detailed explanation DAG and evidence when true
+    cost_tier: free
+    timeout_seconds: 45
+
+  - name: analyze_posture
+    type: mcp
+    description: Neutral configuration observations across email, identity, infrastructure, and SaaS footprint. Accepts an optional profile lens (fintech, healthcare, saas-b2b, etc.).
+    server:
+      command: recon
+      args: ["mcp"]
+    remote_tool_name: analyze_posture
+    parameters:
+      domain:
+        type: string
+        description: Target domain
+      profile:
+        type: string
+        description: Optional posture profile (fintech, healthcare, saas-b2b, high-value-target, public-sector, higher-ed)
+      explain:
+        type: boolean
+        default: false
+    cost_tier: free
+    timeout_seconds: 30
+
+  - name: assess_exposure
+    type: mcp
+    description: Defensive security posture score (0-100) with email, identity, and infrastructure sections derived purely from passive observables.
+    server:
+      command: recon
+      args: ["mcp"]
+    remote_tool_name: assess_exposure
+    parameters:
+      domain:
+        type: string
+        description: Target domain
+    cost_tier: free
+    timeout_seconds: 30
+
+budget:
+  max_per_call: 0.0
+  default_budget: 0.0

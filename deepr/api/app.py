@@ -38,6 +38,10 @@ _cors_origins = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5173,http://lo
 CORS(app, origins=[o.strip() for o in _cors_origins.split(",")])
 
 # Bearer token authentication
+# IMPORTANT: Token is optional. When unset, the entire API (including
+# job submission that spends your provider credentials) is unauthenticated.
+# This is a deliberate local-first design choice. For any non-localhost
+# exposure, you MUST set DEEPR_API_TOKEN (see bin/deepr-api safety checks).
 _api_token = os.getenv("DEEPR_API_TOKEN")
 
 # Server-side guards applied to job submission (defence in depth on top of
@@ -56,9 +60,15 @@ _ALLOWED_MODELS = {
 
 @app.before_request
 def _check_auth():
-    """Require bearer token if DEEPR_API_TOKEN is set."""
+    """
+    Require bearer token if DEEPR_API_TOKEN is set.
+
+    When no token is configured the whole API surface (job submission,
+    result download, cost data, etc.) is reachable without credentials.
+    This is intentional for localhost development only.
+    """
     if not _api_token:
-        return  # No token configured -- allow all (local dev)
+        return  # No token configured -- allow all (local dev only)
     # Skip auth for health check and docs
     if request.path in ("/health", "/api/health", "/api/docs", "/apispec_1.json"):
         return

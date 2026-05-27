@@ -131,9 +131,15 @@ class TestConfigLoaderLoad:
     """Tests for ConfigLoader.load()."""
 
     def test_nonexistent_file_returns_empty(self, tmp_path: Path) -> None:
-        """Non-existent config file returns empty list."""
-        loader = ConfigLoader()
-        result = loader.load(tmp_path / "missing.yaml")
+        """Non-existent config file returns empty list.
+
+        Patches the first-party recon auto-discovery so the test does not
+        depend on whether the `recon` binary happens to be installed on
+        the dev/CI machine.
+        """
+        with patch("deepr.mcp.client.config_loader.discover_recon_profile", return_value=None):
+            loader = ConfigLoader()
+            result = loader.load(tmp_path / "missing.yaml")
         assert result == []
 
     def test_valid_config_loads_profiles(self, tmp_path: Path) -> None:
@@ -171,7 +177,11 @@ class TestConfigLoaderLoad:
         assert p.progress is False
 
     def test_disabled_profile_parsed_correctly(self, tmp_path: Path) -> None:
-        """Disabled profiles are parsed with enabled=False."""
+        """Disabled profiles are parsed with enabled=False.
+
+        Patches the first-party recon auto-discovery so the test does not
+        depend on whether the `recon` binary is installed.
+        """
         config = textwrap.dedent("""\
             profiles:
               - name: disabled-server
@@ -181,8 +191,9 @@ class TestConfigLoaderLoad:
         config_file = tmp_path / "integrations.yaml"
         config_file.write_text(config)
 
-        loader = ConfigLoader()
-        profiles = loader.load(config_file)
+        with patch("deepr.mcp.client.config_loader.discover_recon_profile", return_value=None):
+            loader = ConfigLoader()
+            profiles = loader.load(config_file)
 
         assert len(profiles) == 1
         assert profiles[0].enabled is False
