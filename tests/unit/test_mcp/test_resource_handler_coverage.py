@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from deepr.mcp.state.resource_handler import MCPResourceHandler, ResourceResponse
+from deepr.mcp.state.resource_handler import MCPResourceHandler
 
 
 @pytest.fixture

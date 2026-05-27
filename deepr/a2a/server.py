@@ -286,7 +286,7 @@ class A2AServer:
                 writer.close()
                 await writer.wait_closed()
             except Exception:
-                pass
+                pass  # intentional: best-effort close of A2A writer during error path; connection may already be gone
 
     @staticmethod
     async def _send_simple(writer: asyncio.StreamWriter, status: int, body: dict[str, Any]) -> None:

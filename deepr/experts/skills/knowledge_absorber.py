@@ -185,3 +185,128 @@ class KnowledgeAbsorber:
             return min(1.0, base_confidence + 0.05)
 
         return base_confidence
+
+    def categorize_recon_response(self, payload: dict[str, Any], domain: str = "") -> list[AbsorbedFinding]:
+        """Specialized high-fidelity parser for real recon-tool lookup_tenant (and kin) output.
+
+        Understands the concrete shape shipped by recon-tool:
+        - services (list of slugs or objects)
+        - related_domains / tenant_domains
+        - insights (list of strings or objects)
+        - top-level tenant / provider / email_security info
+
+        Always emits "infrastructure" findings at >=0.8 confidence (cost:0 instrument).
+        Falls back gracefully to generic extraction.
+        """
+        findings: list[AbsorbedFinding] = []
+        if not isinstance(payload, dict):
+            return findings
+
+        # MCPClientProxy wraps result under 'result' for some paths; unwrap
+        data: dict[str, Any] = (
+            payload.get("result", payload) if isinstance(payload, dict) and "result" in payload else payload
+        )
+
+        # Primary: services (highest signal)
+        services = data.get("services") or []
+        if isinstance(services, list):
+            for svc in services:
+                if not svc:
+                    continue
+                text = svc if isinstance(svc, str) else str(svc.get("name") or svc.get("slug") or svc)
+                findings.append(
+                    AbsorbedFinding(
+                        text=f"Detected service: {text}",
+                        category="infrastructure",
+                        confidence=0.88,
+                        source_type="DNS",
+                        source_tool="recon/lookup_tenant",
+                        raw_data={"domain": domain, "service": svc},
+                    )
+                )
+
+        # Related domains (strong infrastructure signal)
+        for key in ("related_domains", "tenant_domains", "aliases"):
+            rel = data.get(key) or []
+            if isinstance(rel, list):
+                for r in rel[:10]:  # cap noise
+                    if r:
+                        text = r if isinstance(r, str) else str(r)
+                        findings.append(
+                            AbsorbedFinding(
+                                text=f"Related domain: {text}",
+                                category="infrastructure",
+                                confidence=0.82,
+                                source_type="DNS",
+                                source_tool="recon/lookup_tenant",
+                                raw_data={"domain": domain, "related": r},
+                            )
+                        )
+
+        # Insights (derived observations — still high value for infrastructure)
+        insights = data.get("insights") or []
+        if isinstance(insights, list):
+            for ins in insights[:8]:
+                if not ins:
+                    continue
+                text = ins if isinstance(ins, str) else str(ins.get("text") or ins)
+                findings.append(
+                    AbsorbedFinding(
+                        text=f"Insight: {text}",
+                        category="infrastructure",
+                        confidence=0.80,
+                        source_type="DNS",
+                        source_tool="recon/lookup_tenant",
+                        raw_data={"domain": domain, "insight": ins},
+                    )
+                )
+
+        # Top-level tenant / provider / email security posture (very high signal)
+        tenant = data.get("tenant") or data.get("company") or data.get("name")
+        provider = data.get("provider") or data.get("primary_provider")
+        if tenant or provider:
+            parts = []
+            if tenant:
+                parts.append(f"tenant={tenant}")
+            if provider:
+                parts.append(f"provider={provider}")
+            findings.append(
+                AbsorbedFinding(
+                    text="Identity: " + ", ".join(parts),
+                    category="infrastructure",
+                    confidence=0.90,
+                    source_type="DNS",
+                    source_tool="recon/lookup_tenant",
+                    raw_data={"domain": domain, "tenant": tenant, "provider": provider},
+                )
+            )
+
+        # Email security posture block if present
+        email_sec = data.get("email_security") or data.get("dmarc") or data.get("spf")
+        if email_sec:
+            findings.append(
+                AbsorbedFinding(
+                    text=f"Email security posture: {email_sec if isinstance(email_sec, str) else 'present'}",
+                    category="infrastructure",
+                    confidence=0.85,
+                    source_type="DNS",
+                    source_tool="recon/lookup_tenant",
+                    raw_data={"domain": domain, "email_security": email_sec},
+                )
+            )
+
+        # Final fallback: if we still have nothing but real data, make one synthetic finding
+        if not findings and data:
+            summary = data.get("summary") or str(list(data.keys())[:6])
+            findings.append(
+                AbsorbedFinding(
+                    text=f"Recon data for {domain or 'domain'}: {summary}"[:220],
+                    category="infrastructure",
+                    confidence=0.78,
+                    source_type="DNS",
+                    source_tool="recon/lookup_tenant",
+                    raw_data=data,
+                )
+            )
+
+        return findings

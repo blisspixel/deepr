@@ -206,7 +206,7 @@ class StdioTransport:
                 try:
                     await asyncio.gather(*self._in_flight, return_exceptions=True)
                 except Exception:
-                    pass
+                    pass  # intentional: final best-effort drain during shutdown; errors here cannot affect protocol correctness
             finally:
                 self._in_flight.clear()
 
@@ -220,7 +220,12 @@ class StdioTransport:
         tool call (deepr_research, deepr_agentic_research) doesn't
         block subsequent reads — including cancellations of itself.
         """
-        assert self._input is not None  # set by start() before the read loop launches
+        if self._input is None:
+            logger.critical(
+                "StdioTransport._read_loop started before start() initialized _input. "
+                "This is a programming error — the MCP stdio transport is in an invalid state."
+            )
+            return
         while self._running:
             try:
                 # Read a line (JSON-RPC messages are newline-delimited)

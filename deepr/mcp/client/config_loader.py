@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -25,17 +26,34 @@ _VALID_TRANSPORTS = frozenset({"stdio", "sse"})
 # Default config path
 DEFAULT_CONFIG_PATH = Path.home() / ".deepr" / "integrations.yaml"
 
-# Default recon profile template for proof-of-concept
+# Default recon profile template for the native first-party integration.
+# Recon (recon-tool) is a free, fast, passive domain intelligence MCP server.
+# Auto-discovered when the `recon` binary is on PATH.
+# Tool names reflect the actual shipped surface (lookup_tenant is the primary).
 RECON_PROFILE_TEMPLATE: dict[str, Any] = {
     "name": "recon",
+    "description": "Passive domain intelligence (tech stack, email security, SaaS fingerprints, related domains) via public DNS + CT + identity endpoints. Cost: $0.",
     "command": "recon",
     "args": ["mcp"],
     "transport": "stdio",
     "enabled": True,
-    "timeout": 30,
-    "budget_limit": 0,
-    "auto_approve": ["domain_lookup", "batch_lookup"],
-    "require_approval": ["delta"],
+    "timeout": 45,
+    "budget_limit": 0.0,
+    "cost_per_call": 0.0,
+    "auto_approve": [
+        "lookup_tenant",
+        "analyze_posture",
+        "assess_exposure",
+        "find_hardening_gaps",
+        "chain_lookup",
+        "get_posteriors",
+        "explain_dag",
+    ],
+    "require_approval": [
+        "simulate_hardening",
+        "test_hypothesis",
+        "inject_ephemeral_fingerprint",
+    ],
     "progress": False,
 }
 
@@ -69,12 +87,37 @@ def _resolve_env_dict(env: dict[str, str]) -> dict[str, str]:
 
 
 def get_recon_profile() -> MCPClientProfile:
-    """Return the default recon proof-of-concept profile.
+    """Return the default first-party recon profile.
 
-    The recon profile is a free tool (budget_limit=0) that provides
-    DNS intelligence via domain_lookup and batch_lookup.
+    Recon (from the recon-tool package) is a free ($0), fast, passive
+    domain-intelligence MCP server. It is auto-discovered when the
+    `recon` command is on PATH (pip install recon-tool).
+
+    Primary tool is lookup_tenant (with format=json). The profile uses
+    the actual tool surface shipped by recon-tool, not legacy names.
     """
     return MCPClientProfile.from_dict(RECON_PROFILE_TEMPLATE)
+
+
+def discover_recon_profile() -> MCPClientProfile | None:
+    """Return a first-party recon profile if the `recon` binary is available.
+
+    This enables the native 1st-class integration for users who have
+    `pip install recon-tool` (which provides the `recon` command and
+    its stdio MCP server).
+
+    Returns None if the binary is not on PATH, or if we should not
+    auto-provide (future extension point for opt-out).
+
+    The returned profile is a fresh copy from the curated template.
+    """
+    if shutil.which("recon") is None:
+        return None
+    try:
+        return MCPClientProfile.from_dict(RECON_PROFILE_TEMPLATE)
+    except Exception:
+        logger.warning("Failed to construct discovered recon profile")
+        return None
 
 
 class ConfigLoader:
@@ -90,50 +133,56 @@ class ConfigLoader:
     def load(self, path: Path | None = None) -> list[MCPClientProfile]:
         """Load and validate profiles from YAML config file.
 
+        After loading any user-provided profiles, this method automatically
+        discovers and includes first-party instruments that are installed
+        on the system (currently: recon when the `recon` binary is on PATH).
+
+        User profiles take precedence: if the user has explicitly defined
+        a profile named "recon", the auto-discovered one is not added.
+
         Args:
             path: Path to YAML config. Defaults to ~/.deepr/integrations.yaml.
 
         Returns:
             List of validated MCPClientProfile objects (only enabled ones included).
-
-        Raises:
-            FileNotFoundError: If the config file does not exist.
-            ValueError: If the config file has invalid structure.
+            May include auto-discovered first-party profiles.
         """
         config_path = path or DEFAULT_CONFIG_PATH
-
-        if not config_path.exists():
-            logger.debug("No integrations config at %s", config_path)
-            return []
-
-        try:
-            import yaml
-        except ImportError as e:
-            raise ImportError("PyYAML is required for config loading: pip install pyyaml") from e
-
-        with open(config_path) as f:
-            raw = yaml.safe_load(f)
-
-        if raw is None:
-            return []
-
-        if not isinstance(raw, dict):
-            raise ValueError(f"Config file must be a YAML mapping, got {type(raw).__name__}")
-
-        errors = self.validate(raw)
-        if errors:
-            raise ValueError(f"Config validation failed: {'; '.join(errors)}")
-
         profiles: list[MCPClientProfile] = []
-        for entry in raw.get("profiles", []):
-            # Resolve env vars in the env dict
-            env = entry.get("env", {})
-            if env:
-                env = _resolve_env_dict(env)
 
-            profile_data = {**entry, "env": env}
-            profile = MCPClientProfile.from_dict(profile_data)
-            profiles.append(profile)
+        if config_path.exists():
+            try:
+                import yaml
+            except ImportError as e:
+                raise ImportError("PyYAML is required for config loading: pip install pyyaml") from e
+
+            with open(config_path) as f:
+                raw = yaml.safe_load(f)
+
+            if raw is not None:
+                if not isinstance(raw, dict):
+                    raise ValueError(f"Config file must be a YAML mapping, got {type(raw).__name__}")
+
+                errors = self.validate(raw)
+                if errors:
+                    raise ValueError(f"Config validation failed: {'; '.join(errors)}")
+
+                for entry in raw.get("profiles", []):
+                    env = entry.get("env", {})
+                    if env:
+                        env = _resolve_env_dict(env)
+                    profile_data = {**entry, "env": env}
+                    profile = MCPClientProfile.from_dict(profile_data)
+                    profiles.append(profile)
+
+        # Native first-party auto-discovery (Recon is the pilot).
+        # This is what makes recon feel like a built-in instrument rather
+        # than "yet another MCP server the user had to configure".
+        if not any(p.name == "recon" for p in profiles):
+            discovered = discover_recon_profile()
+            if discovered and discovered.enabled:
+                profiles.append(discovered)
+                logger.info("Auto-discovered first-party recon profile (recon-tool MCP server)")
 
         return profiles
 
