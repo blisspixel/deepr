@@ -78,7 +78,13 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--no-fallback", is_flag=True, help="Disable automatic provider fallback on failure")
 @click.option("--auto", "auto_mode", is_flag=True, help="Smart routing based on query complexity (cost-effective)")
 @click.option("--batch", type=click.Path(exists=True), help="File with queries (one per line, .txt or .json)")
-@click.option("--dry-run", is_flag=True, help="Preview routing decisions without executing")
+@click.option(
+    "--preview",
+    "--dry-run",
+    "preview",
+    is_flag=True,
+    help="Show planned model/provider and estimated cost without executing (works with or without --auto)",
+)
 @click.option("--prefer-cost", is_flag=True, help="Optimize for lowest cost in auto mode")
 @click.option("--prefer-speed", is_flag=True, help="Optimize for fastest response in auto mode")
 @output_options
@@ -102,7 +108,7 @@ def research(
     no_fallback: bool,
     auto_mode: bool,
     batch: Optional[str],
-    dry_run: bool,
+    preview: bool,
     prefer_cost: bool,
     prefer_speed: bool,
     output_context: OutputContext,
@@ -124,7 +130,15 @@ def research(
         Process multiple queries from a file with optimal routing per query.
 
         deepr research --auto --batch queries.txt           # Execute batch
-        deepr research --auto --batch queries.txt --dry-run # Preview only
+        deepr research --auto --batch queries.txt --preview # Preview only
+
+    PREVIEW MODE (--preview):
+        Show the planned model, provider, and estimated cost without
+        executing. Works with or without --auto. Useful for confirming
+        spend before kicking off an expensive deep research job.
+
+        deepr research --auto --preview "Analyze Tesla"
+        deepr research -m o3-deep-research --preview "Quantum computing trends"
 
     COMPANY RESEARCH MODE:
         deepr research company "<company_name>" "<website>"
@@ -182,7 +196,7 @@ def research(
             click.echo("Error: --batch requires --auto flag for smart routing", err=True)
             click.echo("\nUsage:")
             click.echo("  deepr research --auto --batch queries.txt")
-            click.echo("  deepr research --auto --batch queries.txt --dry-run")
+            click.echo("  deepr research --auto --batch queries.txt --preview")
             return
 
         # Run batch processing
@@ -191,7 +205,7 @@ def research(
             budget_total=limit,
             prefer_cost=prefer_cost,
             prefer_speed=prefer_speed,
-            dry_run=dry_run,
+            dry_run=preview,
             yes=yes,
             output_context=output_context,
         )
@@ -204,7 +218,7 @@ def research(
             budget=limit,
             prefer_cost=prefer_cost,
             prefer_speed=prefer_speed,
-            dry_run=dry_run,
+            dry_run=preview,
             yes=yes,
             no_web=no_web,
             no_code=no_code,
@@ -286,6 +300,21 @@ def research(
             model = os.getenv("DEEPR_DEFAULT_MODEL", "grok-4.3")
         if output_context.mode == OutputMode.VERBOSE:
             click.echo(f"[Using {model} model (default for {provider})]")
+
+    # Preview / dry-run for explicit (non-auto) model+provider runs.
+    # Shows the resolved choice plus an estimated cost band so users can
+    # see what they would spend before any provider call. Exits without
+    # submitting a job.
+    if preview:
+        _print_explicit_preview(
+            query=query,
+            provider=provider,
+            model=model,
+            upload=upload,
+            no_web=no_web,
+            output_context=output_context,
+        )
+        return
 
     # Handle scraping if requested
     if scrape:
@@ -805,8 +834,11 @@ def _run_auto_research(
         prefer_speed=prefer_speed,
     )
 
-    # Display routing decision
-    if output_context.mode == OutputMode.VERBOSE:
+    # Display routing decision.
+    # Always print in preview/dry-run mode (so the user can see what would
+    # happen without executing). In normal runs, only print under VERBOSE.
+    show_decision = dry_run or output_context.mode == OutputMode.VERBOSE
+    if show_decision and output_context.mode != OutputMode.JSON:
         console.print()
         console.print("[bold]Auto Mode Routing[/bold]")
         console.print(f"[dim]{'─' * 40}[/dim]")
@@ -814,17 +846,22 @@ def _run_auto_research(
         console.print(f"  Task Type:  {decision.task_type}")
         console.print(f"  Provider:   {decision.provider}")
         console.print(f"  Model:      {decision.model}")
-        console.print(f"  Est. Cost:  ${decision.cost_estimate:.2f}")
+        console.print(f"  Est. Cost:  ${decision.cost_estimate:.4f}")
         console.print(f"  Confidence: {decision.confidence:.0%}")
         console.print(f"  [dim]{decision.reasoning}[/dim]")
+        if dry_run:
+            console.print("[yellow]  (preview only - no provider call, no spend)[/yellow]")
         console.print()
 
-    # Dry run - just show routing
+    # Preview / dry run - just show routing, do not submit a job.
     if dry_run:
         if output_context.mode == OutputMode.JSON:
             import json
 
-            console.print(json.dumps(decision.to_dict(), indent=2))
+            payload = {"preview": True, "executed": False, **decision.to_dict()}
+            # click.echo (not Rich console) so JSON is unescaped + free of
+            # ANSI control codes for downstream machine consumers.
+            click.echo(json.dumps(payload, indent=2))
         return
 
     # Confirm if not skipping
@@ -852,3 +889,67 @@ def _run_auto_research(
         ),
         runner=asyncio.run,
     )
+
+
+def _print_explicit_preview(
+    query: str,
+    provider: str,
+    model: str,
+    upload: tuple,
+    no_web: bool,
+    output_context: OutputContext,
+) -> None:
+    """Print a preview for an explicit (non-auto) research run.
+
+    Shows the resolved provider/model and a cost estimate band based on
+    query length and whether web search is enabled. Pure local computation
+    — does not contact any provider. Exits without submitting a job.
+
+    JSON mode emits a structured ``{preview, executed, provider, model,
+    cost_estimate}`` document for machine consumers.
+    """
+    from deepr.core.costs import CostEstimator
+
+    documents = list(upload) if upload else None
+    estimate = CostEstimator.estimate_cost(
+        prompt=query,
+        model=model,
+        documents=documents,
+        enable_web_search=not no_web,
+    )
+
+    if output_context.mode == OutputMode.JSON:
+        import json
+
+        payload = {
+            "preview": True,
+            "executed": False,
+            "provider": provider,
+            "model": model,
+            "cost_estimate": {
+                "min": round(estimate.min_cost, 4),
+                "expected": round(estimate.expected_cost, 4),
+                "max": round(estimate.max_cost, 4),
+            },
+            "reasoning": estimate.reasoning,
+        }
+        # Use click.echo (not Rich console) so the JSON is clean for
+        # downstream consumers — no ANSI control codes leak in.
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    console.print()
+    console.print("[bold]Research Preview[/bold]")
+    console.print(f"[dim]{'─' * 40}[/dim]")
+    console.print(f"  Provider:   {provider}")
+    console.print(f"  Model:      {model}")
+    console.print(f"  Web search: {'enabled' if not no_web else 'disabled'}")
+    if documents:
+        console.print(f"  Uploads:    {len(documents)} file(s)")
+    console.print(
+        f"  Est. cost:  ${estimate.min_cost:.4f} - ${estimate.max_cost:.4f} (expected ${estimate.expected_cost:.4f})"
+    )
+    if estimate.reasoning:
+        console.print(f"  [dim]{estimate.reasoning}[/dim]")
+    console.print("[yellow]  (preview only - no provider call, no spend)[/yellow]")
+    console.print()
