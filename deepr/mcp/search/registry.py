@@ -449,6 +449,44 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_expert_validate",
+            description=(
+                "Validate a claim against an expert's accumulated knowledge. Returns a "
+                "structured verdict (pass/warn/fail) with confidence, reasoning, supporting "
+                "and contradicting claims (with citations), and caveats for any relevant "
+                "knowledge gaps. Pure read-side: does not modify the expert. Useful as a "
+                "guardrail for downstream agents that need domain validation before acting. "
+                "Cost: one small reasoning-model call (default gpt-5-mini). "
+                "Example: deepr_expert_validate(expert_name='AI Strategy Expert', "
+                "claim='GPT-5 outperforms GPT-4 on every benchmark')"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert to consult"},
+                    "claim": {
+                        "type": "string",
+                        "description": "The statement to assess. Free text; the expert will return PASS / WARN / FAIL.",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Optional override for the validation model (default: gpt-5-mini)",
+                    },
+                    "max_evidence": {
+                        "type": "integer",
+                        "default": 8,
+                        "description": "Maximum expert beliefs to include as grounding evidence",
+                    },
+                },
+                "required": ["expert_name", "claim"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_rank_gaps",
             description=(
                 "Get the top N knowledge gaps for an expert ranked by expected value "

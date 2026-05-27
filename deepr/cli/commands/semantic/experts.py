@@ -652,6 +652,153 @@ def expert_info(name: str):
     print_key_value("Updated", profile.updated_at.strftime("%Y-%m-%d %H:%M:%S"))
 
 
+@expert.command(name="validate")
+@click.argument("name")
+@click.argument("claim", required=False)
+@click.option(
+    "--from-file",
+    "-f",
+    "from_file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Read the claim from a file (use '-' for stdin)",
+)
+@click.option(
+    "--model",
+    default=None,
+    help="Override the validation model (default: gpt-5-mini, cheap+fast)",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Emit a structured JSON verdict for machine consumers",
+)
+@click.option(
+    "--max-evidence",
+    type=int,
+    default=8,
+    show_default=True,
+    help="Maximum expert beliefs to include as evidence in the assessment",
+)
+def validate_claim(
+    name: str,
+    claim: Optional[str],
+    from_file: Optional[str],
+    model: Optional[str],
+    json_output: bool,
+    max_evidence: int,
+):
+    """Validate a claim against an expert's knowledge.
+
+    Returns PASS / WARN / FAIL with citations, confidence, and reasoning.
+    Pure read-side: does not modify the expert. Useful as a guardrail for
+    downstream agents that need domain validation before acting.
+
+    EXAMPLES:
+      # Inline claim
+      deepr expert validate "AI Strategy Expert" "GPT-5 is more capable than GPT-4"
+
+      # Claim from file
+      deepr expert validate "Security Expert" --from-file claim.txt
+
+      # Claim from stdin (for piping)
+      echo "Rust is memory-safe by default" | deepr expert validate "Languages" -f -
+
+      # JSON output for agent consumers
+      deepr expert validate "AI Strategy Expert" "..." --json
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.services.expert_validator import (
+        DEFAULT_VALIDATION_MODEL,
+        ExpertValidator,
+        ExpertValidatorError,
+    )
+
+    # Resolve the claim text from inline arg, file, or stdin.
+    if from_file == "-":
+        claim_text = sys.stdin.read()
+    elif from_file:
+        with open(from_file, encoding="utf-8") as f:
+            claim_text = f.read()
+    elif claim:
+        claim_text = claim
+    else:
+        print_error("Provide a claim inline or via --from-file (use '-' for stdin)")
+        sys.exit(2)
+
+    claim_text = (claim_text or "").strip()
+    if not claim_text:
+        print_error("Claim is empty after reading")
+        sys.exit(2)
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    validator = ExpertValidator(
+        model=model or DEFAULT_VALIDATION_MODEL,
+        max_evidence=max_evidence,
+    )
+
+    try:
+        result = asyncio.run(validator.validate(profile, claim_text))
+    except ExpertValidatorError as e:
+        print_error(str(e))
+        sys.exit(2)
+    except Exception as e:
+        # Surface provider-side failures (rate limit, transient outage) as
+        # a clean error rather than a stack trace.
+        print_error(f"Validation failed: {e}")
+        sys.exit(1)
+
+    if json_output:
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    # Human-readable output. Use color to make the verdict glance-able.
+    verdict_color = {"pass": "green", "warn": "yellow", "fail": "red"}[result.verdict]
+    print_header(f"Validation: {profile.name}")
+    console.print(f"Claim: [white]{result.claim}[/white]")
+    console.print(
+        f"Verdict: [bold {verdict_color}]{result.verdict.upper()}[/bold {verdict_color}] "
+        f"[dim](confidence {result.confidence:.0%}, model {result.model})[/dim]"
+    )
+    console.print()
+    console.print("[bold]Reasoning[/bold]")
+    console.print(f"  {result.reasoning}")
+
+    if result.supporting:
+        console.print()
+        print_section_header("Supporting beliefs")
+        for c in result.supporting:
+            print_list_item(f"{c.statement}  [dim](conf {c.confidence:.2f})[/dim]")
+
+    if result.contradicting:
+        console.print()
+        print_section_header("Contradicting beliefs")
+        for c in result.contradicting:
+            print_list_item(f"{c.statement}  [dim](conf {c.confidence:.2f})[/dim]")
+
+    if result.caveats:
+        console.print()
+        print_section_header("Caveats")
+        for cv in result.caveats:
+            print_list_item(cv)
+
+    if result.verdict == "fail":
+        print_warning("Downstream agents should not act on the claim without further review.")
+    elif result.verdict == "warn":
+        print_warning("Expert evidence is thin or partial; treat with caution.")
+    else:
+        print_success("Claim is consistent with expert knowledge.")
+
+
 @expert.command(name="delete")
 @click.argument("name")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
