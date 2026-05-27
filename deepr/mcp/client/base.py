@@ -18,6 +18,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepr import __version__ as DEEPR_VERSION
+
 logger = logging.getLogger(__name__)
 
 # MCP protocol version
@@ -217,7 +219,7 @@ class MCPClient:
             {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "deepr", "version": "2.10.0"},
+                "clientInfo": {"name": "deepr", "version": DEEPR_VERSION},
             },
         )
 

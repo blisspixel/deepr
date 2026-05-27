@@ -73,8 +73,9 @@ class ResearchContext:
 
 
 # Category-to-tool mapping for knowledge gap matching
+# Updated for real first-party recon-tool surface (lookup_tenant is primary).
 _GAP_TOOL_MAP: dict[str, list[str]] = {
-    "infrastructure": ["domain_lookup", "batch_lookup", "dns_check"],
+    "infrastructure": ["lookup_tenant", "analyze_posture", "chain_lookup"],
     "academic": ["paper_search", "citation_lookup"],
     "strategic": ["company_analysis", "market_data"],
 }
@@ -105,10 +106,22 @@ class ExpertSkillWrapper:
         suggestions: list[ToolSuggestion] = []
         tool_names = {t.tool_name for t in available_tools}
 
-        # Domain detection
+        # Domain detection (first-party recon integration)
         domains = self._detect_domains(context)
         for domain in domains:
-            if "domain_lookup" in tool_names:
+            if "lookup_tenant" in tool_names:
+                suggestions.append(
+                    ToolSuggestion(
+                        server_name=self._profile.name,
+                        tool_name="lookup_tenant",
+                        arguments={"domain": domain, "format": "json"},
+                        reason=f"Detected domain: {domain} — using native recon",
+                        estimated_cost=0.0,
+                        requires_approval=self._needs_approval("lookup_tenant"),
+                    )
+                )
+            elif "domain_lookup" in tool_names:
+                # Legacy fallback (some user-defined skills may still use old names)
                 suggestions.append(
                     ToolSuggestion(
                         server_name=self._profile.name,
@@ -206,6 +219,16 @@ class ExpertSkillWrapper:
                 if attempt < max_attempts - 1:
                     continue
 
-        # All retries exhausted — return last error (never None here)
-        assert last_error is not None
+        # All retries exhausted — last_error is guaranteed to be set by the loop above,
+        # but we defend against the invariant being violated in the future.
+        if last_error is None:
+            logger.error(
+                "ExpertSkillWrapper.execute: last_error was None after retry loop — "
+                "this indicates a logic error in the retry handling."
+            )
+            return StructuredError(
+                code=MCPErrorCode.SERVER_ERROR,
+                message="Tool execution failed with no recorded error (internal logic error)",
+                retryable=False,
+            )
         return last_error

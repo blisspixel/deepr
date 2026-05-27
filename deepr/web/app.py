@@ -31,6 +31,12 @@ _frontend_dist = Path(__file__).parent / "frontend" / "dist"
 # ---------------------------------------------------------------------------
 # Security configuration
 # ---------------------------------------------------------------------------
+# IMPORTANT: Authentication on /api/* routes is OPTIONAL and deliberately
+# disabled when DEEPR_API_KEY is unset. This is intentional for local-first
+# desktop use. When the dashboard is reachable from a network (non-loopback
+# bind, container port publish, etc.) you MUST set DEEPR_API_KEY to avoid
+# unauthenticated access to job submission, result retrieval, and the
+# demo data wipe endpoints.
 _API_KEY = os.getenv("DEEPR_API_KEY", "")  # empty = auth disabled (local dev)
 _CORS_ORIGINS = os.getenv("DEEPR_CORS_ORIGINS", "http://localhost:5000").split(",")
 _MAX_PROMPT_LENGTH = 50_000  # characters
@@ -83,9 +89,16 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 @app.before_request
 def _check_auth():
-    """Require API key on /api/ routes when DEEPR_API_KEY is set."""
+    """
+    Require API key on /api/ routes when DEEPR_API_KEY is set.
+
+    When DEEPR_API_KEY is empty (the common local-dev case), ALL /api
+    routes are reachable without authentication. This includes the
+    destructive /api/demo/clear and /api/demo/load endpoints (which have
+    their own DEEPR_DEMO + confirmation-token gates).
+    """
     if not _API_KEY:
-        return  # Auth disabled — local dev mode
+        return  # Auth intentionally disabled for local development
 
     # Skip auth for non-API routes (SPA, static assets, health check)
     if not request.path.startswith("/api/"):
@@ -141,6 +154,8 @@ def _set_security_headers(response):
 
 # Initialize services
 import uuid
+
+import deepr
 
 # Load project config for correct paths
 from deepr.config import load_config
@@ -3829,7 +3844,7 @@ def health_check():
         return jsonify(
             {
                 "status": "healthy",
-                "version": "2.9.0",
+                "version": deepr.__version__,
                 "provider": "openai",
                 "queue": "sqlite",
                 "storage": "local",

@@ -177,6 +177,9 @@ class ExpertChatSession:
         self.skill_executors: dict = {}  # name -> SkillExecutor
         self._skill_tool_map: dict[str, tuple[str, str]] = {}  # qualified_name -> (skill, tool)
 
+        # Autonomous first-party instrument findings (recon pilot)
+        self._last_recon_findings: list = []  # list[AbsorbedFinding]
+
         # Chat mode + command system (Phase: Agentic UX)
         self.chat_mode: ChatMode = ChatMode.RESEARCH
         self.pinned_memories: list[str] = []
@@ -328,6 +331,15 @@ Budget remaining: ${budget_remaining:.2f}
             prompt = skill.load_prompt()
             if prompt:
                 base_message += f"\n\n--- ACTIVE SKILL: {skill.name} ---\n{prompt}\n"
+
+        # Autonomous recon findings (native first-class, zero-cost infrastructure context)
+        if self._last_recon_findings:
+            base_message += "\n\nRECON INFRASTRUCTURE (auto-probed this turn, cost $0, passive DNS+CT):\n"
+            # Group a few by category for brevity in the prompt
+            infra = [f for f in self._last_recon_findings if f.category == "infrastructure"][:6]
+            for f in infra:
+                base_message += f"  - {f.text} (conf {f.confidence:.0%})\n"
+            base_message += "Use this as ground truth for tech stack, tenant, and related-domain questions. Cite recon findings explicitly when relevant.\n"
 
         # Add custom system message if provided
         if self.expert.system_message:
@@ -616,6 +628,119 @@ Budget remaining: ${budget_remaining:.2f}
 
         query_lower = query.lower()
         return any(kw in query_lower for kw in recency_keywords)
+
+    async def _maybe_probe_recon_autonomously(self, user_message: str) -> None:
+        """Proactively run first-party recon (lookup_tenant) when a domain appears in the query.
+
+        This is the core of the native 1st-class integration:
+        - Uses the built-in recon skill definition (auto-shipped in deepr/skills/recon)
+        - Respects the exact MCP-only independence model (no direct recon imports)
+        - Leverages ExpertSkillWrapper domain detection + KnowledgeAbsorber specialized parser
+        - Results are surfaced in the system prompt for the current turn (cost: exactly 0)
+        - Safe: only when agentic, only for detected domains, only via the audited allowlist path
+
+        Findings are stored in self._last_recon_findings for the turn.
+        """
+        # Cheap early exit if no obvious domain-like token (keeps the common path fast)
+        if not user_message:
+            return
+        # Use the same pattern the wrapper trusts
+        from deepr.experts.skills.expert_skill import _DOMAIN_PATTERN
+
+        if not _DOMAIN_PATTERN.search(user_message):
+            return
+
+        # Is the recon skill present? (built-in tier wins; user can override)
+        recon_skill = self.skill_manager.get_skill("recon")
+        if not recon_skill:
+            return
+
+        # Resolve a live recon profile (auto-discovered or user-supplied)
+        try:
+            from deepr.mcp.client.config_loader import discover_recon_profile, get_recon_profile
+
+            profile = discover_recon_profile() or get_recon_profile()
+            if not profile or not profile.enabled:
+                return
+        except Exception:
+            return
+
+        # Create a transient 0-budget executor for this probe only.
+        # (Separate from any LLM-triggered recon executor that may also exist.)
+        from deepr.experts.skills import ExpertSkillWrapper, KnowledgeAbsorber, SkillExecutor
+
+        try:
+            skill_budget = 0.0
+            executor = SkillExecutor(recon_skill, skill_budget)
+
+            # Build minimal context for the wrapper's excellent trigger logic
+            from deepr.experts.skills import ResearchContext, ToolInfo
+
+            ctx = ResearchContext(text=user_message)
+
+            wrapper = ExpertSkillWrapper(profile)
+            # Only the tools that recon skill actually exposes
+            available = [
+                ToolInfo(server_name="recon", tool_name=t.name, description=t.description or "")
+                for t in recon_skill.tools
+            ]
+            suggestions = wrapper.should_trigger(ctx, available)
+
+            findings: list = []
+            absorber = KnowledgeAbsorber()
+
+            for sug in suggestions:
+                if sug.tool_name != "lookup_tenant":
+                    continue  # For the pilot we only auto-fire the primary; others are LLM-driven
+                # Execute via the safe MCP proxy path (allowlist, timeout, budget=0 already enforced)
+                raw = await executor.execute_tool(
+                    "lookup_tenant", {"domain": sug.arguments.get("domain", ""), "format": "json"}
+                )
+                if "error" in raw:
+                    continue
+
+                # High-fidelity recon-specific absorption (0.8+ confidence infrastructure findings)
+                rec_findings = absorber.categorize_recon_response(raw, domain=sug.arguments.get("domain", ""))
+                if rec_findings:
+                    findings.extend(rec_findings)
+
+                    # Record in reasoning trace for audit / UX
+                    from datetime import datetime, timezone
+
+                    self.reasoning_trace.append(
+                        {
+                            "step": "autonomous_recon_probe",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "domain": sug.arguments.get("domain", ""),
+                            "findings_count": len(rec_findings),
+                            "cost": 0.0,
+                        }
+                    )
+
+            # Keep only the strongest / most recent findings for this turn
+            if findings:
+                # Dedup by text (simple) and keep top 12
+                seen = set()
+                deduped = []
+                for f in findings:
+                    key = f.text[:80]
+                    if key not in seen:
+                        seen.add(key)
+                        deduped.append(f)
+                self._last_recon_findings = deduped[:12]
+
+            # Cleanup the transient MCP subprocess immediately
+            await executor.cleanup()
+
+        except Exception:
+            # Absolute safety: a bad probe must never affect the user-visible turn
+            logger.debug("Recon autonomous probe encountered an exception (swallowed)", exc_info=False)
+            # Best-effort cleanup if executor was partially created
+            try:
+                if "executor" in locals():
+                    await executor.cleanup()
+            except Exception:
+                logger.debug("Recon probe cleanup after failure also failed (non-fatal)", exc_info=False)
 
     async def _quick_lookup(self, query: str) -> dict:
         """Quick web lookup using GPT-5.2 with high reasoning (5-15 sec).
@@ -1153,6 +1278,9 @@ Budget remaining: ${budget_remaining:.2f}
         )
 
         try:
+            # Fresh autonomous findings for this turn only
+            self._last_recon_findings = []
+
             # Check if query is complex enough for Tree of Thoughts reasoning
             # ToT provides better answers for complex queries through hypothesis
             # generation, claim verification, and self-correction
@@ -1274,6 +1402,16 @@ Budget remaining: ${budget_remaining:.2f}
                     from deepr.experts.skills import SkillExecutor
 
                     self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+
+            # Autonomous native recon probe (first-class instrument, cost 0).
+            # Runs on any query containing a domain when agentic mode is on.
+            # Complements (does not replace) the keyword-triggered skill path.
+            if self.agentic:
+                try:
+                    await self._maybe_probe_recon_autonomously(user_message)
+                except Exception:
+                    # Never let a probe failure abort the chat turn
+                    logger.debug("Autonomous recon probe failed (non-fatal)", exc_info=False)
 
             # Add skill tools to the tools list
             for skill in self.active_skills:
@@ -1781,6 +1919,9 @@ Budget remaining: ${budget_remaining:.2f}
         )
 
         try:
+            # Fresh autonomous findings for this turn only
+            self._last_recon_findings = []
+
             # Check if query is complex enough for Tree of Thoughts reasoning
             # In Focus mode, ToT is always on
             force_tot = MODE_CONFIGS.get(self.chat_mode, {}).get("force_tot", False)
@@ -1903,6 +2044,13 @@ Budget remaining: ${budget_remaining:.2f}
                     from deepr.experts.skills import SkillExecutor
 
                     self.skill_executors[skill.name] = SkillExecutor(skill, skill_budget)
+
+            # Autonomous native recon probe (first-class instrument, cost 0) — streaming path
+            if self.agentic:
+                try:
+                    await self._maybe_probe_recon_autonomously(user_message)
+                except Exception:
+                    logger.debug("Autonomous recon probe failed (non-fatal)", exc_info=False)
 
             for skill in self.active_skills:
                 for tool in skill.tools:

@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from deepr import __version__ as DEEPR_VERSION
 from deepr.a2a.models import AgentCard, AgentSkill
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class AgentCardGenerator:
 
     Usage::
 
-        generator = AgentCardGenerator(version="2.10.0", url="http://localhost:8080")
+        generator = AgentCardGenerator(version=DEEPR_VERSION, url="http://localhost:8080")
         generator.register_expert(ExpertInfo(name="recon", description="DNS recon", domain="infrastructure"))
         card = generator.generate()
     """
@@ -46,7 +47,7 @@ class AgentCardGenerator:
         name: str = "deepr",
         description: str = "",
     ) -> None:
-        self._version = version
+        self._version = version or DEEPR_VERSION
         self._url = url
         self._name = name
         self._description = description or ("Multi-provider research automation with persistent expert agents")
