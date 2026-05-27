@@ -520,9 +520,7 @@ def load_config() -> dict:
 
     return {
         "provider": config.provider.type,
-        "api_key": config.provider.openai_api_key
-        if config.provider.type == "openai"
-        else config.provider.azure_api_key,
+        "api_key": "***",  # Redacted: callers needing real keys should use env / provider factory
         "azure_endpoint": config.provider.azure_endpoint,
         "queue": "local",  # Default to local queue
         "queue_db_path": "queue/research_queue.db",

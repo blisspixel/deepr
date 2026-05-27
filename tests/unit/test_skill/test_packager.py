@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from deepr import __version__ as DEEPR_VERSION
 from deepr.skills.packager import SkillPackager
 from deepr.skills.templates import DEFAULT_TRIGGERS, ToolManifest
 
@@ -54,7 +55,7 @@ def packager(sample_tools: list[ToolManifest]) -> SkillPackager:
     p = SkillPackager(
         name="deepr-research",
         description="Multi-provider research automation",
-        version="2.10.0",
+        version=DEEPR_VERSION,
         mcp_server="deepr",
     )
     p.add_tools(sample_tools)
@@ -80,7 +81,7 @@ class TestFrontmatter:
     def test_version_in_frontmatter(self, packager: SkillPackager) -> None:
         """Frontmatter contains version field."""
         content = packager.render()
-        assert "version: 2.10.0" in content
+        assert f"version: {DEEPR_VERSION}" in content
 
     def test_mcp_server_in_frontmatter(self, packager: SkillPackager) -> None:
         """Frontmatter contains mcp_server field."""

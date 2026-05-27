@@ -232,7 +232,7 @@ class TestFormatPhaseContext:
             contradictions=[],
             confidence_avg=0.5,
         )
-        section, tokens = chainer._format_phase_context(phase, budget=200, focus_query=None)
+        section, _tokens = chainer._format_phase_context(phase, budget=200, focus_query=None)
         # We should not have included all 20 since budget is small.
         assert section.count("[observation]") < 20
 

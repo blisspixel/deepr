@@ -105,17 +105,16 @@ async def check_provider_connectivity(config) -> list[DiagnosticCheck]:
             check.details.append(str(e))
         checks.append(check)
 
-    # Gemini
+    # Gemini (uses google-genai SDK, not the deprecated google.generativeai)
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key and gemini_key != "your-gemini-api-key":
         check = DiagnosticCheck("Gemini API Connection", "Connectivity")
         try:
-            import google.generativeai as genai
+            from google import genai
 
-            genai.configure(api_key=gemini_key)
-            # Simple test: list models
-            models = genai.list_models()
-            model_list = list(models)
+            client = genai.Client(api_key=gemini_key)
+            # Simple test: list models (makes API call to verify connectivity + key)
+            model_list = list(client.models.list())
             check.passed = True
             check.message = "Connected successfully"
             check.details.append(f"Available models: {len(model_list)}")
@@ -375,7 +374,7 @@ def doctor(skip_connectivity: bool):
             return
 
         # Run all checks
-        with click.progressbar(length=5, label="Running checks") as bar:
+        with click.progressbar(length=6, label="Running checks") as bar:
             all_checks.extend(await check_api_keys(config))
             bar.update(1)
 
@@ -392,11 +391,41 @@ def doctor(skip_connectivity: bool):
             all_checks.extend(await check_deprecated_models(config))
             bar.update(1)
 
+            all_checks.extend(check_native_instruments())
+            bar.update(1)
+
         # Print results
         print_checks(all_checks)
 
     # Run async checks
     run_async_command(run_diagnostics())
+
+
+def check_native_instruments() -> list[DiagnosticCheck]:
+    """Lightweight check for auto-discovered first-party native instruments (Phase 2b)."""
+    checks = []
+
+    # Recon (the pilot first-class instrument)
+    check = DiagnosticCheck("Recon (native domain intel)", "Native Instruments")
+    try:
+        from deepr.mcp.client.config_loader import discover_recon_profile
+
+        profile = discover_recon_profile()
+        if profile and profile.enabled:
+            check.passed = True
+            check.message = "Auto-discovered (first-class)"
+            check.details.append("recon-tool MCP server available via `recon mcp`")
+            check.details.append("Auto-probed in expert chat when domains appear (cost $0)")
+        else:
+            check.message = "Not found"
+            check.details.append("Install with: pip install -U recon-tool")
+            check.details.append("Enables zero-config passive recon for experts")
+    except Exception as e:
+        check.message = "Probe error"
+        check.details.append(str(e)[:60])
+    checks.append(check)
+
+    return checks
 
 
 if __name__ == "__main__":

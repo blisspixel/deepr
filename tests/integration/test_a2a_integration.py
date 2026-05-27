@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from deepr import __version__ as DEEPR_VERSION
 from deepr.a2a.agent_card import AgentCardGenerator, ExpertInfo
 from deepr.a2a.models import TaskState
 from deepr.a2a.server import A2AServer
@@ -22,7 +23,7 @@ from deepr.a2a.task_manager import TaskManager
 @pytest.fixture
 def a2a_server() -> A2AServer:
     """Create an A2A server with test configuration."""
-    gen = AgentCardGenerator(version="2.10.0", url="http://localhost:9090")
+    gen = AgentCardGenerator(version=DEEPR_VERSION, url="http://localhost:9090")
     gen.register_expert(
         ExpertInfo(
             name="recon",
@@ -71,7 +72,7 @@ class TestAgentCardIntegration:
         parsed = json.loads(json_str)
 
         assert parsed["name"] == "deepr"
-        assert parsed["version"] == "2.10.0"
+        assert parsed["version"] == DEEPR_VERSION
         assert len(parsed["skills"]) == 2
 
         skill_names = {s["name"] for s in parsed["skills"]}

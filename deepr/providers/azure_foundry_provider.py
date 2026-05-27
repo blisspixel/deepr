@@ -715,7 +715,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         try:
             self.close()
         except Exception:
-            pass
+            pass  # intentional: __del__ cleanup must never raise or log during interpreter shutdown
 
     # =========================================================================
     # Adaptive polling

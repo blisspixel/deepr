@@ -23,6 +23,15 @@ jobs:
       - name: Lint
         run: ruff check deepr/
 
+      - name: Security lint (Bandit via ruff -S, advisory)
+        # Advisory only: surfaces S-rule findings in the CI log without
+        # failing the build. The codebase has known legacy S-rule findings
+        # (try/except/pass patterns, partial executable paths) that are
+        # tracked separately. New code can still introduce S findings; this
+        # step makes them visible during review.
+        continue-on-error: true
+        run: ruff check deepr/ --select S
+
       - name: Format check
         run: ruff format --check deepr/
 

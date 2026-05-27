@@ -17,6 +17,10 @@ Safe Use Cases:
 
 Current Status: Disabled by default (--check-docs flag required)
 
+SECURITY: scan_docs() is hardened against symlink traversal and path escape.
+Only files that resolve inside the configured docs_path are read. Symlinks
+are rejected early. Large files are skipped before preview extraction.
+
 Recommendation: Only use for factual/API docs, never for comprehensive research.
 """
 
@@ -26,6 +30,8 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
+
+from deepr.utils.security import InvalidInputError, PathTraversalError, validate_path
 
 logger = logging.getLogger(__name__)
 
@@ -71,30 +77,53 @@ class DocReviewer:
         """
         Scan docs directory for files matching pattern.
 
+        SECURITY: Rejects symlinks and any path that resolves outside docs_path
+        (defends against symlink traversal and directory escape attacks).
+        Large files (>2MB) are skipped before any content is read.
+
         Args:
             pattern: Glob pattern (e.g., "**/*.txt", "**/*.md")
 
         Returns:
-            List of dicts with file metadata
+            List of dicts with file metadata (only trusted files)
         """
         docs = []
 
         search_pattern = os.path.join(self.docs_path, pattern)
         files = glob.glob(search_pattern, recursive=True)
 
+        base = self.docs_path  # for clarity in error messages
+
         for file_path in files:
             try:
-                stat = os.stat(file_path)
+                # Hard defense against symlink attacks and path traversal
+                if os.path.islink(file_path):
+                    logger.debug("Skipping symlink in docs scan (security): %s", file_path)
+                    continue
+
+                # validate_path does realpath resolution + containment check
+                try:
+                    validated = validate_path(file_path, base, must_exist=True)
+                except (PathTraversalError, InvalidInputError, FileNotFoundError) as sec_err:
+                    logger.debug("Skipping untrusted path in docs scan (security): %s (%s)", file_path, sec_err)
+                    continue
+
+                # Early size guard before reading content (DoS + exfil mitigation)
+                stat = os.stat(validated)
+                if stat.st_size > 2 * 1024 * 1024:  # 2 MB
+                    logger.debug("Skipping large file in docs scan: %s (%d bytes)", file_path, stat.st_size)
+                    continue
+
                 modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
                 size = stat.st_size
 
-                # Read first few lines for preview
-                with open(file_path, encoding="utf-8") as f:
+                # Read first few lines for preview (now from validated path)
+                with open(validated, encoding="utf-8") as f:
                     preview = f.read(500)  # First 500 chars
 
                 docs.append(
                     {
-                        "path": file_path,
+                        "path": str(validated),  # report the safe resolved path
                         "name": os.path.basename(file_path),
                         "modified": modified.isoformat(),
                         "size_bytes": size,
@@ -102,7 +131,7 @@ class DocReviewer:
                     }
                 )
             except Exception:
-                # Skip files we can't read
+                # Skip files we can't read (keeps previous resilient behavior)
                 continue
 
         return docs

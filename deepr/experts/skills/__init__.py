@@ -17,14 +17,29 @@ from deepr.experts.skills.definition import (
     SkillTrigger,
 )
 from deepr.experts.skills.executor import MCPClientProxy, SkillExecutor
+from deepr.experts.skills.expert_skill import (
+    ExpertSkillWrapper,
+    KnowledgeGap,
+    ResearchContext,
+    ToolInfo,
+    ToolSuggestion,
+)
+from deepr.experts.skills.knowledge_absorber import AbsorbedFinding, KnowledgeAbsorber
 from deepr.experts.skills.manager import SkillManager
 
 __all__ = [
+    "AbsorbedFinding",
+    "ExpertSkillWrapper",
+    "KnowledgeAbsorber",
+    "KnowledgeGap",
     "MCPClientProxy",
+    "ResearchContext",
     "SkillBudget",
     "SkillDefinition",
     "SkillExecutor",
     "SkillManager",
     "SkillTool",
     "SkillTrigger",
+    "ToolInfo",
+    "ToolSuggestion",
 ]
