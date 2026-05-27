@@ -32,9 +32,9 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.10)
+## Current Status (v2.11)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, and observability. 4300+ tests. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party Recon instrument, and observability. 4781+ unit tests, 81.6% coverage. Pre-commit hooks with ruff.
 
 ### Stable (Production-Ready)
 
@@ -53,7 +53,8 @@ These features are well-tested and used regularly:
 These features work but APIs or behavior may change:
 
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
-- **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 4 built-in skills, CLI management, web API, auto-activation triggers
+- **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 5 built-in skills (incl. native Recon), CLI management, web API, auto-activation triggers
+- **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
 - **MCP server**: Functional with 18 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
@@ -197,10 +198,10 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the full integration contra
 
 Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID stitching. Ship in effort-to-value order (Recon first).
 
-- [ ] (1) Recon integration (`pip install recon-tool`):
-  - [ ] MCP client connection to recon's domain_lookup, batch_lookup, delta tools
-  - [ ] Expert skill with auto-trigger on company domain mentions (grounding pre-flight)
-  - [ ] Trace ID pass-through for cross-tool observability
+- [x] (1) Recon integration (`pip install recon-tool`) — **delivered in v2.11.0**:
+  - [x] MCP client connection to recon's `lookup_tenant`, `analyze_posture`, `assess_exposure`, `find_hardening_gaps`, `chain_lookup` tools (auto-discovered when the `recon` binary is on PATH)
+  - [x] Expert skill with auto-trigger on company domain mentions — autonomous cost-$0 probe in expert chat, findings absorbed into the system prompt for the turn via `KnowledgeAbsorber.categorize_recon_response`
+  - [x] Trace ID pass-through for cross-tool observability (recon probes recorded in `reasoning_trace` with timestamp, domain, findings_count, cost)
 - [ ] (2) Distillr integration (`pip install distillr`):
   - [ ] MCP client connection to distillr's ingest and query tools
   - [ ] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge
@@ -220,7 +221,7 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 - [ ] Stale-model CI checks + provider-family alerting
   - [x] `deepr eval` preflight warns when newer relevant models are missing from the registry
   - [ ] Scheduled CI job that alerts on provider model drift
-- [ ] Routing preview: `deepr research --preview --auto` shows exact model choice, estimated cost, and confidence before executing
+- [x] Routing preview: `deepr research --preview` shows model choice, estimated cost band, and (in `--auto` mode) routing confidence and reasoning before executing. Works for both explicit `--model/--provider` runs and `--auto` mode. JSON output (`--json`) emits a structured `{preview, executed, provider, model, cost_estimate}` payload for machine consumers. Back-compat: `--dry-run` is preserved as an alias.
 - [ ] Eval methodology v2:
   - [ ] Citation quality, grounding, synthesis depth, temporal accuracy
   - [ ] Expert-specific metrics: gap-detection success rate, belief-revision accuracy, citation freshness score, integration quality
@@ -375,11 +376,12 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
 | v2.10 | Agentic infrastructure core, Grok 4.3 flagship, legacy migration, Azure Foundry parity | In Progress |
 | v2.10.1 | MCP client + A2A protocol, agent interoperability, skill portability | Complete |
-| v2.10+ | First-party integrations: recon, distillr, primr | Planned |
-| v2.11 | Routing preview, eval methodology v2, expert-specific metrics, A/B shadow | Planned |
-| v2.11+ | Expert intelligence: reflection loop, graph memory, dynamic tool selection, guardrail mode | Planned |
-| v2.12 | Autonomous research campaigns, multi-day expert investigations | Planned |
-| v2.13 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
+| v2.10.2-2.10.3 | Security hardening, MCP confirmation gate, 80% coverage gate, 5-round bug-hunt sweep | Complete |
+| v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
+| v2.12 | Distillr + Primr integrations (Phase 2b #2 & #3); routing preview + eval methodology v2 (Phase 3) | Planned |
+| v2.13 | Expert intelligence: reflection loop, graph memory, dynamic tool selection, guardrail mode | Planned |
+| v2.14 | Autonomous research campaigns, multi-day expert investigations | Planned |
+| v2.15 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
 
 ---
