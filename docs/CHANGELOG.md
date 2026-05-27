@@ -9,6 +9,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.0] - 2026-05-27
+
+First-party native integration of Recon, the passive domain intelligence
+tool, plus a follow-on hardening / version-centralization sweep.
+
+### Added
+- **Native Recon integration (first-party instrument).** When the
+  ``recon`` binary is on ``PATH`` (``pip install recon-tool``), Deepr now
+  auto-discovers and mounts the recon MCP server with no user
+  configuration. Built-in skill (``deepr/skills/recon/``) covers the real
+  shipped tool surface: ``lookup_tenant``, ``analyze_posture``,
+  ``assess_exposure``, ``find_hardening_gaps``, ``chain_lookup``,
+  ``get_posteriors``, ``explain_dag``.
+- **Autonomous recon probe in expert chat.** When an expert is in
+  ``agentic`` mode and the user message contains a domain, Deepr fires
+  ``lookup_tenant`` at cost $0 and surfaces high-confidence
+  infrastructure findings (services, related domains, tenant/provider,
+  email-security posture) directly into the system prompt for that turn.
+  ``KnowledgeAbsorber.categorize_recon_response`` is a specialized parser
+  that emits >= 0.8 confidence findings from the real recon response
+  shape.
+- **`deepr doctor` Native Instruments check** reports whether recon is
+  available and suggests ``pip install -U recon-tool`` when missing.
+- **CI advisory security lint** via ``ruff check --select S`` (Bandit-
+  equivalent) runs on every push with ``continue-on-error: true`` so
+  findings show up in the log without retroactively gating on legacy
+  ``try/except/pass`` and partial-executable-path findings.
+
+### Changed
+- **Single source of truth for version.** ``AgentCardGenerator``,
+  ``MCPClient`` clientInfo, ``SkillPackager`` default, and the web
+  ``/health`` endpoint now import ``deepr.__version__`` instead of
+  hardcoded ``"2.10.0"`` / ``"2.9.0"`` strings (and matching tests
+  updated to assert against ``DEEPR_VERSION``). This closes a recurring
+  silent-drift bug class.
+- **ExpertSkillWrapper gap-tool map** updated for the real recon tool
+  names (``lookup_tenant``, ``analyze_posture``, ``chain_lookup``) with
+  legacy ``domain_lookup`` retained as a fallback for user-defined
+  skills.
+
+### Security
+- **`doc_reviewer.scan_docs` symlink/traversal hardening.** Rejects
+  symlinks, uses ``validate_path`` + realpath containment, and skips
+  files larger than 2 MB before any content is read.
+- **`config.load_config` no longer leaks provider API keys** in its
+  return dict; callers needing real keys must go through the provider
+  factory or environment variables. Removes an accidental cross-context
+  key disclosure path.
+- **`bin/deepr-api`** documents that ``DEEPR_ALLOW_PUBLIC_BIND=1`` is
+  acknowledgement of a real risk (data disclosure + provider-spend
+  abuse), not a routine convenience flag.
+- **Documentation hardening** in ``deepr/api/app.py`` and
+  ``deepr/web/app.py`` makes the local-dev-only nature of the
+  unauthenticated default explicit.
+
+### Fixed
+- **MCP / async exception handling.** ``MCPClientProxy.call_tool`` and
+  ``SkillExecutor`` now re-raise ``CancelledError``, ``SystemExit``, and
+  ``KeyboardInterrupt`` instead of swallowing them into a generic
+  ``{"error": ...}``. Remaining broad ``except`` blocks now carry an
+  intent-explaining comment.
+- **`assert` replaced with explicit logging + safe return** in
+  ``StdioTransport._read_loop``, ``LiveShimmerStatus._run``, and
+  ``ExpertSkillWrapper.execute`` (asserts are stripped under ``python
+  -O``; the previous code could fall off the end with ``None`` in
+  pathological cases).
+- **`AzureFoundryProvider.__del__`** clean-up swallow is now explicitly
+  documented as intentional (must not raise during interpreter
+  shutdown).
+- **`ConfigLoader.load`** no longer raises ``FileNotFoundError`` when
+  the integrations config is absent; it returns auto-discovered profiles
+  (recon if installed) and an empty list otherwise.
+
+### Tests
+- Patch ``discover_recon_profile`` in two config-loader tests so they
+  do not depend on whether the ``recon`` binary happens to be installed
+  on the dev / CI machine.
+- ``test_a2a_integration`` and ``test_packager`` now assert against
+  ``DEEPR_VERSION`` so future version bumps don't break tests.
+- Replace ``assert False`` with ``raise AssertionError`` (ruff B011).
+- Remove unused locals across A2A / MCP / services coverage tests.
+- ``tests/integration/test_grok_search.py`` moved to
+  ``grok_search_demo.py`` — it was a manual demo, not a pytest test, so
+  it no longer triggers collection errors when ``xai_sdk`` is missing.
+
+### Roadmap
+- Phase 2b first-party instrument sequencing made explicit:
+  Recon (1) -> Distillr (2) -> Primr (3). Recon is now the pilot
+  delivered.
+
+---
+
 ## [2.10.3] - 2026-05-17
 
 Five-round bug-hunt sweep covering cost/budget, async/concurrency, storage
