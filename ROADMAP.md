@@ -55,7 +55,7 @@ These features work but APIs or behavior may change:
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
 - **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 5 built-in skills (incl. native Recon), CLI management, web API, auto-activation triggers
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
-- **MCP server**: Functional with 18 tools, but MCP spec itself is still maturing
+- **MCP server**: Functional with 19 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -71,7 +71,7 @@ These features work but APIs or behavior may change:
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
 - Expert skills system: 4 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
-- MCP server with 18 tools, persistence, security, multi-runtime configs
+- MCP server with 19 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -247,10 +247,10 @@ Goal: make experts genuinely agentic — self-correcting, strategically autonomo
   - [ ] Gap-to-tool mapping engine (infrastructure gaps → recon, academic gaps → distillr, strategic gaps → primr; instruments delivered in Phase 2b)
   - [ ] Value/cost estimation per gap-fill option
   - [ ] Strategic prioritization: fill highest-value gaps first within budget
-- [ ] Expert-as-guardrail mode:
-  - [ ] `validate` tool alongside `research` and `chat` — expert applies knowledge as a filter/validator
-  - [ ] PASS/WARN/FAIL assessment with citations and confidence
-  - [ ] Useful for downstream agents that need domain validation before acting
+- [x] Expert-as-guardrail mode:
+  - [x] `validate` tool alongside `research` and `chat` — `deepr expert validate NAME CLAIM` (also `--from-file -` for stdin) and `deepr_expert_validate` MCP tool. Expert applies its existing knowledge as a filter/validator; pure read-side, never mutates the expert.
+  - [x] PASS/WARN/FAIL assessment with citations and confidence — claim IDs returned by the validator model are resolved back to canonical `Claim` objects so callers get full citation provenance, not just statements.
+  - [x] Useful for downstream agents that need domain validation before acting — structured JSON output (verdict, confidence, reasoning, supporting/contradicting claims, caveats) makes the verdict machine-actionable.
 - [ ] Expert manifest diff (`Delta`) and explicit `ExpertPolicy` type
 - [ ] Optional `--high-trust-only` mode (primary/secondary sources only)
 - [ ] Structured corpus import as first-class skill:

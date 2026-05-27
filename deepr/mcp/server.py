@@ -21,6 +21,7 @@ Tools exposed:
 - deepr_list_experts: List available domain experts
 - deepr_query_expert: Query a domain expert
 - deepr_get_expert_info: Get detailed expert information
+- deepr_expert_validate: Validate a claim against expert knowledge (guardrail mode)
 
 Resources:
 - deepr://campaigns/{id}/status - Job state and progress
@@ -391,6 +392,46 @@ class DeeprMCPServer:
             return manifest.to_dict()
         except (OSError, KeyError, ValueError) as e:
             return _make_error("MANIFEST_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_expert_validate
+    # ------------------------------------------------------------------ #
+    async def expert_validate(
+        self,
+        expert_name: str,
+        claim: str,
+        model: Optional[str] = None,
+        max_evidence: int = 8,
+    ) -> dict:
+        """Validate a claim against an expert's knowledge.
+
+        Returns a structured verdict (pass/warn/fail) with citations and
+        confidence. Pure read-side: does not modify the expert. Useful
+        for downstream agents that need domain validation before acting.
+        """
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+
+            from deepr.services.expert_validator import (
+                DEFAULT_VALIDATION_MODEL,
+                ExpertValidator,
+                ExpertValidatorError,
+            )
+
+            try:
+                validator = ExpertValidator(
+                    model=model or DEFAULT_VALIDATION_MODEL,
+                    max_evidence=max_evidence,
+                )
+                result = await validator.validate(expert, claim)
+            except ExpertValidatorError as e:
+                return _make_error("EXPERT_VALIDATE_INVALID_INPUT", str(e))
+
+            return result.to_dict()
+        except (OSError, KeyError, ValueError, DeeprError) as e:
+            return _make_error("EXPERT_VALIDATE_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_rank_gaps
@@ -1292,6 +1333,12 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
         "deepr_expert_manifest": lambda args: server.expert_manifest(
             expert_name=args.get("expert_name", ""),
         ),
+        "deepr_expert_validate": lambda args: server.expert_validate(
+            expert_name=args.get("expert_name", ""),
+            claim=args.get("claim", ""),
+            model=args.get("model"),
+            max_evidence=args.get("max_evidence", 8),
+        ),
         "deepr_rank_gaps": lambda args: server.rank_gaps(
             expert_name=args.get("expert_name", ""),
             top_n=args.get("top_n", 5),
@@ -1448,6 +1495,7 @@ _LEGACY_METHOD_MAP = {
     "get_expert_info": "deepr_get_expert_info",
     "query_expert": "deepr_query_expert",
     "expert_manifest": "deepr_expert_manifest",
+    "expert_validate": "deepr_expert_validate",
     "rank_gaps": "deepr_rank_gaps",
 }
 
