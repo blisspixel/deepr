@@ -177,7 +177,7 @@ class JobPersistence:
                 SET phase = 'failed',
                     error = 'Server restarted while job was in progress',
                     updated_at = ?
-                WHERE phase NOT IN ({placeholders})""",
+                WHERE phase NOT IN ({placeholders})""",  # placeholders from fixed terminal tuple; values parameterized
             (now, *terminal),
         )
         self._conn.commit()

@@ -64,6 +64,7 @@ async def _analyze_and_queue(
     docs_path: str, scenario: str, max_topics: int, planner_model: str, research_model: str, auto_execute: bool
 ):
     """Execute the agentic documentation analysis workflow."""
+    import asyncio
     import os
     import uuid
     from pathlib import Path
@@ -76,9 +77,9 @@ async def _analyze_and_queue(
     from deepr.services.research_planner import ResearchPlanner
 
     try:
-        # Validate path
+        # Validate path (non-blocking exists check)
         docs_dir = Path(docs_path)
-        if not docs_dir.exists():
+        if not await asyncio.to_thread(docs_dir.exists):
             print_error(f"Path not found: {docs_path}")
             raise click.Abort()
 
@@ -150,9 +151,9 @@ async def _analyze_and_queue(
         # Step 4: Submit jobs
         console.print("\nStep 3: Submitting research jobs...")
 
-        # Initialize services
+        # Initialize services (non-blocking)
         config_path = Path(".deepr")
-        config_path.mkdir(exist_ok=True)
+        await asyncio.to_thread(config_path.mkdir, exist_ok=True)
 
         queue = SQLiteQueue(str(config_path / "queue.db"))
         provider = OpenAIProvider(api_key=os.getenv("OPENAI_API_KEY"))

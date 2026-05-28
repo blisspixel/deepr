@@ -340,7 +340,7 @@ class AzureFoundryProvider(DeepResearchProvider):
                     message=f"Failed to start Foundry deep research after {max_retries} attempts: {e}",
                     provider="azure-foundry",
                     original_error=e,
-                )
+                ) from e
 
         raise ProviderError(
             message="Failed to start Foundry deep research after all retries",
@@ -408,7 +408,7 @@ class AzureFoundryProvider(DeepResearchProvider):
                     message=f"Failed to start Foundry job after {max_retries} attempts: {e}",
                     provider="azure-foundry",
                     original_error=e,
-                )
+                ) from e
 
         raise ProviderError(
             message="Failed to start Foundry job after all retries",

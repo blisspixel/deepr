@@ -252,7 +252,7 @@ class GapDiscoverer:
                         source="experts.gap_discovery._generate_gaps_for_thin_areas",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break gap discovery step
             return result
         except Exception as e:
             logger.warning("Gap generation failed: %s", e)

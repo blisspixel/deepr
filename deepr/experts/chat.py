@@ -55,6 +55,7 @@ def _chat_token_cost(usage: Any, model_name: str) -> float:
         input_price = prices.get("input", _DEFAULT_CHAT_INPUT_PRICE_PER_1M)
         output_price = prices.get("output", _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M)
     except Exception:
+        # Intent: pricing lookup or registry import failed (missing config, unknown model, etc.); fall back to conservative defaults.
         input_price = _DEFAULT_CHAT_INPUT_PRICE_PER_1M
         output_price = _DEFAULT_CHAT_OUTPUT_PRICE_PER_1M
     prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
@@ -539,6 +540,7 @@ Budget remaining: ${budget_remaining:.2f}
                         content = f.read()
                     documents.append({"filename": filepath.name, "content": content, "filepath": str(filepath)})
                 except Exception as e:
+                    # Intent: one bad document must not abort knowledge base retrieval for the entire expert turn; continue with remaining documents to maximize partial results.
                     logger.warning("Failed to read document %s: %s", filepath, e)
                     continue
 
@@ -663,6 +665,7 @@ Budget remaining: ${budget_remaining:.2f}
             if not profile or not profile.enabled:
                 return
         except Exception:
+            # Intent: optional recon skill profile discovery failed or is disabled; skip silently for this request (non-fatal).
             return
 
         # Create a transient 0-budget executor for this probe only.
@@ -1182,6 +1185,7 @@ Budget remaining: ${budget_remaining:.2f}
                             content = f.read()
                         new_documents.append({"path": filepath.name, "content": content})
                     except Exception:
+                        # One bad document must not abort synthesis for the entire expert; continue with the rest.
                         continue
 
             if not new_documents:
@@ -2331,7 +2335,7 @@ Budget remaining: ${budget_remaining:.2f}
                 try:
                     self._compact_callback(len(self.messages), self._estimate_tokens())
                 except Exception:
-                    pass  # Don't crash on callback failure
+                    pass  # Don't crash on callback failure (compaction is optional UX)
 
             return final_message or ""
 

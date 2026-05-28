@@ -370,7 +370,7 @@ class ExpertProfile:
                     claims.append(claim)
                     seen_statements.add(claim.statement)
         except Exception:
-            pass
+            pass  # best-effort load of one source (beliefs/worldview/gaps/logs); missing or corrupt artifacts do not prevent manifest assembly
 
         # Load worldview beliefs from synthesis
         try:
@@ -385,7 +385,7 @@ class ExpertProfile:
                         claims.append(claim)
                         seen_statements.add(claim.statement)
         except Exception:
-            pass
+            pass  # best-effort load of one source (beliefs/worldview/gaps/logs); missing or corrupt artifacts do not prevent manifest assembly
 
         gaps: list[Gap] = []
         seen_topics: set[str] = set()
@@ -403,7 +403,7 @@ class ExpertProfile:
                     gaps.append(gap)
                     seen_topics.add(gap.topic)
         except Exception:
-            pass
+            pass  # best-effort load of one source (beliefs/worldview/gaps/logs); missing or corrupt artifacts do not prevent manifest assembly
 
         # Load gaps from synthesis worldview
         try:
@@ -419,7 +419,7 @@ class ExpertProfile:
                         gaps.append(gap)
                         seen_topics.add(gap.topic)
         except Exception:
-            pass
+            pass  # best-effort load of one source (beliefs/worldview/gaps/logs); missing or corrupt artifacts do not prevent manifest assembly
 
         # Load decision records from ThoughtStream logs
         decisions = []
@@ -437,7 +437,7 @@ class ExpertProfile:
                         decisions.append(DecisionRecord.from_dict(rec_data))
                     break  # Only load most recent
         except Exception:
-            pass
+            pass  # best-effort load of one source (beliefs/worldview/gaps/logs); missing or corrupt artifacts do not prevent manifest assembly
 
         return ExpertManifest(
             expert_name=self.name,

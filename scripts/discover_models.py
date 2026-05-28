@@ -626,7 +626,9 @@ def compare_registry(
 
     # Models in registry but not discovered (canonical comparison)
     discovered_canon = set(discovered_by_canon.keys())
-    registry_only = [rm for rm in registry.values() if (rm.provider, _canonical_model(rm.model)) not in discovered_canon]
+    registry_only = [
+        rm for rm in registry.values() if (rm.provider, _canonical_model(rm.model)) not in discovered_canon
+    ]
 
     return {
         "new_models": new_models,
@@ -823,7 +825,9 @@ def print_comparison_report(
         print()
 
     if other_count:
-        print(f"  ({other_count} other discovered models hidden — older versions, new families, or non-text. Use --all.)\n")
+        print(
+            f"  ({other_count} other discovered models hidden — older versions, new families, or non-text. Use --all.)\n"
+        )
 
     # Pricing changes
     if pricing_changes:

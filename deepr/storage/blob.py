@@ -110,7 +110,7 @@ class AzureBlobStorage(StorageBackend):
                 message=f"Failed to save report to blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
-            )
+            ) from e
 
     async def get_report(self, job_id: str, filename: str) -> bytes:
         """Retrieve report from Azure Blob Storage."""
@@ -131,13 +131,13 @@ class AzureBlobStorage(StorageBackend):
                 message=f"Report not found: {job_id}/{filename}",
                 storage_type="blob",
                 original_error=None,
-            )
+            ) from None
         except AzureError as e:
             raise StorageError(
                 message=f"Failed to retrieve report from blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
-            )
+            ) from e
 
     async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
         """List reports in Azure Blob Storage."""
@@ -177,7 +177,7 @@ class AzureBlobStorage(StorageBackend):
                 message=f"Failed to list reports in blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
-            )
+            ) from e
 
     async def delete_report(self, job_id: str, filename: Optional[str] = None) -> bool:
         """Delete report(s) from Azure Blob Storage."""
@@ -207,7 +207,7 @@ class AzureBlobStorage(StorageBackend):
                 message=f"Failed to delete report from blob storage: {e!s}",
                 storage_type="blob",
                 original_error=e,
-            )
+            ) from e
 
     async def report_exists(self, job_id: str, filename: str) -> bool:
         """Check if report exists in Azure Blob Storage."""
@@ -261,7 +261,7 @@ class AzureBlobStorage(StorageBackend):
                 message=f"Failed to generate report URL: {e!s}",
                 storage_type="blob",
                 original_error=e,
-            )
+            ) from e
 
     async def cleanup_old_reports(self, days: int = 30) -> int:
         """Delete reports older than specified days from blob storage."""
@@ -284,7 +284,7 @@ class AzureBlobStorage(StorageBackend):
                 message=f"Failed to cleanup old reports: {e!s}",
                 storage_type="blob",
                 original_error=e,
-            )
+            ) from e
 
     async def close(self):
         """Close the blob service client."""

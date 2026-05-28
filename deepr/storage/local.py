@@ -48,7 +48,7 @@ class LocalStorage(StorageBackend):
             sanitized = sanitize_name(job_id, allowed_chars=r"a-zA-Z0-9_-")
             return sanitized
         except (PathTraversalError, InvalidInputError) as e:
-            raise StorageError(message=f"Invalid job_id: {e!s}", storage_type="local", original_error=e)
+            raise StorageError(message=f"Invalid job_id: {e!s}", storage_type="local", original_error=e) from e
 
     def _validate_filename(self, filename: str) -> str:
         """Validate filename has no directory components.
@@ -175,12 +175,12 @@ class LocalStorage(StorageBackend):
         try:
             resolved = job_dir.resolve()
             resolved.relative_to(self.base_path.resolve())
-        except ValueError:
+        except ValueError as err:
             raise StorageError(
                 message=f"Path escapes base directory: {job_id}",
                 storage_type="local",
                 original_error=PathTraversalError(f"Path escape: {job_dir}"),
-            )
+            ) from err
 
         return job_dir
 
@@ -207,7 +207,11 @@ class LocalStorage(StorageBackend):
             resolved = full_path.resolve()
             resolved.relative_to(self.base_path.resolve())
         except ValueError:
-            raise StorageError(message="Report path escapes base directory", storage_type="local", original_error=None)
+            raise StorageError(
+                message="Report path escapes base directory",
+                storage_type="local",
+                original_error=None,
+            ) from None
 
         return full_path
 
@@ -277,7 +281,7 @@ class LocalStorage(StorageBackend):
             )
 
         except OSError as e:
-            raise StorageError(message=f"Failed to save report: {e!s}", storage_type="local", original_error=e)
+            raise StorageError(message=f"Failed to save report: {e!s}", storage_type="local", original_error=e) from e
 
     async def get_report(self, job_id: str, filename: str) -> bytes:
         """Retrieve report from local filesystem."""
@@ -290,13 +294,13 @@ class LocalStorage(StorageBackend):
             return report_path.read_bytes()
 
         except FileNotFoundError as e:
-            raise StorageError(message=str(e), storage_type="local", original_error=e)
+            raise StorageError(message=str(e), storage_type="local", original_error=e) from e
         except OSError as e:
             raise StorageError(
                 message=f"Failed to retrieve report: {e!s}",
                 storage_type="local",
                 original_error=e,
-            )
+            ) from e
 
     async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
         """List reports in local storage."""
@@ -353,7 +357,7 @@ class LocalStorage(StorageBackend):
                 message=f"Failed to list reports: {e!s}",
                 storage_type="local",
                 original_error=e,
-            )
+            ) from e
 
     async def delete_report(self, job_id: str, filename: Optional[str] = None) -> bool:
         """Delete report(s) from local filesystem."""
@@ -378,7 +382,7 @@ class LocalStorage(StorageBackend):
                 message=f"Failed to delete report: {e!s}",
                 storage_type="local",
                 original_error=e,
-            )
+            ) from e
 
     async def report_exists(self, job_id: str, filename: str) -> bool:
         """Check if report exists in local storage."""
@@ -431,4 +435,4 @@ class LocalStorage(StorageBackend):
                 message=f"Failed to cleanup old reports: {e!s}",
                 storage_type="local",
                 original_error=e,
-            )
+            ) from e

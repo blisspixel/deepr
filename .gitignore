@@ -5,6 +5,9 @@
 .env.*
 !.env.example
 
+# Sibling repos cloned locally for dev (e.g. recon-tool); not part of this repo.
+external/
+
 # ==============================================================================
 # Python
 # ==============================================================================

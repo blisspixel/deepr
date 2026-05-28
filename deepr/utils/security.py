@@ -120,8 +120,8 @@ def validate_path(
     # Check if path is within base directory
     try:
         resolved.relative_to(base)
-    except ValueError:
-        raise PathTraversalError(f"Path '{user_path}' attempts to escape base directory '{base}'")
+    except ValueError as err:
+        raise PathTraversalError(f"Path '{user_path}' attempts to escape base directory '{base}'") from err
 
     # Check existence requirements
     if must_exist and not resolved.exists():

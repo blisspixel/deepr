@@ -188,7 +188,7 @@ class ConflictResolver:
                         source="experts.conflict_resolver.detect_pairs",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break conflict pair detection
             return [pairs[i] for i in indices if 0 <= i < len(pairs)]
         except Exception as e:
             logger.warning("LLM contradiction detection failed: %s", e)

@@ -60,9 +60,9 @@ class CredentialType(Enum):
 
     API_KEY = "api_key"
     SESSION_COOKIE = "session_cookie"
-    BEARER_TOKEN = "bearer_token"
+    BEARER_TOKEN = "bearer_token"  # Enum member name for credential type classification; not a password value
     BASIC_AUTH = "basic_auth"
-    OAUTH_TOKEN = "oauth_token"
+    OAUTH_TOKEN = "oauth_token"  # Enum member name for credential type classification; not a password value
 
 
 @dataclass
@@ -221,7 +221,7 @@ class CredentialManager:
         domain = self._normalize_domain(domain)
 
         # Generate ID and hash
-        cred_id = f"cred_{hashlib.md5(f'{domain}:{credential_type.value}'.encode()).hexdigest()[:12]}"
+        cred_id = f"cred_{hashlib.md5(f'{domain}:{credential_type.value}'.encode()).hexdigest()[:12]}"  # Non-crypto: stable lookup ID for gated credential records. Actual secret value is hashed separately with stronger method.
         value_hash = self._hash_value(value)
 
         now = _utc_now()
