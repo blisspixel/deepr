@@ -6,6 +6,7 @@ Auto-detects which provider is available from environment variables.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import os
@@ -22,7 +23,8 @@ def _build_prompt(name: str, domain: str | None, description: str | None) -> str
     """
     import hashlib
 
-    # Deterministic diversity based on expert name
+    # Deterministic diversity based on expert name. Non-crypto: md5 is used as a stable
+    # seed for portrait diversity rotation only, not for security/passwords/signatures.
     seed = int(hashlib.md5(name.encode()).hexdigest(), 16)
     genders = ["woman", "man", "woman", "man", "non-binary person"]
     ethnicities = [
@@ -102,9 +104,9 @@ async def generate_portrait(
     else:
         raise RuntimeError(f"Unknown provider: {provider}")
 
-    # Save to disk
+    # Save to disk (non-blocking mkdir)
     out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(out.mkdir, parents=True, exist_ok=True)
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in name).strip().replace(" ", "-").lower()
     if not safe_name:
         safe_name = "portrait"

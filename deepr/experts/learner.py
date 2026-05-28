@@ -16,6 +16,7 @@ from deepr.experts.curriculum import CurriculumGenerator, LearningCurriculum, Le
 from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.providers import create_provider
 from deepr.storage import create_storage
+from deepr.utils.security import SSRFError, sanitize_name, validate_url
 
 
 @dataclass
@@ -551,8 +552,9 @@ class AutonomousLearner:
                     continue
 
                 # Save to expert's documents folder
-                safe_title = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in source.title)
-                filename = f"source_{safe_title[:50]}.md"
+                # Use central sanitizer for consistent handling of LLM-generated titles (collapses runs of bad chars, etc.)
+                safe_title = sanitize_name(source.title or "untitled", allowed_chars=r"a-zA-Z0-9_ -")[:60]
+                filename = f"source_{safe_title}.md"
                 doc_path = docs_dir / filename
 
                 with open(doc_path, "w", encoding="utf-8") as f:
@@ -587,9 +589,9 @@ class AutonomousLearner:
                     acquired += 1
                     self._log_progress(f"  [OK] Acquired and uploaded as {filename}", callback=callback)
                 finally:
-                    # Clean up temp file
-                    if Path(temp_file).exists():
-                        Path(temp_file).unlink()
+                    # Clean up temp file (non-blocking)
+                    if await asyncio.to_thread(Path(temp_file).exists):
+                        await asyncio.to_thread(Path(temp_file).unlink)
 
             except Exception as e:
                 self._log_progress(f"  [ERROR] {e!s}", callback=callback)
@@ -622,6 +624,14 @@ class AutonomousLearner:
         from deepr.utils.scrape import ScrapeConfig, scrape_website
 
         try:
+            # SSRF guard for documentation/guide/blog sources (curriculum URLs come from model output)
+            if source.url:
+                try:
+                    validate_url(source.url, allow_private=False)
+                except SSRFError as sec_e:
+                    self._log_progress(f"  [SECURITY] Blocked unsafe source URL: {sec_e}", callback=callback)
+                    return None
+
             # Configure scraping for documentation
             config = ScrapeConfig(
                 max_pages=10,  # Limit to 10 pages per source
@@ -671,6 +681,14 @@ class AutonomousLearner:
         import httpx
 
         try:
+            # SSRF guard for paper source URL (curriculum URLs come from model output)
+            if source.url:
+                try:
+                    validate_url(source.url, allow_private=False)
+                except SSRFError as sec_e:
+                    self._log_progress(f"  [SECURITY] Blocked unsafe paper URL: {sec_e}", callback=callback)
+                    return None
+
             # For now, just fetch HTML content
             # TODO: Add PDF extraction support
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -962,9 +980,9 @@ class AutonomousLearner:
             except Exception as e:
                 self._log_progress(f"  [ERROR] {e!s}", callback=callback)
             finally:
-                # Clean up temp file
-                if temp_file and Path(temp_file).exists():
-                    Path(temp_file).unlink()
+                # Clean up temp file (non-blocking)
+                if temp_file and await asyncio.to_thread(Path(temp_file).exists):
+                    await asyncio.to_thread(Path(temp_file).unlink)
 
         # Update expert metadata
         expert.total_documents += uploaded

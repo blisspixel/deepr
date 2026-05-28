@@ -333,7 +333,7 @@ class DeeprMCPServer:
                 result["open_gap_count"] = manifest.open_gap_count
                 result["avg_confidence"] = manifest.avg_confidence
             except Exception:
-                pass
+                pass  # manifest stats are best-effort for expert info response; missing manifest is non-fatal
             return result
         except (OSError, KeyError, ValueError) as e:
             return _make_error("EXPERT_INFO_FAILED", str(e))
@@ -354,7 +354,7 @@ class DeeprMCPServer:
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            session_key = f"{expert_name}_{hashlib.md5(question.encode()).hexdigest()[:12]}"
+            session_key = f"{expert_name}_{hashlib.md5(question.encode()).hexdigest()[:12]}"  # Non-crypto: stable session key for expert chat reuse within process. Not security-sensitive.
             if session_key not in self.sessions:
                 self.sessions[session_key] = ExpertChatSession(
                     expert,

@@ -222,7 +222,7 @@ class MapReduceIngester:
                         source="experts.map_reduce.map_chunk",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break map phase of map-reduce document processing
             return {
                 "chunk_index": chunk_index,
                 "facts": parsed.get("facts", []),
@@ -309,7 +309,7 @@ class MapReduceIngester:
                         source="experts.map_reduce.reduce_document",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break map phase of map-reduce document processing
             return response.choices[0].message.content or facts_text
         except Exception as e:
             logger.warning("Reduce for %s failed: %s", doc_name, e)

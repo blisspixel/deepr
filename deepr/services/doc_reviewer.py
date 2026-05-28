@@ -105,6 +105,7 @@ class DocReviewer:
                 try:
                     validated = validate_path(file_path, base, must_exist=True)
                 except (PathTraversalError, InvalidInputError, FileNotFoundError) as sec_err:
+                    # Intent: one untrusted path during docs scan must not abort the entire batch review; continue with remaining files for partial but safe results.
                     logger.debug("Skipping untrusted path in docs scan (security): %s (%s)", file_path, sec_err)
                     continue
 
@@ -131,7 +132,7 @@ class DocReviewer:
                     }
                 )
             except Exception:
-                # Skip files we can't read (keeps previous resilient behavior)
+                # Skip unreadable file during directory scan; one bad file must not abort the entire doc review batch.
                 continue
 
         return docs

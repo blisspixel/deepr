@@ -503,7 +503,8 @@ def models(show_all: bool, target_provider: Optional[str], json_output: bool, no
     if target_provider:
         cmd += ["--provider", target_provider]
 
-    result = subprocess.run(cmd)
+    # Internal discover_models.py; CLI user-invoked, controlled arguments only.
+    result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise click.ClickException(f"Model discovery exited with status {result.returncode}")
 

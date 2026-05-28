@@ -1067,7 +1067,7 @@ def call_azure_foundry(endpoint: str, model: str, prompt: str, max_tokens: int) 
         import subprocess
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # Internal trusted Azure CLI probe for optional Foundry key discovery (only when AZURE_FOUNDRY_API_KEY not set). No user-controlled input in command list. Explicit shell=False for linter hygiene.
                 [
                     "az",
                     "cognitiveservices",
@@ -1086,11 +1086,13 @@ def call_azure_foundry(endpoint: str, model: str, prompt: str, max_tokens: int) 
                 capture_output=True,
                 text=True,
                 timeout=10,
+                shell=False,
+                check=False,
             )
             if result.returncode == 0:
                 api_key = result.stdout.strip()
         except Exception:
-            pass
+            pass  # defensive azure key probe; fall back to explicit env var error later
 
     if not api_key:
         raise ValueError("Azure Foundry API key not found. Set AZURE_FOUNDRY_API_KEY or ensure az CLI is configured.")
@@ -1787,7 +1789,7 @@ def score_news_citations(citations: list[dict]) -> float:
                 if domain:
                     domains.add(domain)
             except Exception:
-                pass
+                pass  # defensive urlparse in citation diversity scoring; malformed url never aborts benchmark
     diversity_score = min(len(domains), 5) / 5.0
 
     return 0.60 * count_score + 0.40 * diversity_score
@@ -1814,7 +1816,7 @@ def score_research_citations(citations: list[dict], text: str) -> float:
                 if domain:
                     domains.add(domain)
             except Exception:
-                pass
+                pass  # defensive urlparse in citation diversity scoring; malformed url never aborts benchmark
     diversity_score = min(len(domains), 10) / 10.0
 
     # Report length: 0-2000 words maps to 0-1
@@ -1850,7 +1852,7 @@ def score_docs_citations(citations: list[dict], text: str) -> float:
                 if domain:
                     domains.add(domain)
             except Exception:
-                pass
+                pass  # defensive urlparse in citation diversity scoring; malformed url never aborts benchmark
     diversity_score = min(len(domains), 5) / 5.0
 
     # Code examples: count fenced code blocks (```...```)

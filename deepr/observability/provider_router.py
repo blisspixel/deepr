@@ -632,9 +632,9 @@ class AutonomousProviderRouter:
             and len(scored) > 1
             and self.exploration_rate > 0
             and random.random() < self.exploration_rate
-        ):
+        ):  # Non-crypto: epsilon-greedy exploration in provider routing for discovery and load balancing. Not for secrets or tokens.
             # Explore: pick randomly from non-best options
-            explore_idx = random.randint(1, len(scored) - 1)
+            explore_idx = random.randint(1, len(scored) - 1)  # Non-crypto exploration sampling.
             logger.debug(
                 "Exploration: picked %s/%s instead of best %s/%s",
                 scored[explore_idx][1],

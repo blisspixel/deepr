@@ -417,11 +417,11 @@ async def _refresh_job_statuses(queue, jobs):
                 # If still queued/processing, leave it (no update needed)
 
             except Exception:
-                # Silently skip jobs that fail to refresh
+                # Silently skip jobs that fail to refresh (best-effort status sync)
                 pass
 
     except Exception:
-        # If provider init fails, silently skip refresh
+        # If provider init fails, silently skip refresh (best-effort status sync)
         pass
 
 
