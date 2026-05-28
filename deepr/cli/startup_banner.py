@@ -358,7 +358,7 @@ def show_startup_banner(
             if hasattr(out, "flush"):
                 out.flush()
         except Exception:
-            pass
+            pass  # final fallback for cursor restore must never crash banner rendering
         _render_static(console, version)
 
     if plan.mark_seen:

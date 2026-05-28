@@ -189,7 +189,7 @@ class CitationValidator:
                         source="experts.citation_validator.validate_claims",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break citation validation batch
 
             return validations
 

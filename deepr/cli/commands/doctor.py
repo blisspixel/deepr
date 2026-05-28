@@ -1,5 +1,6 @@
 """Diagnostics command for troubleshooting Deepr configuration."""
 
+import asyncio
 import os
 import tempfile
 from pathlib import Path
@@ -240,7 +241,7 @@ async def check_database(config) -> list[DiagnosticCheck]:
         db_path = Path(config.get("queue_db_path", "queue/research_queue.db"))
         check.details.append(f"Path: {db_path}")
 
-        if not db_path.exists():
+        if not await asyncio.to_thread(db_path.exists):
             check.message = "Database not initialized"
             check.details.append("Run 'deepr jobs list' to initialize")
         else:

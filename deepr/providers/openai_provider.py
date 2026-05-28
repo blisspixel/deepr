@@ -169,7 +169,7 @@ class OpenAIProvider(DeepResearchProvider):
                         message=f"Failed after {max_retries} retries: {e}",
                         provider="openai",
                         original_error=e,
-                    )
+                    ) from e
 
             except openai.OpenAIError as e:
                 # Non-retryable API errors (auth, invalid request, etc.)
@@ -177,7 +177,7 @@ class OpenAIProvider(DeepResearchProvider):
                     message=f"Failed to submit research: {e!s}",
                     provider="openai",
                     original_error=e,
-                )
+                ) from e
 
         # If we exhausted all retries
         raise ProviderError(message="Failed to submit research after all retries", provider="openai")
@@ -245,7 +245,7 @@ class OpenAIProvider(DeepResearchProvider):
             )
 
         except openai.OpenAIError as e:
-            raise ProviderError(message=f"Failed to get status: {e!s}", provider="openai", original_error=e)
+            raise ProviderError(message=f"Failed to get status: {e!s}", provider="openai", original_error=e) from e
 
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel OpenAI research job."""
@@ -253,7 +253,7 @@ class OpenAIProvider(DeepResearchProvider):
             await self.client.responses.cancel(job_id)
             return True
         except openai.OpenAIError as e:
-            raise ProviderError(message=f"Failed to cancel job: {e!s}", provider="openai", original_error=e)
+            raise ProviderError(message=f"Failed to cancel job: {e!s}", provider="openai", original_error=e) from e
 
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload document to OpenAI."""
@@ -266,7 +266,7 @@ class OpenAIProvider(DeepResearchProvider):
                 message=f"Failed to upload document: {e!s}",
                 provider="openai",
                 original_error=e,
-            )
+            ) from e
 
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in OpenAI."""
@@ -285,7 +285,7 @@ class OpenAIProvider(DeepResearchProvider):
                 message=f"Failed to create vector store: {e!s}",
                 provider="openai",
                 original_error=e,
-            )
+            ) from e
 
     async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Wait for OpenAI vector store ingestion."""
@@ -317,7 +317,7 @@ class OpenAIProvider(DeepResearchProvider):
                 message=f"Failed to wait for vector store: {e!s}",
                 provider="openai",
                 original_error=e,
-            )
+            ) from e
 
     async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """List all OpenAI vector stores."""
@@ -339,7 +339,7 @@ class OpenAIProvider(DeepResearchProvider):
                 message=f"Failed to list vector stores: {e!s}",
                 provider="openai",
                 original_error=e,
-            )
+            ) from e
 
     async def delete_vector_store(self, vector_store_id: str) -> bool:
         """Delete OpenAI vector store."""
@@ -351,4 +351,4 @@ class OpenAIProvider(DeepResearchProvider):
                 message=f"Failed to delete vector store: {e!s}",
                 provider="openai",
                 original_error=e,
-            )
+            ) from e

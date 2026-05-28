@@ -212,7 +212,7 @@ class OutputVerifier:
 
         # Generate output ID with random component for uniqueness
         random_suffix = secrets.token_hex(4)
-        output_id = f"out_{hashlib.md5(f'{tool_name}:{content_hash}:{now.isoformat()}:{random_suffix}'.encode()).hexdigest()[:12]}"
+        output_id = f"out_{hashlib.md5(f'{tool_name}:{content_hash}:{now.isoformat()}:{random_suffix}'.encode()).hexdigest()[:12]}"  # Non-crypto: short stable ID for VerifiedOutput chain (tamper evidence). Combined with secrets.token_hex; not for signatures or passwords.
 
         output = VerifiedOutput(
             id=output_id,

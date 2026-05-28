@@ -385,7 +385,7 @@ class BatchExecutor:
                 source="services.batch_executor._submit_task",
             )
         except Exception:
-            pass
+            pass  # cost safety bookkeeping must never block batch task submission
 
         return job.id
 

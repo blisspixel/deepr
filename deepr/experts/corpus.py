@@ -17,6 +17,7 @@ Corpus Structure:
         └── ...
 """
 
+import asyncio
 import json
 import logging
 import shutil
@@ -346,7 +347,7 @@ async def import_corpus(
                 md_lines.append(f"- [{conf}] {claim}")
             (knowledge_dir / "worldview.md").write_text("\n".join(md_lines), encoding="utf-8")
         except Exception:
-            pass  # Non-critical
+            pass  # Non-critical: markdown worldview export is best-effort; JSON is authoritative source
 
     # Copy documents to expert's documents folder
     docs_dir = store.get_documents_dir(new_expert_name)
@@ -389,17 +390,22 @@ async def import_structured_bundle(
     docs_dir = store.get_documents_dir(expert_name)
     docs_dir.mkdir(parents=True, exist_ok=True)
 
-    # Collect files to import
+    # Collect files to import (run discovery in thread to avoid blocking event loop)
     files_to_import: list[Path] = []
     bundle = Path(bundle_path)
 
-    if bundle.is_file():
-        files_to_import.append(bundle)
-    elif bundle.is_dir():
-        for ext in ("*.md", "*.json", "*.jsonl"):
-            files_to_import.extend(bundle.glob(ext))
-    else:
-        raise ValueError(f"Bundle path does not exist: {bundle_path}")
+    def _discover_files() -> list[Path]:
+        if bundle.is_file():
+            return [bundle]
+        elif bundle.is_dir():
+            found: list[Path] = []
+            for ext in ("*.md", "*.json", "*.jsonl"):
+                found.extend(bundle.glob(ext))
+            return found
+        else:
+            raise ValueError(f"Bundle path does not exist: {bundle_path}")
+
+    files_to_import = await asyncio.to_thread(_discover_files)
 
     if not files_to_import:
         raise ValueError(f"No importable files (MD/JSON/JSONL) found in {bundle_path}")

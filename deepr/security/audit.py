@@ -158,6 +158,7 @@ class AuditLog:
                     data = json.loads(line)
                     ev = AuditEvent.from_dict(data)
                 except (json.JSONDecodeError, KeyError, ValueError):
+                    # Intent: one corrupted or partial audit log line (tamper attempt or crash) must never prevent reading the rest of the append-only tamper-evident chain; partial results preserve auditability.
                     continue
 
                 if event_type and ev.event_type != event_type:

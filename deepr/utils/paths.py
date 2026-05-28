@@ -195,8 +195,8 @@ class PathHandler:
             # Check accessibility
             try:
                 normalized.stat()
-            except PermissionError:
-                raise PermissionError(f"Path not accessible: {normalized}")
+            except PermissionError as err:
+                raise PermissionError(f"Path not accessible: {normalized}") from err
 
         return normalized
 

@@ -311,7 +311,7 @@ def use(ctx, name: str, yes: bool, model: str):
 
         from subprocess import run
 
-        result = run(
+        result = run(  # Self-invocation of deepr CLI for template-driven research submit. Fully controlled args from validated template.
             ["python", "-m", "deepr.cli.main", "research", "submit", filled_prompt, "--model", use_model, "--yes"]
         )
 
