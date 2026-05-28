@@ -181,6 +181,13 @@ ignore = [
     "RUF012",  # mutable-class-default (dataclass fields use field())
 ]
 
+# S* rules are not in `select` but are used as noqa anchors throughout the
+# codebase (documented resilience swallows, non-crypto hashes for cache keys,
+# trusted-internal subprocess calls). Listing them here keeps RUF100 from
+# flagging those explanatory noqa comments as unused under default runs.
+# Run `ruff check --select S` to surface them explicitly for audit.
+external = ["S104", "S105", "S110", "S112", "S311", "S324", "S603", "S607", "S608"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["F811", "F841", "E712", "B005", "B017", "RUF006"]
 "tests/integration/**/*.py" = ["F401"]

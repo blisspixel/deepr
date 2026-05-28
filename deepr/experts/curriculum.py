@@ -492,7 +492,7 @@ class CurriculumGenerator:
                                 source="experts.curriculum.generate_curriculum",
                             )
                         except Exception:
-                            pass
+                            pass  # cost recording must never block curriculum generation step
 
                     if progress:
                         progress.complete("Done")

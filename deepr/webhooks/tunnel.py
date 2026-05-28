@@ -39,7 +39,7 @@ class NgrokTunnel:
             time.sleep(1)
 
             # Start ngrok
-            self.process = subprocess.Popen(
+            self.process = subprocess.Popen(  # ngrok_path user-supplied or discovered; tunnel is opt-in for webhook public exposure during development/testing only.
                 [self.ngrok_path, "http", str(self.port)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -66,7 +66,7 @@ class NgrokTunnel:
 
         except Exception as e:
             self.stop()
-            raise RuntimeError(f"Ngrok startup failed: {e}")
+            raise RuntimeError(f"Ngrok startup failed: {e}") from e
 
     def stop(self):
         """Stop ngrok tunnel."""
@@ -75,7 +75,7 @@ class NgrokTunnel:
                 self.process.terminate()
                 self.process.wait(timeout=5)
             except Exception:
-                pass
+                pass  # best-effort ngrok process terminate during shutdown; may already be dead
 
         self._kill_existing()
 
@@ -84,14 +84,14 @@ class NgrokTunnel:
         import os
 
         if os.name == "nt":  # Windows
-            subprocess.run(
+            subprocess.run(  # Standard Windows system utility...
                 ["taskkill", "/F", "/IM", "ngrok.exe"],
                 shell=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         else:  # Unix
-            subprocess.run(
+            subprocess.run(  # Standard Unix utility...
                 ["pkill", "ngrok"],
                 shell=False,
                 stdout=subprocess.DEVNULL,

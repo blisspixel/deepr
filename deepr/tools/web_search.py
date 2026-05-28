@@ -76,7 +76,7 @@ class WebSearchTool(Tool):
                     return await self._search_tavily(query, num_results)
                 elif backend == "duckduckgo":
                     return await self._search_duckduckgo(query, num_results)
-            except Exception:
+            except Exception:  # Intentional backend failover in multi-provider web search; one failing provider does not kill the tool call.
                 # Try next backend
                 continue
 

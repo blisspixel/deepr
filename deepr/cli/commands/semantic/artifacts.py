@@ -1,5 +1,6 @@
 """Make and agentic command groups - artifact generation and autonomous research."""
 
+import asyncio
 import os
 from typing import Optional
 
@@ -293,8 +294,13 @@ Output format: Well-structured markdown with proper headings, lists, and code bl
                 temp_md = tmp.name
 
             try:
+                # Optional external pandoc (user-installed) for PDF export. Only invoked on
+                # explicit user --format pdf request; temp_md is a controlled NamedTemporaryFile.
                 result = subprocess.run(
-                    ["pandoc", temp_md, "-o", str(output_path), "--pdf-engine=xelatex"], capture_output=True, text=True
+                    ["pandoc", temp_md, "-o", str(output_path), "--pdf-engine=xelatex"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
 
                 if result.returncode != 0:
@@ -716,7 +722,7 @@ async def _run_agentic_research(
         output_dir = f"agentic_{safe_topic}_{timestamp}"
 
     output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(output_path.mkdir, parents=True, exist_ok=True)
 
     # State file for resume capability
     state_file = output_path / "agentic_state.json"

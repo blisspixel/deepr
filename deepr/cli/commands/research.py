@@ -116,7 +116,7 @@ def submit(
                 model = resolved_model if resolved_model in ["o4-mini-deep-research", "o3-deep-research"] else model
             console.print(f"[dim]Provider router selected: {resolved_provider}/{resolved_model}[/dim]")
         except Exception:
-            pass  # Fall back to config
+            pass  # Fall back to config (router optional)
 
     resolved_provider = provider or config.get("provider", "openai")
 
@@ -339,7 +339,7 @@ def submit(
         try:
             emitter.fail_task(op, str(e))
         except Exception:
-            pass
+            pass  # secondary tracing must never mask primary submit error
         print_error(f"Error: {e}")
         raise click.Abort()
 
@@ -667,7 +667,7 @@ def wait(job_id: str, timeout: int, progress: bool, poll_interval: int):
                     error=getattr(job, "last_error", "Unknown error"),
                 )
             except Exception:
-                pass
+                pass  # secondary metrics must never mask primary failure path
             if getattr(job, "last_error", None):
                 console.print(f"Error: {job.last_error}")
             raise click.Abort()
@@ -692,7 +692,7 @@ def wait(job_id: str, timeout: int, progress: bool, poll_interval: int):
                 cost=cost,
             )
         except Exception:
-            pass  # Don't fail on metrics recording
+            pass  # Don't fail on metrics recording (secondary)
 
         console.print()
         if getattr(response, "output", None):

@@ -14,6 +14,7 @@ with confidence levels and evidence chains. Future work: temporal reasoning,
 contradiction detection, belief revision, and richer knowledge graphs.
 """
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
@@ -216,7 +217,8 @@ class KnowledgeSynthesizer:
             path = Path(doc["path"])
             if "content" in doc:
                 doc_contents.append({"filename": path.name, "content": doc["content"]})
-            elif path.exists():
+            elif await asyncio.to_thread(path.exists):
+                # Note: sync open/read here; for full non-blocking use aiofiles in future pass
                 with open(path, encoding="utf-8") as f:
                     doc_contents.append({"filename": path.name, "content": f.read()})
 
@@ -273,7 +275,7 @@ class KnowledgeSynthesizer:
                     source="experts.synthesis.synthesize_new_knowledge",
                 )
             except Exception:
-                pass
+                pass  # cost recording must never break synthesis knowledge step
 
         # Parse structured beliefs from reflection
         beliefs, gaps = await self._extract_structured_knowledge(reflection_text, doc_contents, expert_name)
@@ -443,7 +445,7 @@ Output ONLY the JSON, no other text.
                     source="experts.synthesis.extract_structured_knowledge",
                 )
             except Exception:
-                pass
+                pass  # cost recording must never break synthesis knowledge step
 
         try:
             parsed = json.loads(response.choices[0].message.content or "{}")

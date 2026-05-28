@@ -269,8 +269,8 @@ async def _get_results(job_id: str):
 
         if job.report_paths and "markdown" in job.report_paths:
             md_path = Path(job.report_paths["markdown"])
-            if md_path.exists():
-                content = md_path.read_text(encoding="utf-8")
+            if await asyncio.to_thread(md_path.exists):
+                content = await asyncio.to_thread(md_path.read_text, encoding="utf-8")
                 click.echo(content)
             else:
                 click.echo(f"Report file not found: {md_path}")
@@ -373,11 +373,11 @@ async def _refresh_job_statuses(queue, jobs):
                 # If still queued/processing, leave it (no update needed)
 
             except Exception:
-                # Silently skip jobs that fail to refresh
+                # Silently skip jobs that fail to refresh (best-effort status sync)
                 pass
 
     except Exception:
-        # If provider init fails, silently skip refresh
+        # If provider init fails, silently skip refresh (best-effort status sync)
         pass
 
 

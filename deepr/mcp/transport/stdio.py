@@ -251,6 +251,7 @@ class StdioTransport:
 
                     message = Message.from_dict(data)
                 except json.JSONDecodeError:
+                    # Intent: one malformed JSON-RPC line from MCP server must not abort the stdio transport loop; continue to next message for resilience.
                     self._stats.record_error()
                     await self._send_error(None, -32700, "Parse error")
                     continue
