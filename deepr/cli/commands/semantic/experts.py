@@ -1034,7 +1034,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
                     try:
                         existing_worldview = Worldview.load(worldview_path)
                     except Exception:
-                        pass  # Will create new worldview
+                        pass  # Will create new worldview (corrupt or missing is recoverable)
 
                 # Get all documents for synthesis
                 docs_dir = store.get_documents_dir(name)
@@ -1060,7 +1060,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
                         )
                         worldview_md_path.write_text(worldview_doc, encoding="utf-8")
                     except Exception:
-                        pass  # Non-critical: JSON worldview already saved
+                        pass  # Non-critical: JSON worldview already saved; markdown is optional view
 
                     print_success("Synthesis complete!")
                     click.echo(f"    Beliefs: {len(new_worldview.beliefs)}")

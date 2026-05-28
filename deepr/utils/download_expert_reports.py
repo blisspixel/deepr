@@ -26,9 +26,9 @@ async def download_reports(expert_name: str, output_dir: str = "expert_reports")
     print(f"Documents in vector store: {expert.total_documents}")
     print()
 
-    # Create output directory
+    # Create output directory (non-blocking)
     output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True)
+    await asyncio.to_thread(output_path.mkdir, exist_ok=True)
 
     # Initialize provider and report generator
     provider = OpenAIProvider()
@@ -61,7 +61,7 @@ async def download_reports(expert_name: str, output_dir: str = "expert_reports")
             print(f"  [ERROR] {e!s}")
 
     print()
-    print(f"Reports saved to: {output_path.absolute()}")
+    print(f"Reports saved to: {await asyncio.to_thread(output_path.absolute)}")
 
 
 if __name__ == "__main__":

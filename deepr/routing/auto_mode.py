@@ -438,7 +438,7 @@ def trigger_background_eval_if_needed(
     def _run_eval():
         try:
             script = Path(__file__).resolve().parents[1].parent / "scripts" / "benchmark_models.py"
-            result = subprocess.run(
+            result = subprocess.run(  # Internal trusted benchmark_models.py for auto registry change detection. No user-controlled input; background cost-capped eval for routing.
                 [
                     sys.executable,
                     str(script),

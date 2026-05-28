@@ -141,6 +141,7 @@ class SQLiteQueue(QueueBackend):
         ]
         for col_name, alter_sql in _migrations:
             try:
+                # col_name comes from the hardcoded trusted _migrations list above; no user input.
                 cursor.execute(f"SELECT {col_name} FROM research_queue LIMIT 1")
             except sqlite3.OperationalError:
                 cursor.execute(alter_sql)
@@ -235,7 +236,7 @@ class SQLiteQueue(QueueBackend):
             placeholders = ", ".join("?" * len(job_dict))
 
             cursor.execute(
-                f"INSERT INTO research_queue ({columns}) VALUES ({placeholders})",
+                f"INSERT INTO research_queue ({columns}) VALUES ({placeholders})",  # columns from internal _job_to_dict (fixed schema keys); values fully parameterized
                 tuple(job_dict.values()),
             )
 
@@ -387,6 +388,7 @@ class SQLiteQueue(QueueBackend):
 
             values.append(job_id)
 
+            # `updates` is built from trusted internal status flags; all values are parameterized (including job_id).
             cursor.execute(f"UPDATE research_queue SET {', '.join(updates)} WHERE id = ?", values)
 
             success = cursor.rowcount > 0

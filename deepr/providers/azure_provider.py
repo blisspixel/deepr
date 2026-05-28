@@ -155,13 +155,13 @@ class AzureProvider(DeepResearchProvider):
                     message=f"Azure failed after {max_retries} retries: {e}",
                     provider="azure",
                     original_error=e,
-                )
+                ) from e
             except OpenAIAPIError as e:
                 raise ProviderError(
                     message=f"Failed to submit research to Azure: {e!s}",
                     provider="azure",
                     original_error=e,
-                )
+                ) from e
 
         raise ProviderError(message="Failed to submit research after all retries", provider="azure")
 
@@ -228,7 +228,7 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to get status from Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e
 
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel Azure OpenAI research job."""
@@ -240,7 +240,7 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to cancel job on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e
 
     async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """Upload document to Azure OpenAI."""
@@ -253,7 +253,7 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to upload document to Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e
 
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """Create vector store in Azure OpenAI."""
@@ -272,7 +272,7 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to create vector store on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e
 
     async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Wait for Azure OpenAI vector store ingestion."""
@@ -304,7 +304,7 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to wait for vector store on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e
 
     async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """List Azure OpenAI vector stores.
@@ -329,7 +329,7 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to list vector stores on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e
 
     async def delete_vector_store(self, vector_store_id: str) -> bool:
         """Delete Azure OpenAI vector store."""
@@ -341,4 +341,4 @@ class AzureProvider(DeepResearchProvider):
                 message=f"Failed to delete vector store on Azure: {e!s}",
                 provider="azure",
                 original_error=e,
-            )
+            ) from e

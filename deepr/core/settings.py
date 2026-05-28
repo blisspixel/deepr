@@ -303,7 +303,7 @@ class WebhookSettings:
     """Settings for webhook server."""
 
     enabled: bool = True
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # Default for optional webhook tunnel listener (ngrok-backed external callbacks). Opt-in only; main web server defaults to localhost. User must firewall or disable when not needed.
     port: int = 5000
     use_ngrok: bool = True
     ngrok_path: str = "ngrok"

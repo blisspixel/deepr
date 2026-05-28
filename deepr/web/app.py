@@ -256,6 +256,7 @@ def _run_poller_loop():
             _poll_once()
         except Exception:
             logger.exception("Poller cycle error")
+            # Intent: one poller cycle failure (transient provider issue, etc.) must not kill the background status poller; continue for all other jobs.
         time.sleep(_POLL_INTERVAL)
 
 
@@ -272,6 +273,7 @@ def _poll_once():
                 _check_job(loop, job)
             except Exception:
                 logger.exception("Poller: error checking job %s", job.id)
+                # Intent: one job status check failure must not abort the entire poll cycle; continue with remaining jobs.
     finally:
         loop.close()
 
@@ -804,6 +806,7 @@ def bulk_cancel():
                     failed.append(job_id)
             except Exception:
                 failed.append(job_id)
+                # Intent: one job cancel failure in a bulk operation must not abort the entire request; record it and continue with the rest.
 
         return jsonify({"cancelled": cancelled, "failed": failed, "count": len(cancelled)})
 
@@ -2895,12 +2898,13 @@ def estimate_benchmark():
             if cached and (time.monotonic() - cached[0]) < _BENCHMARK_ESTIMATE_TTL:
                 return jsonify({**cached[1], "cached": True})
 
-            result = subprocess.run(
+            result = subprocess.run(  # Internal trusted benchmark script (scripts/benchmark_models.py). No user-controlled input; same pattern as scripts/eval.py and deepr/providers.py.
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=15,
                 cwd=str(Path(__file__).resolve().parent.parent.parent),
+                check=False,
             )
 
             estimated_cost = 0.0
@@ -2978,7 +2982,7 @@ def start_benchmark():
             output_lines: deque = deque(maxlen=200)
             started_at = datetime.now(timezone.utc).isoformat()
 
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # Internal trusted benchmark script (scripts/benchmark_models.py) for long-running jobs. No user-controlled input.
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

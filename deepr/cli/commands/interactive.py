@@ -152,7 +152,7 @@ def _get_home_status() -> tuple[str, str, str]:
         provider = (settings.default_provider or "").strip() or "auto"
         provider_label = f"provider: {provider}"
     except Exception:
-        pass
+        pass  # best-effort status enrichment for menu; non-fatal if settings unavailable
 
     try:
         from deepr.queue import JobStatus, SQLiteQueue
@@ -166,7 +166,7 @@ def _get_home_status() -> tuple[str, str, str]:
         total_spent = sum(j.cost or 0 for j in jobs)
         budget_label = f"spent: ${total_spent:.2f}"
     except Exception:
-        pass
+        pass  # best-effort queue/budget enrichment for menu; non-fatal on any queue error
 
     return provider_label, budget_label, queue_label
 
@@ -590,7 +590,7 @@ def _costs_menu():
         if total_cost > 0:
             console.print(f"[dim]Total spent (recent):[/dim] [yellow]${total_cost:.2f}[/yellow]")
     except Exception:
-        pass
+        pass  # best-effort cost summary for help text; non-fatal if queue unavailable
 
 
 def _config_menu():

@@ -277,7 +277,7 @@ class MCPClient:
             try:
                 await self._stderr_task
             except (asyncio.CancelledError, Exception):
-                pass
+                pass  # task cancel during MCP client close is expected in shutdown
         self._stderr_task = None
 
         if self._process and self._process.returncode is None:
@@ -316,6 +316,7 @@ class MCPClient:
                 try:
                     line = await asyncio.wait_for(self._process.stderr.readline(), timeout=1.0)
                 except asyncio.TimeoutError:
+                    # Intent: expected idle timeout in stderr drain poll loop; continue polling without logging noise (normal for long-lived MCP sessions).
                     continue
                 except (AttributeError, TypeError):
                     # Mock stderr or stream torn down — stop draining.
