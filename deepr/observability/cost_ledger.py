@@ -193,6 +193,7 @@ class CostLedger:
                     data = json.loads(line)
                     event = CostLedgerEvent.from_dict(data)
                 except (json.JSONDecodeError, TypeError, ValueError):
+                    # Intent: one corrupted cost ledger line must not prevent loading the rest of the billing history; partial results still allow usage queries and caps.
                     continue
 
                 if source and event.source != source:

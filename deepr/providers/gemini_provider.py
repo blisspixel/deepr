@@ -360,7 +360,7 @@ class GeminiProvider(DeepResearchProvider):
                         message=f"Failed to start deep research after {max_retries} attempts: {e}",
                         provider="gemini",
                         original_error=e,
-                    )
+                    ) from e
 
         raise ProviderError(message="Failed to start deep research after all retries", provider="gemini")
 
@@ -896,7 +896,7 @@ class GeminiProvider(DeepResearchProvider):
             return file_obj.name
 
         except (OSError, GenaiAPIError) as e:
-            raise ProviderError(message=f"Failed to upload document: {e!s}", provider="gemini", original_error=e)
+            raise ProviderError(message=f"Failed to upload document: {e!s}", provider="gemini", original_error=e) from e
 
     async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """

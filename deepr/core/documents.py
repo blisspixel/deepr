@@ -1,5 +1,6 @@
 """Document management and vector store operations."""
 
+import asyncio
 from pathlib import Path
 
 from ..providers.base import DeepResearchProvider, VectorStore
@@ -28,8 +29,8 @@ class DocumentManager:
         for path_str in file_paths:
             path = Path(path_str)
 
-            # Validate file exists
-            if not path.exists():
+            # Validate file exists (non-blocking for async context)
+            if not await asyncio.to_thread(path.exists):
                 raise FileNotFoundError(f"Document not found: {path}")
 
             # Upload to provider

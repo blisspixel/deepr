@@ -137,6 +137,7 @@ class RoutingDecisionLog:
                     data = json.loads(line)
                     event = RoutingDecisionEvent.from_dict(data)
                 except (json.JSONDecodeError, KeyError):
+                    # Intent: one corrupted routing decision log line must not prevent loading the rest of the decision history; partial results still allow drift/anomaly detection.
                     continue
 
                 if start and event.timestamp < start:

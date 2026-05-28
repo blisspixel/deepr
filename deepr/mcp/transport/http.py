@@ -520,7 +520,7 @@ class HttpClient:
             try:
                 await self._stream_task
             except (asyncio.CancelledError, Exception):
-                pass
+                pass  # stream task cancel during HTTP MCP reconnect is expected
 
         url = f"{self._base_url}/stream"
         if subscriber_id:

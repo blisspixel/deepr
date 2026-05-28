@@ -234,7 +234,7 @@ class MultiPassPipeline:
                         source="experts.multi_pass.pass_extract",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break multi-pass research step
 
         # Structure the output
         return self.chainer.structure_phase_output(raw_output=raw_output, phase=1)
@@ -317,7 +317,7 @@ class MultiPassPipeline:
                     source="experts.multi_pass.pass_cross_reference",
                 )
             except Exception:
-                pass
+                pass  # cost recording must never break multi-pass research step
 
         try:
             text = response.choices[0].message.content or "{}"
@@ -432,7 +432,7 @@ class MultiPassPipeline:
                     source="experts.multi_pass.pass_synthesize",
                 )
             except Exception:
-                pass
+                pass  # cost recording must never break multi-pass research step
 
         try:
             text = response.choices[0].message.content or "{}"

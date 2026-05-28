@@ -153,7 +153,7 @@ class AgentOrchestrator:
                         )
                     except Exception:
                         # Bookkeeping must never block the result.
-                        pass  # intentional: cost ledger failure is non-fatal to orchestration
+                        logger.debug("Cost ledger record failed (non-fatal to orchestration)")
 
         # --- Phase 3: Synthesis ---
         synth_input = f"Query: {query}\n\nResults:\n" + "\n---\n".join(worker_outputs)

@@ -259,7 +259,7 @@ def register_socketio_events(socketio):
                 try:
                     loop.close()
                 except Exception:
-                    pass
+                    pass  # best-effort event loop cleanup in chat thread; daemon thread teardown
 
         thread = threading.Thread(target=_run_chat, daemon=True)
         thread.start()
@@ -373,6 +373,7 @@ def emit_job_created(socketio, job):
         logger.info("Emitted job_created for %s", job.id)
     except Exception:
         logger.exception("Failed to emit job_created for %s", job.id)
+        # Intent: best-effort event emission; one websocket delivery failure must not break job state tracking or the calling code path.
 
 
 def emit_job_updated(socketio, job):
@@ -384,6 +385,7 @@ def emit_job_updated(socketio, job):
         logger.info("Emitted job_updated for %s", job.id)
     except Exception:
         logger.exception("Failed to emit job_updated for %s", job.id)
+        # Intent: best-effort event emission; one websocket delivery failure must not break job state tracking or the calling code path.
 
 
 def emit_job_completed(socketio, job):
@@ -395,6 +397,7 @@ def emit_job_completed(socketio, job):
         logger.info("Emitted job_completed for %s", job.id)
     except Exception:
         logger.exception("Failed to emit job_completed for %s", job.id)
+        # Intent: best-effort event emission; one websocket delivery failure must not break job state tracking or the calling code path.
 
 
 def emit_job_failed(socketio, job, error):
@@ -407,6 +410,7 @@ def emit_job_failed(socketio, job, error):
         logger.info("Emitted job_failed for %s", job.id)
     except Exception:
         logger.exception("Failed to emit job_failed for %s", job.id)
+        # Intent: best-effort event emission; one websocket delivery failure must not break job state tracking or the calling code path.
 
 
 def emit_cost_warning(socketio, warning):
@@ -416,6 +420,7 @@ def emit_cost_warning(socketio, warning):
         logger.warning("Emitted cost_warning: %s", warning)
     except Exception:
         logger.exception("Failed to emit cost_warning")
+        # Intent: best-effort event emission; one websocket delivery failure must not break cost alerting for the user.
 
 
 def emit_cost_exceeded(socketio, exceeded):
@@ -425,3 +430,4 @@ def emit_cost_exceeded(socketio, exceeded):
         logger.error("Emitted cost_exceeded: %s", exceeded)
     except Exception:
         logger.exception("Failed to emit cost_exceeded")
+        # Intent: best-effort event emission; one websocket delivery failure must not break cost alerting for the user.

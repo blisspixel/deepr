@@ -51,7 +51,8 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
         cmd.append("--save")
 
     click.echo(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
+    # Internal benchmark_models.py; CLI user-invoked, no untrusted input in command construction.
+    result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise click.ClickException(f"Benchmark exited with status {result.returncode}")
 
@@ -137,6 +138,7 @@ def eval_all(
         cmd.append("--save")
 
     click.echo(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
+    # Internal benchmark_models.py; CLI user-invoked, no untrusted input in command construction.
+    result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise click.ClickException(f"Benchmark exited with status {result.returncode}")

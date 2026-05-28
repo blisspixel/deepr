@@ -145,4 +145,5 @@ try:
         CROSS = "✗"
         ARROW = "→"
 except Exception:
+    # Fallback to ASCII symbols on restricted terminals (CI, screen readers)
     pass

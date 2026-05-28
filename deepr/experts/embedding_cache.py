@@ -187,7 +187,7 @@ class EmbeddingCache:
                             source="experts.embedding_cache.add_documents",
                         )
                     except Exception:
-                        pass
+                        pass  # cost recording must never break embedding cache add_documents operation
 
                 content_hash = self._content_hash(content)
 
@@ -278,7 +278,7 @@ class EmbeddingCache:
                         source="experts.embedding_cache.search",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break embedding cache search operation
         except Exception as e:
             logger.error("Error embedding query: %s", e)
             return []

@@ -281,6 +281,7 @@ class A2AServer:
             await self._send_simple(writer, status, response)
         except Exception:
             logger.exception("Error handling A2A connection")
+            # Intent: one bad A2A connection or request must not crash the server process; log and let the connection close in finally.
         finally:
             try:
                 writer.close()

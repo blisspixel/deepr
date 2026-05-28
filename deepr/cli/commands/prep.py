@@ -780,7 +780,7 @@ def continue_research(topics: int, yes: bool):
                                     stored_path = job.report_paths["markdown"]
                                     report_filename = stored_path.split("/")[-1] if "/" in stored_path else stored_path
                             except Exception:
-                                pass
+                                pass  # best-effort job lookup for campaign report filename fallback
 
                             result_data = asyncio.run(storage.get_report(job_id, report_filename))
                             completed_results.append(

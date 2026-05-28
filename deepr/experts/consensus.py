@@ -334,7 +334,7 @@ class ConsensusEngine:
                     6,
                 )
             except Exception:
-                pass
+                pass  # pricing lookup failure falls back to flat $0.05 placeholder (non-fatal)
         return answer, citations, cost
 
     async def _query_anthropic(self, model: str, query: str) -> tuple[str, list[str], float]:

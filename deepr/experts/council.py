@@ -150,7 +150,7 @@ class ExpertCouncil:
                 try:
                     progress_callback(name, status)
                 except Exception:
-                    pass
+                    pass  # progress callback failure must not abort council synthesis or expert querying
 
         async def _query_expert(exp: dict) -> ExpertPerspective:
             name = exp["name"]

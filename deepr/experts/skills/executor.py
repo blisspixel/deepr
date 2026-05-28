@@ -179,6 +179,7 @@ class MCPClientProxy:
         except asyncio.CancelledError:
             raise
         except Exception:
+            # Intent: any unexpected error in background stderr drain for external MCP skill process; task exits cleanly, skill session continues.
             return
 
     async def _send_jsonrpc(self, method: str, params: dict) -> dict:
@@ -347,18 +348,30 @@ class SkillExecutor:
             }
 
         # Resolve the module to a .py file under the skill directory.
-        skill_root = Path(self._skill.path).resolve()
-        relative = tool.module.replace(".", "/") + ".py"
-        # Reject absolute / parent-traversal module values up front.
-        if Path(tool.module).is_absolute() or ".." in Path(tool.module).parts:
-            return {"error": "Module path escapes skill directory", "cost": 0.0}
-        candidate = (skill_root / relative).resolve()
-        try:
-            candidate.relative_to(skill_root)
-        except ValueError:
-            return {"error": "Module path escapes skill directory", "cost": 0.0}
-        if not candidate.is_file():
-            return {"error": f"Module {tool.module} not found in skill", "cost": 0.0}
+        # Run in thread to avoid blocking the event loop (ASYNC240).
+        def _validate_skill_path() -> Path | dict[str, Any]:
+            skill_root = Path(self._skill.path).resolve()
+            relative = tool.module.replace(".", "/") + ".py"
+            # Reject absolute / parent-traversal module values up front.
+            if Path(tool.module).is_absolute() or ".." in Path(tool.module).parts:
+                return {"error": "Module path escapes skill directory", "cost": 0.0}
+            candidate = (skill_root / relative).resolve()
+            try:
+                candidate.relative_to(skill_root)
+            except ValueError:
+                return {"error": "Module path escapes skill directory", "cost": 0.0}
+            # Symlink defense (mirrors doc_reviewer scan): reject before is_file to block
+            # symlink-to-outside traversal even if relative_to passes on some filesystems.
+            if candidate.is_symlink():
+                return {"error": "Module path escapes skill directory (symlink)", "cost": 0.0}
+            if candidate.suffix != ".py" or not candidate.is_file():
+                return {"error": f"Module {tool.module} not found in skill", "cost": 0.0}
+            return candidate
+
+        validation = await asyncio.to_thread(_validate_skill_path)
+        if isinstance(validation, dict):
+            return validation
+        candidate = validation
 
         # Build a unique module qualname so skills shipping a same-named
         # ``tools.py`` cannot collide in ``sys.modules`` cache.

@@ -129,7 +129,7 @@ class TaskPlanner:
                         source="experts.task_planner.decompose",
                     )
                 except Exception:
-                    pass
+                    pass  # status callback failure must never abort plan step execution or tracking
             raw = (result.choices[0].message.content or "").strip()
             # Strip markdown code fences if present
             if raw.startswith("```"):
@@ -219,7 +219,7 @@ class TaskPlanner:
                 try:
                     status_callback(step.id, step.title, "running")
                 except Exception:
-                    pass
+                    pass  # status callback failure must never abort plan step execution or tracking
 
             cost_before = self.session.cost_accumulated
             try:
@@ -250,7 +250,7 @@ class TaskPlanner:
                     try:
                         status_callback(step.id, step.title, step.status.value)
                     except Exception:
-                        pass
+                        pass  # status callback failure must never abort plan step execution or tracking
 
         # Topological execution with bounded concurrency
         from deepr.mcp.state.async_dispatcher import AsyncTaskDispatcher
@@ -355,7 +355,7 @@ class TaskPlanner:
                         source="experts.task_planner.synthesise",
                     )
                 except Exception:
-                    pass
+                    pass  # cost recording must never break task planner synthesise step
             return result.choices[0].message.content or "Synthesis unavailable."
         except Exception as e:
             return f"Synthesis failed: {e}"
