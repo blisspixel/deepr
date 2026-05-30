@@ -274,10 +274,17 @@ follow_imports = "silent"
 warn_redundant_casts = true
 warn_unused_ignores = false
 no_implicit_optional = true
-# Per-package strict islands are switched on here as each is cleaned, e.g.
-#   [[tool.mypy.overrides]]
-#   module = "deepr.core.*"
-#   disallow_untyped_defs = true
+# Per-package strict islands: switched on here as each package is cleaned, and
+# enforced as a BLOCKING `mypy --strict deepr/<pkg>` step in CI. core/ is the
+# first island (kernel: budget, cost, contracts, research orchestration).
+# providers/ and mcp/ are next.
+[[tool.mypy.overrides]]
+module = "deepr.core.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+warn_return_any = true
+no_implicit_optional = true
 
 [tool.mutmut]
 # Mutation testing (Phase E): proves the suite actually catches regressions by
