@@ -1,7 +1,7 @@
 """Content synthesis from scraped data."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ class ContentSynthesizer:
             "pages_scraped": len(scraped_data),
             "insights": insights,
             "scraped_urls": list(scraped_data.keys()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     def _combine_content(self, scraped_data: dict[str, str]) -> str:

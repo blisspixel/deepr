@@ -16,7 +16,7 @@ Usage:
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from deepr.observability.temporal_tracker import (
     EvolutionType,
@@ -87,7 +87,7 @@ class TimelineRenderer:
     def render_timeline(
         self,
         tracker: TemporalKnowledgeTracker,
-        phase_filter: Optional[int] = None,
+        phase_filter: int | None = None,
         show_hypotheses: bool = True,
         compact: bool = False,
     ) -> str:
@@ -145,7 +145,7 @@ class TimelineRenderer:
     def render_hypothesis_evolution(
         self,
         tracker: TemporalKnowledgeTracker,
-        hypothesis_id: Optional[str] = None,
+        hypothesis_id: str | None = None,
     ) -> str:
         """Render hypothesis evolution visualization.
 
@@ -248,7 +248,7 @@ class TimelineRenderer:
     def _collect_events(
         self,
         tracker: TemporalKnowledgeTracker,
-        phase_filter: Optional[int],
+        phase_filter: int | None,
     ) -> list[TimelineEntry]:
         """Collect all events into timeline entries.
 

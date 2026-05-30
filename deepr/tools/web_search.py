@@ -1,7 +1,7 @@
 """Web search tool implementation."""
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -22,8 +22,8 @@ class WebSearchTool(Tool):
     def __init__(
         self,
         backend: str = "auto",
-        brave_api_key: Optional[str] = None,
-        tavily_api_key: Optional[str] = None,
+        brave_api_key: str | None = None,
+        tavily_api_key: str | None = None,
     ):
         """
         Initialize web search tool.

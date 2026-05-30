@@ -29,14 +29,14 @@ Usage:
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class FindingType(Enum):
@@ -70,7 +70,7 @@ class TemporalFinding:
     text: str
     phase: int
     confidence: float
-    source: Optional[str]
+    source: str | None
     finding_type: FindingType
     timestamp: datetime
     related_findings: list[str] = field(default_factory=list)
@@ -133,10 +133,10 @@ class HypothesisEvolution:
 
     hypothesis_id: str
     evolution_type: EvolutionType
-    old_state: Optional[HypothesisState]
+    old_state: HypothesisState | None
     new_state: HypothesisState
     reason: str
-    triggering_finding_id: Optional[str]
+    triggering_finding_id: str | None
     timestamp: datetime
 
     def to_dict(self) -> dict[str, Any]:
@@ -185,7 +185,7 @@ class TemporalKnowledgeTracker:
         phase_summaries: Summary of each phase's contributions
     """
 
-    def __init__(self, job_id: Optional[str] = None):
+    def __init__(self, job_id: str | None = None):
         """Initialize the tracker.
 
         Args:
@@ -202,11 +202,11 @@ class TemporalKnowledgeTracker:
         text: str,
         phase: int,
         confidence: float = 0.5,
-        source: Optional[str] = None,
+        source: str | None = None,
         finding_type: FindingType = FindingType.FACT,
-        related_findings: Optional[list[str]] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        related_findings: list[str] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TemporalFinding:
         """Record a new finding.
 
@@ -252,7 +252,7 @@ class TemporalKnowledgeTracker:
         text: str,
         phase: int,
         confidence: float = 0.5,
-        supporting_findings: Optional[list[str]] = None,
+        supporting_findings: list[str] | None = None,
     ) -> Hypothesis:
         """Create a new hypothesis.
 
@@ -301,12 +301,12 @@ class TemporalKnowledgeTracker:
         hypothesis_id: str,
         new_text: str,
         reason: str,
-        confidence: Optional[float] = None,
-        evolution_type: Optional[EvolutionType] = None,
-        triggering_finding_id: Optional[str] = None,
-        add_supporting: Optional[list[str]] = None,
-        add_contradicting: Optional[list[str]] = None,
-    ) -> Optional[HypothesisEvolution]:
+        confidence: float | None = None,
+        evolution_type: EvolutionType | None = None,
+        triggering_finding_id: str | None = None,
+        add_supporting: list[str] | None = None,
+        add_contradicting: list[str] | None = None,
+    ) -> HypothesisEvolution | None:
         """Update an existing hypothesis.
 
         Args:
@@ -383,7 +383,7 @@ class TemporalKnowledgeTracker:
         self,
         hypothesis_id: str,
         reason: str,
-        contradicting_finding_id: Optional[str] = None,
+        contradicting_finding_id: str | None = None,
     ) -> HypothesisEvolution:
         """Invalidate a hypothesis.
 
@@ -407,8 +407,8 @@ class TemporalKnowledgeTracker:
 
     def get_timeline(
         self,
-        phase: Optional[int] = None,
-        finding_type: Optional[FindingType] = None,
+        phase: int | None = None,
+        finding_type: FindingType | None = None,
     ) -> list[TemporalFinding]:
         """Get findings timeline.
 

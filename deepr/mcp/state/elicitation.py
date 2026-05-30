@@ -7,11 +7,10 @@ user input when decisions require human judgment (e.g., budget overrides).
 
 import asyncio
 import uuid
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Callable, Optional
 
 
 class BudgetDecision(Enum):
@@ -46,7 +45,7 @@ class ElicitationRequest:
     timeout_seconds: int = 300
     created_at: datetime = field(default_factory=datetime.now)
     status: ElicitationStatus = ElicitationStatus.PENDING
-    response: Optional[dict] = None
+    response: dict | None = None
 
     def to_jsonrpc(self) -> dict:
         """Convert to JSON-RPC elicitation/create request."""
@@ -112,7 +111,7 @@ class ElicitationHandler:
         "required": ["decision"],
     }
 
-    def __init__(self, notification_callback: Optional[NotificationCallback] = None):
+    def __init__(self, notification_callback: NotificationCallback | None = None):
         """
         Initialize the elicitation handler.
 
@@ -166,7 +165,7 @@ class ElicitationHandler:
         return request
 
     def create_custom_elicitation(
-        self, message: str, schema: dict, request_id: Optional[str] = None, timeout_seconds: int = 300
+        self, message: str, schema: dict, request_id: str | None = None, timeout_seconds: int = 300
     ) -> ElicitationRequest:
         """
         Create a custom elicitation request.
@@ -203,9 +202,9 @@ class ElicitationHandler:
     async def wait_for_response(
         self,
         request_id: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         use_default_on_timeout: bool = True,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Wait for a response to an elicitation request.
 
@@ -235,7 +234,7 @@ class ElicitationHandler:
         try:
             await asyncio.wait_for(event.wait(), timeout=wait_timeout)
             return request.response
-        except asyncio.TimeoutError:
+        except TimeoutError:
             request.status = ElicitationStatus.TIMEOUT
             # Clean up the event to prevent memory leak
             self._response_events.pop(request_id, None)
@@ -366,11 +365,11 @@ class ElicitationHandler:
         """Get all pending elicitation requests."""
         return [r for r in self._pending.values() if r.status == ElicitationStatus.PENDING]
 
-    def get_request(self, request_id: str) -> Optional[ElicitationRequest]:
+    def get_request(self, request_id: str) -> ElicitationRequest | None:
         """Get an elicitation request by ID."""
         return self._pending.get(request_id)
 
-    def parse_budget_decision(self, response: dict) -> tuple[BudgetDecision, Optional[float]]:
+    def parse_budget_decision(self, response: dict) -> tuple[BudgetDecision, float | None]:
         """
         Parse a budget decision response.
 
@@ -424,7 +423,7 @@ class CostOptimizer:
         "grok-3-mini": {"reasoning": "basic", "speed": "fast", "depth": "low"},
     }
 
-    def suggest_cheaper_model(self, current_model: str, target_budget: float, estimated_tokens: int) -> Optional[str]:
+    def suggest_cheaper_model(self, current_model: str, target_budget: float, estimated_tokens: int) -> str | None:
         """
         Suggest a cheaper model that fits the budget.
 

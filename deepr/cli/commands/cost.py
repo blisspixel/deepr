@@ -1,5 +1,7 @@
 """Cost commands - estimate and track costs."""
 
+from datetime import UTC
+
 import click
 
 from deepr.cli.async_runner import run_async_command
@@ -72,7 +74,7 @@ def summary(period: str):
     print_section_header(f"Cost Summary - {period.capitalize()}")
 
     try:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from deepr.config import load_config
         from deepr.queue import create_queue
@@ -86,7 +88,7 @@ def summary(period: str):
         all_jobs = run_async_command(get_jobs())
 
         # Filter by time period
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if period == "today":
             cutoff = now - timedelta(days=1)
         elif period == "week":

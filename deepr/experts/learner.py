@@ -5,9 +5,9 @@ and integrating findings into expert knowledge bases.
 """
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable, Optional
+from datetime import UTC, datetime
 
 from deepr.core.documents import DocumentManager
 from deepr.core.reports import ReportGenerator
@@ -28,7 +28,7 @@ class LearningProgress:
     failed_topics: list[str]
     total_cost: float
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
     def is_complete(self) -> bool:
         """Check if all topics are completed or failed."""
@@ -89,7 +89,7 @@ class AutonomousLearner:
         curriculum: LearningCurriculum,
         budget_limit: float,
         dry_run: bool = False,
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Callable | None = None,
         resume: bool = False,
     ) -> LearningProgress:
         """Execute a learning curriculum autonomously using parallel approach.
@@ -147,9 +147,7 @@ class AutonomousLearner:
                 completed_topics=saved_progress.get("completed_topics", []),
                 failed_topics=saved_progress.get("failed_topics", []),
                 total_cost=saved_progress.get("total_cost_so_far", 0.0),
-                started_at=datetime.fromisoformat(
-                    saved_progress.get("started_at", datetime.now(timezone.utc).isoformat())
-                ),
+                started_at=datetime.fromisoformat(saved_progress.get("started_at", datetime.now(UTC).isoformat())),
             )
             # Update session with prior cost
             session.total_cost = progress.total_cost
@@ -163,7 +161,7 @@ class AutonomousLearner:
                 completed_topics=[],
                 failed_topics=[],
                 total_cost=0.0,
-                started_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
             )
 
         # Get execution order (respects dependencies)
@@ -202,7 +200,7 @@ class AutonomousLearner:
             # Simulate execution
             for phase_num, phase_topics in enumerate(phases, 1):
                 await self._simulate_phase_execution(phase_topics, progress, budget_limit, progress_callback)
-            progress.completed_at = datetime.now(timezone.utc)
+            progress.completed_at = datetime.now(UTC)
             self.cost_safety.close_session(session_id)
             return progress
 
@@ -242,7 +240,7 @@ class AutonomousLearner:
             if all_job_ids:
                 await self._poll_and_integrate_reports(expert, all_job_ids, session, progress_callback)
 
-            progress.completed_at = datetime.now(timezone.utc)
+            progress.completed_at = datetime.now(UTC)
 
             # Get final cost from session
             progress.total_cost = session.total_cost
@@ -276,7 +274,7 @@ class AutonomousLearner:
         topics: list[LearningTopic],
         progress: LearningProgress,
         session,  # SessionCostTracker
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
     ) -> list[str]:
         """Submit research jobs without waiting for completion.
 
@@ -380,7 +378,7 @@ class AutonomousLearner:
 
         progress_data = {
             "expert_name": expert.name,
-            "paused_at": datetime.now(timezone.utc).isoformat(),
+            "paused_at": datetime.now(UTC).isoformat(),
             "completed_topics": progress.completed_topics,
             "failed_topics": progress.failed_topics,
             "remaining_topics": [
@@ -402,7 +400,7 @@ class AutonomousLearner:
         with open(progress_file, "w", encoding="utf-8") as f:
             json.dump(progress_data, f, indent=2)
 
-    def load_learning_progress(self, expert_name: str) -> Optional[dict]:
+    def load_learning_progress(self, expert_name: str) -> dict | None:
         """Load saved learning progress for resume.
 
         Args:
@@ -435,7 +433,7 @@ class AutonomousLearner:
             progress_file.unlink()
 
     async def _acquire_sources(
-        self, expert: ExpertProfile, curriculum: LearningCurriculum, callback: Optional[Callable] = None
+        self, expert: ExpertProfile, curriculum: LearningCurriculum, callback: Callable | None = None
     ):
         """Phase 2a: Acquire sources - Fetch and scrape discovered sources.
 
@@ -599,7 +597,7 @@ class AutonomousLearner:
 
         # Update expert metadata
         expert.total_documents += acquired
-        expert.last_knowledge_refresh = datetime.now(timezone.utc)
+        expert.last_knowledge_refresh = datetime.now(UTC)
         store.save(expert)
 
         self._log_progress(
@@ -611,7 +609,7 @@ class AutonomousLearner:
             callback=callback,
         )
 
-    async def _scrape_source(self, source, callback: Optional[Callable] = None) -> Optional[str]:
+    async def _scrape_source(self, source, callback: Callable | None = None) -> str | None:
         """Scrape a documentation/guide/blog source.
 
         Args:
@@ -668,7 +666,7 @@ class AutonomousLearner:
             self._log_progress(f"  [ERROR] Scraping error: {e!s}", callback=callback)
             return None
 
-    async def _fetch_paper(self, source, callback: Optional[Callable] = None) -> Optional[str]:
+    async def _fetch_paper(self, source, callback: Callable | None = None) -> str | None:
         """Fetch a research paper (PDF or HTML).
 
         Args:
@@ -728,8 +726,8 @@ class AutonomousLearner:
             return None
 
     async def _submit_single_job(
-        self, expert: ExpertProfile, topic: LearningTopic, callback: Optional[Callable] = None
-    ) -> Optional[str]:
+        self, expert: ExpertProfile, topic: LearningTopic, callback: Callable | None = None
+    ) -> str | None:
         """Submit a single research job without waiting for completion.
 
         Returns job ID for later polling, or None if submission failed.
@@ -764,7 +762,7 @@ class AutonomousLearner:
         topics: list[LearningTopic],
         progress: LearningProgress,
         budget_limit: float,
-        callback: Optional[Callable],
+        callback: Callable | None,
     ):
         """Execute a single phase (topics in parallel)."""
 
@@ -835,7 +833,7 @@ class AutonomousLearner:
         expert: ExpertProfile,
         job_ids: list[str],
         session,  # SessionCostTracker
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
     ):
         """Poll for job completion and integrate reports into expert's knowledge."""
         from datetime import datetime
@@ -928,7 +926,7 @@ class AutonomousLearner:
         if completed:
             await self._integrate_reports(expert, list(completed), callback)
 
-    async def _integrate_reports(self, expert: ExpertProfile, job_ids: list[str], callback: Optional[Callable] = None):
+    async def _integrate_reports(self, expert: ExpertProfile, job_ids: list[str], callback: Callable | None = None):
         """Download reports and upload to expert's vector store."""
         import tempfile
         from pathlib import Path
@@ -986,7 +984,7 @@ class AutonomousLearner:
 
         # Update expert metadata
         expert.total_documents += uploaded
-        expert.last_knowledge_refresh = datetime.now(timezone.utc)
+        expert.last_knowledge_refresh = datetime.now(UTC)
 
         store = ExpertStore()
         store.save(expert)
@@ -1099,7 +1097,7 @@ class AutonomousLearner:
         )
 
     async def _simulate_phase_execution(
-        self, topics: list[LearningTopic], progress: LearningProgress, budget_limit: float, callback: Optional[Callable]
+        self, topics: list[LearningTopic], progress: LearningProgress, budget_limit: float, callback: Callable | None
     ):
         """Simulate phase execution for dry runs."""
 
@@ -1135,15 +1133,15 @@ class AutonomousLearner:
         expert.total_research_cost += progress.total_cost
 
         # Update knowledge cutoff to now
-        expert.last_knowledge_refresh = datetime.now(timezone.utc)
+        expert.last_knowledge_refresh = datetime.now(UTC)
         if not expert.knowledge_cutoff_date:
-            expert.knowledge_cutoff_date = datetime.now(timezone.utc)
+            expert.knowledge_cutoff_date = datetime.now(UTC)
 
         # Save updated profile
         store = ExpertStore()
         store.save(expert)
 
-    def _log_progress(self, *messages, callback: Optional[Callable] = None):
+    def _log_progress(self, *messages, callback: Callable | None = None):
         """Log progress messages with modern formatting.
 
         Uses Rich console for clean, colorful output without legacy markers.

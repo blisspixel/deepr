@@ -10,7 +10,7 @@ Usage:
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -84,7 +84,7 @@ class GapDiscoverer:
 
     def __init__(
         self,
-        client: Optional[Any] = None,
+        client: Any | None = None,
         min_cluster_size: int = 3,
         similarity_threshold: float = 0.7,
     ):
@@ -103,7 +103,7 @@ class GapDiscoverer:
         self,
         claims: list[dict],
         domain: str,
-        existing_gaps: Optional[list[dict]] = None,
+        existing_gaps: list[dict] | None = None,
     ) -> list[dict]:
         """Discover knowledge gaps via claim clustering.
 
@@ -153,7 +153,7 @@ class GapDiscoverer:
 
         return new_gaps
 
-    async def _embed_statements(self, statements: list[str]) -> Optional[np.ndarray]:
+    async def _embed_statements(self, statements: list[str]) -> np.ndarray | None:
         """Embed claim statements using text-embedding-3-small.
 
         Args:

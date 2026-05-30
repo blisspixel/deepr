@@ -25,13 +25,13 @@ Usage:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 from collections import defaultdict
@@ -135,7 +135,7 @@ class QualityMetrics:
 
     DEFAULT_WEIGHTS = {"citation_accuracy": 0.3, "answer_relevance": 0.4, "confidence_calibration": 0.3}
 
-    def __init__(self, weights: Optional[dict[str, float]] = None):
+    def __init__(self, weights: dict[str, float] | None = None):
         """Initialize quality metrics.
 
         Args:
@@ -157,7 +157,7 @@ class QualityMetrics:
         expected_citation_count: int,
         confidence: float,
         is_correct: bool,
-        relevant_citations: Optional[list[str]] = None,
+        relevant_citations: list[str] | None = None,
     ) -> EvaluationResult:
         """Evaluate a single response.
 
@@ -217,7 +217,7 @@ class QualityMetrics:
         return result
 
     def _calculate_citation_metrics(
-        self, actual_citations: list[str], expected_count: int, relevant_citations: Optional[list[str]] = None
+        self, actual_citations: list[str], expected_count: int, relevant_citations: list[str] | None = None
     ) -> tuple[float, float, float]:
         """Calculate citation precision, recall, and F1.
 

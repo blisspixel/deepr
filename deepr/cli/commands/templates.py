@@ -1,5 +1,7 @@
 """Templates commands - save and reuse research prompts."""
 
+from datetime import UTC
+
 import click
 
 from deepr.cli.colors import console, print_error, print_section_header, print_success, print_warning
@@ -28,7 +30,7 @@ def save(name: str, prompt: str, model: str, description: str):
 
     try:
         import json
-        from datetime import datetime, timezone
+        from datetime import datetime
         from pathlib import Path
 
         # Create templates directory
@@ -41,7 +43,7 @@ def save(name: str, prompt: str, model: str, description: str):
             "prompt": prompt,
             "model": model,
             "description": description,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "usage_count": 0,
         }
 

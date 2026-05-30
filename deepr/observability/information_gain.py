@@ -23,13 +23,13 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -106,7 +106,7 @@ class InformationGainTracker:
         self,
         phase: int,
         findings: list[str],
-        prior_context: Optional[dict[str, Any]] = None,
+        prior_context: dict[str, Any] | None = None,
     ) -> InformationGainMetrics:
         """Record findings from a phase and calculate information gain.
 

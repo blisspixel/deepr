@@ -18,9 +18,9 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Claim, Gap
@@ -78,11 +78,11 @@ class Belief:
         if "formed_at" in data:
             data["formed_at"] = datetime.fromisoformat(data["formed_at"])
         else:
-            data["formed_at"] = datetime.now(timezone.utc)
+            data["formed_at"] = datetime.now(UTC)
         if "last_updated" in data:
             data["last_updated"] = datetime.fromisoformat(data["last_updated"])
         else:
-            data["last_updated"] = datetime.now(timezone.utc)
+            data["last_updated"] = datetime.now(UTC)
         return cls(**data)
 
 
@@ -124,7 +124,7 @@ class KnowledgeGap:
         if "identified_at" in data:
             data["identified_at"] = datetime.fromisoformat(data["identified_at"])
         else:
-            data["identified_at"] = datetime.now(timezone.utc)
+            data["identified_at"] = datetime.now(UTC)
         return cls(**data)
 
 
@@ -142,7 +142,7 @@ class Worldview:
     domain: str
     beliefs: list[Belief] = field(default_factory=list)
     knowledge_gaps: list[KnowledgeGap] = field(default_factory=list)
-    last_synthesis: Optional[datetime] = None
+    last_synthesis: datetime | None = None
     synthesis_count: int = 0
 
     def to_dict(self) -> dict:
@@ -198,7 +198,7 @@ class KnowledgeSynthesizer:
         expert_name: str,
         domain: str,
         new_documents: list[dict[str, str]],
-        existing_worldview: Optional[Worldview] = None,
+        existing_worldview: Worldview | None = None,
     ) -> dict[str, Any]:
         """Expert actively processes new knowledge and updates worldview.
 
@@ -289,7 +289,7 @@ class KnowledgeSynthesizer:
                 domain=domain,
                 beliefs=beliefs,
                 knowledge_gaps=gaps,
-                last_synthesis=datetime.now(timezone.utc),
+                last_synthesis=datetime.now(UTC),
                 synthesis_count=1,
             )
 
@@ -303,7 +303,7 @@ class KnowledgeSynthesizer:
         }
 
     def _build_synthesis_prompt(
-        self, expert_name: str, domain: str, documents: list[dict], existing_worldview: Optional[Worldview]
+        self, expert_name: str, domain: str, documents: list[dict], existing_worldview: Worldview | None
     ) -> str:
         """Build prompt for knowledge synthesis."""
 
@@ -459,8 +459,8 @@ Output ONLY the JSON, no other text.
                         statement=b["statement"],
                         confidence=b["confidence"],
                         evidence=b.get("evidence", [doc["filename"] for doc in documents]),
-                        formed_at=datetime.now(timezone.utc),
-                        last_updated=datetime.now(timezone.utc),
+                        formed_at=datetime.now(UTC),
+                        last_updated=datetime.now(UTC),
                     )
                 )
 
@@ -472,7 +472,7 @@ Output ONLY the JSON, no other text.
                         topic=g["topic"],
                         questions=g["questions"],
                         priority=g.get("priority", 3),
-                        identified_at=datetime.now(timezone.utc),
+                        identified_at=datetime.now(UTC),
                     )
                 )
 
@@ -497,7 +497,7 @@ Output ONLY the JSON, no other text.
                 old_belief.statement = new_belief.statement
                 old_belief.confidence = new_belief.confidence
                 old_belief.evidence.extend(new_belief.evidence)
-                old_belief.last_updated = datetime.now(timezone.utc)
+                old_belief.last_updated = datetime.now(UTC)
             else:
                 # Add new belief
                 existing.beliefs.append(new_belief)
@@ -506,7 +506,7 @@ Output ONLY the JSON, no other text.
         existing.knowledge_gaps.extend(new_gaps)
 
         # Update metadata
-        existing.last_synthesis = datetime.now(timezone.utc)
+        existing.last_synthesis = datetime.now(UTC)
         existing.synthesis_count += 1
 
         return existing

@@ -9,7 +9,7 @@ Feature: mcp-client-agent-interop
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -48,14 +48,14 @@ class RefreshPolicy:
         if self.last_refreshed is None:
             return True
 
-        current = now or datetime.now(timezone.utc)
+        current = now or datetime.now(UTC)
 
         # Ensure both datetimes are timezone-aware for comparison
         last = self.last_refreshed
         if last.tzinfo is None:
-            last = last.replace(tzinfo=timezone.utc)
+            last = last.replace(tzinfo=UTC)
         if current.tzinfo is None:
-            current = current.replace(tzinfo=timezone.utc)
+            current = current.replace(tzinfo=UTC)
 
         age_days = (current - last).days
         return age_days > self.max_age_days

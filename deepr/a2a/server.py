@@ -230,7 +230,7 @@ class A2AServer:
             # the loop forever sending headers one byte at a time.
             try:
                 request_line = await asyncio.wait_for(reader.readline(), timeout=10.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return
             if not request_line:
                 return
@@ -247,7 +247,7 @@ class A2AServer:
             while True:
                 try:
                     line = await asyncio.wait_for(reader.readline(), timeout=10.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     return
                 if line in (b"\r\n", b"\n", b""):
                     break
@@ -273,7 +273,7 @@ class A2AServer:
             if content_length > 0:
                 try:
                     body_bytes = await asyncio.wait_for(reader.readexactly(content_length), timeout=30.0)
-                except (asyncio.TimeoutError, asyncio.IncompleteReadError):
+                except (TimeoutError, asyncio.IncompleteReadError):
                     return
                 body = body_bytes.decode(errors="replace")
 

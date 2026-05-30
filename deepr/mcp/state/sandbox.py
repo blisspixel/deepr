@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 
 class SandboxStatus(Enum):
@@ -56,8 +55,8 @@ class SandboxState:
     tokens_used: int = 0
     tool_calls: list[dict] = field(default_factory=list)
     artifacts: list[str] = field(default_factory=list)
-    error: Optional[str] = None
-    completed_at: Optional[datetime] = None
+    error: str | None = None
+    completed_at: datetime | None = None
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
@@ -77,11 +76,11 @@ class SandboxResult:
     """Result extracted from a completed sandbox."""
 
     sandbox_id: str
-    report: Optional[str] = None
+    report: str | None = None
     artifacts: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
     success: bool = True
-    error: Optional[str] = None
+    error: str | None = None
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
@@ -111,7 +110,7 @@ class PathValidator:
         """
         self._root = sandbox_root.resolve()
 
-    def validate(self, sandbox_dir: Path, requested_path: str) -> Optional[Path]:
+    def validate(self, sandbox_dir: Path, requested_path: str) -> Path | None:
         """
         Validate and resolve a path within sandbox boundaries.
 
@@ -219,7 +218,7 @@ class SandboxManager:
         self,
         job_id: str,
         max_tokens: int = 100_000,
-        allowed_tools: Optional[list[str]] = None,
+        allowed_tools: list[str] | None = None,
         timeout_seconds: int = 600,
     ) -> SandboxConfig:
         """
@@ -266,11 +265,11 @@ class SandboxManager:
 
         return config
 
-    def get_sandbox(self, sandbox_id: str) -> Optional[SandboxState]:
+    def get_sandbox(self, sandbox_id: str) -> SandboxState | None:
         """Get sandbox state by ID."""
         return self._sandboxes.get(sandbox_id)
 
-    def validate_path(self, sandbox_id: str, path: str) -> Optional[Path]:
+    def validate_path(self, sandbox_id: str, path: str) -> Path | None:
         """
         Validate a path within a sandbox.
 
@@ -337,7 +336,7 @@ class SandboxManager:
 
         return True
 
-    def write_artifact(self, sandbox_id: str, filename: str, content: str) -> Optional[Path]:
+    def write_artifact(self, sandbox_id: str, filename: str, content: str) -> Path | None:
         """
         Write an artifact to the sandbox.
 
@@ -365,7 +364,7 @@ class SandboxManager:
         except OSError:
             return None
 
-    def write_report(self, sandbox_id: str, content: str) -> Optional[Path]:
+    def write_report(self, sandbox_id: str, content: str) -> Path | None:
         """
         Write the final report to the sandbox.
 
@@ -428,7 +427,7 @@ class SandboxManager:
 
         return True
 
-    def extract_results(self, sandbox_id: str) -> Optional[SandboxResult]:
+    def extract_results(self, sandbox_id: str) -> SandboxResult | None:
         """
         Extract results from a completed sandbox.
 
@@ -515,7 +514,7 @@ class SandboxManager:
             "total_tool_calls": total_tool_calls,
         }
 
-    def to_fork_request(self, sandbox_id: str, query: str) -> Optional[dict]:
+    def to_fork_request(self, sandbox_id: str, query: str) -> dict | None:
         """
         Generate a JSON-RPC content/fork request for a sandbox.
 

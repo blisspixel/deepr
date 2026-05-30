@@ -18,18 +18,18 @@ Usage:
 
 import asyncio
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ElicitationTarget(Enum):
@@ -89,7 +89,7 @@ class ElicitationResponse:
 
 
 # Type for elicitation handler
-ElicitationHandler = Callable[[ElicitationRequest], Awaitable[Optional[dict[str, Any]]]]
+ElicitationHandler = Callable[[ElicitationRequest], Awaitable[dict[str, Any] | None]]
 
 
 class ElicitationRouter:
@@ -196,7 +196,7 @@ class ElicitationRouter:
                 target=target,
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Timeout, use default response
             return ElicitationResponse(
                 request_id=request.id,
@@ -326,7 +326,7 @@ def create_cli_handler(
         ElicitationHandler function
     """
 
-    async def handler(request: ElicitationRequest) -> Optional[dict[str, Any]]:
+    async def handler(request: ElicitationRequest) -> dict[str, Any] | None:
         # Display message
         logger.info("%s", request.message)
 

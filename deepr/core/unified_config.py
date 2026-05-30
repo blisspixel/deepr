@@ -19,7 +19,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +109,7 @@ class UnifiedConfig:
     _overrides: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def load(
-        cls, config_path: Optional[Path] = None, cli_overrides: Optional[dict[str, Any]] = None
-    ) -> "UnifiedConfig":
+    def load(cls, config_path: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> "UnifiedConfig":
         """Load configuration from all sources.
 
         Args:
@@ -197,7 +195,7 @@ class UnifiedConfig:
 
         return config
 
-    def _apply_file(self, config_path: Optional[Path] = None):
+    def _apply_file(self, config_path: Path | None = None):
         """Apply configuration from file.
 
         Args:
@@ -344,7 +342,7 @@ class UnifiedConfig:
                         value = int(value)
                 container[field_name] = value
 
-    def _find_config_file(self) -> Optional[Path]:
+    def _find_config_file(self) -> Path | None:
         """Find configuration file.
 
         Returns:
@@ -396,7 +394,7 @@ class UnifiedConfig:
 
         return current
 
-    def get_provider_config(self, provider: str) -> Optional[ProviderConfig]:
+    def get_provider_config(self, provider: str) -> ProviderConfig | None:
         """Get configuration for a provider.
 
         Args:

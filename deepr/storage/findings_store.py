@@ -31,14 +31,14 @@ import re
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Default database path
@@ -54,7 +54,7 @@ class StoredFinding:
     phase: int
     text: str
     confidence: float
-    source: Optional[str]
+    source: str | None
     finding_type: str
     timestamp: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -112,7 +112,7 @@ class FindingsStore:
         db_path: Path to SQLite database
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """Initialize the findings store.
 
         Args:
@@ -185,9 +185,9 @@ class FindingsStore:
         job_id: str,
         phase: int,
         text: str,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         confidence: float = 0.5,
-        source: Optional[str] = None,
+        source: str | None = None,
         finding_type: str = "fact",
     ) -> StoredFinding:
         """Store a finding in persistent storage.
@@ -270,7 +270,7 @@ class FindingsStore:
         job_id: str,
         query: str,
         top_k: int = 10,
-        phase: Optional[int] = None,
+        phase: int | None = None,
         min_confidence: float = 0.0,
     ) -> list[StoredFinding]:
         """Retrieve findings relevant to a query.
@@ -399,7 +399,7 @@ class FindingsStore:
 
         return cursor.rowcount
 
-    async def get_stats(self, job_id: Optional[str] = None) -> dict[str, Any]:
+    async def get_stats(self, job_id: str | None = None) -> dict[str, Any]:
         """Get storage statistics.
 
         Args:
@@ -434,7 +434,7 @@ class FindingsStore:
         self,
         job_id: str,
         query_tokens: list[str],
-        phase: Optional[int],
+        phase: int | None,
     ) -> set:
         """Get candidate finding IDs for a query.
 
@@ -501,7 +501,7 @@ class FindingsStore:
 
         return score
 
-    async def _get_finding(self, finding_id: str) -> Optional[StoredFinding]:
+    async def _get_finding(self, finding_id: str) -> StoredFinding | None:
         """Get a finding by ID.
 
         Args:

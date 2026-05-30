@@ -1,6 +1,6 @@
 """Team commands - dynamic dream team research."""
 
-from typing import Optional
+from datetime import UTC
 
 import click
 
@@ -9,7 +9,7 @@ from deepr.cli.colors import console, print_section_header, print_success
 
 
 async def run_dream_team(
-    question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: Optional[str] = None
+    question: str, model: str = "o4-mini-deep-research", perspectives: int = 6, provider: str | None = None
 ):
     """
     Execute dream team research (async wrapper for new CLI).
@@ -24,7 +24,7 @@ async def run_dream_team(
     """
     import os
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from deepr.config import load_config
     from deepr.providers import create_provider
@@ -103,8 +103,8 @@ Provide your analysis from this perspective."""
             model=model,
             provider=provider,
             status=JobStatus.PROCESSING,
-            submitted_at=datetime.now(timezone.utc),
-            started_at=datetime.now(timezone.utc),
+            submitted_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
             enable_web_search=True,
             metadata={"team_role": member["role"], "question": question},
         )
@@ -228,9 +228,9 @@ def team():
 def analyze(
     question: str,
     team_size: int,
-    context: Optional[str],
-    company: Optional[str],
-    perspective: Optional[str],
+    context: str | None,
+    company: str | None,
+    perspective: str | None,
     adversarial: bool,
     model: str,
     yes: bool,
@@ -267,7 +267,7 @@ def analyze(
 
     try:
         import json
-        from datetime import datetime, timezone
+        from datetime import datetime
         from pathlib import Path
 
         from deepr.services.batch_executor import BatchExecutor
@@ -341,7 +341,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
             "context": context,
             "team": team,
             "tasks": tasks,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "status": "ready",
         }
 
@@ -361,7 +361,7 @@ Provide analysis and insights from your unique perspective. Don't try to cover e
 
         async def run_research():
             results = await executor.execute_batch(
-                tasks=tasks, campaign_id=f"team-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}", storage=storage
+                tasks=tasks, campaign_id=f"team-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}", storage=storage
             )
             return results
 

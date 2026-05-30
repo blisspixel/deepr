@@ -6,7 +6,7 @@ Get started with Deepr in 5 minutes.
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python 3.11 or higher
 - **One API key** from any supported provider (OpenAI, Gemini, Grok, Anthropic, or Azure)
 - 10-15 minutes for first research run
 

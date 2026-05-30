@@ -12,13 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
 
-      - name: Install ruff
-        run: pip install ruff==0.15.1
+      - name: Install lint tooling
+        run: uv pip install --system ruff==0.15.1 "mypy>=1.13.0"
 
       - name: Lint
         run: ruff check deepr/
@@ -38,29 +38,58 @@ jobs:
       - name: Docs consistency (counts match source)
         run: python scripts/check_docs_consistency.py
 
+      - name: Type check (mypy baseline, non-blocking)
+        # Phase E (Engineering Standards): type checking is being introduced
+        # incrementally. This runs non-blocking to record the baseline error
+        # count in the CI log; it flips to a blocking `--strict` gate
+        # package-by-package (core/, providers/, mcp/ first) as annotations
+        # land. Config lives in [tool.mypy] in pyproject.toml.
+        continue-on-error: true
+        run: mypy
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependency audit (pip-audit baseline, non-blocking)
+        # Phase E: flips to a blocking gate once known advisories are triaged
+        # and pinned out. Audits the resolved dependency set, skipping the
+        # editable project package itself.
+        continue-on-error: true
+        run: |
+          uv pip install --system -e ".[full]" "pip-audit>=2.7.0"
+          pip-audit --skip-editable
+
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # 3.9/3.10 dropped (3.9 EOL; 3.10 caused pydantic test-collection
+        # failures). 3.14 is exercised but non-blocking until every optional
+        # dependency publishes 3.14 wheels (see Phase E).
+        python-version: ["3.11", "3.12", "3.13"]
+        include:
+          - python-version: "3.14"
+            experimental: true
+    continue-on-error: ${{ matrix.experimental || false }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-
       - name: Install dependencies
-        run: pip install -e ".[dev,full]"
+        run: uv pip install --system -e ".[dev,full]"
 
       - name: Unit tests with coverage
         # Coverage threshold lives in pyproject.toml (currently 80%).

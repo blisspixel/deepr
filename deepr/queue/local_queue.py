@@ -4,9 +4,9 @@ import asyncio
 import json
 import logging
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from deepr.observability.costs import CostDashboard
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def _safe_json_loads(data: Optional[str], default: T, context: str = "") -> T:
+def _safe_json_loads(data: str | None, default: T, context: str = "") -> T:
     """Safely parse JSON with fallback to default value."""
     if not data:
         return default
@@ -40,7 +40,7 @@ class SQLiteQueue(QueueBackend):
         """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._cost_dashboard: Optional[CostDashboard] = None
+        self._cost_dashboard: CostDashboard | None = None
         self._init_db()
 
     def _get_cost_dashboard(self) -> CostDashboard:
@@ -247,11 +247,11 @@ class SQLiteQueue(QueueBackend):
         finally:
             conn.close()
 
-    async def dequeue(self, worker_id: str) -> Optional[ResearchJob]:
+    async def dequeue(self, worker_id: str) -> ResearchJob | None:
         """Get next job from queue (highest priority, oldest first)."""
         return await asyncio.to_thread(self._dequeue_sync, worker_id)
 
-    def _dequeue_sync(self, worker_id: str) -> Optional[ResearchJob]:
+    def _dequeue_sync(self, worker_id: str) -> ResearchJob | None:
         """Synchronous dequeue operation."""
         conn = sqlite3.connect(self.db_path)
         try:
@@ -283,7 +283,7 @@ class SQLiteQueue(QueueBackend):
                     attempts = attempts + 1
                 WHERE id = ? AND status = 'queued'
             """,
-                (worker_id, datetime.now(timezone.utc).isoformat(), job_id),
+                (worker_id, datetime.now(UTC).isoformat(), job_id),
             )
 
             if cursor.rowcount == 0:
@@ -303,11 +303,11 @@ class SQLiteQueue(QueueBackend):
         finally:
             conn.close()
 
-    async def get_job(self, job_id: str) -> Optional[ResearchJob]:
+    async def get_job(self, job_id: str) -> ResearchJob | None:
         """Get job by ID."""
         return await asyncio.to_thread(self._get_job_sync, job_id)
 
-    def _get_job_sync(self, job_id: str) -> Optional[ResearchJob]:
+    def _get_job_sync(self, job_id: str) -> ResearchJob | None:
         """Synchronous get job operation. Supports partial ID matching."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -352,14 +352,14 @@ class SQLiteQueue(QueueBackend):
         self,
         job_id: str,
         status: JobStatus,
-        error: Optional[str] = None,
-        provider_job_id: Optional[str] = None,
+        error: str | None = None,
+        provider_job_id: str | None = None,
     ) -> bool:
         """Update job status."""
         return await asyncio.to_thread(self._update_status_sync, job_id, status, error, provider_job_id)
 
     def _update_status_sync(
-        self, job_id: str, status: JobStatus, error: Optional[str], provider_job_id: Optional[str]
+        self, job_id: str, status: JobStatus, error: str | None, provider_job_id: str | None
     ) -> bool:
         """Synchronous status update."""
         conn = sqlite3.connect(self.db_path)
@@ -380,11 +380,11 @@ class SQLiteQueue(QueueBackend):
             if status == JobStatus.PROCESSING:
                 # Set started_at if not already set (e.g. web submit bypasses dequeue)
                 updates.append("started_at = COALESCE(started_at, ?)")
-                values.append(datetime.now(timezone.utc).isoformat())
+                values.append(datetime.now(UTC).isoformat())
 
             if status == JobStatus.COMPLETED:
                 updates.append("completed_at = ?")
-                values.append(datetime.now(timezone.utc).isoformat())
+                values.append(datetime.now(UTC).isoformat())
 
             values.append(job_id)
 
@@ -405,14 +405,14 @@ class SQLiteQueue(QueueBackend):
         self,
         job_id: str,
         report_paths: dict[str, str],
-        cost: Optional[float] = None,
-        tokens_used: Optional[int] = None,
+        cost: float | None = None,
+        tokens_used: int | None = None,
     ) -> bool:
         """Update job results."""
         return await asyncio.to_thread(self._update_results_sync, job_id, report_paths, cost, tokens_used)
 
     def _update_results_sync(
-        self, job_id: str, report_paths: dict[str, str], cost: Optional[float], tokens_used: Optional[int]
+        self, job_id: str, report_paths: dict[str, str], cost: float | None, tokens_used: int | None
     ) -> bool:
         """Synchronous results update.
 
@@ -485,8 +485,8 @@ class SQLiteQueue(QueueBackend):
 
     async def list_jobs(
         self,
-        status: Optional[JobStatus] = None,
-        tenant_id: Optional[str] = None,
+        status: JobStatus | None = None,
+        tenant_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ResearchJob]:
@@ -494,7 +494,7 @@ class SQLiteQueue(QueueBackend):
         return await asyncio.to_thread(self._list_jobs_sync, status, tenant_id, limit, offset)
 
     def _list_jobs_sync(
-        self, status: Optional[JobStatus], tenant_id: Optional[str], limit: int, offset: int
+        self, status: JobStatus | None, tenant_id: str | None, limit: int, offset: int
     ) -> list[ResearchJob]:
         """Synchronous list jobs."""
         conn = sqlite3.connect(self.db_path)
@@ -569,7 +569,7 @@ class SQLiteQueue(QueueBackend):
         try:
             cursor = conn.cursor()
 
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
             cursor.execute(
                 """

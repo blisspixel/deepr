@@ -1,7 +1,6 @@
 """Configuration for web scraping."""
 
 import os
-from typing import Optional
 
 from deepr import __version__
 
@@ -21,7 +20,7 @@ class ScrapeConfig:
         try_selenium: bool = True,
         try_pdf: bool = False,
         try_archive: bool = True,
-        user_agent: Optional[str] = None,
+        user_agent: str | None = None,
     ):
         """
         Initialize scraping configuration.

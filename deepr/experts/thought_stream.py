@@ -18,18 +18,18 @@ Usage:
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +67,9 @@ class Thought:
 
     thought_type: ThoughtType
     public_text: str
-    private_payload: Optional[dict[str, Any]] = None
-    confidence: Optional[float] = None
-    evidence_refs: Optional[list[str]] = None
+    private_payload: dict[str, Any] | None = None
+    confidence: float | None = None
+    evidence_refs: list[str] | None = None
     timestamp: datetime = field(default_factory=_utc_now)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -228,7 +228,7 @@ class ThoughtStream:
         ThoughtType.ERROR: "❌",
     }
 
-    def __init__(self, expert_name: str, verbose: bool = False, quiet: bool = False, log_dir: Optional[Path] = None):
+    def __init__(self, expert_name: str, verbose: bool = False, quiet: bool = False, log_dir: Path | None = None):
         """Initialize ThoughtStream.
 
         Args:
@@ -259,7 +259,7 @@ class ThoughtStream:
         self._callbacks: list = []  # list[Callable[[Thought], None]]
 
         # Current phase for grouping
-        self._current_phase: Optional[str] = None
+        self._current_phase: str | None = None
 
     def add_callback(self, callback) -> None:
         """Register a callback that is invoked on every emitted thought.
@@ -273,9 +273,9 @@ class ThoughtStream:
         self,
         thought_type: ThoughtType,
         public_text: str,
-        private_payload: Optional[dict[str, Any]] = None,
-        confidence: Optional[float] = None,
-        evidence_refs: Optional[list[str]] = None,
+        private_payload: dict[str, Any] | None = None,
+        confidence: float | None = None,
+        evidence_refs: list[str] | None = None,
         **metadata,
     ) -> Thought:
         """Emit a thought to both sinks.
@@ -323,7 +323,7 @@ class ThoughtStream:
 
         return thought
 
-    def _write_to_log(self, thought: Thought, original_text: Optional[str] = None):
+    def _write_to_log(self, thought: Thought, original_text: str | None = None):
         """Write thought to JSONL log file.
 
         Args:
@@ -433,8 +433,8 @@ class ThoughtStream:
         self,
         decision_text: str,
         confidence: float,
-        evidence: Optional[list[str]] = None,
-        reasoning: Optional[str] = None,
+        evidence: list[str] | None = None,
+        reasoning: str | None = None,
     ):
         """Record a decision.
 
@@ -468,7 +468,7 @@ class ThoughtStream:
             evidence_refs=[source_id],
         )
 
-    def tool_call(self, tool_name: str, args: Optional[dict[str, Any]] = None, result_summary: Optional[str] = None):
+    def tool_call(self, tool_name: str, args: dict[str, Any] | None = None, result_summary: str | None = None):
         """Record a tool call.
 
         Args:
@@ -484,7 +484,7 @@ class ThoughtStream:
             ThoughtType.TOOL_CALL, public, private_payload={"tool": tool_name, "args": args, "result": result_summary}
         )
 
-    def error(self, message: str, details: Optional[dict[str, Any]] = None):
+    def error(self, message: str, details: dict[str, Any] | None = None):
         """Record an error.
 
         Args:
@@ -499,8 +499,8 @@ class ThoughtStream:
         title: str,
         rationale: str,
         confidence: float = 0.0,
-        alternatives: Optional[list[str]] = None,
-        evidence_refs: Optional[list[str]] = None,
+        alternatives: list[str] | None = None,
+        evidence_refs: list[str] | None = None,
         cost_impact: float = 0.0,
         **context,
     ) -> None:

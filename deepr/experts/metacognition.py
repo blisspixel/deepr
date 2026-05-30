@@ -6,9 +6,9 @@ Tracks what the expert knows vs doesn't know, confidence levels, and learning pa
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from deepr.core.contracts import Gap
@@ -24,9 +24,9 @@ class KnowledgeGap:
     first_encountered: datetime
     times_asked: int
     research_triggered: bool
-    research_date: Optional[datetime] = None
+    research_date: datetime | None = None
     confidence_before: float = 0.0
-    confidence_after: Optional[float] = None
+    confidence_after: float | None = None
 
     def to_gap(self) -> "Gap":
         """Convert to canonical Gap type.
@@ -122,7 +122,7 @@ class MetaCognitionTracker:
 
             data = {
                 "expert_name": self.expert_name,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(UTC).isoformat(),
                 "knowledge_gaps": {
                     topic: {
                         "topic": gap.topic,
@@ -165,7 +165,7 @@ class MetaCognitionTracker:
         Returns:
             The KnowledgeGap object
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if topic in self.knowledge_gaps:
             gap = self.knowledge_gaps[topic]
@@ -198,11 +198,11 @@ class MetaCognitionTracker:
         if topic in self.knowledge_gaps:
             gap = self.knowledge_gaps[topic]
             gap.research_triggered = True
-            gap.research_date = datetime.now(timezone.utc)
+            gap.research_date = datetime.now(UTC)
 
         self.uncertainty_log.append(
             {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "topic": topic,
                 "action": "research_triggered",
                 "research_mode": research_mode,
@@ -219,7 +219,7 @@ class MetaCognitionTracker:
             confidence_after: Confidence level after learning (0.0 to 1.0)
             sources: List of source documents or research IDs
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Update knowledge gap
         if topic in self.knowledge_gaps:

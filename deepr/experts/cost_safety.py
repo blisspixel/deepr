@@ -11,7 +11,6 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional
 
 from deepr.observability.cost_ledger import CostLedger
 
@@ -23,7 +22,7 @@ class CostEvent:
     timestamp: float
     cost: float
     operation: str
-    job_id: Optional[str] = None
+    job_id: str | None = None
 
 
 @dataclass
@@ -31,8 +30,8 @@ class CircuitBreakerState:
     """Current state of the circuit breaker."""
 
     is_open: bool
-    reason: Optional[str]
-    opened_at: Optional[float]
+    reason: str | None
+    opened_at: float | None
     total_cost_window: float
     event_count_window: int
     cooldown_remaining: float
@@ -90,8 +89,8 @@ class CostCircuitBreaker:
         # State
         self._events: deque = deque()
         self._is_open = False
-        self._opened_at: Optional[float] = None
-        self._open_reason: Optional[str] = None
+        self._opened_at: float | None = None
+        self._open_reason: str | None = None
 
     def _prune_old_events(self) -> None:
         """Remove events outside the time window."""
@@ -146,7 +145,7 @@ class CostCircuitBreaker:
             cooldown_remaining=cooldown_remaining,
         )
 
-    def allow_request(self, estimated_cost: float = 0.0) -> tuple[bool, Optional[str]]:
+    def allow_request(self, estimated_cost: float = 0.0) -> tuple[bool, str | None]:
         """Check if a request should be allowed.
 
         Args:
@@ -181,7 +180,7 @@ class CostCircuitBreaker:
 
         return True, None
 
-    def record_cost(self, cost: float, operation: str, job_id: Optional[str] = None) -> bool:
+    def record_cost(self, cost: float, operation: str, job_id: str | None = None) -> bool:
         """Record a cost event and check if circuit should trip.
 
         Args:
@@ -250,7 +249,7 @@ class CostCircuitBreaker:
 class CostLimitExceeded(Exception):
     """Exception raised when cost limits are exceeded."""
 
-    def __init__(self, message: str, state: Optional[CircuitBreakerState] = None):
+    def __init__(self, message: str, state: CircuitBreakerState | None = None):
         super().__init__(message)
         self.state = state
 
@@ -330,7 +329,7 @@ class CostSession:
         self.alerts: list[CostAlert] = []
         self.failures: list[dict] = []
         self.is_circuit_open: bool = False
-        self._circuit_open_reason: Optional[str] = None
+        self._circuit_open_reason: str | None = None
         self.created_at: float = time.time()
 
         # Alert tracking to avoid duplicates
@@ -370,7 +369,7 @@ class CostSession:
 
         return True, "OK"
 
-    def record_operation(self, operation_type: str, cost: float, details: Optional[str] = None, **kwargs) -> None:
+    def record_operation(self, operation_type: str, cost: float, details: str | None = None, **kwargs) -> None:
         """Record a cost-incurring operation.
 
         Args:
@@ -538,7 +537,7 @@ class CostSafetyManager:
     ABSOLUTE_MAX_DAILY: float = 50.0
     ABSOLUTE_MAX_MONTHLY: float = 500.0
 
-    def __init__(self, circuit_breaker: Optional[CostCircuitBreaker] = None):
+    def __init__(self, circuit_breaker: CostCircuitBreaker | None = None):
         """Initialize cost safety manager.
 
         Args:
@@ -591,7 +590,7 @@ class CostSafetyManager:
         self._sessions[session_id] = session
         return session
 
-    def get_session(self, session_id: str) -> Optional[CostSession]:
+    def get_session(self, session_id: str) -> CostSession | None:
         """Get an existing session by ID.
 
         Args:
@@ -719,7 +718,7 @@ class CostSafetyManager:
         session_id: str,
         operation_type: str,
         actual_cost: float,
-        details: Optional[str] = None,
+        details: str | None = None,
         provider: str = "unknown",
         model: str = "",
         tokens_input: int = 0,
@@ -727,7 +726,7 @@ class CostSafetyManager:
         request_id: str = "",
         idempotency_key: str = "",
         source: str = "cost_safety.record_cost",
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
         agent_id: str = "",
         reservation_id: str = "",
     ) -> bool:
@@ -824,7 +823,7 @@ class CostSafetyManager:
             "active_sessions": len(self._sessions),
         }
 
-    def close_session(self, session_id: str) -> Optional[dict]:
+    def close_session(self, session_id: str) -> dict | None:
         """Close a cost tracking session and return its summary.
 
         Args:
@@ -863,7 +862,7 @@ class CostSafetyManager:
 
 
 # Global singleton instance
-_cost_safety_manager: Optional[CostSafetyManager] = None
+_cost_safety_manager: CostSafetyManager | None = None
 
 
 def get_cost_safety_manager() -> CostSafetyManager:

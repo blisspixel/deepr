@@ -7,7 +7,8 @@ Uses Rich for beautiful terminal UI with panels, tables, and styled prompts.
 import asyncio
 import inspect
 import shlex
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
 import click
 from rich import box
@@ -97,7 +98,7 @@ def _get_available_models() -> list[dict[str, Any]]:
     ]
 
 
-def _print_welcome(banner_override: Optional[str] = None):
+def _print_welcome(banner_override: str | None = None):
     """Print startup intro with motion-aware banner fallback."""
     show_startup_banner(console, version=__version__, override=banner_override)
 
@@ -382,7 +383,7 @@ def _research_menu():
 def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_cost: float):
     """Submit a research job to the queue."""
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from deepr.queue import JobStatus, ResearchJob, SQLiteQueue
 
@@ -412,7 +413,7 @@ def _submit_research_job(prompt: str, model: str, web_search: bool, estimated_co
         priority=3,
         enable_web_search=web_search,
         status=JobStatus.QUEUED,
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=datetime.now(UTC),
     )
 
     _resolve_maybe_awaitable(queue.enqueue(job))
@@ -611,7 +612,7 @@ def _config_menu():
         console.print("[dim]Run 'deepr doctor' for full diagnostics[/dim]")
 
 
-def _help_menu(ctx: Optional[click.Context] = None):
+def _help_menu(ctx: click.Context | None = None):
     """Help and documentation menu."""
     print_header("Help")
 
@@ -644,7 +645,7 @@ def _help_menu(ctx: Optional[click.Context] = None):
 @click.option("--banner", "banner_override", flag_value="on", default=None, help="Force-show startup banner")
 @click.option("--no-banner", "banner_override", flag_value="off", help="Skip startup banner")
 @click.pass_context
-def interactive(ctx: click.Context, banner_override: Optional[str]):
+def interactive(ctx: click.Context, banner_override: str | None):
     """
     Start interactive mode for guided research.
 

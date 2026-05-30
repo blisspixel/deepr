@@ -10,7 +10,7 @@ Usage:
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from deepr.core.contracts import Claim, Source, SourceValidation, SupportClass
 
@@ -28,7 +28,7 @@ class CitationValidator:
         model: Model to use for validation
     """
 
-    def __init__(self, client: Optional[Any] = None, model: str = "gpt-5.2"):
+    def __init__(self, client: Any | None = None, model: str = "gpt-5.2"):
         self.client = client
         self.model = model
 
@@ -206,7 +206,7 @@ class CitationValidator:
                 for claim, source, _ in pairs
             ]
 
-    def _find_source_content(self, source: Source, documents: dict[str, str]) -> Optional[str]:
+    def _find_source_content(self, source: Source, documents: dict[str, str]) -> str | None:
         """Find source content by title match.
 
         Args:

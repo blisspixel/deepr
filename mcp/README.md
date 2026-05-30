@@ -258,7 +258,7 @@ StdioServer (JSON-RPC transport)
 ## Troubleshooting
 
 **Server not starting:**
-- Verify Python 3.9+: `python --version`
+- Verify Python 3.11+: `python --version`
 - Verify Deepr installed: `pip show deepr` or `deepr --version`
 - Try absolute Python path in config
 - Check logs in your runtime (Claude Desktop: Help -> View Logs)

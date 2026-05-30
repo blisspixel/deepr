@@ -17,10 +17,11 @@ Usage:
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any
 
 from deepr.experts.thought_stream import ThoughtStream, ThoughtType
 
@@ -33,7 +34,7 @@ class HypothesisSchema:
     HYPOTHESIS_FIELDS = ["id", "text", "confidence", "reasoning"]
 
     @classmethod
-    def validate(cls, data: dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate(cls, data: dict[str, Any]) -> tuple[bool, str | None]:
         """Validate hypothesis response against schema.
 
         Args:
@@ -72,7 +73,7 @@ class HypothesisSchema:
         return True, None
 
     @classmethod
-    def repair(cls, raw_text: str) -> Optional[dict[str, Any]]:
+    def repair(cls, raw_text: str) -> dict[str, Any] | None:
         """Attempt to repair malformed JSON.
 
         Args:
@@ -120,7 +121,7 @@ class ClaimSchema:
     CLAIM_FIELDS = ["id", "text", "source"]
 
     @classmethod
-    def validate(cls, data: dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate(cls, data: dict[str, Any]) -> tuple[bool, str | None]:
         """Validate claim response against schema."""
         for field_name in cls.REQUIRED_FIELDS:
             if field_name not in data:
@@ -141,7 +142,7 @@ class ClaimSchema:
         return True, None
 
     @classmethod
-    def repair(cls, raw_text: str) -> Optional[dict[str, Any]]:
+    def repair(cls, raw_text: str) -> dict[str, Any] | None:
         """Attempt to repair malformed JSON."""
         return HypothesisSchema.repair(raw_text)  # Same repair logic
 
@@ -169,7 +170,7 @@ class Hypothesis:
     confidence: float
     evidence: list[str] = field(default_factory=list)
     is_active: bool = True
-    pruned_reason: Optional[str] = None
+    pruned_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -188,8 +189,8 @@ class Claim:
 
     id: str
     text: str
-    source_hypothesis_id: Optional[str]
-    verified: Optional[bool] = None
+    source_hypothesis_id: str | None
+    verified: bool | None = None
     verification_sources: list[str] = field(default_factory=list)
     contradicts: list[str] = field(default_factory=list)
 
@@ -232,14 +233,14 @@ class ReasoningState:
     claims: list[Claim] = field(default_factory=list)
     verified_claims: list[Claim] = field(default_factory=list)
     contradictions: list[dict[str, Any]] = field(default_factory=list)
-    synthesis: Optional[str] = None
+    synthesis: str | None = None
     confidence: float = 0.0
     trace: list[dict[str, Any]] = field(default_factory=list)
     phase: ReasoningPhase = ReasoningPhase.UNDERSTAND
     iteration: int = 0
     max_iterations: int = 10
     is_degraded: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -258,11 +259,11 @@ class ReasoningState:
             "error": self.error,
         }
 
-    def add_trace(self, phase: str, action: str, details: Optional[dict] = None):
+    def add_trace(self, phase: str, action: str, details: dict | None = None):
         """Add an entry to the reasoning trace."""
         self.trace.append(
             {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "phase": phase,
                 "action": action,
                 "details": details or {},
@@ -288,9 +289,9 @@ class ReasoningGraph:
 
     def __init__(
         self,
-        expert_profile: Optional[Any] = None,
-        thought_stream: Optional[ThoughtStream] = None,
-        llm_client: Optional[Any] = None,
+        expert_profile: Any | None = None,
+        thought_stream: ThoughtStream | None = None,
+        llm_client: Any | None = None,
     ):
         """Initialize reasoning graph.
 
@@ -314,7 +315,7 @@ class ReasoningGraph:
             ReasoningPhase.SELF_CORRECT: self._self_correct,
         }
 
-    async def reason(self, query: str, context: Optional[list[dict]] = None) -> ReasoningState:
+    async def reason(self, query: str, context: list[dict] | None = None) -> ReasoningState:
         """Run reasoning on a query.
 
         Args:
@@ -538,7 +539,7 @@ class ReasoningGraph:
 
     async def _generate_hypotheses_with_llm(
         self, query: str, context: list[dict], num_hypotheses: int, max_retries: int = 3
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Generate hypotheses using LLM with retry-repair loop.
 
         Args:
@@ -943,7 +944,7 @@ Generate exactly {num_hypotheses} hypotheses with confidence scores between 0 an
         state.phase = ReasoningPhase.COMPLETE
         return state
 
-    def _emit_thought(self, thought_type: ThoughtType, text: str, confidence: Optional[float] = None):
+    def _emit_thought(self, thought_type: ThoughtType, text: str, confidence: float | None = None):
         """Emit a thought to the thought stream.
 
         Args:

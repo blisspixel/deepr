@@ -6,7 +6,6 @@ Modern 2026 CLI design: Unicode symbols, minimal separators, clean typography.
 
 import os
 import sys
-from typing import Optional
 
 import click
 from rich.box import ASCII
@@ -172,7 +171,7 @@ def print_status(status: str, message: str):
 
 
 def print_result(
-    message: str, duration_seconds: Optional[float] = None, cost_usd: Optional[float] = None, success: bool = True
+    message: str, duration_seconds: float | None = None, cost_usd: float | None = None, success: bool = True
 ):
     """Print operation result with optional duration and cost.
 
@@ -342,7 +341,7 @@ def print_markdown(text: str):
     console.print(md)
 
 
-def print_panel(text: str, title: Optional[str] = None, style: str = "cyan"):
+def print_panel(text: str, title: str | None = None, style: str = "cyan"):
     """Print text in a panel."""
     console.print(Panel(text, title=title, border_style=style))
 
@@ -403,7 +402,7 @@ def style_command(text: str) -> str:
 
 
 # Modern section header (replaces === separators)
-def print_section_header(title: str, subtitle: Optional[str] = None):
+def print_section_header(title: str, subtitle: str | None = None):
     """Print a modern section header (replaces === separators).
 
     Args:
@@ -447,7 +446,7 @@ def print_list_item(text: str, indent: int = 0):
     console.print(f"{prefix}[dim]{bullet}[/dim] {text}")
 
 
-def print_error_with_suggestion(summary: str, details: Optional[str] = None, suggestion: Optional[str] = None):
+def print_error_with_suggestion(summary: str, details: str | None = None, suggestion: str | None = None):
     """Print formatted error message with optional details and suggestion.
 
     Args:
@@ -499,7 +498,7 @@ def _supports_hyperlinks() -> bool:
     return False
 
 
-def make_hyperlink(url: str, text: Optional[str] = None) -> str:
+def make_hyperlink(url: str, text: str | None = None) -> str:
     """Create a clickable hyperlink for supported terminals.
 
     Uses OSC 8 escape sequences for terminal hyperlinks.
@@ -521,7 +520,7 @@ def make_hyperlink(url: str, text: Optional[str] = None) -> str:
     return f"\033]8;;{url}\033\\{display_text}\033]8;;\033\\"
 
 
-def print_report_link(report_path: str, label: Optional[str] = None):
+def print_report_link(report_path: str, label: str | None = None):
     """Print a clickable link to a report file.
 
     Args:

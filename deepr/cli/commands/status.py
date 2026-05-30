@@ -1,8 +1,8 @@
 """Job status and management commands."""
 
 import json
+from datetime import UTC
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -28,7 +28,7 @@ def status(job_id: str, output_context: OutputContext):
     run_async_command(_show_status(job_id, output_context))
 
 
-async def _show_status(job_id: str, output_context: Optional[OutputContext] = None):
+async def _show_status(job_id: str, output_context: OutputContext | None = None):
     """Display job status.
 
     Args:
@@ -130,7 +130,7 @@ def get(job_id: str, output_context: OutputContext):
     run_async_command(_get_results(job_id, output_context))
 
 
-async def _get_results(job_id: str, output_context: Optional[OutputContext] = None):
+async def _get_results(job_id: str, output_context: OutputContext | None = None):
     """Display job results - checks provider if not completed locally.
 
     Args:
@@ -425,7 +425,7 @@ async def _refresh_job_statuses(queue, jobs):
         pass
 
 
-async def _list_jobs(status_filter: str, limit: int, output_context: Optional[OutputContext] = None):
+async def _list_jobs(status_filter: str, limit: int, output_context: OutputContext | None = None):
     """List jobs with automatic status refresh for stale jobs.
 
     Args:
@@ -456,9 +456,9 @@ async def _list_jobs(status_filter: str, limit: int, output_context: Optional[Ou
 
     # Refresh stale jobs (>30 minutes old and not completed/failed) - only in verbose mode
     if output_context.mode == OutputMode.VERBOSE:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+        stale_threshold = datetime.now(UTC) - timedelta(minutes=30)
         stale_jobs = [
             job
             for job in jobs
@@ -562,7 +562,7 @@ def cancel(job_id: str, output_context: OutputContext):
     run_async_command(_cancel_job(job_id, output_context))
 
 
-async def _cancel_job(job_id: str, output_context: Optional[OutputContext] = None):
+async def _cancel_job(job_id: str, output_context: OutputContext | None = None):
     """Cancel job.
 
     Args:
