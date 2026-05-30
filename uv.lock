@@ -868,7 +868,7 @@ requires-dist = [
     { name = "deepr-research", extras = ["web", "azure", "azure-foundry", "docs"], marker = "extra == 'full'" },
     { name = "flasgger", marker = "extra == 'web'", specifier = ">=0.9.7,<1.0.0" },
     { name = "flask", marker = "extra == 'web'", specifier = ">=3.0.0,<4.0.0" },
-    { name = "flask-cors", marker = "extra == 'web'", specifier = ">=4.0.0,<5.0.0" },
+    { name = "flask-cors", marker = "extra == 'web'", specifier = ">=6.0.0,<7.0.0" },
     { name = "flask-limiter", marker = "extra == 'web'", specifier = ">=3.5.0,<4.0.0" },
     { name = "flask-socketio", marker = "extra == 'web'", specifier = ">=5.3.0,<6.0.0" },
     { name = "google-genai", specifier = ">=1.0.0,<2.0.0" },
@@ -973,14 +973,15 @@ wheels = [
 
 [[package]]
 name = "flask-cors"
-version = "4.0.2"
+version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask" },
+    { name = "werkzeug" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1c/41/89ea5af8b9d647036237c528abb2fdf8bb10b23b3f750e8e2da07873b270/flask_cors-4.0.2.tar.gz", hash = "sha256:493b98e2d1e2f1a4720a7af25693ef2fe32fbafec09a2f72c59f3e475eda61d2", size = 30954, upload-time = "2024-08-30T16:32:59.844Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/74/0fc0fa68d62f21daef41017dafab19ef4b36551521260987eb3a5394c7ba/flask_cors-6.0.2.tar.gz", hash = "sha256:6e118f3698249ae33e429760db98ce032a8bf9913638d085ca0f4c5534ad2423", size = 13472, upload-time = "2025-12-12T20:31:42.861Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/60/e941089faf4f50f2e0231d7f7af69308616a37e99da3ec75df60b8809db7/Flask_Cors-4.0.2-py2.py3-none-any.whl", hash = "sha256:38364faf1a7a5d0a55bd1d2e2f83ee9e359039182f5e6a029557e1f56d92c09a", size = 14467, upload-time = "2024-08-30T16:32:58.687Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/af/72ad54402e599152de6d067324c46fe6a4f531c7c65baf7e96c63db55eaf/flask_cors-6.0.2-py3-none-any.whl", hash = "sha256:e57544d415dfd7da89a9564e1e3a9e515042df76e12130641ca6f3f2f03b699a", size = 13257, upload-time = "2025-12-12T20:31:41.3Z" },
 ]
 
 [[package]]
