@@ -90,6 +90,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skill count against ``deepr/skills/``.
 
 ### Fixed
+- **Runaway knowledge-graph edge growth (multi-GB `edges.json`).**
+  `EdgeBuilder.build_edges` created a co-occurrence edge for every pair of
+  concepts in a section (O(C^2)), and the concept extractor emits a concept for
+  every 2-5 word n-gram, so a single large section generated millions of edges;
+  with `min_pmi=0.0` nothing was pruned. One expert's `edges.json` reached
+  26 GB (51k concepts). The builder now pairs only the top
+  `max_concepts_per_section` (default 40) concepts - headings/key-phrases first
+  - and `KnowledgeGraph` enforces a hard `max_edges` safety cap (default 1M)
+  that drops further new edges with a one-time warning while still merging
+  existing ones. Re-index affected experts to rebuild a healthy graph.
 - Stale recon **integration** tests (not run by CI, which executes only
   ``tests/unit/``) updated to the shipped ``RECON_PROFILE_TEMPLATE`` tool
   names and modern ``asyncio.run`` (the deprecated ``get_event_loop`` form

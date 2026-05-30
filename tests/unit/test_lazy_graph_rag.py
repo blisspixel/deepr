@@ -370,6 +370,53 @@ class TestEdgeBuilder:
         assert builder.scope_weights["same_heading"] > builder.scope_weights["same_paragraph"]
         assert builder.scope_weights["same_paragraph"] > builder.scope_weights["same_chunk"]
 
+    def test_build_edges_caps_concepts_per_section(self):
+        """Pathological sections must not explode into O(C^2) edges (regression).
+
+        A single section holding hundreds of n-gram concepts previously produced
+        tens of thousands of co-occurrence edges; multiplied across a corpus this
+        generated multi-GB edges.json files. The builder now pairs only the top
+        `max_concepts_per_section` concepts.
+        """
+        builder = EdgeBuilder(max_concepts_per_section=10)
+        concepts = [Concept(text=f"concept number {i}", section_ids={"sec1"}, frequency=1) for i in range(200)]
+        sections = [DocumentSection(id="sec1", document_id="doc1.md", content="body text", heading="Heading")]
+
+        edges = builder.build_edges(concepts, sections, "doc1.md")
+
+        # All-pairs over the 10-concept cap is at most 10*9/2 = 45 - not the
+        # 200*199/2 = 19900 the uncapped builder would have produced.
+        assert len(edges) <= 45
+
+    def test_default_concept_cap_is_bounded(self):
+        """The default per-section concept cap is finite (the runaway-graph guard)."""
+        assert EdgeBuilder().max_concepts_per_section == 40
+
+
+class TestKnowledgeGraphEdgeCap:
+    """The hard global edge cap is a backstop against runaway edge growth."""
+
+    def test_add_edge_stops_at_cap(self, tmp_path):
+        """Once max_edges is reached, new distinct edges are dropped, not stored."""
+        graph = KnowledgeGraph(expert_name="cap_test", storage_dir=tmp_path / "graph", max_edges=5)
+        for i in range(20):
+            graph.add_edge(Edge(source_id=f"s{i}", target_id=f"t{i}", edge_type=EdgeType.CO_OCCURS, weight=1.0))
+        assert len(graph.edges) == 5
+
+    def test_existing_edges_still_merge_at_cap(self, tmp_path):
+        """At the cap, a repeat of an existing edge still merges (no data loss)."""
+        graph = KnowledgeGraph(expert_name="cap_merge", storage_dir=tmp_path / "graph", max_edges=1)
+        e = Edge(source_id="a", target_id="b", edge_type=EdgeType.CO_OCCURS, weight=1.0, document_ids={"d1"})
+        graph.add_edge(e)
+        # Same edge id, new document + higher weight: must merge into the one slot.
+        graph.add_edge(
+            Edge(source_id="a", target_id="b", edge_type=EdgeType.CO_OCCURS, weight=2.0, document_ids={"d2"})
+        )
+        assert len(graph.edges) == 1
+        merged = next(iter(graph.edges.values()))
+        assert merged.weight == 2.0
+        assert merged.document_ids == {"d1", "d2"}
+
 
 class TestRetrievalSufficiency:
     """Tests for RetrievalSufficiency dataclass."""
