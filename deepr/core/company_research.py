@@ -144,7 +144,7 @@ class CompanyResearchOrchestrator:
         research_prompt = self._build_research_prompt(company_name, website)
 
         # Use defaults if not specified
-        model = model or os.getenv("DEEPR_DEEP_RESEARCH_MODEL", "o4-mini-deep-research")
+        model = model or os.getenv("DEEPR_DEEP_RESEARCH_MODEL") or "o4-mini-deep-research"
         provider = provider or os.getenv("DEEPR_DEEP_RESEARCH_PROVIDER", "openai")
 
         logger.info("Model: %s", model)

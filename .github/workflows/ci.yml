@@ -50,6 +50,12 @@ jobs:
         continue-on-error: true
         run: mypy
 
+      - name: Type check core/ (mypy --strict, BLOCKING)
+        # Phase E: core/ is the first strict-clean island (kernel: budget, cost,
+        # contracts, research orchestration). This gate is blocking - a strict
+        # regression in the kernel fails the build. providers/ and mcp/ follow.
+        run: mypy --strict --ignore-missing-imports deepr/core
+
   security:
     runs-on: ubuntu-latest
     steps:

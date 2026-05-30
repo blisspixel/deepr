@@ -115,7 +115,7 @@ class ResearchOrchestrator:
                 if path.exists():
                     with open(path, encoding="utf-8") as f:
                         data = json.load(f)
-                        return data.get("message", self._get_fallback_message())
+                        return str(data.get("message", self._get_fallback_message()))
 
         except (OSError, json.JSONDecodeError, KeyError):
             pass
@@ -362,7 +362,7 @@ class ResearchOrchestrator:
         job_id: str,
         append_references: bool = False,
         output_formats: list[str] | None = None,
-    ):
+    ) -> None:
         """
         Process completed research job.
 
@@ -473,7 +473,7 @@ class ResearchOrchestrator:
             except AttributeError:
                 pass
 
-    async def _cleanup_vector_store(self, job_id: str):
+    async def _cleanup_vector_store(self, job_id: str) -> None:
         """Clean up vector store for a job."""
         vector_store_id = self.active_vector_stores.pop(job_id, None)
         if vector_store_id:
@@ -517,7 +517,7 @@ class ResearchOrchestrator:
 
             return success
 
-    async def get_job_status(self, job_id: str):
+    async def get_job_status(self, job_id: str) -> Any:
         """
         Get current job status.
 
@@ -555,7 +555,7 @@ class ResearchOrchestrator:
             "timeline": self._emitter.get_timeline(),
         }
 
-    def save_trace(self, path: Path):
+    def save_trace(self, path: Path) -> None:
         """Save the trace to a JSON file.
 
         Args:
@@ -582,7 +582,7 @@ class ResearchOrchestrator:
         confidence: float = 0.5,
         source: str | None = None,
         finding_type: FindingType = FindingType.FACT,
-    ):
+    ) -> None:
         """Record a finding for temporal tracking.
 
         Args:

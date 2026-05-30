@@ -195,7 +195,7 @@ class UnifiedConfig:
 
         return config
 
-    def _apply_file(self, config_path: Path | None = None):
+    def _apply_file(self, config_path: Path | None = None) -> None:
         """Apply configuration from file.
 
         Args:
@@ -211,7 +211,7 @@ class UnifiedConfig:
         try:
             if config_path.suffix in (".yaml", ".yml"):
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]
 
                     with open(config_path, encoding="utf-8") as f:
                         data = yaml.safe_load(f) or {}
@@ -227,7 +227,7 @@ class UnifiedConfig:
         except Exception as e:
             logger.warning("Failed to load config from %s: %s", config_path, e)
 
-    def _apply_env(self):
+    def _apply_env(self) -> None:
         """Apply environment variable overrides."""
         env_mappings = {
             "DEEPR_PROVIDER": "default_provider",
@@ -261,7 +261,7 @@ class UnifiedConfig:
                 self.providers[provider].api_key = value
                 self._overrides[f"providers.{provider}.api_key"] = "env"
 
-    def _apply_cli(self, overrides: dict[str, Any]):
+    def _apply_cli(self, overrides: dict[str, Any]) -> None:
         """Apply CLI flag overrides.
 
         Args:
@@ -272,7 +272,7 @@ class UnifiedConfig:
                 self._set_nested(key, value)
                 self._overrides[key] = "cli"
 
-    def _apply_dict(self, data: dict[str, Any], source: str = "dict"):
+    def _apply_dict(self, data: dict[str, Any], source: str = "dict") -> None:
         """Apply dictionary configuration.
 
         Args:
@@ -311,7 +311,7 @@ class UnifiedConfig:
             self.budget_limits.update(data["budget_limits"])
             self._overrides["budget_limits"] = source
 
-    def _set_nested(self, key: str, value: Any):
+    def _set_nested(self, key: str, value: Any) -> None:
         """Set a nested configuration value.
 
         Args:
