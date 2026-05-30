@@ -29,6 +29,6 @@ Deepr includes:
 - API key redaction in logs and error output
 - Budget enforcement to prevent runaway spend
 - Pre-commit hooks (ruff lint, debug statement detection)
-- 4400+ tests (Python 3.12)
+- Comprehensive automated test suite with an enforced coverage gate (see [ROADMAP](ROADMAP.md) for current counts)
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.

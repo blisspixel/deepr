@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-**Status**: 18 tools, dynamic discovery, resource subscriptions, prompt templates
+**Status**: dynamic discovery, resource subscriptions, prompt templates, structured errors
 
 Deepr exposes research and expert capabilities via Model Context Protocol (MCP) for AI agents including OpenClaw, Claude Desktop, Cursor, VS Code, and Zed.
 
@@ -129,6 +129,25 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_list_experts` | List domain experts | Free |
 | `deepr_query_expert` | Query expert with question | Low |
 | `deepr_get_expert_info` | Expert details and stats | Free |
+| `deepr_expert_manifest` | Expert manifest (policy + knowledge snapshot) | Free |
+| `deepr_expert_validate` | Validate a claim against expert knowledge (guardrail mode) | Low |
+| `deepr_rank_gaps` | Rank an expert's knowledge gaps by value | Free |
+
+### Task Management Tools
+
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `deepr_get_task_progress` | Progress of a durable task | Free |
+| `deepr_list_recoverable_tasks` | List resumable tasks for a job | Free |
+| `deepr_resume_task` | Resume an interrupted task | Varies |
+| `deepr_pause_task` | Pause a running task | Free |
+
+### Skill Tools
+
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `deepr_list_skills` | List skills available to an expert | Free |
+| `deepr_install_skill` | Install a skill into an expert | Free |
 
 ### Dynamic Discovery
 
@@ -260,6 +279,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 16 (3 system + 5 research + 4 expert + 4 task management)
+**Tools:** 19 (2 system + 5 research + 6 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates

@@ -35,6 +35,9 @@ jobs:
       - name: Format check
         run: ruff format --check deepr/
 
+      - name: Docs consistency (counts match source)
+        run: python scripts/check_docs_consistency.py
+
   test:
     runs-on: ubuntu-latest
     strategy:

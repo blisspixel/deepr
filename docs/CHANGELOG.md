@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Native Distillr integration (first-party instrument, Phase 2b #2).** When
+  the ``distill-mcp`` binary is on ``PATH`` (``pip install distillr``), Deepr
+  auto-discovers and mounts the distillr MCP server with no user
+  configuration, alongside recon. Built-in skill (``deepr/skills/distillr/``)
+  exposes ``query_library`` (free corpus search), ``discover``,
+  ``ingest_papers`` / ``ingest_youtube`` / ``ingest_sites``, and ``refresh``
+  (delta re-ingest, the freshness engine behind "stay current").
+- **Corpus absorption.** ``KnowledgeAbsorber.categorize_distillr_response``
+  parses distillr's ingestion/query output into academic findings that cite
+  the corpus synthesis artifact for provenance, integrating only the first
+  non-empty result set to avoid double counting.
+- **Budget-capped, approval-gated ingestion.** Unlike free recon, the distillr
+  profile carries a per-call ``budget_limit`` (default $2) enforced by
+  ``BudgetPropagator``; only the free ``query_library`` auto-approves, and
+  ``progress: true`` reuses the existing MCP ``ProgressNotifier`` for long runs.
+- **Native Primr integration (first-party instrument, Phase 2b #3).** When the
+  ``primr-mcp`` binary is on ``PATH`` (``pip install primr``), Deepr
+  auto-discovers and mounts the primr MCP server. Built-in skill
+  (``deepr/skills/primr/``) exposes ``estimate_run`` (free pre-flight),
+  ``quick_lookup`` (fast recon+scrape context), ``research_company``,
+  ``generate_strategy``, ``batch_analyze``, and ``check_jobs``. Primr is the
+  heaviest instrument (35-50 min, paid), so every cost-incurring tool is
+  approval-gated, the per-call ``budget_limit`` is $5, the timeout is 60m, and
+  long runs stream progress and resume via the existing task-durability layer.
+- **Multi-category company absorption.**
+  ``KnowledgeAbsorber.categorize_primr_response`` is the first parser to emit
+  across categories: the recon pre-flight becomes infrastructure facts (higher
+  confidence) while the brief, hiring signals, and strategic initiatives become
+  strategic knowledge, each citing the report artifact for provenance.
+  This completes Phase 2b (recon + distillr + primr all integrated).
+
+### Changed
+- ``ConfigLoader.load()`` first-party auto-discovery generalized from
+  recon-only to a table (recon, distillr, primr); user-defined profiles still
+  take precedence over any auto-discovered one of the same name.
+- ``scripts/check_docs_consistency.py`` (CI) now also guards the built-in
+  skill count against ``deepr/skills/``.
+
+### Fixed
+- Stale recon **integration** tests (not run by CI, which executes only
+  ``tests/unit/``) updated to the shipped ``RECON_PROFILE_TEMPLATE`` tool
+  names and modern ``asyncio.run`` (the deprecated ``get_event_loop`` form
+  raised on Python 3.11+). Count-based config-loader unit tests are now
+  isolated from host-installed first-party binaries.
+
 ---
 
 ## [2.11.0] - 2026-05-27
