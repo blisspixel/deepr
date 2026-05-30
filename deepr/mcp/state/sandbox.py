@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class SandboxStatus(Enum):
@@ -34,7 +35,7 @@ class SandboxConfig:
     timeout_seconds: int = 600
     created_at: datetime = field(default_factory=datetime.now)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "sandbox_id": self.sandbox_id,
@@ -53,12 +54,12 @@ class SandboxState:
     config: SandboxConfig
     status: SandboxStatus = SandboxStatus.INITIALIZING
     tokens_used: int = 0
-    tool_calls: list[dict] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     artifacts: list[str] = field(default_factory=list)
     error: str | None = None
     completed_at: datetime | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "config": self.config.to_dict(),
@@ -78,11 +79,11 @@ class SandboxResult:
     sandbox_id: str
     report: str | None = None
     artifacts: list[str] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     success: bool = True
     error: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "sandbox_id": self.sandbox_id,
@@ -303,7 +304,9 @@ class SandboxManager:
 
         return tool_name in state.config.allowed_tools
 
-    def record_tool_call(self, sandbox_id: str, tool_name: str, arguments: dict, tokens_used: int = 0) -> bool:
+    def record_tool_call(
+        self, sandbox_id: str, tool_name: str, arguments: dict[str, Any], tokens_used: int = 0
+    ) -> bool:
         """
         Record a tool call in the sandbox.
 
@@ -495,9 +498,9 @@ class SandboxManager:
         """List all active sandboxes."""
         return [s for s in self._sandboxes.values() if s.status == SandboxStatus.ACTIVE]
 
-    def get_sandbox_stats(self) -> dict:
+    def get_sandbox_stats(self) -> dict[str, Any]:
         """Get statistics about all sandboxes."""
-        by_status = {}
+        by_status: dict[str, int] = {}
         total_tokens = 0
         total_tool_calls = 0
 
@@ -514,7 +517,7 @@ class SandboxManager:
             "total_tool_calls": total_tool_calls,
         }
 
-    def to_fork_request(self, sandbox_id: str, query: str) -> dict | None:
+    def to_fork_request(self, sandbox_id: str, query: str) -> dict[str, Any] | None:
         """
         Generate a JSON-RPC content/fork request for a sandbox.
 
