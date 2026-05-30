@@ -626,13 +626,22 @@ class EdgeBuilder:
     - Scope-based: same heading > same paragraph > same chunk
     """
 
-    def __init__(self, min_pmi: float = 0.0):
+    def __init__(self, min_pmi: float = 0.0, max_concepts_per_section: int = 40):
         """Initialize edge builder.
 
         Args:
             min_pmi: Minimum PMI score for edge creation
+            max_concepts_per_section: Cap on how many concepts in a single
+                section get pairwise co-occurrence edges. Co-occurrence is
+                O(C^2) in the number of concepts in a section, and the concept
+                extractor emits a concept for every 2-5 word n-gram, so without
+                this cap a single large section can generate millions of edges
+                (this is what produced multi-GB edges.json files). Only the most
+                significant concepts (headings/key-phrases, then high-frequency)
+                are paired; the long tail of n-gram noise is skipped.
         """
         self.min_pmi = min_pmi
+        self.max_concepts_per_section = max_concepts_per_section
 
         # Scope weights (higher = stronger relationship)
         self.scope_weights = {"same_heading": 1.0, "same_paragraph": 0.7, "same_chunk": 0.4}
@@ -660,6 +669,19 @@ class EdgeBuilder:
         for section in sections:
             section_id = section.id
             concepts_in_section = section_concepts.get(section_id, [])
+
+            # Bound the O(C^2) co-occurrence blow-up. The extractor emits a
+            # concept for every 2-5 word n-gram, so a single section can hold
+            # thousands of (mostly noise) concepts; pairing all of them is what
+            # generated multi-GB edge files. Keep only the most significant
+            # concepts: heading/key-phrase concepts carry a tf_idf_score and so
+            # sort ahead of raw n-grams, then by frequency.
+            if len(concepts_in_section) > self.max_concepts_per_section:
+                concepts_in_section = sorted(
+                    concepts_in_section,
+                    key=lambda c: (c.tf_idf_score, c.frequency),
+                    reverse=True,
+                )[: self.max_concepts_per_section]
 
             # Build co-occurrence edges
             for i, c1 in enumerate(concepts_in_section):
@@ -1365,14 +1387,21 @@ class KnowledgeGraph:
         storage_dir: Directory for persistence
     """
 
-    def __init__(self, expert_name: str, storage_dir: Path | None = None):
+    def __init__(self, expert_name: str, storage_dir: Path | None = None, max_edges: int = 1_000_000):
         """Initialize knowledge graph.
 
         Args:
             expert_name: Name of the expert
             storage_dir: Directory for persistence
+            max_edges: Hard safety cap on total edges. A backstop against
+                runaway edge growth (the O(C^2) co-occurrence blow-up that once
+                produced multi-GB edge files); once reached, new distinct edges
+                are dropped with a one-time warning. Generous enough that a
+                healthy graph never hits it.
         """
         self.expert_name = expert_name
+        self.max_edges = max_edges
+        self._edge_cap_warned = False
 
         if storage_dir is None:
             storage_dir = Path("data/experts") / expert_name / "graph"
@@ -1430,6 +1459,19 @@ class KnowledgeGraph:
             existing.weight = max(existing.weight, edge.weight)
             existing.document_ids.update(edge.document_ids)
         else:
+            # Safety valve: refuse to grow past the hard cap (backstop against
+            # runaway co-occurrence growth). Existing edges still merge above.
+            if len(self.edges) >= self.max_edges:
+                if not self._edge_cap_warned:
+                    logger.warning(
+                        "Knowledge graph for %s hit the %d-edge cap; dropping further new edges. "
+                        "This usually means concept extraction is over-generating; consider re-indexing.",
+                        self.expert_name,
+                        self.max_edges,
+                    )
+                    self._edge_cap_warned = True
+                return edge_id
+
             self.edges[edge_id] = edge
 
             # Update adjacency
