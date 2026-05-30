@@ -1,0 +1,35 @@
+name: Mutation testing
+
+# Phase E (Engineering Standards): mutation testing proves the unit suite
+# actually catches regressions, not just that lines execute. It is slow
+# (mutates kernel code and re-runs tests per mutant), so it runs weekly and
+# on demand - never on every PR - and is non-blocking while the baseline
+# mutation score is established.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  mutmut:
+    runs-on: ubuntu-latest
+    # Non-blocking baseline: surfaces surviving mutants without gating. Flips
+    # to a tracked mutation-score threshold as the kernel suite is hardened.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev,full]"
+
+      - name: Run mutation testing on kernel modules
+        # Config (paths_to_mutate, tests_dir) lives in [tool.mutmut] in
+        # pyproject.toml, scoped to budget/cost/contract paths.
+        run: |
+          mutmut run || true
+          mutmut results || true
