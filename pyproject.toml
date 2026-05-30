@@ -279,7 +279,7 @@ no_implicit_optional = true
 # first island (kernel: budget, cost, contracts, research orchestration).
 # providers/ and mcp/ are next.
 [[tool.mypy.overrides]]
-module = "deepr.core.*"
+module = ["deepr.core.*", "deepr.providers.*"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true
