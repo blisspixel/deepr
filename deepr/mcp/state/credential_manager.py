@@ -109,7 +109,7 @@ class GatedCredential:
     @classmethod
     def from_row(
         cls,
-        row: tuple,
+        row: tuple[Any, ...],
         decrypted_value: str | None = None,
     ) -> "GatedCredential":
         """Create from database row."""
@@ -166,7 +166,7 @@ class CredentialManager:
         # In-memory credential cache (values only stored temporarily)
         self._value_cache: dict[str, str] = {}
 
-    def _create_tables(self):
+    def _create_tables(self) -> None:
         """Create database tables.
 
         NOTE: ``value_encrypted`` column is reserved for a future
@@ -596,6 +596,6 @@ class CredentialManager:
             "required": ["value"],
         }
 
-    def close(self):
+    def close(self) -> None:
         """Close database connection."""
         self._conn.close()
