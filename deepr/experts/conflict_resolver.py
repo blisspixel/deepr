@@ -12,8 +12,8 @@ Usage:
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.core.contracts import DecisionRecord, DecisionType
 from deepr.experts.beliefs import Belief
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -33,9 +33,9 @@ class ConflictResolutionResult:
     belief_b_id: str
     outcome: str  # "a_wins", "b_wins", "merged", "needs_human_review"
     explanation: str
-    merged_claim: Optional[str] = None
-    merged_confidence: Optional[float] = None
-    decision_record: Optional[DecisionRecord] = None
+    merged_claim: str | None = None
+    merged_confidence: float | None = None
+    decision_record: DecisionRecord | None = None
     resolved_at: datetime = field(default_factory=_utc_now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,7 +59,7 @@ class ConflictResolver:
         client: OpenAI async client (lazily initialized)
     """
 
-    def __init__(self, consensus_engine: Optional[Any] = None, client: Optional[Any] = None):
+    def __init__(self, consensus_engine: Any | None = None, client: Any | None = None):
         self.consensus_engine = consensus_engine
         self.client = client
 
@@ -292,7 +292,7 @@ class ConflictResolver:
         belief_b: Belief,
         answer: str,
         confidence: float,
-        decision_record: Optional[DecisionRecord],
+        decision_record: DecisionRecord | None,
     ) -> ConflictResolutionResult:
         """Parse a consensus answer into a resolution result."""
         answer_lower = answer.lower()

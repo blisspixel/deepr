@@ -22,8 +22,8 @@ Comparison to OpenAI:
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class AnthropicProvider(DeepResearchProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "claude-opus-4-5",  # Default to Opus for research quality
         thinking_budget: int = 32000,  # Higher budget for Opus research tasks
         web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
@@ -238,7 +238,7 @@ class AnthropicProvider(DeepResearchProvider):
             )
 
             # Generate job ID (Anthropic doesn't return one)
-            job_id = f"anthropic-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+            job_id = f"anthropic-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
 
             # Compute cost from accumulated usage. Anthropic bills cache
             # reads at a reduced rate (0.1x base input) and cache creation
@@ -267,8 +267,8 @@ class AnthropicProvider(DeepResearchProvider):
                     }
                 ],
                 usage=usage_stats,
-                created_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
             )
 
             return job_id
@@ -298,8 +298,8 @@ class AnthropicProvider(DeepResearchProvider):
             status="failed",
             output=None,
             usage=UsageStats(input_tokens=0, output_tokens=0, reasoning_tokens=0, cost=0.0),
-            created_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             error=f"Unknown Anthropic job id {job_id}",
         )
 
@@ -407,7 +407,7 @@ Always show your work. Transparency builds trust."""
             "# Research Report",
             f"\n**Query:** {request.prompt}",
             f"\n**Model:** {self.model}",
-            f"\n**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+            f"\n**Date:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
             "\n---\n",
         ]
 

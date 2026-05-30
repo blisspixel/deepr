@@ -2,7 +2,6 @@
 
 import json
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,7 @@ class LinkFilter:
         self,
         links: list[dict[str, str]],
         purpose: str,
-        company_name: Optional[str] = None,
+        company_name: str | None = None,
         max_links: int = 20,
     ) -> list[dict[str, str]]:
         """
@@ -73,7 +72,7 @@ class LinkFilter:
         self,
         links: list[dict[str, str]],
         purpose: str,
-        company_name: Optional[str] = None,
+        company_name: str | None = None,
     ) -> str:
         """Create prompt for LLM link filtering."""
 
@@ -354,7 +353,7 @@ class SmartCrawler:
         self,
         base_url: str,
         purpose: str = "company research",
-        company_name: Optional[str] = None,
+        company_name: str | None = None,
     ) -> dict[str, str]:
         """
         Crawl a website intelligently.

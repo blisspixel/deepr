@@ -19,9 +19,10 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from deepr.utils.security import sanitize_name, validate_path
 
@@ -259,7 +260,7 @@ class ExpertStore:
         """
         # Import here to avoid circular import
 
-        profile.updated_at = datetime.now(timezone.utc)
+        profile.updated_at = datetime.now(UTC)
 
         expert_dir = self._get_expert_dir(profile.name)
         expert_dir.mkdir(parents=True, exist_ok=True)
@@ -498,7 +499,7 @@ class ExpertStore:
                 )
                 profile.source_files.append(str(file_path))
                 profile.total_documents += 1
-                profile.last_knowledge_refresh = datetime.now(timezone.utc)
+                profile.last_knowledge_refresh = datetime.now(UTC)
                 results["uploaded"].append({"path": str(file_path), "file_id": file_obj.id})
             except Exception as e:
                 results["failed"].append({"path": str(file_path), "error": str(e)})

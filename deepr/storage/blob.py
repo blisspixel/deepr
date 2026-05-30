@@ -1,8 +1,8 @@
 """Azure Blob Storage implementation."""
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from azure.core.exceptions import AzureError, ResourceNotFoundError
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
@@ -15,8 +15,8 @@ class AzureBlobStorage(StorageBackend):
 
     def __init__(
         self,
-        connection_string: Optional[str] = None,
-        account_url: Optional[str] = None,
+        connection_string: str | None = None,
+        account_url: str | None = None,
         container_name: str = "reports",
         use_managed_identity: bool = False,
     ):
@@ -50,7 +50,7 @@ class AzureBlobStorage(StorageBackend):
 
             self.client = BlobServiceClient.from_connection_string(connection_string)
 
-        self.container_client: Optional[ContainerClient] = None
+        self.container_client: ContainerClient | None = None
 
     async def _ensure_container(self):
         """Ensure container exists, create if necessary."""
@@ -72,7 +72,7 @@ class AzureBlobStorage(StorageBackend):
         filename: str,
         content: bytes,
         content_type: str,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ReportMetadata:
         """Save report to Azure Blob Storage."""
         try:
@@ -100,7 +100,7 @@ class AzureBlobStorage(StorageBackend):
                 filename=filename,
                 format=format_ext,
                 size_bytes=props.size,
-                created_at=props.last_modified.replace(tzinfo=timezone.utc),
+                created_at=props.last_modified.replace(tzinfo=UTC),
                 url=blob_client.url,
                 content_type=content_type,
             )
@@ -139,7 +139,7 @@ class AzureBlobStorage(StorageBackend):
                 original_error=e,
             ) from e
 
-    async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
+    async def list_reports(self, job_id: str | None = None) -> list[ReportMetadata]:
         """List reports in Azure Blob Storage."""
         try:
             await self._ensure_container()
@@ -164,7 +164,7 @@ class AzureBlobStorage(StorageBackend):
                         filename=blob_filename,
                         format=format_ext,
                         size_bytes=blob.size,
-                        created_at=blob.last_modified.replace(tzinfo=timezone.utc),
+                        created_at=blob.last_modified.replace(tzinfo=UTC),
                         url=f"{self.container_client.url}/{blob.name}",
                         content_type=self.get_content_type(blob_filename),
                     )
@@ -179,7 +179,7 @@ class AzureBlobStorage(StorageBackend):
                 original_error=e,
             ) from e
 
-    async def delete_report(self, job_id: str, filename: Optional[str] = None) -> bool:
+    async def delete_report(self, job_id: str, filename: str | None = None) -> bool:
         """Delete report(s) from Azure Blob Storage."""
         try:
             await self._ensure_container()
@@ -248,7 +248,7 @@ class AzureBlobStorage(StorageBackend):
                     blob_name=blob_name,
                     account_key=account_key,
                     permission=BlobSasPermissions(read=True),
-                    expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
+                    expiry=datetime.now(UTC) + timedelta(seconds=expires_in),
                 )
 
                 return f"{blob_client.url}?{sas_token}"
@@ -268,11 +268,11 @@ class AzureBlobStorage(StorageBackend):
         try:
             await self._ensure_container()
 
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days)
             deleted_count = 0
 
             async for blob in self.container_client.list_blobs():
-                if blob.last_modified.replace(tzinfo=timezone.utc) < cutoff_date:
+                if blob.last_modified.replace(tzinfo=UTC) < cutoff_date:
                     blob_client = self.container_client.get_blob_client(blob.name)
                     await blob_client.delete_blob()
                     deleted_count += 1

@@ -10,7 +10,7 @@ reasoning to deep research models.
 import os
 import re
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 
 @dataclass
@@ -20,7 +20,7 @@ class ModelConfig:
     provider: str
     model: str
     cost_estimate: float
-    reasoning_effort: Optional[str] = None  # For GPT-5 adaptive reasoning
+    reasoning_effort: str | None = None  # For GPT-5 adaptive reasoning
     confidence: float = 1.0  # Confidence in this routing decision
 
 
@@ -175,7 +175,7 @@ class ModelRouter:
         self,
         complexity: str,
         task_type: str,
-        budget_remaining: Optional[float],
+        budget_remaining: float | None,
     ) -> ModelConfig | None:
         """Select best OpenAI model using benchmark data.
 
@@ -221,9 +221,9 @@ class ModelRouter:
         self,
         query: str,
         context_size: int = 0,
-        budget_remaining: Optional[float] = None,
+        budget_remaining: float | None = None,
         current_model: str = "gpt-5.2",
-        provider_constraint: Optional[str] = None,
+        provider_constraint: str | None = None,
     ) -> ModelConfig:
         """Select the optimal model for a query.
 
@@ -379,9 +379,7 @@ class ModelRouter:
 
         return max_task
 
-    def _fallback_free_model(
-        self, query: str, complexity: str, provider_constraint: Optional[str] = None
-    ) -> ModelConfig:
+    def _fallback_free_model(self, query: str, complexity: str, provider_constraint: str | None = None) -> ModelConfig:
         """Fallback to free/cheap model when budget exhausted.
 
         Args:

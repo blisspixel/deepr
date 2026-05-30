@@ -27,7 +27,7 @@ import time as _time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from deepr.experts.router import ModelRouter
 from deepr.observability.provider_router import AutonomousProviderRouter
@@ -527,8 +527,8 @@ class AutoModeRouter:
 
     def __init__(
         self,
-        model_router: Optional[ModelRouter] = None,
-        provider_router: Optional[AutonomousProviderRouter] = None,
+        model_router: ModelRouter | None = None,
+        provider_router: AutonomousProviderRouter | None = None,
     ):
         """Initialize auto mode router.
 
@@ -559,7 +559,7 @@ class AutoModeRouter:
     def route(
         self,
         query: str,
-        budget: Optional[float] = None,
+        budget: float | None = None,
         prefer_cost: bool = False,
         prefer_speed: bool = False,
     ) -> AutoModeDecision:
@@ -628,7 +628,7 @@ class AutoModeRouter:
     def route_batch(
         self,
         queries: list[str],
-        budget_total: Optional[float] = None,
+        budget_total: float | None = None,
         prefer_cost: bool = False,
     ) -> BatchRoutingResult:
         """Route a batch of queries with optional total budget constraint.
@@ -699,7 +699,7 @@ class AutoModeRouter:
     def _best_available(
         self,
         task_type: str,
-        budget: Optional[float],
+        budget: float | None,
         prefer_cost: bool,
     ) -> tuple[str, str, float, float] | None:
         """Find the best available model for a task type from benchmark rankings.
@@ -741,7 +741,7 @@ class AutoModeRouter:
 
         return None
 
-    def _cheapest_available(self, budget: Optional[float]) -> tuple[str, str, float, str]:
+    def _cheapest_available(self, budget: float | None) -> tuple[str, str, float, str]:
         """Find the cheapest available model from the registry.
 
         Used as last resort when no benchmark data exists or all benchmark
@@ -790,7 +790,7 @@ class AutoModeRouter:
         self,
         complexity: str,
         task_type: str,
-        budget: Optional[float],
+        budget: float | None,
         prefer_cost: bool,
         prefer_speed: bool,
     ) -> tuple:
@@ -835,7 +835,7 @@ class AutoModeRouter:
         self,
         complexity: str,
         task_type: str,
-        budget: Optional[float],
+        budget: float | None,
     ) -> tuple:
         """Get fallback routing when primary provider circuit is open.
 

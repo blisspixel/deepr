@@ -5,15 +5,15 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -78,7 +78,7 @@ class CostLedgerEvent:
 class CostLedger:
     """Append-only cost ledger with idempotency support."""
 
-    def __init__(self, ledger_path: Optional[Path] = None):
+    def __init__(self, ledger_path: Path | None = None):
         self.ledger_path = ledger_path or Path("data/costs/cost_ledger.jsonl")
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
@@ -126,7 +126,7 @@ class CostLedger:
         session_id: str = "",
         request_id: str = "",
         source: str = "",
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         idempotency_key: str = "",
         agent_id: str = "",
     ) -> tuple[CostLedgerEvent, bool]:
@@ -176,9 +176,9 @@ class CostLedger:
 
     def get_events(
         self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        source: Optional[str] = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        source: str | None = None,
     ) -> list[CostLedgerEvent]:
         events: list[CostLedgerEvent] = []
         if not self.ledger_path.exists():
@@ -208,9 +208,9 @@ class CostLedger:
 
     def get_total_cost(
         self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        source: Optional[str] = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        source: str | None = None,
     ) -> float:
         return sum(e.cost_usd for e in self.get_events(start_date=start_date, end_date=end_date, source=source))
 

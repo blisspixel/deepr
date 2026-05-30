@@ -15,9 +15,9 @@ Requirements: 1.2 - ExpertProfile Refactoring
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from deepr.core.contracts import ExpertManifest
@@ -35,7 +35,7 @@ from deepr.experts.temporal import TemporalState
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -65,8 +65,8 @@ class ExpertProfile:
     # Core metadata
     name: str
     vector_store_id: str
-    description: Optional[str] = None
-    domain: Optional[str] = None
+    description: str | None = None
+    domain: str | None = None
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
 
@@ -76,15 +76,15 @@ class ExpertProfile:
     total_documents: int = 0
 
     # Temporal awareness
-    knowledge_cutoff_date: Optional[datetime] = None
-    last_knowledge_refresh: Optional[datetime] = None
+    knowledge_cutoff_date: datetime | None = None
+    last_knowledge_refresh: datetime | None = None
     refresh_frequency_days: int = 90
     domain_velocity: str = "medium"  # slow/medium/fast
 
     # Behavior configuration
-    system_message: Optional[str] = None
+    system_message: str | None = None
     temperature: float = 0.7
-    max_tokens: Optional[int] = None
+    max_tokens: int | None = None
 
     # Usage tracking (delegated to managers but kept for serialization)
     conversations: int = 0
@@ -94,7 +94,7 @@ class ExpertProfile:
     # Budget tracking (delegated to BudgetManager)
     monthly_learning_budget: float = 5.0
     monthly_spending: float = 0.0
-    monthly_spending_reset_date: Optional[datetime] = None
+    monthly_spending_reset_date: datetime | None = None
     refresh_history: list[dict] = field(default_factory=list)
 
     # Provider preferences
@@ -105,13 +105,13 @@ class ExpertProfile:
     installed_skills: list[str] = field(default_factory=list)
 
     # AI-generated portrait image
-    portrait_url: Optional[str] = None
+    portrait_url: str | None = None
 
     # Composed components (not serialized directly)
-    _temporal_state: Optional[TemporalState] = field(default=None, repr=False)
-    _freshness_checker: Optional[FreshnessChecker] = field(default=None, repr=False)
-    _budget_manager: Optional[BudgetManager] = field(default=None, repr=False)
-    _activity_tracker: Optional[ActivityTracker] = field(default=None, repr=False)
+    _temporal_state: TemporalState | None = field(default=None, repr=False)
+    _freshness_checker: FreshnessChecker | None = field(default=None, repr=False)
+    _budget_manager: BudgetManager | None = field(default=None, repr=False)
+    _activity_tracker: ActivityTracker | None = field(default=None, repr=False)
 
     def __post_init__(self):
         """Initialize composed components."""
@@ -186,7 +186,7 @@ class ExpertProfile:
     # Activity tracking (delegates to ActivityTracker)
     # =========================================================================
 
-    def record_activity(self, activity_type: str, details: Optional[dict] = None):
+    def record_activity(self, activity_type: str, details: dict | None = None):
         """Record an activity event.
 
         Args:
@@ -194,7 +194,7 @@ class ExpertProfile:
             details: Optional additional details
         """
         self.activity_tracker.record_activity(activity_type, details)
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
         # Sync counters back to profile for serialization
         self.conversations = self.activity_tracker.conversations
@@ -283,7 +283,7 @@ class ExpertProfile:
             "refresh_command": f"deepr expert learn {self.name} --budget {estimated_cost:.2f}",
         }
 
-    def suggest_refresh(self) -> Optional[dict[str, Any]]:
+    def suggest_refresh(self) -> dict[str, Any] | None:
         """Suggest a knowledge refresh if needed."""
         staleness = self.get_staleness_details()
 
@@ -328,7 +328,7 @@ class ExpertProfile:
         """Check if spending amount is within monthly budget."""
         return self.budget_manager.can_spend(amount)
 
-    def record_learning_spend(self, amount: float, operation: str, details: Optional[str] = None):
+    def record_learning_spend(self, amount: float, operation: str, details: str | None = None):
         """Record spending against monthly learning budget."""
         self.budget_manager.record_spending(amount, operation, details)
         self._sync_budget_from_manager()
@@ -474,19 +474,19 @@ class ExpertProfile:
 
 
 def get_expert_system_message(
-    knowledge_cutoff_date: Optional[datetime] = None,
+    knowledge_cutoff_date: datetime | None = None,
     domain_velocity: str = "medium",
-    worldview_summary: Optional[str] = None,
+    worldview_summary: str | None = None,
 ) -> str:
     """Generate expert system message with current date programmatically inserted."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_readable = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    today_readable = datetime.now(UTC).strftime("%B %d, %Y")
 
     cutoff_str = "UNKNOWN"
     days_old = "UNKNOWN"
     if knowledge_cutoff_date:
         cutoff_str = knowledge_cutoff_date.strftime("%Y-%m-%d")
-        days_old = (datetime.now(timezone.utc) - knowledge_cutoff_date).days
+        days_old = (datetime.now(UTC) - knowledge_cutoff_date).days
 
     velocity_thresholds = {"slow": 180, "medium": 90, "fast": 30}
     threshold = velocity_thresholds.get(domain_velocity, 90)

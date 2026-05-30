@@ -17,10 +17,11 @@ Usage:
 """
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.live import Live
@@ -34,7 +35,7 @@ from deepr.providers.base import DeepResearchProvider, ResearchResponse
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ResearchPhase(Enum):
@@ -69,7 +70,7 @@ class PhaseUpdate:
     phase: ResearchPhase
     message: str
     timestamp: datetime = field(default_factory=_utc_now)
-    details: Optional[str] = None
+    details: str | None = None
     progress_pct: float = 0.0
 
 
@@ -80,12 +81,12 @@ class ProgressState:
     job_id: str
     current_phase: ResearchPhase
     phase_history: list[PhaseUpdate] = field(default_factory=list)
-    partial_output: Optional[str] = None
+    partial_output: str | None = None
     estimated_completion_pct: float = 0.0
     elapsed_seconds: float = 0.0
     poll_count: int = 0
-    last_status: Optional[str] = None
-    error: Optional[str] = None
+    last_status: str | None = None
+    error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -131,7 +132,7 @@ class ResearchProgressTracker:
     def __init__(
         self,
         provider: DeepResearchProvider,
-        console: Optional[Console] = None,
+        console: Console | None = None,
     ):
         """Initialize the progress tracker.
 
@@ -373,7 +374,7 @@ class ResearchProgressTracker:
 
         return min(99.0, base_progress + within_phase_progress)
 
-    def _extract_partial_output(self, response: ResearchResponse) -> Optional[str]:
+    def _extract_partial_output(self, response: ResearchResponse) -> str | None:
         """Extract partial output from response if available.
 
         Args:

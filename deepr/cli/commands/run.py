@@ -6,9 +6,8 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -261,7 +260,7 @@ def focus(
     no_web: bool,
     no_code: bool,
     upload: tuple,
-    limit: Optional[float],
+    limit: float | None,
     yes: bool,
     explain: bool,
     timeline: bool,
@@ -305,10 +304,10 @@ async def _run_single(
     no_web: bool,
     no_code: bool,
     upload: tuple,
-    limit: Optional[float],
+    limit: float | None,
     yes: bool,
-    output_context: Optional[OutputContext] = None,
-    trace_flags: Optional[TraceFlags] = None,
+    output_context: OutputContext | None = None,
+    trace_flags: TraceFlags | None = None,
     no_fallback: bool = False,
     user_specified_provider: bool = True,
 ):
@@ -707,8 +706,8 @@ async def _create_and_enqueue_job(
     no_web: bool,
     no_code: bool,
     document_ids: list[str],
-    vector_store_id: Optional[str],
-    limit: Optional[float],
+    vector_store_id: str | None,
+    limit: float | None,
     upload: tuple,
 ) -> tuple:
     """Create research job and add to queue. Returns (job_id, job)."""
@@ -726,7 +725,7 @@ async def _create_and_enqueue_job(
         model=model,
         provider=provider,
         status=JobStatus.QUEUED,
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=datetime.now(UTC),
         enable_web_search=not no_web,
         enable_code_interpreter=not no_code,
         documents=document_ids,
@@ -747,7 +746,7 @@ async def _submit_to_provider(
     no_web: bool,
     no_code: bool,
     document_ids: list[str],
-    vector_store_id: Optional[str],
+    vector_store_id: str | None,
     output_context: OutputContext,
     formatter: OutputFormatter,
     start_time: float,
@@ -831,7 +830,7 @@ async def _submit_to_provider(
         _classify_provider_error(e, provider)
 
 
-def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_id: Optional[str]) -> list:
+def _build_tools_list(provider: str, no_web: bool, no_code: bool, vector_store_id: str | None) -> list:
     """Build provider-specific tools list."""
     from deepr.cli.commands.provider_factory import get_tool_name, supports_vector_stores
     from deepr.providers.base import ToolConfig
@@ -1200,7 +1199,7 @@ def docs(
     model: str,
     provider: str,
     upload: tuple,
-    limit: Optional[float],
+    limit: float | None,
     yes: bool,
     no_fallback: bool,
     output_context: OutputContext,

@@ -268,17 +268,17 @@ deepr list
 
 ### Linux
 - Works on all major distributions (Ubuntu, Debian, Fedora, Arch)
-- Python 3.9+ required
+- Python 3.11+ required
 - May need `python3-dev` for some dependencies
 
 ### macOS
 - Works on Intel and Apple Silicon
-- Python 3.9+ required
+- Python 3.11+ required
 - Install via Homebrew: `brew install python3`
 
 ### Windows
 - Works on Windows 10/11
-- Python 3.9+ required from python.org
+- Python 3.11+ required from python.org
 - PowerShell or Command Prompt both supported
 - Git Bash works but use native Python (not MinGW)
 

@@ -9,17 +9,17 @@ All interfaces MUST use this schema for citations to ensure consistency.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 import hashlib
-from typing import Any, Optional
+from typing import Any
 
 
 class Verdict(Enum):
@@ -51,9 +51,9 @@ class Evidence:
 
     id: str
     source: str
-    url: Optional[str] = None
+    url: str | None = None
     quote: str = ""
-    span: Optional[tuple] = None
+    span: tuple | None = None
     retrieved_at: datetime = field(default_factory=_utc_now)
     supports: list[str] = field(default_factory=list)
     contradicts: list[str] = field(default_factory=list)
@@ -200,7 +200,7 @@ class ExpertAnswer:
     evidence: list[Evidence] = field(default_factory=list)
     confidence: float = 0.0
     cost: float = 0.0
-    reasoning_trace: Optional[str] = None  # For --verbose mode
+    reasoning_trace: str | None = None  # For --verbose mode
 
     def to_cli_output(self, verbose: bool = False) -> str:
         """Render for CLI display."""

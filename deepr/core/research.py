@@ -16,7 +16,7 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ..formatting.converters import ReportConverter
 
@@ -69,8 +69,8 @@ class ResearchOrchestrator:
         storage: StorageBackend,
         document_manager: DocumentManager,
         report_generator: ReportGenerator,
-        system_message: Optional[str] = None,
-        emitter: Optional[MetadataEmitter] = None,
+        system_message: str | None = None,
+        emitter: MetadataEmitter | None = None,
         enable_temporal_tracking: bool = True,
     ):
         """
@@ -136,16 +136,16 @@ class ResearchOrchestrator:
         self,
         prompt: str,
         model: str = "o3-deep-research",
-        documents: Optional[list[str]] = None,
-        vector_store_id: Optional[str] = None,
-        webhook_url: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        documents: list[str] | None = None,
+        vector_store_id: str | None = None,
+        webhook_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
         cost_sensitive: bool = False,
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
-        custom_system_message: Optional[str] = None,
-        budget_limit: Optional[float] = None,
-        session_id: Optional[str] = None,
+        custom_system_message: str | None = None,
+        budget_limit: float | None = None,
+        session_id: str | None = None,
         skip_sanitization: bool = False,
     ) -> str:
         """
@@ -336,7 +336,7 @@ class ResearchOrchestrator:
 
     def _build_tools(
         self,
-        vector_store_id: Optional[str] = None,
+        vector_store_id: str | None = None,
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
     ) -> list[ToolConfig]:
@@ -361,7 +361,7 @@ class ResearchOrchestrator:
         self,
         job_id: str,
         append_references: bool = False,
-        output_formats: Optional[list[str]] = None,
+        output_formats: list[str] | None = None,
     ):
         """
         Process completed research job.
@@ -563,7 +563,7 @@ class ResearchOrchestrator:
         """
         self._emitter.save_trace(path)
 
-    def get_temporal_tracker(self, job_id: str) -> Optional[TemporalKnowledgeTracker]:
+    def get_temporal_tracker(self, job_id: str) -> TemporalKnowledgeTracker | None:
         """Get the temporal tracker for a specific job.
 
         Args:
@@ -580,7 +580,7 @@ class ResearchOrchestrator:
         text: str,
         phase: int = 1,
         confidence: float = 0.5,
-        source: Optional[str] = None,
+        source: str | None = None,
         finding_type: FindingType = FindingType.FACT,
     ):
         """Record a finding for temporal tracking.
@@ -606,8 +606,8 @@ class ResearchOrchestrator:
         self,
         job_id: str,
         current_phase: int,
-        max_tokens: Optional[int] = None,
-        focus_query: Optional[str] = None,
+        max_tokens: int | None = None,
+        focus_query: str | None = None,
     ) -> str:
         """Build structured context from prior phases for context chaining.
 

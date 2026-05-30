@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -23,23 +23,23 @@ class ProviderConfig(BaseModel):
     )
 
     # OpenAI Configuration
-    openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
-    openai_base_url: Optional[str] = Field(default=None, description="Custom OpenAI base URL")
-    openai_organization: Optional[str] = Field(default=None, description="OpenAI organization ID")
+    openai_api_key: str | None = Field(default=None, description="OpenAI API key")
+    openai_base_url: str | None = Field(default=None, description="Custom OpenAI base URL")
+    openai_organization: str | None = Field(default=None, description="OpenAI organization ID")
 
     # Azure Configuration
-    azure_api_key: Optional[str] = Field(default=None, description="Azure OpenAI API key")
-    azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint URL")
+    azure_api_key: str | None = Field(default=None, description="Azure OpenAI API key")
+    azure_endpoint: str | None = Field(default=None, description="Azure OpenAI endpoint URL")
     azure_api_version: str = Field(default="2024-10-01-preview", description="Azure OpenAI API version")
     azure_use_managed_identity: bool = Field(default=False, description="Use Azure Managed Identity for authentication")
 
     # Azure AI Foundry Configuration
-    azure_foundry_endpoint: Optional[str] = Field(default=None, description="Azure AI Foundry project endpoint URL")
+    azure_foundry_endpoint: str | None = Field(default=None, description="Azure AI Foundry project endpoint URL")
     azure_foundry_deep_research_deployment: str = Field(
         default="o3-deep-research", description="Azure Foundry deep research model deployment"
     )
     azure_foundry_gpt_deployment: str = Field(default="gpt-4o", description="Azure Foundry GPT model deployment")
-    azure_foundry_bing_resource: Optional[str] = Field(
+    azure_foundry_bing_resource: str | None = Field(
         default=None, description="Azure Foundry Bing grounding connection name"
     )
 
@@ -204,10 +204,8 @@ class StorageConfig(BaseModel):
     local_path: str = Field(default="data/reports", description="Local storage directory path")
 
     # Azure Blob Storage Configuration
-    azure_connection_string: Optional[str] = Field(default=None, description="Azure Storage connection string")
-    azure_account_url: Optional[str] = Field(
-        default=None, description="Azure Storage account URL (for managed identity)"
-    )
+    azure_connection_string: str | None = Field(default=None, description="Azure Storage connection string")
+    azure_account_url: str | None = Field(default=None, description="Azure Storage account URL (for managed identity)")
     azure_container: str = Field(default="reports", description="Azure Blob container name")
     azure_use_managed_identity: bool = Field(default=False, description="Use Azure Managed Identity for storage")
 
@@ -240,7 +238,7 @@ class WebhookConfig(BaseModel):
     ngrok_path: str = Field(default="ngrok", description="Path to ngrok executable")
 
     # Cloud Configuration
-    public_url: Optional[str] = Field(default=None, description="Public webhook URL (for cloud deployment)")
+    public_url: str | None = Field(default=None, description="Public webhook URL (for cloud deployment)")
 
 
 class ResearchConfig(BaseModel):
@@ -338,8 +336,8 @@ class DatabaseConfig(BaseModel):
     sqlite_path: str = Field(default="data/logs/jobs.db", description="Path to SQLite database")
 
     # Cosmos DB Configuration
-    cosmosdb_endpoint: Optional[str] = Field(default=None, description="Cosmos DB endpoint")
-    cosmosdb_key: Optional[str] = Field(default=None, description="Cosmos DB key")
+    cosmosdb_endpoint: str | None = Field(default=None, description="Cosmos DB endpoint")
+    cosmosdb_key: str | None = Field(default=None, description="Cosmos DB key")
     cosmosdb_database: str = Field(default="deepr", description="Cosmos DB database name")
     cosmosdb_container: str = Field(default="jobs", description="Cosmos DB container name")
 

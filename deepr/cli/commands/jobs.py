@@ -1,6 +1,7 @@
 """Job management commands - unified namespace for job operations."""
 
 import asyncio
+from datetime import UTC
 from pathlib import Path
 
 import click
@@ -33,7 +34,7 @@ def status(job_id: str):
 
 async def _show_status(job_id: str):
     """Display job status."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
@@ -51,7 +52,7 @@ async def _show_status(job_id: str):
             else:
                 submitted = job.submitted_at
 
-            elapsed = datetime.now(timezone.utc) - submitted.replace(tzinfo=timezone.utc)
+            elapsed = datetime.now(UTC) - submitted.replace(tzinfo=UTC)
             elapsed_minutes = elapsed.total_seconds() / 60
 
             # Auto-check provider after 30 minutes
@@ -153,7 +154,7 @@ def get(job_id: str):
 
 async def _get_results(job_id: str):
     """Display job results - checks provider if not completed locally."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     queue = SQLiteQueue()
     job = await queue.get_job(job_id)
@@ -173,7 +174,7 @@ async def _get_results(job_id: str):
             else:
                 submitted = job.submitted_at
 
-            elapsed = datetime.now(timezone.utc) - submitted.replace(tzinfo=timezone.utc)
+            elapsed = datetime.now(UTC) - submitted.replace(tzinfo=UTC)
             elapsed_minutes = elapsed.total_seconds() / 60
             click.echo(f"Elapsed time: {elapsed_minutes:.1f} minutes")
 
@@ -383,7 +384,7 @@ async def _refresh_job_statuses(queue, jobs):
 
 async def _list_jobs(status_filter: str, limit: int):
     """List jobs from queue with automatic status refresh for stale jobs."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     queue = SQLiteQueue()
     jobs = await queue.list_jobs(limit=limit)
@@ -394,7 +395,7 @@ async def _list_jobs(status_filter: str, limit: int):
         jobs = [j for j in jobs if j.status == target_status]
 
     # Refresh stale jobs (>30 minutes old and not completed/failed)
-    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+    stale_threshold = datetime.now(UTC) - timedelta(minutes=30)
     stale_jobs = [
         job
         for job in jobs

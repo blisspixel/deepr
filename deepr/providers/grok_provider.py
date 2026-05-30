@@ -12,7 +12,7 @@ Grok uses chat completions API (OpenAI-compatible) with:
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import openai
@@ -162,7 +162,7 @@ class GrokProvider(DeepResearchProvider):
         self.jobs[job_id] = {
             "status": "processing",
             "request": request,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "model": resolved_model,
         }
 
@@ -236,7 +236,7 @@ class GrokProvider(DeepResearchProvider):
                     "content": content,
                     "usage": usage,
                     "cost": cost,
-                    "completed_at": datetime.now(timezone.utc),
+                    "completed_at": datetime.now(UTC),
                 }
             )
 
@@ -251,7 +251,7 @@ class GrokProvider(DeepResearchProvider):
                 {
                     "status": "failed",
                     "error": str(e),
-                    "completed_at": datetime.now(timezone.utc),
+                    "completed_at": datetime.now(UTC),
                 }
             )
 
@@ -519,7 +519,7 @@ class GrokProvider(DeepResearchProvider):
                     "status": "completed",
                     "content": synthesis.get("content", ""),
                     "cost": total_cost,
-                    "completed_at": datetime.now(timezone.utc),
+                    "completed_at": datetime.now(UTC),
                     "agent_count": len(fan_out_result.results),
                     "agent_attribution": agent_attribution,
                     "trace_id": trace_id,
@@ -541,7 +541,7 @@ class GrokProvider(DeepResearchProvider):
                 {
                     "status": "failed",
                     "error": f"Multi-agent orchestration failed: {e}",
-                    "completed_at": datetime.now(timezone.utc),
+                    "completed_at": datetime.now(UTC),
                 }
             )
             raise

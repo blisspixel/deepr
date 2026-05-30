@@ -17,14 +17,14 @@ rather than being replaced.
 import hashlib
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TrustClass(str, Enum):
@@ -76,10 +76,10 @@ class Source:
     title: str
     trust_class: TrustClass
     extraction_method: str
-    url: Optional[str] = None
+    url: str | None = None
     content_hash: str = ""
     retrieved_at: datetime = field(default_factory=_utc_now)
-    support_class: Optional[SupportClass] = None
+    support_class: SupportClass | None = None
 
     @classmethod
     def create(
@@ -146,7 +146,7 @@ class Claim:
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
     contradicts: list[str] = field(default_factory=list)
-    supersedes: Optional[str] = None
+    supersedes: str | None = None
     tags: list[str] = field(default_factory=list)
 
     @classmethod
@@ -217,8 +217,8 @@ class Gap:
     times_asked: int = 0
     identified_at: datetime = field(default_factory=_utc_now)
     filled: bool = False
-    filled_at: Optional[datetime] = None
-    filled_by_job: Optional[str] = None
+    filled_at: datetime | None = None
+    filled_by_job: str | None = None
 
     @classmethod
     def create(cls, topic: str, **kwargs) -> "Gap":
@@ -367,7 +367,7 @@ class ConsensusResult:
     consensus_answer: str = ""
     confidence: float = 0.0
     total_cost: float = 0.0
-    decision_record: Optional[DecisionRecord] = None
+    decision_record: DecisionRecord | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

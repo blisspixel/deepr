@@ -10,9 +10,8 @@ similarity search without re-embedding documents on every query.
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -31,7 +30,7 @@ class EmbeddingCache:
             embeddings.npy - numpy array of all embeddings
     """
 
-    def __init__(self, expert_name: str, cache_dir: Optional[Path] = None):
+    def __init__(self, expert_name: str, cache_dir: Path | None = None):
         """Initialize embedding cache for an expert.
 
         Args:
@@ -56,7 +55,7 @@ class EmbeddingCache:
 
         # Load existing cache
         self.index: dict[str, dict] = {}  # content_hash -> metadata
-        self.embeddings: Optional[np.ndarray] = None
+        self.embeddings: np.ndarray | None = None
         self.hash_to_idx: dict[str, int] = {}  # content_hash -> array index
 
         self._load_cache()
@@ -80,7 +79,7 @@ class EmbeddingCache:
             self.index_path,
             {
                 "expert_name": self.expert_name,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
                 "document_count": len(self.index),
                 "documents": self.index,
             },
@@ -199,7 +198,7 @@ class EmbeddingCache:
                         "content_preview": content[:500],  # Store preview for results
                         "full_content": content[:2000],  # Store more for search results
                         "char_count": len(content),
-                        "embedded_at": datetime.now(timezone.utc).isoformat(),
+                        "embedded_at": datetime.now(UTC).isoformat(),
                     }
                 )
 

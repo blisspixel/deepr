@@ -8,8 +8,8 @@ Requirements: 5.2 - Extract monthly budget tracking logic
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -30,7 +30,7 @@ class BudgetManager:
     monthly_budget: float = 5.0
     monthly_spending: float = 0.0
     total_spending: float = 0.0
-    reset_date: Optional[datetime] = None
+    reset_date: datetime | None = None
     refresh_history: list[dict] = field(default_factory=list)
 
     # Maximum history entries to retain
@@ -45,11 +45,11 @@ class BudgetManager:
 
     def _initialize_reset_date(self) -> None:
         """Set reset date to first of next month."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if now.month == 12:
-            self.reset_date = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+            self.reset_date = datetime(now.year + 1, 1, 1, tzinfo=UTC)
         else:
-            self.reset_date = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
+            self.reset_date = datetime(now.year, now.month + 1, 1, tzinfo=UTC)
 
     def check_and_reset_if_needed(self) -> bool:
         """Check if monthly reset is needed and perform it.
@@ -57,7 +57,7 @@ class BudgetManager:
         Returns:
             True if reset was performed, False otherwise
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if self.reset_date is None:
             self._initialize_reset_date()
@@ -68,9 +68,9 @@ class BudgetManager:
 
             # Set next reset date
             if now.month == 12:
-                self.reset_date = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+                self.reset_date = datetime(now.year + 1, 1, 1, tzinfo=UTC)
             else:
-                self.reset_date = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
+                self.reset_date = datetime(now.year, now.month + 1, 1, tzinfo=UTC)
 
             return True
 
@@ -119,7 +119,7 @@ class BudgetManager:
 
         return True, f"Within budget (${remaining - amount:.2f} remaining after)"
 
-    def record_spending(self, amount: float, operation: str, details: Optional[str] = None) -> None:
+    def record_spending(self, amount: float, operation: str, details: str | None = None) -> None:
         """Record spending against budget.
 
         Args:
@@ -135,7 +135,7 @@ class BudgetManager:
         # Record in history
         self.refresh_history.append(
             {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "operation": operation,
                 "amount": amount,
                 "details": details,
@@ -172,7 +172,7 @@ class BudgetManager:
         Returns:
             Number of refreshes this month
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         count = 0
 
         for entry in self.refresh_history:

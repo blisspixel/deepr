@@ -32,9 +32,9 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.11)
+## Current Status (v2.12)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party Recon instrument, and observability. 4781+ unit tests, 81.6% coverage. Pre-commit hooks with ruff.
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 4851+ unit tests, 81.8% coverage on Python 3.11-3.13. Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
 ### Stable (Production-Ready)
 
@@ -84,7 +84,8 @@ These features work but APIs or behavior may change:
 - Multi-layer budget protection with pause/resume
 - Docker deployment option
 - Cloud deployment templates (AWS, Azure, GCP)
-- Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
+- `uv`-managed toolchain (`uv.lock` + `.python-version` for reproducible dev/CI/container environments; setuptools build backend preserved for `pip install` compatibility)
+- Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection); CI also runs mypy (type-check baseline) and pip-audit (dependency audit) as non-blocking gates ratcheting toward blocking (Phase E)
 - Coverage configuration with 80% minimum threshold (`fail_under = 80`; raised from a 60% baseline through 75% to 80%)
 - Context discovery with semantic search (`deepr search`, `--context` flag)
 - Distributed tracing with MetadataEmitter, spans, cost attribution
@@ -145,6 +146,39 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Make experts genuinely agentic: they plan, reflect, self-correct, and learn — not just wrap LLM calls.
 - Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
 - Autonomy earns trust incrementally: start supervised, prove reliability, then expand bounds.
+- Engineering standards are a feature: the kernel is meant to be embedded and the MCP server is meant to be installed by other agents, so reproducibility, type safety, and security posture are part of the product, not overhead.
+
+### Phase E: Engineering Standards and Code-Quality Elevation (foundational, continuous)
+
+Goal: hold every line of Deepr to a verifiable, reproducible, secure standard so the kernel is safe to embed and the platform scales across releases without regression. This track runs alongside feature work.
+
+The gate targets below are firm commitments, not a soft "raise it when convenient" ratchet. The one sequencing rule is honest: a blocking gate is only switched on once the code already satisfies it (you do not turn a 23k-line codebase red to make a point). So each gate lands in two moves - wire it in non-blocking to record a baseline, then flip it to blocking once the code is clean - and the flip is committed work, not aspiration.
+
+**Adopted standard (the committed end state):**
+
+- **Python**: floor 3.11; tested on 3.11 / 3.12 / 3.13 / 3.14. Deliberately not single-version-pinned - Deepr is an embeddable kernel and an MCP server other agents `pip install`, so it must stay broadly installable. 3.9 (EOL) and 3.10 (caused pydantic test-collection failures) are dropped.
+- **Toolchain**: `uv` is the canonical package and Python-version manager - reproducible `uv.lock`, pinned `.python-version`, `uv pip install` in CI. setuptools stays the build backend so `pip install deepr-research` keeps working for downstream consumers.
+- **Lint / format**: Ruff remains the single linter + formatter. Ruleset modernized to the Python 3.11 baseline (PEP 604 unions, `datetime.UTC`); next, complexity caps (C901) and promotion of the security (S) rules from advisory to blocking for new code.
+- **Types**: mypy is a blocking `--strict` gate; target is 100% of `deepr/` strict-clean. Wired non-blocking first to record the baseline, then strict-blocking on `core/` + `providers/` + `mcp/` and every new module, ratcheting package-by-package until the whole tree is clean. (Astral's `ty` is a candidate to replace mypy once it stabilizes.)
+- **Coverage**: branch coverage enabled; the `fail_under` gate ratchets 80 -> 85 -> 90 -> 95 as branch-covering tests land. The justified omit list (LLM-driven and live-provider paths) is preserved, not erased to inflate the number.
+- **Security**: `pip-audit` blocking on every push; Dependabot weekly (pip + github-actions + npm); SBOM via `uv export` per release; OpenSSF secure-coding practices (boundary validation with Pydantic v2, no secret logging, exception safety) as review criteria.
+- **Architecture discipline** (Power-of-10, adapted to Python): bounded loops, narrowest-scope declarations, small functions, no runtime `eval`/`exec` - enforced where Ruff can (complexity, S-rules) and applied as review guidance where it cannot.
+
+**Sequenced work:**
+
+- [x] Raise Python floor to 3.11; classifiers + ruff `target-version` + CI matrix updated; 3.13 added (blocking) and 3.14 added (non-blocking until optional-dep wheels are confirmed)
+- [x] Modernize syntax to the 3.11 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
+- [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
+- [x] Dependabot (pip + github-actions + npm, weekly)
+- [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config
+- [x] `pip-audit` wired into CI (non-blocking baseline)
+- [ ] Triage the `pip-audit` baseline; pin out advisories; flip `pip-audit` to blocking
+- [ ] Annotate `core/` + `providers/` + `mcp/` to strict-clean; flip mypy `--strict` blocking on those packages, then expand outward
+- [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`) and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
+- [ ] Enable `--cov-branch`; ratchet `fail_under` 80 -> 85 -> 90 -> 95 as branch tests land
+- [ ] Expand Ruff ruleset: `C901` complexity cap, promote S-rules to blocking for new code
+- [ ] SBOM generation (`uv export`) published per release
+- [ ] Extract a reusable CI workflow + Copier/template repo so sibling projects (recon, distillr, primr) inherit the same standard from day zero
 
 ### Phase 1: Agentic Infrastructure Core
 
@@ -239,6 +273,13 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 ### Phase 4: Expert Intelligence and Quality Loop
 
 Goal: make experts genuinely agentic — self-correcting, strategically autonomous, graph-structured memory.
+
+**Next up (recommended entry points, now unblocked by Phase 2b).** With recon + distillr + primr all integrated, the tightest next increment is the pair that closes the loop on those instruments:
+
+1. **`deepr expert absorb REPORT_ID`** (output-to-knowledge feedback loop, below) — promote good reports/answers into permanent knowledge, verification-gated. Builds directly on the absorption pipeline (`KnowledgeAbsorber.categorize_*`) just extended for distillr/primr.
+2. **Dynamic tool selection via gap analysis** (below) — map infrastructure gaps -> recon, academic gaps -> distillr, strategic gaps -> primr. All three target instruments now exist, so the gap-to-tool engine has somewhere to route.
+
+`deepr expert health-check` (knowledge maintenance, read-side, cost-$0) is the natural third step. Reflection loop and graph memory are the larger, higher-risk items and come after.
 
 - [ ] Reflection loop (self-correction before delivery):
   - [ ] Post-research quality evaluation: citation grounding, logical gaps, confidence calibration
@@ -403,7 +444,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.10.1 | MCP client + A2A protocol, agent interoperability, skill portability | Complete |
 | v2.10.2-2.10.3 | Security hardening, MCP confirmation gate, 80% coverage gate, 5-round bug-hunt sweep | Complete |
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
-| v2.12 | Distillr + Primr integrations delivered (Phase 2b #2 & #3, completing Phase 2b); routing preview done + eval methodology v2 (Phase 3) | In Progress |
+| v2.12 | Distillr + Primr integrations delivered (Phase 2b #2 & #3, completing Phase 2b); Phase E engineering-standards foundation (uv + uv.lock, Python 3.11 floor + 3.13/3.14 matrix, mypy + pip-audit CI baselines, Dependabot, 3.11 syntax modernization); routing preview done | In Progress |
 | v2.13 | Expert intelligence: reflection loop, graph memory, knowledge maintenance loop (health-check, absorb, freshness/sync), dynamic tool selection | Planned |
 | v2.14 | Autonomous research campaigns, multi-day expert investigations | Planned |
 | v2.15 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |

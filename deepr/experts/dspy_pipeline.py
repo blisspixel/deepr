@@ -19,16 +19,16 @@ Usage:
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +300,7 @@ class FeedbackEntry:
             answer=data["answer"],
             rating=data["rating"],
             feedback_text=data.get("feedback_text", ""),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(UTC),
             expert_name=data.get("expert_name", ""),
         )
 
@@ -328,7 +328,7 @@ class FeedbackCollector:
         entries: List of feedback entries
     """
 
-    def __init__(self, expert_name: str, storage_dir: Optional[Path] = None):
+    def __init__(self, expert_name: str, storage_dir: Path | None = None):
         """Initialize feedback collector.
 
         Args:
@@ -483,8 +483,8 @@ class DSPyOptimizer:
     def __init__(
         self,
         expert_name: str,
-        feedback_collector: Optional[FeedbackCollector] = None,
-        storage_dir: Optional[Path] = None,
+        feedback_collector: FeedbackCollector | None = None,
+        storage_dir: Path | None = None,
     ):
         """Initialize DSPy optimizer.
 
@@ -505,7 +505,7 @@ class DSPyOptimizer:
         self.optimization_history_path = self.storage_dir / "optimization_history.json"
 
     def optimize(
-        self, module: Any, method: str = "bootstrap", min_examples: int = 10, metric_fn: Optional[callable] = None
+        self, module: Any, method: str = "bootstrap", min_examples: int = 10, metric_fn: callable | None = None
     ) -> OptimizationResult:
         """Optimize a DSPy module.
 
@@ -584,7 +584,7 @@ class DSPyOptimizer:
         return trainset
 
     def _optimize_bootstrap(
-        self, module: Any, trainset: list[Any], metric_fn: Optional[callable] = None
+        self, module: Any, trainset: list[Any], metric_fn: callable | None = None
     ) -> tuple[Any, dict[str, float]]:
         """Optimize using BootstrapFewShot.
 
@@ -610,7 +610,7 @@ class DSPyOptimizer:
         return optimized, metrics
 
     def _optimize_mipro(
-        self, module: Any, trainset: list[Any], metric_fn: Optional[callable] = None
+        self, module: Any, trainset: list[Any], metric_fn: callable | None = None
     ) -> tuple[Any, dict[str, float]]:
         """Optimize using MIPROv2.
 
@@ -791,7 +791,7 @@ class DSPyOptimizer:
 
         # Check time since last optimization
         last_opt = datetime.fromisoformat(history[-1]["optimized_at"])
-        days_elapsed = (datetime.now(timezone.utc) - last_opt).days
+        days_elapsed = (datetime.now(UTC) - last_opt).days
 
         if days_elapsed >= days_since_last:
             return True, f"{days_elapsed} days since last optimization"

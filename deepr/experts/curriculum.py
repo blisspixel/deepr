@@ -7,9 +7,9 @@ based on their domain and initial knowledge base.
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable, Optional
+from datetime import UTC, datetime
 
 import click
 import httpx
@@ -32,7 +32,7 @@ class CurriculumGenerationProgress:
         current_step: Name of the current step being executed
     """
 
-    def __init__(self, callback: Optional[Callable[[str], None]] = None):
+    def __init__(self, callback: Callable[[str], None] | None = None):
         """Initialize progress tracker.
 
         Args:
@@ -112,10 +112,10 @@ class CurriculumGenerationProgress:
 class SourceReference:
     """A specific source to learn from."""
 
-    url: Optional[str] = None  # URL to fetch/scrape
-    title: Optional[str] = None  # Title of the source
+    url: str | None = None  # URL to fetch/scrape
+    title: str | None = None  # Title of the source
     source_type: str = "unknown"  # "documentation", "paper", "guide", "blog", "video"
-    description: Optional[str] = None  # What this source contains
+    description: str | None = None  # What this source contains
 
     def __post_init__(self):
         if self.url and not self.title:
@@ -233,12 +233,12 @@ class CurriculumGenerator:
         domain: str,
         initial_documents: list[str],
         target_topics: int = 15,
-        budget_limit: Optional[float] = None,
+        budget_limit: float | None = None,
         timeout: int = 120,
         enable_discovery: bool = True,
-        docs_count: Optional[int] = None,
-        quick_count: Optional[int] = None,
-        deep_count: Optional[int] = None,
+        docs_count: int | None = None,
+        quick_count: int | None = None,
+        deep_count: int | None = None,
     ) -> LearningCurriculum:
         """Generate a learning curriculum for an expert using two-phase approach.
 
@@ -371,7 +371,7 @@ class CurriculumGenerator:
         prompt: str,
         max_retries: int = 3,
         timeout: int = 120,
-        progress: Optional[CurriculumGenerationProgress] = None,
+        progress: CurriculumGenerationProgress | None = None,
     ) -> str:
         """Call GPT-5 Chat Completions API with retry logic and timeout enforcement.
 
@@ -564,7 +564,7 @@ class CurriculumGenerator:
         self,
         domain: str,
         timeout: int = 120,  # 2 minutes is plenty for a chat completion
-        progress: Optional[CurriculumGenerationProgress] = None,
+        progress: CurriculumGenerationProgress | None = None,
     ) -> list[SourceReference]:
         """Phase 1: Discover what sources exist for this domain.
 
@@ -584,7 +584,7 @@ class CurriculumGenerator:
         """
         # Check for environment variable override
         timeout = int(os.getenv("DEEPR_DISCOVERY_TIMEOUT", str(timeout)) or str(timeout))
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
 
         discovery_prompt = f"""You are a research librarian helping to identify the best sources for building domain expertise.
 
@@ -713,11 +713,11 @@ Generate the source list now for: {domain}"""
         domain: str,
         initial_documents: list[str],
         target_topics: int,
-        budget_limit: Optional[float],
-        discovered_sources: Optional[list[SourceReference]] = None,
-        docs_count: Optional[int] = None,
-        quick_count: Optional[int] = None,
-        deep_count: Optional[int] = None,
+        budget_limit: float | None,
+        discovered_sources: list[SourceReference] | None = None,
+        docs_count: int | None = None,
+        quick_count: int | None = None,
+        deep_count: int | None = None,
     ) -> str:
         """Build the curriculum generation prompt.
 
@@ -728,7 +728,7 @@ Generate the source list now for: {domain}"""
             deep_count: Optional exact number of deep research topics to generate
         """
 
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
 
         doc_list = "\n".join(f"- {doc}" for doc in initial_documents)
 
@@ -1240,7 +1240,7 @@ Generate the curriculum now:"""
             topics=topics,
             total_estimated_cost=total_cost,
             total_estimated_minutes=total_minutes,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
 
     def _truncate_to_budget(self, curriculum: LearningCurriculum, budget_limit: float) -> LearningCurriculum:

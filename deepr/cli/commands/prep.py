@@ -1,6 +1,6 @@
 """Prep commands - plan and execute multi-angle research."""
 
-from typing import Optional
+from datetime import UTC
 
 import click
 
@@ -61,7 +61,7 @@ def prep():
 def plan(
     scenario: str,
     topics: int,
-    context: Optional[str],
+    context: str | None,
     planner: str,
     model: str,
     check_docs: bool,
@@ -103,7 +103,7 @@ def plan(
 
     try:
         import json
-        from datetime import datetime, timezone
+        from datetime import datetime
         from pathlib import Path
 
         from deepr.services.research_planner import ResearchPlanner
@@ -218,7 +218,7 @@ def plan(
             "tasks": tasks,
             "phases": len(phases),
             "requires_review": review_before_execute,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         with open(plan_file, "w", encoding="utf-8") as f:
@@ -542,7 +542,7 @@ def status(batch_id: str):
 
 @prep.command()
 @click.argument("plan_id", required=False)
-def pause(plan_id: Optional[str]):
+def pause(plan_id: str | None):
     """
     Pause an active research campaign.
 
@@ -557,7 +557,7 @@ def pause(plan_id: Optional[str]):
 
     try:
         import json
-        from datetime import datetime, timezone
+        from datetime import datetime
         from pathlib import Path
 
         # Load plan
@@ -595,7 +595,7 @@ def pause(plan_id: Optional[str]):
 
         # Mark as paused
         plan_data["status"] = "paused"
-        plan_data["paused_at"] = datetime.now(timezone.utc).isoformat()
+        plan_data["paused_at"] = datetime.now(UTC).isoformat()
 
         # Save
         with open(plan_file, "w", encoding="utf-8") as f:
@@ -617,7 +617,7 @@ def pause(plan_id: Optional[str]):
 
 @prep.command()
 @click.argument("plan_id", required=False)
-def resume(plan_id: Optional[str]):
+def resume(plan_id: str | None):
     """
     Resume a paused research campaign.
 
@@ -631,7 +631,7 @@ def resume(plan_id: Optional[str]):
 
     try:
         import json
-        from datetime import datetime, timezone
+        from datetime import datetime
         from pathlib import Path
 
         # Load plan
@@ -682,7 +682,7 @@ def resume(plan_id: Optional[str]):
 
         # Mark as active
         plan_data["status"] = "active"
-        plan_data["resumed_at"] = datetime.now(timezone.utc).isoformat()
+        plan_data["resumed_at"] = datetime.now(UTC).isoformat()
 
         # Save
         with open(plan_file, "w", encoding="utf-8") as f:
@@ -998,7 +998,7 @@ def auto(scenario: str, rounds: int, topics_per_round: int):
         raise click.Abort()
 
 
-def _execute_plan_sync(plan_data: dict, provider_name: Optional[str] = None) -> dict:
+def _execute_plan_sync(plan_data: dict, provider_name: str | None = None) -> dict:
     """Execute plan synchronously and wait for completion. Returns results.
 
     Args:

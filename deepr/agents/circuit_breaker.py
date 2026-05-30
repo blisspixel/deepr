@@ -7,7 +7,7 @@ by monitoring aggregate cost and failure rates.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -97,7 +97,7 @@ class CircuitBreaker:
 
         self.state.tripped = True
         self.state.trip_reason = reason
-        self.state.trip_timestamp = datetime.now(timezone.utc)
+        self.state.trip_timestamp = datetime.now(UTC)
         self.state.affected_trace_ids = list(affected_trace_ids)
 
     def reset(self) -> None:

@@ -168,7 +168,7 @@ class MCPClientProxy:
                     return
                 try:
                     line = await asyncio.wait_for(self._process.stderr.readline(), timeout=1.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
                 if not line:
                     return
@@ -246,7 +246,7 @@ class MCPClientProxy:
                 return {"result": "\n".join(text_parts)}
             return {"result": result}
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return {"error": f"MCP tool '{tool_name}' timed out after {timeout}s"}
         except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
             # Fatal / cancellation signals must always propagate; never swallow.
@@ -268,11 +268,11 @@ class MCPClientProxy:
             self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._process.kill()
                 try:
                     await asyncio.wait_for(self._process.wait(), timeout=2)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
             self._process = None
 

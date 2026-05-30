@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -315,7 +315,7 @@ class GeminiProvider(DeepResearchProvider):
 
         if request.document_ids:
             file_store_name = await self._create_file_search_store(
-                name=f"deepr-research-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
+                name=f"deepr-research-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
                 file_ids=request.document_ids,
             )
             if file_store_name:
@@ -337,7 +337,7 @@ class GeminiProvider(DeepResearchProvider):
                 # Track this deep research job
                 self._deep_research_jobs[interaction_id] = {
                     "status": "in_progress",
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(UTC),
                     "model": DEEP_RESEARCH_AGENT,
                     "file_store_name": file_store_name,
                     "request": request,
@@ -373,7 +373,7 @@ class GeminiProvider(DeepResearchProvider):
         self.jobs[job_id] = {
             "status": "queued",
             "request": request,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "model": self.get_model_name(request.model),
         }
 
@@ -489,7 +489,7 @@ class GeminiProvider(DeepResearchProvider):
                 job_data.update(
                     {
                         "status": "completed",
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                         "output": full_response,
                         "thoughts": thoughts_summary,
                         "usage": {
@@ -509,10 +509,10 @@ class GeminiProvider(DeepResearchProvider):
                     await asyncio.sleep(wait_time)
                     continue
                 else:
-                    job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(timezone.utc)})
+                    job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(UTC)})
                     return
             except Exception as e:
-                job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(timezone.utc)})
+                job_data.update({"status": "failed", "error": str(e), "completed_at": datetime.now(UTC)})
                 return
 
     # =========================================================================
@@ -551,7 +551,7 @@ class GeminiProvider(DeepResearchProvider):
                 job_data.update(
                     {
                         "status": "completed",
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                         "output": content,
                         "citations": citations,
                         "search_queries_count": search_count,
@@ -569,7 +569,7 @@ class GeminiProvider(DeepResearchProvider):
                     {
                         "status": "failed",
                         "error": str(error_msg),
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                     }
                 )
 
@@ -598,7 +598,7 @@ class GeminiProvider(DeepResearchProvider):
                     {
                         "status": "failed",
                         "error": f"Polling failed: {e}",
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                     }
                 )
                 file_store = job_data.get("file_store_name")
@@ -851,7 +851,7 @@ class GeminiProvider(DeepResearchProvider):
             job_data = self._deep_research_jobs[job_id]
             if job_data["status"] in ("queued", "in_progress"):
                 job_data["status"] = "cancelled"
-                job_data["completed_at"] = datetime.now(timezone.utc)
+                job_data["completed_at"] = datetime.now(UTC)
                 # Cleanup file store
                 file_store = job_data.get("file_store_name")
                 if file_store:
@@ -864,7 +864,7 @@ class GeminiProvider(DeepResearchProvider):
             job_data = self.jobs[job_id]
             if job_data["status"] in ["queued", "in_progress"]:
                 job_data["status"] = "cancelled"
-                job_data["completed_at"] = datetime.now(timezone.utc)
+                job_data["completed_at"] = datetime.now(UTC)
                 return True
 
         return False
@@ -917,7 +917,7 @@ class GeminiProvider(DeepResearchProvider):
             "id": vs_id,
             "name": name,
             "file_ids": file_ids,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         }
 
         return VectorStore(id=vs_id, name=name, file_ids=file_ids)

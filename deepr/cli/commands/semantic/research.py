@@ -1,7 +1,6 @@
 """Research, learn, team, and check commands."""
 
 import asyncio
-from typing import Optional
 
 import click
 
@@ -90,15 +89,15 @@ def detect_research_mode(prompt: str) -> str:
 @output_options
 def research(
     query: str,
-    company_name: Optional[str],
-    website: Optional[str],
-    model: Optional[str],
-    provider: Optional[str],
+    company_name: str | None,
+    website: str | None,
+    model: str | None,
+    provider: str | None,
     no_web: bool,
     no_code: bool,
     upload: tuple,
-    scrape: Optional[str],
-    limit: Optional[float],
+    scrape: str | None,
+    limit: float | None,
     yes: bool,
     mode: str,
     scrape_only: bool,
@@ -107,7 +106,7 @@ def research(
     full_trace: bool,
     no_fallback: bool,
     auto_mode: bool,
-    batch: Optional[str],
+    batch: str | None,
     preview: bool,
     prefer_cost: bool,
     prefer_speed: bool,
@@ -484,7 +483,7 @@ def team(
 @click.option("--provider", "-p", help="Provider (default: xai for fast verification)")
 @click.option("--model", "-m", help="Model (default: grok-4-1-fast-non-reasoning)")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed reasoning")
-def check(claim: str, sources: Optional[str], provider: Optional[str], model: Optional[str], verbose: bool):
+def check(claim: str, sources: str | None, provider: str | None, model: str | None, verbose: bool):
     """Verify a factual claim quickly.
 
     Uses a cost-effective model to verify facts and return a structured
@@ -507,9 +506,7 @@ def check(claim: str, sources: Optional[str], provider: Optional[str], model: Op
     run_async_command(_verify_fact(claim, sources, provider, model, verbose), runner=asyncio.run)
 
 
-async def _verify_fact(
-    claim: str, sources: Optional[str], provider: Optional[str], model: Optional[str], verbose: bool
-):
+async def _verify_fact(claim: str, sources: str | None, provider: str | None, model: str | None, verbose: bool):
     """Verify a fact with schema validation and structured output."""
     import json
     import re
@@ -658,7 +655,7 @@ Rules:
 
 def _run_batch_research(
     batch_file: str,
-    budget_total: Optional[float],
+    budget_total: float | None,
     prefer_cost: bool,
     prefer_speed: bool,
     dry_run: bool,
@@ -791,7 +788,7 @@ def _run_batch_research(
 
 def _run_auto_research(
     query: str,
-    budget: Optional[float],
+    budget: float | None,
     prefer_cost: bool,
     prefer_speed: bool,
     dry_run: bool,

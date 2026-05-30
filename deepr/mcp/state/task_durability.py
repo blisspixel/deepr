@@ -34,17 +34,17 @@ import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from deepr.core.constants import TASK_CHECKPOINT_INTERVAL, TASK_DEFAULT_TIMEOUT
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Default database path
@@ -91,8 +91,8 @@ class DurableTask:
     progress: float
     created_at: datetime
     updated_at: datetime
-    checkpoint: Optional[dict[str, Any]] = None
-    error: Optional[str] = None
+    checkpoint: dict[str, Any] | None = None
+    error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     timeout_seconds: int = TASK_DEFAULT_TIMEOUT
 
@@ -173,8 +173,8 @@ class TaskDurabilityManager:
 
     def __init__(
         self,
-        db_path: Optional[Path] = None,
-        checkpoint_interval: Optional[int] = None,
+        db_path: Path | None = None,
+        checkpoint_interval: int | None = None,
     ):
         """Initialize the durability manager.
 
@@ -230,9 +230,9 @@ class TaskDurabilityManager:
         self,
         job_id: str,
         description: str,
-        checkpoint: Optional[dict[str, Any]] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        timeout_seconds: Optional[int] = None,
+        checkpoint: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        timeout_seconds: int | None = None,
     ) -> DurableTask:
         """Create a new durable task.
 
@@ -292,9 +292,9 @@ class TaskDurabilityManager:
         self,
         task_id: str,
         progress: float,
-        checkpoint: Optional[dict[str, Any]] = None,
-        status: Optional[TaskStatus] = None,
-    ) -> Optional[DurableTask]:
+        checkpoint: dict[str, Any] | None = None,
+        status: TaskStatus | None = None,
+    ) -> DurableTask | None:
         """Update task progress and optionally save checkpoint.
 
         Args:
@@ -339,7 +339,7 @@ class TaskDurabilityManager:
 
         return task
 
-    async def pause_task(self, task_id: str) -> Optional[DurableTask]:
+    async def pause_task(self, task_id: str) -> DurableTask | None:
         """Pause a task (on disconnection).
 
         Args:
@@ -368,7 +368,7 @@ class TaskDurabilityManager:
 
         return task
 
-    async def resume_task(self, task_id: str) -> Optional[DurableTask]:
+    async def resume_task(self, task_id: str) -> DurableTask | None:
         """Resume a paused task.
 
         Args:
@@ -400,8 +400,8 @@ class TaskDurabilityManager:
     async def complete_task(
         self,
         task_id: str,
-        final_checkpoint: Optional[dict[str, Any]] = None,
-    ) -> Optional[DurableTask]:
+        final_checkpoint: dict[str, Any] | None = None,
+    ) -> DurableTask | None:
         """Mark a task as completed.
 
         Args:
@@ -422,8 +422,8 @@ class TaskDurabilityManager:
         self,
         task_id: str,
         error: str,
-        checkpoint: Optional[dict[str, Any]] = None,
-    ) -> Optional[DurableTask]:
+        checkpoint: dict[str, Any] | None = None,
+    ) -> DurableTask | None:
         """Mark a task as failed.
 
         Args:
@@ -462,7 +462,7 @@ class TaskDurabilityManager:
 
         return task
 
-    async def cancel_task(self, task_id: str) -> Optional[DurableTask]:
+    async def cancel_task(self, task_id: str) -> DurableTask | None:
         """Cancel a task.
 
         Args:
@@ -491,7 +491,7 @@ class TaskDurabilityManager:
 
         return task
 
-    async def get_task(self, task_id: str) -> Optional[DurableTask]:
+    async def get_task(self, task_id: str) -> DurableTask | None:
         """Get a task by ID.
 
         Args:
@@ -535,7 +535,7 @@ class TaskDurabilityManager:
     async def get_tasks_by_job(
         self,
         job_id: str,
-        status: Optional[TaskStatus] = None,
+        status: TaskStatus | None = None,
     ) -> list[DurableTask]:
         """Get all tasks for a job.
 
@@ -656,7 +656,7 @@ class TaskDurabilityManager:
         for task_id, timeout, updated_at in rows:
             task_updated = datetime.fromisoformat(updated_at)
             if task_updated.tzinfo is None:
-                task_updated = task_updated.replace(tzinfo=timezone.utc)
+                task_updated = task_updated.replace(tzinfo=UTC)
 
             elapsed = (now - task_updated).total_seconds()
             if elapsed > timeout:

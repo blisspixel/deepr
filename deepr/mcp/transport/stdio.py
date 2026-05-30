@@ -15,10 +15,10 @@ import asyncio
 import json
 import logging
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,11 @@ class Message:
     """A JSON-RPC message."""
 
     jsonrpc: str = "2.0"
-    id: Optional[str] = None
-    method: Optional[str] = None
-    params: Optional[dict] = None
-    result: Optional[Any] = None
-    error: Optional[dict] = None
+    id: str | None = None
+    method: str | None = None
+    params: dict | None = None
+    result: Any | None = None
+    error: dict | None = None
 
     def is_request(self) -> bool:
         """Check if this is a request message."""
@@ -116,8 +116,8 @@ class StdioTransport:
 
     def __init__(
         self,
-        input_stream: Optional[asyncio.StreamReader] = None,
-        output_stream: Optional[asyncio.StreamWriter] = None,
+        input_stream: asyncio.StreamReader | None = None,
+        output_stream: asyncio.StreamWriter | None = None,
     ):
         """
         Initialize stdio transport.
@@ -128,16 +128,16 @@ class StdioTransport:
         """
         self._input = input_stream
         self._output = output_stream
-        self._handler: Optional[Callable[[Message], Awaitable[Optional[Message]]]] = None
+        self._handler: Callable[[Message], Awaitable[Message | None]] | None = None
         self._running = False
         self._stats = TransportStats()
-        self._read_task: Optional[asyncio.Task] = None
+        self._read_task: asyncio.Task | None = None
         # Track in-flight handler tasks so stop() can drain them. Initialised
         # in __init__ rather than lazily inside _read_loop so callers that
         # interrogate the transport before the first message still see the set.
         self._in_flight: set[asyncio.Task] = set()
 
-    def on_message(self, handler: Callable[[Message], Awaitable[Optional[Message]]]) -> None:
+    def on_message(self, handler: Callable[[Message], Awaitable[Message | None]]) -> None:
         """
         Set the message handler.
 
@@ -198,7 +198,7 @@ class StdioTransport:
                     asyncio.gather(*self._in_flight, return_exceptions=True),
                     timeout=5.0,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 for task in list(self._in_flight):
                     if not task.done():
                         task.cancel()
@@ -298,7 +298,7 @@ class StdioTransport:
 
         self._stats.record_sent(len(encoded))
 
-    async def _send_error(self, id: Optional[str], code: int, message: str) -> None:
+    async def _send_error(self, id: str | None, code: int, message: str) -> None:
         """Send an error response."""
         error_msg = Message(id=id, error={"code": code, "message": message})
         await self.send(error_msg)
@@ -348,7 +348,7 @@ class StdioServer:
         """
         self._methods[name] = handler
 
-    async def _handle_message(self, message: Message) -> Optional[Message]:
+    async def _handle_message(self, message: Message) -> Message | None:
         """Handle incoming message."""
         if not message.is_request():
             return None

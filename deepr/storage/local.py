@@ -2,9 +2,9 @@
 
 import re
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
 
@@ -221,7 +221,7 @@ class LocalStorage(StorageBackend):
         filename: str,
         content: bytes,
         content_type: str,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ReportMetadata:
         """Save report to local filesystem with human-readable naming."""
         try:
@@ -254,7 +254,7 @@ class LocalStorage(StorageBackend):
                 metadata_path = job_dir / "metadata.json"
                 metadata_content = {
                     "job_id": job_id,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                     "filename": filename,
                     "content_type": content_type,
                     "size_bytes": len(content),
@@ -275,7 +275,7 @@ class LocalStorage(StorageBackend):
                 filename=filename,
                 format=format_ext,
                 size_bytes=stat.st_size,
-                created_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+                created_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
                 url=str(report_path),
                 content_type=content_type,
             )
@@ -302,7 +302,7 @@ class LocalStorage(StorageBackend):
                 original_error=e,
             ) from e
 
-    async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
+    async def list_reports(self, job_id: str | None = None) -> list[ReportMetadata]:
         """List reports in local storage."""
         try:
             reports = []
@@ -324,7 +324,7 @@ class LocalStorage(StorageBackend):
                                 filename=report_path.name,
                                 format=format_ext,
                                 size_bytes=stat.st_size,
-                                created_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+                                created_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
                                 url=str(report_path),
                                 content_type=self.get_content_type(report_path.name),
                             )
@@ -344,7 +344,7 @@ class LocalStorage(StorageBackend):
                                         filename=report_path.name,
                                         format=format_ext,
                                         size_bytes=stat.st_size,
-                                        created_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+                                        created_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
                                         url=str(report_path),
                                         content_type=self.get_content_type(report_path.name),
                                     )
@@ -359,7 +359,7 @@ class LocalStorage(StorageBackend):
                 original_error=e,
             ) from e
 
-    async def delete_report(self, job_id: str, filename: Optional[str] = None) -> bool:
+    async def delete_report(self, job_id: str, filename: str | None = None) -> bool:
         """Delete report(s) from local filesystem."""
         try:
             if filename:
@@ -406,7 +406,7 @@ class LocalStorage(StorageBackend):
     async def cleanup_old_reports(self, days: int = 30) -> int:
         """Delete reports older than specified days."""
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days)
             deleted_count = 0
 
             for job_dir in self.base_path.iterdir():
@@ -417,7 +417,7 @@ class LocalStorage(StorageBackend):
                 all_old = True
                 for report_path in job_dir.iterdir():
                     if report_path.is_file():
-                        mtime = datetime.fromtimestamp(report_path.stat().st_mtime, tz=timezone.utc)
+                        mtime = datetime.fromtimestamp(report_path.stat().st_mtime, tz=UTC)
                         if mtime >= cutoff_date:
                             all_old = False
                             break
