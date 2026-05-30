@@ -23,6 +23,7 @@ from .base import (
     ResearchRequest,
     ResearchResponse,
     UsageStats,
+    VectorStore,
 )
 
 
@@ -174,7 +175,7 @@ class GrokProvider(DeepResearchProvider):
 
         return job_id
 
-    async def _execute_research(self, job_id: str):
+    async def _execute_research(self, job_id: str) -> None:
         """Execute research using Grok chat completions."""
         job_data = self.jobs[job_id]
         request = job_data["request"]
@@ -487,7 +488,7 @@ class GrokProvider(DeepResearchProvider):
             synthesis_reserve = total_budget * fan_out_config.synthesis_reserve_fraction
             remaining = max(0.0, total_budget - fan_out_result.total_cost)
             if remaining < synthesis_reserve:
-                synthesis = {
+                synthesis: dict[str, Any] = {
                     "content": "Synthesis skipped: operation budget exhausted by worker fan-out.",
                     "cost": 0.0,
                     "tokens_input": 0,
@@ -496,7 +497,7 @@ class GrokProvider(DeepResearchProvider):
             else:
                 # Synthesise results into single output with per-agent attribution
                 synthesis = await self._synthesise_multi_agent(request.prompt, agent_outputs, single_model)
-            total_cost = fan_out_result.total_cost + synthesis.get("cost", 0.0)
+            total_cost = fan_out_result.total_cost + float(synthesis.get("cost", 0.0))
 
             total_input = sum(r.metadata.get("tokens_input", 0) for r in fan_out_result.results)
             total_output = sum(r.metadata.get("tokens_output", 0) for r in fan_out_result.results)
@@ -642,19 +643,21 @@ class GrokProvider(DeepResearchProvider):
 
         return round(input_cost + output_cost, 6)
 
-    async def upload_document(self, file_path: str, collection_id: str | None = None) -> dict[str, Any]:
+    async def upload_document(self, file_path: str, purpose: str = "assistants") -> str:
         """
         Upload document to Grok collections.
 
-        TODO: Implement when document collections are needed.
+        TODO: Implement when document collections are needed. Signature matches
+        the base ``DeepResearchProvider`` contract (Liskov-compatible stub).
         """
         raise NotImplementedError("Grok document upload not yet implemented")
 
-    async def create_vector_store(self, name: str, description: str | None = None) -> str:
+    async def create_vector_store(self, name: str, file_ids: list[str]) -> VectorStore:
         """
         Create Grok collection for document storage.
 
-        TODO: Implement when document collections are needed.
+        TODO: Implement when document collections are needed. Signature matches
+        the base ``DeepResearchProvider`` contract.
         """
         raise NotImplementedError("Grok vector store not yet implemented")
 
@@ -662,11 +665,11 @@ class GrokProvider(DeepResearchProvider):
         """Delete Grok collection."""
         raise NotImplementedError("Grok vector store not yet implemented")
 
-    async def list_vector_stores(self) -> list[dict[str, Any]]:
+    async def list_vector_stores(self, limit: int = 100) -> list[VectorStore]:
         """List Grok collections."""
         raise NotImplementedError("Grok vector store not yet implemented")
 
-    async def wait_for_vector_store(self, store_id: str, timeout: int = 300) -> bool:
+    async def wait_for_vector_store(self, vector_store_id: str, timeout: int = 900, poll_interval: float = 2.0) -> bool:
         """Wait for Grok collection to be ready."""
         raise NotImplementedError("Grok vector store not yet implemented")
 
