@@ -71,7 +71,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         deep_research_deployment: str | None = None,
         gpt_deployment: str | None = None,
         bing_resource_name: str | None = None,
-        model_mappings: dict | None = None,
+        model_mappings: dict[str, str] | None = None,
     ):
         """Initialize Azure Foundry provider.
 
@@ -92,10 +92,10 @@ class AzureFoundryProvider(DeepResearchProvider):
         if not self.project_endpoint:
             raise ValueError("Azure AI Foundry project endpoint is required (set AZURE_PROJECT_ENDPOINT)")
 
-        self.deep_research_deployment = deep_research_deployment or os.getenv(
-            "AZURE_DEEP_RESEARCH_DEPLOYMENT", "o3-deep-research"
+        self.deep_research_deployment = (
+            deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "o3-deep-research"
         )
-        self.gpt_deployment = gpt_deployment or os.getenv("AZURE_GPT_DEPLOYMENT", "gpt-4.1")
+        self.gpt_deployment = gpt_deployment or os.getenv("AZURE_GPT_DEPLOYMENT") or "gpt-4.1"
         self.bing_resource_name = bing_resource_name or os.getenv("AZURE_BING_RESOURCE_NAME")
 
         self.model_mappings = model_mappings or {
@@ -140,13 +140,13 @@ class AzureFoundryProvider(DeepResearchProvider):
             self.deep_research_deployment,
         )
 
-    def _get_credential(self):
+    def _get_credential(self) -> Any:
         """Get Azure credential via DefaultAzureCredential."""
         from azure.identity import DefaultAzureCredential
 
         return DefaultAzureCredential()
 
-    def _get_project_client(self):
+    def _get_project_client(self) -> Any:
         """Get or create AIProjectClient (lazy init)."""
         if self._project_client is None:
             from azure.ai.projects import AIProjectClient
@@ -157,7 +157,7 @@ class AzureFoundryProvider(DeepResearchProvider):
             )
         return self._project_client
 
-    def _get_agents_client(self):
+    def _get_agents_client(self) -> Any:
         """Get or create AgentsClient (lazy init)."""
         if self._agents_client is None:
             from azure.ai.agents import AgentsClient
@@ -236,11 +236,11 @@ class AzureFoundryProvider(DeepResearchProvider):
         )
         self._regular_agent_ids[model] = agent.id
         logger.info("Created Foundry regular agent: %s (model=%s)", agent.id, deployment)
-        return agent.id
+        return str(agent.id)
 
     def get_model_name(self, model_key: str) -> str:
         """Map generic model key to Azure Foundry deployment name."""
-        return self.model_mappings.get(model_key, model_key)
+        return str(self.model_mappings.get(model_key, model_key))
 
     def _calculate_cost(self, input_tokens: int, output_tokens: int, model: str) -> float:
         """Calculate cost for regular (non-deep-research) Foundry models."""
@@ -293,7 +293,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         for attempt in range(max_retries):
             try:
 
-                def _create_run():
+                def _create_run() -> Any:
                     agents_client = self._get_agents_client()
                     agent_id = self._ensure_deep_research_agent()
 
@@ -361,7 +361,7 @@ class AzureFoundryProvider(DeepResearchProvider):
         for attempt in range(max_retries):
             try:
 
-                def _create_run():
+                def _create_run() -> Any:
                     agents_client = self._get_agents_client()
                     agent_id = self._ensure_regular_agent(request.model)
 
@@ -436,7 +436,7 @@ class AzureFoundryProvider(DeepResearchProvider):
 
         try:
 
-            def _poll_run():
+            def _poll_run() -> Any:
                 from azure.ai.agents.models import MessageRole
 
                 agents_client = self._get_agents_client()
@@ -535,7 +535,7 @@ class AzureFoundryProvider(DeepResearchProvider):
 
         return self._build_response(job_id, job_data)
 
-    def _build_response(self, job_id: str, job_data: dict) -> ResearchResponse:
+    def _build_response(self, job_id: str, job_data: dict[str, Any]) -> ResearchResponse:
         """Build a ResearchResponse from job data."""
         usage = None
         if job_data["status"] == "completed":
@@ -590,7 +590,7 @@ class AzureFoundryProvider(DeepResearchProvider):
 
         try:
 
-            def _cancel():
+            def _cancel() -> None:
                 agents_client = self._get_agents_client()
                 agents_client.runs.cancel(thread_id=thread_id, run_id=run_id)
 
@@ -665,7 +665,7 @@ class AzureFoundryProvider(DeepResearchProvider):
             )
         return models
 
-    def discover_models(self):
+    def discover_models(self) -> list[Any]:
         """Discover available Azure Foundry models and their capabilities.
 
         Returns a list of ModelCapability objects for all Azure Foundry models
@@ -691,7 +691,7 @@ class AzureFoundryProvider(DeepResearchProvider):
     # Cleanup
     # =========================================================================
 
-    def close(self):
+    def close(self) -> None:
         """Clean up all reusable agents."""
         if self._deep_research_agent_id and self._agents_client:
             try:
@@ -710,7 +710,7 @@ class AzureFoundryProvider(DeepResearchProvider):
                     logger.warning("Failed to delete agent %s: %s", agent_id, e)
             self._regular_agent_ids.clear()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Attempt cleanup on garbage collection."""
         try:
             self.close()

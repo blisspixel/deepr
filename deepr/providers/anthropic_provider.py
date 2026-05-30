@@ -136,7 +136,7 @@ class AnthropicProvider(DeepResearchProvider):
                 tools = self.tool_executor.get_tool_definitions(format="anthropic")
 
             # Execute research with Extended Thinking (multi-turn for tool calls)
-            messages = [{"role": "user", "content": user_message}]
+            messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
             thinking_content = []
             response_content = []
             tool_calls_made = []
