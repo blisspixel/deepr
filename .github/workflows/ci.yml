@@ -73,10 +73,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9/3.10 dropped (3.9 EOL; 3.10 caused pydantic test-collection
-        # failures). 3.14 is exercised but non-blocking until every optional
-        # dependency publishes 3.14 wheels (see Phase E).
-        python-version: ["3.11", "3.12", "3.13"]
+        # Floor is 3.12 (3.11 supported only to Oct 2027; 3.12 to Oct 2028 -
+        # see Phase E). 3.14 is exercised but non-blocking until every optional
+        # dependency publishes 3.14 wheels.
+        python-version: ["3.12", "3.13"]
         include:
           - python-version: "3.14"
             experimental: true
