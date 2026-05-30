@@ -59,11 +59,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Dependency audit (pip-audit baseline, non-blocking)
-        # Phase E: flips to a blocking gate once known advisories are triaged
-        # and pinned out. Audits the resolved dependency set, skipping the
-        # editable project package itself.
-        continue-on-error: true
+      - name: Dependency audit (pip-audit, blocking)
+        # Phase E: BLOCKING. The baseline was cleared (flask-cors bumped past
+        # CVE-2024-6839/6844/6866), so a new known vulnerability fails the
+        # build. Accepted advisories are pinned explicitly with
+        # `--ignore-vuln <ID>` rather than by disabling the gate.
         run: |
           uv pip install -e ".[full]" "pip-audit>=2.7.0"
           pip-audit --skip-editable

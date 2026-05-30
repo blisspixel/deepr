@@ -170,10 +170,9 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [x] Modernize syntax to the 3.11 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
 - [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
 - [x] Dependabot (pip + github-actions + npm, weekly)
-- [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config
-- [x] `pip-audit` wired into CI (non-blocking baseline)
-- [ ] Triage the `pip-audit` baseline; pin out advisories; flip `pip-audit` to blocking
-- [ ] Annotate `core/` + `providers/` + `mcp/` to strict-clean; flip mypy `--strict` blocking on those packages, then expand outward
+- [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config; baseline is 314 errors across 76 of 262 checked files
+- [x] `pip-audit` wired into CI, **blocking** — baseline cleared by bumping flask-cors past CVE-2024-6839/6844/6866; accepted advisories are pinned via `--ignore-vuln` rather than by disabling the gate
+- [ ] Drive the mypy baseline (314 errors) to zero on `core/` + `providers/` + `mcp/`, then flip mypy `--strict` blocking on those packages and expand outward
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`) and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [ ] Enable `--cov-branch`; ratchet `fail_under` 80 -> 85 -> 90 -> 95 as branch tests land
 - [ ] Expand Ruff ruleset: `C901` complexity cap, promote S-rules to blocking for new code
