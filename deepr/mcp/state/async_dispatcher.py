@@ -60,7 +60,7 @@ class DispatchedTask:
     """A task being dispatched."""
 
     id: str
-    coro: Coroutine | None = None
+    coro: Coroutine[Any, Any, Any] | None = None
     status: DispatchStatus = DispatchStatus.PENDING
     result: Any = None
     error: str | None = None
@@ -187,7 +187,7 @@ class AsyncTaskDispatcher:
             self._active_tasks[task.id] = task
 
         # Execute all tasks concurrently
-        async def run_task(task: DispatchedTask):
+        async def run_task(task: DispatchedTask) -> None:
             async with self._semaphore:
                 if self._cancel_event.is_set():
                     task.status = DispatchStatus.CANCELLED
@@ -301,10 +301,10 @@ class AsyncTaskDispatcher:
             self._active_tasks[task_id] = task
 
         # Track completed tasks
-        completed_tasks: set = set()
+        completed_tasks: set[str] = set()
         completion_events: dict[str, asyncio.Event] = {task_id: asyncio.Event() for task_id in dispatched}
 
-        async def wait_for_dependencies(task: DispatchedTask):
+        async def wait_for_dependencies(task: DispatchedTask) -> bool:
             """Wait for all dependencies to complete."""
             for dep_id in task.depends_on:
                 if dep_id in completion_events:
@@ -324,7 +324,7 @@ class AsyncTaskDispatcher:
 
             return True
 
-        async def run_task(task: DispatchedTask):
+        async def run_task(task: DispatchedTask) -> None:
             # Wait for dependencies *before* acquiring the concurrency slot.
             # Holding the semaphore while awaiting a dependency that itself
             # needs a slot deadlocks any chain of length > max_concurrent
@@ -412,7 +412,7 @@ class AsyncTaskDispatcher:
             cancelled_count=cancelled_count,
         )
 
-    async def cancel_all(self):
+    async def cancel_all(self) -> None:
         """Cancel all active tasks."""
         self._cancel_event.set()
         for task in self._active_tasks.values():

@@ -154,7 +154,7 @@ class MCPClient:
         # this the OS pipe buffer (~64KB on Linux) fills up on a chatty
         # server and the child blocks on its next stderr write — every
         # tool call then times out and ``close()`` is forced to ``kill()``.
-        self._stderr_task: asyncio.Task | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
 
     @property
     def connected(self) -> bool:
@@ -509,9 +509,9 @@ class MCPClient:
                     return {"error": "MCP server closed connection"}
 
                 try:
-                    payload = json.loads(response_line)
+                    payload: dict[str, Any] = json.loads(response_line)
                 except json.JSONDecodeError:
-                    return {"error": f"Invalid JSON from MCP server: {response_line[:200]}"}
+                    return {"error": f"Invalid JSON from MCP server: {response_line[:200]!r}"}
 
                 # Drop pure notifications (no id) silently.
                 if "id" not in payload:
