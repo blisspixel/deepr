@@ -50,15 +50,16 @@ jobs:
         continue-on-error: true
         run: mypy
 
-      - name: Type check core/ (mypy --strict, BLOCKING)
-        # Phase E: core/ is the first strict-clean island (kernel: budget, cost,
-        # contracts, research orchestration). This gate is blocking - a strict
-        # regression in the kernel fails the build. providers/ and mcp/ follow.
+      - name: Type check strict islands (mypy --strict, BLOCKING)
+        # Phase E: strict-clean islands enforced as a blocking gate - a strict
+        # regression in these packages fails the build. core/ (kernel: budget,
+        # cost, contracts, research orchestration) and providers/ (all adapters)
+        # are clean; mcp/ is next.
         # --no-warn-unused-ignores: the lint job installs no project deps, so
         # whether a `# type: ignore[import-untyped]` is "used" depends on which
         # third-party packages are present (e.g. PyYAML). Decouple the gate
         # from that so it is reproducible regardless of the install set.
-        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core
+        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core deepr/providers
 
   security:
     runs-on: ubuntu-latest
