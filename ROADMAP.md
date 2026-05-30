@@ -184,7 +184,8 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [x] Dependabot (pip + github-actions + npm, weekly)
 - [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config; baseline is 314 errors across 76 of 262 checked files
 - [x] `pip-audit` wired into CI, **blocking** — baseline cleared by bumping flask-cors past CVE-2024-6839/6844/6866; accepted advisories are pinned via `--ignore-vuln` rather than by disabling the gate
-- [ ] Drive the mypy baseline (314 errors) to zero on `core/` + `providers/` + `mcp/`, then flip mypy `--strict` blocking on those packages and expand outward
+- [x] `core/` driven to mypy `--strict`-clean (44 kernel errors fixed) and flipped to a **blocking** `mypy --strict deepr/core` gate - the first strict island (budget, cost, contracts, research orchestration)
+- [ ] Extend the strict-blocking gate to `providers/` + `mcp/`, then the rest of the tree (whole-tree `mypy` stays a non-blocking baseline meanwhile)
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`), `UP047` (PEP 695 generics), and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [x] Enable `--cov-branch` (branch baseline 78%); `fail_under = 78`, ratcheting 78 -> 85 -> 90 -> 95 as branch tests land
 - [x] `C901` complexity cap (max-complexity 10) surfaced as an advisory CI signal (134 functions over cap); promote to blocking as the worst offenders are refactored. S-rules remain advisory (all 93 current findings are in the documented-legacy set)
