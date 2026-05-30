@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from typing import Any
 
 import openai
 
@@ -29,7 +30,7 @@ class OpenAIProvider(DeepResearchProvider):
         api_key: str | None = None,
         base_url: str | None = None,
         organization: str | None = None,
-        model_mappings: dict | None = None,
+        model_mappings: dict[str, str] | None = None,
     ):
         """
         Initialize OpenAI provider.
@@ -56,7 +57,7 @@ class OpenAIProvider(DeepResearchProvider):
 
     def get_model_name(self, model_key: str) -> str:
         """Map generic model key to OpenAI model name."""
-        return self.model_mappings.get(model_key, model_key)
+        return str(self.model_mappings.get(model_key, model_key))
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """Submit research job to OpenAI with retry logic."""
@@ -80,7 +81,7 @@ class OpenAIProvider(DeepResearchProvider):
                 # Convert tools to OpenAI format
                 tools = []
                 for tool in request.tools:
-                    tool_dict = {"type": tool.type}
+                    tool_dict: dict[str, Any] = {"type": tool.type}
                     if tool.type == "file_search" and tool.vector_store_ids:
                         tool_dict["vector_store_ids"] = tool.vector_store_ids
                     elif tool.type == "code_interpreter":
@@ -90,7 +91,7 @@ class OpenAIProvider(DeepResearchProvider):
                     tools.append(tool_dict)
 
                 # Build request payload
-                payload = {
+                payload: dict[str, Any] = {
                     "model": model,
                     "input": [
                         {
@@ -136,7 +137,7 @@ class OpenAIProvider(DeepResearchProvider):
 
                 # Submit request
                 response = await self.client.responses.create(**payload)
-                return response.id
+                return str(response.id)
 
             except (RateLimitError, APIConnectionError, APITimeoutError) as e:
                 # Retryable errors
@@ -259,7 +260,7 @@ class OpenAIProvider(DeepResearchProvider):
         try:
             with open(file_path, "rb") as f:
                 file_obj = await self.client.files.create(file=f, purpose=purpose)
-            return file_obj.id
+            return str(file_obj.id)
         except (OSError, openai.OpenAIError) as e:
             raise ProviderError(
                 message=f"Failed to upload document: {e!s}",
