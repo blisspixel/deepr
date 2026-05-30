@@ -6,12 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-# `uv pip install --system` targets the runner's (uv-managed) interpreter,
-# which is marked externally-managed (PEP 668). Allowing it is safe on
-# ephemeral CI runners and avoids per-job venv activation plumbing.
-env:
-  UV_BREAK_SYSTEM_PACKAGES: "1"
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -24,7 +18,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install lint tooling
-        run: uv pip install --system ruff==0.15.1 "mypy>=1.13.0"
+        # No --system: setup-uv creates and activates a .venv, so install into
+        # it and let the .venv's ruff/mypy/python resolve on PATH.
+        run: uv pip install ruff==0.15.1 "mypy>=1.13.0"
 
       - name: Lint
         run: ruff check deepr/
@@ -69,7 +65,7 @@ jobs:
         # editable project package itself.
         continue-on-error: true
         run: |
-          uv pip install --system -e ".[full]" "pip-audit>=2.7.0"
+          uv pip install -e ".[full]" "pip-audit>=2.7.0"
           pip-audit --skip-editable
 
   test:
@@ -95,7 +91,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv pip install --system -e ".[dev,full]"
+        run: uv pip install -e ".[dev,full]"
 
       - name: Unit tests with coverage
         # Coverage threshold lives in pyproject.toml (currently 80%).
