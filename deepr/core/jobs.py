@@ -61,7 +61,7 @@ class JobManager:
         provider: str | None = None,
         run_id: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Log a new job submission.
 
@@ -89,7 +89,7 @@ class JobManager:
         if self.backend_type == "jsonl":
             await self._write_jsonl_record(record)
 
-    async def update_status(self, response_id: str, new_status: str):
+    async def update_status(self, response_id: str, new_status: str) -> None:
         """
         Update job status.
 
@@ -148,7 +148,7 @@ class JobManager:
 
     # JSONL Backend Implementation
 
-    async def _write_jsonl_record(self, record: JobRecord):
+    async def _write_jsonl_record(self, record: JobRecord) -> None:
         """Write a record to JSONL file with durable append.
 
         Uses ``append_jsonl_durable`` so the line is flushed + fsync'd
@@ -162,7 +162,7 @@ class JobManager:
 
         append_jsonl_durable(self.log_path, asdict(record), fsync=False)
 
-    async def _update_jsonl_status(self, response_id: str, new_status: str):
+    async def _update_jsonl_status(self, response_id: str, new_status: str) -> None:
         """Update status in JSONL file."""
         if not self.log_path.exists():
             return
