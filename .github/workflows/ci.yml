@@ -54,7 +54,11 @@ jobs:
         # Phase E: core/ is the first strict-clean island (kernel: budget, cost,
         # contracts, research orchestration). This gate is blocking - a strict
         # regression in the kernel fails the build. providers/ and mcp/ follow.
-        run: mypy --strict --ignore-missing-imports deepr/core
+        # --no-warn-unused-ignores: the lint job installs no project deps, so
+        # whether a `# type: ignore[import-untyped]` is "used" depends on which
+        # third-party packages are present (e.g. PyYAML). Decouple the gate
+        # from that so it is reproducible regardless of the install set.
+        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core
 
   security:
     runs-on: ubuntu-latest
