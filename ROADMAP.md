@@ -386,6 +386,23 @@ Goal: production posture for multi-user and autonomous deployments.
 - [ ] Execution isolation (sandboxed parsing, resource limits, egress controls)
 - [ ] Cryptographic verification and execution-proof audit trail (stretch)
 
+#### AI/agentic security (scoped to Deepr's real surface)
+
+Deepr is an orchestration layer over hosted model APIs - it does not train, fine-tune, or serve model weights - so its security work targets *ingested data* and *agentic tool use*, not the model internals. The threats that actually apply:
+
+- [ ] **Indirect prompt-injection defense for ingested/tool content.** Web search results, scraped pages, uploaded docs, and first-party MCP tool output (recon/distillr/primr) are untrusted input that flows into prompts and into expert beliefs. Extend `utils/prompt_security.PromptSanitizer` to the ingestion + tool-result boundary (not just user prompts), delimit/quarantine untrusted spans, and gate belief absorption behind the existing verify/reflection step so a poisoned source cannot silently become a belief. This is Deepr's #1 AI-security risk.
+- [ ] **Agentic trust boundaries.** Formalize the existing approval tiers (AUTO_APPROVE/NOTIFY/CONFIRM) + per-MCP-server tool allowlists, rate limits, and egress controls (overlaps Phase 2 elicitation sandboxing); capability-scope what each tool/expert may do, and never auto-approve a paid or write-capable tool.
+- [ ] **Output/handoff validation.** Validate MCP/A2A outputs against the published handoff schemas (above) before downstream agents consume them - a compromised expert must not emit malformed/unsafe artifacts.
+- [ ] **Agentic red-team suite.** Automated prompt-injection / jailbreak / tool-abuse tests against expert chat and the ingestion paths (the security-flavored sibling of the Phase E fault-injection tests); track attack-success-rate as a metric.
+- [ ] **Threat model doc** (MITRE ATLAS-style) for Deepr's actual surface - ingestion, agentic tools, MCP/web/A2A endpoints, secret handling - that records what is explicitly out of scope (see below) so effort stays proportional.
+- [ ] Secret hygiene hardening: least-privilege provider keys, no secrets in logs/traces (redaction exists), and secret-scanning in CI.
+
+**Explicit security non-goals** (Deepr does not own the model, so these belong to the providers, not us):
+
+- Training/fine-tuning-time defenses (data poisoning, label-flip, DP-SGD, adversarial training, certified robustness) - Deepr trains nothing.
+- Model-weight protection (extraction/inversion/membership-inference defenses, watermarking/fingerprinting, TEEs/enclaves, homomorphic encryption, confidential computing, post-quantum model crypto) - Deepr holds no weights; it calls hosted APIs.
+- Inference-layer isolation (confidential VMs / GPU enclaves for serving) - inference runs on the providers' infrastructure under their shared-responsibility model.
+
 ### Backlog (Not in Active Sequence)
 
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)

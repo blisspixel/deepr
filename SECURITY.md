@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2.9.x   | Yes       |
-| < 2.9   | No        |
+| 2.12.x  | Yes       |
+| < 2.12  | No        |
 
 ## Reporting a Vulnerability
 
@@ -25,10 +25,19 @@ You should receive a response within 72 hours. Critical issues will be patched a
 Deepr includes:
 
 - Input validation and request sanitization
+- Prompt-injection detection/sanitization (`utils/prompt_security.PromptSanitizer`)
 - SSRF protection on user-supplied URLs
 - API key redaction in logs and error output
-- Budget enforcement to prevent runaway spend
+- Budget enforcement to prevent runaway spend (per-operation + daily/monthly caps, approval tiers)
+- Dependency audit (`pip-audit`, blocking in CI) and SBOM generation
 - Pre-commit hooks (ruff lint, debug statement detection)
 - Comprehensive automated test suite with an enforced coverage gate (see [ROADMAP](ROADMAP.md) for current counts)
+
+**Scope note:** Deepr orchestrates *hosted* model APIs; it does not train, fine-tune,
+or serve model weights. Its security focus is therefore ingested/untrusted data and
+agentic tool use (prompt injection, tool-abuse, trust boundaries), not model-internals
+attacks (poisoning, weight extraction, etc.), which belong to the model providers. See
+the "AI/agentic security" subsection of [ROADMAP](ROADMAP.md) for the planned hardening
+and the explicit non-goals.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
