@@ -40,7 +40,7 @@ class SamplingRequest:
     context: dict[str, Any] = field(default_factory=dict)
     max_tokens: int = 1024
 
-    def to_mcp_params(self) -> dict:
+    def to_mcp_params(self) -> dict[str, Any]:
         """Convert to MCP sampling/createMessage params."""
         messages = [
             {
@@ -72,7 +72,7 @@ class SamplingResponse:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_mcp_result(cls, result: dict) -> "SamplingResponse":
+    def from_mcp_result(cls, result: dict[str, Any]) -> "SamplingResponse":
         """Parse from MCP sampling/createMessage result."""
         content_block = result.get("content", {})
         text = content_block.get("text", "") if isinstance(content_block, dict) else str(content_block)

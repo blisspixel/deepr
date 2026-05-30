@@ -286,7 +286,7 @@ class ConfigLoader:
 
         if config_path.exists():
             try:
-                import yaml
+                import yaml  # type: ignore[import-untyped]
             except ImportError as e:
                 raise ImportError("PyYAML is required for config loading: pip install pyyaml") from e
 
