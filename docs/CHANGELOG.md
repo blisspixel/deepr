@@ -42,18 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Engineering standards foundation (Phase E).** New continuous
   code-quality track in the roadmap with firm, blocking gate targets. This
   release lands the foundation:
-  - **Python baseline raised to 3.11** (``requires-python >=3.11``); CI matrix
-    now 3.11 / 3.12 / 3.13 (blocking) + 3.14 (non-blocking until optional-dep
-    wheels are confirmed). 3.9 (EOL) and 3.10 (pydantic test-collection
-    failures) dropped.
+  - **Python baseline raised to 3.12** (``requires-python >=3.12``); CI matrix
+    now 3.12 / 3.13 (blocking) + 3.14 (non-blocking until optional-dep wheels
+    are confirmed). 3.9/3.10 (EOL / test-collection failures) and 3.11
+    (supported only to Oct 2027) dropped; a 3.12 floor holds security coverage
+    to Oct 2028. ``ruff target-version`` is ``py312``.
   - **``uv`` adopted as the canonical toolchain**: ``uv.lock`` and
     ``.python-version`` committed for reproducible dev/CI/container
     environments; CI installs via ``uv pip install``. setuptools remains the
     build backend so ``pip install`` keeps working downstream.
-  - **Syntax modernized to the 3.11 baseline** via Ruff autofix: PEP 604
+  - **Syntax modernized to the 3.12 baseline** via Ruff autofix: PEP 604
     unions (``X | None``), ``datetime.UTC``, exception/import aliases
     (~1.6k mechanical, test-verified changes). ``ruff target-version`` is now
-    ``py311``.
+    ``py312``.
   - **mypy** wired into CI as a non-blocking baseline (``[tool.mypy]`` config
     added; baseline 314 errors / 76 files), ratcheting toward a blocking
     ``--strict`` gate.

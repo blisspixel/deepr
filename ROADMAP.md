@@ -34,7 +34,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.12)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 4851+ unit tests, 81.8% coverage on Python 3.11-3.13. Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 4851+ unit tests, 81.8% coverage on Python 3.12-3.14. Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
 ### Stable (Production-Ready)
 
@@ -156,9 +156,9 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 **Adopted standard (the committed end state):**
 
-- **Python**: floor **3.12** (tested on 3.12 / 3.13 / 3.14). Rationale: 3.10 reaches EOL Oct 2026 and 3.11 only Oct 2027, while a 3.12 floor buys security coverage to Oct 2028 and matches ecosystem convergence (most quality libs, base images, and runners have dropped older). Deliberately not single-version-pinned - Deepr is an embeddable kernel and an MCP server other agents `pip install`, so it must stay broadly installable across the supported window. (Currently shipped floor is 3.11; the 3.11 -> 3.12 bump is tracked in Sequenced work below.)
+- **Python**: floor **3.12** (tested on 3.12 / 3.13 / 3.14). Rationale: 3.10 reaches EOL Oct 2026 and 3.11 only Oct 2027, while a 3.12 floor buys security coverage to Oct 2028 and matches ecosystem convergence (most quality libs, base images, and runners have dropped older). Deliberately not single-version-pinned - Deepr is an embeddable kernel and an MCP server other agents `pip install`, so it must stay broadly installable across the supported window.
 - **Toolchain**: `uv` is the canonical package and Python-version manager - reproducible `uv.lock`, pinned `.python-version`, `uv pip install` in CI. setuptools stays the build backend so `pip install deepr-research` keeps working for downstream consumers.
-- **Lint / format**: Ruff remains the single linter + formatter. Ruleset modernized to the Python 3.11 baseline (PEP 604 unions, `datetime.UTC`); next, complexity caps (C901) and promotion of the security (S) rules from advisory to blocking for new code.
+- **Lint / format**: Ruff remains the single linter + formatter. Ruleset modernized to the Python 3.12 baseline (PEP 604 unions, `datetime.UTC`); next, complexity caps (C901) and promotion of the security (S) rules from advisory to blocking for new code.
 - **Types**: mypy is a blocking `--strict` gate; target is 100% of `deepr/` strict-clean. Wired non-blocking first to record the baseline, then strict-blocking on `core/` + `providers/` + `mcp/` and every new module, ratcheting package-by-package until the whole tree is clean. (Astral's `ty` is a candidate to replace mypy once it stabilizes.)
 - **Coverage**: branch coverage enabled; the `fail_under` gate ratchets 80 -> 85 -> 90 -> 95 as branch-covering tests land. The justified omit list (LLM-driven and live-provider paths) is preserved, not erased to inflate the number.
 - **Security**: `pip-audit` blocking on every push; Dependabot weekly (pip + github-actions + npm); SBOM via `uv export` per release; OpenSSF secure-coding practices (boundary validation with Pydantic v2, no secret logging, exception safety) as review criteria.
@@ -178,15 +178,14 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 **Sequenced work:**
 
-- [x] Raise Python floor to 3.11; classifiers + ruff `target-version` + CI matrix updated; 3.13 added (blocking) and 3.14 added (non-blocking until optional-dep wheels are confirmed)
-- [x] Modernize syntax to the 3.11 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
+- [x] Raise Python floor to 3.12 (dropped 3.9/3.10/3.11); classifiers + ruff `target-version` (`py312`) + CI matrix (3.12/3.13 blocking, 3.14 non-blocking) updated; `uv.lock` regenerated
+- [x] Modernize syntax to the 3.12 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
 - [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
 - [x] Dependabot (pip + github-actions + npm, weekly)
 - [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config; baseline is 314 errors across 76 of 262 checked files
 - [x] `pip-audit` wired into CI, **blocking** — baseline cleared by bumping flask-cors past CVE-2024-6839/6844/6866; accepted advisories are pinned via `--ignore-vuln` rather than by disabling the gate
-- [ ] Execute the 3.11 -> 3.12 floor bump (`requires-python >=3.12`, classifiers, ruff `target-version = "py312"`, CI matrix to 3.12/3.13/3.14, regenerate `uv.lock`, docs)
 - [ ] Drive the mypy baseline (314 errors) to zero on `core/` + `providers/` + `mcp/`, then flip mypy `--strict` blocking on those packages and expand outward
-- [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`) and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
+- [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`), `UP047` (PEP 695 generics), and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [ ] Enable `--cov-branch`; ratchet `fail_under` 80 -> 85 -> 90 -> 95 as branch tests land
 - [ ] Expand Ruff ruleset: `C901` complexity cap, promote S-rules to blocking for new code
 - [ ] "Parse, don't validate" pass: strict Pydantic (`strict=True, extra='forbid'`) at boundaries + targeted kernel invariant assertions (budget, append-only ledger, citation provenance)
@@ -462,7 +461,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.10.1 | MCP client + A2A protocol, agent interoperability, skill portability | Complete |
 | v2.10.2-2.10.3 | Security hardening, MCP confirmation gate, 80% coverage gate, 5-round bug-hunt sweep | Complete |
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
-| v2.12 | Distillr + Primr integrations delivered (Phase 2b #2 & #3, completing Phase 2b); Phase E engineering-standards foundation (uv + uv.lock, Python 3.11 floor + 3.13/3.14 matrix, mypy + pip-audit CI baselines, Dependabot, 3.11 syntax modernization); routing preview done | In Progress |
+| v2.12 | Distillr + Primr integrations delivered (Phase 2b #2 & #3, completing Phase 2b); Phase E engineering-standards foundation (uv + uv.lock, Python 3.12 floor + 3.13/3.14 matrix, mypy + pip-audit CI baselines, Dependabot, py312 syntax modernization); routing preview done | In Progress |
 | v2.13 | Expert intelligence: reflection loop, graph memory, knowledge maintenance loop (health-check, absorb, freshness/sync), dynamic tool selection | Planned |
 | v2.14 | Autonomous research campaigns, multi-day expert investigations | Planned |
 | v2.15 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
