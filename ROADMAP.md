@@ -156,13 +156,25 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 **Adopted standard (the committed end state):**
 
-- **Python**: floor 3.11; tested on 3.11 / 3.12 / 3.13 / 3.14. Deliberately not single-version-pinned - Deepr is an embeddable kernel and an MCP server other agents `pip install`, so it must stay broadly installable. 3.9 (EOL) and 3.10 (caused pydantic test-collection failures) are dropped.
+- **Python**: floor **3.12** (tested on 3.12 / 3.13 / 3.14). Rationale: 3.10 reaches EOL Oct 2026 and 3.11 only Oct 2027, while a 3.12 floor buys security coverage to Oct 2028 and matches ecosystem convergence (most quality libs, base images, and runners have dropped older). Deliberately not single-version-pinned - Deepr is an embeddable kernel and an MCP server other agents `pip install`, so it must stay broadly installable across the supported window. (Currently shipped floor is 3.11; the 3.11 -> 3.12 bump is tracked in Sequenced work below.)
 - **Toolchain**: `uv` is the canonical package and Python-version manager - reproducible `uv.lock`, pinned `.python-version`, `uv pip install` in CI. setuptools stays the build backend so `pip install deepr-research` keeps working for downstream consumers.
 - **Lint / format**: Ruff remains the single linter + formatter. Ruleset modernized to the Python 3.11 baseline (PEP 604 unions, `datetime.UTC`); next, complexity caps (C901) and promotion of the security (S) rules from advisory to blocking for new code.
 - **Types**: mypy is a blocking `--strict` gate; target is 100% of `deepr/` strict-clean. Wired non-blocking first to record the baseline, then strict-blocking on `core/` + `providers/` + `mcp/` and every new module, ratcheting package-by-package until the whole tree is clean. (Astral's `ty` is a candidate to replace mypy once it stabilizes.)
 - **Coverage**: branch coverage enabled; the `fail_under` gate ratchets 80 -> 85 -> 90 -> 95 as branch-covering tests land. The justified omit list (LLM-driven and live-provider paths) is preserved, not erased to inflate the number.
 - **Security**: `pip-audit` blocking on every push; Dependabot weekly (pip + github-actions + npm); SBOM via `uv export` per release; OpenSSF secure-coding practices (boundary validation with Pydantic v2, no secret logging, exception safety) as review criteria.
 - **Architecture discipline** (Power-of-10, adapted to Python): bounded loops, narrowest-scope declarations, small functions, no runtime `eval`/`exec` - enforced where Ruff can (complexity, S-rules) and applied as review guidance where it cannot.
+- **Validation & invariants** ("parse, don't validate"): external data is parsed once at the boundary into rich domain types (strict Pydantic v2 with `strict=True, extra='forbid'`, frozen dataclasses, `NewType`s) so illegal states are unrepresentable and core logic never receives raw, possibly-invalid primitives. Safety-critical kernel invariants (budget never overspends, cost ledger stays append-only, every claim carries a citation) are enforced with targeted runtime assertions plus the existing Pydantic models. (We evaluated the `deal` Design-by-Contract library and chose plain asserts + Pydantic instead - same guarantees on the paths that matter, no extra dependency or runtime-stripping complexity.)
+- **Testing rigor**: beyond branch coverage, prove the suite actually catches regressions. Periodic **mutation testing** (mutmut or equivalent) on kernel modules; **property-based and stateful Hypothesis** for complex lifecycles (budget ledger, expert knowledge/belief state, queue); and **fault-injection / chaos tests** at provider and network boundaries (timeouts, malformed payloads, provider outages) to prove the auto-fallback, circuit breakers, exception hygiene, and structured logging behave under turbulence. `xfail` stays disallowed in CI.
+- **Supply chain**: hash-pinned, reproducible installs (`uv sync --frozen` / `uv.lock` hashes) in CI; `uv lock --upgrade` on a schedule behind review gates. *If/when Deepr publishes to PyPI*, publish via OIDC trusted publishing (no static credentials in CI) with GitHub build-provenance attestation. (Full SLSA L3 + in-toto/Sigstore is a deliberate non-goal - see below.)
+- **Concurrency discipline** (review guidance): prefer explicit message passing (queues, immutable payloads) over shared mutable state; any shared mutable state crosses threads only behind explicit, reviewable synchronization. Applied as review guidance, not a free-threading mandate (see non-goals).
+- **Observability**: align the existing tracing layer (MetadataEmitter, spans, trace IDs) with OpenTelemetry semantic conventions and keep secrets out of logs; evaluate (not mandate) `structlog` for the stdlib-logging surface rather than ripping out working infrastructure.
+
+**Explicit non-goals for this track** (recorded so they are not re-litigated):
+
+- **Pure-Python-first / banning C extensions.** Incompatible with Deepr's foundation: pydantic-core (Rust), aiohttp, numpy, and every provider SDK ship compiled wheels. The dependency base is the value; we will not trade it for a purity constraint.
+- **Free-threaded 3.14t as a target.** Deepr is I/O-bound (provider/network calls), so free-threading buys little, and its compiled dependencies do not support the `cp314t` ABI. Revisit only if a genuinely CPU-bound, parallelizable hot path appears and the ecosystem has caught up.
+- **Full SLSA Level 3 + in-toto/Sigstore attestation.** Disproportionate for a spare-time, solo-maintained project with no SLA. We adopt the achievable subset (OIDC publishing + GitHub build provenance) instead of the full enterprise apparatus.
+- **Wholesale `structlog` migration.** Deepr already has stdlib logging plus a purpose-built tracing layer; aligning that with OTel conventions is higher-value than replacing it.
 
 **Sequenced work:**
 
@@ -172,10 +184,17 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [x] Dependabot (pip + github-actions + npm, weekly)
 - [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config; baseline is 314 errors across 76 of 262 checked files
 - [x] `pip-audit` wired into CI, **blocking** — baseline cleared by bumping flask-cors past CVE-2024-6839/6844/6866; accepted advisories are pinned via `--ignore-vuln` rather than by disabling the gate
+- [ ] Execute the 3.11 -> 3.12 floor bump (`requires-python >=3.12`, classifiers, ruff `target-version = "py312"`, CI matrix to 3.12/3.13/3.14, regenerate `uv.lock`, docs)
 - [ ] Drive the mypy baseline (314 errors) to zero on `core/` + `providers/` + `mcp/`, then flip mypy `--strict` blocking on those packages and expand outward
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`) and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [ ] Enable `--cov-branch`; ratchet `fail_under` 80 -> 85 -> 90 -> 95 as branch tests land
 - [ ] Expand Ruff ruleset: `C901` complexity cap, promote S-rules to blocking for new code
+- [ ] "Parse, don't validate" pass: strict Pydantic (`strict=True, extra='forbid'`) at boundaries + targeted kernel invariant assertions (budget, append-only ledger, citation provenance)
+- [ ] Mutation testing (mutmut or equivalent) wired as a periodic job over kernel modules; track and raise the mutation score
+- [ ] Expand Hypothesis to property-based + stateful tests on kernel lifecycles (budget ledger, expert/belief state, queue)
+- [ ] Fault-injection / chaos tests at provider + network boundaries (timeouts, malformed payloads, provider outages) to validate fallback, circuit breakers, and logging
+- [ ] Supply chain: switch CI installs to `uv sync --frozen`; add a scheduled `uv lock --upgrade` behind review; (if publishing) OIDC trusted publishing + GitHub build-provenance attestation
+- [ ] Align tracing with OpenTelemetry semantic conventions; evaluate `structlog` for the logging surface
 - [ ] SBOM generation (`uv export`) published per release
 - [ ] Extract a reusable CI workflow + Copier/template repo so sibling projects (recon, distillr, primr) inherit the same standard from day zero
 
