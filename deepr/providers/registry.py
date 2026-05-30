@@ -763,8 +763,32 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # Anthropic Models
     # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.
     # Research capability is achieved via Extended Thinking + tool use + our orchestration.
-    # For research, we recommend Opus 4.6 - best reasoning with Adaptive Thinking.
-    # Claude Opus 4.7 — most capable Claude (GA Apr 16, 2026); leads SWE-bench Pro
+    # For research, we recommend Opus 4.8 - most capable, Adaptive Thinking, production-grade agents.
+    # Claude Opus 4.8 — most capable Claude (GA May 28, 2026); recommended flagship
+    "anthropic/claude-opus-4-8": ModelCapability(
+        provider="anthropic",
+        model="claude-opus-4-8",
+        cost_per_query=0.85,  # Same per-token rate as 4.7
+        latency_ms=12000,
+        context_window=1_000_000,  # Full 1M at standard pricing
+        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks", "agents"],
+        strengths=[
+            "Most capable Claude model (GA May 28, 2026)",
+            "Production-grade browser agents (84% Online-Mind2Web)",
+            "~4x less likely than Opus 4.7 to let its own code flaws pass",
+            "Adaptive Thinking (effort defaults to high)",
+            "Full 1M token context window at standard pricing",
+            "128K max output tokens",
+        ],
+        weaknesses=[
+            "No native deep research API (requires orchestration)",
+            "Slower than Sonnet (~12s vs ~3s)",
+            "Higher cost than Sonnet",
+        ],
+        input_cost_per_1m=5.00,
+        output_cost_per_1m=25.00,
+    ),
+    # Claude Opus 4.7 — superseded by 4.8 (same price); still available
     "anthropic/claude-opus-4-7": ModelCapability(
         provider="anthropic",
         model="claude-opus-4-7",
@@ -781,6 +805,7 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Fast mode available (6x price for faster output)",
         ],
         weaknesses=[
+            "Superseded by claude-opus-4-8 (same price)",
             "No native deep research API (requires orchestration)",
             "New tokenizer uses up to 35% more tokens for the same text (higher effective cost)",
             "Slower than Sonnet (~12s vs ~3s)",
