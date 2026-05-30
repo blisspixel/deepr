@@ -113,7 +113,7 @@ class ElicitationRouter:
         """
         self.handlers: dict[ElicitationTarget, ElicitationHandler] = {}
         self.default_target = default_target
-        self._available_targets: set = set()
+        self._available_targets: set[ElicitationTarget] = set()
 
     def register_handler(
         self,
@@ -280,7 +280,7 @@ class ElicitationRouter:
             Default response dict
         """
         schema = request.schema
-        response = {}
+        response: dict[str, Any] = {}
 
         # Try to build sensible defaults from schema
         properties = schema.get("properties", {})
@@ -331,7 +331,7 @@ def create_cli_handler(
         logger.info("%s", request.message)
 
         schema = request.schema
-        response = {}
+        response: dict[str, Any] = {}
 
         for prop_name, prop_schema in schema.get("properties", {}).items():
             prop_type = prop_schema.get("type", "string")
