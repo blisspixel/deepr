@@ -25,14 +25,15 @@ jobs:
       - name: Lint
         run: ruff check deepr/
 
-      - name: Security lint (Bandit via ruff -S, advisory)
-        # Advisory only: surfaces S-rule findings in the CI log without
-        # failing the build. The codebase has known legacy S-rule findings
-        # (try/except/pass patterns, partial executable paths) that are
-        # tracked separately. New code can still introduce S findings; this
-        # step makes them visible during review.
+      - name: Security + complexity lint (advisory)
+        # Advisory only: surfaces S-rule (Bandit) and C901 (cyclomatic
+        # complexity > 10) findings in the CI log without failing the build.
+        # The codebase has known legacy S-rule findings (try/except/pass,
+        # partial executable paths) and ~134 functions over the complexity cap,
+        # all tracked in Phase E. This step keeps them visible during review
+        # and ratchets toward blocking as they are addressed.
         continue-on-error: true
-        run: ruff check deepr/ --select S
+        run: ruff check deepr/ --select S,C901
 
       - name: Format check
         run: ruff format --check deepr/
@@ -67,6 +68,18 @@ jobs:
         run: |
           uv pip install -e ".[full]" "pip-audit>=2.7.0"
           pip-audit --skip-editable
+
+      - name: Generate SBOM (pinned dependency bill of materials)
+        # Phase E: a reproducible, hash-pinned list of every resolved
+        # dependency, published as a build artifact for supply-chain audit.
+        run: uv export --frozen --no-emit-project --no-dev --format requirements-txt -o sbom-requirements.txt
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-requirements
+          path: sbom-requirements.txt
+          if-no-files-found: error
 
   test:
     runs-on: ubuntu-latest
