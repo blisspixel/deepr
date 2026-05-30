@@ -30,9 +30,9 @@ class Message:
     jsonrpc: str = "2.0"
     id: str | None = None
     method: str | None = None
-    params: dict | None = None
+    params: dict[str, Any] | None = None
     result: Any | None = None
-    error: dict | None = None
+    error: dict[str, Any] | None = None
 
     def is_request(self) -> bool:
         """Check if this is a request message."""
@@ -46,9 +46,9 @@ class Message:
         """Check if this is a response message."""
         return self.result is not None or self.error is not None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        d = {"jsonrpc": self.jsonrpc}
+        d: dict[str, Any] = {"jsonrpc": self.jsonrpc}
         if self.id is not None:
             d["id"] = self.id
         if self.method is not None:
@@ -62,7 +62,7 @@ class Message:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Message":
+    def from_dict(cls, data: dict[str, Any]) -> "Message":
         """Create from dictionary."""
         return cls(
             jsonrpc=data.get("jsonrpc", "2.0"),
@@ -131,11 +131,11 @@ class StdioTransport:
         self._handler: Callable[[Message], Awaitable[Message | None]] | None = None
         self._running = False
         self._stats = TransportStats()
-        self._read_task: asyncio.Task | None = None
+        self._read_task: asyncio.Task[None] | None = None
         # Track in-flight handler tasks so stop() can drain them. Initialised
         # in __init__ rather than lazily inside _read_loop so callers that
         # interrogate the transport before the first message still see the set.
-        self._in_flight: set[asyncio.Task] = set()
+        self._in_flight: set[asyncio.Task[None]] = set()
 
     def on_message(self, handler: Callable[[Message], Awaitable[Message | None]]) -> None:
         """
@@ -167,7 +167,7 @@ class StdioTransport:
 
         if self._output is None:
             loop = asyncio.get_event_loop()
-            transport, protocol = await loop.connect_write_pipe(asyncio.streams.FlowControlMixin, sys.stdout)
+            transport, protocol = await loop.connect_write_pipe(asyncio.streams.FlowControlMixin, sys.stdout)  # type: ignore[arg-type]
             self._output = asyncio.StreamWriter(transport, protocol, None, loop)
 
         self._read_task = asyncio.create_task(self._read_loop())
@@ -259,10 +259,11 @@ class StdioTransport:
                 # Handle message — dispatch in a background task so the
                 # next line can be read immediately.
                 if self._handler:
+                    handler = self._handler
 
-                    async def _dispatch(msg=message) -> None:
+                    async def _dispatch(msg: Message = message) -> None:
                         try:
-                            response = await self._handler(msg)
+                            response = await handler(msg)
                             if response:
                                 await self.send(response)
                         except Exception as e:
@@ -333,12 +334,12 @@ class StdioServer:
         await server.run()
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._transport = StdioTransport()
-        self._methods: dict[str, Callable[[dict], Awaitable[Any]]] = {}
+        self._methods: dict[str, Callable[[dict[str, Any]], Awaitable[Any]]] = {}
         self._transport.on_message(self._handle_message)
 
-    def register_method(self, name: str, handler: Callable[[dict], Awaitable[Any]]) -> None:
+    def register_method(self, name: str, handler: Callable[[dict[str, Any]], Awaitable[Any]]) -> None:
         """
         Register a method handler.
 
