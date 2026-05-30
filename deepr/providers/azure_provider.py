@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 from datetime import UTC, datetime
+from typing import Any
 
 from azure.identity.aio import DefaultAzureCredential
 from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
@@ -56,9 +57,9 @@ class AzureProvider(DeepResearchProvider):
             self._credential = DefaultAzureCredential()
             # Note: token provider setup for async client
 
-            async def get_token():
+            async def get_token() -> str:
                 token = await self._credential.get_token("https://cognitiveservices.azure.com/.default")
-                return token.token
+                return str(token.token)
 
             self.client = AsyncAzureOpenAI(
                 azure_endpoint=self.endpoint,
@@ -95,7 +96,7 @@ class AzureProvider(DeepResearchProvider):
         # Convert tools to Azure format (same as OpenAI)
         tools = []
         for tool in request.tools:
-            tool_dict = {"type": tool.type}
+            tool_dict: dict[str, Any] = {"type": tool.type}
             if tool.type == "file_search" and tool.vector_store_ids:
                 tool_dict["vector_store_ids"] = tool.vector_store_ids
             elif tool.type == "code_interpreter" and tool.container:
@@ -103,7 +104,7 @@ class AzureProvider(DeepResearchProvider):
             tools.append(tool_dict)
 
         # Build request payload
-        payload = {
+        payload: dict[str, Any] = {
             "model": deployment,  # Use deployment name for Azure
             "input": [
                 {
@@ -137,7 +138,7 @@ class AzureProvider(DeepResearchProvider):
         for attempt in range(max_retries):
             try:
                 response = await self.client.responses.create(**payload)
-                return response.id
+                return str(response.id)
             except (RateLimitError, APIConnectionError, APITimeoutError) as e:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2**attempt)
@@ -246,7 +247,7 @@ class AzureProvider(DeepResearchProvider):
         try:
             with open(file_path, "rb") as f:
                 file_obj = await self.client.files.create(file=f, purpose=purpose)
-            return file_obj.id
+            return str(file_obj.id)
         except (OpenAIAPIError, OSError) as e:
             raise ProviderError(
                 message=f"Failed to upload document to Azure: {e!s}",
