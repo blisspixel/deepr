@@ -17,7 +17,6 @@ import os
 import platform
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
 
 
 class ShellType(Enum):
@@ -101,7 +100,7 @@ class PathHandler:
         return p.resolve()
 
     @classmethod
-    def escape_for_shell(cls, path: Path, shell: Optional[ShellType] = None) -> str:
+    def escape_for_shell(cls, path: Path, shell: ShellType | None = None) -> str:
         """Escape path for specified shell (or auto-detect).
 
         Pure functions per shell type ensure correct quoting.
@@ -201,7 +200,7 @@ class PathHandler:
         return normalized
 
     @classmethod
-    def format_for_display(cls, path: Path, shell: Optional[ShellType] = None) -> str:
+    def format_for_display(cls, path: Path, shell: ShellType | None = None) -> str:
         """Format path for display with shell-appropriate quoting.
 
         Returns the escaped path string suitable for copy-paste into terminal.
@@ -301,7 +300,7 @@ def resolve_glob_pattern(pattern: str, must_match: bool = False) -> list[Path]:
     return [Path(m).resolve() for m in matches]
 
 
-def normalize_path_for_display(path: Union[str, Path]) -> str:
+def normalize_path_for_display(path: str | Path) -> str:
     """Normalize path for display (use forward slashes, show relative if possible).
 
     Args:
@@ -347,7 +346,7 @@ def get_safe_filename(filename: str) -> str:
     return safe_name
 
 
-def ensure_directory(path: Union[str, Path]) -> Path:
+def ensure_directory(path: str | Path) -> Path:
     """Ensure a directory exists, creating it if necessary.
 
     Args:

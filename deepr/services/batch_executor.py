@@ -16,8 +16,7 @@ to detect diminishing returns and optimize research efficiency.
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from deepr.observability.information_gain import InformationGainTracker
 from deepr.observability.stopping_criteria import (
@@ -47,7 +46,7 @@ class BatchExecutor:
         provider: DeepResearchProvider,
         storage: StorageBackend,
         context_builder: ContextBuilder,
-        entropy_threshold: Optional[float] = None,
+        entropy_threshold: float | None = None,
     ):
         """Initialize batch executor with required services.
 
@@ -95,14 +94,14 @@ class BatchExecutor:
         completed_tasks = {}
         campaign_results = {
             "campaign_id": campaign_id,
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "phases": {},
             "tasks": {},
             "quality_metrics": {},
         }
 
         # Track prior entropy for information gain
-        prior_entropy: Optional[float] = None
+        prior_entropy: float | None = None
 
         # Execute each phase sequentially
         for phase_num in sorted(phases.keys()):
@@ -158,7 +157,7 @@ class BatchExecutor:
                 break
 
         # Save campaign results
-        campaign_results["completed_at"] = datetime.now(timezone.utc).isoformat()
+        campaign_results["completed_at"] = datetime.now(UTC).isoformat()
         campaign_results["total_cost"] = sum(t.get("cost", 0.0) for t in campaign_results["tasks"].values())
 
         # Add quality metrics summary
@@ -177,8 +176,8 @@ class BatchExecutor:
         phase_num: int,
         completed_tasks: dict[int, dict],
         campaign_id: str,
-        prior_entropy: Optional[float] = None,
-    ) -> tuple[dict[int, dict], Optional[StoppingDecision]]:
+        prior_entropy: float | None = None,
+    ) -> tuple[dict[int, dict], StoppingDecision | None]:
         """
         Execute all tasks in a phase.
 

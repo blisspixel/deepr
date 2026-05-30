@@ -17,17 +17,17 @@ Usage:
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 import hashlib
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -79,12 +79,8 @@ class KnowledgeEntry:
             id=data.get("id", ""),
             content=data["content"],
             source=data.get("source", ""),
-            created_at=datetime.fromisoformat(data["created_at"])
-            if "created_at" in data
-            else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(data["updated_at"])
-            if "updated_at" in data
-            else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(UTC),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(UTC),
             confidence=data.get("confidence", 0.5),
             tags=set(data.get("tags", [])),
             is_archived=data.get("is_archived", False),
@@ -143,7 +139,7 @@ class KnowledgeConsolidator:
     def __init__(
         self,
         expert_name: str,
-        storage_dir: Optional[Path] = None,
+        storage_dir: Path | None = None,
         similarity_threshold: float = 0.85,
         archive_age_days: int = 180,
     ):
@@ -179,7 +175,7 @@ class KnowledgeConsolidator:
         Returns:
             ConsolidationResult with statistics
         """
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         result = ConsolidationResult()
         result.total_before = len(self.entries)
 
@@ -202,7 +198,7 @@ class KnowledgeConsolidator:
         result.total_after = len(self.entries)
         final_size = self._estimate_size()
         result.space_saved_bytes = max(0, initial_size - final_size)
-        result.duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
+        result.duration_seconds = (datetime.now(UTC) - start_time).total_seconds()
 
         # Save changes
         self._save()
@@ -302,7 +298,7 @@ class KnowledgeConsolidator:
                     primary.content = self._merge_content(primary.content, secondary.content)
                     primary.confidence = max(primary.confidence, secondary.confidence)
                     primary.tags.update(secondary.tags)
-                    primary.updated_at = datetime.now(timezone.utc)
+                    primary.updated_at = datetime.now(UTC)
 
                     to_remove.add(secondary.id)
                     merged += 1
@@ -318,7 +314,7 @@ class KnowledgeConsolidator:
         Returns:
             Number of entries archived
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         archived = 0
         to_archive: list[KnowledgeEntry] = []
 

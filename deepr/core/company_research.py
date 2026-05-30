@@ -11,8 +11,8 @@ intelligence, strategic planning, and due diligence.
 import logging
 import os
 import tempfile
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.config import load_config
 from deepr.core.research import ResearchOrchestrator
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CompanyResearchOrchestrator:
     """Orchestrates strategic company research workflow."""
 
-    def __init__(self, config: Optional[dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize the orchestrator.
 
         Args:
@@ -68,9 +68,9 @@ class CompanyResearchOrchestrator:
         self,
         company_name: str,
         website: str,
-        model: Optional[str] = None,
-        provider: Optional[str] = None,
-        budget_limit: Optional[float] = None,
+        model: str | None = None,
+        provider: str | None = None,
+        budget_limit: float | None = None,
         skip_confirmation: bool = False,
         scrape_only: bool = False,
     ) -> dict[str, Any]:
@@ -224,7 +224,7 @@ class CompanyResearchOrchestrator:
                 }
 
             # Save scraped content to temporary file for upload
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             temp_file = tempfile.NamedTemporaryFile(
                 mode="w",
                 suffix=".md",
@@ -237,7 +237,7 @@ class CompanyResearchOrchestrator:
                 # Write scraped content
                 temp_file.write(f"# Company Research: {company_name}\n\n")
                 temp_file.write(f"**Website**: {company_url}\n")
-                temp_file.write(f"**Scraped**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+                temp_file.write(f"**Scraped**: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
                 temp_file.write(f"**Pages Captured**: {results['pages_scraped']}\n\n")
                 temp_file.write("---\n\n")
 

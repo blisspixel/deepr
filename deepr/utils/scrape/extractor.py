@@ -2,7 +2,6 @@
 
 import hashlib
 import logging
-from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -253,7 +252,7 @@ class PageDeduplicator:
         self.seen_urls: set[str] = set()
         self.seen_hashes: set[str] = set()
 
-    def is_duplicate(self, url: str, content_hash: Optional[str] = None) -> bool:
+    def is_duplicate(self, url: str, content_hash: str | None = None) -> bool:
         """
         Check if URL or content is duplicate.
 
@@ -275,7 +274,7 @@ class PageDeduplicator:
 
         return False
 
-    def mark_seen(self, url: str, content_hash: Optional[str] = None):
+    def mark_seen(self, url: str, content_hash: str | None = None):
         """
         Mark URL and content as seen.
 

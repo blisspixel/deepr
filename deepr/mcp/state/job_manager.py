@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from .subscriptions import SubscriptionManager
 
@@ -49,10 +49,10 @@ class JobState:
     progress: float = 0.0
     active_tasks: list[str] = field(default_factory=list)
     cost_so_far: float = 0.0
-    estimated_remaining: Optional[str] = None
+    estimated_remaining: str | None = None
     started_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
-    error: Optional[str] = None
+    error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -103,7 +103,7 @@ class TemporalFindingRecord:
     confidence: float
     finding_type: str
     timestamp: str
-    source: Optional[str] = None
+    source: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -172,7 +172,7 @@ class JobBeliefs:
         phase: int,
         confidence: float,
         finding_type: str,
-        source: Optional[str] = None,
+        source: str | None = None,
     ) -> TemporalFindingRecord:
         """Add a temporal finding record."""
         record = TemporalFindingRecord(
@@ -207,10 +207,10 @@ class JobBeliefs:
     def update_hypothesis(
         self,
         hypothesis_id: str,
-        new_text: Optional[str] = None,
-        new_confidence: Optional[float] = None,
-        status: Optional[str] = None,
-    ) -> Optional[HypothesisRecord]:
+        new_text: str | None = None,
+        new_confidence: float | None = None,
+        status: str | None = None,
+    ) -> HypothesisRecord | None:
         """Update an existing hypothesis."""
         for h in self.hypothesis_history:
             if h.id == hypothesis_id:
@@ -233,7 +233,7 @@ class JobManager:
     when job state changes, eliminating the need for polling.
     """
 
-    def __init__(self, subscription_manager: Optional[SubscriptionManager] = None):
+    def __init__(self, subscription_manager: SubscriptionManager | None = None):
         self._jobs: dict[str, JobState] = {}
         self._plans: dict[str, JobPlan] = {}
         self._beliefs: dict[str, JobBeliefs] = {}
@@ -287,12 +287,12 @@ class JobManager:
         self,
         job_id: str,
         phase: JobPhase,
-        progress: Optional[float] = None,
-        active_tasks: Optional[list[str]] = None,
-        cost_so_far: Optional[float] = None,
-        estimated_remaining: Optional[str] = None,
-        error: Optional[str] = None,
-    ) -> Optional[JobState]:
+        progress: float | None = None,
+        active_tasks: list[str] | None = None,
+        cost_so_far: float | None = None,
+        estimated_remaining: str | None = None,
+        error: str | None = None,
+    ) -> JobState | None:
         """
         Update job phase and emit notification.
 
@@ -332,7 +332,7 @@ class JobManager:
 
         return state
 
-    async def add_belief(self, job_id: str, belief: str, confidence: float, source: Optional[str] = None) -> bool:
+    async def add_belief(self, job_id: str, belief: str, confidence: float, source: str | None = None) -> bool:
         """
         Add a belief/finding to a job.
 
@@ -387,19 +387,19 @@ class JobManager:
 
         return True
 
-    def get_state(self, job_id: str) -> Optional[JobState]:
+    def get_state(self, job_id: str) -> JobState | None:
         """Get current job state."""
         return self._jobs.get(job_id)
 
-    def get_plan(self, job_id: str) -> Optional[JobPlan]:
+    def get_plan(self, job_id: str) -> JobPlan | None:
         """Get job plan."""
         return self._plans.get(job_id)
 
-    def get_beliefs(self, job_id: str) -> Optional[JobBeliefs]:
+    def get_beliefs(self, job_id: str) -> JobBeliefs | None:
         """Get job beliefs."""
         return self._beliefs.get(job_id)
 
-    def list_jobs(self, phase: Optional[JobPhase] = None) -> list[JobState]:
+    def list_jobs(self, phase: JobPhase | None = None) -> list[JobState]:
         """
         List all jobs, optionally filtered by phase.
 

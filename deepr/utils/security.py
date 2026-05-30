@@ -4,7 +4,6 @@ import ipaddress
 import re
 import socket
 from pathlib import Path
-from typing import Union
 from urllib.parse import urlparse
 
 
@@ -80,7 +79,7 @@ def sanitize_name(name: str, allowed_chars: str = r"a-zA-Z0-9_-", raise_on_chang
 
 
 def validate_path(
-    user_path: Union[str, Path], base_dir: Union[str, Path], must_exist: bool = False, allow_create: bool = True
+    user_path: str | Path, base_dir: str | Path, must_exist: bool = False, allow_create: bool = True
 ) -> Path:
     """
     Validate that a user-provided path is safe and within allowed directory.
@@ -236,7 +235,7 @@ def validate_url(url: str, allow_private: bool = False) -> str:
     return url
 
 
-def validate_file_size(file_path: Union[str, Path], max_size_mb: int = 100) -> Path:
+def validate_file_size(file_path: str | Path, max_size_mb: int = 100) -> Path:
     """
     Validate file size is within limits.
 
@@ -268,7 +267,7 @@ def validate_file_size(file_path: Union[str, Path], max_size_mb: int = 100) -> P
     return path
 
 
-def validate_file_extension(file_path: Union[str, Path], allowed_extensions: list[str]) -> Path:
+def validate_file_extension(file_path: str | Path, allowed_extensions: list[str]) -> Path:
     """
     Validate file extension is in allowed list.
 

@@ -21,11 +21,12 @@ Usage:
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 # Current schema versions for each data type
 CURRENT_VERSIONS = {
@@ -50,7 +51,7 @@ class SchemaVersion:
     schema_type: str
     version: str
     created_at: str
-    migrated_from: Optional[str] = None
+    migrated_from: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,12 +66,12 @@ class SchemaVersion:
         return cls(
             schema_type=data.get("schema_type", "unknown"),
             version=data.get("version", "0.0.0"),
-            created_at=data.get("created_at", datetime.now(timezone.utc).isoformat()),
+            created_at=data.get("created_at", datetime.now(UTC).isoformat()),
             migrated_from=data.get("migrated_from"),
         )
 
 
-def add_schema_version(data: dict[str, Any], schema_type: str, version: Optional[str] = None) -> dict[str, Any]:
+def add_schema_version(data: dict[str, Any], schema_type: str, version: str | None = None) -> dict[str, Any]:
     """Add schema version metadata to data.
 
     Args:
@@ -84,9 +85,7 @@ def add_schema_version(data: dict[str, Any], schema_type: str, version: Optional
     if version is None:
         version = CURRENT_VERSIONS.get(schema_type, "1.0.0")
 
-    schema_info = SchemaVersion(
-        schema_type=schema_type, version=version, created_at=datetime.now(timezone.utc).isoformat()
-    )
+    schema_info = SchemaVersion(schema_type=schema_type, version=version, created_at=datetime.now(UTC).isoformat())
 
     # Create new dict with schema_version at the top
     versioned = {"schema_version": schema_info.to_dict()}
@@ -95,7 +94,7 @@ def add_schema_version(data: dict[str, Any], schema_type: str, version: Optional
     return versioned
 
 
-def get_schema_version(data: dict[str, Any]) -> Optional[SchemaVersion]:
+def get_schema_version(data: dict[str, Any]) -> SchemaVersion | None:
     """Get schema version from data.
 
     Args:
@@ -124,7 +123,7 @@ def get_version_string(data: dict[str, Any]) -> str:
     return version.version if version else "0.0.0"
 
 
-def needs_migration(data: dict[str, Any], schema_type: str, target_version: Optional[str] = None) -> bool:
+def needs_migration(data: dict[str, Any], schema_type: str, target_version: str | None = None) -> bool:
     """Check if data needs migration to target version.
 
     Args:
@@ -235,7 +234,7 @@ def get_migration_path(schema_type: str, from_version: str, to_version: str) -> 
     return []  # No path found
 
 
-def migrate(data: dict[str, Any], schema_type: str, target_version: Optional[str] = None) -> dict[str, Any]:
+def migrate(data: dict[str, Any], schema_type: str, target_version: str | None = None) -> dict[str, Any]:
     """Migrate data to target version.
 
     Args:
@@ -267,7 +266,7 @@ def migrate(data: dict[str, Any], schema_type: str, target_version: Optional[str
         result["schema_version"] = SchemaVersion(
             schema_type=schema_type,
             version=target_version,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             migrated_from=current_version,
         ).to_dict()
         return result
@@ -283,7 +282,7 @@ def migrate(data: dict[str, Any], schema_type: str, target_version: Optional[str
             result["schema_version"] = SchemaVersion(
                 schema_type=schema_type,
                 version=to_v,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 migrated_from=from_v,
             ).to_dict()
 
@@ -332,7 +331,7 @@ def migrate_worldview_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
 # Utility functions for file operations
 
 
-def save_versioned_json(data: dict[str, Any], path: Path, schema_type: str, version: Optional[str] = None):
+def save_versioned_json(data: dict[str, Any], path: Path, schema_type: str, version: str | None = None):
     """Save data as versioned JSON.
 
     Args:

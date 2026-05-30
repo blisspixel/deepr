@@ -22,7 +22,7 @@ import json
 import logging
 import shutil
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +35,7 @@ class CorpusManifest:
 
     name: str
     version: str = "1.0"
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     source_expert: str = ""
     domain: str = ""
     description: str = ""
@@ -242,7 +242,7 @@ def _generate_readme(profile: Any, worldview: Any, doc_count: int) -> str:
         [
             "---",
             "",
-            f"*Exported on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC*",
+            f"*Exported on {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC*",
         ]
     )
 
@@ -310,7 +310,7 @@ async def import_corpus(
         await provider.wait_for_vector_store(vector_store.id, timeout=300)
 
     # Create expert profile
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     profile = ExpertProfile(
         name=new_expert_name,
         vector_store_id=vector_store.id,
@@ -461,7 +461,7 @@ async def import_structured_bundle(
             seen.add(name)
             deduped.append(name)
     profile.source_files = deduped
-    profile.last_knowledge_refresh = datetime.now(timezone.utc)
+    profile.last_knowledge_refresh = datetime.now(UTC)
     store.save(profile)
 
     logger.info(

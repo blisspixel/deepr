@@ -32,10 +32,10 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from deepr.mcp.state.elicitation_router import ElicitationHandler, ElicitationRequest
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Default database path
@@ -73,14 +73,14 @@ class GatedCredential:
     domain: str
     credential_type: CredentialType
     value_hash: str  # Hashed value for storage
-    expires_at: Optional[datetime]
+    expires_at: datetime | None
     created_at: datetime
-    last_used_at: Optional[datetime] = None
+    last_used_at: datetime | None = None
     use_count: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 
     # Transient field - not persisted
-    _value: Optional[str] = field(default=None, repr=False)
+    _value: str | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -102,7 +102,7 @@ class GatedCredential:
         return _utc_now() > self.expires_at
 
     @property
-    def value(self) -> Optional[str]:
+    def value(self) -> str | None:
         """Get credential value (if available in memory)."""
         return self._value
 
@@ -110,7 +110,7 @@ class GatedCredential:
     def from_row(
         cls,
         row: tuple,
-        decrypted_value: Optional[str] = None,
+        decrypted_value: str | None = None,
     ) -> "GatedCredential":
         """Create from database row."""
         (id, domain, cred_type, value_hash, expires_at, created_at, last_used_at, use_count, metadata_json) = row
@@ -146,7 +146,7 @@ class CredentialManager:
 
     def __init__(
         self,
-        db_path: Optional[Path] = None,
+        db_path: Path | None = None,
     ):
         """Initialize the credential manager.
 
@@ -202,8 +202,8 @@ class CredentialManager:
         domain: str,
         credential_type: CredentialType,
         value: str,
-        expires_at: Optional[datetime] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        expires_at: datetime | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> GatedCredential:
         """Store a credential.
 
@@ -263,8 +263,8 @@ class CredentialManager:
     async def get_credential(
         self,
         domain: str,
-        credential_type: Optional[CredentialType] = None,
-    ) -> Optional[GatedCredential]:
+        credential_type: CredentialType | None = None,
+    ) -> GatedCredential | None:
         """Get a credential for a domain.
 
         Args:
@@ -327,7 +327,7 @@ class CredentialManager:
     async def get_credential_for_url(
         self,
         url: str,
-    ) -> Optional[GatedCredential]:
+    ) -> GatedCredential | None:
         """Get a credential for a URL.
 
         Args:
@@ -405,7 +405,7 @@ class CredentialManager:
         reason: str,
         credential_type: CredentialType = CredentialType.SESSION_COOKIE,
         timeout_seconds: int = 300,
-    ) -> Optional[GatedCredential]:
+    ) -> GatedCredential | None:
         """Elicit a credential from the user.
 
         Args:

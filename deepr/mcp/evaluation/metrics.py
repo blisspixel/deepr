@@ -12,7 +12,6 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 
 class StepType(Enum):
@@ -30,12 +29,12 @@ class TrajectoryStep:
     """A single step in an agent trajectory."""
 
     step_type: StepType
-    tool_name: Optional[str] = None
+    tool_name: str | None = None
     parameters: dict = field(default_factory=dict)
     tokens_used: int = 0
     timestamp: datetime = field(default_factory=datetime.now)
     success: bool = True
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
@@ -128,7 +127,7 @@ class TrajectoryMetrics:
 class MetricsTracker:
     """Tracks trajectory metrics during agent execution."""
 
-    def __init__(self, golden_path: Optional[list[str]] = None):
+    def __init__(self, golden_path: list[str] | None = None):
         """
         Initialize tracker.
 
@@ -149,7 +148,7 @@ class MetricsTracker:
         parameters: dict,
         tokens: int = 0,
         success: bool = True,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         """Record a tool call step."""
         self.add_step(
@@ -266,7 +265,7 @@ def calculate_efficiency(
 
 def calculate_citation_accuracy(
     text: str,
-    total_claims: Optional[int] = None,
+    total_claims: int | None = None,
 ) -> tuple[float, int, int]:
     """
     Calculate citation accuracy in text.

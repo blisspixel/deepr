@@ -7,16 +7,15 @@ and understands the timeline of learning.
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -28,22 +27,22 @@ class KnowledgeFact:
     learned_at: datetime
     source: str  # Document name or research ID
     confidence: float  # 0.0 to 1.0
-    superseded_by: Optional[str] = None  # ID of fact that replaced this
-    valid_until: Optional[datetime] = None  # For time-sensitive facts
+    superseded_by: str | None = None  # ID of fact that replaced this
+    valid_until: datetime | None = None  # For time-sensitive facts
 
     @property
     def is_current(self) -> bool:
         """Check if this fact is still current."""
         if self.superseded_by:
             return False
-        if self.valid_until and datetime.now(timezone.utc) > self.valid_until:
+        if self.valid_until and datetime.now(UTC) > self.valid_until:
             return False
         return True
 
     @property
     def age_days(self) -> int:
         """Get age of this fact in days."""
-        return (datetime.now(timezone.utc) - self.learned_at).days
+        return (datetime.now(UTC) - self.learned_at).days
 
 
 @dataclass
@@ -129,7 +128,7 @@ class TemporalKnowledgeTracker:
                         facts=facts,
                         contradictions_detected=evolution_data.get("contradictions_detected", 0),
                         last_updated=datetime.fromisoformat(
-                            evolution_data.get("last_updated", datetime.now(timezone.utc).isoformat())
+                            evolution_data.get("last_updated", datetime.now(UTC).isoformat())
                         ),
                     )
 
@@ -145,7 +144,7 @@ class TemporalKnowledgeTracker:
 
             data = {
                 "expert_name": self.expert_name,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(UTC).isoformat(),
                 "knowledge_by_topic": {
                     topic: {
                         "topic": evolution.topic,
@@ -177,7 +176,7 @@ class TemporalKnowledgeTracker:
             logger.error("Error saving temporal knowledge: %s", e)
 
     def record_learning(
-        self, topic: str, fact_text: str, source: str, confidence: float = 0.8, valid_for_days: Optional[int] = None
+        self, topic: str, fact_text: str, source: str, confidence: float = 0.8, valid_for_days: int | None = None
     ) -> str:
         """Record a new fact learned.
 
@@ -191,7 +190,7 @@ class TemporalKnowledgeTracker:
         Returns:
             Fact ID
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Calculate expiration if time-sensitive
         valid_until = None
@@ -248,7 +247,7 @@ class TemporalKnowledgeTracker:
             List of topic names with stale knowledge
         """
         stale = []
-        cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
         for topic, evolution in self.knowledge_by_topic.items():
             current_facts = evolution.get_current_facts()
@@ -283,7 +282,7 @@ class TemporalKnowledgeTracker:
 
         # Check for expired facts
         for fact in current_facts:
-            if fact.valid_until and datetime.now(timezone.utc) > fact.valid_until:
+            if fact.valid_until and datetime.now(UTC) > fact.valid_until:
                 return True
 
         return False

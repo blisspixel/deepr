@@ -28,8 +28,8 @@ Environment variables:
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from .base import (
     DeepResearchProvider,
@@ -67,11 +67,11 @@ class AzureFoundryProvider(DeepResearchProvider):
 
     def __init__(
         self,
-        project_endpoint: Optional[str] = None,
-        deep_research_deployment: Optional[str] = None,
-        gpt_deployment: Optional[str] = None,
-        bing_resource_name: Optional[str] = None,
-        model_mappings: Optional[dict] = None,
+        project_endpoint: str | None = None,
+        deep_research_deployment: str | None = None,
+        gpt_deployment: str | None = None,
+        bing_resource_name: str | None = None,
+        model_mappings: dict | None = None,
     ):
         """Initialize Azure Foundry provider.
 
@@ -111,9 +111,9 @@ class AzureFoundryProvider(DeepResearchProvider):
         # Lazy-initialized clients
         self._project_client = None
         self._agents_client = None
-        self._deep_research_agent_id: Optional[str] = None
+        self._deep_research_agent_id: str | None = None
         self._regular_agent_ids: dict[str, str] = {}  # model -> agent_id
-        self._bing_connection_id: Optional[str] = None
+        self._bing_connection_id: str | None = None
 
         # Pricing per 1M tokens for regular models (from registry)
         from .registry import get_token_pricing
@@ -168,7 +168,7 @@ class AzureFoundryProvider(DeepResearchProvider):
             )
         return self._agents_client
 
-    def _get_bing_connection_id(self) -> Optional[str]:
+    def _get_bing_connection_id(self) -> str | None:
         """Resolve Bing grounding connection ID from resource name."""
         if self._bing_connection_id is not None:
             return self._bing_connection_id
@@ -317,7 +317,7 @@ class AzureFoundryProvider(DeepResearchProvider):
                     "kind": "deep_research",
                     "thread_id": thread_id,
                     "run_id": run_id,
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(UTC),
                     "model": self.deep_research_deployment,
                     "request": request,
                 }
@@ -385,7 +385,7 @@ class AzureFoundryProvider(DeepResearchProvider):
                     "kind": "regular",
                     "thread_id": thread_id,
                     "run_id": run_id,
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(UTC),
                     "model": model,
                     "request": request,
                 }
@@ -504,7 +504,7 @@ class AzureFoundryProvider(DeepResearchProvider):
                 job_data.update(
                     {
                         "status": "completed",
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                         "output": text,
                         "citations": citations,
                         "search_queries_count": len(citations),
@@ -517,14 +517,14 @@ class AzureFoundryProvider(DeepResearchProvider):
                     {
                         "status": "failed",
                         "error": error,
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                     }
                 )
             elif status == "cancelled":
                 job_data.update(
                     {
                         "status": "cancelled",
-                        "completed_at": datetime.now(timezone.utc),
+                        "completed_at": datetime.now(UTC),
                     }
                 )
             elif status in ("queued", "in_progress"):
@@ -596,7 +596,7 @@ class AzureFoundryProvider(DeepResearchProvider):
 
             await asyncio.to_thread(_cancel)
             job_data["status"] = "cancelled"
-            job_data["completed_at"] = datetime.now(timezone.utc)
+            job_data["completed_at"] = datetime.now(UTC)
             return True
         except Exception as e:
             logger.warning("Failed to cancel Foundry run %s: %s", job_id, e)

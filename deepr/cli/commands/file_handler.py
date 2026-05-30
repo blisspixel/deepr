@@ -9,7 +9,6 @@ Requirements: 6.3 - Extract file handling logic
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from deepr.cli.output import OutputFormatter
 
@@ -20,7 +19,7 @@ class FileUploadResult:
 
     resolved_files: list[Path]
     uploaded_ids: list[str]
-    vector_store_id: Optional[str]
+    vector_store_id: str | None
     errors: list[str]
 
     @property
@@ -34,7 +33,7 @@ class FileUploadResult:
         return len(self.errors) > 0
 
 
-def resolve_file_patterns(patterns: tuple, formatter: Optional[OutputFormatter] = None) -> tuple[list[Path], list[str]]:
+def resolve_file_patterns(patterns: tuple, formatter: OutputFormatter | None = None) -> tuple[list[Path], list[str]]:
     """Resolve file patterns to actual file paths.
 
     Handles glob patterns, Windows paths, and spaces in filenames.
@@ -70,7 +69,7 @@ def resolve_file_patterns(patterns: tuple, formatter: Optional[OutputFormatter] 
 
 
 async def upload_files(
-    provider_instance, files: list[Path], formatter: Optional[OutputFormatter] = None
+    provider_instance, files: list[Path], formatter: OutputFormatter | None = None
 ) -> tuple[list[str], list[str]]:
     """Upload files to provider.
 
@@ -104,8 +103,8 @@ async def upload_files(
 
 
 async def create_vector_store_for_files(
-    provider_instance, file_ids: list[str], formatter: Optional[OutputFormatter] = None, timeout: int = 300
-) -> tuple[Optional[str], list[str]]:
+    provider_instance, file_ids: list[str], formatter: OutputFormatter | None = None, timeout: int = 300
+) -> tuple[str | None, list[str]]:
     """Create vector store and wait for file processing.
 
     Args:
@@ -147,7 +146,7 @@ async def create_vector_store_for_files(
 
 
 async def handle_file_uploads(
-    provider: str, upload_patterns: tuple, formatter: Optional[OutputFormatter] = None, config: Optional[dict] = None
+    provider: str, upload_patterns: tuple, formatter: OutputFormatter | None = None, config: dict | None = None
 ) -> FileUploadResult:
     """Handle complete file upload workflow.
 

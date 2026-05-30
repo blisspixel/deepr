@@ -27,10 +27,11 @@ Example .json:
 import asyncio
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from deepr.routing.auto_mode import AutoModeDecision, AutoModeRouter, BatchRoutingResult
 
@@ -50,9 +51,9 @@ class BatchQueryItem:
 
     query: str
     priority: int = 5
-    cost_limit: Optional[float] = None
-    force_model: Optional[str] = None
-    force_provider: Optional[str] = None
+    cost_limit: float | None = None
+    force_model: str | None = None
+    force_provider: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -71,12 +72,12 @@ class BatchQueryResult:
     """
 
     query: str
-    decision: Optional[AutoModeDecision] = None
-    job_id: Optional[str] = None
+    decision: AutoModeDecision | None = None
+    job_id: str | None = None
     success: bool = False
-    error: Optional[str] = None
+    error: str | None = None
     cost_actual: float = 0.0
-    report_path: Optional[str] = None
+    report_path: str | None = None
 
 
 @dataclass
@@ -96,10 +97,10 @@ class BatchResult:
 
     batch_id: str
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     results: list[BatchQueryResult] = field(default_factory=list)
     total_cost_estimated: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
     total_cost_actual: float = 0.0
     success_count: int = 0
     failure_count: int = 0
@@ -212,7 +213,7 @@ class AutoBatchExecutor:
 
     def __init__(
         self,
-        router: Optional[AutoModeRouter] = None,
+        router: AutoModeRouter | None = None,
         max_concurrent: int = 5,
     ):
         """Initialize batch executor.
@@ -227,7 +228,7 @@ class AutoBatchExecutor:
     def preview_batch(
         self,
         file_path: str,
-        budget_total: Optional[float] = None,
+        budget_total: float | None = None,
         prefer_cost: bool = False,
     ) -> BatchRoutingResult:
         """Preview routing decisions without executing (dry run).
@@ -256,10 +257,10 @@ class AutoBatchExecutor:
     async def execute_batch(
         self,
         file_path: str,
-        campaign_id: Optional[str] = None,
-        budget_total: Optional[float] = None,
+        campaign_id: str | None = None,
+        budget_total: float | None = None,
         prefer_cost: bool = False,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None] | None = None,
         dry_run: bool = False,
     ) -> BatchResult:
         """Execute a batch of queries with auto-mode routing.
@@ -276,7 +277,7 @@ class AutoBatchExecutor:
             BatchResult with execution results
         """
         batch_id = campaign_id or f"batch-{uuid.uuid4().hex[:12]}"
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
 
         # Parse batch file
         items, defaults = parse_batch_file(file_path)
@@ -308,7 +309,7 @@ class AutoBatchExecutor:
             return BatchResult(
                 batch_id=batch_id,
                 started_at=started_at,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
                 results=results,
                 total_cost_estimated=routing.total_cost_estimate,
                 total_cost_actual=0.0,
@@ -333,7 +334,7 @@ class AutoBatchExecutor:
                 return BatchResult(
                     batch_id=batch_id,
                     started_at=started_at,
-                    completed_at=datetime.now(timezone.utc),
+                    completed_at=datetime.now(UTC),
                     results=[],
                     total_cost_estimated=batch_total_est,
                     total_cost_actual=0.0,
@@ -354,7 +355,7 @@ class AutoBatchExecutor:
                 return BatchResult(
                     batch_id=batch_id,
                     started_at=started_at,
-                    completed_at=datetime.now(timezone.utc),
+                    completed_at=datetime.now(UTC),
                     results=[],
                     total_cost_estimated=batch_total_est,
                     total_cost_actual=0.0,
@@ -415,7 +416,7 @@ class AutoBatchExecutor:
         return BatchResult(
             batch_id=batch_id,
             started_at=started_at,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             results=final_results,
             total_cost_estimated=routing.total_cost_estimate,
             total_cost_actual=total_actual,
@@ -428,7 +429,7 @@ class AutoBatchExecutor:
         item: BatchQueryItem,
         decision: AutoModeDecision,
         batch_id: str,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None] | None = None,
     ) -> BatchQueryResult:
         """Execute a single query from the batch.
 

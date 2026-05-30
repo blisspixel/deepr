@@ -30,18 +30,18 @@ Usage:
 """
 
 import asyncio
-from collections.abc import Awaitable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any
 
 from deepr.core.constants import MAX_CONCURRENT_TASKS
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class DispatchStatus(Enum):
@@ -60,12 +60,12 @@ class DispatchedTask:
     """A task being dispatched."""
 
     id: str
-    coro: Optional[Coroutine] = None
+    coro: Coroutine | None = None
     status: DispatchStatus = DispatchStatus.PENDING
     result: Any = None
-    error: Optional[str] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    error: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     depends_on: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -82,7 +82,7 @@ class DispatchedTask:
         }
 
     @property
-    def duration_ms(self) -> Optional[float]:
+    def duration_ms(self) -> float | None:
         """Get task duration in milliseconds."""
         if not self.started_at or not self.completed_at:
             return None
@@ -115,7 +115,7 @@ class DispatchResult:
             return self.tasks[task_id].result
         return None
 
-    def get_error(self, task_id: str) -> Optional[str]:
+    def get_error(self, task_id: str) -> str | None:
         """Get error for a specific task."""
         if task_id in self.tasks:
             return self.tasks[task_id].error
@@ -141,7 +141,7 @@ class AsyncTaskDispatcher:
 
     def __init__(
         self,
-        max_concurrent: Optional[int] = None,
+        max_concurrent: int | None = None,
     ):
         """Initialize the dispatcher.
 
@@ -156,9 +156,9 @@ class AsyncTaskDispatcher:
     async def dispatch(
         self,
         tasks: list[dict[str, Any]],
-        on_progress: Optional[ProgressCallback] = None,
-        timeout: Optional[float] = None,
-        cost_checker: Optional[Callable[[str], tuple[bool, str]]] = None,
+        on_progress: ProgressCallback | None = None,
+        timeout: float | None = None,
+        cost_checker: Callable[[str], tuple[bool, str]] | None = None,
     ) -> DispatchResult:
         """Dispatch independent tasks in parallel.
 
@@ -233,7 +233,7 @@ class AsyncTaskDispatcher:
                     asyncio.gather(*aws, return_exceptions=True),
                     timeout=timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Cancel remaining tasks
                 self._cancel_event.set()
                 for task in dispatched.values():
@@ -267,8 +267,8 @@ class AsyncTaskDispatcher:
         self,
         tasks: list[dict[str, Any]],
         dependencies: dict[str, list[str]],
-        on_progress: Optional[ProgressCallback] = None,
-        timeout: Optional[float] = None,
+        on_progress: ProgressCallback | None = None,
+        timeout: float | None = None,
     ) -> DispatchResult:
         """Dispatch tasks with dependency management.
 
@@ -380,7 +380,7 @@ class AsyncTaskDispatcher:
                     asyncio.gather(*aws, return_exceptions=True),
                     timeout=timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._cancel_event.set()
                 # Signal all events to unblock waiting tasks
                 for event in completion_events.values():

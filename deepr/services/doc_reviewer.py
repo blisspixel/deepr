@@ -28,8 +28,8 @@ import glob
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.utils.security import InvalidInputError, PathTraversalError, validate_path
 
@@ -52,7 +52,7 @@ class DocReviewer:
     """
 
     def __init__(
-        self, api_key: Optional[str] = None, model: str = "gpt-5", docs_path: str = "docs/research and documentation"
+        self, api_key: str | None = None, model: str = "gpt-5", docs_path: str = "docs/research and documentation"
     ):
         """
         Initialize doc reviewer.
@@ -115,7 +115,7 @@ class DocReviewer:
                     logger.debug("Skipping large file in docs scan: %s (%d bytes)", file_path, stat.st_size)
                     continue
 
-                modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+                modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
                 size = stat.st_size
 
                 # Read first few lines for preview (now from validated path)
@@ -137,7 +137,7 @@ class DocReviewer:
 
         return docs
 
-    def review_docs(self, scenario: str, context: Optional[str] = None, max_docs_to_review: int = 10) -> dict[str, Any]:
+    def review_docs(self, scenario: str, context: str | None = None, max_docs_to_review: int = 10) -> dict[str, Any]:
         """
         Review existing docs for relevance to scenario.
 
@@ -193,7 +193,7 @@ class DocReviewer:
             result = {"sufficient": [], "needs_update": [], "gaps": [scenario], "recommendations": []}
         return result
 
-    def _build_evaluation_prompt(self, scenario: str, context: Optional[str], docs: list[dict[str, Any]]) -> str:
+    def _build_evaluation_prompt(self, scenario: str, context: str | None, docs: list[dict[str, Any]]) -> str:
         """Build prompt for GPT-5 to evaluate docs."""
 
         parts = ["# Research Scenario", f"\n{scenario}\n"]

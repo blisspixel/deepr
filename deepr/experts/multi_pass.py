@@ -13,8 +13,8 @@ Usage:
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.services.context_chainer import ContextChainer, StructuredPhaseOutput
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -43,8 +43,8 @@ class MultiPassResult:
     beliefs: list[dict] = field(default_factory=list)
     changes: list[dict] = field(default_factory=list)
     filled: bool = False
-    extraction_output: Optional[StructuredPhaseOutput] = None
-    cross_reference: Optional[CrossReferenceResult] = None
+    extraction_output: StructuredPhaseOutput | None = None
+    cross_reference: CrossReferenceResult | None = None
     total_cost: float = 0.0
     passes_completed: int = 0
 
@@ -77,7 +77,7 @@ class MultiPassPipeline:
         chainer: ContextChainer for structured phase handoffs
     """
 
-    def __init__(self, client: Optional[Any] = None, consensus_engine: Optional[Any] = None):
+    def __init__(self, client: Any | None = None, consensus_engine: Any | None = None):
         self.client = client
         self.consensus_engine = consensus_engine
         self.chainer = ContextChainer()
@@ -348,7 +348,7 @@ class MultiPassPipeline:
     async def _pass_synthesize(
         self,
         extraction: StructuredPhaseOutput,
-        cross_ref: Optional[CrossReferenceResult],
+        cross_ref: CrossReferenceResult | None,
         gap_topic: str,
         domain: str,
         budget: float,

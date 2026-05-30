@@ -22,14 +22,14 @@ import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Default database path
@@ -41,12 +41,12 @@ class VerifiedOutput:
     """A verified tool output with hash."""
 
     id: str
-    job_id: Optional[str]
+    job_id: str | None
     tool_name: str
     content_hash: str
     timestamp: datetime
     is_verified: bool = True
-    verification_error: Optional[str] = None
+    verification_error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -83,7 +83,7 @@ class VerificationChainEntry:
     """An entry in the verification chain."""
 
     output_id: str
-    previous_hash: Optional[str]
+    previous_hash: str | None
     content_hash: str
     chain_hash: str
     sequence: int
@@ -111,7 +111,7 @@ class OutputVerifier:
 
     def __init__(
         self,
-        db_path: Optional[Path] = None,
+        db_path: Path | None = None,
     ):
         """Initialize the verifier.
 
@@ -191,8 +191,8 @@ class OutputVerifier:
         self,
         tool_name: str,
         content: Any,
-        job_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        job_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> VerifiedOutput:
         """Record a tool output with hash verification.
 
@@ -397,7 +397,7 @@ class OutputVerifier:
     def get_output(
         self,
         output_id: str,
-    ) -> Optional[VerifiedOutput]:
+    ) -> VerifiedOutput | None:
         """Get a verified output by ID.
 
         Args:
@@ -443,7 +443,7 @@ class OutputVerifier:
 
     def get_stats(
         self,
-        job_id: Optional[str] = None,
+        job_id: str | None = None,
     ) -> dict[str, Any]:
         """Get verification statistics.
 
@@ -496,7 +496,7 @@ class OutputVerifier:
     def _compute_chain_hash(
         self,
         content_hash: str,
-        previous_hash: Optional[str],
+        previous_hash: str | None,
     ) -> str:
         """Compute chain hash.
 
