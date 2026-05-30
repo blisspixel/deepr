@@ -497,7 +497,7 @@ class Settings:
         try:
             if config_path.suffix in (".yaml", ".yml"):
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]
 
                     with open(config_path, encoding="utf-8") as f:
                         data = yaml.safe_load(f) or {}
@@ -809,7 +809,7 @@ class Settings:
 
     def _apply_env(self, env_var: str, setting_path: str, type_: type = str) -> None:
         """Apply single environment variable."""
-        value = os.getenv(env_var)
+        value: Any = os.getenv(env_var)
         if value is not None:
             if type_ is bool:
                 value = _parse_bool(value)

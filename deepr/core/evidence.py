@@ -53,13 +53,13 @@ class Evidence:
     source: str
     url: str | None = None
     quote: str = ""
-    span: tuple | None = None
+    span: tuple[int, int] | None = None
     retrieved_at: datetime = field(default_factory=_utc_now)
     supports: list[str] = field(default_factory=list)
     contradicts: list[str] = field(default_factory=list)
 
     @classmethod
-    def create(cls, source: str, quote: str, **kwargs) -> "Evidence":
+    def create(cls, source: str, quote: str, **kwargs: Any) -> "Evidence":
         """Create evidence with content-hash ID.
 
         The ID is derived from source + quote content, ensuring

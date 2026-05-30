@@ -220,7 +220,7 @@ class SchemaValidationError(ValidationError):
 
     error_code = "SCHEMA_VALIDATION"
 
-    def __init__(self, schema_name: str, errors: list):
+    def __init__(self, schema_name: str, errors: list[str]) -> None:
         super().__init__(
             f"Schema validation failed for '{schema_name}': {', '.join(errors)}",
             details={"schema_name": schema_name, "errors": errors},

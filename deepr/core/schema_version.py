@@ -41,7 +41,7 @@ CURRENT_VERSIONS = {
 }
 
 # Migration registry: (schema_type, from_version, to_version) -> migration_function
-_migrations: dict[tuple[str, str, str], Callable[[dict], dict]] = {}
+_migrations: dict[tuple[str, str, str], Callable[[dict[str, Any]], dict[str, Any]]] = {}
 
 
 @dataclass
@@ -172,7 +172,7 @@ def _compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
-def register_migration(schema_type: str, from_version: str, to_version: str) -> Callable:
+def register_migration(schema_type: str, from_version: str, to_version: str) -> Callable[..., Any]:
     """Decorator to register a migration function.
 
     Args:
@@ -184,11 +184,11 @@ def register_migration(schema_type: str, from_version: str, to_version: str) -> 
         Decorator function
     """
 
-    def decorator(func: Callable[[dict], dict]) -> Callable[[dict], dict]:
+    def decorator(func: Callable[[dict[str, Any]], dict[str, Any]]) -> Callable[[dict[str, Any]], dict[str, Any]]:
         _migrations[(schema_type, from_version, to_version)] = func
 
         @wraps(func)
-        def wrapper(data: dict) -> dict:
+        def wrapper(data: dict[str, Any]) -> dict[str, Any]:
             return func(data)
 
         return wrapper
@@ -216,7 +216,7 @@ def get_migration_path(schema_type: str, from_version: str, to_version: str) -> 
     # BFS to find path
     from collections import deque
 
-    queue = deque([(from_version, [])])
+    queue: deque[tuple[str, list[tuple[str, str]]]] = deque([(from_version, [])])
     visited = {from_version}
 
     while queue:
@@ -331,7 +331,7 @@ def migrate_worldview_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
 # Utility functions for file operations
 
 
-def save_versioned_json(data: dict[str, Any], path: Path, schema_type: str, version: str | None = None):
+def save_versioned_json(data: dict[str, Any], path: Path, schema_type: str, version: str | None = None) -> None:
     """Save data as versioned JSON.
 
     Args:
@@ -359,7 +359,7 @@ def load_versioned_json(path: Path, schema_type: str, auto_migrate: bool = True)
         Loaded (and optionally migrated) data
     """
     with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+        data: dict[str, Any] = json.load(f)
 
     # Ensure versioned
     data = ensure_versioned(data, schema_type)
