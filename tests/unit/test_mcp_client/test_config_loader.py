@@ -18,6 +18,19 @@ import pytest
 from deepr.mcp.client.config_loader import ConfigLoader, _resolve_env_vars
 
 
+@pytest.fixture(autouse=True)
+def _no_first_party_autodiscovery():
+    """Make load() deterministic across environments.
+
+    ConfigLoader.load() auto-discovers first-party tools (recon, distillr) by
+    probing PATH. Without this, count-based assertions break on dev machines
+    where those binaries happen to be installed. Tests that exercise discovery
+    on purpose re-patch shutil.which inside their own ``with`` block.
+    """
+    with patch("deepr.mcp.client.config_loader.shutil.which", return_value=None):
+        yield
+
+
 class TestConfigLoaderValidation:
     """Tests for ConfigLoader.validate()."""
 
@@ -229,3 +242,102 @@ class TestConfigLoaderLoad:
         loader = ConfigLoader()
         with pytest.raises(ValueError, match="Config validation failed"):
             loader.load(config_file)
+
+
+class TestDistillrFirstParty:
+    """First-party distillr profile + auto-discovery (Phase 2b #2)."""
+
+    def test_distillr_profile_template_fields(self) -> None:
+        from deepr.mcp.client.config_loader import get_distillr_profile
+
+        profile = get_distillr_profile()
+        assert profile.name == "distillr"
+        assert profile.command == "distill-mcp"
+        assert profile.budget_limit == 2.0  # spends money: per-call cap exists
+        assert profile.progress is True
+        assert profile.auto_approve == ["query_library"]
+        assert "ingest_papers" in profile.require_approval
+
+    def test_discover_returns_profile_when_binary_present(self) -> None:
+        from deepr.mcp.client.config_loader import discover_distillr_profile
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", return_value="/usr/bin/distill-mcp"):
+            profile = discover_distillr_profile()
+        assert profile is not None
+        assert profile.name == "distillr"
+
+    def test_discover_returns_none_when_binary_absent(self) -> None:
+        from deepr.mcp.client.config_loader import discover_distillr_profile
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", return_value=None):
+            assert discover_distillr_profile() is None
+
+    def test_load_auto_includes_distillr_when_present(self, tmp_path: Path) -> None:
+        def fake_which(name: str) -> str | None:
+            return "/usr/bin/distill-mcp" if name == "distill-mcp" else None
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", side_effect=fake_which):
+            profiles = ConfigLoader().load(tmp_path / "absent.yaml")
+        names = {p.name for p in profiles}
+        assert "distillr" in names
+        assert "recon" not in names
+
+    def test_user_distillr_profile_not_duplicated(self, tmp_path: Path) -> None:
+        config = textwrap.dedent("""\
+            profiles:
+              - name: distillr
+                command: distill-mcp
+                budget_limit: 9.0
+        """)
+        config_file = tmp_path / "integrations.yaml"
+        config_file.write_text(config)
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", return_value="/usr/bin/distill-mcp"):
+            profiles = ConfigLoader().load(config_file)
+
+        distillr = [p for p in profiles if p.name == "distillr"]
+        assert len(distillr) == 1
+        assert distillr[0].budget_limit == 9.0  # user wins over auto-discovery
+
+
+class TestPrimrFirstParty:
+    """First-party primr profile + auto-discovery (Phase 2b #3)."""
+
+    def test_primr_profile_template_fields(self) -> None:
+        from deepr.mcp.client.config_loader import get_primr_profile
+
+        profile = get_primr_profile()
+        assert profile.name == "primr"
+        assert profile.command == "primr-mcp"
+        assert profile.args == ["--stdio"]
+        assert profile.budget_limit == 5.0  # heaviest tool: higher per-call cap
+        assert profile.timeout == 3600  # 35-50 min runs
+        assert profile.progress is True
+        # Only free read-side tools auto-approve; everything that spends needs approval.
+        assert set(profile.auto_approve) == {"estimate_run", "check_jobs", "doctor"}
+        assert "research_company" in profile.require_approval
+        assert "quick_lookup" in profile.require_approval  # cheap but still paid
+
+    def test_discover_returns_profile_when_binary_present(self) -> None:
+        from deepr.mcp.client.config_loader import discover_primr_profile
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", return_value="/usr/bin/primr-mcp"):
+            profile = discover_primr_profile()
+        assert profile is not None
+        assert profile.name == "primr"
+
+    def test_discover_returns_none_when_binary_absent(self) -> None:
+        from deepr.mcp.client.config_loader import discover_primr_profile
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", return_value=None):
+            assert discover_primr_profile() is None
+
+    def test_load_auto_includes_primr_when_present(self, tmp_path: Path) -> None:
+        def fake_which(name: str) -> str | None:
+            return "/usr/bin/primr-mcp" if name == "primr-mcp" else None
+
+        with patch("deepr.mcp.client.config_loader.shutil.which", side_effect=fake_which):
+            profiles = ConfigLoader().load(tmp_path / "absent.yaml")
+        names = {p.name for p in profiles}
+        assert "primr" in names
+        assert "recon" not in names and "distillr" not in names

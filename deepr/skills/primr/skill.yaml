@@ -1,0 +1,134 @@
+name: primr
+version: 0.1.0
+description: >-
+  Native first-party strategic company intelligence. Adaptive scraping plus AI
+  synthesis into consultant-grade briefs (competitive positioning, hiring
+  signals, strategic initiatives, tech stack). Powered by the primr MCP server.
+  The heaviest instrument: full runs take 35-50 minutes and cost real money, so
+  every analysis is approval-gated. Always estimate first; use quick_lookup for
+  fast context.
+domains: ["strategic", "competitive-intelligence", "company-research", "due-diligence"]
+
+triggers:
+  keywords: ["primr", "company deep dive", "competitive analysis", "competitor", "strategic brief", "due diligence", "hiring signals", "company research", "market positioning", "company intelligence"]
+  patterns: []
+
+tools:
+  - name: estimate_run
+    type: mcp
+    description: |
+      Pre-flight cost and duration estimate for a company analysis. Free.
+      ALWAYS call this first before research_company so the budget and time
+      commitment are known and can be approved deliberately.
+    server:
+      command: primr-mcp
+      args: ["--stdio"]
+    remote_tool_name: estimate_run
+    parameters:
+      domain:
+        type: string
+        description: Company domain to estimate an analysis for (e.g. "stripe.com")
+      mode:
+        type: string
+        enum: ["quick", "full"]
+        default: "full"
+        description: Analysis depth to estimate
+    cost_tier: free
+    timeout_seconds: 60
+
+  - name: quick_lookup
+    type: mcp
+    description: |
+      Lighter, faster company context: recon pre-flight + scrape only, no deep
+      research synthesis. Roughly 5 minutes and ~$0.10. Use when you need fast
+      grounding on a company rather than a full 35-50 min strategic brief.
+    server:
+      command: primr-mcp
+      args: ["--stdio"]
+    remote_tool_name: quick_lookup
+    parameters:
+      domain:
+        type: string
+        description: Company domain for quick context
+      budget:
+        type: number
+        description: Optional cap on model spend for this lookup (USD)
+    cost_tier: medium
+    timeout_seconds: 600
+
+  - name: research_company
+    type: mcp
+    description: |
+      Full strategic company analysis: competitive positioning, hiring signals,
+      strategic initiatives, tech stack, constraints/risks. Takes 35-50 minutes
+      and costs money. Long-running and async: progress is streamed and the run
+      survives disconnects (poll with check_jobs, resume via task durability).
+      Returns report_path, strategy_path, sections, citations, recon_summary,
+      hiring_signals, cost, and duration_minutes.
+    server:
+      command: primr-mcp
+      args: ["--stdio"]
+    remote_tool_name: research_company
+    parameters:
+      domain:
+        type: string
+        description: Company domain to analyze (e.g. "stripe.com")
+      mode:
+        type: string
+        enum: ["full"]
+        default: "full"
+        description: Analysis depth
+      budget:
+        type: number
+        description: Cap on model spend for this analysis (USD). Pass the approved budget.
+    cost_tier: high
+    timeout_seconds: 3600
+
+  - name: generate_strategy
+    type: mcp
+    description: Generate a strategy document for a company already analyzed (or as part of a run). Costs money and takes minutes.
+    server:
+      command: primr-mcp
+      args: ["--stdio"]
+    remote_tool_name: generate_strategy
+    parameters:
+      domain:
+        type: string
+        description: Company domain
+      budget:
+        type: number
+        description: Optional cap on model spend (USD)
+    cost_tier: high
+    timeout_seconds: 1800
+
+  - name: batch_analyze
+    type: mcp
+    description: Analyze multiple companies in one batch (e.g. a sector map). Cost scales with company count; always estimate and approve first.
+    server:
+      command: primr-mcp
+      args: ["--stdio"]
+    remote_tool_name: batch_analyze
+    parameters:
+      domains:
+        type: array
+        description: List of company domains to analyze
+      budget:
+        type: number
+        description: Total budget cap across the batch (USD)
+    cost_tier: high
+    timeout_seconds: 3600
+
+  - name: check_jobs
+    type: mcp
+    description: Poll the status of in-flight async primr jobs (phase, progress, spend). Free.
+    server:
+      command: primr-mcp
+      args: ["--stdio"]
+    remote_tool_name: check_jobs
+    parameters: {}
+    cost_tier: free
+    timeout_seconds: 60
+
+budget:
+  max_per_call: 5.0
+  default_budget: 1.0
