@@ -20,8 +20,8 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,9 @@ class SubscriptionManager:
         self._uri_index: dict[str, set[str]] = {}  # uri -> subscription_ids
         self._lock = asyncio.Lock()
 
-    async def subscribe(self, uri: str, callback: Callable[[dict[str, Any]], Awaitable[None]], wildcard: bool = False) -> str:
+    async def subscribe(
+        self, uri: str, callback: Callable[[dict[str, Any]], Awaitable[None]], wildcard: bool = False
+    ) -> str:
         """
         Subscribe to a resource URI.
 
