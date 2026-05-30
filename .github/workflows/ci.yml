@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# `uv pip install --system` targets the runner's (uv-managed) interpreter,
+# which is marked externally-managed (PEP 668). Allowing it is safe on
+# ephemeral CI runners and avoids per-job venv activation plumbing.
+env:
+  UV_BREAK_SYSTEM_PACKAGES: "1"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
