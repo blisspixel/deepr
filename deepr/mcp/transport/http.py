@@ -40,12 +40,12 @@ def _is_loopback_host(host: str) -> bool:
 
 def _extract_bearer(request: "web.Request") -> str | None:
     """Return the Bearer token from Authorization, or X-Api-Key value, if any."""
-    auth = request.headers.get("Authorization", "")
+    auth: str = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         token = auth[7:].strip()
         if token:
             return token
-    api_key = request.headers.get("X-Api-Key", "").strip()
+    api_key: str = request.headers.get("X-Api-Key", "").strip()
     return api_key or None
 
 
@@ -56,9 +56,9 @@ class HttpMessage:
     jsonrpc: str = "2.0"
     id: str | None = None
     method: str | None = None
-    params: dict | None = None
+    params: dict[str, Any] | None = None
     result: Any | None = None
-    error: dict | None = None
+    error: dict[str, Any] | None = None
 
     def is_request(self) -> bool:
         return self.method is not None and self.id is not None
@@ -69,8 +69,8 @@ class HttpMessage:
     def is_response(self) -> bool:
         return self.result is not None or self.error is not None
 
-    def to_dict(self) -> dict:
-        d = {"jsonrpc": self.jsonrpc}
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"jsonrpc": self.jsonrpc}
         if self.id is not None:
             d["id"] = self.id
         if self.method is not None:
@@ -84,7 +84,7 @@ class HttpMessage:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "HttpMessage":
+    def from_dict(cls, data: dict[str, Any]) -> "HttpMessage":
         return cls(
             jsonrpc=data.get("jsonrpc", "2.0"),
             id=data.get("id"),
@@ -153,7 +153,7 @@ class StreamingHttpTransport:
         self._app: web.Application | None = None
         self._runner: web.AppRunner | None = None
         self._stats = HttpTransportStats()
-        self._subscribers: dict[str, asyncio.Queue] = {}
+        self._subscribers: dict[str, asyncio.Queue[Any]] = {}
         self._running = False
 
     def on_message(self, handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]]) -> None:
@@ -329,7 +329,7 @@ class StreamingHttpTransport:
             except asyncio.QueueFull:
                 pass
 
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: asyncio.Queue[Any] = asyncio.Queue()
         self._subscribers[subscriber_id] = queue
         self._stats.active_streams += 1
 
@@ -375,7 +375,7 @@ class StreamingHttpTransport:
             }
         )
 
-    async def broadcast(self, notification: dict) -> int:
+    async def broadcast(self, notification: dict[str, Any]) -> int:
         """
         Broadcast a notification to all connected subscribers.
 
@@ -391,7 +391,7 @@ class StreamingHttpTransport:
                 logger.warning("Failed to broadcast MCP notification to subscriber: %s", exc)
         return count
 
-    async def send_to(self, subscriber_id: str, notification: dict) -> bool:
+    async def send_to(self, subscriber_id: str, notification: dict[str, Any]) -> bool:
         """
         Send a notification to a specific subscriber.
 
@@ -435,10 +435,10 @@ class HttpClient:
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
         self._session: aiohttp.ClientSession | None = None
-        self._stream_task: asyncio.Task | None = None
-        self._notification_handler: Callable[[dict], Awaitable[None]] | None = None
+        self._stream_task: asyncio.Task[None] | None = None
+        self._notification_handler: Callable[[dict[str, Any]], Awaitable[None]] | None = None
 
-    def _auth_headers(self) -> dict:
+    def _auth_headers(self) -> dict[str, Any]:
         return {"Authorization": f"Bearer {self._auth_token}"} if self._auth_token else {}
 
     async def connect(self) -> None:
@@ -488,7 +488,7 @@ class HttpClient:
             data = await response.json()
             return HttpMessage.from_dict(data)
 
-    def on_notification(self, handler: Callable[[dict], Awaitable[None]]) -> None:
+    def on_notification(self, handler: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
         """Set handler for incoming notifications."""
         self._notification_handler = handler
 
@@ -545,6 +545,7 @@ class HttpClient:
     async def _stream_loop(self, url: str) -> None:
         """Internal loop for processing SSE stream."""
         try:
+            assert self._session is not None  # set in connect()
             async with self._session.get(url, headers=self._auth_headers()) as response:
                 async for line in response.content:
                     line_str = line.decode("utf-8").strip()
