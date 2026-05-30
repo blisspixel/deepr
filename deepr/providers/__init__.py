@@ -1,7 +1,7 @@
 """Provider abstraction for multi-cloud Deep Research support."""
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from .base import DeepResearchProvider, ResearchRequest, ResearchResponse, ToolConfig
 from .openai_provider import OpenAIProvider
@@ -16,25 +16,25 @@ _OPTIONAL_PROVIDER_IMPORT_ERRORS: dict[str, Exception] = {}
 try:
     from .azure_provider import AzureProvider
 except Exception as exc:
-    AzureProvider = None
+    AzureProvider = None  # type: ignore[assignment,misc]
     _OPTIONAL_PROVIDER_IMPORT_ERRORS["azure"] = exc
 
 try:
     from .gemini_provider import GeminiProvider
 except Exception as exc:
-    GeminiProvider = None
+    GeminiProvider = None  # type: ignore[assignment,misc]
     _OPTIONAL_PROVIDER_IMPORT_ERRORS["gemini"] = exc
 
 try:
     from .grok_provider import GrokProvider
 except Exception as exc:
-    GrokProvider = None
+    GrokProvider = None  # type: ignore[assignment,misc]
     _OPTIONAL_PROVIDER_IMPORT_ERRORS["xai"] = exc
 
 try:
     from .azure_foundry_provider import AzureFoundryProvider
 except Exception as exc:
-    AzureFoundryProvider = None
+    AzureFoundryProvider = None  # type: ignore[assignment,misc]
     _OPTIONAL_PROVIDER_IMPORT_ERRORS["azure-foundry"] = exc
 
 ProviderType = Literal["openai", "azure", "gemini", "xai", "azure-foundry"]
@@ -50,7 +50,7 @@ def _optional_import_message(provider_type: str, install_hint: str) -> str:
     return f"{install_hint}. Root cause: {root_cause}"
 
 
-def create_provider(provider_type: ProviderType, **kwargs) -> DeepResearchProvider:
+def create_provider(provider_type: ProviderType, **kwargs: Any) -> DeepResearchProvider:
     """
     Factory function to create the appropriate provider instance.
 
