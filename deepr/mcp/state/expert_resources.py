@@ -7,6 +7,7 @@ Enables Claude to inspect expert state before querying.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -24,7 +25,7 @@ class ExpertProfile:
     last_refresh: datetime | None = None
     capabilities: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "expert_id": self.expert_id,
             "name": self.name,
@@ -48,7 +49,7 @@ class ExpertBelief:
     source: str | None = None
     added_at: datetime = field(default_factory=datetime.now)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "text": self.text,
             "confidence": self.confidence,
@@ -65,7 +66,7 @@ class ExpertBeliefs:
     beliefs: list[ExpertBelief] = field(default_factory=list)
     overall_confidence: float = 0.0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "expert_id": self.expert_id,
             "beliefs": [b.to_dict() for b in self.beliefs],
@@ -110,7 +111,7 @@ class KnowledgeGap:
     suggested_research: str | None = None
     identified_at: datetime = field(default_factory=datetime.now)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "topic": self.topic,
             "severity": self.severity,
@@ -126,7 +127,7 @@ class ExpertGaps:
     expert_id: str
     gaps: list[KnowledgeGap] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "expert_id": self.expert_id,
             "gaps": [g.to_dict() for g in self.gaps],
@@ -147,12 +148,12 @@ class ExpertResourceManager:
     as MCP Resources that can be subscribed to.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._profiles: dict[str, ExpertProfile] = {}
         self._beliefs: dict[str, ExpertBeliefs] = {}
         self._gaps: dict[str, ExpertGaps] = {}
 
-    def register_expert(self, expert_id: str, name: str, domain: str, description: str, **kwargs) -> ExpertProfile:
+    def register_expert(self, expert_id: str, name: str, domain: str, description: str, **kwargs: Any) -> ExpertProfile:
         """
         Register an expert and create associated resources.
 
@@ -287,7 +288,7 @@ class ExpertResourceManager:
         """
         return f"deepr://experts/{expert_id}/{resource_type}"
 
-    def resolve_uri(self, uri: str) -> dict | None:
+    def resolve_uri(self, uri: str) -> dict[str, Any] | None:
         """
         Resolve a resource URI to its data.
 

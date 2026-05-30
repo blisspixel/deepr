@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 
 class BudgetDecision(Enum):
@@ -41,13 +42,13 @@ class ElicitationRequest:
 
     id: str
     message: str
-    schema: dict
+    schema: dict[str, Any]
     timeout_seconds: int = 300
     created_at: datetime = field(default_factory=datetime.now)
     status: ElicitationStatus = ElicitationStatus.PENDING
-    response: dict | None = None
+    response: dict[str, Any] | None = None
 
-    def to_jsonrpc(self) -> dict:
+    def to_jsonrpc(self) -> dict[str, Any]:
         """Convert to JSON-RPC elicitation/create request."""
         return {
             "jsonrpc": "2.0",
@@ -56,7 +57,7 @@ class ElicitationRequest:
             "id": self.id,
         }
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "id": self.id,
@@ -82,7 +83,7 @@ class BudgetElicitationContext:
 
 
 # Type alias for notification callback
-NotificationCallback = Callable[[dict], Awaitable[None]]
+NotificationCallback = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class ElicitationHandler:
@@ -165,7 +166,7 @@ class ElicitationHandler:
         return request
 
     def create_custom_elicitation(
-        self, message: str, schema: dict, request_id: str | None = None, timeout_seconds: int = 300
+        self, message: str, schema: dict[str, Any], request_id: str | None = None, timeout_seconds: int = 300
     ) -> ElicitationRequest:
         """
         Create a custom elicitation request.
@@ -204,7 +205,7 @@ class ElicitationHandler:
         request_id: str,
         timeout: float | None = None,
         use_default_on_timeout: bool = True,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """
         Wait for a response to an elicitation request.
 
@@ -248,7 +249,7 @@ class ElicitationHandler:
 
             return None
 
-    def _get_default_response(self, request: ElicitationRequest) -> dict:
+    def _get_default_response(self, request: ElicitationRequest) -> dict[str, Any]:
         """
         Get a sensible default response for an elicitation request.
 
@@ -309,7 +310,7 @@ class ElicitationHandler:
 
         return response
 
-    def submit_response(self, request_id: str, response: dict) -> bool:
+    def submit_response(self, request_id: str, response: dict[str, Any]) -> bool:
         """
         Submit a response to an elicitation request.
 
@@ -369,7 +370,7 @@ class ElicitationHandler:
         """Get an elicitation request by ID."""
         return self._pending.get(request_id)
 
-    def parse_budget_decision(self, response: dict) -> tuple[BudgetDecision, float | None]:
+    def parse_budget_decision(self, response: dict[str, Any]) -> tuple[BudgetDecision, float | None]:
         """
         Parse a budget decision response.
 
@@ -451,7 +452,7 @@ class CostOptimizer:
 
     def calculate_optimized_config(
         self, current_model: str, current_iterations: int, target_budget: float, estimated_tokens_per_iteration: int
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Calculate optimized configuration to fit budget.
 
@@ -498,7 +499,7 @@ class CostOptimizer:
         cost_per_million = self.MODEL_COSTS.get(model, 1.0)
         return (tokens / 1_000_000) * cost_per_million
 
-    def get_model_info(self, model: str) -> dict:
+    def get_model_info(self, model: str) -> dict[str, Any]:
         """Get information about a model."""
         return {
             "name": model,
