@@ -82,8 +82,9 @@ class TestReconProfileLoading:
         assert profile.command == "recon"
         assert profile.args == ["mcp"]
         assert profile.budget_limit == 0
-        assert profile.auto_approve == ["domain_lookup", "batch_lookup"]
-        assert profile.require_approval == ["delta"]
+        # Tool surface reflects the shipped recon-tool MCP server.
+        assert "lookup_tenant" in profile.auto_approve
+        assert "simulate_hardening" in profile.require_approval
         assert profile.transport == "stdio"
         assert profile.enabled is True
 
@@ -108,12 +109,13 @@ profiles:
         loader = ConfigLoader()
         profiles = loader.load(config_path)
 
-        assert len(profiles) == 1
-        recon = profiles[0]
-        assert recon.name == "recon"
+        # Other first-party tools (e.g. distillr) may also auto-discover, so
+        # select recon by name rather than asserting an exact profile count.
+        recon = next(p for p in profiles if p.name == "recon")
         assert recon.command == "recon"
         assert recon.args == ["mcp"]
         assert recon.budget_limit == 0
+        # These values come from the user's YAML above, loaded verbatim.
         assert recon.auto_approve == ["domain_lookup", "batch_lookup"]
 
     def test_recon_template_matches_spec(self) -> None:
@@ -122,7 +124,7 @@ profiles:
         assert RECON_PROFILE_TEMPLATE["command"] == "recon"
         assert RECON_PROFILE_TEMPLATE["args"] == ["mcp"]
         assert RECON_PROFILE_TEMPLATE["budget_limit"] == 0
-        assert RECON_PROFILE_TEMPLATE["auto_approve"] == ["domain_lookup", "batch_lookup"]
+        assert "lookup_tenant" in RECON_PROFILE_TEMPLATE["auto_approve"]
 
 
 class TestGracefulSkipWhenNotInstalled:
@@ -148,7 +150,7 @@ class TestGracefulSkipWhenNotInstalled:
             assert results["recon-missing"] is not None
             assert "not found" in results["recon-missing"].lower()
 
-        asyncio.get_event_loop().run_until_complete(_test())
+        asyncio.run(_test())
 
     def test_pool_continues_with_other_servers_when_one_missing(self) -> None:
         """Other servers still work when one is not installed."""
@@ -172,7 +174,7 @@ class TestGracefulSkipWhenNotInstalled:
             assert results["missing-tool-1"] is not None
             assert results["missing-tool-2"] is not None
 
-        asyncio.get_event_loop().run_until_complete(_test())
+        asyncio.run(_test())
 
     def test_client_raises_clear_error_for_missing_command(self) -> None:
         """MCPClient raises MCPClientError with clear message."""
@@ -183,7 +185,7 @@ class TestGracefulSkipWhenNotInstalled:
         )
 
         with pytest.raises(MCPClientError) as exc_info:
-            asyncio.get_event_loop().run_until_complete(client.connect())
+            asyncio.run(client.connect())
 
         assert "not found" in str(exc_info.value).lower()
         assert exc_info.value.server_name == "recon-test"

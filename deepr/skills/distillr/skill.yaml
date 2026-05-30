@@ -1,0 +1,120 @@
+name: distillr
+version: 0.1.0
+description: Native first-party source ingestion. Turns YouTube videos, websites, and arXiv papers into a structured Markdown corpus with cross-source synthesis. Powered by the distillr MCP server. Spends model budget, so ingestion is approval-gated; searching the existing corpus is free.
+domains: ["academic", "literature", "corpus", "research-sources"]
+
+triggers:
+  keywords: ["distill", "distillr", "ingest", "corpus", "papers", "arxiv", "literature review", "transcript", "youtube", "synthesis", "ingest sources", "source material"]
+  patterns: []
+
+tools:
+  - name: query_library
+    type: mcp
+    description: |
+      Search the existing distillr corpus without ingesting anything new.
+      Free / low cost. ALWAYS try this first: the expert may already have a
+      synthesized corpus on the topic, in which case no paid ingestion is
+      needed. Returns matching topics, synthesis paths, and metadata.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: query_library
+    parameters:
+      query:
+        type: string
+        description: Topic or question to search the existing corpus for
+    cost_tier: free
+    timeout_seconds: 60
+
+  - name: discover
+    type: mcp
+    description: Goal-aware discovery of candidate sources (papers, videos, sites) for a topic, without ingesting them. Use to preview what is available and worth ingesting before spending budget.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: discover
+    parameters:
+      query:
+        type: string
+        description: Research goal or topic to find candidate sources for
+    cost_tier: low
+    timeout_seconds: 120
+
+  - name: ingest_papers
+    type: mcp
+    description: |
+      Ingest arXiv / academic papers matching a query into the corpus and
+      produce a cross-paper synthesis. Costs model budget and takes minutes.
+      Returns topic, papers_ingested, synthesis_path, and actual cost.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: ingest_papers
+    parameters:
+      query:
+        type: string
+        description: Topic to ingest papers on (e.g. "embedded finance platform economics")
+      budget:
+        type: number
+        description: Optional cap on model spend for this ingestion run (USD)
+    cost_tier: high
+    timeout_seconds: 900
+
+  - name: ingest_youtube
+    type: mcp
+    description: Ingest YouTube videos (transcripts) on a topic into the corpus with synthesis. Costs model budget and takes minutes.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: ingest_youtube
+    parameters:
+      query:
+        type: string
+        description: Topic or channel/playlist to ingest transcripts from
+      budget:
+        type: number
+        description: Optional cap on model spend for this ingestion run (USD)
+    cost_tier: high
+    timeout_seconds: 900
+
+  - name: ingest_sites
+    type: mcp
+    description: Ingest websites / articles on a topic into the corpus with synthesis. Costs model budget and takes minutes.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: ingest_sites
+    parameters:
+      query:
+        type: string
+        description: Topic or seed URLs to ingest
+      budget:
+        type: number
+        description: Optional cap on model spend for this ingestion run (USD)
+    cost_tier: high
+    timeout_seconds: 900
+
+  - name: refresh
+    type: mcp
+    description: |
+      Re-run ingestion on a topic already in the corpus and integrate ONLY new
+      material (delta). This is the freshness engine: use it to keep an expert
+      current on a topic over time without re-ingesting everything. Cheaper
+      than a full ingest because it skips already-known sources.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: refresh
+    parameters:
+      topic:
+        type: string
+        description: Existing corpus topic to check for new material
+      budget:
+        type: number
+        description: Optional cap on model spend for this refresh run (USD)
+    cost_tier: medium
+    timeout_seconds: 900
+
+budget:
+  max_per_call: 2.0
+  default_budget: 1.0
