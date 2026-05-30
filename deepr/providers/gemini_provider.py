@@ -26,7 +26,7 @@ except Exception as exc:  # pragma: no cover - depends on optional SDK state
     genai = None
     types = None
     GenaiAPIError = Exception
-    _GENAI_IMPORT_ERROR = exc
+    _GENAI_IMPORT_ERROR: Exception | None = exc
 else:
     _GENAI_IMPORT_ERROR = None
 
@@ -57,23 +57,23 @@ DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
 class _FallbackThinkingConfig:
     """Minimal ThinkingConfig-compatible container for tests and degraded mode."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
 
-class _FallbackGenerateContentConfig(dict):
+class _FallbackGenerateContentConfig(dict[str, Any]):
     """Minimal GenerateContentConfig-compatible mapping for degraded mode."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
 
 class _UnavailableGeminiClient:
     """Client placeholder that fails with a clear error when SDK is unavailable."""
 
-    def __init__(self):
-        def _unavailable(*_args, **_kwargs):
+    def __init__(self) -> None:
+        def _unavailable(*_args: Any, **_kwargs: Any) -> Any:
             raise ImportError(
                 "Gemini provider requires a compatible google-genai installation. "
                 "Install with: pip install google-genai"
@@ -125,7 +125,7 @@ class GeminiProvider(DeepResearchProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model_mappings: dict | None = None,
+        model_mappings: dict[str, str] | None = None,
     ):
         """
         Initialize Gemini provider.
@@ -190,7 +190,7 @@ class GeminiProvider(DeepResearchProvider):
 
     def get_model_name(self, model_key: str) -> str:
         """Map generic model key to Gemini model name."""
-        return self.model_mappings.get(model_key, model_key)
+        return str(self.model_mappings.get(model_key, model_key))
 
     # Models whose published pricing doubles for prompts exceeding the
     # large-context threshold (200K input tokens for Gemini 3.x Pro).
@@ -344,7 +344,7 @@ class GeminiProvider(DeepResearchProvider):
                 }
 
                 logger.info(f"Gemini deep research started: {interaction_id}")
-                return interaction_id
+                return str(interaction_id)
 
             except GenaiAPIError as e:
                 if attempt < max_retries - 1:
@@ -380,7 +380,7 @@ class GeminiProvider(DeepResearchProvider):
         await self._execute_regular_research(job_id)
         return job_id
 
-    async def _execute_regular_research(self, job_id: str):
+    async def _execute_regular_research(self, job_id: str) -> None:
         """Execute regular research task with generate_content streaming."""
         job_data = self.jobs[job_id]
         request = job_data["request"]
@@ -610,7 +610,7 @@ class GeminiProvider(DeepResearchProvider):
 
         return self._build_deep_research_response(interaction_id, job_data)
 
-    def _build_deep_research_response(self, interaction_id: str, job_data: dict) -> ResearchResponse:
+    def _build_deep_research_response(self, interaction_id: str, job_data: dict[str, Any]) -> ResearchResponse:
         """Build a ResearchResponse from deep research job data."""
         usage = None
         if job_data["status"] == "completed":
@@ -620,7 +620,7 @@ class GeminiProvider(DeepResearchProvider):
             estimated_cost = max(self.deep_research_cost_estimate, search_count * 0.035)
             usage = UsageStats(cost=estimated_cost)
 
-        output = None
+        output: list[dict[str, Any]] | None = None
         if "output" in job_data:
             output = [{"type": "message", "content": [{"type": "output_text", "text": job_data["output"]}]}]
 
@@ -653,7 +653,7 @@ class GeminiProvider(DeepResearchProvider):
                 ),
             )
 
-        output = None
+        output: list[dict[str, Any]] | None = None
         if "output" in job_data:
             output = [{"type": "message", "content": [{"type": "output_text", "text": job_data["output"]}]}]
 
@@ -668,7 +668,7 @@ class GeminiProvider(DeepResearchProvider):
             model=job_data["model"],
             output=output,
             usage=usage,
-            metadata=job_data.get("request").metadata if "request" in job_data else None,
+            metadata=job_data["request"].metadata if "request" in job_data else None,
             error=job_data.get("error"),
         )
 
@@ -688,7 +688,7 @@ class GeminiProvider(DeepResearchProvider):
 
     def _extract_interaction_citations(self, interaction: Any) -> list[dict[str, str]]:
         """Extract citation URLs from grounding metadata."""
-        citations = []
+        citations: list[dict[str, str]] = []
         if not hasattr(interaction, "outputs") or not interaction.outputs:
             return citations
 
@@ -739,9 +739,9 @@ class GeminiProvider(DeepResearchProvider):
         """
         try:
             # Run synchronous SDK calls in thread pool to avoid blocking event loop
-            def _create_store():
+            def _create_store() -> str:
                 store = self.client.file_search_stores.create(config={"display_name": name})
-                store_name = store.name
+                store_name = str(store.name)
 
                 for file_id in file_ids:
                     self.client.file_search_stores.upload_to_file_search_store(
@@ -768,7 +768,7 @@ class GeminiProvider(DeepResearchProvider):
         """
         try:
             # Run synchronous SDK calls in thread pool to avoid blocking event loop
-            def _cleanup_store():
+            def _cleanup_store() -> None:
                 # Delete documents first
                 docs = self.client.file_search_stores.documents.list(file_search_store_name=store_name)
                 for doc in docs:
@@ -893,7 +893,7 @@ class GeminiProvider(DeepResearchProvider):
 
             file_obj = self.client.files.upload(file=path, config={"mime_type": mime_type})
 
-            return file_obj.name
+            return str(file_obj.name)
 
         except (OSError, GenaiAPIError) as e:
             raise ProviderError(message=f"Failed to upload document: {e!s}", provider="gemini", original_error=e) from e
@@ -911,7 +911,7 @@ class GeminiProvider(DeepResearchProvider):
         vs_id = f"gemini-vs-{uuid.uuid4().hex[:16]}"
 
         if not hasattr(self, "vector_stores"):
-            self.vector_stores = {}
+            self.vector_stores: dict[str, dict[str, Any]] = {}
 
         self.vector_stores[vs_id] = {
             "id": vs_id,
