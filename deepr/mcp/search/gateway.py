@@ -5,6 +5,8 @@ This module implements the single gateway tool that is exposed by default,
 enabling ~85% context reduction by loading tool schemas on demand.
 """
 
+from typing import Any
+
 from .registry import ToolRegistry, ToolSchema
 
 
@@ -50,7 +52,7 @@ class GatewayTool:
         """
         self._registry = registry
 
-    def search(self, query: str, limit: int = 3) -> dict:
+    def search(self, query: str, limit: int = 3) -> dict[str, Any]:
         """
         Search for tools matching the query.
 
@@ -90,7 +92,7 @@ class GatewayTool:
             "message": self._generate_message(tools, query),
         }
 
-    def _generate_message(self, tools: list[dict], query: str) -> str:
+    def _generate_message(self, tools: list[dict[str, Any]], query: str) -> str:
         """Generate helpful message based on search results."""
         if not tools:
             return f"No tools found matching '{query}'. Try broader terms like 'research', 'expert', or 'agentic'."
@@ -103,11 +105,11 @@ class GatewayTool:
         )
 
     @classmethod
-    def get_gateway_schema(cls) -> dict:
+    def get_gateway_schema(cls) -> dict[str, Any]:
         """Get the MCP-formatted schema for the gateway tool."""
         return cls.SCHEMA.to_mcp_format()
 
-    def estimate_context_savings(self) -> dict:
+    def estimate_context_savings(self) -> dict[str, Any]:
         """
         Estimate context savings from using gateway pattern.
 

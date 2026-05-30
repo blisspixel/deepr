@@ -11,6 +11,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from .job_manager import JobBeliefs, JobPhase, JobPlan, JobState
 
@@ -187,7 +188,7 @@ class JobPersistence:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _row_to_state(row: tuple) -> JobState:
+    def _row_to_state(row: tuple[Any, ...]) -> JobState:
         """Convert a database row to a JobState."""
         (job_id, phase, progress, cost_so_far, estimated_remaining, error, started_at, updated_at, metadata_json) = row
         return JobState(
@@ -203,7 +204,7 @@ class JobPersistence:
         )
 
     @staticmethod
-    def _row_to_plan(row: tuple) -> JobPlan:
+    def _row_to_plan(row: tuple[Any, ...]) -> JobPlan:
         """Convert a database row to a JobPlan."""
         (job_id, goal, steps_json, estimated_cost, estimated_time, model) = row
         return JobPlan(
@@ -216,7 +217,7 @@ class JobPersistence:
         )
 
     @staticmethod
-    def _row_to_beliefs(row: tuple) -> JobBeliefs:
+    def _row_to_beliefs(row: tuple[Any, ...]) -> JobBeliefs:
         """Convert a database row to a JobBeliefs."""
         (job_id, beliefs_json, sources_json, confidence) = row
         return JobBeliefs(
