@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -12,13 +12,13 @@ class ToolResult:
 
     success: bool
     data: Any
-    error: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    error: str | None = None
+    metadata: dict[str, Any] | None = None
     timestamp: datetime = None
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
+            self.timestamp = datetime.now(UTC)
 
 
 class Tool(ABC):
@@ -78,7 +78,7 @@ class ToolExecutor:
     Provides unified interface regardless of provider.
     """
 
-    def __init__(self, tools: Optional[list[Tool]] = None):
+    def __init__(self, tools: list[Tool] | None = None):
         self.tools: dict[str, Tool] = {}
         if tools:
             for tool in tools:

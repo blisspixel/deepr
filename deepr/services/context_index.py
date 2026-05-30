@@ -9,9 +9,9 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -28,8 +28,8 @@ class SearchResult:
     created_at: datetime
     similarity: float
     report_path: Path
-    model: Optional[str] = None
-    summary: Optional[str] = None
+    model: str | None = None
+    summary: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -56,7 +56,7 @@ class ContextIndex:
         data/context_embeddings.npy - Numpy embedding vectors
     """
 
-    def __init__(self, data_dir: Optional[Path] = None, reports_dir: Optional[Path] = None):
+    def __init__(self, data_dir: Path | None = None, reports_dir: Path | None = None):
         """Initialize context index.
 
         Args:
@@ -215,7 +215,7 @@ class ContextIndex:
             job_id = metadata.get("job_id", "")
             prompt = metadata.get("prompt", "")
             model = metadata.get("model", "")
-            created_at = metadata.get("created_at", datetime.now(timezone.utc).isoformat())
+            created_at = metadata.get("created_at", datetime.now(UTC).isoformat())
 
             if not prompt:
                 continue
@@ -263,7 +263,7 @@ class ContextIndex:
                         str(report_path),
                         summary,
                         embedding_idx,
-                        datetime.now(timezone.utc).isoformat(),
+                        datetime.now(UTC).isoformat(),
                     ),
                 )
 
@@ -500,7 +500,7 @@ class ContextIndex:
     async def find_related(
         self,
         prompt: str,
-        exclude_job_id: Optional[str] = None,
+        exclude_job_id: str | None = None,
         top_k: int = 3,
         threshold: float = 0.75,
     ) -> list[SearchResult]:
@@ -544,7 +544,7 @@ class ContextIndex:
 
         return filtered
 
-    def get_report_by_job_id(self, job_id: str) -> Optional[SearchResult]:
+    def get_report_by_job_id(self, job_id: str) -> SearchResult | None:
         """Get a specific report by job ID.
 
         Used by --context flag (6.3) to fetch explicit context.
@@ -578,7 +578,7 @@ class ContextIndex:
             summary=row["summary"],
         )
 
-    def get_report_content(self, job_id: str, max_chars: int = 8000) -> Optional[str]:
+    def get_report_content(self, job_id: str, max_chars: int = 8000) -> str | None:
         """Get the content of a report for context injection.
 
         Args:
@@ -626,5 +626,5 @@ class ContextIndex:
         if not result:
             return True  # Unknown = treat as stale
 
-        age = datetime.now(timezone.utc) - result.created_at.replace(tzinfo=timezone.utc)
+        age = datetime.now(UTC) - result.created_at.replace(tzinfo=UTC)
         return age.total_seconds() > (max_age_days * 86400)

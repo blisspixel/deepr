@@ -7,6 +7,7 @@ automatic fallback, budget/trace/progress integration, and aggregated health.
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from typing import Any
 
 from deepr.mcp.client.base import MCPClient, MCPClientError, MCPToolResult
@@ -241,7 +242,7 @@ class MCPClientPool:
         # require threading a callback through the client).
         if self._progress_notifier is not None:
             try:
-                from datetime import datetime, timezone
+                from datetime import datetime
 
                 from deepr.mcp.client.progress_notifier import ProgressEvent
 
@@ -252,7 +253,7 @@ class MCPClientPool:
                         progress_pct=100.0 if result.ok else None,
                         phase="completed" if result.ok else "error",
                         elapsed_seconds=(result.latency_ms or 0) / 1000.0,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=datetime.now(UTC),
                     )
                 )
             except Exception:

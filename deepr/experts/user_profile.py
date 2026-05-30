@@ -7,9 +7,8 @@ experts to remember users and adapt responses.
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +62,8 @@ class UserProfileTracker:
     def __init__(self, base_path: str = "data/users"):
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
-        self.current_user_id: Optional[str] = None
-        self.current_profile: Optional[UserProfile] = None
+        self.current_user_id: str | None = None
+        self.current_profile: UserProfile | None = None
 
     def _get_profile_path(self, user_id: str) -> Path:
         """Get path to user profile file."""
@@ -134,13 +133,13 @@ class UserProfileTracker:
                 logger.error("Error loading user profile: %s", e)
 
         # Create new profile
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         profile = UserProfile(user_id=user_id, first_seen=now, last_seen=now)
 
         self.current_profile = profile
         return profile
 
-    def save(self, profile: Optional[UserProfile] = None):
+    def save(self, profile: UserProfile | None = None):
         """Save user profile to disk.
 
         Args:
@@ -194,7 +193,7 @@ class UserProfileTracker:
         if not self.current_profile:
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         profile = self.current_profile
 
         # Update profile
@@ -288,7 +287,7 @@ class UserProfileTracker:
         # Recent activity
         if profile.recent_interactions:
             last_interaction = profile.recent_interactions[-1]
-            days_ago = (datetime.now(timezone.utc) - last_interaction.timestamp).days
+            days_ago = (datetime.now(UTC) - last_interaction.timestamp).days
             if days_ago == 0:
                 parts.append("Active today")
             elif days_ago == 1:
@@ -300,9 +299,9 @@ class UserProfileTracker:
 
     def update_context(
         self,
-        tech_stack: Optional[list[str]] = None,
-        projects: Optional[list[str]] = None,
-        goals: Optional[list[str]] = None,
+        tech_stack: list[str] | None = None,
+        projects: list[str] | None = None,
+        goals: list[str] | None = None,
     ):
         """Update user context information.
 

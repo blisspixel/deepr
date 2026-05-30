@@ -22,7 +22,6 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from .expert_resources import ExpertResourceManager
 from .job_manager import JobManager
@@ -37,8 +36,8 @@ class ResourceResponse:
     """Response from a resource read operation."""
 
     uri: str
-    data: Optional[dict]
-    error: Optional[str] = None
+    data: dict | None
+    error: str | None = None
 
     @property
     def success(self) -> bool:
@@ -61,14 +60,14 @@ class MCPResourceHandler:
     # Base path for reports on disk (relative to project root)
     REPORTS_BASE = Path("data/reports")
 
-    def __init__(self, reports_base: Optional[Path] = None, db_path: Optional[Path] = None):
+    def __init__(self, reports_base: Path | None = None, db_path: Path | None = None):
         self._subscriptions = SubscriptionManager()
         self._jobs = JobManager(self._subscriptions)
         self._experts = ExpertResourceManager()
         self._reports_base = reports_base or self.REPORTS_BASE
 
         # SQLite persistence: survives server restarts
-        self._persistence: Optional[JobPersistence] = None
+        self._persistence: JobPersistence | None = None
         if db_path is not False:  # False disables persistence (for tests)
             try:
                 self._persistence = JobPersistence(db_path=db_path)
@@ -121,7 +120,7 @@ class MCPResourceHandler:
             logger.warning("Failed to persist job %s: %s", job_id, e)
 
     @property
-    def persistence(self) -> Optional[JobPersistence]:
+    def persistence(self) -> JobPersistence | None:
         """Access persistence layer (may be None if disabled)."""
         return self._persistence
 
@@ -282,7 +281,7 @@ class MCPResourceHandler:
 
         return ResourceResponse(uri=uri, data=None, error=f"Expert resource not found: {uri}")
 
-    def list_resources(self, resource_type: Optional[str] = None) -> list[str]:
+    def list_resources(self, resource_type: str | None = None) -> list[str]:
         """
         List available resource URIs.
 
@@ -408,7 +407,7 @@ class MCPResourceHandler:
 
 
 # Singleton instance for use across the MCP server
-_handler_instance: Optional[MCPResourceHandler] = None
+_handler_instance: MCPResourceHandler | None = None
 
 
 def get_resource_handler() -> MCPResourceHandler:

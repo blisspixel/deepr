@@ -17,10 +17,10 @@ import ipaddress
 import json
 import logging
 import os
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any
 
 import aiohttp
 from aiohttp import web
@@ -38,7 +38,7 @@ def _is_loopback_host(host: str) -> bool:
         return False
 
 
-def _extract_bearer(request: "web.Request") -> Optional[str]:
+def _extract_bearer(request: "web.Request") -> str | None:
     """Return the Bearer token from Authorization, or X-Api-Key value, if any."""
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
@@ -54,11 +54,11 @@ class HttpMessage:
     """A JSON-RPC message for HTTP transport."""
 
     jsonrpc: str = "2.0"
-    id: Optional[str] = None
-    method: Optional[str] = None
-    params: Optional[dict] = None
-    result: Optional[Any] = None
-    error: Optional[dict] = None
+    id: str | None = None
+    method: str | None = None
+    params: dict | None = None
+    result: Any | None = None
+    error: dict | None = None
 
     def is_request(self) -> bool:
         return self.method is not None and self.id is not None
@@ -127,7 +127,7 @@ class StreamingHttpTransport:
         host: str = "127.0.0.1",
         port: int = 8765,
         path: str = "/mcp",
-        auth_token: Optional[str] = None,
+        auth_token: str | None = None,
         allow_unauthenticated_public_bind: bool = False,
     ):
         """Initialize the streaming HTTP transport.
@@ -149,14 +149,14 @@ class StreamingHttpTransport:
         self._path = path
         self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
         self._allow_unauthenticated_public_bind = allow_unauthenticated_public_bind
-        self._handler: Optional[Callable[[HttpMessage], Awaitable[Optional[HttpMessage]]]] = None
-        self._app: Optional[web.Application] = None
-        self._runner: Optional[web.AppRunner] = None
+        self._handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]] | None = None
+        self._app: web.Application | None = None
+        self._runner: web.AppRunner | None = None
         self._stats = HttpTransportStats()
         self._subscribers: dict[str, asyncio.Queue] = {}
         self._running = False
 
-    def on_message(self, handler: Callable[[HttpMessage], Awaitable[Optional[HttpMessage]]]) -> None:
+    def on_message(self, handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]]) -> None:
         """Set the message handler for incoming requests."""
         self._handler = handler
 
@@ -215,7 +215,7 @@ class StreamingHttpTransport:
         if self._runner:
             await self._runner.cleanup()
 
-    def _check_auth(self, request: "web.Request") -> Optional[web.Response]:
+    def _check_auth(self, request: "web.Request") -> web.Response | None:
         """Return an unauthorized response if auth fails, else None.
 
         Authentication is required whenever a token is configured. When the
@@ -348,7 +348,7 @@ class StreamingHttpTransport:
                     self._stats.notifications_sent += 1
                     self._stats.bytes_sent += len(event_data)
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive
                     await response.write(b": keepalive\n\n")
 
@@ -430,13 +430,13 @@ class HttpClient:
     needs to connect to it over HTTP.
     """
 
-    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: Optional[str] = None):
+    def __init__(self, base_url: str, timeout: float = 30.0, auth_token: str | None = None):
         self._base_url = base_url.rstrip("/")
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._stream_task: Optional[asyncio.Task] = None
-        self._notification_handler: Optional[Callable[[dict], Awaitable[None]]] = None
+        self._session: aiohttp.ClientSession | None = None
+        self._stream_task: asyncio.Task | None = None
+        self._notification_handler: Callable[[dict], Awaitable[None]] | None = None
 
     def _auth_headers(self) -> dict:
         return {"Authorization": f"Bearer {self._auth_token}"} if self._auth_token else {}
@@ -457,7 +457,7 @@ class HttpClient:
         if self._session:
             await self._session.close()
 
-    async def send(self, message: HttpMessage) -> Optional[HttpMessage]:
+    async def send(self, message: HttpMessage) -> HttpMessage | None:
         """
         Send a message to the server and get response.
 
@@ -492,7 +492,7 @@ class HttpClient:
         """Set handler for incoming notifications."""
         self._notification_handler = handler
 
-    async def subscribe(self, subscriber_id: Optional[str] = None) -> None:
+    async def subscribe(self, subscriber_id: str | None = None) -> None:
         """
         Start listening for server notifications via SSE.
 

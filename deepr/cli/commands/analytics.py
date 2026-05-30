@@ -1,5 +1,7 @@
 """Analytics commands - track usage patterns and success metrics."""
 
+from datetime import UTC
+
 import click
 
 from deepr.cli.async_runner import run_async_command
@@ -34,7 +36,7 @@ def report(period: str):
 
     try:
         from collections import defaultdict
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from deepr.config import load_config
         from deepr.queue import create_queue
@@ -48,7 +50,7 @@ def report(period: str):
         all_jobs = run_async_command(get_jobs())
 
         # Filter by time period
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if period == "today":
             cutoff = now - timedelta(days=1)
         elif period == "week":
@@ -181,7 +183,7 @@ def trends():
 
     try:
         from collections import defaultdict
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from deepr.config import load_config
         from deepr.queue import create_queue
@@ -195,7 +197,7 @@ def trends():
         all_jobs = run_async_command(get_jobs())
 
         # Group by day
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(days=7)
 
         jobs = [j for j in all_jobs if j.submitted_at and j.submitted_at >= cutoff]

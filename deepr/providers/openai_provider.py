@@ -3,12 +3,11 @@
 import asyncio
 import logging
 import os
-from typing import Optional
 
 import openai
 
 logger = logging.getLogger(__name__)
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from openai import AsyncOpenAI
 
@@ -27,10 +26,10 @@ class OpenAIProvider(DeepResearchProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        organization: Optional[str] = None,
-        model_mappings: Optional[dict] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        organization: str | None = None,
+        model_mappings: dict | None = None,
     ):
         """
         Initialize OpenAI provider.
@@ -226,11 +225,11 @@ class OpenAIProvider(DeepResearchProvider):
             # Parse timestamps
             created_at = None
             if hasattr(response, "created_at") and response.created_at:
-                created_at = datetime.fromtimestamp(response.created_at, tz=timezone.utc)
+                created_at = datetime.fromtimestamp(response.created_at, tz=UTC)
 
             completed_at = None
             if hasattr(response, "completed_at") and response.completed_at:
-                completed_at = datetime.fromtimestamp(response.completed_at, tz=timezone.utc)
+                completed_at = datetime.fromtimestamp(response.completed_at, tz=UTC)
 
             return ResearchResponse(
                 id=response.id,

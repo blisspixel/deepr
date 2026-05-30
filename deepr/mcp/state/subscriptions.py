@@ -18,10 +18,9 @@ import asyncio
 import logging
 import re
 import uuid
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class ResourceURI:
         return f"deepr://{self.resource_type}/{self.resource_id}"
 
 
-def parse_resource_uri(uri: str) -> Optional[ResourceURI]:
+def parse_resource_uri(uri: str) -> ResourceURI | None:
     """
     Parse a resource URI string into components.
 
@@ -248,11 +247,11 @@ class SubscriptionManager:
             "params": {"uri": uri, "data": data, "timestamp": datetime.now().isoformat()},
         }
 
-    def get_subscription(self, subscription_id: str) -> Optional[Subscription]:
+    def get_subscription(self, subscription_id: str) -> Subscription | None:
         """Get subscription by ID."""
         return self._subscriptions.get(subscription_id)
 
-    def list_subscriptions(self, uri_prefix: Optional[str] = None) -> list[Subscription]:
+    def list_subscriptions(self, uri_prefix: str | None = None) -> list[Subscription]:
         """
         List active subscriptions.
 

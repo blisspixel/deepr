@@ -8,7 +8,6 @@ Requirements: 8.1 - Implement injection pattern detection and sanitization
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -184,7 +183,7 @@ class PromptSanitizer:
             risk_level=risk_level,
         )
 
-    def validate(self, prompt: str) -> tuple[bool, Optional[str]]:
+    def validate(self, prompt: str) -> tuple[bool, str | None]:
         """Validate a prompt and return simple pass/fail.
 
         Args:
@@ -223,7 +222,7 @@ def sanitize_prompt(prompt: str, strict: bool = False) -> str:
     return result.sanitized
 
 
-def validate_prompt(prompt: str) -> tuple[bool, Optional[str]]:
+def validate_prompt(prompt: str) -> tuple[bool, str | None]:
     """Convenience function to validate a prompt.
 
     Args:

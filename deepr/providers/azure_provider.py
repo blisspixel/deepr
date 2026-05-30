@@ -3,8 +3,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from azure.identity.aio import DefaultAzureCredential
 from openai import APIConnectionError, APITimeoutError, AsyncAzureOpenAI, RateLimitError
@@ -27,11 +26,11 @@ class AzureProvider(DeepResearchProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        endpoint: Optional[str] = None,
+        api_key: str | None = None,
+        endpoint: str | None = None,
         api_version: str = "2024-10-01-preview",
         use_managed_identity: bool = False,
-        deployment_mappings: Optional[dict[str, str]] = None,
+        deployment_mappings: dict[str, str] | None = None,
     ):
         """
         Initialize Azure OpenAI provider.
@@ -205,11 +204,11 @@ class AzureProvider(DeepResearchProvider):
             # Parse timestamps
             created_at = None
             if hasattr(response, "created_at") and response.created_at:
-                created_at = datetime.fromtimestamp(response.created_at, tz=timezone.utc)
+                created_at = datetime.fromtimestamp(response.created_at, tz=UTC)
 
             completed_at = None
             if hasattr(response, "completed_at") and response.completed_at:
-                completed_at = datetime.fromtimestamp(response.completed_at, tz=timezone.utc)
+                completed_at = datetime.fromtimestamp(response.completed_at, tz=UTC)
 
             return ResearchResponse(
                 id=response.id,

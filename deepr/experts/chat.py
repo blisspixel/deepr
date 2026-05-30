@@ -9,9 +9,9 @@ Instrumented with distributed tracing for observability (4.2 Auto-Generated Meta
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -84,7 +84,7 @@ class ExpertChatSession:
     def __init__(
         self,
         expert: ExpertProfile,
-        budget: Optional[float] = None,
+        budget: float | None = None,
         agentic: bool = False,
         enable_router: bool = True,
         verbose: bool = False,
@@ -162,7 +162,7 @@ class ExpertChatSession:
 
         # Hierarchical Episodic Memory (H-MEM)
         self.memory = HierarchicalMemory(expert_name=expert.name)
-        self.user_id: Optional[str] = None  # Set by caller if user tracking enabled
+        self.user_id: str | None = None  # Set by caller if user tracking enabled
 
         # LazyGraphRAG for hybrid retrieval
         self.lazy_graph_rag = LazyGraphRAG(expert_name=expert.name)
@@ -187,10 +187,10 @@ class ExpertChatSession:
         self.verbose_thinking: bool = verbose
 
         # Callbacks for approval / compact / plan (set by callers)
-        self._confirm_callback: Optional[Any] = None
-        self._compact_callback: Optional[Any] = None
-        self._plan_callback: Optional[Any] = None
-        self._plan_step_callback: Optional[Any] = None
+        self._confirm_callback: Any | None = None
+        self._compact_callback: Any | None = None
+        self._plan_callback: Any | None = None
+        self._plan_step_callback: Any | None = None
 
     def get_system_message(self) -> str:
         """Get the system message for the expert."""
@@ -435,7 +435,7 @@ Budget remaining: ${budget_remaining:.2f}
         self.reasoning_trace.append(
             {
                 "step": "tot_reasoning",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "query": query[:100],
                 "phase": state.phase.value,
                 "hypotheses_count": len(state.hypotheses),
@@ -480,7 +480,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.reasoning_trace.append(
                 {
                     "step": "retrieval_routing",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "query": query[:100],
                     "use_graph": use_graph,
                 }
@@ -499,7 +499,7 @@ Budget remaining: ${budget_remaining:.2f}
                     self.reasoning_trace.append(
                         {
                             "step": "retrieval_sufficiency",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                             "coverage": sufficiency.coverage,
                             "redundancy": sufficiency.redundancy,
                             "overall_score": sufficiency.overall_score,
@@ -553,7 +553,7 @@ Budget remaining: ${budget_remaining:.2f}
                     self.reasoning_trace.append(
                         {
                             "step": "embedding_cache_update",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                             "documents_added": added,
                             "total_cached": len(cache.index),
                         }
@@ -708,12 +708,12 @@ Budget remaining: ${budget_remaining:.2f}
                     findings.extend(rec_findings)
 
                     # Record in reasoning trace for audit / UX
-                    from datetime import datetime, timezone
+                    from datetime import datetime
 
                     self.reasoning_trace.append(
                         {
                             "step": "autonomous_recon_probe",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                             "domain": sug.arguments.get("domain", ""),
                             "findings_count": len(rec_findings),
                             "cost": 0.0,
@@ -1004,7 +1004,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.research_jobs.append(job_id)
             self.pending_research[job_id] = {
                 "query": query,
-                "started_at": datetime.now(timezone.utc),
+                "started_at": datetime.now(UTC),
                 "estimated_cost": estimated_cost,
             }
 
@@ -1069,7 +1069,7 @@ Budget remaining: ${budget_remaining:.2f}
             documents_dir.mkdir(parents=True, exist_ok=True)
 
             # Create filename with timestamp
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             safe_query = "".join(c for c in query[:50] if c.isalnum() or c in (" ", "-", "_")).strip()
             safe_query = safe_query.replace(" ", "_").lower()
             filename = f"research_{timestamp}_{safe_query}.md"
@@ -1078,7 +1078,7 @@ Budget remaining: ${budget_remaining:.2f}
             # Create markdown document with metadata
             content = f"""# Research: {query}
 
-**Date**: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
+**Date**: {datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")}
 **Mode**: {mode}
 **Expert**: {self.expert.name}
 
@@ -1221,7 +1221,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.reasoning_trace.append(
                 {
                     "step": "continuous_learning_synthesis",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "trigger": f"research_count={self.research_count}, threshold={self.synthesis_threshold}",
                     "documents_processed": len(new_documents),
                     "beliefs_before": existing_belief_count,
@@ -1248,7 +1248,7 @@ Budget remaining: ${budget_remaining:.2f}
             self.reasoning_trace.append(
                 {
                     "step": "continuous_learning_synthesis_error",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "error": str(e),
                 }
             )
@@ -1436,7 +1436,7 @@ Budget remaining: ${budget_remaining:.2f}
                 self.reasoning_trace.append(
                     {
                         "step": "model_routing",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "query": user_message[:100],  # First 100 chars
                         "selected_provider": selected_model.provider,
                         "selected_model": selected_model.model,
@@ -1544,7 +1544,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "search_knowledge_base",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "query": query,
                                 "reasoning": reasoning,  # Model's explanation of WHY it's searching
                                 "results_count": len(search_results),
@@ -1630,7 +1630,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "standard_research",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "query": query,
                                 "reasoning": reasoning,  # Model's explanation of WHY it needs web search
                                 "mode": "standard_research",
@@ -1691,7 +1691,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "deep_research",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "query": query,
                                 "reasoning": reasoning,  # Model's explanation of WHY it needs expensive deep research
                                 "mode": "deep_research",
@@ -1753,7 +1753,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "skill_tool_call",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "skill": skill_name,
                                 "tool": tool_name,
                                 "cost": result.get("cost", 0.0),
@@ -2070,7 +2070,7 @@ Budget remaining: ${budget_remaining:.2f}
                 self.reasoning_trace.append(
                     {
                         "step": "model_routing",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "query": user_message[:100],
                         "selected_provider": selected_model.provider,
                         "selected_model": selected_model.model,
@@ -2141,7 +2141,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "search_knowledge_base",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "query": query,
                                 "reasoning": reasoning,
                                 "results_count": len(search_results),
@@ -2170,7 +2170,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "standard_research",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "query": query,
                                 "reasoning": reasoning,
                                 "cost": result.get("cost", 0.0),
@@ -2196,7 +2196,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "deep_research",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "query": query,
                                 "reasoning": reasoning,
                             }
@@ -2223,7 +2223,7 @@ Budget remaining: ${budget_remaining:.2f}
                         self.reasoning_trace.append(
                             {
                                 "step": "skill_tool_call",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": datetime.now(UTC).isoformat(),
                                 "skill": skill_name,
                                 "tool": tool_name,
                                 "cost": result.get("cost", 0.0),
@@ -2444,7 +2444,7 @@ Budget remaining: ${budget_remaining:.2f}
         self.reasoning_trace.append(
             {
                 "step": "compact_conversation",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "original_messages": len(to_summarise) + keep_count,
                 "kept_messages": keep_count,
                 "summary_length": len(summary),
@@ -2518,7 +2518,7 @@ Budget remaining: ${budget_remaining:.2f}
         """
         self._emitter.save_trace(path)
 
-    def save_conversation(self, session_id: Optional[str] = None) -> str:
+    def save_conversation(self, session_id: str | None = None) -> str:
         """Save conversation to expert's conversations folder.
 
         Args:
@@ -2531,11 +2531,11 @@ Budget remaining: ${budget_remaining:.2f}
         import uuid
 
         if not session_id:
-            session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+            session_id = f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Sanitize session_id to prevent path traversal
         if not re.match(r"^[\w\-]+$", session_id):
-            session_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+            session_id = f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # Get conversations directory
         store = ExpertStore()
@@ -2548,10 +2548,10 @@ Budget remaining: ${budget_remaining:.2f}
         conversation_data = {
             "session_id": session_id,
             "expert_name": self.expert.name,
-            "started_at": self.messages[0].get("timestamp", datetime.now(timezone.utc).isoformat())
+            "started_at": self.messages[0].get("timestamp", datetime.now(UTC).isoformat())
             if self.messages
-            else datetime.now(timezone.utc).isoformat(),
-            "ended_at": datetime.now(timezone.utc).isoformat(),
+            else datetime.now(UTC).isoformat(),
+            "ended_at": datetime.now(UTC).isoformat(),
             "messages": self.messages,
             "summary": self.get_session_summary(),
             "research_jobs": self.research_jobs,
@@ -2569,12 +2569,12 @@ Budget remaining: ${budget_remaining:.2f}
 
 async def start_chat_session(
     expert_name: str,
-    budget: Optional[float] = None,
+    budget: float | None = None,
     agentic: bool = False,
     enable_router: bool = True,
     verbose: bool = False,
     quiet: bool = False,
-    agent_identity: Optional[Any] = None,
+    agent_identity: Any | None = None,
 ) -> ExpertChatSession:
     """Start a new chat session with an expert.
 

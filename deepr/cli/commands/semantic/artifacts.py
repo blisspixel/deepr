@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-from typing import Optional
 
 import click
 
@@ -60,9 +59,9 @@ def make_docs(
     output_format: str,
     outline: bool,
     files: tuple,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
+    provider: str | None,
+    model: str | None,
+    output: str | None,
     yes: bool,
 ):
     """Generate structured documentation from research.
@@ -114,9 +113,9 @@ async def _generate_docs(
     output_format: str,
     outline: bool,
     files: tuple,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
+    provider: str | None,
+    model: str | None,
+    output: str | None,
     yes: bool,
 ):
     """Generate documentation with research and citations."""
@@ -374,9 +373,9 @@ def make_strategy(
     topic: str,
     perspective: str,
     time_horizon: str,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
+    provider: str | None,
+    model: str | None,
+    output: str | None,
     yes: bool,
 ):
     """Generate strategic analysis from research.
@@ -413,9 +412,9 @@ async def _generate_strategy(
     topic: str,
     perspective: str,
     time_horizon: str,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
+    provider: str | None,
+    model: str | None,
+    output: str | None,
     yes: bool,
 ):
     """Generate strategic analysis with structured sections."""
@@ -616,9 +615,9 @@ def agentic_research(
     goal: str,
     rounds: int,
     budget: float,
-    provider: Optional[str],
-    model: Optional[str],
-    output: Optional[str],
+    provider: str | None,
+    model: str | None,
+    output: str | None,
     resume: bool,
     yes: bool,
 ):
@@ -671,9 +670,9 @@ async def _run_agentic_research(
     goal: str,
     max_rounds: int,
     budget: float,
-    provider: Optional[str],
-    model: Optional[str],
-    output_dir: Optional[str],
+    provider: str | None,
+    model: str | None,
+    output_dir: str | None,
     resume: bool,
     yes: bool,
 ):

@@ -1,7 +1,6 @@
 """Diagnostics commands for expert self-awareness and knowledge tracking."""
 
 from datetime import datetime
-from typing import Optional
 
 import click
 
@@ -73,7 +72,7 @@ def show_metacognition(expert_name: str):
 @diagnostics_cli.command(name="temporal")
 @click.argument("expert_name")
 @click.option("--topic", "-t", help="Show timeline for specific topic")
-def show_temporal(expert_name: str, topic: Optional[str] = None):
+def show_temporal(expert_name: str, topic: str | None = None):
     """Show expert's temporal knowledge (when facts were learned, evolution over time).
 
     Examples:

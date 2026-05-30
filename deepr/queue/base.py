@@ -2,15 +2,15 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class JobStatus(str, Enum):
@@ -36,38 +36,38 @@ class ResearchJob:
 
     # Timestamps
     submitted_at: datetime = field(default_factory=_utc_now)
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
     # Request options
     documents: list[str] = field(default_factory=list)
     enable_web_search: bool = True
     enable_code_interpreter: bool = True
-    cost_limit: Optional[float] = None
+    cost_limit: float | None = None
 
     # Execution tracking
-    provider_job_id: Optional[str] = None
-    worker_id: Optional[str] = None
+    provider_job_id: str | None = None
+    worker_id: str | None = None
     attempts: int = 0
-    last_error: Optional[str] = None
+    last_error: str | None = None
 
     # Results
     report_paths: dict[str, str] = field(default_factory=dict)
-    cost: Optional[float] = None
-    tokens_used: Optional[int] = None
+    cost: float | None = None
+    tokens_used: int | None = None
 
     # Metadata
-    tenant_id: Optional[str] = None
-    workspace_id: Optional[str] = None
-    submitted_by: Optional[str] = None
+    tenant_id: str | None = None
+    workspace_id: str | None = None
+    submitted_by: str | None = None
     tags: list[str] = field(default_factory=list)
-    callback_url: Optional[str] = None
+    callback_url: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     # Auto-mode routing (when --auto flag is used)
     auto_routed: bool = False
-    routing_decision: Optional[dict[str, Any]] = None  # Serialized AutoModeDecision
-    batch_id: Optional[str] = None  # For batch processing
+    routing_decision: dict[str, Any] | None = None  # Serialized AutoModeDecision
+    batch_id: str | None = None  # For batch processing
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dict for WebSocket events."""
@@ -108,7 +108,7 @@ class QueueBackend(ABC):
         pass
 
     @abstractmethod
-    async def dequeue(self, worker_id: str) -> Optional[ResearchJob]:
+    async def dequeue(self, worker_id: str) -> ResearchJob | None:
         """
         Get next job from queue (highest priority first).
 
@@ -121,7 +121,7 @@ class QueueBackend(ABC):
         pass
 
     @abstractmethod
-    async def get_job(self, job_id: str) -> Optional[ResearchJob]:
+    async def get_job(self, job_id: str) -> ResearchJob | None:
         """
         Get job by ID.
 
@@ -138,8 +138,8 @@ class QueueBackend(ABC):
         self,
         job_id: str,
         status: JobStatus,
-        error: Optional[str] = None,
-        provider_job_id: Optional[str] = None,
+        error: str | None = None,
+        provider_job_id: str | None = None,
     ) -> bool:
         """
         Update job status.
@@ -160,8 +160,8 @@ class QueueBackend(ABC):
         self,
         job_id: str,
         report_paths: dict[str, str],
-        cost: Optional[float] = None,
-        tokens_used: Optional[int] = None,
+        cost: float | None = None,
+        tokens_used: int | None = None,
     ) -> bool:
         """
         Update job results.
@@ -180,8 +180,8 @@ class QueueBackend(ABC):
     @abstractmethod
     async def list_jobs(
         self,
-        status: Optional[JobStatus] = None,
-        tenant_id: Optional[str] = None,
+        status: JobStatus | None = None,
+        tenant_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ResearchJob]:

@@ -24,10 +24,10 @@ import json
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ConflictResolution(Enum):
@@ -92,7 +92,7 @@ class Belief:
         Returns:
             Current confidence after decay
         """
-        days_elapsed = (datetime.now(timezone.utc) - self.updated_at).days
+        days_elapsed = (datetime.now(UTC) - self.updated_at).days
         decayed = self.confidence * math.exp(-self.decay_rate * days_elapsed)
         return max(0.0, min(1.0, decayed))
 
@@ -105,14 +105,14 @@ class Belief:
         """
         self.history.append(
             {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "old_confidence": self.confidence,
                 "new_confidence": new_confidence,
                 "reason": reason,
             }
         )
         self.confidence = new_confidence
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     def add_evidence(self, evidence_ref: str):
         """Add evidence reference.
@@ -122,7 +122,7 @@ class Belief:
         """
         if evidence_ref not in self.evidence_refs:
             self.evidence_refs.append(evidence_ref)
-            self.updated_at = datetime.now(timezone.utc)
+            self.updated_at = datetime.now(UTC)
 
     def add_contradiction(self, belief_id: str):
         """Mark contradiction with another belief.
@@ -188,12 +188,8 @@ class Belief:
             confidence=data["confidence"],
             evidence_refs=data.get("evidence_refs", []),
             domain=data.get("domain", ""),
-            created_at=datetime.fromisoformat(data["created_at"])
-            if "created_at" in data
-            else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(data["updated_at"])
-            if "updated_at" in data
-            else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(UTC),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(UTC),
             contradictions_with=data.get("contradictions_with", []),
             source_type=data.get("source_type", "learned"),
             decay_rate=data.get("decay_rate", 0.01),
@@ -270,7 +266,7 @@ class BeliefStore:
     def __init__(
         self,
         expert_name: str,
-        storage_dir: Optional[Path] = None,
+        storage_dir: Path | None = None,
         conflict_resolution: ConflictResolution = ConflictResolution.HIGHER_CONFIDENCE,
     ):
         """Initialize belief store.
@@ -297,7 +293,7 @@ class BeliefStore:
 
         self._load()
 
-    def add_belief(self, belief: Belief, check_conflicts: bool = True) -> tuple[Belief, Optional[BeliefChange]]:
+    def add_belief(self, belief: Belief, check_conflicts: bool = True) -> tuple[Belief, BeliefChange | None]:
         """Add a belief to the store.
 
         Args:
@@ -336,10 +332,10 @@ class BeliefStore:
     def update_belief(
         self,
         belief_id: str,
-        new_confidence: Optional[float] = None,
-        new_evidence: Optional[str] = None,
+        new_confidence: float | None = None,
+        new_evidence: str | None = None,
         reason: str = "",
-    ) -> Optional[BeliefChange]:
+    ) -> BeliefChange | None:
         """Update an existing belief.
 
         Args:
@@ -380,7 +376,7 @@ class BeliefStore:
 
     def revise_belief(
         self, belief_id: str, new_claim: str, new_confidence: float, reason: str, evidence: str = ""
-    ) -> Optional[BeliefChange]:
+    ) -> BeliefChange | None:
         """Revise a belief with new information.
 
         Args:
@@ -421,7 +417,7 @@ class BeliefStore:
         self._save()
         return change
 
-    def archive_belief(self, belief_id: str, reason: str = "") -> Optional[BeliefChange]:
+    def archive_belief(self, belief_id: str, reason: str = "") -> BeliefChange | None:
         """Archive a belief (soft delete).
 
         Args:
@@ -503,7 +499,7 @@ class BeliefStore:
         """
         return self.changes[-limit:]
 
-    def _find_similar(self, belief: Belief) -> Optional[Belief]:
+    def _find_similar(self, belief: Belief) -> Belief | None:
         """Find similar existing belief.
 
         Args:
@@ -554,7 +550,7 @@ class BeliefStore:
 
         return contradictions
 
-    def _resolve_conflict(self, existing: Belief, new: Belief) -> tuple[Belief, Optional[BeliefChange]]:
+    def _resolve_conflict(self, existing: Belief, new: Belief) -> tuple[Belief, BeliefChange | None]:
         """Resolve conflict between beliefs.
 
         Args:
@@ -677,9 +673,7 @@ class BeliefStore:
                     new_confidence=cdata["new_confidence"],
                     reason=cdata.get("reason", ""),
                     evidence=cdata.get("evidence", ""),
-                    timestamp=datetime.fromisoformat(cdata["timestamp"])
-                    if "timestamp" in cdata
-                    else datetime.now(timezone.utc),
+                    timestamp=datetime.fromisoformat(cdata["timestamp"]) if "timestamp" in cdata else datetime.now(UTC),
                 )
             )
 
@@ -706,7 +700,7 @@ class SharedBeliefStore:
         "regulations": 180,
     }
 
-    def __init__(self, storage_dir: Optional[Path] = None):
+    def __init__(self, storage_dir: Path | None = None):
         """Initialize shared belief store.
 
         Args:
@@ -862,7 +856,7 @@ class SharedBeliefStore:
 
         return removed
 
-    def _find_similar_in_domain(self, belief: Belief, domain: str) -> Optional[Belief]:
+    def _find_similar_in_domain(self, belief: Belief, domain: str) -> Belief | None:
         """Find similar belief in domain.
 
         Args:

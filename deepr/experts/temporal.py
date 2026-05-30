@@ -11,13 +11,13 @@ Usage:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -36,11 +36,11 @@ class TemporalState:
 
     created_at: datetime = field(default_factory=_utc_now)
     last_activity: datetime = field(default_factory=_utc_now)
-    last_learning: Optional[datetime] = None
-    last_chat: Optional[datetime] = None
+    last_learning: datetime | None = None
+    last_chat: datetime | None = None
     activity_history: list[dict[str, Any]] = field(default_factory=list)
 
-    def record_activity(self, activity_type: str, details: Optional[dict[str, Any]] = None):
+    def record_activity(self, activity_type: str, details: dict[str, Any] | None = None):
         """Record an activity.
 
         Args:
@@ -79,7 +79,7 @@ class TemporalState:
         """
         return (_utc_now() - self.last_activity).days
 
-    def days_since_last_learning(self) -> Optional[int]:
+    def days_since_last_learning(self) -> int | None:
         """Get days since last learning activity.
 
         Returns:
@@ -89,7 +89,7 @@ class TemporalState:
             return None
         return (_utc_now() - self.last_learning).days
 
-    def days_since_last_chat(self) -> Optional[int]:
+    def days_since_last_chat(self) -> int | None:
         """Get days since last chat.
 
         Returns:

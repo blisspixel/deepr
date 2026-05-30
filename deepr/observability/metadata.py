@@ -21,7 +21,7 @@ Usage:
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -67,10 +67,10 @@ class TaskMetadata:
     cost: float = 0.0
     context_sources: list[str] = field(default_factory=list)
     start_time: datetime = field(default_factory=_utc_now)
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     status: str = "running"
-    error: Optional[str] = None
-    parent_task_id: Optional[str] = None
+    error: str | None = None
+    parent_task_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -93,7 +93,7 @@ class TaskMetadata:
         }
 
     @property
-    def duration_ms(self) -> Optional[float]:
+    def duration_ms(self) -> float | None:
         """Get task duration in milliseconds."""
         if self.end_time is None:
             return None
@@ -154,7 +154,7 @@ class OperationContext:
         self.metadata.context_sources.append(source)
         self.span.set_attribute("context_sources", self.metadata.context_sources)
 
-    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None):
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None):
         """Add a timestamped event to this operation.
 
         Args:
@@ -190,7 +190,7 @@ class MetadataEmitter:
         temporal_tracker: Optional tracker for findings/hypotheses
     """
 
-    def __init__(self, trace_context: Optional[TraceContext] = None):
+    def __init__(self, trace_context: TraceContext | None = None):
         """Initialize MetadataEmitter.
 
         Args:
@@ -206,9 +206,9 @@ class MetadataEmitter:
         self._temporal_trackers: dict[str, TemporalKnowledgeTracker] = {}
         # Back-compat shim: callers that don't pass ``job_id`` use this
         # last-set tracker. Logged as a warning so we can find them.
-        self._temporal_tracker: Optional[TemporalKnowledgeTracker] = None
+        self._temporal_tracker: TemporalKnowledgeTracker | None = None
 
-    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker", job_id: Optional[str] = None):
+    def set_temporal_tracker(self, tracker: "TemporalKnowledgeTracker", job_id: str | None = None):
         """Set the temporal knowledge tracker for findings/hypothesis tracking.
 
         Args:
@@ -221,7 +221,7 @@ class MetadataEmitter:
             self._temporal_trackers[job_id] = tracker
         self._temporal_tracker = tracker  # legacy callers
 
-    def get_temporal_tracker(self, job_id: Optional[str] = None) -> Optional["TemporalKnowledgeTracker"]:
+    def get_temporal_tracker(self, job_id: str | None = None) -> Optional["TemporalKnowledgeTracker"]:
         """Get the temporal knowledge tracker if set.
 
         Args:
@@ -239,7 +239,7 @@ class MetadataEmitter:
         self._temporal_trackers.pop(job_id, None)
 
     def start_task(
-        self, task_type: str, prompt: str = "", attributes: Optional[dict[str, Any]] = None
+        self, task_type: str, prompt: str = "", attributes: dict[str, Any] | None = None
     ) -> OperationContext:
         """Start tracking a new task.
 
@@ -274,7 +274,7 @@ class MetadataEmitter:
             op: The operation context
             status: Final status
         """
-        op.metadata.end_time = datetime.now(timezone.utc)
+        op.metadata.end_time = datetime.now(UTC)
         op.metadata.status = status
 
         span_status = SpanStatus.COMPLETED if status == "completed" else SpanStatus.FAILED
@@ -290,7 +290,7 @@ class MetadataEmitter:
             op: The operation context
             error: Error message
         """
-        op.metadata.end_time = datetime.now(timezone.utc)
+        op.metadata.end_time = datetime.now(UTC)
         op.metadata.status = "failed"
         op.metadata.error = error
 
@@ -300,7 +300,7 @@ class MetadataEmitter:
         self._active_operations.pop(op.span.span_id, None)
 
     @contextmanager
-    def operation(self, task_type: str, attributes: Optional[dict[str, Any]] = None, prompt: str = ""):
+    def operation(self, task_type: str, attributes: dict[str, Any] | None = None, prompt: str = ""):
         """Context manager for tracking an operation.
 
         Args:
@@ -384,7 +384,7 @@ class MetadataEmitter:
             "cost_breakdown": self.get_cost_breakdown(),
             "total_cost": self.get_total_cost(),
             "context_lineage": self.get_context_lineage(),
-            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_at": datetime.now(UTC).isoformat(),
         }
 
         # Include temporal knowledge data if tracker is set

@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class MapReduceIngester:
 
     def __init__(
         self,
-        client: Optional[Any] = None,
+        client: Any | None = None,
         map_model: str = "gpt-4.1-mini",
         reduce_model: str = "gpt-5.2",
         chunk_size: int = DEFAULT_CHUNK_SIZE,

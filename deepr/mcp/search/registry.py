@@ -7,7 +7,6 @@ the gateway pattern that reduces initial context by ~85%.
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -179,7 +178,7 @@ class ToolRegistry:
 
     def __init__(self):
         self._tools: dict[str, ToolSchema] = {}
-        self._index: Optional[BM25Index] = None
+        self._index: BM25Index | None = None
         self._tool_order: list[str] = []  # Maintain insertion order
 
     def register(self, tool: ToolSchema) -> None:
@@ -197,7 +196,7 @@ class ToolRegistry:
                 self._tool_order.append(tool.name)
         self._rebuild_index()
 
-    def get(self, name: str) -> Optional[ToolSchema]:
+    def get(self, name: str) -> ToolSchema | None:
         """Get a tool by name."""
         return self._tools.get(name)
 
@@ -250,7 +249,7 @@ class ToolRegistry:
         self._index = BM25Index()
         self._index.fit(corpus)
 
-    def estimate_tokens(self, tools: Optional[list[ToolSchema]] = None) -> int:
+    def estimate_tokens(self, tools: list[ToolSchema] | None = None) -> int:
         """
         Estimate token count for tool schemas.
 

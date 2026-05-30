@@ -18,10 +18,11 @@ Usage:
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, TypeVar
 
 import click
 from rich.console import Console
@@ -54,8 +55,8 @@ class OutputContext:
     """
 
     mode: OutputMode = OutputMode.MINIMAL
-    start_time: Optional[float] = field(default=None)
-    job_id: Optional[str] = None
+    start_time: float | None = field(default=None)
+    job_id: str | None = None
 
     def __post_init__(self):
         """Set start_time if not provided."""
@@ -123,10 +124,10 @@ class OperationResult:
     success: bool
     duration_seconds: float
     cost_usd: float
-    report_path: Optional[str] = None
-    job_id: Optional[str] = None
-    error: Optional[str] = None
-    error_code: Optional[str] = None
+    report_path: str | None = None
+    job_id: str | None = None
+    error: str | None = None
+    error_code: str | None = None
 
     def to_json(self) -> str:
         """Serialize result to JSON string.
@@ -336,7 +337,7 @@ class OutputFormatter:
         self.context = context
         self._console = Console()
         self._stderr_console = Console(stderr=True)
-        self._progress: Optional[Progress] = None
+        self._progress: Progress | None = None
         self._progress_task = None
 
     def start_operation(self, description: str) -> None:
@@ -442,7 +443,7 @@ class OutputFormatter:
         if not result.success:
             self._stderr_console.print(result.error or "Unknown error")
 
-    def error(self, message: str, code: Optional[str] = None) -> None:
+    def error(self, message: str, code: str | None = None) -> None:
         """Show error message.
 
         Args:

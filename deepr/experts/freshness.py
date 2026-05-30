@@ -10,9 +10,9 @@ Usage:
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class FreshnessLevel(Enum):
@@ -97,8 +97,8 @@ class FreshnessChecker:
     def __init__(
         self,
         domain: str = "general",
-        velocity_days: Optional[int] = None,
-        custom_thresholds: Optional[dict[str, int]] = None,
+        velocity_days: int | None = None,
+        custom_thresholds: dict[str, int] | None = None,
     ):
         """Initialize freshness checker.
 
@@ -113,9 +113,9 @@ class FreshnessChecker:
 
     def check(
         self,
-        last_learning: Optional[datetime] = None,
-        last_activity: Optional[datetime] = None,
-        knowledge_sources: Optional[list[dict[str, Any]]] = None,
+        last_learning: datetime | None = None,
+        last_activity: datetime | None = None,
+        knowledge_sources: list[dict[str, Any]] | None = None,
     ) -> FreshnessStatus:
         """Check knowledge freshness.
 
@@ -127,7 +127,7 @@ class FreshnessChecker:
         Returns:
             FreshnessStatus with assessment
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Determine reference date
         if last_learning:
@@ -173,7 +173,7 @@ class FreshnessChecker:
             details=details,
         )
 
-    def get_status(self, last_learning: Optional[datetime] = None) -> dict[str, Any]:
+    def get_status(self, last_learning: datetime | None = None) -> dict[str, Any]:
         """Get simple status dictionary.
 
         Args:
@@ -185,7 +185,7 @@ class FreshnessChecker:
         status = self.check(last_learning=last_learning)
         return status.to_dict()
 
-    def is_stale(self, last_learning: Optional[datetime] = None) -> bool:
+    def is_stale(self, last_learning: datetime | None = None) -> bool:
         """Quick check if knowledge is stale.
 
         Args:
@@ -196,7 +196,7 @@ class FreshnessChecker:
         """
         return self.check(last_learning=last_learning).is_stale()
 
-    def days_until_stale(self, last_learning: Optional[datetime] = None) -> int:
+    def days_until_stale(self, last_learning: datetime | None = None) -> int:
         """Calculate days until knowledge becomes stale.
 
         Args:
@@ -208,7 +208,7 @@ class FreshnessChecker:
         if last_learning is None:
             return -999
 
-        days_since = (datetime.now(timezone.utc) - last_learning).days
+        days_since = (datetime.now(UTC) - last_learning).days
         return self.velocity_days - days_since
 
     def _calculate_score(self, days_since: int) -> float:
@@ -287,7 +287,7 @@ class FreshnessChecker:
         if not sources:
             return {"count": 0}
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ages = []
 
         for source in sources:
@@ -300,7 +300,7 @@ class FreshnessChecker:
                     # so source-freshness analysis returned ``dated_count=0``
                     # for the common case of dates without explicit tz.
                     if source_date.tzinfo is None:
-                        source_date = source_date.replace(tzinfo=timezone.utc)
+                        source_date = source_date.replace(tzinfo=UTC)
                     ages.append((now - source_date).days)
                 except (ValueError, TypeError):
                     pass
