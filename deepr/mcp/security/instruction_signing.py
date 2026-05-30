@@ -108,7 +108,7 @@ class InstructionSigner:
         self.max_age_seconds = max_age_seconds
 
         # Track used nonces to prevent replay attacks
-        self._used_nonces: set = set()
+        self._used_nonces: set[str] = set()
         self._nonce_cleanup_threshold = 10000
 
     def sign(
@@ -211,7 +211,7 @@ class InstructionSigner:
         self,
         signed: SignedInstruction,
         max_age_seconds: int | None = None,
-    ) -> tuple:
+    ) -> tuple[Any, ...]:
         """Verify signature and check expiration.
 
         Args:
@@ -233,8 +233,8 @@ class InstructionSigner:
 
     def sign_batch(
         self,
-        instructions: list,
-    ) -> list:
+        instructions: list[Any],
+    ) -> list[Any]:
         """Sign a batch of instructions.
 
         Args:
@@ -247,8 +247,8 @@ class InstructionSigner:
 
     def verify_batch(
         self,
-        signed_instructions: list,
-    ) -> dict:
+        signed_instructions: list[Any],
+    ) -> dict[str, Any]:
         """Verify a batch of signed instructions.
 
         Args:
@@ -257,7 +257,7 @@ class InstructionSigner:
         Returns:
             Dict with verification results
         """
-        results = {
+        results: dict[str, Any] = {
             "valid": [],
             "invalid": [],
             "expired": [],
@@ -329,7 +329,7 @@ class InstructionSigner:
         """
         return secrets.token_hex(32)
 
-    def _track_nonce(self, nonce: str):
+    def _track_nonce(self, nonce: str) -> None:
         """Track a used nonce.
 
         Args:
@@ -343,7 +343,7 @@ class InstructionSigner:
             nonces_list = list(self._used_nonces)
             self._used_nonces = set(nonces_list[len(nonces_list) // 2 :])
 
-    def clear_nonce_cache(self):
+    def clear_nonce_cache(self) -> None:
         """Clear the nonce tracking cache."""
         self._used_nonces.clear()
 
