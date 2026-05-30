@@ -31,18 +31,18 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 import hashlib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +118,7 @@ class Concept:
             section_ids=set(data.get("section_ids", [])),
             frequency=data.get("frequency", 0),
             tf_idf_score=data.get("tf_idf_score", 0.0),
-            created_at=datetime.fromisoformat(data["created_at"])
-            if "created_at" in data
-            else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(UTC),
         )
 
 
@@ -170,9 +168,7 @@ class Edge:
             edge_type=EdgeType(data["edge_type"]),
             weight=data.get("weight", 1.0),
             document_ids=set(data.get("document_ids", [])),
-            created_at=datetime.fromisoformat(data["created_at"])
-            if "created_at" in data
-            else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(UTC),
         )
 
 
@@ -360,7 +356,7 @@ class ConceptExtractor:
         # Pattern for headings in markdown
         self._heading_pattern = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
-    def extract_concepts(self, text: str, document_id: str, section_id: Optional[str] = None) -> list[Concept]:
+    def extract_concepts(self, text: str, document_id: str, section_id: str | None = None) -> list[Concept]:
         """Extract concepts from text using multiple methods.
 
         Args:
@@ -408,7 +404,7 @@ class ConceptExtractor:
         # Filter by minimum frequency
         return [c for c in concepts.values() if c.frequency >= self.min_frequency]
 
-    def _extract_noun_phrases(self, text: str, document_id: str, section_id: Optional[str] = None) -> list[Concept]:
+    def _extract_noun_phrases(self, text: str, document_id: str, section_id: str | None = None) -> list[Concept]:
         """Extract noun phrases from text.
 
         Uses simple pattern matching for noun phrase extraction.
@@ -496,7 +492,7 @@ class ConceptExtractor:
 
         return concepts
 
-    def _extract_key_phrases(self, text: str, document_id: str, section_id: Optional[str] = None) -> list[Concept]:
+    def _extract_key_phrases(self, text: str, document_id: str, section_id: str | None = None) -> list[Concept]:
         """Extract key phrases using TF-IDF-like scoring.
 
         Simple implementation without external dependencies.
@@ -698,7 +694,7 @@ class EdgeBuilder:
 
     def _create_cooccurrence_edge(
         self, c1: Concept, c2: Concept, section: DocumentSection, document_id: str
-    ) -> Optional[Edge]:
+    ) -> Edge | None:
         """Create a co-occurrence edge between two concepts.
 
         Args:
@@ -742,7 +738,7 @@ class EdgeBuilder:
 
         return Edge(source_id=c1.id, target_id=c2.id, edge_type=edge_type, weight=weight, document_ids={document_id})
 
-    def _find_concept_by_text(self, concepts: list[Concept], text: str) -> Optional[Concept]:
+    def _find_concept_by_text(self, concepts: list[Concept], text: str) -> Concept | None:
         """Find concept by text.
 
         Args:
@@ -891,7 +887,7 @@ class SufficiencyScorer:
         }
 
     def score(
-        self, query: str, chunks: list[dict[str, Any]], citations: Optional[list[str]] = None
+        self, query: str, chunks: list[dict[str, Any]], citations: list[str] | None = None
     ) -> RetrievalSufficiency:
         """Score retrieval sufficiency.
 
@@ -1109,7 +1105,7 @@ class CachedSubgraph:
 
     def touch(self):
         """Update access time and count."""
-        self.last_accessed = datetime.now(timezone.utc)
+        self.last_accessed = datetime.now(UTC)
         self.access_count += 1
 
     def to_dict(self) -> dict[str, Any]:
@@ -1130,12 +1126,10 @@ class CachedSubgraph:
             node_ids=set(data.get("node_ids", [])),
             node_summaries=data.get("node_summaries", {}),
             prompt_blocks=data.get("prompt_blocks", []),
-            created_at=datetime.fromisoformat(data["created_at"])
-            if "created_at" in data
-            else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(UTC),
             last_accessed=datetime.fromisoformat(data["last_accessed"])
             if "last_accessed" in data
-            else datetime.now(timezone.utc),
+            else datetime.now(UTC),
             access_count=data.get("access_count", 0),
         )
 
@@ -1157,7 +1151,7 @@ class SubgraphCache:
         storage_path: Path for persistence
     """
 
-    def __init__(self, max_size: int = 100, storage_path: Optional[Path] = None):
+    def __init__(self, max_size: int = 100, storage_path: Path | None = None):
         """Initialize subgraph cache.
 
         Args:
@@ -1171,7 +1165,7 @@ class SubgraphCache:
         if storage_path:
             self._load()
 
-    def get(self, query: str) -> Optional[CachedSubgraph]:
+    def get(self, query: str) -> CachedSubgraph | None:
         """Get cached subgraph for query.
 
         Args:
@@ -1193,8 +1187,8 @@ class SubgraphCache:
         self,
         query: str,
         node_ids: set[str],
-        node_summaries: Optional[dict[str, str]] = None,
-        prompt_blocks: Optional[list[str]] = None,
+        node_summaries: dict[str, str] | None = None,
+        prompt_blocks: list[str] | None = None,
     ) -> CachedSubgraph:
         """Cache a subgraph for query.
 
@@ -1371,7 +1365,7 @@ class KnowledgeGraph:
         storage_dir: Directory for persistence
     """
 
-    def __init__(self, expert_name: str, storage_dir: Optional[Path] = None):
+    def __init__(self, expert_name: str, storage_dir: Path | None = None):
         """Initialize knowledge graph.
 
         Args:
@@ -1444,7 +1438,7 @@ class KnowledgeGraph:
 
         return edge_id
 
-    def get_concept(self, concept_id: str) -> Optional[Concept]:
+    def get_concept(self, concept_id: str) -> Concept | None:
         """Get concept by ID.
 
         Args:
@@ -1455,7 +1449,7 @@ class KnowledgeGraph:
         """
         return self.concepts.get(concept_id)
 
-    def get_concept_by_text(self, text: str) -> Optional[Concept]:
+    def get_concept_by_text(self, text: str) -> Concept | None:
         """Get concept by text.
 
         Args:
@@ -1470,7 +1464,7 @@ class KnowledgeGraph:
         return None
 
     def get_neighbors(
-        self, concept_id: str, edge_types: Optional[list[EdgeType]] = None, min_weight: float = 0.0
+        self, concept_id: str, edge_types: list[EdgeType] | None = None, min_weight: float = 0.0
     ) -> list[tuple[Concept, Edge]]:
         """Get neighboring concepts.
 
@@ -1507,7 +1501,7 @@ class KnowledgeGraph:
         start_ids: list[str],
         max_depth: int = 2,
         max_nodes: int = 50,
-        edge_types: Optional[list[EdgeType]] = None,
+        edge_types: list[EdgeType] | None = None,
         min_weight: float = 0.0,
     ) -> set[str]:
         """Traverse graph from starting nodes.
@@ -1680,7 +1674,7 @@ class LazyGraphRAG:
     def __init__(
         self,
         expert_name: str,
-        storage_dir: Optional[Path] = None,
+        storage_dir: Path | None = None,
         cache_size: int = 100,
         sufficiency_threshold: float = 0.6,
     ):
@@ -1710,10 +1704,10 @@ class LazyGraphRAG:
 
         # Track indexing stats
         self._indexed_docs: set[str] = set()
-        self._last_index_time: Optional[datetime] = None
+        self._last_index_time: datetime | None = None
 
     async def index_document(
-        self, document_id: str, content: str, metadata: Optional[dict[str, Any]] = None
+        self, document_id: str, content: str, metadata: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Index a single document.
 
@@ -1727,7 +1721,7 @@ class LazyGraphRAG:
         Returns:
             Indexing statistics
         """
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
         # Extract sections
         sections = self.extractor.extract_sections(content, document_id)
@@ -1749,12 +1743,12 @@ class LazyGraphRAG:
 
         # Track indexed document
         self._indexed_docs.add(document_id)
-        self._last_index_time = datetime.now(timezone.utc)
+        self._last_index_time = datetime.now(UTC)
 
         # Persist graph
         self.graph.save()
 
-        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+        elapsed = (datetime.now(UTC) - start_time).total_seconds()
 
         return {
             "document_id": document_id,
@@ -1774,7 +1768,7 @@ class LazyGraphRAG:
         Returns:
             Indexing statistics
         """
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
         total_concepts = 0
         total_edges = 0
@@ -1794,7 +1788,7 @@ class LazyGraphRAG:
                 total_edges += result["edges"]
                 total_sections += result["sections"]
 
-        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+        elapsed = (datetime.now(UTC) - start_time).total_seconds()
 
         return {
             "documents": len(documents),
@@ -1984,7 +1978,7 @@ class LazyGraphRAG:
 
         self._sufficiency_log.append(
             {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "query": query[:100],
                 "coverage": sufficiency.coverage,
                 "redundancy": sufficiency.redundancy,

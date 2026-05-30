@@ -1,6 +1,6 @@
 """Azure Service Bus queue backend (planned for cloud deployment)."""
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import JobStatus, QueueBackend, ResearchJob
 
@@ -19,18 +19,18 @@ class ServiceBusQueue(QueueBackend):
     async def enqueue(self, job: ResearchJob) -> str:
         raise NotImplementedError()
 
-    async def dequeue(self, worker_id: str) -> Optional[ResearchJob]:
+    async def dequeue(self, worker_id: str) -> ResearchJob | None:
         raise NotImplementedError()
 
-    async def get_job(self, job_id: str) -> Optional[ResearchJob]:
+    async def get_job(self, job_id: str) -> ResearchJob | None:
         raise NotImplementedError()
 
     async def update_status(
         self,
         job_id: str,
         status: JobStatus,
-        error: Optional[str] = None,
-        provider_job_id: Optional[str] = None,
+        error: str | None = None,
+        provider_job_id: str | None = None,
     ) -> bool:
         raise NotImplementedError()
 
@@ -38,15 +38,15 @@ class ServiceBusQueue(QueueBackend):
         self,
         job_id: str,
         report_paths: dict[str, str],
-        cost: Optional[float] = None,
-        tokens_used: Optional[int] = None,
+        cost: float | None = None,
+        tokens_used: int | None = None,
     ) -> bool:
         raise NotImplementedError()
 
     async def list_jobs(
         self,
-        status: Optional[JobStatus] = None,
-        tenant_id: Optional[str] = None,
+        status: JobStatus | None = None,
+        tenant_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ResearchJob]:

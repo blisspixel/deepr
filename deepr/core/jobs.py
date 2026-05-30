@@ -5,9 +5,9 @@ import logging
 import os
 import tempfile
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +20,11 @@ class JobRecord:
     status: str
     timestamp: str
     original_prompt: str
-    refined_prompt: Optional[str] = None
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    run_id: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    refined_prompt: str | None = None
+    model: str | None = None
+    provider: str | None = None
+    run_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class JobManager:
@@ -56,11 +56,11 @@ class JobManager:
         self,
         response_id: str,
         original_prompt: str,
-        refined_prompt: Optional[str] = None,
-        model: Optional[str] = None,
-        provider: Optional[str] = None,
-        run_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        refined_prompt: str | None = None,
+        model: str | None = None,
+        provider: str | None = None,
+        run_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """
         Log a new job submission.
@@ -77,7 +77,7 @@ class JobManager:
         record = JobRecord(
             response_id=response_id,
             status="queued",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             original_prompt=original_prompt,
             refined_prompt=refined_prompt,
             model=model,
@@ -100,7 +100,7 @@ class JobManager:
         if self.backend_type == "jsonl":
             await self._update_jsonl_status(response_id, new_status)
 
-    async def get_job(self, response_id: str) -> Optional[JobRecord]:
+    async def get_job(self, response_id: str) -> JobRecord | None:
         """
         Retrieve a specific job record.
 
@@ -115,7 +115,7 @@ class JobManager:
 
         return None
 
-    async def list_jobs(self, status: Optional[str] = None, limit: int = 100) -> list[JobRecord]:
+    async def list_jobs(self, status: str | None = None, limit: int = 100) -> list[JobRecord]:
         """
         List job records.
 
@@ -195,7 +195,7 @@ class JobManager:
                 pass
             raise
 
-    async def _get_jsonl_job(self, response_id: str) -> Optional[JobRecord]:
+    async def _get_jsonl_job(self, response_id: str) -> JobRecord | None:
         """Get job from JSONL file."""
         if not self.log_path.exists():
             return None
@@ -211,7 +211,7 @@ class JobManager:
 
         return None
 
-    async def _list_jsonl_jobs(self, status: Optional[str] = None, limit: int = 100) -> list[JobRecord]:
+    async def _list_jsonl_jobs(self, status: str | None = None, limit: int = 100) -> list[JobRecord]:
         """List jobs from JSONL file."""
         if not self.log_path.exists():
             return []
@@ -237,7 +237,7 @@ class JobManager:
         if not self.log_path.exists():
             return 0
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         retained = []
         cleaned = 0
 

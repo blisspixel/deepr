@@ -3,8 +3,7 @@
 import logging
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ class CostEstimator:
     }
 
     @classmethod
-    def estimate_prompt_tokens(cls, prompt: str, documents: Optional[list] = None) -> int:
+    def estimate_prompt_tokens(cls, prompt: str, documents: list | None = None) -> int:
         """
         Rough estimation of token count.
 
@@ -83,7 +82,7 @@ class CostEstimator:
         cls,
         prompt: str,
         model: str = "o3-deep-research",
-        documents: Optional[list] = None,
+        documents: list | None = None,
         enable_web_search: bool = True,
     ) -> CostEstimate:
         """
@@ -231,9 +230,9 @@ class CostController:
         self._lock = threading.Lock()
         self.daily_spending = 0.0
         self.monthly_spending = 0.0
-        self.last_reset = datetime.now(timezone.utc)
+        self.last_reset = datetime.now(UTC)
 
-    def check_cost_limit(self, estimate: CostEstimate) -> tuple[bool, Optional[str]]:
+    def check_cost_limit(self, estimate: CostEstimate) -> tuple[bool, str | None]:
         """
         Check if operation would exceed cost limits.
 
@@ -282,7 +281,7 @@ class CostController:
 
     def reset_if_needed(self):
         """Reset daily/monthly counters if needed."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._lock:
             # Reset daily
             if now.date() > self.last_reset.date():

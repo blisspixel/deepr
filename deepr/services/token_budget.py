@@ -22,9 +22,9 @@ Usage:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from deepr.core.constants import (
     MAX_CONTEXT_TOKENS,
@@ -35,7 +35,7 @@ from deepr.core.constants import (
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class AllocationStrategy(Enum):
@@ -128,9 +128,9 @@ class TokenBudgetAllocator:
 
     def __init__(
         self,
-        total_budget: Optional[int] = None,
-        synthesis_reserve_pct: Optional[float] = None,
-        max_context_per_phase: Optional[int] = None,
+        total_budget: int | None = None,
+        synthesis_reserve_pct: float | None = None,
+        max_context_per_phase: int | None = None,
     ):
         """Initialize the allocator.
 
@@ -146,7 +146,7 @@ class TokenBudgetAllocator:
     def create_plan(
         self,
         num_phases: int,
-        phase_weights: Optional[dict[int, float]] = None,
+        phase_weights: dict[int, float] | None = None,
         strategy: AllocationStrategy = AllocationStrategy.WEIGHTED,
     ) -> BudgetPlan:
         """Create a budget plan for phases.

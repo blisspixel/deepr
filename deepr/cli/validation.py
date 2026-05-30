@@ -1,7 +1,6 @@
 """CLI input validation utilities."""
 
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -39,7 +38,7 @@ MAX_FILE_SIZE_MB = 100
 
 
 def validate_upload_files(
-    files: tuple[str, ...], max_size_mb: int = MAX_FILE_SIZE_MB, allowed_extensions: Optional[list[str]] = None
+    files: tuple[str, ...], max_size_mb: int = MAX_FILE_SIZE_MB, allowed_extensions: list[str] | None = None
 ) -> list[Path]:
     """
     Validate uploaded files for security and size constraints.

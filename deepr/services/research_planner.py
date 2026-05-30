@@ -16,7 +16,6 @@ Example:
 
 import logging
 import os
-from typing import Optional
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import OpenAI
@@ -35,7 +34,7 @@ class ResearchPlanner:
         self,
         model: str = "gpt-5",
         use_azure: bool = False,
-        azure_endpoint: Optional[str] = None,
+        azure_endpoint: str | None = None,
     ):
         """
         Initialize the research planner.
@@ -76,7 +75,7 @@ class ResearchPlanner:
         self,
         scenario: str,
         max_tasks: int = 5,
-        context: Optional[str] = None,
+        context: str | None = None,
     ) -> list[dict[str, str]]:
         """
         Decompose a scenario into multiple research tasks.
@@ -271,7 +270,7 @@ Please analyze this scenario and generate {max_tasks} distinct research tasks th
 def create_planner(
     model: str = "gpt-5-mini",
     provider: str = "openai",
-    azure_endpoint: Optional[str] = None,
+    azure_endpoint: str | None = None,
 ) -> ResearchPlanner:
     """
     Factory function to create a research planner.

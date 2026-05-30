@@ -28,8 +28,8 @@ Usage:
 import hashlib
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.core.constants import MAX_CONTEXT_TOKENS
 from deepr.observability.temporal_tracker import (
@@ -40,7 +40,7 @@ from deepr.observability.temporal_tracker import (
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -50,7 +50,7 @@ class ExtractedFinding:
     text: str
     confidence: float
     finding_type: FindingType
-    source: Optional[str] = None
+    source: str | None = None
     importance: float = 0.5  # 0-1 score for prioritization
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,7 +104,7 @@ class ContextChainer:
 
     def __init__(
         self,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         importance_threshold: float = 0.3,
     ):
         """Initialize the context chainer.
@@ -120,7 +120,7 @@ class ContextChainer:
         self,
         raw_output: str,
         phase: int,
-        tracker: Optional[TemporalKnowledgeTracker] = None,
+        tracker: TemporalKnowledgeTracker | None = None,
     ) -> StructuredPhaseOutput:
         """Extract structured information from raw phase output.
 
@@ -179,8 +179,8 @@ class ContextChainer:
         self,
         prior_phases: list[StructuredPhaseOutput],
         current_phase: int,
-        max_tokens: Optional[int] = None,
-        focus_query: Optional[str] = None,
+        max_tokens: int | None = None,
+        focus_query: str | None = None,
     ) -> str:
         """Build structured context from prior phases.
 
@@ -247,7 +247,7 @@ class ContextChainer:
     def merge_contexts(
         self,
         contexts: list[str],
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Merge multiple context strings with deduplication.
 
@@ -530,7 +530,7 @@ class ContextChainer:
 
         return min(1.0, max(0.0, score))
 
-    def _extract_source(self, text: str) -> Optional[str]:
+    def _extract_source(self, text: str) -> str | None:
         """Extract source citation from text.
 
         Args:
@@ -557,7 +557,7 @@ class ContextChainer:
         self,
         phase_output: StructuredPhaseOutput,
         budget: int,
-        focus_query: Optional[str],
+        focus_query: str | None,
     ) -> tuple:
         """Format a phase's context within token budget.
 

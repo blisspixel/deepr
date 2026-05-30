@@ -22,8 +22,8 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.core.constants import (
     ENTROPY_THRESHOLD,
@@ -35,7 +35,7 @@ from deepr.core.constants import (
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass
@@ -45,7 +45,7 @@ class Finding:
     text: str
     phase: int
     confidence: float = 0.5
-    source: Optional[str] = None
+    source: str | None = None
     timestamp: datetime = field(default_factory=_utc_now)
     tokens: list[str] = field(default_factory=list)
     content_hash: str = ""
@@ -75,7 +75,7 @@ class PhaseContext:
     total_findings: int = 0
     total_tokens_used: int = 0
     elapsed_seconds: float = 0.0
-    prior_entropy: Optional[float] = None
+    prior_entropy: float | None = None
     iteration_count: int = 0
 
 
@@ -87,7 +87,7 @@ class StoppingDecision:
     reason: str
     entropy: float
     information_gain: float
-    pivot_suggestion: Optional[str] = None
+    pivot_suggestion: str | None = None
     confidence: float = 0.5
     metrics: dict[str, Any] = field(default_factory=dict)
 
@@ -118,10 +118,10 @@ class EntropyStoppingCriteria:
 
     def __init__(
         self,
-        entropy_threshold: Optional[float] = None,
-        min_information_gain: Optional[float] = None,
-        window_size: Optional[int] = None,
-        min_iterations: Optional[int] = None,
+        entropy_threshold: float | None = None,
+        min_information_gain: float | None = None,
+        window_size: int | None = None,
+        min_iterations: int | None = None,
     ):
         """Initialize stopping criteria.
 
@@ -282,7 +282,7 @@ class EntropyStoppingCriteria:
         self,
         findings: list[Finding],
         original_query: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Detect if research has drifted and suggest pivot.
 
         Args:

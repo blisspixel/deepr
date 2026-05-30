@@ -7,7 +7,6 @@ Enables Claude to inspect expert state before querying.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass
@@ -21,8 +20,8 @@ class ExpertProfile:
     document_count: int = 0
     conversation_count: int = 0
     total_cost: float = 0.0
-    created_at: Optional[datetime] = None
-    last_refresh: Optional[datetime] = None
+    created_at: datetime | None = None
+    last_refresh: datetime | None = None
     capabilities: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -46,7 +45,7 @@ class ExpertBelief:
 
     text: str
     confidence: float  # 0.0 to 1.0
-    source: Optional[str] = None
+    source: str | None = None
     added_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict:
@@ -74,7 +73,7 @@ class ExpertBeliefs:
             "belief_count": len(self.beliefs),
         }
 
-    def add_belief(self, text: str, confidence: float, source: Optional[str] = None) -> None:
+    def add_belief(self, text: str, confidence: float, source: str | None = None) -> None:
         """
         Add a belief and recalculate overall confidence.
 
@@ -108,7 +107,7 @@ class KnowledgeGap:
 
     topic: str
     severity: str  # "low", "medium", "high"
-    suggested_research: Optional[str] = None
+    suggested_research: str | None = None
     identified_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict:
@@ -135,7 +134,7 @@ class ExpertGaps:
             "high_priority_count": len([g for g in self.gaps if g.severity == "high"]),
         }
 
-    def add_gap(self, topic: str, severity: str = "medium", suggested_research: Optional[str] = None) -> None:
+    def add_gap(self, topic: str, severity: str = "medium", suggested_research: str | None = None) -> None:
         """Add a knowledge gap."""
         self.gaps.append(KnowledgeGap(topic=topic, severity=severity, suggested_research=suggested_research))
 
@@ -175,19 +174,19 @@ class ExpertResourceManager:
 
         return profile
 
-    def get_profile(self, expert_id: str) -> Optional[ExpertProfile]:
+    def get_profile(self, expert_id: str) -> ExpertProfile | None:
         """Get expert profile."""
         return self._profiles.get(expert_id)
 
-    def get_beliefs(self, expert_id: str) -> Optional[ExpertBeliefs]:
+    def get_beliefs(self, expert_id: str) -> ExpertBeliefs | None:
         """Get expert beliefs."""
         return self._beliefs.get(expert_id)
 
-    def get_gaps(self, expert_id: str) -> Optional[ExpertGaps]:
+    def get_gaps(self, expert_id: str) -> ExpertGaps | None:
         """Get expert knowledge gaps."""
         return self._gaps.get(expert_id)
 
-    def add_belief(self, expert_id: str, text: str, confidence: float, source: Optional[str] = None) -> bool:
+    def add_belief(self, expert_id: str, text: str, confidence: float, source: str | None = None) -> bool:
         """
         Add a belief to an expert.
 
@@ -214,7 +213,7 @@ class ExpertResourceManager:
         return True
 
     def add_gap(
-        self, expert_id: str, topic: str, severity: str = "medium", suggested_research: Optional[str] = None
+        self, expert_id: str, topic: str, severity: str = "medium", suggested_research: str | None = None
     ) -> bool:
         """
         Add a knowledge gap to an expert.
@@ -232,9 +231,9 @@ class ExpertResourceManager:
     def update_profile_stats(
         self,
         expert_id: str,
-        document_count: Optional[int] = None,
-        conversation_count: Optional[int] = None,
-        total_cost: Optional[float] = None,
+        document_count: int | None = None,
+        conversation_count: int | None = None,
+        total_cost: float | None = None,
     ) -> bool:
         """
         Update expert profile statistics.
@@ -288,7 +287,7 @@ class ExpertResourceManager:
         """
         return f"deepr://experts/{expert_id}/{resource_type}"
 
-    def resolve_uri(self, uri: str) -> Optional[dict]:
+    def resolve_uri(self, uri: str) -> dict | None:
         """
         Resolve a resource URI to its data.
 

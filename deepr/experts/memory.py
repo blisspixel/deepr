@@ -33,18 +33,18 @@ Usage:
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 import hashlib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class ReasoningStep:
             content=data["content"],
             confidence=data.get("confidence", 0.0),
             sources=data.get("sources", []),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(UTC),
         )
 
 
@@ -115,10 +115,10 @@ class Episode:
     response: str
     context_docs: list[str] = field(default_factory=list)
     reasoning_chain: list[ReasoningStep] = field(default_factory=list)
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
+    user_id: str | None = None
+    session_id: str | None = None
     timestamp: datetime = field(default_factory=_utc_now)
-    quality_score: Optional[float] = None
+    quality_score: float | None = None
     tags: set[str] = field(default_factory=set)
     tier: MemoryTier = MemoryTier.WORKING
     id: str = field(default="")
@@ -159,7 +159,7 @@ class Episode:
             reasoning_chain=[ReasoningStep.from_dict(step) for step in data.get("reasoning_chain", [])],
             user_id=data.get("user_id"),
             session_id=data.get("session_id"),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(UTC),
             quality_score=data.get("quality_score"),
             tags=set(data.get("tags", [])),
             tier=MemoryTier(data.get("tier", "working")),
@@ -332,10 +332,8 @@ class UserProfile:
             interests=data.get("interests", {}),
             preferences=data.get("preferences", {}),
             interaction_count=data.get("interaction_count", 0),
-            first_seen=datetime.fromisoformat(data["first_seen"])
-            if "first_seen" in data
-            else datetime.now(timezone.utc),
-            last_seen=datetime.fromisoformat(data["last_seen"]) if "last_seen" in data else datetime.now(timezone.utc),
+            first_seen=datetime.fromisoformat(data["first_seen"]) if "first_seen" in data else datetime.now(UTC),
+            last_seen=datetime.fromisoformat(data["last_seen"]) if "last_seen" in data else datetime.now(UTC),
             feedback_history=data.get("feedback_history", []),
         )
 
@@ -443,9 +441,7 @@ class MetaKnowledge:
             knowledge_gaps=data.get("knowledge_gaps", []),
             confidence_by_topic=data.get("confidence_by_topic", {}),
             learning_events=data.get("learning_events", []),
-            last_updated=datetime.fromisoformat(data["last_updated"])
-            if "last_updated" in data
-            else datetime.now(timezone.utc),
+            last_updated=datetime.fromisoformat(data["last_updated"]) if "last_updated" in data else datetime.now(UTC),
         )
 
     def record_gap(self, topic: str, query: str, confidence: float = 0.0):
@@ -460,7 +456,7 @@ class MetaKnowledge:
             "topic": topic,
             "query": query,
             "confidence": confidence,
-            "discovered_at": datetime.now(timezone.utc).isoformat(),
+            "discovered_at": datetime.now(UTC).isoformat(),
             "resolved": False,
         }
 
@@ -471,7 +467,7 @@ class MetaKnowledge:
                 return
 
         self.knowledge_gaps.append(gap)
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now(UTC)
 
     def resolve_gap(self, topic: str):
         """Mark a knowledge gap as resolved.
@@ -482,9 +478,9 @@ class MetaKnowledge:
         for gap in self.knowledge_gaps:
             if gap["topic"] == topic:
                 gap["resolved"] = True
-                gap["resolved_at"] = datetime.now(timezone.utc).isoformat()
+                gap["resolved_at"] = datetime.now(UTC).isoformat()
 
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now(UTC)
 
     def record_learning(self, topic: str, source: str, confidence_gain: float):
         """Record a learning event.
@@ -498,7 +494,7 @@ class MetaKnowledge:
             "topic": topic,
             "source": source,
             "confidence_gain": confidence_gain,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self.learning_events.append(event)
 
@@ -509,7 +505,7 @@ class MetaKnowledge:
         # Check if this resolves a gap
         self.resolve_gap(topic)
 
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now(UTC)
 
     def get_confidence(self, topic: str) -> float:
         """Get confidence for a topic.
@@ -569,7 +565,7 @@ class HierarchicalMemory:
         working_capacity: Max episodes in working memory
     """
 
-    def __init__(self, expert_name: str, storage_dir: Optional[Path] = None, working_capacity: int = 10):
+    def __init__(self, expert_name: str, storage_dir: Path | None = None, working_capacity: int = 10):
         """Initialize hierarchical memory.
 
         Args:
@@ -628,7 +624,7 @@ class HierarchicalMemory:
 
         return episode.id
 
-    def retrieve(self, query: str, top_k: int = 5, tiers: Optional[list[MemoryTier]] = None) -> list[Episode]:
+    def retrieve(self, query: str, top_k: int = 5, tiers: list[MemoryTier] | None = None) -> list[Episode]:
         """Retrieve relevant episodes using hierarchical search.
 
         Searches working memory first (fast), then episodic (medium),
@@ -720,7 +716,7 @@ class HierarchicalMemory:
         base_score = intersection / union
 
         # Boost for recency
-        age_days = (datetime.now(timezone.utc) - episode.timestamp).days
+        age_days = (datetime.now(UTC) - episode.timestamp).days
         recency_boost = 1.0 / (1.0 + age_days / 30)  # Decay over 30 days
 
         # Boost for quality
@@ -803,7 +799,7 @@ class HierarchicalMemory:
             self.user_profiles[user_id] = UserProfile(user_id=user_id)
         return self.user_profiles[user_id]
 
-    def update_user_profile(self, user_id: str, query: str, response_quality: Optional[float] = None):
+    def update_user_profile(self, user_id: str, query: str, response_quality: float | None = None):
         """Update user profile based on interaction.
 
         Args:
@@ -813,7 +809,7 @@ class HierarchicalMemory:
         """
         profile = self.get_user_profile(user_id)
         profile.interaction_count += 1
-        profile.last_seen = datetime.now(timezone.utc)
+        profile.last_seen = datetime.now(UTC)
 
         # Extract topics from query
         keywords = self._extract_keywords(query)
@@ -912,7 +908,7 @@ class ReconstructedContext:
     documents: list[dict[str, Any]] = field(default_factory=list)
     reasoning_summary: str = ""
     related_episodes: list[Episode] = field(default_factory=list)
-    user_context: Optional[UserProfile] = None
+    user_context: UserProfile | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -962,7 +958,7 @@ def _add_reconstruct_method():
 
     def reconstruct_context(
         self, episode_id: str, include_documents: bool = True, include_related: bool = True
-    ) -> Optional[ReconstructedContext]:
+    ) -> ReconstructedContext | None:
         """Reconstruct full context from an episode.
 
         Enables "time travel" back to a previous conversation state,
@@ -1062,8 +1058,8 @@ class UserProfileLearner:
         user_id: str,
         query: str,
         response: str,
-        feedback: Optional[str] = None,
-        response_time_ms: Optional[int] = None,
+        feedback: str | None = None,
+        response_time_ms: int | None = None,
     ):
         """Learn from a user interaction.
 
@@ -1078,7 +1074,7 @@ class UserProfileLearner:
 
         # Update basic stats
         profile.interaction_count += 1
-        profile.last_seen = datetime.now(timezone.utc)
+        profile.last_seen = datetime.now(UTC)
 
         # Learn expertise from query complexity
         self._learn_expertise(profile, query)
@@ -1185,11 +1181,11 @@ class UserProfileLearner:
                 profile.preferences["verbosity"] = "concise"
 
             # Record positive feedback
-            profile.feedback_history.append(("positive", datetime.now(timezone.utc).isoformat()))
+            profile.feedback_history.append(("positive", datetime.now(UTC).isoformat()))
 
         # Negative feedback
         elif any(word in feedback_lower for word in ["bad", "wrong", "unhelpful", "confusing"]):
-            profile.feedback_history.append(("negative", datetime.now(timezone.utc).isoformat()))
+            profile.feedback_history.append(("negative", datetime.now(UTC).isoformat()))
 
         # Specific preferences
         if "too long" in feedback_lower or "shorter" in feedback_lower:

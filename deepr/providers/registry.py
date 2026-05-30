@@ -5,7 +5,6 @@ Used by ModelRouter to make intelligent routing decisions.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -1139,7 +1138,7 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
     return base
 
 
-def get_model_capability(provider: str, model: str) -> Optional[ModelCapability]:
+def get_model_capability(provider: str, model: str) -> ModelCapability | None:
     """Get capability specification for a model.
 
     Args:

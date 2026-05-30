@@ -14,7 +14,7 @@ Includes token budget management and intelligent context pruning.
 
 import asyncio
 import os
-from typing import Optional
+from datetime import UTC
 
 from openai import OpenAI
 
@@ -31,8 +31,8 @@ class ContextBuilder:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        token_budget: Optional[int] = None,
+        api_key: str | None = None,
+        token_budget: int | None = None,
         enable_pruning: bool = True,
     ):
         """Initialize context builder with OpenAI client.
@@ -50,7 +50,7 @@ class ContextBuilder:
         self.pruner = ContextPruner() if enable_pruning else None
 
         # Track pruning decisions for explain output
-        self.last_pruning_decision: Optional[PruningDecision] = None
+        self.last_pruning_decision: PruningDecision | None = None
 
     async def summarize_research(self, report_content: str, max_tokens: int = 500) -> str:
         """
@@ -97,8 +97,8 @@ Summary (bullet list, ~{target_words} words):"""
         self,
         task: dict,
         completed_tasks: dict[int, dict],
-        token_budget: Optional[int] = None,
-        current_query: Optional[str] = None,
+        token_budget: int | None = None,
+        current_query: str | None = None,
     ) -> str:
         """
         Build context string for a task based on dependencies.
@@ -121,7 +121,7 @@ Summary (bullet list, ~{target_words} words):"""
 
         # Collect context items for potential pruning
         context_items = []
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         for dep_id in depends_on:
             if dep_id not in completed_tasks:
@@ -140,7 +140,7 @@ Summary (bullet list, ~{target_words} words):"""
                 id=f"dep_{dep_id}",
                 text=dep_result,
                 source=dep_title,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 phase=dep_phase,
                 importance=0.7,  # Dependency context is important
             )

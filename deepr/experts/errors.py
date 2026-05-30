@@ -5,8 +5,6 @@ scenarios during curriculum generation, including API failures, validation
 errors, and domain validation issues.
 """
 
-from typing import Optional
-
 
 class CurriculumGenerationError(Exception):
     """Base exception for curriculum generation failures.
@@ -47,7 +45,7 @@ class APIRateLimitError(CurriculumGenerationError):
         retry_after: Optional number of seconds to wait before retrying
     """
 
-    def __init__(self, retry_after: Optional[int] = None):
+    def __init__(self, retry_after: int | None = None):
         self.retry_after = retry_after
         if retry_after:
             msg = (

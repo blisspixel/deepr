@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-2.11.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.11.0)
 
 **Domain experts, not another chat window.**
@@ -205,7 +205,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.11+ (tested on 3.11-3.14)
 - **One API key** from any supported provider:
   - [OpenAI](https://platform.openai.com/api-keys) — deep research + GPT models
   - [Gemini](https://aistudio.google.com/app/apikey) — cost-effective, large context

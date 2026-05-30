@@ -39,6 +39,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   strategic knowledge, each citing the report artifact for provenance.
   This completes Phase 2b (recon + distillr + primr all integrated).
 
+- **Engineering standards foundation (Phase E).** New continuous
+  code-quality track in the roadmap with firm, blocking gate targets. This
+  release lands the foundation:
+  - **Python baseline raised to 3.11** (``requires-python >=3.11``); CI matrix
+    now 3.11 / 3.12 / 3.13 (blocking) + 3.14 (non-blocking until optional-dep
+    wheels are confirmed). 3.9 (EOL) and 3.10 (pydantic test-collection
+    failures) dropped.
+  - **``uv`` adopted as the canonical toolchain**: ``uv.lock`` and
+    ``.python-version`` committed for reproducible dev/CI/container
+    environments; CI installs via ``uv pip install``. setuptools remains the
+    build backend so ``pip install`` keeps working downstream.
+  - **Syntax modernized to the 3.11 baseline** via Ruff autofix: PEP 604
+    unions (``X | None``), ``datetime.UTC``, exception/import aliases
+    (~1.6k mechanical, test-verified changes). ``ruff target-version`` is now
+    ``py311``.
+  - **mypy** and **pip-audit** wired into CI as non-blocking baselines
+    (``[tool.mypy]`` config added), ratcheting toward blocking gates.
+  - **Dependabot** enabled (pip + github-actions + npm, weekly).
+
 ### Changed
 - ``ConfigLoader.load()`` first-party auto-discovery generalized from
   recon-only to a table (recon, distillr, primr); user-defined profiles still

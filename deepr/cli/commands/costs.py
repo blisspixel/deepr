@@ -9,8 +9,8 @@ Provides commands for viewing and managing costs:
 - deepr costs expert - Show per-expert cost breakdown
 """
 
+from datetime import UTC
 from pathlib import Path
-from typing import Optional
 
 import click
 from rich.console import Console
@@ -32,7 +32,7 @@ def costs():
 @costs.command()
 @click.option("--daily-limit", type=float, help="Daily spending limit")
 @click.option("--monthly-limit", type=float, help="Monthly spending limit")
-def show(daily_limit: Optional[float], monthly_limit: Optional[float]):
+def show(daily_limit: float | None, monthly_limit: float | None):
     """Show cost summary."""
     dashboard = CostDashboard(daily_limit=daily_limit or 10.0, monthly_limit=monthly_limit or 100.0)
 
@@ -111,18 +111,18 @@ def history(days: int):
 )
 def breakdown(by: str, period: str):
     """Show cost breakdown."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     dashboard = CostDashboard()
 
     period_labels = {"today": "Today", "week": "Last 7 Days", "month": "Last 30 Days", "all": "All Time"}
 
     if period == "today":
-        start_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     elif period == "week":
-        start_date = datetime.now(timezone.utc) - timedelta(days=7)
+        start_date = datetime.now(UTC) - timedelta(days=7)
     elif period == "month":
-        start_date = datetime.now(timezone.utc) - timedelta(days=30)
+        start_date = datetime.now(UTC) - timedelta(days=30)
     else:
         start_date = None
 
@@ -188,7 +188,7 @@ def alerts():
 @costs.command()
 @click.option("--daily", type=float, help="Set daily limit")
 @click.option("--monthly", type=float, help="Set monthly limit")
-def limits(daily: Optional[float], monthly: Optional[float]):
+def limits(daily: float | None, monthly: float | None):
     """View or set cost limits."""
     dashboard = CostDashboard()
 

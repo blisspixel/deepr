@@ -31,9 +31,9 @@ Usage:
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from deepr.core.constants import (
     CIRCUIT_BREAKER_FAILURE_THRESHOLD,
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class CircuitState(Enum):
@@ -85,7 +85,7 @@ class CircuitBreaker:
     model: str
     state: CircuitState = CircuitState.CLOSED
     failure_count: int = 0
-    last_failure_time: Optional[datetime] = None
+    last_failure_time: datetime | None = None
     last_state_change: datetime = field(default_factory=_utc_now)
     failure_threshold: int = CIRCUIT_BREAKER_FAILURE_THRESHOLD
     recovery_timeout: int = CIRCUIT_BREAKER_RECOVERY_TIMEOUT
@@ -116,7 +116,7 @@ class CircuitBreaker:
         return self.state != CircuitState.OPEN
 
     @property
-    def time_until_recovery(self) -> Optional[int]:
+    def time_until_recovery(self) -> int | None:
         """Get seconds until circuit may recover.
 
         Returns:
@@ -125,7 +125,7 @@ class CircuitBreaker:
         if self.state != CircuitState.OPEN:
             return None
 
-        elapsed = (datetime.now(timezone.utc) - self.last_state_change).total_seconds()
+        elapsed = (datetime.now(UTC) - self.last_state_change).total_seconds()
         remaining = self.recovery_timeout - elapsed
         return max(0, int(remaining))
 
@@ -156,7 +156,7 @@ class CircuitBreaker:
         """
         with self._lock:
             self.failure_count += 1
-            self.last_failure_time = datetime.now(timezone.utc)
+            self.last_failure_time = datetime.now(UTC)
 
             if self.state == CircuitState.HALF_OPEN:
                 # Recovery failed - reopen the circuit
@@ -188,7 +188,7 @@ class CircuitBreaker:
             # Re-check under lock; another thread may have already transitioned.
             if self.state != CircuitState.OPEN:
                 return
-            elapsed = (datetime.now(timezone.utc) - self.last_state_change).total_seconds()
+            elapsed = (datetime.now(UTC) - self.last_state_change).total_seconds()
             if elapsed >= self.recovery_timeout:
                 self._transition_to(CircuitState.HALF_OPEN)
                 logger.info(
@@ -203,7 +203,7 @@ class CircuitBreaker:
         """
         old_state = self.state
         self.state = new_state
-        self.last_state_change = datetime.now(timezone.utc)
+        self.last_state_change = datetime.now(UTC)
 
         # Reset failure count when closing circuit
         if new_state == CircuitState.CLOSED:

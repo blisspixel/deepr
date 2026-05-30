@@ -27,9 +27,9 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from deepr.observability.circuit_breaker import CircuitBreakerRegistry
 
@@ -39,16 +39,16 @@ logger = logging.getLogger(__name__)
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def _parse_datetime(iso_str: Optional[str]) -> Optional[datetime]:
+def _parse_datetime(iso_str: str | None) -> datetime | None:
     """Parse ISO datetime string ensuring timezone awareness."""
     if not iso_str:
         return None
     dt = datetime.fromisoformat(iso_str)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -81,8 +81,8 @@ class ProviderMetrics:
     failure_count: int = 0
     total_latency_ms: float = 0.0
     total_cost: float = 0.0
-    last_success: Optional[datetime] = None
-    last_failure: Optional[datetime] = None
+    last_success: datetime | None = None
+    last_failure: datetime | None = None
     last_error: str = ""
     rolling_latencies: list[float] = field(default_factory=list)
     rolling_costs: list[float] = field(default_factory=list)
@@ -216,7 +216,7 @@ class ProviderMetrics:
             }
         return result
 
-    def record_success(self, latency_ms: float, cost: float, task_type: Optional[str] = None):
+    def record_success(self, latency_ms: float, cost: float, task_type: str | None = None):
         """Record a successful request.
 
         Args:
@@ -241,7 +241,7 @@ class ProviderMetrics:
         self.success_count += 1
         self.total_latency_ms += latency_ms
         self.total_cost += cost
-        self.last_success = datetime.now(timezone.utc)
+        self.last_success = datetime.now(UTC)
 
         # Update rolling averages (keep last ROLLING_WINDOW_SIZE entries)
         self.rolling_latencies.append(latency_ms)
@@ -257,7 +257,7 @@ class ProviderMetrics:
                 self.task_type_stats[task_type] = {"success": 0, "failure": 0}
             self.task_type_stats[task_type]["success"] += 1
 
-    def record_failure(self, error: str, task_type: Optional[str] = None):
+    def record_failure(self, error: str, task_type: str | None = None):
         """Record a failed request.
 
         Args:
@@ -265,7 +265,7 @@ class ProviderMetrics:
             task_type: Optional task type for per-task tracking
         """
         self.failure_count += 1
-        self.last_failure = datetime.now(timezone.utc)
+        self.last_failure = datetime.now(UTC)
         self.last_error = error
 
         # Track task type failure
@@ -295,7 +295,7 @@ class ProviderMetrics:
         if self.last_failure and self.last_success:
             if self.last_failure > self.last_success:
                 # Last request failed
-                hours_since = (datetime.now(timezone.utc) - self.last_failure).total_seconds() / 3600
+                hours_since = (datetime.now(UTC) - self.last_failure).total_seconds() / 3600
                 if hours_since < 1:  # Recent failure
                     return False
 
@@ -419,10 +419,10 @@ class AutonomousProviderRouter:
 
     def __init__(
         self,
-        storage_path: Optional[Path] = None,
-        fallback_chain: Optional[list[tuple[str, str]]] = None,
+        storage_path: Path | None = None,
+        fallback_chain: list[tuple[str, str]] | None = None,
         min_samples: int = 3,
-        circuit_breaker_registry: Optional[CircuitBreakerRegistry] = None,
+        circuit_breaker_registry: CircuitBreakerRegistry | None = None,
         exploration_rate: float = 0.1,
     ):
         """Initialize provider router.
@@ -464,7 +464,7 @@ class AutonomousProviderRouter:
         """
         return self.circuit_breaker.is_available(provider, model)
 
-    def is_auto_disabled(self, provider: str, model: str) -> tuple[bool, Optional[str]]:
+    def is_auto_disabled(self, provider: str, model: str) -> tuple[bool, str | None]:
         """Check if provider is auto-disabled due to high failure rate.
 
         Auto-disables providers with >50% failure rate after minimum requests,
@@ -491,7 +491,7 @@ class AutonomousProviderRouter:
         if metrics.success_rate < (1 - self.AUTO_DISABLE_FAILURE_RATE):
             # Check if in cooldown period
             if metrics.last_failure:
-                hours_since_failure = (datetime.now(timezone.utc) - metrics.last_failure).total_seconds() / 3600
+                hours_since_failure = (datetime.now(UTC) - metrics.last_failure).total_seconds() / 3600
 
                 if hours_since_failure < self.AUTO_DISABLE_COOLDOWN_HOURS:
                     return (
@@ -530,7 +530,7 @@ class AutonomousProviderRouter:
         latency_ms: float = 0.0,
         cost: float = 0.0,
         error: str = "",
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
     ):
         """Record a request result.
 
@@ -566,7 +566,7 @@ class AutonomousProviderRouter:
         task_type: str = "general",
         prefer_cost: bool = False,
         prefer_speed: bool = False,
-        exclude: Optional[list[tuple[str, str]]] = None,
+        exclude: list[tuple[str, str]] | None = None,
         force_exploit: bool = False,
     ) -> tuple[str, str]:
         """Select best provider for a task.
@@ -647,7 +647,7 @@ class AutonomousProviderRouter:
         # Exploit: return the best provider
         return (scored[0][1], scored[0][2])
 
-    def get_fallback(self, failed_provider: str, failed_model: str, reason: str) -> Optional[tuple[str, str]]:
+    def get_fallback(self, failed_provider: str, failed_model: str, reason: str) -> tuple[str, str] | None:
         """Get fallback provider after failure.
 
         Checks circuit breaker state before selecting fallback.
@@ -801,7 +801,7 @@ class AutonomousProviderRouter:
                 "total_requests": total_requests,
                 "total_cost_usd": total_cost,
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     def _get_candidates(self, task_type: str) -> list[tuple[str, str]]:
@@ -868,7 +868,7 @@ class AutonomousProviderRouter:
 
         # Penalty for recent failures
         if metrics.last_failure:
-            hours_since = (datetime.now(timezone.utc) - metrics.last_failure).total_seconds() / 3600
+            hours_since = (datetime.now(UTC) - metrics.last_failure).total_seconds() / 3600
             if hours_since < 1:
                 score *= 0.5
             elif hours_since < 6:
@@ -885,7 +885,7 @@ class AutonomousProviderRouter:
         data = {
             "metrics": {f"{k[0]}|{k[1]}": v.to_dict() for k, v in self.metrics.items()},
             "fallback_events": [e.to_dict() for e in self.fallback_events[-MAX_STORED_FALLBACK_EVENTS:]],
-            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "saved_at": datetime.now(UTC).isoformat(),
         }
 
         # Atomic write: write to temp file in same directory, then rename

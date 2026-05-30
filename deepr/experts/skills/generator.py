@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +32,7 @@ class SkillEfficacy:
     times_activated: int = 0
     total_cost: float = 0.0
     avg_quality_score: float = 0.0  # 0-1, from user feedback or auto-eval
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_used: datetime | None = None
 
     @property
@@ -72,9 +72,7 @@ class SkillEfficacy:
             times_activated=int(data.get("times_activated", 0)),
             total_cost=float(data.get("total_cost", 0.0)),
             avg_quality_score=float(data.get("avg_quality_score", 0.0)),
-            created_at=(
-                datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(timezone.utc)
-            ),
+            created_at=(datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(UTC)),
             last_used=(datetime.fromisoformat(data["last_used"]) if data.get("last_used") else None),
         )
 

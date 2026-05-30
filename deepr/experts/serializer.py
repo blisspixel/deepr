@@ -8,8 +8,8 @@ Requirements: 5.5 - Extract to_dict/from_dict logic
 """
 
 from dataclasses import asdict
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from deepr.experts.profile import ExpertProfile
@@ -31,7 +31,7 @@ COMPOSED_FIELDS = ["_temporal_state", "_freshness_checker", "_budget_manager", "
 METADATA_FIELDS = ["schema_version"]
 
 
-def datetime_to_iso(dt: Optional[datetime]) -> Optional[str]:
+def datetime_to_iso(dt: datetime | None) -> str | None:
     """Convert datetime to ISO format string.
 
     Args:
@@ -45,7 +45,7 @@ def datetime_to_iso(dt: Optional[datetime]) -> Optional[str]:
     return dt.isoformat()
 
 
-def iso_to_datetime(iso_str: Optional[str]) -> Optional[datetime]:
+def iso_to_datetime(iso_str: str | None) -> datetime | None:
     """Convert ISO format string to timezone-aware datetime.
 
     Args:
@@ -62,7 +62,7 @@ def iso_to_datetime(iso_str: Optional[str]) -> Optional[datetime]:
         dt = datetime.fromisoformat(iso_str)
     # Ensure timezone-aware (assume UTC for naive datetimes)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -158,7 +158,7 @@ class ProfileSerializer:
         return profile_class(**kwargs)
 
     @staticmethod
-    def serialize_datetime(dt: Optional[datetime]) -> Optional[str]:
+    def serialize_datetime(dt: datetime | None) -> str | None:
         """Serialize datetime to ISO string.
 
         Args:
@@ -170,7 +170,7 @@ class ProfileSerializer:
         return datetime_to_iso(dt)
 
     @staticmethod
-    def deserialize_datetime(iso_str: Optional[str]) -> Optional[datetime]:
+    def deserialize_datetime(iso_str: str | None) -> datetime | None:
         """Deserialize ISO string to datetime.
 
         Args:

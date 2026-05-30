@@ -14,7 +14,7 @@ handled by the StdioServer notification mechanism.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class SamplingReason(Enum):
@@ -36,7 +36,7 @@ class SamplingRequest:
 
     reason: SamplingReason
     prompt: str
-    url: Optional[str] = None
+    url: str | None = None
     context: dict[str, Any] = field(default_factory=dict)
     max_tokens: int = 1024
 

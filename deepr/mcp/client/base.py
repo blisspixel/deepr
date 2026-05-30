@@ -290,11 +290,11 @@ class MCPClient:
             self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._process.kill()
                 try:
                     await asyncio.wait_for(self._process.wait(), timeout=2)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
         self._process = None
 
@@ -315,7 +315,7 @@ class MCPClient:
                     return
                 try:
                     line = await asyncio.wait_for(self._process.stderr.readline(), timeout=1.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Intent: expected idle timeout in stderr drain poll loop; continue polling without logging noise (normal for long-lived MCP sessions).
                     continue
                 except (AttributeError, TypeError):
@@ -415,7 +415,7 @@ class MCPClient:
                     trace_id=trace_id,
                 )
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = f"Timeout after {effective_timeout}s"
                 logger.warning(
                     "MCP '%s' tool '%s' timeout (attempt %d/%d)",

@@ -28,7 +28,7 @@ import logging
 import os
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Environment variable for signing key
@@ -94,7 +94,7 @@ class InstructionSigner:
 
     def __init__(
         self,
-        key: Optional[str] = None,
+        key: str | None = None,
         max_age_seconds: int = DEFAULT_MAX_AGE,
     ):
         """Initialize the signer.
@@ -180,7 +180,7 @@ class InstructionSigner:
     def is_expired(
         self,
         signed: SignedInstruction,
-        max_age_seconds: Optional[int] = None,
+        max_age_seconds: int | None = None,
     ) -> bool:
         """Check if a signed instruction has expired.
 
@@ -196,7 +196,7 @@ class InstructionSigner:
         try:
             instruction_time = datetime.fromisoformat(signed.timestamp)
             if instruction_time.tzinfo is None:
-                instruction_time = instruction_time.replace(tzinfo=timezone.utc)
+                instruction_time = instruction_time.replace(tzinfo=UTC)
 
             now = _utc_now()
             age = (now - instruction_time).total_seconds()
@@ -210,7 +210,7 @@ class InstructionSigner:
     def verify_and_check_expiry(
         self,
         signed: SignedInstruction,
-        max_age_seconds: Optional[int] = None,
+        max_age_seconds: int | None = None,
     ) -> tuple:
         """Verify signature and check expiration.
 

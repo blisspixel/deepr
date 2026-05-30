@@ -4,7 +4,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 from docx import Document
 
@@ -26,7 +25,7 @@ class ReportConverter:
         """
         self.generate_pdf = generate_pdf
 
-    async def convert_to_docx(self, markdown_text: str, title: str, output_path: Optional[str] = None) -> bytes:
+    async def convert_to_docx(self, markdown_text: str, title: str, output_path: str | None = None) -> bytes:
         """
         Convert markdown to DOCX format.
 
@@ -65,7 +64,7 @@ class ReportConverter:
             buffer.seek(0)
             return buffer.read()
 
-    async def convert_to_pdf(self, docx_path: str, pdf_path: Optional[str] = None) -> Optional[bytes]:
+    async def convert_to_pdf(self, docx_path: str, pdf_path: str | None = None) -> bytes | None:
         """
         Convert DOCX to PDF format.
 

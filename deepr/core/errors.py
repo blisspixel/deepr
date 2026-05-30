@@ -24,7 +24,7 @@ Exception Hierarchy:
         └── SchemaValidationError
 """
 
-from typing import Any, Optional
+from typing import Any
 
 
 class DeeprError(Exception):
@@ -41,7 +41,7 @@ class DeeprError(Exception):
 
     error_code: str = "DEEPR_ERROR"
 
-    def __init__(self, message: str, error_code: Optional[str] = None, details: Optional[dict[str, Any]] = None):
+    def __init__(self, message: str, error_code: str | None = None, details: dict[str, Any] | None = None):
         self.message = message
         if error_code:
             self.error_code = error_code
@@ -78,7 +78,7 @@ class ProviderRateLimitError(ProviderError):
 
     error_code = "PROVIDER_RATE_LIMIT"
 
-    def __init__(self, provider: str, retry_after: Optional[int] = None):
+    def __init__(self, provider: str, retry_after: int | None = None):
         msg = f"{provider} rate limit exceeded."
         if retry_after:
             msg += f" Retry after {retry_after} seconds."
@@ -102,7 +102,7 @@ class ProviderUnavailableError(ProviderError):
 
     error_code = "PROVIDER_UNAVAILABLE"
 
-    def __init__(self, provider: str, status_code: Optional[int] = None):
+    def __init__(self, provider: str, status_code: int | None = None):
         msg = f"{provider} service is currently unavailable."
         if status_code:
             msg += f" (HTTP {status_code})"

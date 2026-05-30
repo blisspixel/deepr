@@ -6,7 +6,7 @@ import hmac
 import inspect
 import logging
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from flask import Flask, jsonify, request
 
