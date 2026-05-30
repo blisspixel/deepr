@@ -11,14 +11,13 @@ license = {text = "MIT"}
 authors = [
     {name = "Nick Seal", email = "nick@pueo.io"}
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -168,7 +167,7 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
@@ -184,6 +183,7 @@ ignore = [
     # behavioral, not mechanical, so they are handled deliberately rather than
     # by blanket autofix.
     "UP042",   # replace-str-enum (str, Enum -> StrEnum changes mixin semantics)
+    "UP047",   # non-pep695-generic-function (PEP 695 generics: semantic migration)
     "B905",    # zip-without-explicit-strict (strict= needs per-call judgement)
 ]
 
@@ -242,7 +242,7 @@ markers = [
 # baseline; these settings are deliberately lenient so the baseline is the set
 # of real type errors, not import-resolution noise. Strictness is ratcheted up
 # package-by-package (core/, providers/, mcp/ first) as annotations land.
-python_version = "3.11"
+python_version = "3.12"
 files = ["deepr"]
 # Per-skill `tools/` resource dirs live under hyphenated skill folders
 # (e.g. deepr/skills/code-analysis/tools/) that are not importable packages,
