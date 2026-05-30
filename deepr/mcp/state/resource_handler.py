@@ -20,8 +20,10 @@ Supported resource URI schemes:
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Literal
 
 from .expert_resources import ExpertResourceManager
 from .job_manager import JobManager
@@ -36,7 +38,7 @@ class ResourceResponse:
     """Response from a resource read operation."""
 
     uri: str
-    data: dict | None
+    data: dict[str, Any] | None
     error: str | None = None
 
     @property
@@ -60,7 +62,7 @@ class MCPResourceHandler:
     # Base path for reports on disk (relative to project root)
     REPORTS_BASE = Path("data/reports")
 
-    def __init__(self, reports_base: Path | None = None, db_path: Path | None = None):
+    def __init__(self, reports_base: Path | None = None, db_path: Path | Literal[False] | None = None) -> None:
         self._subscriptions = SubscriptionManager()
         self._jobs = JobManager(self._subscriptions)
         self._experts = ExpertResourceManager()
@@ -342,7 +344,9 @@ class MCPResourceHandler:
 
         return uris
 
-    async def handle_subscribe(self, uri: str, callback, wildcard: bool = False) -> dict:
+    async def handle_subscribe(
+        self, uri: str, callback: Callable[[dict[str, Any]], Awaitable[None]], wildcard: bool = False
+    ) -> dict[str, Any]:
         """
         Handle a subscribe request.
 
@@ -360,7 +364,7 @@ class MCPResourceHandler:
         except ValueError as e:
             return {"error": str(e)}
 
-    async def handle_unsubscribe(self, subscription_id: str) -> dict:
+    async def handle_unsubscribe(self, subscription_id: str) -> dict[str, Any]:
         """
         Handle an unsubscribe request.
 
@@ -373,7 +377,7 @@ class MCPResourceHandler:
         success = await self._subscriptions.unsubscribe(subscription_id)
         return {"success": success, "subscription_id": subscription_id}
 
-    def get_resource_uri_for_job(self, job_id: str) -> dict:
+    def get_resource_uri_for_job(self, job_id: str) -> dict[str, Any]:
         """
         Get all resource URIs for a job.
 
@@ -389,7 +393,7 @@ class MCPResourceHandler:
             "beliefs": f"deepr://campaigns/{job_id}/beliefs",
         }
 
-    def get_resource_uri_for_expert(self, expert_id: str) -> dict:
+    def get_resource_uri_for_expert(self, expert_id: str) -> dict[str, Any]:
         """
         Get all resource URIs for an expert.
 

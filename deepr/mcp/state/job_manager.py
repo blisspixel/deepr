@@ -55,7 +55,7 @@ class JobState:
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "job_id": self.job_id,
@@ -77,12 +77,12 @@ class JobPlan:
 
     job_id: str
     goal: str
-    steps: list[dict] = field(default_factory=list)
+    steps: list[dict[str, Any]] = field(default_factory=list)
     estimated_cost: float = 0.0
     estimated_time: str = "unknown"
     model: str = "o4-mini"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "job_id": self.job_id,
             "goal": self.goal,
@@ -105,7 +105,7 @@ class TemporalFindingRecord:
     timestamp: str
     source: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.text,
@@ -128,7 +128,7 @@ class HypothesisRecord:
     evolution_count: int = 0
     status: str = "active"  # active, invalidated
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "current_text": self.current_text,
@@ -144,7 +144,7 @@ class JobBeliefs:
     """Accumulated beliefs/findings from a job."""
 
     job_id: str
-    beliefs: list[dict] = field(default_factory=list)
+    beliefs: list[dict[str, Any]] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     confidence: float = 0.0
 
@@ -152,7 +152,7 @@ class JobBeliefs:
     temporal_findings: list[TemporalFindingRecord] = field(default_factory=list)
     hypothesis_history: list[HypothesisRecord] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "job_id": self.job_id,
             "beliefs": self.beliefs,
@@ -238,7 +238,7 @@ class JobManager:
         self._plans: dict[str, JobPlan] = {}
         self._beliefs: dict[str, JobBeliefs] = {}
         self._subscriptions = subscription_manager or SubscriptionManager()
-        self._background_tasks: set[asyncio.Task] = set()
+        self._background_tasks: set[asyncio.Task[Any]] = set()
         self._lock = asyncio.Lock()
 
     @property
@@ -365,7 +365,7 @@ class JobManager:
 
         return True
 
-    async def update_plan(self, job_id: str, steps: list[dict]) -> bool:
+    async def update_plan(self, job_id: str, steps: list[dict[str, Any]]) -> bool:
         """
         Update the research plan for a job.
 
