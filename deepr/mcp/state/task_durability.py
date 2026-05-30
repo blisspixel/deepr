@@ -112,7 +112,7 @@ class DurableTask:
         }
 
     @classmethod
-    def from_row(cls, row: tuple) -> "DurableTask":
+    def from_row(cls, row: tuple[Any, ...]) -> "DurableTask":
         """Create from database row."""
         (
             id,
@@ -194,7 +194,7 @@ class TaskDurabilityManager:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._create_tables()
 
-    def _create_tables(self):
+    def _create_tables(self) -> None:
         """Create database tables."""
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS durable_tasks (
@@ -699,6 +699,6 @@ class TaskDurabilityManager:
 
         return checkpoint
 
-    def close(self):
+    def close(self) -> None:
         """Close database connection."""
         self._conn.close()
