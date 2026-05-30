@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 
 class StepType(Enum):
@@ -30,13 +31,13 @@ class TrajectoryStep:
 
     step_type: StepType
     tool_name: str | None = None
-    parameters: dict = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
     tokens_used: int = 0
     timestamp: datetime = field(default_factory=datetime.now)
     success: bool = True
     error_message: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "step_type": self.step_type.value,
@@ -69,7 +70,7 @@ class TrajectoryMetrics:
     tasks_completed: int = 0
     tokens_per_task: float = 0.0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "efficiency": {
@@ -145,7 +146,7 @@ class MetricsTracker:
     def record_tool_call(
         self,
         tool_name: str,
-        parameters: dict,
+        parameters: dict[str, Any],
         tokens: int = 0,
         success: bool = True,
         error: str | None = None,
@@ -333,7 +334,7 @@ def calculate_citation_accuracy(
 def detect_hallucinations(
     steps: list[TrajectoryStep],
     known_schemas: dict[str, set[str]],
-) -> dict:
+) -> dict[str, Any]:
     """
     Detect hallucinated parameters in tool calls.
 
