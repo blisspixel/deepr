@@ -45,7 +45,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3.5 Flash, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.3 flagship, 4.20 Reasoning/Non-Reasoning/Multi-Agent), Anthropic (Claude Opus 4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3.5 Flash, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.20 flagship: Reasoning/Non-Reasoning/Multi-Agent; plus 4.3), Anthropic (Claude Opus 4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -53,23 +53,25 @@ These features are well-tested and used regularly:
 These features work but APIs or behavior may change:
 
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
-- **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 5 built-in skills (incl. native Recon), CLI management, web API, auto-activation triggers
+- **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 7 built-in skills (incl. native Recon, Distillr, and Primr), CLI management, web API, auto-activation triggers
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
+- **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `query_library` first)
+- **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
 - **MCP server**: Functional with 19 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
-- **Grok provider**: Grok 4.3 flagship + 4.20 multi-agent deep research; legacy models deprecated (retiring May 15, 2026) with auto-migration
+- **Grok provider**: Grok 4.20 flagship + multi-agent deep research (plus Grok 4.3); legacy models deprecated (retiring May 15, 2026) with auto-migration
 - **Anthropic provider**: Uses Extended Thinking + orchestration (no native deep research API)
 - **Azure AI Foundry provider**: Agent/Thread/Run pattern with Bing grounding; 7 models (o3-deep-research, gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini)
 
 ### What Works (Full List)
 
-- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.5 Flash/3.1 Pro/Flash-Lite/2.5, Grok 4.3/4.20, Anthropic Claude, Azure, Azure AI Foundry)
+- Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.5 Flash/3.1 Pro/Flash-Lite/2.5, Grok 4.20/4.3, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
-- Expert skills system: 4 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
+- Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
 - MCP server with 19 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
@@ -83,7 +85,7 @@ These features work but APIs or behavior may change:
 - Docker deployment option
 - Cloud deployment templates (AWS, Azure, GCP)
 - Pre-commit hooks (ruff lint+format, trailing whitespace, debug statement detection)
-- Coverage configuration with 75% minimum threshold (raised from 60% in v2.10.3)
+- Coverage configuration with 80% minimum threshold (`fail_under = 80`; raised from a 60% baseline through 75% to 80%)
 - Context discovery with semantic search (`deepr search`, `--context` flag)
 - Distributed tracing with MetadataEmitter, spans, cost attribution
 
@@ -139,6 +141,7 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Ship capabilities that improve measurable quality, cost-efficiency, and reliability.
 - Keep orchestration bounded: no unbounded swarms, no opaque autonomy.
 - Design for composability: experts are roles that receive input, produce handoff-ready output, and participate in multi-agent teams without owning the workflow.
+- Experts are tailored second brains, not one generic vault. The unit of knowledge is the expert: a domain-scoped knowledge base (beliefs, confidence, gaps, citations) that stays current on its topic and deploys as part of an agent team. Deepr gives you second brains with an s, not a single undifferentiated brain, and the value compounds when those brains are consulted as a team.
 - Make experts genuinely agentic: they plan, reflect, self-correct, and learn — not just wrap LLM calls.
 - Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
 - Autonomy earns trust incrementally: start supervised, prove reliability, then expand bounds.
@@ -196,22 +199,26 @@ Goal: give experts access to specialized research instruments from sibling proje
 
 See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the full integration contract and implementation details.
 
-Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID stitching. Ship in effort-to-value order (Recon first).
+Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID stitching. Shipped in effort-to-value order (Recon, then Distillr, then Primr). **All three first-party instruments are now integrated** — Phase 2b is complete; remaining sub-items are follow-ons that depend on the sibling tools shipping new verbs (e.g. distillr `ask`/`audit`) or on Phase 4 (`expert sync`).
 
 - [x] (1) Recon integration (`pip install recon-tool`) — **delivered in v2.11.0**:
   - [x] MCP client connection to recon's `lookup_tenant`, `analyze_posture`, `assess_exposure`, `find_hardening_gaps`, `chain_lookup` tools (auto-discovered when the `recon` binary is on PATH)
   - [x] Expert skill with auto-trigger on company domain mentions — autonomous cost-$0 probe in expert chat, findings absorbed into the system prompt for the turn via `KnowledgeAbsorber.categorize_recon_response`
   - [x] Trace ID pass-through for cross-tool observability (recon probes recorded in `reasoning_trace` with timestamp, domain, findings_count, cost)
-- [ ] (2) Distillr integration (`pip install distillr`):
-  - [ ] MCP client connection to distillr's ingest and query tools
-  - [ ] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge
-  - [ ] Async handling with progress notifications for long ingestion runs
-  - [ ] Budget propagation (cap model spend per ingestion)
-- [ ] (3) Primr integration (`pip install primr`):
-  - [ ] MCP client connection to primr's analyze_company and batch tools
-  - [ ] Expert skill for autonomous company deep-dive delegation
-  - [ ] Async durability for 35-50 min runs (progress, resume, budget awareness)
-  - [ ] Quick-mode tool for lighter/faster company context
+- [x] (2) Distillr integration (`pip install distillr`) — **delivered in v2.12**:
+  - [x] MCP client connection to distillr's ingest and query tools (built-in `distillr` skill + auto-discovered profile when `distill-mcp` is on PATH)
+  - [x] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge (`KnowledgeAbsorber.categorize_distillr_response`, absorbed as academic findings with synthesis-path provenance)
+  - [x] Async handling with progress notifications for long ingestion runs (profile `progress: true`, reusing the existing MCP client `ProgressNotifier`)
+  - [x] Budget propagation (cap model spend per ingestion) — per-call `budget_limit` cap enforced by `BudgetPropagator`; only free `query_library` auto-approves, ingestion is approval-gated
+  - [x] Freshness engine: consume distillr's refresh/delta tool to re-run a subscribed topic and integrate only new material - this is what powers expert "stay current" (see Phase 4 expert sync)
+  - [ ] Topic subscriptions: experts register topics with distillr; scheduled sync pulls deltas over time (lands with Phase 4 `expert sync`)
+  - [ ] Consume distillr's corpus-layer verbs as they ship (`ask`, `audit`, gap-driven discover) instead of reimplementing them; Deepr's job is verification, belief integration, and orchestration on top of distillr's corpus primitives
+- [x] (3) Primr integration (`pip install primr`) — **delivered in v2.12**:
+  - [x] MCP client connection to primr's analyze_company and batch tools (built-in `primr` skill + auto-discovered profile when `primr-mcp` is on PATH; `research_company`, `batch_analyze`, `generate_strategy`)
+  - [x] Expert skill for autonomous company deep-dive delegation (`deepr/skills/primr/`, every paid tool approval-gated, free `estimate_run`/`check_jobs`/`doctor` auto-approve)
+  - [x] Async durability for 35-50 min runs (profile `progress: true` + 60m timeout; `check_jobs` polling and resume via the existing MCP task-durability layer; per-call `budget_limit` cap of $5 enforced by `BudgetPropagator`)
+  - [x] Quick-mode tool for lighter/faster company context (`quick_lookup`: recon + scrape only, ~5 min)
+  - [x] Multi-category absorption (`KnowledgeAbsorber.categorize_primr_response`): recon pre-flight → infrastructure facts, brief/hiring/initiatives → strategic knowledge, each citing the report artifact for provenance
 
 ### Phase 3: Routing and Evaluation Confidence
 
@@ -243,6 +250,24 @@ Goal: make experts genuinely agentic — self-correcting, strategically autonomo
   - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
   - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
   - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically
+- [ ] Knowledge maintenance loop (the expert keeps its own house in order, building on the staleness + contradiction detection above):
+  - [ ] `deepr expert health-check NAME` - read-side audit of the knowledge state in one pass: contradictions between beliefs, orphaned or broken citations, claims missing source provenance, beliefs past their refresh threshold, un-ingested raw material, and suggested new topics + cross-links not yet drawn
+  - [ ] Two-phase output: an auditable decision-record report, then an action menu gated by existing approval tiers (AUTO_APPROVE/NOTIFY/CONFIRM); corrective research is opt-in and budget-bounded
+  - [ ] Cost-$0 by default (audit only); schedulable so experts self-maintain on a cadence (the scheduled monthly health check, not just scheduled refresh)
+  - [ ] For corpus-backed experts, delegate the underlying audit to distillr's `audit` rather than reimplementing link/contradiction/coverage scans; Deepr adds belief-state mapping, confidence, and the action menu on top
+- [ ] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
+  - [ ] `deepr expert absorb REPORT_ID` plus a post-research "integrate this into the expert?" prompt - promote good answers and reports into permanent knowledge with provenance, instead of treating reports as terminal artifacts
+  - [ ] Verification-gated by design: every re-ingested answer passes through the existing verify/reflection step before it becomes a belief. This is the safety the naive folder-and-CLAUDE.md version lacks (it warns "the AI writes something slightly wrong, you save it back, the next answer builds on the mistake"); our verify discipline is what makes the loop safe
+  - [ ] Dedup against existing beliefs and integrate the delta only (reuses the absorption pipeline); where distillr exposes a corpus-side `ask` verb, consume it and apply verification rather than re-querying raw sources
+- [ ] Gap-driven discovery (audit proposes what is missing, not just what the user asked for):
+  - [ ] Wire health-check coverage findings into auto-generated discovery queries: "you have 12 sources on X but zero on Y - preview candidates?" This is corpus-gap-driven, complementing the existing goal-driven discovery
+  - [ ] Surface as previewable candidates with cost estimate; ingestion stays opt-in and budget-bounded
+- [ ] Output style contract for human-read artifacts (distinct from anti-hallucination rules):
+  - [ ] A register/anti-slop style guard for briefings and reports (banned filler, em-dash overuse, spelling consistency), separate from the provenance/grounding rules in the research prompts
+- [ ] Expert freshness / watch (stay current on a topic over time):
+  - [ ] `deepr expert sync NAME` - pull deltas from subscribed sources (distillr refresh, recon delta, primr delta) and integrate only what changed, timestamped
+  - [ ] Per-topic refresh cadence and source list, budget-bounded; depends on the Phase 2b distillr freshness path
+  - [ ] Schedulable; surfaces a change summary (what is new, what shifted, what to review)
 - [ ] Dynamic tool selection via gap analysis:
   - [ ] Gap-to-tool mapping engine (infrastructure gaps → recon, academic gaps → distillr, strategic gaps → primr; instruments delivered in Phase 2b)
   - [ ] Value/cost estimation per gap-fill option
@@ -306,7 +331,7 @@ Goal: production posture for multi-user and autonomous deployments.
 
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
-- [ ] Expert watch sources: pull from configured MCP or REST endpoints into relevant experts on schedule (`deepr expert sync`)
+- [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
 - [ ] Local model support on NVIDIA hardware (DGX Spark, Jetson Orin Nano Super) with automatic offload when cloud budget exhausted
 - [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
 - [ ] Skill marketplace and meta-skills
@@ -317,7 +342,7 @@ Goal: production posture for multi-user and autonomous deployments.
   - [ ] Profile schema versioning
   - [ ] Provider fallback integration tests
   - [ ] Performance regression tests
-  - [ ] 80% coverage target on core modules
+  - [ ] Raise per-module coverage on core modules above the 80% global gate
 
 ---
 
@@ -374,12 +399,12 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
 | v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
-| v2.10 | Agentic infrastructure core, Grok 4.3 flagship, legacy migration, Azure Foundry parity | In Progress |
+| v2.10 | Agentic infrastructure core, Grok 4.20 flagship, legacy migration, Azure Foundry parity | In Progress |
 | v2.10.1 | MCP client + A2A protocol, agent interoperability, skill portability | Complete |
 | v2.10.2-2.10.3 | Security hardening, MCP confirmation gate, 80% coverage gate, 5-round bug-hunt sweep | Complete |
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
-| v2.12 | Distillr + Primr integrations (Phase 2b #2 & #3); routing preview + eval methodology v2 (Phase 3) | Planned |
-| v2.13 | Expert intelligence: reflection loop, graph memory, dynamic tool selection, guardrail mode | Planned |
+| v2.12 | Distillr + Primr integrations delivered (Phase 2b #2 & #3, completing Phase 2b); routing preview done + eval methodology v2 (Phase 3) | In Progress |
+| v2.13 | Expert intelligence: reflection loop, graph memory, knowledge maintenance loop (health-check, absorb, freshness/sync), dynamic tool selection | Planned |
 | v2.14 | Autonomous research campaigns, multi-day expert investigations | Planned |
 | v2.15 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |

@@ -68,6 +68,8 @@ _BUILTIN_MCP_COMMAND_ALLOWLIST: frozenset[str] = frozenset(
         "node",
         # First-party native instruments (auto-discovered when installed)
         "recon",  # from pip install recon-tool (passive domain intel MCP server)
+        "distill-mcp",  # from pip install distillr (source ingestion MCP server)
+        "primr-mcp",  # from pip install primr (strategic company intel MCP server)
     }
 )
 

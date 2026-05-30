@@ -307,7 +307,7 @@ You have access to Deepr research experts via MCP. Use them when...
 ## How Deepr Provides Skills/MCP to Other Platforms
 
 ### Current State
-- 18 MCP tools (functional, well-tested)
+- Full MCP tool suite (functional, well-tested; see [mcp/README](../mcp/README.md))
 - Works with Claude Desktop, Cursor, VS Code
 
 ### What to Add
