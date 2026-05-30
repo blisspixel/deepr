@@ -20,6 +20,7 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Any
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class Subscription:
 
     id: str
     uri: str
-    callback: Callable[[dict], Awaitable[None]]
+    callback: Callable[[dict[str, Any]], Awaitable[None]]
     created_at: datetime = field(default_factory=datetime.now)
     wildcard: bool = False
 
@@ -124,12 +125,12 @@ class SubscriptionManager:
     clients to receive push notifications when resources change.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._subscriptions: dict[str, Subscription] = {}
         self._uri_index: dict[str, set[str]] = {}  # uri -> subscription_ids
         self._lock = asyncio.Lock()
 
-    async def subscribe(self, uri: str, callback: Callable[[dict], Awaitable[None]], wildcard: bool = False) -> str:
+    async def subscribe(self, uri: str, callback: Callable[[dict[str, Any]], Awaitable[None]], wildcard: bool = False) -> str:
         """
         Subscribe to a resource URI.
 
@@ -193,7 +194,7 @@ class SubscriptionManager:
             del self._subscriptions[subscription_id]
             return True
 
-    async def emit(self, uri: str, data: dict) -> int:
+    async def emit(self, uri: str, data: dict[str, Any]) -> int:
         """
         Emit an update to all subscribers of a URI.
 
@@ -239,7 +240,7 @@ class SubscriptionManager:
 
         return notified
 
-    def _build_notification(self, uri: str, data: dict) -> dict:
+    def _build_notification(self, uri: str, data: dict[str, Any]) -> dict[str, Any]:
         """Build JSON-RPC notification payload."""
         return {
             "jsonrpc": "2.0",
