@@ -54,9 +54,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     unions (``X | None``), ``datetime.UTC``, exception/import aliases
     (~1.6k mechanical, test-verified changes). ``ruff target-version`` is now
     ``py311``.
-  - **mypy** and **pip-audit** wired into CI as non-blocking baselines
-    (``[tool.mypy]`` config added), ratcheting toward blocking gates.
+  - **mypy** wired into CI as a non-blocking baseline (``[tool.mypy]`` config
+    added; baseline 314 errors / 76 files), ratcheting toward a blocking
+    ``--strict`` gate.
+  - **pip-audit** wired into CI and already **blocking**: the baseline it
+    surfaced was cleared immediately (see Security), so a new known
+    vulnerability now fails the build.
   - **Dependabot** enabled (pip + github-actions + npm, weekly).
+
+### Security
+- **flask-cors bumped 4.x -> 6.x**, clearing CVE-2024-6839, CVE-2024-6844, and
+  CVE-2024-6866 (all fixed in 6.0.0). The old ``<5.0.0`` pin held the project
+  on the vulnerable 4.0.2; the new pip-audit CI gate caught it on its first
+  run. Deepr's usage (``CORS(app, origins=...)``) is unchanged across the bump.
 
 ### Changed
 - ``ConfigLoader.load()`` first-party auto-discovery generalized from
