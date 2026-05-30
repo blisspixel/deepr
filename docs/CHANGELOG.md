@@ -62,6 +62,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     surfaced was cleared immediately (see Security), so a new known
     vulnerability now fails the build.
   - **Dependabot** enabled (pip + github-actions + npm, weekly).
+  - **Branch coverage** enabled (stricter than line coverage): the gate is now
+    ``fail_under = 78`` over branch coverage (was 80 line), ratcheting toward 95.
+  - **C901 complexity cap** (max-complexity 10) surfaced as an advisory CI
+    signal alongside the S-rules; 134 over-cap functions tracked for refactor.
+  - **Mutation testing** (mutmut) wired as a scheduled / on-demand non-blocking
+    workflow over the kernel (budget, cost ledger, cost safety), with config in
+    ``[tool.mutmut]``.
+  - **SBOM** (hash-pinned dependency bill of materials via ``uv export``)
+    published as a CI build artifact.
+  - **Python floor raised again to 3.12** (from the 3.11 set earlier this
+    cycle): 3.11 is supported only to Oct 2027; a 3.12 floor holds security
+    coverage to Oct 2028. ``ruff target-version = "py312"``, CI matrix 3.12/3.13
+    + 3.14 (non-blocking), Dockerfile base ``python:3.12-slim``.
 
 ### Security
 - **flask-cors bumped 4.x -> 6.x**, clearing CVE-2024-6839, CVE-2024-6844, and

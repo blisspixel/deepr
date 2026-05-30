@@ -88,6 +88,7 @@ dev = [
     "hypothesis>=6.0.0",
     "mypy>=1.13.0",
     "pip-audit>=2.7.0",
+    "mutmut>=3.0.0",
 ]
 
 [project.scripts]
@@ -101,6 +102,10 @@ Issues = "https://github.com/blisspixel/deepr/issues"
 
 [tool.coverage.run]
 source = ["deepr"]
+# Branch coverage is enabled (Phase E): stricter than line coverage, so the
+# headline number is legitimately lower (branch ~78% vs line ~82% for the same
+# tests). The gate ratchets up from this real branch baseline.
+branch = true
 omit = [
     # CLI commands and rendering — covered by end-to-end tests, not units.
     "deepr/cli/commands/*",
@@ -154,10 +159,15 @@ omit = [
 # added focused tests on MCP server tool methods, both MCP transports,
 # Azure + Gemini provider adapters, web search backends, context index
 # / chainer, worker poller, and the utils.security helpers. The
-# remaining ~20% sits in LLM-driven integration paths (chat.py,
+# remaining sits in LLM-driven integration paths (chat.py,
 # curriculum.py, lazy_graph_rag.py) that are exercised by end-to-end
 # and live-provider tests rather than units.
-fail_under = 80
+#
+# 78, not 80, because branch coverage was switched on (Phase E): it counts
+# untaken branches the line metric ignored, so the same suite measures ~78%
+# branch where it measured ~82% line. The ratchet target is 78 -> 85 -> 90 ->
+# 95 as branch-covering tests land - a higher bar than the old 80% line gate.
+fail_under = 78
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
@@ -193,6 +203,13 @@ ignore = [
 # flagging those explanatory noqa comments as unused under default runs.
 # Run `ruff check --select S` to surface them explicitly for audit.
 external = ["S104", "S105", "S110", "S112", "S311", "S324", "S603", "S607", "S608"]
+
+[tool.ruff.lint.mccabe]
+# Cyclomatic-complexity cap. C901 is not in the main `select` (it would fail
+# the build on ~134 legacy functions); it runs ADVISORY in CI (`--select
+# S,C901`) so high-complexity functions surface as a visible backlog. Phase E
+# ratchets this toward blocking as the worst offenders are refactored.
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["F811", "F841", "E712", "B005", "B017", "RUF006"]
@@ -261,6 +278,15 @@ no_implicit_optional = true
 #   [[tool.mypy.overrides]]
 #   module = "deepr.core.*"
 #   disallow_untyped_defs = true
+
+[tool.mutmut]
+# Mutation testing (Phase E): proves the suite actually catches regressions by
+# injecting artificial faults and checking a test fails. Slow by nature, so it
+# runs on a schedule / on demand (see .github/workflows/mutation.yml), never
+# per-PR. Scoped to the safety-critical kernel first (budget, cost, contracts),
+# where a surviving mutant is most dangerous.
+paths_to_mutate = ["deepr/core/", "deepr/observability/cost_ledger.py", "deepr/experts/cost_safety.py"]
+tests_dir = ["tests/unit/"]
 
 [tool.uv]
 # uv is the canonical package + Python-version manager (see ROADMAP "Phase E").
