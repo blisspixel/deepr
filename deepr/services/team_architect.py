@@ -10,7 +10,7 @@ No static personas. Each question gets a custom dream team.
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 from openai import OpenAI
 
@@ -27,7 +27,7 @@ class TeamArchitect:
     - What cognitive diversity prevents blind spots
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-5"):
+    def __init__(self, api_key: str | None = None, model: str = "gpt-5"):
         """
         Initialize team architect.
 
@@ -45,10 +45,10 @@ class TeamArchitect:
     def design_team(
         self,
         question: str,
-        context: Optional[str] = None,
+        context: str | None = None,
         team_size: int = 5,
-        research_company: Optional[str] = None,
-        perspective_lens: Optional[str] = None,
+        research_company: str | None = None,
+        perspective_lens: str | None = None,
         adversarial: bool = False,
     ) -> list[dict[str, Any]]:
         """
@@ -106,7 +106,7 @@ class TeamArchitect:
         result = json.loads(response.choices[0].message.content or "{}")
         return result.get("team", [])
 
-    def _research_company_people(self, company: str) -> Optional[dict[str, Any]]:
+    def _research_company_people(self, company: str) -> dict[str, Any] | None:
         """
         Research actual executives/board members for grounded personas.
 
@@ -173,10 +173,10 @@ Only include people you find with actual research. If unable to find information
     def _build_team_design_prompt(
         self,
         question: str,
-        context: Optional[str],
+        context: str | None,
         team_size: int,
-        company_intel: Optional[dict[str, Any]] = None,
-        perspective_lens: Optional[str] = None,
+        company_intel: dict[str, Any] | None = None,
+        perspective_lens: str | None = None,
         adversarial: bool = False,
     ) -> str:
         """Build prompt for GPT-5 to design team."""
@@ -304,7 +304,7 @@ class TeamSynthesizer:
     Shows where perspectives agree, where they conflict, weighs evidence.
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-5"):
+    def __init__(self, api_key: str | None = None, model: str = "gpt-5"):
         """Initialize synthesizer."""
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:

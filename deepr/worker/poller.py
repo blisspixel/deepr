@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import UTC
 
 from ..config import load_config
 from ..core.costs import CostController
@@ -94,7 +95,7 @@ class JobPoller:
 
     async def _check_job_status(self, job):
         """Check status of a single job."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         try:
             if not job.provider_job_id:
@@ -125,8 +126,8 @@ class JobPoller:
                 if job.submitted_at:
                     submitted = job.submitted_at
                     if not submitted.tzinfo:
-                        submitted = submitted.replace(tzinfo=timezone.utc)
-                    now = datetime.now(timezone.utc)
+                        submitted = submitted.replace(tzinfo=UTC)
+                    now = datetime.now(UTC)
                     queue_time_minutes = (now - submitted).total_seconds() / 60
 
                     # If queued for more than 10 minutes, consider it stuck

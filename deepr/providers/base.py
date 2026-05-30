@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 
 @dataclass
@@ -11,8 +11,8 @@ class ToolConfig:
     """Configuration for research tools."""
 
     type: Literal["web_search_preview", "code_interpreter", "file_search", "google_search", "deep_research"]
-    vector_store_ids: Optional[list[str]] = None
-    container: Optional[dict[str, Any]] = None
+    vector_store_ids: list[str] | None = None
+    container: dict[str, Any] | None = None
 
 
 @dataclass
@@ -24,19 +24,19 @@ class ResearchRequest:
     system_message: str
     tools: list[ToolConfig] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
-    webhook_url: Optional[str] = None
-    document_ids: Optional[list[str]] = None
-    temperature: Optional[float] = None
+    webhook_url: str | None = None
+    document_ids: list[str] | None = None
+    temperature: float | None = None
     tool_choice: str = "auto"
     store: bool = True
     background: bool = True
     # GPT-5 specific parameters (Responses API)
-    reasoning_effort: Optional[Literal["minimal", "low", "medium", "high"]] = None
-    text_verbosity: Optional[Literal["low", "medium", "high"]] = None
-    previous_response_id: Optional[str] = None  # For reasoning persistence
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    text_verbosity: Literal["low", "medium", "high"] | None = None
+    previous_response_id: str | None = None  # For reasoning persistence
     # Multi-agent parameters (Grok 4.20 multi-agent)
-    agent_count: Optional[int] = None  # Number of parallel agents (4-16)
-    per_agent_budget: Optional[float] = None  # Max cost per agent in USD
+    agent_count: int | None = None  # Number of parallel agents (4-16)
+    per_agent_budget: float | None = None  # Max cost per agent in USD
     # Trace correlation
     trace_id: str = ""  # Trace ID for distributed tracing across agent boundaries
 
@@ -74,13 +74,13 @@ class ResearchResponse:
 
     id: str
     status: Literal["queued", "in_progress", "completed", "failed", "cancelled", "expired"]
-    created_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    model: Optional[str] = None
-    output: Optional[list[dict[str, Any]]] = None
-    usage: Optional[UsageStats] = None
-    metadata: Optional[dict[str, Any]] = None
-    error: Optional[str] = None
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+    model: str | None = None
+    output: list[dict[str, Any]] | None = None
+    usage: UsageStats | None = None
+    metadata: dict[str, Any] | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -253,7 +253,7 @@ class DeepResearchProvider(ABC):
 class ProviderError(Exception):
     """Base exception for provider-related errors."""
 
-    def __init__(self, message: str, provider: str, original_error: Optional[Exception] = None):
+    def __init__(self, message: str, provider: str, original_error: Exception | None = None):
         self.message = message
         self.provider = provider
         self.original_error = original_error

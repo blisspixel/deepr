@@ -5,7 +5,6 @@ import json
 import logging
 import random
 import time
-from typing import Optional
 from urllib.parse import urlencode, urlparse
 
 import requests
@@ -32,11 +31,11 @@ class FetchResult:
     def __init__(
         self,
         url: str,
-        content: Optional[str] = None,
-        html: Optional[str] = None,
-        strategy: Optional[str] = None,
+        content: str | None = None,
+        html: str | None = None,
+        strategy: str | None = None,
         success: bool = False,
-        error: Optional[str] = None,
+        error: str | None = None,
     ):
         self.url = url
         self.content = content  # Clean text content
@@ -49,7 +48,7 @@ class FetchResult:
 class ContentFetcher:
     """Adaptive content fetcher with multiple fallback strategies."""
 
-    def __init__(self, config: Optional[ScrapeConfig] = None):
+    def __init__(self, config: ScrapeConfig | None = None):
         """
         Initialize content fetcher.
 

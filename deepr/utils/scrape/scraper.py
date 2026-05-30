@@ -2,9 +2,9 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .config import ScrapeConfig
 from .extractor import ContentExtractor, LinkExtractor, PageDeduplicator
@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 def scrape_website(
     url: str,
     purpose: str = "company research",
-    company_name: Optional[str] = None,
-    config: Optional[ScrapeConfig] = None,
+    company_name: str | None = None,
+    config: ScrapeConfig | None = None,
     synthesize: bool = False,
-    save_to: Optional[str] = None,
+    save_to: str | None = None,
 ) -> dict[str, Any]:
     """
     Scrape a website with intelligent filtering and synthesis.
@@ -105,7 +105,7 @@ def scrape_website(
         "pages_scraped": len(scraped_data),
         "scraped_urls": list(scraped_data.keys()),
         "scraped_data": scraped_data,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Synthesize if requested
@@ -157,7 +157,7 @@ def scrape_website(
 def scrape_for_company_research(
     company_url: str,
     company_name: str,
-    save_dir: Optional[str] = None,
+    save_dir: str | None = None,
 ) -> dict[str, Any]:
     """
     Scrape a company website for research purposes.
@@ -187,7 +187,7 @@ def scrape_for_company_research(
     save_to = None
     if save_dir:
         safe_name = company_name.replace(" ", "_").lower()
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         save_to = f"{save_dir}/{safe_name}_{timestamp}.json"
 
     return scrape_website(
@@ -203,7 +203,7 @@ def scrape_for_company_research(
 def scrape_for_documentation(
     docs_url: str,
     project_name: str,
-    save_dir: Optional[str] = None,
+    save_dir: str | None = None,
 ) -> dict[str, Any]:
     """
     Scrape a documentation site.
@@ -233,7 +233,7 @@ def scrape_for_documentation(
     save_to = None
     if save_dir:
         safe_name = project_name.replace(" ", "_").lower()
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         save_to = f"{save_dir}/{safe_name}_docs_{timestamp}.json"
 
     return scrape_website(

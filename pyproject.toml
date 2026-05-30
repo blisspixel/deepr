@@ -11,17 +11,17 @@ license = {text = "MIT"}
 authors = [
     {name = "Nick Seal", email = "nick@pueo.io"}
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = ["research", "ai", "automation", "deep-research", "knowledge-graph", "llm"]
 
@@ -87,6 +87,8 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.15.1",
     "hypothesis>=6.0.0",
+    "mypy>=1.13.0",
+    "pip-audit>=2.7.0",
 ]
 
 [project.scripts]
@@ -166,7 +168,7 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]
@@ -176,9 +178,13 @@ ignore = [
     "E402",    # module-level-import-not-at-top (conditional imports)
     "B904",    # raise-without-from-inside-except (CLI error handlers)
     "B007",    # unused-loop-control-variable (harmless in dict iteration)
-    "UP007",   # non-pep604-annotation (X | Y syntax requires 3.10+)
     "RUF001",  # ambiguous-unicode-character-string (intentional emoji/chars)
     "RUF012",  # mutable-class-default (dataclass fields use field())
+    # Deferred semantic migrations (tracked in ROADMAP "Phase E"): these are
+    # behavioral, not mechanical, so they are handled deliberately rather than
+    # by blanket autofix.
+    "UP042",   # replace-str-enum (str, Enum -> StrEnum changes mixin semantics)
+    "B905",    # zip-without-explicit-strict (strict= needs per-call judgement)
 ]
 
 # S* rules are not in `select` but are used as noqa anchors throughout the
@@ -228,6 +234,32 @@ markers = [
     "property: marks tests as property-based tests using Hypothesis",
     "security: marks tests as security-focused tests",
 ]
+
+[tool.mypy]
+# Type checking is being introduced incrementally (see ROADMAP "Phase E:
+# Engineering Standards"). The committed end state is `--strict` as a blocking
+# gate over all of `deepr/`. Today it runs NON-BLOCKING in CI to record a
+# baseline; these settings are deliberately lenient so the baseline is the set
+# of real type errors, not import-resolution noise. Strictness is ratcheted up
+# package-by-package (core/, providers/, mcp/ first) as annotations land.
+python_version = "3.11"
+files = ["deepr"]
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = false
+no_implicit_optional = true
+# Per-package strict islands are switched on here as each is cleaned, e.g.
+#   [[tool.mypy.overrides]]
+#   module = "deepr.core.*"
+#   disallow_untyped_defs = true
+
+[tool.uv]
+# uv is the canonical package + Python-version manager (see ROADMAP "Phase E").
+# `uv.lock` + `.python-version` pin a reproducible environment across dev, CI,
+# and containers. setuptools remains the build backend for wheel compatibility,
+# so `pip install deepr-research` keeps working for downstream consumers.
+resolution = "highest"
 
 [tool.setuptools.package-data]
 deepr = ["py.typed"]

@@ -2,7 +2,6 @@
 
 import subprocess
 import time
-from typing import Optional
 
 import requests
 
@@ -20,8 +19,8 @@ class NgrokTunnel:
         """
         self.ngrok_path = ngrok_path
         self.port = port
-        self.process: Optional[subprocess.Popen] = None
-        self.public_url: Optional[str] = None
+        self.process: subprocess.Popen | None = None
+        self.public_url: str | None = None
 
     def start(self) -> str:
         """

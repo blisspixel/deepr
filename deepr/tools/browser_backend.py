@@ -10,7 +10,7 @@ See docs/mcp-client-architecture.md for the full design.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
@@ -20,7 +20,7 @@ class PageContent:
     url: str
     title: str
     text: str
-    html: Optional[str] = None
+    html: str | None = None
     status_code: int = 200
     content_type: str = "text/html"
 

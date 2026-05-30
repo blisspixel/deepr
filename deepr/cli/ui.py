@@ -12,7 +12,6 @@ import re
 import sys
 from collections.abc import AsyncIterator
 from enum import Enum
-from typing import Optional
 
 from rich.console import Console
 from rich.live import Live
@@ -302,7 +301,7 @@ def print_status(
     expert_name: str,
     messages_count: int,
     cost: float,
-    budget: Optional[float],
+    budget: float | None,
     research_jobs: int,
     model: str,
     documents: int,

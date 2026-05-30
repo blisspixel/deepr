@@ -10,7 +10,6 @@ consistent SSRF protection across the entire codebase.
 
 import ipaddress
 import logging
-from typing import Optional
 from urllib.parse import urlparse
 
 from deepr.utils.security import is_blocked_ip, resolve_all_ips
@@ -56,7 +55,7 @@ class SSRFProtector:
 
     def __init__(
         self,
-        allowed_domains: Optional[list[str]] = None,
+        allowed_domains: list[str] | None = None,
         audit_log: bool = True,
     ):
         """Initialize SSRF protector.

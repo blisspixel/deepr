@@ -21,7 +21,7 @@ Usage:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class ResearchMode(Enum):
@@ -297,7 +297,7 @@ class ToolAllowlist:
     def __init__(
         self,
         mode: ResearchMode = ResearchMode.STANDARD,
-        custom_tools: Optional[dict[str, ToolConfig]] = None,
+        custom_tools: dict[str, ToolConfig] | None = None,
     ):
         """Initialize the allowlist.
 
@@ -314,7 +314,7 @@ class ToolAllowlist:
     def is_allowed(
         self,
         tool_name: str,
-        mode: Optional[ResearchMode] = None,
+        mode: ResearchMode | None = None,
     ) -> bool:
         """Check if a tool is allowed in the given mode.
 
@@ -345,7 +345,7 @@ class ToolAllowlist:
     def require_confirmation(
         self,
         tool_name: str,
-        mode: Optional[ResearchMode] = None,
+        mode: ResearchMode | None = None,
     ) -> bool:
         """Check if a tool requires user confirmation.
 
@@ -377,7 +377,7 @@ class ToolAllowlist:
 
         return rule == "confirm"
 
-    def get_tool_config(self, tool_name: str) -> Optional[ToolConfig]:
+    def get_tool_config(self, tool_name: str) -> ToolConfig | None:
         """Get configuration for a tool.
 
         Args:
@@ -393,8 +393,8 @@ class ToolAllowlist:
         name: str,
         category: ToolCategory,
         description: str = "",
-        requires_confirmation_in: Optional[set[ResearchMode]] = None,
-        blocked_in: Optional[set[ResearchMode]] = None,
+        requires_confirmation_in: set[ResearchMode] | None = None,
+        blocked_in: set[ResearchMode] | None = None,
     ) -> ToolConfig:
         """Register a new tool.
 
@@ -434,7 +434,7 @@ class ToolAllowlist:
 
     def get_allowed_tools(
         self,
-        mode: Optional[ResearchMode] = None,
+        mode: ResearchMode | None = None,
     ) -> list[str]:
         """Get list of allowed tools for a mode.
 
@@ -449,7 +449,7 @@ class ToolAllowlist:
 
     def get_blocked_tools(
         self,
-        mode: Optional[ResearchMode] = None,
+        mode: ResearchMode | None = None,
     ) -> list[str]:
         """Get list of blocked tools for a mode.
 
@@ -464,7 +464,7 @@ class ToolAllowlist:
 
     def get_tools_requiring_confirmation(
         self,
-        mode: Optional[ResearchMode] = None,
+        mode: ResearchMode | None = None,
     ) -> list[str]:
         """Get list of tools requiring confirmation.
 
@@ -482,7 +482,7 @@ class ToolAllowlist:
     def validate_tool_call(
         self,
         tool_name: str,
-        mode: Optional[ResearchMode] = None,
+        mode: ResearchMode | None = None,
     ) -> dict:
         """Validate a tool call and return status.
 
@@ -524,7 +524,7 @@ class ToolAllowlist:
         """
         self.mode = mode
 
-    def get_mode_info(self, mode: Optional[ResearchMode] = None) -> dict:
+    def get_mode_info(self, mode: ResearchMode | None = None) -> dict:
         """Get information about a research mode.
 
         Args:

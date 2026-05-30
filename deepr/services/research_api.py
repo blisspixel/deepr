@@ -1,7 +1,7 @@
 """Simple API wrapper for submitting and managing research jobs."""
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from deepr.config import AppConfig
 from deepr.queue.base import JobStatus, ResearchJob
@@ -19,12 +19,12 @@ class ResearchAPI:
         self,
         prompt: str,
         mode: str = "focus",
-        model: Optional[str] = None,
+        model: str | None = None,
         provider: str = "openai",
-        vector_store_id: Optional[str] = None,
+        vector_store_id: str | None = None,
         enable_web: bool = True,
         enable_code: bool = False,
-        cost_limit: Optional[float] = None,
+        cost_limit: float | None = None,
     ) -> str:
         """Submit a research job to the queue.
 
@@ -98,7 +98,7 @@ class ResearchAPI:
             model=model,
             provider=provider,
             status=JobStatus.QUEUED,
-            submitted_at=datetime.now(timezone.utc),
+            submitted_at=datetime.now(UTC),
             documents=[vector_store_id] if vector_store_id else [],
             enable_web_search=enable_web,
             enable_code_interpreter=enable_code,

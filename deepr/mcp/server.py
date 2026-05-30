@@ -46,7 +46,6 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from deepr.config import load_config
 from deepr.core.documents import DocumentManager
@@ -122,8 +121,8 @@ class ToolError:
 
     error_code: str
     message: str
-    retry_hint: Optional[str] = None
-    fallback_suggestion: Optional[str] = None
+    retry_hint: str | None = None
+    fallback_suggestion: str | None = None
 
     def to_dict(self) -> dict:
         d: dict = {"error_code": self.error_code, "message": self.message}
@@ -137,8 +136,8 @@ class ToolError:
 def _make_error(
     code: str,
     message: str,
-    retry_hint: Optional[str] = None,
-    fallback: Optional[str] = None,
+    retry_hint: str | None = None,
+    fallback: str | None = None,
 ) -> dict:
     """Convenience for returning a structured error dict from a tool."""
     return ToolError(
@@ -400,7 +399,7 @@ class DeeprMCPServer:
         self,
         expert_name: str,
         claim: str,
-        model: Optional[str] = None,
+        model: str | None = None,
         max_evidence: int = 8,
     ) -> dict:
         """Validate a claim against an expert's knowledge.
@@ -462,8 +461,8 @@ class DeeprMCPServer:
         provider: str = "openai",
         enable_web_search: bool = True,
         enable_code_interpreter: bool = True,
-        budget: Optional[float] = None,
-        files: Optional[list[str]] = None,
+        budget: float | None = None,
+        files: list[str] | None = None,
     ) -> dict:
         """Submit a deep research job."""
         try:
@@ -790,10 +789,10 @@ class DeeprMCPServer:
     async def deepr_agentic_research(
         self,
         goal: str,
-        expert_name: Optional[str] = None,
+        expert_name: str | None = None,
         budget: float = 5.0,
-        sources: Optional[list[str]] = None,
-        files: Optional[list[str]] = None,
+        sources: list[str] | None = None,
+        files: list[str] | None = None,
         model: str = "o4-mini-deep-research",
         provider: str = "openai",
     ) -> dict:
@@ -965,7 +964,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
-    def validate_outbound_url(self, url: str) -> Optional[dict]:
+    def validate_outbound_url(self, url: str) -> dict | None:
         """Validate a URL against SSRF rules. Returns error dict or None if valid."""
         try:
             self.ssrf_protector.validate_url(url)
@@ -973,7 +972,7 @@ class DeeprMCPServer:
         except ValueError as e:
             return _make_error("SSRF_BLOCKED", str(e))
 
-    def _get_api_key(self, provider: str) -> Optional[str]:
+    def _get_api_key(self, provider: str) -> str | None:
         """Resolve API key for a provider from config or environment."""
         key_map = {
             "openai": ("api_key", "OPENAI_API_KEY"),

@@ -7,8 +7,8 @@ Requirements: 5.3 - Extract activity recording logic
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -27,20 +27,20 @@ class ActivityTracker:
 
     conversations: int = 0
     research_triggered: int = 0
-    last_activity: Optional[datetime] = None
+    last_activity: datetime | None = None
     activity_history: list[dict] = field(default_factory=list)
 
     # Maximum history entries to retain
     MAX_HISTORY_ENTRIES: int = field(default=50, repr=False)
 
-    def record_activity(self, activity_type: str, details: Optional[dict] = None) -> None:
+    def record_activity(self, activity_type: str, details: dict | None = None) -> None:
         """Record an activity event.
 
         Args:
             activity_type: Type of activity (chat, research, learning, etc.)
             details: Optional additional details
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self.last_activity = now
 
         # Update counters based on activity type

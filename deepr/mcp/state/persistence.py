@@ -11,7 +11,6 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from .job_manager import JobBeliefs, JobPhase, JobPlan, JobState
 
@@ -26,7 +25,7 @@ class JobPersistence:
     for better concurrent read performance.
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self._db_path = db_path or DEFAULT_DB_PATH
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
@@ -74,7 +73,7 @@ class JobPersistence:
     # CRUD operations
     # ------------------------------------------------------------------ #
 
-    def save_job(self, state: JobState, plan: Optional[JobPlan] = None, beliefs: Optional[JobBeliefs] = None) -> None:
+    def save_job(self, state: JobState, plan: JobPlan | None = None, beliefs: JobBeliefs | None = None) -> None:
         """Save or update a job and its related data atomically.
 
         Uses the connection as a context manager so all three INSERTs
@@ -130,7 +129,7 @@ class JobPersistence:
                     ),
                 )
 
-    def load_job(self, job_id: str) -> Optional[tuple[JobState, Optional[JobPlan], Optional[JobBeliefs]]]:
+    def load_job(self, job_id: str) -> tuple[JobState, JobPlan | None, JobBeliefs | None] | None:
         """Load a job and its related data."""
         row = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
         if not row:
@@ -146,7 +145,7 @@ class JobPersistence:
 
         return state, plan, beliefs
 
-    def list_jobs(self, phase: Optional[str] = None) -> list[JobState]:
+    def list_jobs(self, phase: str | None = None) -> list[JobState]:
         """List all jobs, optionally filtered by phase."""
         if phase:
             rows = self._conn.execute(

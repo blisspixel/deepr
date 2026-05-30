@@ -15,7 +15,7 @@ import re
 import sys
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -361,7 +361,7 @@ def _check_stuck(loop, job):
     """If a job has been PROCESSING for too long, mark it failed."""
     if not job.started_at:
         return
-    if datetime.now(timezone.utc) - _ensure_utc(job.started_at) > _STUCK_THRESHOLD:
+    if datetime.now(UTC) - _ensure_utc(job.started_at) > _STUCK_THRESHOLD:
         _handle_failure(loop, job, "Job stuck — exceeded 30 minute processing threshold")
 
 
@@ -412,7 +412,7 @@ def fallback_to_spa(e):
 def _ensure_utc(dt: datetime) -> datetime:
     """Ensure a datetime is timezone-aware (UTC)."""
     if dt is not None and dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -660,7 +660,7 @@ def submit_job():
 
         # Create job
         job_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         metadata = data.get("metadata", {})
         mode = data.get("mode")
         if mode:
@@ -761,7 +761,7 @@ def batch_submit():
             if model not in _ALLOWED_MODELS:
                 continue  # Skip jobs with invalid models
             job_id = str(uuid.uuid4())
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             metadata = job_input.get("metadata", {})
             mode = job_input.get("mode")
             if mode:
@@ -836,7 +836,7 @@ def cleanup_stale_jobs():
     """
     try:
         all_jobs = run_async(queue.list_jobs(limit=10000))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         stale_threshold = _STUCK_THRESHOLD  # 30 minutes, same as poller
         cleaned = 0
 
@@ -883,7 +883,7 @@ def get_cost_summary():
     try:
         all_jobs = run_async(queue.list_jobs(limit=10000))
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -943,7 +943,7 @@ def get_cost_trends():
         days = max(1, min(_safe_int(request.args.get("days", 30), 30), 365))
         all_jobs = run_async(queue.list_jobs(limit=10000))
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(days=days)
 
         # Group by day
@@ -977,7 +977,7 @@ def get_cost_breakdown():
         days = _parse_time_range(time_range, 30)
 
         all_jobs = run_async(queue.list_jobs(limit=10000))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(days=days)
 
         # Group by model
@@ -1018,7 +1018,7 @@ def get_cost_history():
         limit = min(_safe_int(request.args.get("limit", 100), 100), _MAX_QUERY_LIMIT)
 
         all_jobs = run_async(queue.list_jobs(limit=10000))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(days=days)
 
         # Filter and sort by completion date
@@ -1082,7 +1082,7 @@ def estimate_cost():
             else:
                 try:
                     all_jobs = run_async(queue.list_jobs(limit=10000))
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     daily_actual = sum(
                         (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start
@@ -1194,9 +1194,7 @@ def list_results():
         else:  # date
             completed.sort(
                 key=lambda j: (
-                    _ensure_utc(j.completed_at)
-                    or _ensure_utc(j.submitted_at)
-                    or datetime.min.replace(tzinfo=timezone.utc)
+                    _ensure_utc(j.completed_at) or _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=UTC)
                 ),
                 reverse=True,
             )
@@ -1476,8 +1474,8 @@ def list_experts():
                     "finding_count": len(getattr(profile, "research_jobs", [])),
                     "gap_count": gap_count,
                     "total_cost": getattr(profile, "total_research_cost", 0.0),
-                    "last_active": getattr(profile, "updated_at", datetime.now(timezone.utc)).isoformat(),
-                    "created_at": getattr(profile, "created_at", datetime.now(timezone.utc)).isoformat(),
+                    "last_active": getattr(profile, "updated_at", datetime.now(UTC)).isoformat(),
+                    "created_at": getattr(profile, "created_at", datetime.now(UTC)).isoformat(),
                     "portrait_url": getattr(profile, "portrait_url", None),
                 }
             )
@@ -1582,8 +1580,8 @@ def get_expert(name):
                     "finding_count": len(getattr(profile, "research_jobs", [])),
                     "gap_count": gap_count,
                     "total_cost": getattr(profile, "total_research_cost", 0.0),
-                    "last_active": getattr(profile, "updated_at", datetime.now(timezone.utc)).isoformat(),
-                    "created_at": getattr(profile, "created_at", datetime.now(timezone.utc)).isoformat(),
+                    "last_active": getattr(profile, "updated_at", datetime.now(UTC)).isoformat(),
+                    "created_at": getattr(profile, "created_at", datetime.now(UTC)).isoformat(),
                     "portrait_url": getattr(profile, "portrait_url", None),
                 }
             }
@@ -1771,7 +1769,7 @@ def chat_with_expert(name):
                     "id": uuid.uuid4().hex[:12],
                     "role": "assistant",
                     "content": response_text,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "session_id": session_id,
                     "cost": round(session.cost_accumulated, 4),
                     "tool_calls": tool_calls,
@@ -2612,9 +2610,7 @@ def get_activity():
         all_jobs = run_async(queue.list_jobs(limit=limit * 2))
 
         # Sort by most recent first
-        all_jobs.sort(
-            key=lambda j: _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=timezone.utc), reverse=True
-        )
+        all_jobs.sort(key=lambda j: _ensure_utc(j.submitted_at) or datetime.min.replace(tzinfo=UTC), reverse=True)
 
         items = []
         for job in all_jobs[:limit]:
@@ -2980,7 +2976,7 @@ def start_benchmark():
                 cmd.append("--no-judge")
 
             output_lines: deque = deque(maxlen=200)
-            started_at = datetime.now(timezone.utc).isoformat()
+            started_at = datetime.now(UTC).isoformat()
 
             proc = subprocess.Popen(  # Internal trusted benchmark script (scripts/benchmark_models.py) for long-running jobs. No user-controlled input.
                 cmd,
@@ -3189,7 +3185,7 @@ def load_demo_data():
         errors.append(f"Clear orphaned reports: {e}")
 
     created_jobs = 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Short demo reports (~600-1000 words each) so result-detail renders real content
     demo_reports = [
         # 0: Quantum error correction

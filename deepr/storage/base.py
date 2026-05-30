@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -33,7 +33,7 @@ class StorageBackend(ABC):
 
     @abstractmethod
     async def save_report(
-        self, job_id: str, filename: str, content: bytes, content_type: str, metadata: Optional[dict[str, Any]] = None
+        self, job_id: str, filename: str, content: bytes, content_type: str, metadata: dict[str, Any] | None = None
     ) -> ReportMetadata:
         """
         Save a report to storage.
@@ -71,7 +71,7 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def list_reports(self, job_id: Optional[str] = None) -> list[ReportMetadata]:
+    async def list_reports(self, job_id: str | None = None) -> list[ReportMetadata]:
         """
         List available reports.
 
@@ -87,7 +87,7 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def delete_report(self, job_id: str, filename: Optional[str] = None) -> bool:
+    async def delete_report(self, job_id: str, filename: str | None = None) -> bool:
         """
         Delete a report or all reports for a job.
 
@@ -175,7 +175,7 @@ class StorageBackend(ABC):
 class StorageError(Exception):
     """Base exception for storage-related errors."""
 
-    def __init__(self, message: str, storage_type: str, original_error: Optional[Exception] = None):
+    def __init__(self, message: str, storage_type: str, original_error: Exception | None = None):
         self.message = message
         self.storage_type = storage_type
         self.original_error = original_error

@@ -25,13 +25,13 @@ Usage:
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 import contextvars
@@ -78,10 +78,10 @@ class Span:
 
     span_id: str
     trace_id: str
-    parent_span_id: Optional[str]
+    parent_span_id: str | None
     name: str
     start_time: datetime = field(default_factory=_utc_now)
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     status: SpanStatus = SpanStatus.RUNNING
     attributes: dict[str, Any] = field(default_factory=dict)
     events: list[dict[str, Any]] = field(default_factory=list)
@@ -96,16 +96,14 @@ class Span:
         """
         self.attributes[key] = value
 
-    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None):
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None):
         """Add a timestamped event to the span.
 
         Args:
             name: Event name
             attributes: Optional event attributes
         """
-        self.events.append(
-            {"name": name, "timestamp": datetime.now(timezone.utc).isoformat(), "attributes": attributes or {}}
-        )
+        self.events.append({"name": name, "timestamp": datetime.now(UTC).isoformat(), "attributes": attributes or {}})
 
     def set_cost(self, cost: float):
         """Set the cost attributed to this span.
@@ -121,22 +119,22 @@ class Span:
         Args:
             status: Final status (default: COMPLETED)
         """
-        self.end_time = datetime.now(timezone.utc)
+        self.end_time = datetime.now(UTC)
         self.status = status
 
-    def fail(self, error: Optional[str] = None):
+    def fail(self, error: str | None = None):
         """Mark the span as failed.
 
         Args:
             error: Optional error message
         """
-        self.end_time = datetime.now(timezone.utc)
+        self.end_time = datetime.now(UTC)
         self.status = SpanStatus.FAILED
         if error:
             self.set_attribute("error", error)
 
     @property
-    def duration_ms(self) -> Optional[float]:
+    def duration_ms(self) -> float | None:
         """Get span duration in milliseconds."""
         if self.end_time is None:
             return None
@@ -172,7 +170,7 @@ class TraceContext:
         current_span_id: ID of the currently active span
     """
 
-    def __init__(self, trace_id: Optional[str] = None):
+    def __init__(self, trace_id: str | None = None):
         """Initialize trace context.
 
         Args:
@@ -196,12 +194,12 @@ class TraceContext:
         return _current_trace.get()
 
     @property
-    def current_span_id(self) -> Optional[str]:
+    def current_span_id(self) -> str | None:
         """Get the ID of the currently active span."""
         with self._lock:
             return self._span_stack[-1] if self._span_stack else None
 
-    def start_span(self, name: str, attributes: Optional[dict[str, Any]] = None) -> Span:
+    def start_span(self, name: str, attributes: dict[str, Any] | None = None) -> Span:
         """Start a new span.
 
         Args:
@@ -243,7 +241,7 @@ class TraceContext:
                 self._span_stack.pop()
 
     @contextmanager
-    def span(self, name: str, attributes: Optional[dict[str, Any]] = None):
+    def span(self, name: str, attributes: dict[str, Any] | None = None):
         """Context manager for creating spans.
 
         Args:
@@ -264,7 +262,7 @@ class TraceContext:
                     self._span_stack.pop()
             raise
 
-    def get_span(self, span_id: str) -> Optional[Span]:
+    def get_span(self, span_id: str) -> Span | None:
         """Get a span by ID.
 
         Args:
@@ -305,7 +303,7 @@ class TraceContext:
         """
         return sum(s.cost for s in self.spans)
 
-    def get_total_duration_ms(self) -> Optional[float]:
+    def get_total_duration_ms(self) -> float | None:
         """Get total duration from first span start to last span end.
 
         Returns:

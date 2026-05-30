@@ -20,9 +20,9 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from deepr.observability.cost_ledger import CostLedger
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 def _utc_now() -> datetime:
     """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Configuration constants
@@ -92,7 +92,7 @@ class CostEntry:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CostEntry":
         return cls(
-            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(timezone.utc),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if "timestamp" in data else datetime.now(UTC),
             operation=data["operation"],
             provider=data["provider"],
             model=data.get("model", ""),
@@ -152,7 +152,7 @@ class AlertManager:
     # Threshold at or above which alerts are considered critical
     CRITICAL_THRESHOLD = 0.95
 
-    def __init__(self, thresholds: Optional[list[float]] = None, triggered_alerts: Optional[list[CostAlert]] = None):
+    def __init__(self, thresholds: list[float] | None = None, triggered_alerts: list[CostAlert] | None = None):
         """Initialize alert manager.
 
         Args:
@@ -307,7 +307,7 @@ class CostAggregator:
         """
         self._entries = entries
 
-    def get_daily_total(self, target_date: Optional[date] = None) -> float:
+    def get_daily_total(self, target_date: date | None = None) -> float:
         """Get total cost for a day.
 
         Args:
@@ -317,11 +317,11 @@ class CostAggregator:
             Total cost for the day
         """
         if target_date is None:
-            target_date = datetime.now(timezone.utc).date()
+            target_date = datetime.now(UTC).date()
 
         return sum(e.cost for e in self._entries if e.date == target_date)
 
-    def get_monthly_total(self, year: Optional[int] = None, month: Optional[int] = None) -> float:
+    def get_monthly_total(self, year: int | None = None, month: int | None = None) -> float:
         """Get total cost for a month.
 
         Args:
@@ -331,7 +331,7 @@ class CostAggregator:
         Returns:
             Total cost for the month
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if year is None:
             year = now.year
         if month is None:
@@ -340,7 +340,7 @@ class CostAggregator:
         return sum(e.cost for e in self._entries if e.timestamp.year == year and e.timestamp.month == month)
 
     def get_breakdown_by_provider(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, float]:
         """Get cost breakdown by provider.
 
@@ -355,7 +355,7 @@ class CostAggregator:
         return self._aggregate_by_field(entries, lambda e: e.provider)
 
     def get_breakdown_by_operation(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, float]:
         """Get cost breakdown by operation type.
 
@@ -370,7 +370,7 @@ class CostAggregator:
         return self._aggregate_by_field(entries, lambda e: e.operation)
 
     def get_breakdown_by_model(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, float]:
         """Get cost breakdown by model.
 
@@ -385,7 +385,7 @@ class CostAggregator:
         return self._aggregate_by_field(entries, lambda e: e.model or "unknown")
 
     def get_all_breakdowns(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, dict[str, float]]:
         """Get all breakdowns in a single pass for efficiency.
 
@@ -424,7 +424,7 @@ class CostAggregator:
 
         return {"by_provider": by_provider, "by_operation": by_operation, "by_model": by_model}
 
-    def _filter_by_date(self, start_date: Optional[datetime], end_date: Optional[datetime]) -> list[CostEntry]:
+    def _filter_by_date(self, start_date: datetime | None, end_date: datetime | None) -> list[CostEntry]:
         """Filter entries by date range.
 
         Args:
@@ -503,10 +503,10 @@ class CostDashboard:
 
     def __init__(
         self,
-        storage_path: Optional[Path] = None,
+        storage_path: Path | None = None,
         daily_limit: float = 10.0,
         monthly_limit: float = 100.0,
-        alert_thresholds: Optional[list[float]] = None,
+        alert_thresholds: list[float] | None = None,
     ):
         """Initialize cost dashboard.
 
@@ -583,7 +583,7 @@ class CostDashboard:
         tokens_input: int = 0,
         tokens_output: int = 0,
         task_id: str = "",
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> CostEntry:
         """Record a cost entry.
 
@@ -628,7 +628,7 @@ class CostDashboard:
 
         return entry
 
-    def get_daily_total(self, target_date: Optional[date] = None) -> float:
+    def get_daily_total(self, target_date: date | None = None) -> float:
         """Get total cost for a day.
 
         Delegates to CostAggregator.
@@ -641,7 +641,7 @@ class CostDashboard:
         """
         return self.aggregator.get_daily_total(target_date)
 
-    def get_monthly_total(self, year: Optional[int] = None, month: Optional[int] = None) -> float:
+    def get_monthly_total(self, year: int | None = None, month: int | None = None) -> float:
         """Get total cost for a month.
 
         Delegates to CostAggregator.
@@ -656,7 +656,7 @@ class CostDashboard:
         return self.aggregator.get_monthly_total(year, month)
 
     def get_breakdown_by_provider(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, float]:
         """Get cost breakdown by provider.
 
@@ -672,7 +672,7 @@ class CostDashboard:
         return self.aggregator.get_breakdown_by_provider(start_date, end_date)
 
     def get_breakdown_by_operation(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, float]:
         """Get cost breakdown by operation type.
 
@@ -688,7 +688,7 @@ class CostDashboard:
         return self.aggregator.get_breakdown_by_operation(start_date, end_date)
 
     def get_breakdown_by_model(
-        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self, start_date: datetime | None = None, end_date: datetime | None = None
     ) -> dict[str, float]:
         """Get cost breakdown by model.
 
@@ -712,7 +712,7 @@ class CostDashboard:
             List of newly triggered alerts
         """
         new_alerts = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         utc_today = now.date()
 
         # Check daily alerts
@@ -739,7 +739,7 @@ class CostDashboard:
         Returns:
             List of active alerts
         """
-        return self.alert_manager.get_active_alerts(datetime.now(timezone.utc))
+        return self.alert_manager.get_active_alerts(datetime.now(UTC))
 
     def get_daily_history(self, days: int = 30) -> list[dict[str, Any]]:
         """Get daily cost history.
@@ -751,7 +751,7 @@ class CostDashboard:
             List of daily summaries
         """
         history = []
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
 
         for i in range(days):
             target_date = today - timedelta(days=i)
@@ -799,7 +799,7 @@ class CostDashboard:
             "total_entries": len(self.entries),
         }
 
-    def _filter_by_date(self, start_date: Optional[datetime], end_date: Optional[datetime]) -> list[CostEntry]:
+    def _filter_by_date(self, start_date: datetime | None, end_date: datetime | None) -> list[CostEntry]:
         """Filter entries by date range.
 
         Delegates to CostAggregator for backward compatibility.
@@ -825,7 +825,7 @@ class CostDashboard:
         data = {
             "entries": [e.to_dict() for e in entries_to_save],
             "alerts": [a.to_dict() for a in self.alert_manager.triggered_alerts[-MAX_STORED_ALERTS:]],
-            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "saved_at": datetime.now(UTC).isoformat(),
             # Persist user-set spending limits so ``deepr costs limits
             # --daily X --monthly Y`` survives a process restart.
             "daily_limit": self.daily_limit,
@@ -936,10 +936,10 @@ class BufferedCostDashboard(CostDashboard):
 
     def __init__(
         self,
-        storage_path: Optional[Path] = None,
+        storage_path: Path | None = None,
         daily_limit: float = 10.0,
         monthly_limit: float = 100.0,
-        alert_thresholds: Optional[list[float]] = None,
+        alert_thresholds: list[float] | None = None,
         buffer_size: int = COST_BUFFER_SIZE,
         flush_interval: int = COST_FLUSH_INTERVAL,
     ):
@@ -962,7 +962,7 @@ class BufferedCostDashboard(CostDashboard):
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval
         self._buffer: list[CostEntry] = []
-        self._last_flush: datetime = datetime.now(timezone.utc)
+        self._last_flush: datetime = datetime.now(UTC)
         self._lock = threading.Lock()
 
         # Register shutdown handler to flush on application exit
@@ -977,7 +977,7 @@ class BufferedCostDashboard(CostDashboard):
         tokens_input: int = 0,
         tokens_output: int = 0,
         task_id: str = "",
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> CostEntry:
         """Record a cost entry with buffering.
 
@@ -1060,7 +1060,7 @@ class BufferedCostDashboard(CostDashboard):
             try:
                 self._save()
                 self._buffer.clear()
-                self._last_flush = datetime.now(timezone.utc)
+                self._last_flush = datetime.now(UTC)
                 logger.debug(f"Flushed {buffer_count} cost entries to disk")
                 return True
             except Exception as e:
@@ -1074,7 +1074,7 @@ class BufferedCostDashboard(CostDashboard):
         Returns:
             Number of seconds since last flush
         """
-        return (datetime.now(timezone.utc) - self._last_flush).total_seconds()
+        return (datetime.now(UTC) - self._last_flush).total_seconds()
 
     def _shutdown_flush(self):
         """Flush handler called on application shutdown.

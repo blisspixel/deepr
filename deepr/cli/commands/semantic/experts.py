@@ -1,7 +1,7 @@
 """Expert system commands - create, manage, and interact with domain experts."""
 
 import asyncio
-from typing import Optional
+from datetime import UTC
 
 import click
 
@@ -82,14 +82,14 @@ def expert(ctx, list_flag):
 def make_expert(
     name: str,
     files: tuple,
-    description: Optional[str],
+    description: str | None,
     provider: str,
     learn: bool,
-    budget: Optional[float],
-    topics: Optional[int],
-    docs: Optional[int],
-    quick: Optional[int],
-    deep: Optional[int],
+    budget: float | None,
+    topics: int | None,
+    docs: int | None,
+    quick: int | None,
+    deep: int | None,
     no_discovery: bool,
     yes: bool,
 ):
@@ -114,7 +114,7 @@ def make_expert(
       deepr expert make "AI Expert" -f docs/*.md --learn --budget 10
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from deepr.cli.validation import validate_budget, validate_expert_name, validate_upload_files
     from deepr.config import load_config
@@ -191,7 +191,7 @@ def make_expert(
 
         # Create expert profile with programmatic system message
         # Set initial knowledge cutoff to now (will be updated when learning is added)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         profile = ExpertProfile(
             name=name,
@@ -398,7 +398,7 @@ def make_expert(
 @click.option("--quiet", "-q", is_flag=True, help="Output prompts only, one per line")
 def plan_curriculum(
     domain: str,
-    budget: Optional[float],
+    budget: float | None,
     topics: int,
     no_discovery: bool,
     output_json: bool,
@@ -682,9 +682,9 @@ def expert_info(name: str):
 )
 def validate_claim(
     name: str,
-    claim: Optional[str],
-    from_file: Optional[str],
-    model: Optional[str],
+    claim: str | None,
+    from_file: str | None,
+    model: str | None,
     json_output: bool,
     max_evidence: int,
 ):
@@ -843,7 +843,7 @@ def delete_expert(name: str, yes: bool):
     "--synthesize/--no-synthesize", default=True, help="Re-synthesize consciousness after learning (default: yes)"
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, synthesize: bool, yes: bool):
+def learn_expert(name: str, topic: str | None, files: tuple, budget: float, synthesize: bool, yes: bool):
     """Add knowledge to an expert on demand.
 
     Allows you to teach an expert new things by either:
@@ -872,7 +872,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
     """
     import asyncio
     import os
-    from datetime import datetime, timezone
+    from datetime import datetime
     from pathlib import Path
 
     from deepr.cli.validation import validate_budget
@@ -1011,7 +1011,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
                     # Update profile
                     profile.total_documents += len(uploaded_files)
                     profile.source_files.extend([str(f) for f in uploaded_files])
-                    profile.updated_at = datetime.now(timezone.utc)
+                    profile.updated_at = datetime.now(UTC)
                     store.save(profile)
 
                 except Exception as e:
@@ -1099,7 +1099,7 @@ def learn_expert(name: str, topic: Optional[str], files: tuple, budget: float, s
     "--budget", "-b", type=float, default=None, help="Budget limit for remaining topics (default: use original budget)"
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def resume_expert_learning(name: str, budget: Optional[float], yes: bool):
+def resume_expert_learning(name: str, budget: float | None, yes: bool):
     """Resume paused learning for an expert.
 
     When autonomous learning hits a daily or monthly spending limit, progress
@@ -2071,7 +2071,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                 console.print(f"Processing {len(docs_to_process)} documents...\n")
 
                 # Synthesize
-                from datetime import datetime, timezone
+                from datetime import datetime
 
                 synthesis_result = await synthesizer.synthesize_new_knowledge(
                     expert_name=profile.name,
@@ -2090,9 +2090,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
                     # Generate and save worldview document
                     worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
 
-                    worldview_doc_path = (
-                        knowledge_dir / f"worldview_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
-                    )
+                    worldview_doc_path = knowledge_dir / f"worldview_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.md"
                     with open(worldview_doc_path, "w", encoding="utf-8") as f:
                         f.write(worldview_doc)
 
@@ -2129,7 +2127,7 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
 @click.option(
     "--no-research", is_flag=True, default=False, help="Disable agentic research (experts can research by default)"
 )
-def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
+def chat_with_expert(name: str, budget: float | None, no_research: bool):
     """Start an interactive chat session with an expert.
 
     Chat with a domain expert using their knowledge base. The expert will
@@ -2154,7 +2152,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
         /synthesize - Trigger consciousness synthesis (form beliefs from recent learning)
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from deepr.cli import ui
     from deepr.cli.validation import validate_budget
@@ -2185,7 +2183,7 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
     # Calculate knowledge age
     knowledge_age_days = 0
     if session.expert.knowledge_cutoff_date:
-        age_delta = datetime.now(timezone.utc).date() - session.expert.knowledge_cutoff_date.date()
+        age_delta = datetime.now(UTC).date() - session.expert.knowledge_cutoff_date.date()
         knowledge_age_days = age_delta.days
 
     # Display modern welcome message
@@ -2342,12 +2340,12 @@ def chat_with_expert(name: str, budget: Optional[float], no_research: bool):
                             worldview.save(worldview_path)
 
                             # Generate and save worldview document
-                            from datetime import datetime, timezone
+                            from datetime import datetime
 
                             worldview_doc = await synthesizer.generate_worldview_document(worldview, reflection)
 
                             worldview_doc_path = (
-                                knowledge_dir / f"worldview_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
+                                knowledge_dir / f"worldview_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.md"
                             )
                             with open(worldview_doc_path, "w", encoding="utf-8") as f:
                                 f.write(worldview_doc)

@@ -6,12 +6,10 @@ Reduces complexity in run.py by extracting provider setup.
 Requirements: 6.2 - Centralize provider initialization logic
 """
 
-from typing import Optional
-
 from deepr.config import load_config
 
 
-def get_api_key(provider: str, config: Optional[dict] = None) -> str:
+def get_api_key(provider: str, config: dict | None = None) -> str:
     """Get API key for the specified provider.
 
     Args:
@@ -45,7 +43,7 @@ def get_api_key(provider: str, config: Optional[dict] = None) -> str:
     return api_key
 
 
-def create_provider_instance(provider: str, config: Optional[dict] = None):
+def create_provider_instance(provider: str, config: dict | None = None):
     """Create a provider instance with the appropriate API key.
 
     Args:

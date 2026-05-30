@@ -10,7 +10,6 @@ Provides unified progress feedback with:
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Optional
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -37,7 +36,7 @@ class ProgressFeedback:
     LONG_OPERATION_THRESHOLD = 15.0  # seconds
 
     def __init__(self):
-        self.start_time: Optional[float] = None
+        self.start_time: float | None = None
         self.phase: str = ""
         self._warned_long_operation = False
         self._animation_policy = resolve_animation_policy(console)
@@ -71,7 +70,7 @@ class ProgressFeedback:
             finally:
                 progress.update(task, completed=True)
 
-    def phase_complete(self, message: str, cost: Optional[float] = None) -> None:
+    def phase_complete(self, message: str, cost: float | None = None) -> None:
         """Mark phase complete with optional cost.
 
         Args:
@@ -138,7 +137,7 @@ def with_progress(description: str):
     return _default_progress.operation(description)
 
 
-def complete(message: str, cost: Optional[float] = None) -> None:
+def complete(message: str, cost: float | None = None) -> None:
     """Mark operation complete."""
     _default_progress.phase_complete(message, cost)
 

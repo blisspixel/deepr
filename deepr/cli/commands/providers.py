@@ -6,8 +6,6 @@ Provides commands for viewing provider status and metrics:
 - deepr providers reset - Reset provider metrics
 """
 
-from typing import Optional
-
 import click
 from rich.console import Console
 from rich.panel import Panel
@@ -140,7 +138,7 @@ def fallbacks(limit: int):
 @click.option("--model", help="Reset specific model")
 @click.option("--all", "reset_all", is_flag=True, help="Reset all metrics")
 @click.confirmation_option(prompt="Are you sure you want to reset provider metrics?")
-def reset(provider: Optional[str], model: Optional[str], reset_all: bool):
+def reset(provider: str | None, model: str | None, reset_all: bool):
     """Reset provider metrics."""
 
     router = AutonomousProviderRouter()
@@ -204,7 +202,7 @@ def recommend(task_type: str, prefer_cost: bool, prefer_speed: bool):
 @click.option("--iterations", "-n", default=3, help="Number of test iterations")
 @click.option("--history", is_flag=True, help="Show historical benchmark data instead of running tests")
 @click.option("--json", "json_output", is_flag=True, help="Output as JSON for scripting")
-def benchmark(quick: bool, target_provider: Optional[str], iterations: int, history: bool, json_output: bool):
+def benchmark(quick: bool, target_provider: str | None, iterations: int, history: bool, json_output: bool):
     """Benchmark provider performance.
 
     Sends test requests to measure latency and reliability.
@@ -475,7 +473,7 @@ def benchmark(quick: bool, target_provider: Optional[str], iterations: int, hist
 )
 @click.option("--json", "json_output", is_flag=True, help="Output as JSON (for CI / scripting)")
 @click.option("--no-stubs", is_flag=True, help="Don't print suggested registry-entry stubs")
-def models(show_all: bool, target_provider: Optional[str], json_output: bool, no_stubs: bool):
+def models(show_all: bool, target_provider: str | None, json_output: bool, no_stubs: bool):
     """Discover newer provider models missing from the registry.
 
     Queries each configured provider's live model list and flags newer versions

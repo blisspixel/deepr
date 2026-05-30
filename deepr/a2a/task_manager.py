@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from deepr.a2a.models import VALID_TRANSITIONS, Task, TaskRequest, TaskState
@@ -79,7 +79,7 @@ class TaskManager:
             The created Task with a unique ID.
         """
         task_id = uuid.uuid4().hex[:12]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         metadata = dict(request.metadata)
         if budget is not None or request.budget is not None:
@@ -138,7 +138,7 @@ class TaskManager:
             raise InvalidTransitionError(task_id, task.state, new_state)
 
         task.state = new_state
-        task.updated_at = datetime.now(timezone.utc)
+        task.updated_at = datetime.now(UTC)
 
         if result is not None:
             task.result = result
