@@ -57,6 +57,76 @@ RECON_PROFILE_TEMPLATE: dict[str, Any] = {
     "progress": False,
 }
 
+# Default distillr profile template for the native first-party integration.
+# Distillr (distillr package) is a source-ingestion engine: it turns YouTube,
+# websites, and arXiv papers into a structured Markdown corpus with synthesis.
+# Auto-discovered when the `distill-mcp` binary is on PATH (pip install distillr).
+#
+# Unlike recon, distillr spends model budget (ingestion runs cost money and take
+# minutes), so its profile caps per-call spend, sets a long timeout, enables
+# progress notifications, and only auto-approves the free read-side tool
+# (query_library). Cost-incurring tools require approval.
+DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
+    "name": "distillr",
+    "description": "Source ingestion engine: YouTube, websites, and arXiv papers into a structured Markdown corpus with cross-source synthesis. Absorbed as academic/strategic knowledge with provenance.",
+    "command": "distill-mcp",
+    "args": [],
+    "transport": "stdio",
+    "enabled": True,
+    "timeout": 900,  # ingestion runs take minutes; allow up to 15m per call
+    "budget_limit": 2.0,  # cap model spend per ingestion call
+    "cost_per_call": 0.0,  # actual cost is reported by the tool response
+    "auto_approve": [
+        "query_library",  # search existing corpus: no new ingestion, no/low cost
+    ],
+    "require_approval": [
+        "discover",
+        "ingest_papers",
+        "ingest_youtube",
+        "ingest_sites",
+        "refresh",
+        "estimate",
+    ],
+    "progress": True,
+}
+
+# Default primr profile template for the native first-party integration.
+# Primr (primr package) is a strategic company-intelligence engine: adaptive
+# scraping + AI synthesis into consultant-grade briefs. Auto-discovered when
+# the `primr-mcp` binary is on PATH (pip install primr).
+#
+# Primr is the heaviest instrument: full company analyses take 35-50 minutes
+# and cost real money, so EVERY cost-incurring tool requires approval and only
+# the free read-side tools (estimate_run, check_jobs, doctor) auto-approve.
+# The profile sets a long timeout, a higher per-call budget cap, and progress
+# notifications. Async durability (resume after disconnect) is provided by the
+# existing MCP task-durability layer.
+PRIMR_PROFILE_TEMPLATE: dict[str, Any] = {
+    "name": "primr",
+    "description": "Strategic company intelligence: adaptive scraping + AI synthesis into consultant-grade briefs (competitive positioning, hiring signals, strategic initiatives, tech stack). Absorbed across infrastructure + strategic categories with provenance.",
+    "command": "primr-mcp",
+    "args": ["--stdio"],
+    "transport": "stdio",
+    "enabled": True,
+    "timeout": 3600,  # full company runs take 35-50 min; allow up to 60m
+    "budget_limit": 5.0,  # cap model spend per company analysis
+    "cost_per_call": 0.0,  # actual cost is reported by the tool response
+    "auto_approve": [
+        "estimate_run",  # pre-flight cost/duration estimate, free
+        "check_jobs",  # poll async job status, free
+        "doctor",  # health check, free
+    ],
+    "require_approval": [
+        "research_company",
+        "generate_strategy",
+        "batch_analyze",
+        "quick_lookup",  # cheaper (~$0.10, ~5m) but still spends money
+        "delta",
+        "hiring_signals",
+    ],
+    "progress": True,
+}
+
 
 def _resolve_env_vars(value: str) -> str:
     """Resolve ``${VAR_NAME}`` patterns from process environment.
@@ -120,6 +190,69 @@ def discover_recon_profile() -> MCPClientProfile | None:
         return None
 
 
+def get_distillr_profile() -> MCPClientProfile:
+    """Return the default first-party distillr profile.
+
+    Distillr (from the distillr package) is a source-ingestion engine: it
+    turns YouTube videos, websites, and arXiv papers into a structured
+    Markdown corpus with synthesis. It is auto-discovered when the
+    `distill-mcp` command is on PATH (pip install distillr).
+
+    Distillr spends model budget, so the profile caps per-call spend and
+    only auto-approves the free read-side tool (query_library).
+    """
+    return MCPClientProfile.from_dict(DISTILLR_PROFILE_TEMPLATE)
+
+
+def discover_distillr_profile() -> MCPClientProfile | None:
+    """Return a first-party distillr profile if `distill-mcp` is available.
+
+    Enables the native integration for users who have `pip install distillr`
+    (which provides the `distill-mcp` stdio MCP server).
+
+    Returns None if the binary is not on PATH. The returned profile is a
+    fresh copy from the curated template.
+    """
+    if shutil.which("distill-mcp") is None:
+        return None
+    try:
+        return MCPClientProfile.from_dict(DISTILLR_PROFILE_TEMPLATE)
+    except Exception:
+        logger.warning("Failed to construct discovered distillr profile")
+        return None
+
+
+def get_primr_profile() -> MCPClientProfile:
+    """Return the default first-party primr profile.
+
+    Primr (from the primr package) is a strategic company-intelligence engine.
+    It is auto-discovered when the `primr-mcp` command is on PATH
+    (pip install primr).
+
+    Primr runs are long (35-50 min) and costly, so every cost-incurring tool
+    requires approval; only the free read-side tools auto-approve.
+    """
+    return MCPClientProfile.from_dict(PRIMR_PROFILE_TEMPLATE)
+
+
+def discover_primr_profile() -> MCPClientProfile | None:
+    """Return a first-party primr profile if `primr-mcp` is available.
+
+    Enables the native integration for users who have `pip install primr`
+    (which provides the `primr-mcp` stdio MCP server).
+
+    Returns None if the binary is not on PATH. The returned profile is a
+    fresh copy from the curated template.
+    """
+    if shutil.which("primr-mcp") is None:
+        return None
+    try:
+        return MCPClientProfile.from_dict(PRIMR_PROFILE_TEMPLATE)
+    except Exception:
+        logger.warning("Failed to construct discovered primr profile")
+        return None
+
+
 class ConfigLoader:
     """Load and validate MCP client profiles from YAML configuration.
 
@@ -134,11 +267,12 @@ class ConfigLoader:
         """Load and validate profiles from YAML config file.
 
         After loading any user-provided profiles, this method automatically
-        discovers and includes first-party instruments that are installed
-        on the system (currently: recon when the `recon` binary is on PATH).
+        discovers and includes first-party instruments that are installed on
+        the system (recon when the `recon` binary is on PATH; distillr when
+        `distill-mcp` is on PATH; primr when `primr-mcp` is on PATH).
 
-        User profiles take precedence: if the user has explicitly defined
-        a profile named "recon", the auto-discovered one is not added.
+        User profiles take precedence: if the user has explicitly defined a
+        profile with the same name, the auto-discovered one is not added.
 
         Args:
             path: Path to YAML config. Defaults to ~/.deepr/integrations.yaml.
@@ -175,14 +309,22 @@ class ConfigLoader:
                     profile = MCPClientProfile.from_dict(profile_data)
                     profiles.append(profile)
 
-        # Native first-party auto-discovery (Recon is the pilot).
-        # This is what makes recon feel like a built-in instrument rather
-        # than "yet another MCP server the user had to configure".
-        if not any(p.name == "recon" for p in profiles):
-            discovered = discover_recon_profile()
+        # Native first-party auto-discovery. This is what makes these
+        # instruments feel built-in rather than "yet another MCP server the
+        # user had to configure". User-defined profiles always take
+        # precedence: an explicit entry with the same name is never replaced.
+        _first_party = (
+            ("recon", discover_recon_profile, "recon-tool MCP server"),
+            ("distillr", discover_distillr_profile, "distillr MCP server"),
+            ("primr", discover_primr_profile, "primr MCP server"),
+        )
+        for name, discover, label in _first_party:
+            if any(p.name == name for p in profiles):
+                continue
+            discovered = discover()
             if discovered and discovered.enabled:
                 profiles.append(discovered)
-                logger.info("Auto-discovered first-party recon profile (recon-tool MCP server)")
+                logger.info("Auto-discovered first-party %s profile (%s)", name, label)
 
         return profiles
 

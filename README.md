@@ -100,7 +100,7 @@ See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
 ### MCP Integration — Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 18 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 19 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
 ### Web Dashboard
 
@@ -141,7 +141,7 @@ Three patterns run through Deepr:
 
 - **Budgeted autonomy** — Every autonomous job runs under a contract: max spend, stop conditions, acceptable uncertainty, required citations, audit trail.
 - **Decision records as artifacts** — The system captures *why* it chose a model, trusted a source, stopped searching, or flagged a knowledge gap. These feed back into routing, expert learning, and cost optimization.
-- **Experts as roles, not tools** — Each expert is a persistent, named role with its own knowledge state, beliefs, and gaps. You don't "run Deepr" — you consult a domain expert. This makes experts composable: they can receive structured input from upstream agents, produce handoff-ready artifacts for downstream agents, and participate in multi-agent workflows without being the orchestrator.
+- **Experts as roles, not tools** — Each expert is a persistent, named role with its own knowledge state, beliefs, and gaps. You don't "run Deepr" — you consult a domain expert. This makes experts composable: they can receive structured input from upstream agents, produce handoff-ready artifacts for downstream agents, and participate in multi-agent workflows without being the orchestrator. Think of each as a tailored second brain (note the plural): instead of one generic vault you organize by hand, you get a roster of domain-scoped knowledge bases that stay current on their topics, verify what they ingest, and deploy as an agent team.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
 
@@ -179,7 +179,7 @@ Optional env controls:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 4400+ tests (Python 3.12).
+**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 4781+ tests (Python 3.12).
 
 **Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates.
 
@@ -220,7 +220,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## Security
 
-4400+ tests (Python 3.12). Pre-commit hooks run ruff. Input validation, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+4781+ tests (Python 3.12). Pre-commit hooks run ruff. Input validation, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
