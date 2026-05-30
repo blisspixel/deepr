@@ -483,7 +483,7 @@ class ToolAllowlist:
         self,
         tool_name: str,
         mode: ResearchMode | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Validate a tool call and return status.
 
         Args:
@@ -524,7 +524,7 @@ class ToolAllowlist:
         """
         self.mode = mode
 
-    def get_mode_info(self, mode: ResearchMode | None = None) -> dict:
+    def get_mode_info(self, mode: ResearchMode | None = None) -> dict[str, Any]:
         """Get information about a research mode.
 
         Args:
