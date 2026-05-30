@@ -62,7 +62,7 @@ class VerifiedOutput:
         }
 
     @classmethod
-    def from_row(cls, row: tuple) -> "VerifiedOutput":
+    def from_row(cls, row: tuple[Any, ...]) -> "VerifiedOutput":
         """Create from database row."""
         (id, job_id, tool_name, content_hash, timestamp, is_verified, verification_error, metadata_json) = row
 
@@ -155,7 +155,7 @@ class OutputVerifier:
             return {}
         return {row[0]: row[1] for row in rows}
 
-    def _create_tables(self):
+    def _create_tables(self) -> None:
         """Create database tables."""
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS verified_outputs (
@@ -338,7 +338,7 @@ class OutputVerifier:
     def verify_chain_integrity(
         self,
         job_id: str,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Verify the integrity of a job's verification chain.
 
         Args:
@@ -510,7 +510,7 @@ class OutputVerifier:
         data = f"{content_hash}|{previous_hash or 'genesis'}"
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
-    def _add_to_chain(self, output: VerifiedOutput):
+    def _add_to_chain(self, output: VerifiedOutput) -> None:
         """Add output to verification chain.
 
         Args:
@@ -549,6 +549,6 @@ class OutputVerifier:
         # Update chain head
         self._chain_heads[job_id] = chain_hash
 
-    def close(self):
+    def close(self) -> None:
         """Close database connection."""
         self._conn.close()

@@ -7,6 +7,7 @@ the gateway pattern that reduces initial context by ~85%.
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -15,13 +16,13 @@ class ToolSchema:
 
     name: str
     description: str
-    input_schema: dict
+    input_schema: dict[str, Any]
     category: str = "general"
     cost_tier: str = "free"  # free, low, medium, high
 
     _tokens: list[str] = field(default_factory=list, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Tokenize description for search indexing."""
         if not self._tokens:
             self._tokens = self._tokenize(f"{self.name} {self.description} {self.category}")
@@ -37,7 +38,7 @@ class ToolSchema:
     def tokens(self) -> list[str]:
         return self._tokens
 
-    def to_mcp_format(self) -> dict:
+    def to_mcp_format(self) -> dict[str, Any]:
         """Convert to MCP tool format."""
         return {"name": self.name, "description": self.description, "inputSchema": self.input_schema}
 
@@ -176,7 +177,7 @@ class ToolRegistry:
     a searchable index of tools that can be queried by natural language.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: dict[str, ToolSchema] = {}
         self._index: BM25Index | None = None
         self._tool_order: list[str] = []  # Maintain insertion order
