@@ -4,6 +4,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class CostEstimator:
     }
 
     @classmethod
-    def estimate_prompt_tokens(cls, prompt: str, documents: list | None = None) -> int:
+    def estimate_prompt_tokens(cls, prompt: str, documents: list[Any] | None = None) -> int:
         """
         Rough estimation of token count.
 
@@ -82,7 +83,7 @@ class CostEstimator:
         cls,
         prompt: str,
         model: str = "o3-deep-research",
-        documents: list | None = None,
+        documents: list[Any] | None = None,
         enable_web_search: bool = True,
     ) -> CostEstimate:
         """
@@ -267,7 +268,7 @@ class CostController:
 
         return True, None
 
-    def record_cost(self, actual_cost: float):
+    def record_cost(self, actual_cost: float) -> None:
         """Record actual cost after job completion.
 
         Resets daily / monthly counters BEFORE accumulating so a job
@@ -279,7 +280,7 @@ class CostController:
             self.daily_spending += actual_cost
             self.monthly_spending += actual_cost
 
-    def reset_if_needed(self):
+    def reset_if_needed(self) -> None:
         """Reset daily/monthly counters if needed."""
         now = datetime.now(UTC)
         with self._lock:
@@ -343,7 +344,7 @@ CHEAP_TEST_PROMPTS = [
 ]
 
 
-def get_safe_test_prompt(index: int = 0) -> dict:
+def get_safe_test_prompt(index: int = 0) -> dict[str, Any]:
     """
     Get a pre-defined safe (cheap) test prompt.
 

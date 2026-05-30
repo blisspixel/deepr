@@ -83,7 +83,7 @@ class Source:
 
     @classmethod
     def create(
-        cls, title: str, trust_class: TrustClass = TrustClass.TERTIARY, extraction_method: str = "llm", **kwargs
+        cls, title: str, trust_class: TrustClass = TrustClass.TERTIARY, extraction_method: str = "llm", **kwargs: Any
     ) -> "Source":
         """Create a Source with content-hash ID."""
         content = f"{title}:{kwargs.get('url', '')}:{kwargs.get('content_hash', '')}"
@@ -150,7 +150,7 @@ class Claim:
     tags: list[str] = field(default_factory=list)
 
     @classmethod
-    def create(cls, statement: str, domain: str, confidence: float, **kwargs) -> "Claim":
+    def create(cls, statement: str, domain: str, confidence: float, **kwargs: Any) -> "Claim":
         """Create a Claim with content-hash ID."""
         content = f"{statement}:{domain}"
         id_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
@@ -221,7 +221,7 @@ class Gap:
     filled_by_job: str | None = None
 
     @classmethod
-    def create(cls, topic: str, **kwargs) -> "Gap":
+    def create(cls, topic: str, **kwargs: Any) -> "Gap":
         """Create a Gap with content-hash ID."""
         id_hash = hashlib.sha256(topic.encode()).hexdigest()[:12]
         return cls(id=id_hash, topic=topic, **kwargs)
@@ -291,7 +291,7 @@ class DecisionRecord:
     context: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def create(cls, decision_type: DecisionType, title: str, rationale: str, **kwargs) -> "DecisionRecord":
+    def create(cls, decision_type: DecisionType, title: str, rationale: str, **kwargs: Any) -> "DecisionRecord":
         """Create a DecisionRecord with a UUID."""
         return cls(id=str(uuid.uuid4()), decision_type=decision_type, title=title, rationale=rationale, **kwargs)
 
@@ -362,7 +362,7 @@ class ConsensusResult:
     """Result of multi-provider consensus research."""
 
     query: str
-    provider_responses: list[dict] = field(default_factory=list)
+    provider_responses: list[dict[str, Any]] = field(default_factory=list)
     agreement_score: float = 0.0
     consensus_answer: str = ""
     confidence: float = 0.0

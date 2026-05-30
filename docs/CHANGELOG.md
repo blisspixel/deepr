@@ -57,7 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ``py312``.
   - **mypy** wired into CI as a non-blocking baseline (``[tool.mypy]`` config
     added; baseline 314 errors / 76 files), ratcheting toward a blocking
-    ``--strict`` gate.
+    ``--strict`` gate. **First strict island shipped:** ``deepr/core`` is now
+    ``mypy --strict``-clean (44 kernel errors fixed) and enforced by a
+    **blocking** ``mypy --strict deepr/core`` CI step; ``providers/`` + ``mcp/``
+    are next.
   - **pip-audit** wired into CI and already **blocking**: the baseline it
     surfaced was cleared immediately (see Security), so a new known
     vulnerability now fails the build.
