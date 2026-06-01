@@ -5,7 +5,7 @@ corpus manifest, validation, and file operations.
 """
 
 import tempfile
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -219,7 +219,7 @@ class TestGenerateReadme:
         profile.domain = "Knowledge"
         profile.description = "Expert with beliefs"
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         worldview = Worldview(
             expert_name="Expert",
             domain="Knowledge",
@@ -288,7 +288,7 @@ class TestExportCorpus:
         profile.domain = "Testing"
         profile.provider = "openai"
         profile.model = "gpt-5"
-        profile.created_at = datetime.utcnow()
+        profile.created_at = datetime.now(UTC)
         profile.total_documents = 2
         profile.conversations = 5
         profile.research_triggered = 1
