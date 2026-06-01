@@ -13,6 +13,7 @@ Validates the full JSON-RPC method dispatch including:
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -217,12 +218,13 @@ class TestToolsCall:
     @pytest.mark.asyncio
     async def test_call_deepr_list_experts(self, mock_server):
         mock_server.store.list_all.return_value = [
-            {
-                "name": "test",
-                "domain": "test",
-                "description": "test",
-                "stats": {"documents": 0, "conversations": 0},
-            }
+            SimpleNamespace(
+                name="test",
+                domain="test",
+                description="test",
+                total_documents=0,
+                activity_tracker=SimpleNamespace(conversations=0),
+            )
         ]
         result = await _handle_tools_call(mock_server, {"name": "deepr_list_experts", "arguments": {}})
         assert result["isError"] is False
