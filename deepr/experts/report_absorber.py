@@ -289,7 +289,12 @@ class ReportAbsorber:
         except json.JSONDecodeError as e:
             raise ReportAbsorberError(f"Extraction model returned non-JSON output: {e}. Raw: {raw[:200]!r}") from e
 
-        raw_claims = parsed.get("claims", []) if isinstance(parsed, dict) else []
+        # Guard every shape the model might return: a non-dict object, a
+        # missing "claims" key, an explicit null, or a non-list value all
+        # degrade to "no candidates" rather than crashing.
+        raw_claims = parsed.get("claims") if isinstance(parsed, dict) else None
+        if not isinstance(raw_claims, list):
+            raw_claims = []
         candidates: list[CandidateClaim] = []
         for item in raw_claims[:max_claims]:
             if not isinstance(item, dict):
