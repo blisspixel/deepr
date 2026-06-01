@@ -1,7 +1,7 @@
 """Expert system commands - create, manage, and interact with domain experts."""
 
 import asyncio
-from datetime import UTC
+from datetime import UTC, datetime
 
 import click
 
@@ -873,6 +873,124 @@ def health_check(name: str, json_output: bool):
 
     if report.status == "critical":
         print_warning("This expert needs attention before it should be relied on.")
+
+
+@expert.command(name="absorb")
+@click.argument("name")
+@click.argument("report_id")
+@click.option(
+    "--min-confidence",
+    type=float,
+    default=0.6,
+    show_default=True,
+    help="Drop candidate claims the report supports more weakly than this",
+)
+@click.option("--model", default=None, help="Override the extraction model (default: gpt-5-mini)")
+@click.option("--dry-run", is_flag=True, help="Preview what would be absorbed; write nothing (still runs extraction)")
+@click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
+@click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
+def absorb_report(
+    name: str,
+    report_id: str,
+    min_confidence: float,
+    model: str | None,
+    dry_run: bool,
+    yes: bool,
+    json_output: bool,
+):
+    """Promote a completed research report into an expert's permanent knowledge.
+
+    Extracts report-grounded claims, gates them (drops weak claims and any that
+    contradict the expert's existing beliefs), then integrates the survivors as
+    beliefs with the report id recorded as provenance. Deduped against existing
+    beliefs, so re-absorbing only adds the delta.
+
+    Costs one small extraction call (~$0.03). Use --dry-run to preview the
+    claims and verdicts without writing anything.
+
+    EXAMPLES:
+      deepr expert absorb "AI Strategy Expert" 2026-05-30_1042_market-sizing_a1b2c3
+      deepr expert absorb "AI Strategy Expert" <job_id> --dry-run
+      deepr expert absorb "AI Strategy Expert" <job_id> --min-confidence 0.7 --yes
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber, ReportAbsorberError
+    from deepr.services.context_index import ContextIndex
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    # Resolve the report id (or job id) to its full text via the context index.
+    index = ContextIndex()
+    report_text = index.get_report_content(report_id, max_chars=100000)
+    if not report_text:
+        print_error(f"No report found for id: {report_id}")
+        click.echo("Find report/job IDs with: deepr search")
+        sys.exit(2)
+
+    # Confirm before the paid extraction call (the cost is incurred whether or
+    # not we write, so gate it even for --dry-run).
+    if not yes:
+        intent = "preview (writes nothing)" if dry_run else f"absorb into '{name}'"
+        if not click.confirm(
+            f"Run extraction (~${ESTIMATED_EXTRACTION_COST:.2f}) and {intent}?",
+            default=False,
+        ):
+            print_warning("Cancelled.")
+            sys.exit(0)
+
+    absorber = ReportAbsorber(profile, model=model or "gpt-5-mini")
+    try:
+        result = asyncio.run(absorber.absorb(report_id, report_text, min_confidence=min_confidence, dry_run=dry_run))
+    except ReportAbsorberError as e:
+        print_error(str(e))
+        sys.exit(2)
+    except Exception as e:
+        print_error(f"Absorption failed: {e}")
+        sys.exit(1)
+
+    if not result.dry_run:
+        # Record the spend + refresh timestamp on the profile, then persist.
+        profile.total_research_cost += result.estimated_cost
+        profile.last_knowledge_refresh = datetime.now(UTC)
+        store.save(profile)
+
+    if json_output:
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    print_header(f"Absorb report into {result.expert_name}")
+    mode = "[yellow]DRY RUN[/yellow] - nothing written" if result.dry_run else "applied"
+    console.print(
+        f"Candidates: {result.total_candidates}  "
+        f"Absorbed: {len(result.absorbed)} (added {result.added_count}, merged {result.merged_count})  "
+        f"Rejected: {len(result.rejected)}  [dim]({mode})[/dim]"
+    )
+
+    if result.absorbed:
+        console.print()
+        print_section_header("Would absorb" if result.dry_run else "Absorbed")
+        for a in result.absorbed:
+            print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
+
+    if result.rejected:
+        console.print()
+        print_section_header("Rejected")
+        for r in result.rejected:
+            console.print(f"  [dim]-[/dim] {r.statement}")
+            console.print(f"    [dim]{r.reason}: {r.detail}[/dim]")
+
+    if not result.absorbed and not result.rejected:
+        print_warning("No claims extracted from the report.")
+    elif not result.dry_run and result.absorbed:
+        print_success(f"Integrated {len(result.absorbed)} belief(s). Audit anytime: deepr expert health-check '{name}'")
 
 
 @expert.command(name="delete")

@@ -121,6 +121,13 @@ class TestDetectContradictions:
     def test_static_heuristic_empty(self):
         assert ConflictResolver.detect_contradictions_heuristic([]) == []
 
+    def test_beliefs_contradict_predicate(self):
+        a = _make_belief("The system is memory safe by default")
+        b = _make_belief("The system is not memory safe by default")
+        c = _make_belief("Bananas are yellow fruit")
+        assert ConflictResolver.beliefs_contradict(a, b) is True
+        assert ConflictResolver.beliefs_contradict(a, c) is False
+
     @pytest.mark.asyncio
     async def test_empty_beliefs(self):
         resolver = ConflictResolver()

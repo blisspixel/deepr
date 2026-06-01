@@ -536,6 +536,44 @@ def create_default_registry() -> ToolRegistry:
         )
     )
 
+    registry.register(
+        ToolSchema(
+            name="deepr_expert_absorb",
+            description=(
+                "Promote a completed research report into an expert's permanent beliefs "
+                "(output-to-knowledge feedback loop). Extracts report-grounded claims, drops "
+                "weak ones and any that contradict the expert's existing beliefs, then "
+                "integrates the survivors as beliefs with the report id as provenance "
+                "(deduped against existing beliefs). MUTATES the expert and runs one small "
+                "extraction call (~$0.03); pass dry_run=true to preview without writing. "
+                "Example: deepr_expert_absorb(expert_name='AI Strategy Expert', report_id='<id>', dry_run=true)"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert to absorb into"},
+                    "report_id": {
+                        "type": "string",
+                        "description": "Report id or job id of a completed research report (see deepr search)",
+                    },
+                    "min_confidence": {
+                        "type": "number",
+                        "default": 0.6,
+                        "description": "Drop candidate claims the report supports more weakly than this",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Preview extracted/gated claims without writing any beliefs",
+                    },
+                },
+                "required": ["expert_name", "report_id"],
+            },
+            category="experts",
+            cost_tier="low",
+        )
+    )
+
     # Agentic tools
     registry.register(
         ToolSchema(
