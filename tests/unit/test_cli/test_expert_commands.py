@@ -438,6 +438,164 @@ class TestExpertAbsorbCommand:
             assert "cancelled" in result.output.lower()
 
 
+class TestExpertReflectCommand:
+    """Test 'expert reflect' command (research-quality self-eval)."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_help(self, runner):
+        result = runner.invoke(cli, ["expert", "reflect", "--help"])
+        assert result.exit_code == 0
+        assert "evaluate" in result.output.lower() or "verdict" in result.output.lower()
+
+    def test_nonexistent_expert(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = None
+            mock_store_class.return_value = mock_store
+            result = runner.invoke(cli, ["expert", "reflect", "Ghost", "job1"])
+            assert result.exit_code == 2
+
+    def test_missing_report(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(domain="ai")
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = None
+            mock_idx.return_value.get_report_content.return_value = None
+            result = runner.invoke(cli, ["expert", "reflect", "AI Expert", "missing"])
+            assert result.exit_code == 2
+            assert "no report found" in result.output.lower()
+
+    def test_json_output(self, runner):
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(question="Will X?", verdict="accept", overall_score=0.84, dimensions=[], followups=[])
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(domain="ai")
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(cli, ["expert", "reflect", "AI Expert", "job1", "--json"])
+            assert result.exit_code == 0
+            import json
+
+            assert json.loads(result.output)["verdict"] == "accept"
+
+
+class TestExpertRouteGapsCommand:
+    """Test 'expert route-gaps' command (read-only gap-to-instrument routing)."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_help(self, runner):
+        result = runner.invoke(cli, ["expert", "route-gaps", "--help"])
+        assert result.exit_code == 0
+        assert "route" in result.output.lower()
+
+    def test_nonexistent_expert(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = None
+            mock_store_class.return_value = mock_store
+            result = runner.invoke(cli, ["expert", "route-gaps", "Ghost"])
+            assert result.exit_code == 2
+            assert "not found" in result.output.lower()
+
+    def test_json_output(self, runner):
+        from deepr.core.contracts import ExpertManifest, Gap
+
+        expert = MagicMock()
+        expert.name = "AI Strategy Expert"
+        expert.get_manifest.return_value = ExpertManifest(
+            expert_name="AI Strategy Expert",
+            domain="ai",
+            gaps=[Gap.create(topic="hiring signals and competitive strategy", ev_cost_ratio=2.0)],
+        )
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.gap_router.shutil.which", return_value="/usr/bin/x"),
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            result = runner.invoke(cli, ["expert", "route-gaps", "AI Strategy Expert", "--json"])
+            assert result.exit_code == 0
+            import json
+
+            payload = json.loads(result.output)
+            assert payload["expert_name"] == "AI Strategy Expert"
+            assert payload["routes"][0]["instrument"] == "primr"
+
+
+class TestExpertExportSkillCommand:
+    """Test 'expert export-skill' command (agentskills.io distribution)."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_help(self, runner):
+        result = runner.invoke(cli, ["expert", "export-skill", "--help"])
+        assert result.exit_code == 0
+        assert "skill" in result.output.lower()
+
+    def test_requires_name(self, runner):
+        result = runner.invoke(cli, ["expert", "export-skill"])
+        assert result.exit_code != 0
+
+    def test_nonexistent_expert(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = None
+            mock_store_class.return_value = mock_store
+            result = runner.invoke(cli, ["expert", "export-skill", "Ghost"])
+            assert result.exit_code == 2
+            assert "not found" in result.output.lower()
+
+    def test_print_only_emits_skill_md(self, runner):
+        from deepr.experts.profile import ExpertProfile
+
+        expert = ExpertProfile(name="AI Strategy Expert", vector_store_id="vs", description="d", domain="ai")
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            result = runner.invoke(cli, ["expert", "export-skill", "AI Strategy Expert", "--print"])
+            assert result.exit_code == 0
+            assert "name: deepr-expert-ai-strategy-expert" in result.output
+            assert "deepr_query_expert" in result.output
+
+    def test_writes_file_to_output_dir(self, runner, tmp_path):
+        from deepr.experts.profile import ExpertProfile
+
+        expert = ExpertProfile(name="AI Strategy Expert", vector_store_id="vs", description="d", domain="ai")
+        out = tmp_path / "myskill"
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            result = runner.invoke(cli, ["expert", "export-skill", "AI Strategy Expert", "-o", str(out)])
+            assert result.exit_code == 0
+            assert (out / "SKILL.md").exists()
+
+
 class TestExpertDeleteCommand:
     """Test 'expert delete' command."""
 
