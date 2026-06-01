@@ -521,6 +521,20 @@ deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
 
 # Resume paused learning
 deepr expert resume "Azure Architect"
+
+# Absorb a completed report into permanent beliefs (verification-gated, deduped)
+deepr expert absorb "Azure Architect" <job_id> --dry-run   # preview
+deepr expert absorb "Azure Architect" <job_id>             # apply
+```
+
+### Knowledge Maintenance
+
+```bash
+# Read-only, cost-$0 audit: freshness, contradictions, missing provenance,
+# decayed beliefs, open-gap backlog, un-synthesized docs - with a recommended
+# action menu (command + estimated cost + approval tier per action).
+deepr expert health-check "Azure Architect"
+deepr expert health-check "Azure Architect" --json
 ```
 
 ### Expert Skills
