@@ -198,6 +198,14 @@ class TestFreshnessCheckerCheck:
         assert status.level == FreshnessLevel.FRESH
         assert status.days_since_update <= 11
 
+    def test_check_naive_datetime_does_not_crash(self, checker):
+        """A timezone-naive reference (older profiles stored naive timestamps)
+        must not raise on the aware/naive subtraction. Regression: this path
+        feeds expert health-check via get_staleness_details."""
+        naive = datetime(2026, 1, 1)  # no tzinfo
+        status = checker.check(last_learning=naive)
+        assert status.days_since_update >= 0
+
     def test_check_aging(self, checker):
         """Should return aging for moderately old learning."""
         now = datetime.now(timezone.utc)

@@ -995,6 +995,9 @@ class AutonomousLearner:
 
         # CRITICAL: Synthesize knowledge into expert consciousness
         # This transforms the expert from "document store" to "conscious entity"
+        # Bound before the try so the final summary (which reads it) cannot hit
+        # an unbound `config` if config load / imports fail on the error path.
+        config = None
         try:
             from deepr.config import AppConfig
             from deepr.experts.synthesis import KnowledgeSynthesizer, Worldview
@@ -1089,7 +1092,7 @@ class AutonomousLearner:
             "",
             f"Expert: {expert.name}",
             f"Documents: {expert.total_documents}",
-            f"Consciousness: {'Formed' if (config.expert.auto_synthesis and uploaded > 0) else 'Not synthesized'}",
+            f"Consciousness: {'Formed' if (config and config.expert.auto_synthesis and uploaded > 0) else 'Not synthesized'}",
             "",
             f'Ready to chat: deepr expert chat "{expert.name}"',
             "",
