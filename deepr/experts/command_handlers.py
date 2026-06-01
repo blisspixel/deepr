@@ -166,7 +166,7 @@ async def handle_why(session: ExpertChatSession, args: str, context: dict) -> Co
     if not decisions:
         return CommandResult(output="No decisions recorded yet. Ask a question first.")
     last = decisions[-1]
-    output = f"Last decision: {last.decision}\nConfidence: {last.confidence:.0%}\nReasoning: {last.reasoning}"
+    output = f"Last decision: {last.title}\nConfidence: {last.confidence:.0%}\nReasoning: {last.rationale}"
     return CommandResult(output=output)
 
 
@@ -176,7 +176,7 @@ async def handle_decisions(session: ExpertChatSession, args: str, context: dict)
         return CommandResult(output="No decisions recorded yet.")
     lines = ["Decisions this session:"]
     for i, rec in enumerate(records, 1):
-        lines.append(f"  {i}. [{rec.confidence:.0%}] {rec.decision}")
+        lines.append(f"  {i}. [{rec.confidence:.0%}] {rec.title}")
     return CommandResult(output="\n".join(lines))
 
 
