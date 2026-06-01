@@ -875,6 +875,59 @@ def health_check(name: str, json_output: bool):
         print_warning("This expert needs attention before it should be relied on.")
 
 
+@expert.command(name="route-gaps")
+@click.argument("name")
+@click.option("--top", "-t", "top_n", type=int, default=5, show_default=True, help="How many top gaps to route")
+@click.option("--json", "json_output", is_flag=True, help="Emit the structured routes as JSON")
+def route_gaps(name: str, top_n: int, json_output: bool):
+    """Route an expert's knowledge gaps to the best instrument to fill each.
+
+    Read-only and costs nothing. Maps each gap to recon (infrastructure),
+    distillr (academic), primr (strategic), or general research (default),
+    flagging which instruments are installed and estimating the cost. Advisory:
+    it recommends, it does not fill.
+
+    EXAMPLES:
+      deepr expert route-gaps "AI Strategy Expert"
+      deepr expert route-gaps "AI Strategy Expert" --top 10 --json
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.gap_router import GapRouter
+    from deepr.experts.profile import ExpertStore
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    gaps = profile.get_manifest().top_gaps(top_n)
+    routes = GapRouter().route(gaps)
+
+    if json_output:
+        click.echo(_json.dumps({"expert_name": profile.name, "routes": [r.to_dict() for r in routes]}, indent=2))
+        return
+
+    print_header(f"Gap routing: {profile.name}")
+    if not routes:
+        print_success("No open knowledge gaps to route.")
+        return
+
+    color = {"recon": "cyan", "distillr": "magenta", "primr": "yellow", "research": "white"}
+    for r in routes:
+        avail = "" if r.available else " [red](not installed)[/red]"
+        inst = color.get(r.instrument, "white")
+        console.print(
+            f"[bold {inst}]{r.instrument}[/bold {inst}]{avail}  ~${r.estimated_cost:.2f}  [dim]{r.topic}[/dim]"
+        )
+        console.print(f"    {r.rationale}")
+        console.print(f"    [white]{r.suggestion}[/white]")
+        console.print()
+
+
 @expert.command(name="absorb")
 @click.argument("name")
 @click.argument("report_id")
@@ -1458,6 +1511,139 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
             console.print(f'  deepr expert resume "{name}"')
 
     console.print(f'\nChat with: deepr chat expert "{name}"')
+
+
+@expert.command(name="reflect")
+@click.argument("name")
+@click.argument("report_id")
+@click.option("--depth", type=int, default=1, show_default=True, help="0 = skip, 1 = single pass, 2+ = rigorous")
+@click.option("--json", "json_output", is_flag=True, help="Emit the structured reflection report as JSON")
+def reflect_report(name: str, report_id: str, depth: int, json_output: bool):
+    """Self-evaluate a research report before relying on or absorbing it.
+
+    Scores the report against its question on grounding, completeness,
+    calibration, and directness, then returns a verdict (accept / revise /
+    re-research) with concrete issues and follow-up queries. Judged in the
+    context of NAME's domain. A natural pre-step to `expert absorb`. Costs one
+    small evaluation call.
+
+    EXAMPLES:
+      deepr expert reflect "AI Strategy Expert" <job_id>
+      deepr expert reflect "AI Strategy Expert" <job_id> --depth 2 --json
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.reflection import ReflectionEngine, ReflectionError
+    from deepr.services.context_index import ContextIndex
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    index = ContextIndex()
+    result = index.get_report_by_job_id(report_id)
+    report_text = index.get_report_content(report_id, max_chars=100000)
+    if not report_text or not result:
+        print_error(f"No report found for id: {report_id}")
+        click.echo("Find report/job IDs with: deepr search")
+        sys.exit(2)
+
+    engine = ReflectionEngine()
+    try:
+        report = asyncio.run(engine.reflect(result.prompt, report_text, domain=profile.domain or "", depth=depth))
+    except ReflectionError as e:
+        print_error(str(e))
+        sys.exit(2)
+    except Exception as e:
+        print_error(f"Reflection failed: {e}")
+        sys.exit(1)
+
+    if json_output:
+        click.echo(_json.dumps(report.to_dict(), indent=2))
+        return
+
+    verdict_color = {"accept": "green", "revise": "yellow", "re_research": "red", "skipped": "dim"}.get(
+        report.verdict, "white"
+    )
+    print_header(f"Reflection: {result.prompt[:60]}")
+    console.print(
+        f"Verdict: [bold {verdict_color}]{report.verdict.upper()}[/bold {verdict_color}] "
+        f"[dim](overall {report.overall_score:.0%}, model {report.model})[/dim]"
+    )
+    if report.dimensions:
+        console.print()
+        print_section_header("Dimensions")
+        for d in report.dimensions:
+            console.print(f"  {d.score:.0%}  [bold]{d.name}[/bold]: {d.assessment}")
+            for issue in d.issues:
+                console.print(f"      [dim]- {issue}[/dim]")
+    if report.followups:
+        console.print()
+        print_section_header("Suggested follow-up research")
+        for f in report.followups:
+            print_list_item(f)
+    if report.verdict == "accept":
+        print_success(f"Report is sound. Safe to absorb: deepr expert absorb '{name}' {report_id}")
+    elif report.verdict == "re_research":
+        print_warning("Quality is weak; re-research the gaps above before absorbing.")
+
+
+@expert.command(name="export-skill")
+@click.argument("name")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Output directory (default: ./skills/deepr-expert-<slug>/)",
+)
+@click.option("--print", "print_only", is_flag=True, help="Print the SKILL.md to stdout instead of writing it")
+def export_skill(name: str, output: str | None, print_only: bool):
+    """Export an expert as a portable agentskills.io SKILL.md.
+
+    Packages the expert as an installable skill for any agentskills.io host
+    (Claude Code, Codex CLI, Gemini CLI, VS Code Copilot, Cursor, OpenClaw): the
+    generated SKILL.md triggers on the expert's domain and instructs the host
+    agent to consult this expert through Deepr's MCP tools. It packages a
+    pointer (calls routed over MCP at run time), not a copy of the knowledge, so
+    the host needs a running Deepr MCP server with this expert present.
+
+    EXAMPLES:
+      deepr expert export-skill "AI Strategy Expert"
+      deepr expert export-skill "AI Strategy Expert" -o ~/.claude/skills/ai-strategy
+      deepr expert export-skill "AI Strategy Expert" --print
+    """
+    import sys
+    from pathlib import Path
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.skills.expert_skill import build_expert_skill, expert_slug
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    packager = build_expert_skill(profile.name, profile.domain or "", profile.description or "")
+
+    if print_only:
+        click.echo(packager.render())
+        return
+
+    out_dir = Path(output) if output else Path("skills") / f"deepr-expert-{expert_slug(profile.name)}"
+    path = packager.generate(out_dir)
+    print_success(f"Wrote {path}")
+    console.print(
+        f"Install: copy [white]{out_dir}[/white] into your agent's skills directory "
+        "(e.g. [white]~/.claude/skills/[/white]). The host must have a Deepr MCP server configured."
+    )
 
 
 @expert.command(name="export")
