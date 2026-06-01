@@ -342,10 +342,13 @@ Goal: make experts genuinely agentic — self-correcting, strategically autonomo
   - [ ] One-command ingest of MD/JSON/JSONL bundles as permanent expert knowledge
   - [ ] Auto-gap detection and citation mapping on imported corpora
   - [ ] Works with any structured output (research reports, synthesis docs, company briefs)
+- [ ] Per-expert SKILL.md export (`deepr expert export --format skill NAME`):
+  - Generic tool-surface export already exists (`deepr/skills/packager.SkillPackager` -> agentskills.io SKILL.md). The gap is an expert-scoped skill: a SKILL.md whose tools/triggers/instructions are populated from one expert and whose body calls that expert via MCP. This is the distribution play - the validated interoperability direction is Deepr exposed as the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose) *call*, not Deepr delegating execution outward (those hosts consume MCP servers; they are not callable as tools). agentskills.io SKILL.md is now broadly adopted (Claude Code, Codex CLI, Gemini CLI, VS Code Copilot, Cursor, OpenClaw), so one export reaches every major host.
 - [ ] Skill auto-generation from research artifacts:
   - [ ] `expert skill make "Topic" --from-report artifact.md` generates skill with tools and triggers
   - [ ] Dependency tracking between generated skills
   - [ ] Efficacy scoring (citations added, gaps closed, cost impact)
+  - [ ] Trace-based skill self-improvement: improve generated skills/prompts from real execution traces, gated behind tests + size limits + human-review/PR. Reference approach: GEPA (genetic-Pareto reflective prompt evolution) + DSPy over traces - zero-GPU, API-only, validated (ICLR 2026); composes with the reflection + absorb loop above (the trace is the artifact those loops already produce).
 - [ ] Skill templates + versioning/dependency management
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills ↔ agentskills.io)
 - [ ] Keep skill design constrained (focused modules, measurable outcomes)
