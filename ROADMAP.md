@@ -32,7 +32,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.12)
+## Current Status (v2.13)
 
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 4851+ unit tests, 78% branch coverage on Python 3.12-3.14. Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
@@ -57,7 +57,7 @@ These features work but APIs or behavior may change:
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
 - **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `query_library` first)
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
-- **MCP server**: Functional with 21 tools, but MCP spec itself is still maturing
+- **MCP server**: Functional with 23 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -70,10 +70,10 @@ These features work but APIs or behavior may change:
 - Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.5 Flash/3.1 Pro/Flash-Lite/2.5, Grok 4.20/4.3, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
-- Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), guardrail validation (`expert validate`), knowledge maintenance (`expert health-check`), report-to-knowledge absorption (`expert absorb`), domain-specific skills, AI-generated portraits
+- Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), guardrail validation (`expert validate`), knowledge maintenance (`expert health-check`), report-to-knowledge absorption (`expert absorb`), report reflection (`expert reflect`), gap-to-tool routing (`expert route-gaps`), per-expert SKILL.md export (`expert export-skill`), domain-specific skills, AI-generated portraits
 - Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
-- MCP server with 21 tools, persistence, security, multi-runtime configs
+- MCP server with 23 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -303,11 +303,11 @@ tools, reusing the same free contradiction heuristic. **Next up:**
 
 Reflection loop and graph memory are the larger, higher-risk items and come after.
 
-- [ ] Reflection loop (self-correction before delivery):
-  - [ ] Post-research quality evaluation: citation grounding, logical gaps, confidence calibration
-  - [ ] Automatic re-research on specific gaps identified by reflection
-  - [ ] Reflection metadata in output (what was revised, why, quality score)
-  - [ ] Configurable reflection depth (0 = no reflection, 1 = single pass, 2 = iterative)
+- [~] Reflection loop (self-correction before delivery):
+  - [x] Post-research quality evaluation (v2.13): `ReflectionEngine` scores grounding, completeness, calibration, directness; CLI `deepr expert reflect` + `deepr_reflect` MCP tool. The model scores per dimension; the verdict (accept/revise/re_research) is computed deterministically from thresholds.
+  - [x] Reflection metadata in output (per-dimension scores + issues + overall + follow-up queries)
+  - [x] Configurable reflection depth (0 = skip, 1 = single pass, 2+ = rigorous)
+  - [ ] Automatic re-research on the gaps reflection identifies (currently emits follow-up queries; running them is still manual/opt-in)
 - [ ] Graph-structured expert memory:
   - [ ] Knowledge graph with typed nodes (fact, signal, inference, belief) and edges (supports, contradicts, enables)
   - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
@@ -332,9 +332,9 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] Per-topic refresh cadence and source list, budget-bounded; depends on the Phase 2b distillr freshness path
   - [ ] Schedulable; surfaces a change summary (what is new, what shifted, what to review)
 - [ ] Dynamic tool selection via gap analysis:
-  - [ ] Gap-to-tool mapping engine (infrastructure gaps → recon, academic gaps → distillr, strategic gaps → primr; instruments delivered in Phase 2b)
-  - [ ] Value/cost estimation per gap-fill option
-  - [ ] Strategic prioritization: fill highest-value gaps first within budget
+  - [x] Gap-to-tool mapping engine (v2.13): `GapRouter` maps each gap to recon/distillr/primr/research by keyword signal, with installed-instrument detection and fallback. CLI `deepr expert route-gaps` + `deepr_route_gaps` MCP tool. Read-only advisory.
+  - [x] Value/cost estimation per gap-fill option (per-route cost estimate + ev_cost_ratio ordering)
+  - [ ] Strategic prioritization that actually *executes* the highest-value fills within budget (router currently advises; autonomous fill is the next step)
 - [x] Expert-as-guardrail mode:
   - [x] `validate` tool alongside `research` and `chat` — `deepr expert validate NAME CLAIM` (also `--from-file -` for stdin) and `deepr_expert_validate` MCP tool. Expert applies its existing knowledge as a filter/validator; pure read-side, never mutates the expert.
   - [x] PASS/WARN/FAIL assessment with citations and confidence — claim IDs returned by the validator model are resolved back to canonical `Claim` objects so callers get full citation provenance, not just statements.
@@ -345,8 +345,7 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] One-command ingest of MD/JSON/JSONL bundles as permanent expert knowledge
   - [ ] Auto-gap detection and citation mapping on imported corpora
   - [ ] Works with any structured output (research reports, synthesis docs, company briefs)
-- [ ] Per-expert SKILL.md export (`deepr expert export --format skill NAME`):
-  - Generic tool-surface export already exists (`deepr/skills/packager.SkillPackager` -> agentskills.io SKILL.md). The gap is an expert-scoped skill: a SKILL.md whose tools/triggers/instructions are populated from one expert and whose body calls that expert via MCP. This is the distribution play - the validated interoperability direction is Deepr exposed as the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose) *call*, not Deepr delegating execution outward (those hosts consume MCP servers; they are not callable as tools). agentskills.io SKILL.md is now broadly adopted (Claude Code, Codex CLI, Gemini CLI, VS Code Copilot, Cursor, OpenClaw), so one export reaches every major host.
+- [x] Per-expert SKILL.md export (v2.13): `deepr expert export-skill NAME` builds `deepr/skills/expert_skill.build_expert_skill` on top of the generic `SkillPackager` - an expert-scoped SKILL.md whose triggers/instructions/tools are populated from one expert and whose body calls that expert via Deepr's MCP tools. The validated interoperability direction: Deepr is the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose, OpenClaw) *call*, not Deepr delegating execution outward. agentskills.io SKILL.md is broadly adopted, so one export reaches every major host.
 - [ ] Skill auto-generation from research artifacts:
   - [ ] `expert skill make "Topic" --from-report artifact.md` generates skill with tools and triggers
   - [ ] Dependency tracking between generated skills
@@ -355,6 +354,31 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
 - [ ] Skill templates + versioning/dependency management
 - [ ] Skill format conversion (Claude Skills ↔ OpenClaw Skills ↔ agentskills.io)
 - [ ] Keep skill design constrained (focused modules, measurable outcomes)
+
+### Phase 4c: Expert Crews (composable, exportable expert teams)
+
+Goal: let a *named, persistent* set of experts be consulted and shipped as one
+composable role - the team-level analogue of a single expert. This is
+composition of parts that already exist (`council.py` for bounded multi-expert
+consultation, `dspy_pipeline.py` for trace-based optimization, the per-expert
+SKILL.md export, `report_absorber`/`metacognition` for the learning loop), not
+new infrastructure. Sequenced so the static, auditable core lands first and the
+self-improvement lands last, gated.
+
+Naming: do **not** reuse `deepr team` - that already means ephemeral,
+multi-persona research teams for a single question (`team analyze`). Use a
+distinct surface (`deepr crew ...`, or an `expert crew` sub-namespace).
+
+Design constraint (preserves the non-goal): a crew is itself **one composable
+role** that exposes a single handoff surface; internally it is a *bounded
+council*, not Deepr orchestrating other vendors' agents. Deepr still does not
+own the outer workflow.
+
+- [ ] Crew manifest + persistence: a named crew = a set of expert names + a lead/synthesizer role + a delegation note, stored alongside profiles. Reuses `council.py` for execution.
+- [ ] `crew run "<question>"` - bounded council consultation across the crew's experts with budget contract, approvals, and trace IDs (no unbounded fan-out).
+- [ ] `crew export` -> TEAM.md (a SKILL.md superset: `roles[]`, delegation note, the existing per-expert tool surface) so a crew installs into an agentskills.io host as one skill. Reuses `skills/packager` + the per-expert exporter.
+- [ ] (later, experimental, gated) Trace-fed self-improvement: feed crew-run traces into the existing `dspy_pipeline` + absorb/reflection loop to propose a manifest delta (role add/drop, delegation tweak); every proposal passes `expert validate` + human approval before it is applied. No silent reconfiguration.
+- [ ] (optional interop) Export to LangGraph / CrewAI configs; NemoClaw-sandbox-friendly run mode. Nice-to-haves, not core.
 
 ### Phase 4b: Autonomous Research Campaigns
 
@@ -487,9 +511,9 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.10.2-2.10.3 | Security hardening, MCP confirmation gate, 80% coverage gate, 5-round bug-hunt sweep | Complete |
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
 | v2.12 | Distillr + Primr integrations (Phase 2b complete); Phase E: `mcp/` flipped into the blocking `mypy --strict` gate (third strict island); first Phase 4 knowledge-loop increments - `expert health-check` and `expert absorb` (CLI + MCP, 21 tools); routing preview; bug-hunt fixes | Complete |
-| v2.13 | Expert intelligence: reflection loop, graph memory, expert freshness/sync, dynamic tool selection via gap analysis, per-expert SKILL.md export | Planned |
-| v2.14 | Autonomous research campaigns, multi-day expert investigations | Planned |
-| v2.15 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
+| v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
+| v2.14 | Graph-structured expert memory, expert freshness/sync, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
+| v2.15 | Autonomous research campaigns, ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
 
 ---
