@@ -6,7 +6,7 @@ This module tests the complete two-phase workflow:
 3. Synthesis: Generate curriculum and execute research
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -32,8 +32,8 @@ def mock_expert():
         domain="Test Domain",
         source_files=[],
         total_documents=0,
-        knowledge_cutoff_date=datetime.utcnow(),
-        last_knowledge_refresh=datetime.utcnow(),
+        knowledge_cutoff_date=datetime.now(UTC),
+        last_knowledge_refresh=datetime.now(UTC),
         system_message="Test system message",
         provider="openai",
     )
@@ -100,7 +100,7 @@ def sample_curriculum(sample_sources):
         topics=topics,
         total_estimated_cost=2.25,
         total_estimated_minutes=55,
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.now(UTC),
     )
 
 
@@ -303,7 +303,7 @@ class TestAcquisitionPhase:
             ],
             total_estimated_cost=0.25,
             total_estimated_minutes=10,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
         # Should skip acquisition
