@@ -70,7 +70,7 @@ These features work but APIs or behavior may change:
 - Multi-provider support (OpenAI GPT-5.4/5-mini/4.1, Gemini 3.5 Flash/3.1 Pro/Flash-Lite/2.5, Grok 4.20/4.3, Anthropic Claude, Azure, Azure AI Foundry)
 - Deep Research via OpenAI API (o3/o4-mini-deep-research) and Gemini Interactions API (Deep Research Agent)
 - Semantic commands (`research`, `learn`, `team`, `check`, `make`)
-- Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
+- Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), guardrail validation (`expert validate`), knowledge maintenance (`expert health-check`), report-to-knowledge absorption (`expert absorb`), domain-specific skills, AI-generated portraits
 - Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
 - MCP server with 21 tools, persistence, security, multi-runtime configs
@@ -293,12 +293,15 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 
 Goal: make experts genuinely agentic — self-correcting, strategically autonomous, graph-structured memory.
 
-**Next up (recommended entry points, now unblocked by Phase 2b).** With recon + distillr + primr all integrated, the tightest next increment is the pair that closes the loop on those instruments:
+**Status.** The first two knowledge-loop increments shipped in **v2.12**:
+`deepr expert health-check` (read-side, cost-$0 audit) and `deepr expert absorb`
+(verification-gated output-to-knowledge loop) — both as CLI commands and MCP
+tools, reusing the same free contradiction heuristic. **Next up:**
 
-1. **`deepr expert absorb REPORT_ID`** (output-to-knowledge feedback loop, below) — promote good reports/answers into permanent knowledge, verification-gated. Builds directly on the absorption pipeline (`KnowledgeAbsorber.categorize_*`) just extended for distillr/primr.
+1. **Per-expert SKILL.md export** (Phase 4 skills, below) — the distribution play; the generic packager exists, the expert-scoped export does not.
 2. **Dynamic tool selection via gap analysis** (below) — map infrastructure gaps -> recon, academic gaps -> distillr, strategic gaps -> primr. All three target instruments now exist, so the gap-to-tool engine has somewhere to route.
 
-`deepr expert health-check` (knowledge maintenance, read-side, cost-$0) is the natural third step. Reflection loop and graph memory are the larger, higher-risk items and come after.
+Reflection loop and graph memory are the larger, higher-risk items and come after.
 
 - [ ] Reflection loop (self-correction before delivery):
   - [ ] Post-research quality evaluation: citation grounding, logical gaps, confidence calibration
@@ -310,15 +313,15 @@ Goal: make experts genuinely agentic — self-correcting, strategically autonomo
   - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
   - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
   - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically
-- [ ] Knowledge maintenance loop (the expert keeps its own house in order, building on the staleness + contradiction detection above):
-  - [ ] `deepr expert health-check NAME` - read-side audit of the knowledge state in one pass: contradictions between beliefs, orphaned or broken citations, claims missing source provenance, beliefs past their refresh threshold, un-ingested raw material, and suggested new topics + cross-links not yet drawn
-  - [ ] Two-phase output: an auditable decision-record report, then an action menu gated by existing approval tiers (AUTO_APPROVE/NOTIFY/CONFIRM); corrective research is opt-in and budget-bounded
-  - [ ] Cost-$0 by default (audit only); schedulable so experts self-maintain on a cadence (the scheduled monthly health check, not just scheduled refresh)
+- [~] Knowledge maintenance loop (the expert keeps its own house in order, building on the staleness + contradiction detection above):
+  - [x] `deepr expert health-check NAME` (v2.12) - read-side audit in one pass: belief contradictions (free heuristic), claims missing source provenance, beliefs past their confidence/refresh threshold, the open-gap backlog, and documents ingested but not synthesized. CLI + `deepr_expert_health_check` MCP tool. Deferred: orphaned/broken-link citation checks and suggested new topics + cross-links.
+  - [x] Two-phase output: findings, then an action menu where each item carries its command, estimated cost, and the approval tier (AUTO_APPROVE/NOTIFY/CONFIRM) that would gate it; corrective research stays opt-in (the audit proposes, it never runs an action)
+  - [x] Cost-$0 by default (audit only); schedulable so experts self-maintain on a cadence (the scheduled monthly health check, not just scheduled refresh)
   - [ ] For corpus-backed experts, delegate the underlying audit to distillr's `audit` rather than reimplementing link/contradiction/coverage scans; Deepr adds belief-state mapping, confidence, and the action menu on top
-- [ ] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
-  - [ ] `deepr expert absorb REPORT_ID` plus a post-research "integrate this into the expert?" prompt - promote good answers and reports into permanent knowledge with provenance, instead of treating reports as terminal artifacts
-  - [ ] Verification-gated by design: every re-ingested answer passes through the existing verify/reflection step before it becomes a belief. This is the safety the naive folder-and-CLAUDE.md version lacks (it warns "the AI writes something slightly wrong, you save it back, the next answer builds on the mistake"); our verify discipline is what makes the loop safe
-  - [ ] Dedup against existing beliefs and integrate the delta only (reuses the absorption pipeline); where distillr exposes a corpus-side `ask` verb, consume it and apply verification rather than re-querying raw sources
+- [~] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
+  - [x] `deepr expert absorb REPORT_ID` (v2.12) - promote a completed report into permanent beliefs with report provenance, instead of treating reports as terminal artifacts. CLI (`--dry-run` preview) + `deepr_expert_absorb` MCP tool. Deferred: the post-research "integrate this?" inline prompt.
+  - [x] Verification-gated by design: extraction yields report-grounded candidate claims (each self-rated for report support), weak claims are dropped, and any claim contradicting an existing belief is rejected by the same free heuristic health-check uses - so "the model writes something slightly wrong, you save it, the next answer builds on the mistake" cannot happen silently
+  - [x] Dedup against existing beliefs and integrate the delta only (reuses `BeliefStore.add_belief`); consuming distillr's corpus-side `ask` verb with verification is the remaining follow-on
 - [ ] Gap-driven discovery (audit proposes what is missing, not just what the user asked for):
   - [ ] Wire health-check coverage findings into auto-generated discovery queries: "you have 12 sources on X but zero on Y - preview candidates?" This is corpus-gap-driven, complementing the existing goal-driven discovery
   - [ ] Surface as previewable candidates with cost estimate; ingestion stays opt-in and budget-bounded
@@ -479,12 +482,12 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.8.1 | WebSocket push, background poller, UX overhaul, benchmarks page, help page, demo data, error standardization | Complete |
 | v2.9.0 | Expert skills, agentic chat (slash commands, modes, reasoning, approval, council, task planning), portraits, conversations API | Complete |
 | v2.9.1 | `deepr web` CLI command, documentation updates | Complete |
-| v2.10 | Agentic infrastructure core, Grok 4.20 flagship, legacy migration, Azure Foundry parity | In Progress |
+| v2.10 | Agentic infrastructure core, Grok 4.20 flagship, legacy migration, Azure Foundry parity (live-integration tests tracked as open Phase 1 work) | Complete |
 | v2.10.1 | MCP client + A2A protocol, agent interoperability, skill portability | Complete |
 | v2.10.2-2.10.3 | Security hardening, MCP confirmation gate, 80% coverage gate, 5-round bug-hunt sweep | Complete |
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
-| v2.12 | Distillr + Primr integrations delivered (Phase 2b #2 & #3, completing Phase 2b); Phase E engineering-standards foundation (uv + uv.lock, Python 3.12 floor + 3.13/3.14 matrix, mypy + pip-audit CI baselines, Dependabot, py312 syntax modernization); routing preview done | In Progress |
-| v2.13 | Expert intelligence: reflection loop, graph memory, knowledge maintenance loop (health-check, absorb, freshness/sync), dynamic tool selection | Planned |
+| v2.12 | Distillr + Primr integrations (Phase 2b complete); Phase E: `mcp/` flipped into the blocking `mypy --strict` gate (third strict island); first Phase 4 knowledge-loop increments - `expert health-check` and `expert absorb` (CLI + MCP, 21 tools); routing preview; bug-hunt fixes | Complete |
+| v2.13 | Expert intelligence: reflection loop, graph memory, expert freshness/sync, dynamic tool selection via gap analysis, per-expert SKILL.md export | Planned |
 | v2.14 | Autonomous research campaigns, multi-day expert investigations | Planned |
 | v2.15 | Ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |

@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-06-01
+
 ### Added
+- **Expert health-check (Phase 4, knowledge maintenance loop).**
+  ``deepr expert health-check NAME`` runs a read-side, cost-$0 audit of an
+  expert's knowledge state - freshness, belief contradictions (free heuristic,
+  no LLM), claims missing source provenance, beliefs decayed below the
+  confidence threshold, the open-gap backlog, and documents ingested but never
+  synthesized. Output is two-phase: findings (each with a severity) plus a
+  recommended-action menu where every corrective step carries its CLI command,
+  estimated cost, and the approval tier that would gate it. The audit only
+  proposes; it never mutates or spends. Exposed as the ``deepr_expert_health_check``
+  MCP tool (SENSITIVE: blocked in read-only, confirm in standard/extended).
+- **Expert absorb (Phase 4, output-to-knowledge feedback loop).**
+  ``deepr expert absorb NAME REPORT_ID`` promotes a completed research report
+  into an expert's permanent beliefs, verification-gated: one extraction call
+  turns the report into atomic, report-grounded candidate claims; weak claims
+  and any that contradict existing beliefs are rejected (the contradiction gate
+  reuses the same free heuristic as health-check); survivors are integrated via
+  ``BeliefStore.add_belief`` (deduped) with the report id as provenance.
+  ``--dry-run`` previews without writing. Exposed as the ``deepr_expert_absorb``
+  MCP tool (WRITE: mutating + paid, gated accordingly). MCP surface now 21 tools.
 - **Native Distillr integration (first-party instrument, Phase 2b #2).** When
   the ``distill-mcp`` binary is on ``PATH`` (``pip install distillr``), Deepr
   auto-discovers and mounts the distillr MCP server with no user
@@ -61,7 +82,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     errors) and ``deepr/providers`` (82 errors across all adapters - including
     realigning grok's vector-store stubs to the base provider contract) are now
     ``mypy --strict``-clean and enforced by a **blocking**
-    ``mypy --strict deepr/core deepr/providers`` CI step; ``mcp/`` is next.
+    ``mypy --strict deepr/core deepr/providers deepr/mcp`` CI step. ``deepr/mcp``
+    was driven strict-clean and **flipped into the blocking gate this release**
+    (the third strict island); the migration also fixed a latent bug where the
+    expert-info MCP tools used dict-subscript access on ``ExpertProfile`` objects.
   - **pip-audit** wired into CI and already **blocking**: the baseline it
     surfaced was cleared immediately (see Security), so a new known
     vulnerability now fails the build.
@@ -109,6 +133,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names and modern ``asyncio.run`` (the deprecated ``get_event_loop`` form
   raised on Python 3.11+). Count-based config-loader unit tests are now
   isolated from host-installed first-party binaries.
+- **``expert learn --resume`` crashed** - ``do_resume()`` built
+  ``LearningTopic`` without the required ``description``/``priority`` fields and
+  ``LearningCurriculum`` without ``generated_at``, a guaranteed ``TypeError``
+  whenever resume ran. All required fields are now passed.
+- **``expert refresh`` crashed on a never-refreshed expert** - the stats display
+  called ``.strftime()`` on ``last_knowledge_refresh`` (``datetime | None``)
+  unconditionally. Guarded; shows "never" when unset.
+- **``expert absorb`` crashed on malformed model output** - an extraction
+  response of ``{"claims": null}`` (or a non-list value) hit ``None[:n]``.
+  Non-list ``claims`` now degrades to zero candidates.
+- **Date-dependent test flake** - ``test_reset_if_needed_daily`` set
+  ``last_reset`` to "yesterday", so on the 1st of any month the monthly bucket
+  also reset (correct production behaviour), failing CI on those dates. Pinned
+  to a mocked mid-month ``now``.
+- Replaced the remaining deprecated ``datetime.utcnow()`` calls across the test
+  suite with ``datetime.now(UTC)`` (production code was already clean).
 
 ---
 
