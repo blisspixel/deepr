@@ -4,7 +4,7 @@ Requirements: 1.3 - Test Coverage
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -253,7 +253,7 @@ class TestLearningCurriculum:
             topics=topics,
             total_estimated_cost=0.35,
             total_estimated_minutes=18,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
         assert curriculum.expert_name == "Test Expert"
@@ -281,7 +281,7 @@ class TestLearningCurriculum:
             topics=topics,
             total_estimated_cost=0.15,
             total_estimated_minutes=8,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
         # Serialize and deserialize
@@ -440,7 +440,7 @@ class TestCurriculumGenerator:
             topics=topics,
             total_estimated_cost=4.0,
             total_estimated_minutes=40,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
         # Truncate to $2.50 budget
@@ -484,7 +484,7 @@ class TestCurriculumGenerator:
             topics=topics,
             total_estimated_cost=0.35,
             total_estimated_minutes=18,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
         phases = generator.get_execution_order(curriculum)
@@ -537,7 +537,7 @@ class TestCurriculumGenerator:
             topics=topics,
             total_estimated_cost=0.60,
             total_estimated_minutes=30,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
         phases = generator.get_execution_order(curriculum)

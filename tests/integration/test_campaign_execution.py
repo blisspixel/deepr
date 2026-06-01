@@ -12,7 +12,7 @@ Requirements: 7.3 - Integration test for campaign execution
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -92,7 +92,7 @@ class TestCampaignExecutionIntegration:
             "id": campaign_id,
             "config": campaign_config,
             "status": "created",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "phases_completed": [],
             "current_phase": None,
             "total_spent": 0.0,
@@ -122,7 +122,7 @@ class TestCampaignExecutionIntegration:
             "model": phase["model"],
             "budget": phase["budget"],
             "status": "submitted",
-            "submitted_at": datetime.utcnow().isoformat(),
+            "submitted_at": datetime.now(UTC).isoformat(),
         }
 
         assert phase_job["phase_name"] == "Discovery"
@@ -351,12 +351,12 @@ class TestCampaignExecutionEdgeCases:
         campaign_state = {
             "id": "test-campaign",
             "status": "running",
-            "started_at": datetime.utcnow() - timedelta(hours=2),
+            "started_at": datetime.now(UTC) - timedelta(hours=2),
             "timeout_hours": 1,
         }
 
         # Check if timed out
-        elapsed = datetime.utcnow() - datetime.fromisoformat(campaign_state["started_at"].isoformat())
+        elapsed = datetime.now(UTC) - datetime.fromisoformat(campaign_state["started_at"].isoformat())
         is_timed_out = elapsed.total_seconds() > (campaign_state["timeout_hours"] * 3600)
 
         assert is_timed_out is True
@@ -448,7 +448,7 @@ class TestCampaignConcurrency:
         def acquire_lock(campaign_id):
             if campaign_id in campaign_locks:
                 return False
-            campaign_locks[campaign_id] = datetime.utcnow()
+            campaign_locks[campaign_id] = datetime.now(UTC)
             return True
 
         def release_lock(campaign_id):

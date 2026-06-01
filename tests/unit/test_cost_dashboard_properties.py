@@ -9,7 +9,7 @@ Tests verify:
 """
 
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from hypothesis import HealthCheck, assume, given, settings
@@ -55,8 +55,10 @@ costs = st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_infinit
 # Token counts
 tokens = st.integers(min_value=0, max_value=100000)
 
-# Timestamps within reasonable range (last 30 days)
-timestamps = st.datetimes(min_value=datetime.utcnow() - timedelta(days=30), max_value=datetime.utcnow())
+# Timestamps within reasonable range (last 30 days).
+# Hypothesis's datetimes() strategy requires NAIVE bounds, so strip tzinfo.
+_now_naive = datetime.now(UTC).replace(tzinfo=None)
+timestamps = st.datetimes(min_value=_now_naive - timedelta(days=30), max_value=_now_naive)
 
 # Alert thresholds (valid fractions)
 thresholds = st.floats(min_value=0.01, max_value=1.0, allow_nan=False, allow_infinity=False)
@@ -279,7 +281,7 @@ class TestAlertManagerProperties:
         assume(daily_limit > 0)
 
         manager = AlertManager(thresholds=thresholds)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
 
         alerts = manager.check_daily_alerts(daily_total, daily_limit, today)
 
@@ -294,7 +296,7 @@ class TestAlertManagerProperties:
         assume(daily_limit > 0)
 
         manager = AlertManager(thresholds=thresholds)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
 
         # First check
         alerts1 = manager.check_daily_alerts(daily_total, daily_limit, today)
@@ -312,7 +314,7 @@ class TestAlertManagerProperties:
     def test_critical_threshold_level(self, thresholds: list[float]):
         """Property: alerts at >= 0.95 threshold are always critical."""
         manager = AlertManager(thresholds=thresholds)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
 
         # Trigger all thresholds
         alerts = manager.check_daily_alerts(1000.0, 100.0, today)
@@ -330,7 +332,7 @@ class TestAlertManagerProperties:
         assume(daily_limit > 0)
 
         manager = AlertManager(thresholds=thresholds)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
 
         alerts = manager.check_daily_alerts(daily_total, daily_limit, today)
 
