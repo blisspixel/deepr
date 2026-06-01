@@ -201,6 +201,15 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        # Absorb MUTATES expert beliefs and runs a paid extraction call, so it
+        # is WRITE: confirm in standard/extended, blocked in read-only.
+        "deepr_expert_absorb": ToolConfig(
+            name="deepr_expert_absorb",
+            category=ToolCategory.WRITE,
+            description="Promote a research report into expert beliefs (verification-gated, mutating)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Expert query — may return private knowledge. Sensitive.
         "deepr_query_expert": ToolConfig(
             name="deepr_query_expert",

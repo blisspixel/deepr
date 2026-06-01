@@ -75,6 +75,24 @@ class ConflictResolver:
             self.client = AsyncOpenAI()
         return self.client
 
+    _NEGATION_WORDS = {"not", "no", "never", "false", "incorrect", "wrong", "isn't", "doesn't", "don't"}
+
+    @staticmethod
+    def beliefs_contradict(a: Belief, b: Belief) -> bool:
+        """True if two beliefs look contradictory by the free heuristic.
+
+        The heuristic: opposite polarity (exactly one is negated) plus
+        meaningful content overlap (>2 shared non-negation words). No LLM call.
+        This is the single-pair predicate behind both
+        :meth:`detect_contradictions_heuristic` and the cost-$0 absorption gate.
+        """
+        a_words = set(a.claim.lower().split())
+        b_words = set(b.claim.lower().split())
+        a_negation = bool(a_words & ConflictResolver._NEGATION_WORDS)
+        b_negation = bool(b_words & ConflictResolver._NEGATION_WORDS)
+        content_overlap = len(a_words & b_words - ConflictResolver._NEGATION_WORDS)
+        return content_overlap > 2 and a_negation != b_negation
+
     @staticmethod
     def detect_contradictions_heuristic(beliefs: list[Belief]) -> list[tuple[Belief, Belief]]:
         """Detect contradictions using the free heuristic only (no LLM call).
@@ -92,21 +110,10 @@ class ConflictResolver:
             List of contradicting belief pairs
         """
         contradictions: list[tuple[Belief, Belief]] = []
-        negation_words = {"not", "no", "never", "false", "incorrect", "wrong", "isn't", "doesn't", "don't"}
-
         for i, a in enumerate(beliefs):
-            a_words = set(a.claim.lower().split())
-            a_negation = bool(a_words & negation_words)
-
             for b in beliefs[i + 1 :]:
-                # Same domain, opposite polarity, overlapping content
-                b_words = set(b.claim.lower().split())
-                b_negation = bool(b_words & negation_words)
-
-                content_overlap = len(a_words & b_words - negation_words)
-                if content_overlap > 2 and a_negation != b_negation:
+                if ConflictResolver.beliefs_contradict(a, b):
                     contradictions.append((a, b))
-
         return contradictions
 
     async def detect_contradictions(

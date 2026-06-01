@@ -57,7 +57,7 @@ These features work but APIs or behavior may change:
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
 - **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `query_library` first)
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
-- **MCP server**: Functional with 20 tools, but MCP spec itself is still maturing
+- **MCP server**: Functional with 21 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -73,7 +73,7 @@ These features work but APIs or behavior may change:
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), domain-specific skills, AI-generated portraits
 - Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
-- MCP server with 20 tools, persistence, security, multi-runtime configs
+- MCP server with 21 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
