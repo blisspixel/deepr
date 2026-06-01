@@ -908,8 +908,12 @@ def absorb_report(
     Costs one small extraction call (~$0.03). Use --dry-run to preview the
     claims and verdicts without writing anything.
 
+    REPORT_ID is the job id of a completed report (the same id you pass to
+    `deepr research --context`; find it with `deepr search`). A job-id prefix
+    also resolves.
+
     EXAMPLES:
-      deepr expert absorb "AI Strategy Expert" 2026-05-30_1042_market-sizing_a1b2c3
+      deepr expert absorb "AI Strategy Expert" <job_id>
       deepr expert absorb "AI Strategy Expert" <job_id> --dry-run
       deepr expert absorb "AI Strategy Expert" <job_id> --min-confidence 0.7 --yes
     """
@@ -1412,11 +1416,13 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
         for t in remaining_topics:
             topic = LearningTopic(
                 title=t.get("title", "Unknown"),
+                description=t.get("description", ""),
                 research_prompt=t.get("research_prompt", ""),
                 research_mode=t.get("research_mode", "focus"),
                 research_type=t.get("research_type", "general"),
                 estimated_cost=t.get("estimated_cost", 0.5),
                 estimated_minutes=t.get("estimated_minutes", 5),
+                priority=t.get("priority", 3),
             )
             topics.append(topic)
 
@@ -1426,6 +1432,7 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
             topics=topics,
             total_estimated_cost=estimated_remaining_cost,
             total_estimated_minutes=sum(t.get("estimated_minutes", 5) for t in remaining_topics),
+            generated_at=datetime.now(UTC),
         )
 
         # Execute with resume=True
@@ -2217,7 +2224,11 @@ def refresh_expert(name: str, synthesize: bool, yes: bool):
             profile = store.load(name)
             if profile:
                 print_key_value("Documents in knowledge base", str(profile.total_documents))
-                print_key_value("Last refreshed", profile.last_knowledge_refresh.strftime("%Y-%m-%d %H:%M:%S"))
+                last_refresh = profile.last_knowledge_refresh
+                print_key_value(
+                    "Last refreshed",
+                    last_refresh.strftime("%Y-%m-%d %H:%M:%S") if last_refresh else "never",
+                )
 
             # Synthesize if requested
             if synthesize and (

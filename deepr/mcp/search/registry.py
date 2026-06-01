@@ -554,7 +554,7 @@ def create_default_registry() -> ToolRegistry:
                     "expert_name": {"type": "string", "description": "Name of the expert to absorb into"},
                     "report_id": {
                         "type": "string",
-                        "description": "Report id or job id of a completed research report (see deepr search)",
+                        "description": "Job id of a completed research report (as used with --context; see deepr search). A job-id prefix also resolves.",
                     },
                     "min_confidence": {
                         "type": "number",

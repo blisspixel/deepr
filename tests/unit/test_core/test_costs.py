@@ -212,10 +212,18 @@ class TestCostController:
         ctrl = CostController()
         ctrl.daily_spending = 10.0
         ctrl.monthly_spending = 50.0
-        ctrl.last_reset = datetime.now(timezone.utc) - timedelta(days=1, seconds=1)
-        ctrl.reset_if_needed()
+        # Pin "now" to mid-month so the 1-day-ago last_reset stays in the same
+        # month. Without this the test fails on the 1st of any month, when
+        # "yesterday" is the previous month and the monthly bucket also resets
+        # (correct production behaviour) - a date-dependent CI flake.
+        with patch("deepr.core.costs.datetime") as mock_dt:
+            now = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+            mock_dt.now.return_value = now
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            ctrl.last_reset = now - timedelta(days=1, seconds=1)
+            ctrl.reset_if_needed()
         assert ctrl.daily_spending == 0.0
-        # Monthly should NOT be reset (same month possibly)
+        # Monthly should NOT be reset (same month)
         assert ctrl.monthly_spending == 50.0
 
     def test_reset_if_needed_monthly(self):
