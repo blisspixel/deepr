@@ -67,6 +67,18 @@ async def test_bad_json_raises(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("payload", ['{"claims": null}', '{"claims": "none"}', "{}", '{"claims": {}}'])
+async def test_malformed_claims_field_yields_no_candidates(tmp_path, payload):
+    # A model returning null / a non-list / a missing claims field must degrade
+    # to zero candidates, not raise (regression: {"claims": null} crashed with
+    # TypeError on the None slice).
+    absorber = _absorber(payload, tmp_path)
+    result = await absorber.absorb("rep1", "some report text")
+    assert result.total_candidates == 0
+    assert result.absorbed == []
+
+
+@pytest.mark.asyncio
 async def test_absorbs_strong_claim_with_provenance(tmp_path):
     content = _claims_json({"statement": "Model X leads on benchmark Y", "confidence": 0.9, "evidence": ["table 2"]})
     absorber = _absorber(content, tmp_path)
