@@ -17,7 +17,7 @@ pytest.importorskip("flask")  # web extra may be absent
 # dummy one before importing the app.
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
 
-from deepr.web.app import app  # noqa: E402
+from deepr.web.app import app
 
 
 @pytest.fixture
