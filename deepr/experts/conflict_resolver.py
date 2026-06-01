@@ -25,6 +25,11 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _pair_key(a_id: str, b_id: str) -> tuple[str, str]:
+    """Order-independent key for a belief pair (for dedup across stages)."""
+    return (a_id, b_id) if a_id <= b_id else (b_id, a_id)
+
+
 @dataclass
 class ConflictResolutionResult:
     """Result of resolving a conflict between two beliefs."""
@@ -70,11 +75,15 @@ class ConflictResolver:
             self.client = AsyncOpenAI()
         return self.client
 
-    async def detect_contradictions(self, beliefs: list[Belief]) -> list[tuple[Belief, Belief]]:
-        """Detect contradictions between beliefs.
+    @staticmethod
+    def detect_contradictions_heuristic(beliefs: list[Belief]) -> list[tuple[Belief, Belief]]:
+        """Detect contradictions using the free heuristic only (no LLM call).
 
-        Stage 1: Heuristic check (negation + word overlap) — fast, free
-        Stage 2: LLM check on remaining pairs — more accurate
+        Flags same-domain belief pairs with opposite polarity (one negated,
+        the other not) and meaningful content overlap. This is Stage 1 of
+        :meth:`detect_contradictions`, exposed standalone so cost-$0 callers
+        (e.g. ``expert health-check``) can run it without an event loop or any
+        provider spend.
 
         Args:
             beliefs: List of beliefs to check
@@ -83,9 +92,6 @@ class ConflictResolver:
             List of contradicting belief pairs
         """
         contradictions: list[tuple[Belief, Belief]] = []
-        seen_pairs: set[tuple[str, str]] = set()
-
-        # Stage 1: Heuristic detection (from beliefs.py pattern)
         negation_words = {"not", "no", "never", "false", "incorrect", "wrong", "isn't", "doesn't", "don't"}
 
         for i, a in enumerate(beliefs):
@@ -93,24 +99,44 @@ class ConflictResolver:
             a_negation = bool(a_words & negation_words)
 
             for b in beliefs[i + 1 :]:
-                pair_key = tuple(sorted((a.id, b.id)))
-                if pair_key in seen_pairs:
-                    continue
-
+                # Same domain, opposite polarity, overlapping content
                 b_words = set(b.claim.lower().split())
                 b_negation = bool(b_words & negation_words)
 
-                # Same domain, opposite polarity, overlapping content
                 content_overlap = len(a_words & b_words - negation_words)
                 if content_overlap > 2 and a_negation != b_negation:
                     contradictions.append((a, b))
-                    seen_pairs.add(pair_key)
+
+        return contradictions
+
+    async def detect_contradictions(
+        self, beliefs: list[Belief], heuristic_only: bool = False
+    ) -> list[tuple[Belief, Belief]]:
+        """Detect contradictions between beliefs.
+
+        Stage 1: Heuristic check (negation + word overlap) — fast, free
+        Stage 2: LLM check on remaining pairs — more accurate (skipped when
+        ``heuristic_only`` is set, keeping the call cost-$0)
+
+        Args:
+            beliefs: List of beliefs to check
+            heuristic_only: When True, run only the free Stage 1 heuristic and
+                skip the paid LLM pass.
+
+        Returns:
+            List of contradicting belief pairs
+        """
+        contradictions = self.detect_contradictions_heuristic(beliefs)
+        seen_pairs: set[tuple[str, str]] = {_pair_key(a.id, b.id) for a, b in contradictions}
+
+        if heuristic_only:
+            return contradictions
 
         # Stage 2: LLM detection for remaining pairs (batch up to 20 pairs)
         unchecked_pairs = []
         for i, a in enumerate(beliefs):
             for b in beliefs[i + 1 :]:
-                pair_key = tuple(sorted((a.id, b.id)))
+                pair_key = _pair_key(a.id, b.id)
                 if pair_key not in seen_pairs and a.domain == b.domain:
                     unchecked_pairs.append((a, b))
                     seen_pairs.add(pair_key)

@@ -22,6 +22,7 @@ Tools exposed:
 - deepr_query_expert: Query a domain expert
 - deepr_get_expert_info: Get detailed expert information
 - deepr_expert_validate: Validate a claim against expert knowledge (guardrail mode)
+- deepr_expert_health_check: Read-only knowledge-state audit (freshness, contradictions, gaps)
 
 Resources:
 - deepr://campaigns/{id}/status - Job state and progress
@@ -453,6 +454,27 @@ class DeeprMCPServer:
             }
         except (OSError, KeyError, ValueError) as e:
             return _make_error("RANK_GAPS_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_expert_health_check
+    # ------------------------------------------------------------------ #
+    async def expert_health_check(self, expert_name: str) -> dict[str, Any]:
+        """Audit an expert's knowledge state. Read-only, costs nothing.
+
+        Returns a structured health report (freshness, contradictions, missing
+        provenance, stale beliefs, open-gap backlog, un-synthesized documents)
+        plus a recommended-action menu where each action carries its command,
+        estimated cost, and approval tier. Never mutates the expert.
+        """
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            from deepr.experts.health_check import ExpertHealthChecker
+
+            return ExpertHealthChecker(expert).run().to_dict()
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("HEALTH_CHECK_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_research
@@ -1345,6 +1367,9 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             expert_name=args.get("expert_name", ""),
             top_n=args.get("top_n", 5),
         ),
+        "deepr_expert_health_check": lambda args: server.expert_health_check(
+            expert_name=args.get("expert_name", ""),
+        ),
         # Task durability endpoints
         "deepr_get_task_progress": lambda args: server.deepr_get_task_progress(
             task_id=args.get("task_id", ""),
@@ -1500,6 +1525,7 @@ _LEGACY_METHOD_MAP = {
     "expert_manifest": "deepr_expert_manifest",
     "expert_validate": "deepr_expert_validate",
     "rank_gaps": "deepr_rank_gaps",
+    "expert_health_check": "deepr_expert_health_check",
 }
 
 
