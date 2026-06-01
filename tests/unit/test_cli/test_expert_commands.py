@@ -6,7 +6,7 @@ without making any external API calls.
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -320,6 +320,122 @@ class TestExpertHealthCheckCommand:
             assert payload["expert_name"] == "Test Expert"
             assert payload["status"] == "needs_attention"
             assert payload["findings"][0]["category"] == "freshness"
+
+
+class TestExpertAbsorbCommand:
+    """Test 'expert absorb' command (verification-gated, mutating)."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def _stub_result(self, dry_run=False):
+        from deepr.experts.report_absorber import AbsorbedClaim, AbsorptionResult
+
+        return AbsorptionResult(
+            expert_name="Test Expert",
+            report_id="rep1",
+            dry_run=dry_run,
+            total_candidates=2,
+            absorbed=[AbsorbedClaim("A grounded claim", 0.9, "abc123", "would_add" if dry_run else "added")],
+            rejected=[],
+            estimated_cost=0.03,
+        )
+
+    def test_absorb_help(self, runner):
+        result = runner.invoke(cli, ["expert", "absorb", "--help"])
+        assert result.exit_code == 0
+        assert "report" in result.output.lower()
+
+    def test_absorb_requires_name_and_report(self, runner):
+        result = runner.invoke(cli, ["expert", "absorb", "Only Name"])
+        assert result.exit_code != 0
+
+    def test_absorb_handles_nonexistent_expert(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = None
+            mock_store_class.return_value = mock_store
+
+            result = runner.invoke(cli, ["expert", "absorb", "Nonexistent", "rep1", "--yes"])
+
+            assert "not found" in result.output.lower()
+            assert result.exit_code == 2
+
+    def test_absorb_handles_missing_report(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_content.return_value = None
+
+            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "missing", "--yes"])
+
+            assert "no report found" in result.output.lower()
+            assert result.exit_code == 2
+
+    def test_absorb_dry_run_does_not_save(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=True))
+            mock_absorber.return_value = inst
+
+            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--dry-run", "--yes"])
+
+            assert result.exit_code == 0
+            assert "DRY RUN" in result.output
+            mock_store.save.assert_not_called()
+
+    def test_absorb_applies_and_saves(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.report_absorber.ReportAbsorber") as mock_absorber,
+        ):
+            mock_store = MagicMock()
+            expert = MagicMock(name="Test Expert")
+            expert.total_research_cost = 0.0
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.absorb = AsyncMock(return_value=self._stub_result(dry_run=False))
+            mock_absorber.return_value = inst
+
+            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1", "--yes", "--json"])
+
+            assert result.exit_code == 0
+            import json
+
+            payload = json.loads(result.output)
+            assert payload["report_id"] == "rep1"
+            mock_store.save.assert_called_once()
+
+    def test_absorb_cancel_at_prompt(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_content.return_value = "report body"
+
+            # Decline the confirmation prompt (no --yes).
+            result = runner.invoke(cli, ["expert", "absorb", "Test Expert", "rep1"], input="n\n")
+
+            assert "cancelled" in result.output.lower()
 
 
 class TestExpertDeleteCommand:

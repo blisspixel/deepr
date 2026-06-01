@@ -23,6 +23,7 @@ Tools exposed:
 - deepr_get_expert_info: Get detailed expert information
 - deepr_expert_validate: Validate a claim against expert knowledge (guardrail mode)
 - deepr_expert_health_check: Read-only knowledge-state audit (freshness, contradictions, gaps)
+- deepr_expert_absorb: Promote a research report into expert beliefs (verification-gated)
 
 Resources:
 - deepr://campaigns/{id}/status - Job state and progress
@@ -46,7 +47,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -475,6 +476,47 @@ class DeeprMCPServer:
             return ExpertHealthChecker(expert).run().to_dict()
         except (OSError, KeyError, ValueError) as e:
             return _make_error("HEALTH_CHECK_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_expert_absorb
+    # ------------------------------------------------------------------ #
+    async def expert_absorb(
+        self,
+        expert_name: str,
+        report_id: str,
+        min_confidence: float = 0.6,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Promote a research report into an expert's beliefs, verification-gated.
+
+        Extracts report-grounded claims, drops weak ones and any that contradict
+        existing beliefs, then integrates the survivors with the report id as
+        provenance (deduped). Mutates the expert and runs one small extraction
+        call. Set dry_run to preview without writing.
+        """
+        from deepr.experts.report_absorber import ReportAbsorber, ReportAbsorberError
+        from deepr.services.context_index import ContextIndex
+
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+
+            report_text = ContextIndex().get_report_content(report_id, max_chars=100000)
+            if not report_text:
+                return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
+
+            absorber = ReportAbsorber(expert)
+            result = await absorber.absorb(report_id, report_text, min_confidence=min_confidence, dry_run=dry_run)
+            if not result.dry_run:
+                expert.total_research_cost += result.estimated_cost
+                expert.last_knowledge_refresh = datetime.now(UTC)
+                self.store.save(expert)
+            return result.to_dict()
+        except ReportAbsorberError as e:
+            return _make_error("ABSORB_INVALID_INPUT", str(e))
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("ABSORB_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_research
@@ -1370,6 +1412,12 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_expert_health_check": lambda args: server.expert_health_check(
             expert_name=args.get("expert_name", ""),
         ),
+        "deepr_expert_absorb": lambda args: server.expert_absorb(
+            expert_name=args.get("expert_name", ""),
+            report_id=args.get("report_id", ""),
+            min_confidence=args.get("min_confidence", 0.6),
+            dry_run=args.get("dry_run", False),
+        ),
         # Task durability endpoints
         "deepr_get_task_progress": lambda args: server.deepr_get_task_progress(
             task_id=args.get("task_id", ""),
@@ -1526,6 +1574,7 @@ _LEGACY_METHOD_MAP = {
     "expert_validate": "deepr_expert_validate",
     "rank_gaps": "deepr_rank_gaps",
     "expert_health_check": "deepr_expert_health_check",
+    "expert_absorb": "deepr_expert_absorb",
 }
 
 
