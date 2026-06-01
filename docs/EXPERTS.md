@@ -220,6 +220,16 @@ deepr expert absorb "Azure Architect" <job_id> --dry-run
 deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7
 ```
 
+### Reflect on a Report (quality gate)
+Self-evaluate a report against its question before relying on or absorbing it:
+scores grounding, completeness, calibration, and directness, then returns a
+verdict (accept / revise / re-research) with issues and follow-up queries. A
+natural pre-step to `absorb`. Costs one small evaluation call.
+```bash
+deepr expert reflect "Azure Architect" <job_id>
+deepr expert reflect "Azure Architect" <job_id> --depth 2 --json
+```
+
 ## Knowledge Maintenance
 
 ### Health Check
@@ -231,6 +241,27 @@ approval tier that would gate it). Schedulable for periodic self-maintenance.
 ```bash
 deepr expert health-check "Azure Architect"
 deepr expert health-check "Azure Architect" --json   # structured, for agents
+```
+
+### Route Gaps to Instruments
+Read-only, cost-$0 advisory: map each open knowledge gap to the best instrument
+to fill it - recon (infrastructure), distillr (academic), primr (strategic), or
+general research (default) - with availability, cost estimate, and rationale.
+```bash
+deepr expert route-gaps "Azure Architect"
+deepr expert route-gaps "Azure Architect" --top 10 --json
+```
+
+## Sharing Experts as Skills
+
+Package an expert as an installable agentskills.io SKILL.md for any compatible
+host (Claude Code, Codex CLI, Gemini CLI, VS Code Copilot, Cursor, OpenClaw).
+The skill triggers on the expert's domain and consults it through Deepr's MCP
+tools - so the host needs a running Deepr MCP server with this expert present.
+```bash
+deepr expert export-skill "Azure Architect"                 # -> ./skills/deepr-expert-azure-architect/SKILL.md
+deepr expert export-skill "Azure Architect" -o ~/.claude/skills/azure
+deepr expert export-skill "Azure Architect" --print         # preview to stdout
 ```
 
 ## Export/Import
