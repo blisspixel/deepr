@@ -259,11 +259,10 @@ class StdioTransport:
                 # Handle message — dispatch in a background task so the
                 # next line can be read immediately.
                 if self._handler:
-                    handler = self._handler
 
-                    async def _dispatch(msg: Message = message) -> None:
+                    async def _dispatch(msg: Message = message, _handler: Any = self._handler) -> None:
                         try:
-                            response = await handler(msg)
+                            response = await _handler(msg)
                             if response:
                                 await self.send(response)
                         except Exception as e:
