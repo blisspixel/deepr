@@ -134,7 +134,7 @@ class TestExpertListCommand:
 
     def test_expert_list_displays_experts(self, runner):
         """Test that 'expert list' displays expert information."""
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         from deepr.experts.profile import ExpertProfile
 
@@ -146,7 +146,7 @@ class TestExpertListCommand:
             conversations=10,
             research_triggered=2,
             total_research_cost=3.50,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(UTC),
         )
 
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
@@ -195,7 +195,7 @@ class TestExpertInfoCommand:
 
     def test_expert_info_displays_details(self, runner):
         """Test that 'expert info' displays detailed information."""
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         from deepr.experts.profile import ExpertProfile
 
@@ -211,8 +211,8 @@ class TestExpertInfoCommand:
             research_triggered=5,
             total_research_cost=12.50,
             research_jobs=["job-1", "job-2"],
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
@@ -359,12 +359,12 @@ class TestExpertDeleteCommand:
 
     def test_expert_delete_with_yes_flag(self, runner):
         """Test that 'expert delete' with --yes skips confirmation."""
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         from deepr.experts.profile import ExpertProfile
 
         mock_expert = ExpertProfile(
-            name="Delete Me", vector_store_id="vs_delete", total_documents=5, updated_at=datetime.utcnow()
+            name="Delete Me", vector_store_id="vs_delete", total_documents=5, updated_at=datetime.now(UTC)
         )
 
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
@@ -381,12 +381,12 @@ class TestExpertDeleteCommand:
 
     def test_expert_delete_shows_vector_store_cleanup(self, runner):
         """Test that delete command mentions vector store cleanup."""
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         from deepr.experts.profile import ExpertProfile
 
         mock_expert = ExpertProfile(
-            name="Test Expert", vector_store_id="vs_test123", total_documents=5, updated_at=datetime.utcnow()
+            name="Test Expert", vector_store_id="vs_test123", total_documents=5, updated_at=datetime.now(UTC)
         )
 
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:

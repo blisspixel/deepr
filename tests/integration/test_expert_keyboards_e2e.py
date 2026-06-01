@@ -8,7 +8,7 @@ Cost: ~$0.004 (very cheap)
 
 import asyncio
 import tempfile
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -77,7 +77,7 @@ each key has its own switch mechanism.
 
         # Create vector store
         vector_store = await provider.create_vector_store(
-            name=f"test-keyboards-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}", file_ids=[file_id]
+            name=f"test-keyboards-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}", file_ids=[file_id]
         )
         print(f"  ✓ Created vector store: {vector_store.id}")
 
@@ -87,7 +87,7 @@ each key has its own switch mechanism.
         print("  ✓ Indexing complete")
 
         # Create expert profile
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         profile = ExpertProfile(
             name=expert_name,
             vector_store_id=vector_store.id,

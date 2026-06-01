@@ -6,7 +6,7 @@ worldview management, and synthesis operations.
 
 import json
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,7 +20,7 @@ class TestBelief:
 
     def test_create_belief(self):
         """Test creating a basic belief."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         belief = Belief(
             topic="Python Performance",
             statement="Python 3.12+ has significant performance improvements",
@@ -35,7 +35,7 @@ class TestBelief:
 
     def test_belief_to_dict(self):
         """Test belief serialization to dict."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         belief = Belief(
             topic="Testing",
             statement="Unit tests catch bugs early",
@@ -52,7 +52,7 @@ class TestBelief:
 
     def test_belief_from_dict(self):
         """Test belief deserialization from dict."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         data = {
             "topic": "Architecture",
             "statement": "Microservices add complexity",
@@ -68,7 +68,7 @@ class TestBelief:
 
     def test_belief_roundtrip(self):
         """Test belief serialization roundtrip."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         original = Belief(
             topic="Roundtrip Test",
             statement="Data survives serialization",
@@ -85,7 +85,7 @@ class TestBelief:
 
     def test_belief_confidence_bounds(self):
         """Test belief with edge confidence values."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         # Zero confidence
         belief_zero = Belief(
             topic="Uncertain",
@@ -114,7 +114,7 @@ class TestKnowledgeGap:
 
     def test_create_knowledge_gap(self):
         """Test creating a knowledge gap."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         gap = KnowledgeGap(
             topic="Kubernetes Networking",
             questions=["How does CNI work?", "What are network policies?"],
@@ -127,7 +127,7 @@ class TestKnowledgeGap:
 
     def test_knowledge_gap_to_dict(self):
         """Test knowledge gap serialization."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         gap = KnowledgeGap(topic="Security", questions=["What is zero trust?"], priority=5, identified_at=now)
         data = gap.to_dict()
         assert data["topic"] == "Security"
@@ -136,7 +136,7 @@ class TestKnowledgeGap:
 
     def test_knowledge_gap_from_dict(self):
         """Test knowledge gap deserialization."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         data = {
             "topic": "ML Ops",
             "questions": ["How to deploy models?", "What is model drift?"],
@@ -150,7 +150,7 @@ class TestKnowledgeGap:
 
     def test_knowledge_gap_priority_range(self):
         """Test knowledge gap with various priorities."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         for priority in [1, 2, 3, 4, 5]:
             gap = KnowledgeGap(
                 topic=f"Priority {priority}", questions=["Question?"], priority=priority, identified_at=now
@@ -172,7 +172,7 @@ class TestWorldview:
 
     def test_create_worldview_with_beliefs(self):
         """Test creating worldview with beliefs."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         beliefs = [
             Belief(
                 topic="Topic 1",
@@ -189,7 +189,7 @@ class TestWorldview:
 
     def test_worldview_to_dict(self):
         """Test worldview serialization."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         worldview = Worldview(expert_name="Serialization Expert", domain="Data", last_synthesis=now, synthesis_count=5)
         data = worldview.to_dict()
         assert data["expert_name"] == "Serialization Expert"
@@ -198,7 +198,7 @@ class TestWorldview:
 
     def test_worldview_from_dict(self):
         """Test worldview deserialization."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         data = {
             "expert_name": "Restored Expert",
             "domain": "Restoration",
@@ -214,7 +214,7 @@ class TestWorldview:
 
     def test_worldview_save_and_load(self):
         """Test worldview persistence to file."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         worldview = Worldview(
             expert_name="Persistent Expert",
             domain="Persistence",
@@ -246,7 +246,7 @@ class TestWorldview:
 
     def test_worldview_with_gaps(self):
         """Test worldview with knowledge gaps."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         gaps = [
             KnowledgeGap(
                 topic="Unknown Area", questions=["What is this?", "How does it work?"], priority=4, identified_at=now
@@ -292,7 +292,7 @@ class TestKnowledgeSynthesizer:
 
     def test_build_synthesis_prompt_with_worldview(self, synthesizer):
         """Test building synthesis prompt with existing worldview."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         worldview = Worldview(
             expert_name="Existing Expert",
             domain="Domain",
@@ -325,7 +325,7 @@ class TestKnowledgeSynthesizer:
 
     def test_update_worldview_adds_new_beliefs(self, synthesizer):
         """Test that new beliefs are added to worldview."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         existing = Worldview(expert_name="Expert", domain="Domain", beliefs=[], synthesis_count=0)
         new_beliefs = [
             Belief(
@@ -343,7 +343,7 @@ class TestKnowledgeSynthesizer:
 
     def test_update_worldview_updates_existing_beliefs(self, synthesizer):
         """Test that existing beliefs are updated."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         old_time = now - timedelta(days=1)
         existing = Worldview(
             expert_name="Expert",
@@ -379,7 +379,7 @@ class TestKnowledgeSynthesizer:
 
     def test_update_worldview_adds_gaps(self, synthesizer):
         """Test that knowledge gaps are added."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         existing = Worldview(expert_name="Expert", domain="Domain", knowledge_gaps=[])
         new_gaps = [KnowledgeGap(topic="Unknown", questions=["What is this?"], priority=3, identified_at=now)]
         updated = synthesizer._update_worldview(existing, [], new_gaps)
@@ -435,7 +435,7 @@ I believe testing is important (Confidence: 90%)
     @pytest.mark.asyncio
     async def test_generate_worldview_document(self, synthesizer):
         """Test generating markdown worldview document."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         worldview = Worldview(
             expert_name="Doc Expert",
             domain="Documentation",
@@ -466,7 +466,7 @@ class TestSynthesisEdgeCases:
 
     def test_belief_empty_evidence(self):
         """Test belief with no evidence."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         belief = Belief(
             topic="Speculation", statement="Just a guess", confidence=0.1, evidence=[], formed_at=now, last_updated=now
         )
@@ -475,7 +475,7 @@ class TestSynthesisEdgeCases:
 
     def test_knowledge_gap_empty_questions(self):
         """Test knowledge gap with no questions."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         gap = KnowledgeGap(topic="Vague Area", questions=[], priority=1, identified_at=now)
         data = gap.to_dict()
         assert data["questions"] == []
