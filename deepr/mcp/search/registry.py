@@ -538,6 +538,60 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_route_gaps",
+            description=(
+                "Route an expert's top knowledge gaps to the best instrument to fill each: recon "
+                "(infrastructure/email-security), distillr (academic/literature), primr (strategic "
+                "company deep-dives), or general deep research (default). Read-only and cost-$0; "
+                "returns per-gap instrument, whether it is installed, a cost estimate, and a "
+                "rationale. Advisory - it recommends, it does not fill. "
+                "Example: deepr_route_gaps(expert_name='AI Strategy Expert', top_n=5)"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "top_n": {"type": "integer", "default": 5, "description": "How many top gaps to route"},
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
+            name="deepr_reflect",
+            description=(
+                "Self-evaluate a completed research report before relying on or absorbing it. Scores "
+                "the report against its question on grounding, completeness, calibration, and directness, "
+                "and returns a verdict (accept / revise / re_research) with concrete issues and follow-up "
+                "queries. Read-only; one small evaluation call. Use as a quality gate before acting on "
+                "research. Example: deepr_reflect(report_id='<id>', depth=1)"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "report_id": {
+                        "type": "string",
+                        "description": "Job id of a completed report (as used with --context; see deepr search)",
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "0 = skip, 1 = single pass, 2+ = rigorous (always proposes re-research)",
+                    },
+                },
+                "required": ["report_id"],
+            },
+            category="experts",
+            cost_tier="low",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_expert_absorb",
             description=(
                 "Promote a completed research report into an expert's permanent beliefs "
