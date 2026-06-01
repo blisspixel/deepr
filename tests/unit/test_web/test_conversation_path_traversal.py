@@ -6,9 +6,17 @@ session_id flows into a filesystem path; a value outside [\\w-] (e.g. containing
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
-flask_app = pytest.importorskip("flask")  # web extra may be absent
+pytest.importorskip("flask")  # web extra may be absent
+
+# deepr.web.app constructs a provider at import time, which requires an API key
+# to be present (it is only stored, never called here). CI has no key, so set a
+# dummy one before importing the app.
+os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy-key")
+
 from deepr.web.app import app  # noqa: E402
 
 
