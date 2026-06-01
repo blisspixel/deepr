@@ -13,7 +13,7 @@ Task: 20.5
 
 import json
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from hypothesis import HealthCheck, assume, given, settings
@@ -89,7 +89,7 @@ class TestTaskMetadataUnit:
 
     def test_duration_ms_calculated_when_complete(self):
         """Test duration_ms is calculated when task is complete."""
-        start = datetime.utcnow()
+        start = datetime.now(UTC)
         end = start + timedelta(milliseconds=2500)
 
         task = TaskMetadata(task_id="test-3", task_type="synthesis", start_time=start, end_time=end)
@@ -200,7 +200,7 @@ class TestTaskMetadataProperties:
     )
     def test_duration_calculation_accuracy(self, duration_ms):
         """Property: Duration calculation is accurate."""
-        start = datetime.utcnow()
+        start = datetime.now(UTC)
         end = start + timedelta(milliseconds=duration_ms)
 
         task = TaskMetadata(

@@ -11,7 +11,7 @@ Requirements: 7.2 - Integration test for expert learning
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -98,14 +98,14 @@ class TestExpertLearningIntegration:
         original_reset_date = expert_profile.budget_manager.reset_date
 
         # Verify reset date is in the future (next month)
-        assert original_reset_date > datetime.utcnow()
+        assert original_reset_date > datetime.now(UTC)
 
         # Total spending should be tracked
         assert expert_profile.budget_manager.total_spending == 10.0
 
         # Simulate time passing beyond reset date by setting reset_date to past
         # and then calling check_and_reset_if_needed directly
-        past_date = datetime.utcnow() - timedelta(days=1)
+        past_date = datetime.now(UTC) - timedelta(days=1)
         expert_profile.budget_manager.reset_date = past_date
 
         # Trigger reset check
@@ -117,7 +117,7 @@ class TestExpertLearningIntegration:
         assert expert_profile.budget_manager.total_spending == 10.0
 
         # Verify new reset date is in the future
-        assert expert_profile.budget_manager.reset_date > datetime.utcnow()
+        assert expert_profile.budget_manager.reset_date > datetime.now(UTC)
 
     @pytest.mark.integration
     def test_expert_activity_tracking(self, expert_profile):

@@ -5,7 +5,7 @@ domain confidence, and learning pattern analysis.
 """
 
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -17,7 +17,7 @@ class TestKnowledgeGap:
 
     def test_create_knowledge_gap(self):
         """Test creating a knowledge gap."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         gap = KnowledgeGap(topic="Quantum Computing", first_encountered=now, times_asked=1, research_triggered=False)
         assert gap.topic == "Quantum Computing"
         assert gap.times_asked == 1
@@ -28,7 +28,7 @@ class TestKnowledgeGap:
 
     def test_knowledge_gap_with_research(self):
         """Test knowledge gap after research."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         gap = KnowledgeGap(
             topic="Machine Learning",
             first_encountered=now - timedelta(days=5),
@@ -47,7 +47,7 @@ class TestDomainConfidence:
 
     def test_create_domain_confidence(self):
         """Test creating domain confidence."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         conf = DomainConfidence(
             domain="Python", confidence=0.85, evidence_count=10, last_updated=now, sources=["doc1.pdf", "research_001"]
         )
@@ -59,7 +59,7 @@ class TestDomainConfidence:
     def test_domain_confidence_empty_sources(self):
         """Test domain confidence with no sources."""
         conf = DomainConfidence(
-            domain="New Domain", confidence=0.0, evidence_count=0, last_updated=datetime.utcnow(), sources=[]
+            domain="New Domain", confidence=0.0, evidence_count=0, last_updated=datetime.now(UTC), sources=[]
         )
         assert conf.sources == []
         assert conf.evidence_count == 0
