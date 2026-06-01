@@ -799,6 +799,82 @@ def validate_claim(
         print_success("Claim is consistent with expert knowledge.")
 
 
+@expert.command(name="health-check")
+@click.argument("name")
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Emit the full structured health report as JSON",
+)
+def health_check(name: str, json_output: bool):
+    """Audit an expert's knowledge state. Read-only, costs nothing.
+
+    Runs a set of free, read-side checks - knowledge freshness, belief
+    contradictions (heuristic), claims missing source provenance, beliefs
+    decayed below the confidence threshold, the open-gap backlog, and ingested
+    documents that were never synthesized - and prints findings plus a
+    recommended-action menu. Each recommended action carries its CLI command,
+    an estimated cost, and the approval tier that would gate it. The audit only
+    proposes; running an action is a separate, opt-in step.
+
+    EXAMPLES:
+      deepr expert health-check "AI Strategy Expert"
+      deepr expert health-check "AI Strategy Expert" --json
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.health_check import ExpertHealthChecker
+    from deepr.experts.profile import ExpertStore
+
+    store = ExpertStore()
+    profile = store.load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        click.echo("List available experts: deepr expert list")
+        sys.exit(2)
+
+    report = ExpertHealthChecker(profile).run()
+
+    if json_output:
+        click.echo(_json.dumps(report.to_dict(), indent=2))
+        return
+
+    status_color = {"healthy": "green", "needs_attention": "yellow", "critical": "red"}.get(report.status, "white")
+    print_header(f"Health Check: {report.expert_name}")
+    console.print(
+        f"Overall: [bold {status_color}]{report.status.replace('_', ' ').upper()}[/bold {status_color}]"
+        f"  [dim]{report.domain}[/dim]"
+    )
+
+    severity_marker = {
+        "critical": "[red]FAIL[/red]",
+        "warning": "[yellow]WARN[/yellow]",
+        "info": "[cyan]INFO[/cyan]",
+        "ok": "[green] OK [/green]",
+    }
+    console.print()
+    print_section_header("Findings")
+    for f in report.findings:
+        marker = severity_marker.get(f.severity, f.severity)
+        console.print(f"  {marker} [bold]{f.category}[/bold]: {f.summary}")
+
+    if report.actions:
+        console.print()
+        print_section_header("Recommended actions")
+        for a in report.actions:
+            cost = "free" if a.estimated_cost <= 0 else f"~${a.estimated_cost:.2f}"
+            console.print(f"  - {a.description} [dim]({cost}, approval: {a.approval_tier})[/dim]")
+            console.print(f"    [white]{a.command}[/white]")
+    else:
+        console.print()
+        print_success("No corrective actions recommended.")
+
+    if report.status == "critical":
+        print_warning("This expert needs attention before it should be relied on.")
+
+
 @expert.command(name="delete")
 @click.argument("name")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
