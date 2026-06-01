@@ -22,6 +22,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from deepr.mcp.server import DeeprMCPServer
 from deepr.mcp.state.job_manager import JobPhase
+from deepr.providers.base import ResearchResponse, UsageStats
+
+
+def _provider_response(status: str = "completed", cost: float = 0.0, metadata: dict | None = None):
+    """Build a ResearchResponse like a provider's get_status() returns.
+
+    Providers return a ResearchResponse object (not a dict); the cost lives on
+    .usage.cost and the report text is extracted from .output by ReportGenerator.
+    """
+    return ResearchResponse(
+        id="job",
+        status=status,  # type: ignore[arg-type]
+        usage=UsageStats(cost=cost),
+        metadata=metadata or {},
+    )
 
 
 @pytest.fixture
@@ -169,21 +184,13 @@ class TestCheckStatus:
     async def test_returns_provider_status_when_active(self, mock_server):
         mock_server.resource_handler.jobs.get_state.return_value = _state()
         prov = MagicMock()
-        prov.get_job_status = AsyncMock(
-            return_value={
-                "status": "in_progress",
-                "progress": 0.4,
-                "elapsed_time": 30,
-                "cost": 0.25,
-            }
-        )
+        prov.get_status = AsyncMock(return_value=_provider_response(status="in_progress", cost=0.25))
         mock_server.active_jobs["j1"] = {
             "provider_instance": prov,
             "submitted_at": "2026-05-17T12:00:00",
         }
         out = await mock_server.deepr_check_status("j1")
         assert out["status"] == "in_progress"
-        assert out["progress"] == 0.4
         assert out["cost_so_far"] == 0.25
 
     @pytest.mark.asyncio
@@ -191,7 +198,7 @@ class TestCheckStatus:
         st = _state(phase=JobPhase.EXECUTING)
         mock_server.resource_handler.jobs.get_state.return_value = st
         prov = MagicMock()
-        prov.get_job_status = AsyncMock(side_effect=RuntimeError("provider down"))
+        prov.get_status = AsyncMock(side_effect=RuntimeError("provider down"))
         mock_server.active_jobs["j1"] = {"provider_instance": prov}
         out = await mock_server.deepr_check_status("j1")
         assert out["status"] == JobPhase.EXECUTING.value
@@ -225,7 +232,7 @@ class TestGetResult:
     @pytest.mark.asyncio
     async def test_in_progress(self, mock_server):
         prov = MagicMock()
-        prov.get_job_status = AsyncMock(return_value={"status": "in_progress"})
+        prov.get_status = AsyncMock(return_value=_provider_response(status="in_progress"))
         mock_server.active_jobs["j1"] = {"provider_instance": prov}
         out = await mock_server.deepr_get_result("j1")
         assert out["status"] == "in_progress"
@@ -234,37 +241,31 @@ class TestGetResult:
     @pytest.mark.asyncio
     async def test_completed_full_report(self, mock_server):
         prov = MagicMock()
-        prov.get_job_status = AsyncMock(return_value={"status": "completed"})
-        prov.get_job_result = AsyncMock(
-            return_value={
-                "report": "short report",
-                "cost": 0.42,
-                "metadata": {"x": 1},
-                "sources": ["a", "b"],
-            }
+        prov.get_status = AsyncMock(
+            return_value=_provider_response(status="completed", cost=0.42, metadata={"x": 1, "sources": ["a", "b"]})
         )
         mock_server.active_jobs["j1"] = {"provider_instance": prov}
-        out = await mock_server.deepr_get_result("j1")
+        # Report text comes from ReportGenerator.extract_text_from_response(response).
+        with patch("deepr.mcp.server.ReportGenerator") as rg:
+            rg.return_value.extract_text_from_response.return_value = "short report"
+            out = await mock_server.deepr_get_result("j1")
         assert out["status"] == "completed"
         assert out["markdown_report"] == "short report"
         assert out["cost_final"] == 0.42
+        assert out["sources"] == ["a", "b"]
         assert "j1" not in mock_server.active_jobs  # cleaned up
 
     @pytest.mark.asyncio
     async def test_completed_truncates_large_report(self, mock_server):
         prov = MagicMock()
-        prov.get_job_status = AsyncMock(return_value={"status": "completed"})
+        prov.get_status = AsyncMock(return_value=_provider_response(status="completed", cost=1.5))
         big_report = "A" * 200 + "\n## Section\n" + "B" * 200_000
-        prov.get_job_result = AsyncMock(
-            return_value={
-                "report": big_report,
-                "cost": 1.5,
-                "metadata": {},
-                "sources": [],
-            }
-        )
         mock_server.active_jobs["j2"] = {"provider_instance": prov}
-        with patch.dict(os.environ, {"DEEPR_MAX_INLINE_CHARS": "1000"}):
+        with (
+            patch.dict(os.environ, {"DEEPR_MAX_INLINE_CHARS": "1000"}),
+            patch("deepr.mcp.server.ReportGenerator") as rg,
+        ):
+            rg.return_value.extract_text_from_response.return_value = big_report
             out = await mock_server.deepr_get_result("j2")
         assert out["status"] == "completed"
         assert "summary" in out
@@ -274,7 +275,7 @@ class TestGetResult:
     @pytest.mark.asyncio
     async def test_exception_wrapped(self, mock_server):
         prov = MagicMock()
-        prov.get_job_status = AsyncMock(side_effect=RuntimeError("boom"))
+        prov.get_status = AsyncMock(side_effect=RuntimeError("boom"))
         mock_server.active_jobs["j1"] = {"provider_instance": prov}
         out = await mock_server.deepr_get_result("j1")
         assert out["error_code"] == "RESULT_FETCH_FAILED"

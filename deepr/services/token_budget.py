@@ -438,7 +438,7 @@ class BudgetTracker:
         if phase in self.plan.phases:
             alloc = self.plan.phases[phase]
             if alloc.used > alloc.allocated * 0.9:
-                self.alerts.append(f"Phase {phase} at {alloc.used / alloc.allocated:.0%} capacity")
+                self.alerts.append(f"Phase {phase} at {alloc.used / max(alloc.allocated, 1):.0%} capacity")
 
     def get_usage_summary(self) -> dict[str, Any]:
         """Get usage summary.
