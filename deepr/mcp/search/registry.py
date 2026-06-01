@@ -510,6 +510,32 @@ def create_default_registry() -> ToolRegistry:
         )
     )
 
+    registry.register(
+        ToolSchema(
+            name="deepr_expert_health_check",
+            description=(
+                "Audit an expert's knowledge state. Read-only and costs nothing. Returns a "
+                "structured health report - knowledge freshness, belief contradictions "
+                "(heuristic), claims missing source provenance, beliefs decayed below the "
+                "confidence threshold, the open-gap backlog, and ingested documents not yet "
+                "synthesized - plus a recommended-action menu where each action carries its "
+                "CLI command, estimated cost, and approval tier. The audit only proposes; it "
+                "never mutates the expert or spends. Use to decide whether an expert needs "
+                "maintenance before relying on it. "
+                "Example: deepr_expert_health_check(expert_name='AI Strategy Expert')"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert to audit"},
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
     # Agentic tools
     registry.register(
         ToolSchema(

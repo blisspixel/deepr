@@ -190,6 +190,17 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        # Health-check audit — cost-$0 and read-only, but surfaces sample
+        # belief/claim/gap content, so it is SENSITIVE like manifest/rank_gaps
+        # (not a plain READ summary). Scheduled local self-maintenance via the
+        # CLI is unaffected; only remote MCP calls are gated.
+        "deepr_expert_health_check": ToolConfig(
+            name="deepr_expert_health_check",
+            category=ToolCategory.SENSITIVE,
+            description="Read-only knowledge-state audit for an expert",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Expert query — may return private knowledge. Sensitive.
         "deepr_query_expert": ToolConfig(
             name="deepr_query_expert",
