@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.12.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.12.0)
+[![Version](https://img.shields.io/badge/version-2.13.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.13.0)
 
 **Domain experts, not another chat window.**
 
@@ -100,7 +100,7 @@ See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
 ### MCP Integration — Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 21 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 23 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
 ### Web Dashboard
 
