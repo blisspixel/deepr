@@ -525,6 +525,9 @@ deepr expert resume "Azure Architect"
 # Absorb a completed report into permanent beliefs (verification-gated, deduped)
 deepr expert absorb "Azure Architect" <job_id> --dry-run   # preview
 deepr expert absorb "Azure Architect" <job_id>             # apply
+
+# Reflect on a report before absorbing (grounding/completeness/calibration/directness)
+deepr expert reflect "Azure Architect" <job_id> --depth 2
 ```
 
 ### Knowledge Maintenance
@@ -535,6 +538,18 @@ deepr expert absorb "Azure Architect" <job_id>             # apply
 # action menu (command + estimated cost + approval tier per action).
 deepr expert health-check "Azure Architect"
 deepr expert health-check "Azure Architect" --json
+
+# Route open gaps to the best instrument (recon/distillr/primr/research), $0
+deepr expert route-gaps "Azure Architect" --top 10
+```
+
+### Distribution
+
+```bash
+# Package an expert as an installable agentskills.io SKILL.md (Claude Code,
+# Codex, Cursor, VS Code Copilot, OpenClaw, ...). Consults the expert via MCP.
+deepr expert export-skill "Azure Architect"
+deepr expert export-skill "Azure Architect" --print   # preview
 ```
 
 ### Expert Skills

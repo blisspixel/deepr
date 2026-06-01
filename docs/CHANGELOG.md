@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-06-01
+
+### Added
+- **Per-expert SKILL.md export (`deepr expert export-skill NAME`).** Packages a
+  single expert as an installable agentskills.io skill for any compatible host
+  (Claude Code, Codex CLI, Gemini CLI, VS Code Copilot, Cursor, OpenClaw): the
+  generated SKILL.md triggers on the expert's domain and instructs the host to
+  consult exactly this expert through Deepr's MCP tools. Packages a pointer
+  (calls routed over MCP at run time), not a copy of the knowledge. Builds on
+  the generic `SkillPackager`; CLI-only (`--print` to preview, `-o` for output
+  dir). This is the distribution play - one export reaches every major host.
+- **Gap-to-tool router (`deepr expert route-gaps NAME`, `deepr_route_gaps`).**
+  Read-only, cost-$0 dynamic tool selection: maps each open gap to the best
+  instrument - recon (infrastructure), distillr (academic), primr (strategic),
+  or general research (default) - by keyword signal, flags which instruments are
+  installed (`shutil.which`), estimates cost, and gives a rationale. Advisory:
+  it recommends, it does not fill. Falls back to general research when the
+  specialist is not installed.
+- **Reflection loop (`deepr expert reflect NAME REPORT_ID`, `deepr_reflect`).**
+  Self-evaluates a research report against its question on four dimensions -
+  grounding, completeness, calibration, directness - and returns a verdict
+  (accept / revise / re_research) with concrete issues and follow-up queries.
+  The model scores; the verdict is computed deterministically from thresholds.
+  `--depth 0` skips, `1` single pass, `2+` rigorous. A natural pre-step to
+  `expert absorb`. MCP surface now 23 tools.
+
+### Fixed
+- **`/why` and `/decisions` crashed** (`AttributeError`): the handlers read
+  `.decision`/`.reasoning` on `DecisionRecord`, which exposes `.title`/
+  `.rationale`. Reachable from both CLI (`\why`) and web (`/why`) once any
+  decision was recorded.
+- **Path traversal in expert-conversation GET/DELETE** (`/api/experts/<name>/
+  conversations/<session_id>`): `session_id` flowed into a file path unvalidated
+  (the sibling restore path was already guarded). Now rejected with 400 unless
+  it matches `^[\w-]+$` - closes an arbitrary `.json` read/delete vector when
+  the API runs without an API key.
+- **Temporal fact-ID collision**: two facts on the same topic within the same
+  wall-clock second got the same ID, overwriting one in `facts_by_id` and
+  undercounting temporal stats. IDs now include microseconds.
+- **`update_cost_limits` accepted booleans** (`bool` is an `int` subclass), so
+  `{"per_job": true}` silently set the limit to 1.0; now rejected with 400.
+
+### Roadmap
+- Added **Phase 4c: Expert Crews** (composable, exportable expert teams) -
+  composition of existing parts (council, dspy_pipeline, per-expert SKILL.md,
+  absorb/reflection), scoped as `crew` (not the existing `team`), with the
+  static core first and gated self-improvement last; a crew is one composable
+  role (a bounded council internally), preserving the non-orchestrator stance.
+
 ## [2.12.0] - 2026-06-01
 
 ### Added
