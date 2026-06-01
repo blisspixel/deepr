@@ -353,6 +353,8 @@ class TestLegacyMethods:
             "deepr_rank_gaps",
             "deepr_expert_health_check",
             "deepr_expert_absorb",
+            "deepr_route_gaps",
+            "deepr_reflect",
         }
         for legacy, new in _LEGACY_METHOD_MAP.items():
             assert new in valid_tools, f"Legacy '{legacy}' maps to unknown tool '{new}'"

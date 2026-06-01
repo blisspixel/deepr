@@ -23,7 +23,9 @@ Tools exposed:
 - deepr_get_expert_info: Get detailed expert information
 - deepr_expert_validate: Validate a claim against expert knowledge (guardrail mode)
 - deepr_expert_health_check: Read-only knowledge-state audit (freshness, contradictions, gaps)
+- deepr_route_gaps: Route an expert's gaps to the best instrument (recon/distillr/primr/research)
 - deepr_expert_absorb: Promote a research report into expert beliefs (verification-gated)
+- deepr_reflect: Self-evaluate a research report (grounding/completeness/calibration/directness)
 
 Resources:
 - deepr://campaigns/{id}/status - Job state and progress
@@ -478,6 +480,28 @@ class DeeprMCPServer:
             return _make_error("HEALTH_CHECK_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
+    # Tool: deepr_route_gaps
+    # ------------------------------------------------------------------ #
+    async def route_gaps(self, expert_name: str, top_n: int = 5) -> dict[str, Any]:
+        """Route an expert's top gaps to the best instrument (read-only, cost-$0).
+
+        Maps each gap to recon (infrastructure), distillr (academic), primr
+        (strategic), or general research (default), with availability, cost
+        estimate, and rationale. Advisory: recommends, does not fill.
+        """
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            from deepr.experts.gap_router import GapRouter
+
+            gaps = expert.get_manifest().top_gaps(top_n)
+            routes = GapRouter().route(gaps)
+            return {"expert_name": expert_name, "routes": [r.to_dict() for r in routes]}
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("ROUTE_GAPS_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
     # Tool: deepr_expert_absorb
     # ------------------------------------------------------------------ #
     async def expert_absorb(
@@ -517,6 +541,32 @@ class DeeprMCPServer:
             return _make_error("ABSORB_INVALID_INPUT", str(e))
         except (OSError, KeyError, ValueError) as e:
             return _make_error("ABSORB_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_reflect
+    # ------------------------------------------------------------------ #
+    async def reflect(self, report_id: str, depth: int = 1) -> dict[str, Any]:
+        """Self-evaluate a completed research report before relying on it.
+
+        Loads the report by id, scores it (grounding, completeness, calibration,
+        directness), and returns a verdict (accept/revise/re_research) with
+        issues and follow-up queries. Read-only; one small evaluation call.
+        """
+        from deepr.experts.reflection import ReflectionEngine, ReflectionError
+        from deepr.services.context_index import ContextIndex
+
+        try:
+            index = ContextIndex()
+            result = index.get_report_by_job_id(report_id)
+            report_text = index.get_report_content(report_id, max_chars=100000)
+            if not report_text or not result:
+                return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
+            report = await ReflectionEngine().reflect(result.prompt, report_text, depth=depth)
+            return report.to_dict()
+        except ReflectionError as e:
+            return _make_error("REFLECT_INVALID_INPUT", str(e))
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("REFLECT_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_research
@@ -1415,6 +1465,14 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_expert_health_check": lambda args: server.expert_health_check(
             expert_name=args.get("expert_name", ""),
         ),
+        "deepr_route_gaps": lambda args: server.route_gaps(
+            expert_name=args.get("expert_name", ""),
+            top_n=args.get("top_n", 5),
+        ),
+        "deepr_reflect": lambda args: server.reflect(
+            report_id=args.get("report_id", ""),
+            depth=args.get("depth", 1),
+        ),
         "deepr_expert_absorb": lambda args: server.expert_absorb(
             expert_name=args.get("expert_name", ""),
             report_id=args.get("report_id", ""),
@@ -1577,7 +1635,9 @@ _LEGACY_METHOD_MAP = {
     "expert_validate": "deepr_expert_validate",
     "rank_gaps": "deepr_rank_gaps",
     "expert_health_check": "deepr_expert_health_check",
+    "route_gaps": "deepr_route_gaps",
     "expert_absorb": "deepr_expert_absorb",
+    "reflect": "deepr_reflect",
 }
 
 
