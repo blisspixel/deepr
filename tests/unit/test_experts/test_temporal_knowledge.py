@@ -18,6 +18,18 @@ def utc_now():
 from deepr.experts.temporal_knowledge import KnowledgeEvolution, KnowledgeFact, TemporalKnowledgeTracker
 
 
+class TestFactIdUniqueness:
+    """Regression: two facts on the same topic within the same wall-clock second
+    must get distinct IDs (otherwise one overwrites the other in facts_by_id and
+    the temporal stats undercount)."""
+
+    def test_same_second_distinct_microseconds_distinct_ids(self, tmp_path):
+        tracker = TemporalKnowledgeTracker("Test Expert", base_path=str(tmp_path))
+        base = datetime(2026, 6, 1, 12, 0, 0, 1000, tzinfo=timezone.utc)
+        later = datetime(2026, 6, 1, 12, 0, 0, 2000, tzinfo=timezone.utc)  # same second, +1ms
+        assert tracker._generate_fact_id("AI strategy", base) != tracker._generate_fact_id("AI strategy", later)
+
+
 class TestKnowledgeFact:
     """Test KnowledgeFact dataclass."""
 

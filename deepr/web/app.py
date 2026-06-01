@@ -1141,7 +1141,15 @@ def update_cost_limits():
                 if field not in data:
                     continue
                 val = data[field]
-                if not isinstance(val, (int, float)) or not math.isfinite(val) or val < 0 or val > _MAX_LIMIT:
+                # bool is an int subclass; reject it so {"per_job": true} does
+                # not silently set the limit to 1.0.
+                if (
+                    isinstance(val, bool)
+                    or not isinstance(val, (int, float))
+                    or not math.isfinite(val)
+                    or val < 0
+                    or val > _MAX_LIMIT
+                ):
                     return jsonify({"error": f"{field} must be a finite number between 0 and {_MAX_LIMIT}"}), 400
             if "per_job" in data:
                 cost_controller.max_cost_per_job = float(data["per_job"])
@@ -1908,6 +1916,9 @@ def get_expert_conversation(name, session_id):
         decoded_name, err = _decode_expert_name(name)
         if err:
             return err
+        # Guard against path traversal: session_id flows into a file path.
+        if not re.match(r"^[\w\-]+$", session_id):
+            return jsonify({"error": "Invalid session_id"}), 400
         store = ExpertStore(str(_experts_dir))
         conversations_dir = store.get_conversations_dir(decoded_name)
         conversation_file = conversations_dir / f"{session_id}.json"
@@ -1945,6 +1956,9 @@ def delete_expert_conversation(name, session_id):
         decoded_name, err = _decode_expert_name(name)
         if err:
             return err
+        # Guard against path traversal: session_id flows into a file path.
+        if not re.match(r"^[\w\-]+$", session_id):
+            return jsonify({"error": "Invalid session_id"}), 400
         store = ExpertStore(str(_experts_dir))
         conversations_dir = store.get_conversations_dir(decoded_name)
         conversation_file = conversations_dir / f"{session_id}.json"
