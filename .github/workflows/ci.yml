@@ -59,7 +59,7 @@ jobs:
         # whether a `# type: ignore[import-untyped]` is "used" depends on which
         # third-party packages are present (e.g. PyYAML). Decouple the gate
         # from that so it is reproducible regardless of the install set.
-        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core deepr/providers
+        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core deepr/providers deepr/mcp
 
   security:
     runs-on: ubuntu-latest

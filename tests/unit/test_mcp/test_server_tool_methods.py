@@ -374,17 +374,21 @@ class TestCancelJob:
 class TestExpertTools:
     @pytest.mark.asyncio
     async def test_list_experts(self, mock_server):
+        # list_all() returns ExpertProfile objects (not dicts) - mock the real
+        # attribute interface the tool reads.
         mock_server.store.list_all.return_value = [
-            {
-                "name": "e1",
-                "domain": "d",
-                "description": "desc",
-                "stats": {"documents": 3, "conversations": 1},
-            }
+            SimpleNamespace(
+                name="e1",
+                domain="d",
+                description="desc",
+                total_documents=3,
+                activity_tracker=SimpleNamespace(conversations=1),
+            )
         ]
         out = await mock_server.list_experts()
         assert out[0]["name"] == "e1"
         assert out[0]["documents"] == 3
+        assert out[0]["conversations"] == 1
 
     @pytest.mark.asyncio
     async def test_list_experts_error(self, mock_server):
@@ -407,7 +411,11 @@ class TestExpertTools:
         expert.description = "desc"
         expert.vector_store_id = "vs"
         expert.total_documents = 5
-        expert.stats = {"conversations": 2, "total_cost": 1.23}
+        # get_expert_info reads conversations/total_cost off the real
+        # activity_tracker/budget_manager attributes (ExpertProfile), not a
+        # legacy .stats dict - pin those mappings explicitly.
+        expert.activity_tracker = SimpleNamespace(conversations=2)
+        expert.budget_manager = SimpleNamespace(total_spending=1.23)
         expert.research_jobs = ["j1", "j2"]
         expert.created_at = datetime(2026, 1, 1)
         expert.last_knowledge_refresh = None
@@ -416,7 +424,10 @@ class TestExpertTools:
         mock_server.store.load.return_value = expert
         out = await mock_server.get_expert_info("e1")
         assert out["name"] == "e1"
+        assert out["stats"]["documents"] == 5
+        assert out["stats"]["conversations"] == 2
         assert out["stats"]["research_jobs"] == 2
+        assert out["stats"]["total_cost"] == 1.23
         assert out["claim_count"] == 10
 
     @pytest.mark.asyncio
@@ -427,7 +438,8 @@ class TestExpertTools:
         expert.description = "desc"
         expert.vector_store_id = "vs"
         expert.total_documents = 0
-        expert.stats = {}
+        expert.activity_tracker = SimpleNamespace(conversations=0)
+        expert.budget_manager = SimpleNamespace(total_spending=0.0)
         expert.research_jobs = []
         expert.created_at = None
         expert.last_knowledge_refresh = None
