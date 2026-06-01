@@ -207,6 +207,32 @@ deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
 deepr expert resume "Azure Architect"
 ```
 
+### Absorb a Report into Knowledge
+Promote a completed research report into the expert's permanent beliefs instead
+of leaving it a terminal artifact. Verification-gated: report-grounded claims
+are extracted, weak claims and any that contradict existing beliefs are
+rejected, and the rest are integrated (deduped) with the report id as provenance.
+```bash
+# Preview what would be absorbed (writes nothing)
+deepr expert absorb "Azure Architect" <job_id> --dry-run
+
+# Absorb (REPORT_ID is the job id, same one you pass to --context; see deepr search)
+deepr expert absorb "Azure Architect" <job_id> --min-confidence 0.7
+```
+
+## Knowledge Maintenance
+
+### Health Check
+Read-only, cost-$0 audit of an expert's knowledge state: freshness, belief
+contradictions, claims missing source provenance, decayed beliefs, the open-gap
+backlog, and documents ingested but never synthesized. Prints findings plus a
+recommended-action menu (each action shows its command, estimated cost, and the
+approval tier that would gate it). Schedulable for periodic self-maintenance.
+```bash
+deepr expert health-check "Azure Architect"
+deepr expert health-check "Azure Architect" --json   # structured, for agents
+```
+
 ## Export/Import
 
 ### Export for Sharing
