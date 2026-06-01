@@ -133,6 +133,7 @@ Add to `~/.config/zed/settings.json` under `"language_models"` -> `"mcp"`:
 | `deepr_expert_validate` | Validate a claim against expert knowledge (guardrail mode) | Low |
 | `deepr_rank_gaps` | Rank an expert's knowledge gaps by value | Free |
 | `deepr_expert_health_check` | Read-only knowledge-state audit (freshness, contradictions, provenance, gaps) | Free |
+| `deepr_expert_absorb` | Promote a research report into expert beliefs, verification-gated (mutating) | Low |
 
 ### Task Management Tools
 
@@ -280,6 +281,6 @@ StdioServer (JSON-RPC transport)
 
 ---
 
-**Tools:** 20 (2 system + 5 research + 7 expert + 4 task management + 2 skills)
+**Tools:** 21 (2 system + 5 research + 8 expert + 4 task management + 2 skills)
 **Resources:** 10 URI schemes across 4 resource types
 **Prompts:** 3 templates
