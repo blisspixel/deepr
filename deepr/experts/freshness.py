@@ -145,6 +145,11 @@ class FreshnessChecker:
                 details={"reason": "no_learning_history"},
             )
 
+        # Older profiles may have stored a timezone-naive timestamp; normalize
+        # to UTC so the aware/naive subtraction below cannot raise TypeError.
+        if reference_date.tzinfo is None:
+            reference_date = reference_date.replace(tzinfo=UTC)
+
         days_since = (now - reference_date).days
 
         # Calculate freshness score

@@ -701,7 +701,10 @@ class DeeprMCPServer:
 
             if provider_instance:
                 try:
-                    status = await provider_instance.get_job_status(job_id)
+                    # Providers expose get_status(job_id) -> ResearchResponse
+                    # (an object), not a dict.
+                    response = await provider_instance.get_status(job_id)
+                    cost_so_far = response.usage.cost if response.usage else 0.0
                     # Sync provider status into JobManager
                     phase_map = {
                         "completed": JobPhase.COMPLETED,
@@ -709,11 +712,11 @@ class DeeprMCPServer:
                         "in_progress": JobPhase.EXECUTING,
                         "queued": JobPhase.QUEUED,
                     }
-                    provider_phase = phase_map.get(status.get("status", ""), JobPhase.EXECUTING)
+                    provider_phase = phase_map.get(response.status, JobPhase.EXECUTING)
                     await self.resource_handler.jobs.update_phase(
                         job_id,
                         provider_phase,
-                        cost_so_far=status.get("cost", 0.0),
+                        cost_so_far=cost_so_far,
                     )
                     self.resource_handler.persist_job(job_id)
 
@@ -722,10 +725,8 @@ class DeeprMCPServer:
                     return inject_artifact_ids(
                         {
                             "job_id": job_id,
-                            "status": status["status"],
-                            "progress": status.get("progress"),
-                            "elapsed_time": status.get("elapsed_time"),
-                            "cost_so_far": status.get("cost", 0.0),
+                            "status": response.status,
+                            "cost_so_far": cost_so_far,
                             "submitted_at": job_cache.get("submitted_at"),
                         },
                         job_id=job_id,
@@ -767,33 +768,35 @@ class DeeprMCPServer:
             if not provider_instance:
                 return _make_error("PROVIDER_LOST", "Provider instance no longer available")
 
-            status = await provider_instance.get_job_status(job_id)
+            # Providers expose get_status(job_id) -> ResearchResponse (an
+            # object whose `output` already carries the completed report); there
+            # is no separate get_job_result. Read attributes, not dict keys.
+            response = await provider_instance.get_status(job_id)
 
-            if status["status"] != "completed":
+            if response.status != "completed":
                 return {
                     "job_id": job_id,
-                    "status": status["status"],
-                    "message": f"Job not yet complete. Current status: {status['status']}",
+                    "status": response.status,
+                    "message": f"Job not yet complete. Current status: {response.status}",
                 }
 
-            result = await provider_instance.get_job_result(job_id)
+            cost_final = response.usage.cost if response.usage else 0.0
 
             # Update JobManager to completed
             await self.resource_handler.jobs.update_phase(
                 job_id,
                 JobPhase.COMPLETED,
                 progress=1.0,
-                cost_so_far=result.get("cost", 0.0),
+                cost_so_far=cost_final,
             )
             self.resource_handler.persist_job(job_id)
 
             # Clean up
             self.active_jobs.pop(job_id, None)
 
-            report = result.get("report", "")
-            cost_final = result.get("cost", 0.0)
-            metadata = result.get("metadata", {})
-            sources = result.get("sources", [])
+            report = ReportGenerator().extract_text_from_response(response)
+            metadata = response.metadata or {}
+            sources = metadata.get("sources", [])
 
             # Lazy loading: if report is large, return summary + resource URI
             # so agents can fetch the full report on demand
