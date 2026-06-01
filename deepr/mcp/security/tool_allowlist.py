@@ -190,6 +190,15 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        # Read-only gap-to-instrument routing; surfaces gap topics, so SENSITIVE
+        # like rank_gaps (not a plain READ).
+        "deepr_route_gaps": ToolConfig(
+            name="deepr_route_gaps",
+            category=ToolCategory.SENSITIVE,
+            description="Route an expert's gaps to the best fill instrument (read-only)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Health-check audit — cost-$0 and read-only, but surfaces sample
         # belief/claim/gap content, so it is SENSITIVE like manifest/rank_gaps
         # (not a plain READ summary). Scheduled local self-maintenance via the
@@ -198,6 +207,15 @@ class ToolAllowlist:
             name="deepr_expert_health_check",
             category=ToolCategory.SENSITIVE,
             description="Read-only knowledge-state audit for an expert",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        # Reflect runs a small paid evaluation call and surfaces report content;
+        # read-only (no mutation) but SENSITIVE like the other expert tools.
+        "deepr_reflect": ToolConfig(
+            name="deepr_reflect",
+            category=ToolCategory.SENSITIVE,
+            description="Self-evaluate a research report (quality gate, read-only)",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
