@@ -98,6 +98,30 @@ class TestDetectContradictions:
         assert result == []
 
     @pytest.mark.asyncio
+    async def test_heuristic_only_skips_llm_stage(self):
+        # heuristic_only must never reach the paid Stage 2 LLM pass.
+        resolver = ConflictResolver()
+        resolver._llm_detect_contradictions = AsyncMock(side_effect=AssertionError("LLM stage called"))
+        beliefs = [
+            _make_belief("Python is not good for performance critical tasks"),
+            _make_belief("Python is good for performance critical tasks"),
+        ]
+        result = await resolver.detect_contradictions(beliefs, heuristic_only=True)
+        assert len(result) == 1
+        resolver._llm_detect_contradictions.assert_not_called()
+
+    def test_static_heuristic_matches_async_stage1(self):
+        # The standalone sync heuristic is the same Stage 1 used by the async path.
+        a = _make_belief("Rust is not memory safe by default")
+        b = _make_belief("Rust is memory safe by default guaranteed")
+        pairs = ConflictResolver.detect_contradictions_heuristic([a, b])
+        assert len(pairs) == 1
+        assert {pairs[0][0].claim, pairs[0][1].claim} == {a.claim, b.claim}
+
+    def test_static_heuristic_empty(self):
+        assert ConflictResolver.detect_contradictions_heuristic([]) == []
+
+    @pytest.mark.asyncio
     async def test_empty_beliefs(self):
         resolver = ConflictResolver()
         resolver._llm_detect_contradictions = AsyncMock(return_value=[])

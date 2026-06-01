@@ -234,6 +234,94 @@ class TestExpertInfoCommand:
             assert result.exit_code == 0
 
 
+class TestExpertHealthCheckCommand:
+    """Test 'expert health-check' command (read-only, cost-$0 audit)."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def _stub_report(self):
+        from deepr.experts.health_check import HealthFinding, HealthReport, RecommendedAction
+
+        return HealthReport(
+            expert_name="Test Expert",
+            domain="ai",
+            status="needs_attention",
+            findings=[
+                HealthFinding("freshness", "warning", "Knowledge is stale (200d old, threshold 90d)."),
+                HealthFinding("coverage", "ok", "3 claim(s) across 2 document(s)."),
+            ],
+            actions=[
+                RecommendedAction(
+                    category="freshness",
+                    description="Refresh knowledge to clear staleness",
+                    command="deepr expert refresh Test Expert --budget 0.50",
+                    estimated_cost=0.5,
+                    approval_tier="notify",
+                ),
+            ],
+        )
+
+    def test_health_check_help(self, runner):
+        result = runner.invoke(cli, ["expert", "health-check", "--help"])
+        assert result.exit_code == 0
+        assert "audit" in result.output.lower()
+
+    def test_health_check_requires_name(self, runner):
+        result = runner.invoke(cli, ["expert", "health-check"])
+        assert result.exit_code != 0
+
+    def test_health_check_handles_nonexistent_expert(self, runner):
+        with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
+            mock_store = MagicMock()
+            mock_store.load.return_value = None
+            mock_store_class.return_value = mock_store
+
+            result = runner.invoke(cli, ["expert", "health-check", "Nonexistent"])
+
+            assert "not found" in result.output.lower()
+            assert result.exit_code == 2
+
+    def test_health_check_displays_findings_and_actions(self, runner):
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            mock_checker.return_value.run.return_value = self._stub_report()
+
+            result = runner.invoke(cli, ["expert", "health-check", "Test Expert"])
+
+            assert result.exit_code == 0
+            out = result.output
+            assert "NEEDS ATTENTION" in out
+            assert "freshness" in out
+            assert "deepr expert refresh Test Expert" in out
+
+    def test_health_check_json_output(self, runner):
+        import json
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            mock_checker.return_value.run.return_value = self._stub_report()
+
+            result = runner.invoke(cli, ["expert", "health-check", "Test Expert", "--json"])
+
+            assert result.exit_code == 0
+            payload = json.loads(result.output)
+            assert payload["expert_name"] == "Test Expert"
+            assert payload["status"] == "needs_attention"
+            assert payload["findings"][0]["category"] == "freshness"
+
+
 class TestExpertDeleteCommand:
     """Test 'expert delete' command."""
 
