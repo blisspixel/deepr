@@ -90,8 +90,13 @@ class TemporalKnowledgeTracker:
         return self.base_path / safe_name
 
     def _generate_fact_id(self, topic: str, learned_at: datetime) -> str:
-        """Generate unique ID for a fact."""
-        timestamp = learned_at.strftime("%Y%m%d_%H%M%S")
+        """Generate unique ID for a fact.
+
+        Includes microseconds so two facts on the same topic recorded within the
+        same wall-clock second do not collide (a same-second collision would
+        overwrite one fact in facts_by_id and undercount the temporal stats).
+        """
+        timestamp = learned_at.strftime("%Y%m%d_%H%M%S_%f")
         topic_slug = "".join(c for c in topic[:30] if c.isalnum() or c in (" ", "-", "_"))
         topic_slug = topic_slug.replace(" ", "_").lower()
         return f"{topic_slug}_{timestamp}"
