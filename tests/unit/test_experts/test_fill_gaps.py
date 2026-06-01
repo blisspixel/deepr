@@ -6,7 +6,7 @@ Tests the Phase 2 implementation:
 - Worldview loading
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 class TestGapPrioritization:
@@ -17,9 +17,9 @@ class TestGapPrioritization:
         from deepr.experts.synthesis import KnowledgeGap
 
         gaps = [
-            KnowledgeGap(topic="Low priority", questions=["Q1"], priority=1, identified_at=datetime.utcnow()),
-            KnowledgeGap(topic="High priority", questions=["Q2"], priority=5, identified_at=datetime.utcnow()),
-            KnowledgeGap(topic="Medium priority", questions=["Q3"], priority=3, identified_at=datetime.utcnow()),
+            KnowledgeGap(topic="Low priority", questions=["Q1"], priority=1, identified_at=datetime.now(UTC)),
+            KnowledgeGap(topic="High priority", questions=["Q2"], priority=5, identified_at=datetime.now(UTC)),
+            KnowledgeGap(topic="Medium priority", questions=["Q3"], priority=3, identified_at=datetime.now(UTC)),
         ]
 
         sorted_gaps = sorted(gaps, key=lambda g: g.priority, reverse=True)
@@ -33,7 +33,7 @@ class TestGapPrioritization:
         from deepr.experts.synthesis import KnowledgeGap
 
         gaps = [
-            KnowledgeGap(topic=f"Gap {i}", questions=[f"Q{i}"], priority=i, identified_at=datetime.utcnow())
+            KnowledgeGap(topic=f"Gap {i}", questions=[f"Q{i}"], priority=i, identified_at=datetime.now(UTC))
             for i in range(1, 6)  # 5 gaps with priorities 1-5
         ]
 
@@ -98,8 +98,8 @@ class TestWorldviewLoading:
                     "statement": "Testing is important",
                     "confidence": 0.9,
                     "evidence": ["doc1.md"],
-                    "formed_at": datetime.utcnow().isoformat(),
-                    "last_updated": datetime.utcnow().isoformat(),
+                    "formed_at": datetime.now(UTC).isoformat(),
+                    "last_updated": datetime.now(UTC).isoformat(),
                 }
             ],
             "knowledge_gaps": [
@@ -107,10 +107,10 @@ class TestWorldviewLoading:
                     "topic": "Advanced Testing",
                     "questions": ["How to test async code?"],
                     "priority": 4,
-                    "identified_at": datetime.utcnow().isoformat(),
+                    "identified_at": datetime.now(UTC).isoformat(),
                 }
             ],
-            "last_synthesis": datetime.utcnow().isoformat(),
+            "last_synthesis": datetime.now(UTC).isoformat(),
             "synthesis_count": 1,
         }
 
@@ -150,7 +150,7 @@ class TestResearchQueryConstruction:
         from deepr.experts.synthesis import KnowledgeGap
 
         gap = KnowledgeGap(
-            topic="Testing", questions=["How to write unit tests?"], priority=3, identified_at=datetime.utcnow()
+            topic="Testing", questions=["How to write unit tests?"], priority=3, identified_at=datetime.now(UTC)
         )
 
         # Simulate query construction logic
@@ -169,7 +169,7 @@ class TestResearchQueryConstruction:
             topic="Testing",
             questions=["How to write unit tests?", "What are mocks?", "How to test async code?"],
             priority=3,
-            identified_at=datetime.utcnow(),
+            identified_at=datetime.now(UTC),
         )
 
         # Simulate query construction logic
@@ -188,7 +188,7 @@ class TestResearchQueryConstruction:
         """Query should use topic when no questions available."""
         from deepr.experts.synthesis import KnowledgeGap
 
-        gap = KnowledgeGap(topic="Advanced Testing Patterns", questions=[], priority=3, identified_at=datetime.utcnow())
+        gap = KnowledgeGap(topic="Advanced Testing Patterns", questions=[], priority=3, identified_at=datetime.now(UTC))
 
         # Simulate query construction logic
         if gap.questions:
@@ -211,9 +211,9 @@ class TestGapRemovalAfterFilling:
             domain="testing",
             beliefs=[],
             knowledge_gaps=[
-                KnowledgeGap(topic="Gap 1", questions=[], priority=5, identified_at=datetime.utcnow()),
-                KnowledgeGap(topic="Gap 2", questions=[], priority=3, identified_at=datetime.utcnow()),
-                KnowledgeGap(topic="Gap 3", questions=[], priority=1, identified_at=datetime.utcnow()),
+                KnowledgeGap(topic="Gap 1", questions=[], priority=5, identified_at=datetime.now(UTC)),
+                KnowledgeGap(topic="Gap 2", questions=[], priority=3, identified_at=datetime.now(UTC)),
+                KnowledgeGap(topic="Gap 3", questions=[], priority=1, identified_at=datetime.now(UTC)),
             ],
             synthesis_count=1,
         )

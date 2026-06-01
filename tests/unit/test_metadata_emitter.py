@@ -8,7 +8,7 @@ Tests cover:
 
 import json
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -46,7 +46,7 @@ class TestTaskMetadata:
 
     def test_with_all_fields(self):
         """Task metadata should store all fields correctly."""
-        start = datetime.utcnow()
+        start = datetime.now(UTC)
         end = start + timedelta(seconds=5)
 
         task = TaskMetadata(
@@ -77,7 +77,7 @@ class TestTaskMetadata:
 
     def test_duration_ms_completed(self):
         """Duration should be calculated for completed tasks."""
-        start = datetime.utcnow()
+        start = datetime.now(UTC)
         end = start + timedelta(milliseconds=1500)
 
         task = TaskMetadata(

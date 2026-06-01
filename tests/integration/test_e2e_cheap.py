@@ -15,7 +15,7 @@ import asyncio
 import os
 import sys
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add parent directory to path
@@ -78,7 +78,7 @@ class E2ETestRunner:
             prompt="Test prompt",
             model=TEST_CONFIG["model"],
             status=JobStatus.QUEUED,
-            submitted_at=datetime.utcnow(),
+            submitted_at=datetime.now(UTC),
             cost_limit=TEST_CONFIG["max_cost_per_job"],
         )
 
@@ -225,7 +225,7 @@ class E2ETestRunner:
             prompt=prompt,
             model=TEST_CONFIG["model"],
             status=JobStatus.QUEUED,
-            submitted_at=datetime.utcnow(),
+            submitted_at=datetime.now(UTC),
             cost_limit=TEST_CONFIG["max_cost_per_job"],
         )
 

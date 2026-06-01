@@ -6,7 +6,7 @@ pause/resume functionality, and budget protection.
 
 import json
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -59,7 +59,7 @@ class TestLearningProgress:
             ],
             total_estimated_cost=0.70,
             total_estimated_minutes=25,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
 
     def test_create_progress(self, sample_curriculum):
@@ -69,7 +69,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=[],
             total_cost=0.0,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.total_cost == 0.0
         assert len(progress.completed_topics) == 0
@@ -82,7 +82,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=[],
             total_cost=0.0,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.is_complete() is False
 
@@ -93,7 +93,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1"],
             failed_topics=[],
             total_cost=0.10,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.is_complete() is False
 
@@ -104,7 +104,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2", "Topic 3"],
             failed_topics=[],
             total_cost=0.70,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.is_complete() is True
 
@@ -115,7 +115,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2"],
             failed_topics=["Topic 3"],
             total_cost=0.20,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.is_complete() is True
 
@@ -126,7 +126,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=[],
             total_cost=0.0,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.success_rate() == 0.0
 
@@ -137,7 +137,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2", "Topic 3"],
             failed_topics=[],
             total_cost=0.70,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.success_rate() == 1.0
 
@@ -148,7 +148,7 @@ class TestLearningProgress:
             completed_topics=[],
             failed_topics=["Topic 1", "Topic 2", "Topic 3"],
             total_cost=0.0,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.success_rate() == 0.0
 
@@ -159,7 +159,7 @@ class TestLearningProgress:
             completed_topics=["Topic 1", "Topic 2"],
             failed_topics=["Topic 3"],
             total_cost=0.20,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         assert progress.success_rate() == pytest.approx(2 / 3, rel=0.01)
 
@@ -229,7 +229,7 @@ class TestAutonomousLearnerProgressPersistence:
                 ],
                 total_estimated_cost=0.20,
                 total_estimated_minutes=10,
-                generated_at=datetime.utcnow(),
+                generated_at=datetime.now(UTC),
             )
 
             progress = LearningProgress(
@@ -237,7 +237,7 @@ class TestAutonomousLearnerProgressPersistence:
                 completed_topics=["Topic 1"],
                 failed_topics=[],
                 total_cost=0.10,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(UTC),
             )
 
             remaining_topics = [curriculum.topics[1]]  # Topic 2 remaining
@@ -265,7 +265,7 @@ class TestAutonomousLearnerProgressPersistence:
         # Create progress file
         progress_data = {
             "expert_name": "Test Expert",
-            "paused_at": datetime.utcnow().isoformat(),
+            "paused_at": datetime.now(UTC).isoformat(),
             "completed_topics": ["Topic 1"],
             "failed_topics": [],
             "remaining_topics": [
@@ -279,7 +279,7 @@ class TestAutonomousLearnerProgressPersistence:
                 }
             ],
             "total_cost_so_far": 0.10,
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "reason": "daily_or_monthly_limit",
         }
 
@@ -366,10 +366,10 @@ class TestLearningProgressEdgeCases:
             topics=[],
             total_estimated_cost=0.0,
             total_estimated_minutes=0,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
         progress = LearningProgress(
-            curriculum=curriculum, completed_topics=[], failed_topics=[], total_cost=0.0, started_at=datetime.utcnow()
+            curriculum=curriculum, completed_topics=[], failed_topics=[], total_cost=0.0, started_at=datetime.now(UTC)
         )
         # Empty curriculum is technically complete
         assert progress.is_complete() is True
@@ -394,9 +394,9 @@ class TestLearningProgressEdgeCases:
             ],
             total_estimated_cost=0.10,
             total_estimated_minutes=5,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         progress = LearningProgress(
             curriculum=curriculum,
             completed_topics=["Topic"],
