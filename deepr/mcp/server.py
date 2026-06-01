@@ -43,9 +43,11 @@ import os
 import sys
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from deepr.config import load_config
 from deepr.core.documents import DocumentManager
@@ -78,6 +80,7 @@ except ImportError:
 
         _prompts_path = Path(__file__).parent.parent.parent / "skills" / "deepr-research" / "prompts.py"
         _spec = importlib.util.spec_from_file_location("deepr_prompts", _prompts_path)
+        assert _spec is not None and _spec.loader is not None
         _mod = importlib.util.module_from_spec(_spec)
         _spec.loader.exec_module(_mod)
         list_prompts = _mod.list_prompts
@@ -85,10 +88,10 @@ except ImportError:
     except (ImportError, FileNotFoundError, AttributeError, OSError) as e:
         logging.getLogger(__name__).debug("Could not load prompts module: %s", e)
 
-        def list_prompts():
+        def list_prompts() -> list[Any]:
             return []
 
-        def get_prompt(name, arguments):
+        def get_prompt(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             return {"error": "Prompts module not available"}
 
 
@@ -124,8 +127,8 @@ class ToolError:
     retry_hint: str | None = None
     fallback_suggestion: str | None = None
 
-    def to_dict(self) -> dict:
-        d: dict = {"error_code": self.error_code, "message": self.message}
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"error_code": self.error_code, "message": self.message}
         if self.retry_hint:
             d["retry_hint"] = self.retry_hint
         if self.fallback_suggestion:
@@ -138,7 +141,7 @@ def _make_error(
     message: str,
     retry_hint: str | None = None,
     fallback: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Convenience for returning a structured error dict from a tool."""
     return ToolError(
         error_code=code,
@@ -157,7 +160,7 @@ class DeeprMCPServer:
     - ToolRegistry + GatewayTool: dynamic tool discovery via BM25 search
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize MCP server with research and expert capabilities."""
         # Expert-related components
         self.store = ExpertStore()
@@ -165,7 +168,7 @@ class DeeprMCPServer:
 
         # Research-related components
         self.config = load_config()
-        self.active_jobs: dict[str, dict] = {}  # Provider instance cache
+        self.active_jobs: dict[str, dict[str, Any]] = {}  # Provider instance cache
 
         # MCP infrastructure
         self.resource_handler = get_resource_handler()
@@ -205,7 +208,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_status (health check)
     # ------------------------------------------------------------------ #
-    async def deepr_status(self) -> dict:
+    async def deepr_status(self) -> dict[str, Any]:
         """Health check returning server version, uptime, active jobs, and cost summary."""
         try:
             from deepr.experts.cost_safety import get_cost_safety_manager
@@ -248,14 +251,14 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_tool_search (gateway / dynamic discovery)
     # ------------------------------------------------------------------ #
-    async def deepr_tool_search(self, query: str, limit: int = 3) -> dict:
+    async def deepr_tool_search(self, query: str, limit: int = 3) -> dict[str, Any]:
         """Search Deepr capabilities by natural language query."""
         return self.gateway.search(query, limit=limit)
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_cancel_job
     # ------------------------------------------------------------------ #
-    async def deepr_cancel_job(self, job_id: str) -> dict:
+    async def deepr_cancel_job(self, job_id: str) -> dict[str, Any]:
         """Cancel a running research job."""
         state = self.resource_handler.jobs.get_state(job_id)
         if not state:
@@ -282,17 +285,17 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_list_experts
     # ------------------------------------------------------------------ #
-    async def list_experts(self) -> list[dict]:
+    async def list_experts(self) -> list[dict[str, Any]]:
         """List all available experts."""
         try:
             experts = self.store.list_all()
             return [
                 {
-                    "name": expert["name"],
-                    "domain": expert["domain"],
-                    "description": expert["description"],
-                    "documents": expert["stats"]["documents"],
-                    "conversations": expert["stats"]["conversations"],
+                    "name": expert.name,
+                    "domain": expert.domain,
+                    "description": expert.description,
+                    "documents": expert.total_documents,
+                    "conversations": expert.activity_tracker.conversations,
                 }
                 for expert in experts
             ]
@@ -302,23 +305,23 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_get_expert_info
     # ------------------------------------------------------------------ #
-    async def get_expert_info(self, expert_name: str) -> dict:
+    async def get_expert_info(self, expert_name: str) -> dict[str, Any]:
         """Get detailed information about a specific expert."""
         try:
             expert = self.store.load(expert_name)
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
-            result = {
+            result: dict[str, Any] = {
                 "name": expert.name,
                 "domain": expert.domain,
                 "description": expert.description,
                 "vector_store_id": expert.vector_store_id,
                 "stats": {
                     "documents": expert.total_documents,
-                    "conversations": expert.stats.get("conversations", 0),
+                    "conversations": expert.activity_tracker.conversations,
                     "research_jobs": len(expert.research_jobs),
-                    "total_cost": expert.stats.get("total_cost", 0.0),
+                    "total_cost": expert.budget_manager.total_spending,
                 },
                 "created_at": expert.created_at.isoformat() if expert.created_at else None,
                 "last_knowledge_refresh": (
@@ -346,7 +349,7 @@ class DeeprMCPServer:
         question: str,
         budget: float = 0.0,
         agentic: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Query an expert with a question."""
         try:
             expert = self.store.load(expert_name)
@@ -381,7 +384,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_expert_manifest
     # ------------------------------------------------------------------ #
-    async def expert_manifest(self, expert_name: str) -> dict:
+    async def expert_manifest(self, expert_name: str) -> dict[str, Any]:
         """Get full ExpertManifest for an expert."""
         try:
             expert = self.store.load(expert_name)
@@ -401,7 +404,7 @@ class DeeprMCPServer:
         claim: str,
         model: str | None = None,
         max_evidence: int = 8,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Validate a claim against an expert's knowledge.
 
         Returns a structured verdict (pass/warn/fail) with citations and
@@ -435,7 +438,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_rank_gaps
     # ------------------------------------------------------------------ #
-    async def rank_gaps(self, expert_name: str, top_n: int = 5) -> dict:
+    async def rank_gaps(self, expert_name: str, top_n: int = 5) -> dict[str, Any]:
         """Get top N scored knowledge gaps for an expert."""
         try:
             expert = self.store.load(expert_name)
@@ -463,7 +466,7 @@ class DeeprMCPServer:
         enable_code_interpreter: bool = True,
         budget: float | None = None,
         files: list[str] | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Submit a deep research job."""
         try:
             # Generate trace_id for end-to-end request tracking
@@ -542,7 +545,7 @@ class DeeprMCPServer:
                     fallback="Configure via .env file or environment variables",
                 )
 
-            provider_instance = create_provider(provider, api_key)
+            provider_instance = create_provider(provider, api_key=api_key)  # type: ignore[arg-type]
             storage_instance = create_storage("local", base_path="data/reports")
             doc_manager = DocumentManager()
             report_generator = ReportGenerator()
@@ -620,7 +623,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_check_status
     # ------------------------------------------------------------------ #
-    async def deepr_check_status(self, job_id: str) -> dict:
+    async def deepr_check_status(self, job_id: str) -> dict[str, Any]:
         """Check the status of a research job."""
         try:
             # First check JobManager (canonical state)
@@ -689,7 +692,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Tool: deepr_get_result
     # ------------------------------------------------------------------ #
-    async def deepr_get_result(self, job_id: str) -> dict:
+    async def deepr_get_result(self, job_id: str) -> dict[str, Any]:
         """Get the results of a completed research job."""
         try:
             job_cache = self.active_jobs.get(job_id)
@@ -795,7 +798,7 @@ class DeeprMCPServer:
         files: list[str] | None = None,
         model: str = "o4-mini-deep-research",
         provider: str = "openai",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Start an agentic research workflow."""
         try:
             workflow_id = str(uuid.uuid4())
@@ -921,14 +924,14 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Task Durability Methods
     # ------------------------------------------------------------------ #
-    async def deepr_get_task_progress(self, task_id: str) -> dict:
+    async def deepr_get_task_progress(self, task_id: str) -> dict[str, Any]:
         """Get progress for a durable task."""
         task = await self.durability_manager.get_task(task_id)
         if not task:
             return _make_error("TASK_NOT_FOUND", f"Task '{task_id}' not found")
         return task.to_dict()
 
-    async def deepr_list_recoverable_tasks(self, job_id: str) -> dict:
+    async def deepr_list_recoverable_tasks(self, job_id: str) -> dict[str, Any]:
         """List recoverable tasks for a job."""
         tasks = await self.durability_manager.get_recoverable_tasks(job_id)
         return {
@@ -937,7 +940,7 @@ class DeeprMCPServer:
             "count": len(tasks),
         }
 
-    async def deepr_resume_task(self, task_id: str) -> dict:
+    async def deepr_resume_task(self, task_id: str) -> dict[str, Any]:
         """Resume a paused task."""
         task = await self.durability_manager.resume_task(task_id)
         if not task:
@@ -949,7 +952,7 @@ class DeeprMCPServer:
             "message": f"Task '{task_id}' resumed from checkpoint",
         }
 
-    async def deepr_pause_task(self, task_id: str) -> dict:
+    async def deepr_pause_task(self, task_id: str) -> dict[str, Any]:
         """Pause a running task."""
         task = await self.durability_manager.pause_task(task_id)
         if not task:
@@ -964,7 +967,7 @@ class DeeprMCPServer:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
-    def validate_outbound_url(self, url: str) -> dict | None:
+    def validate_outbound_url(self, url: str) -> dict[str, Any] | None:
         """Validate a URL against SSRF rules. Returns error dict or None if valid."""
         try:
             self.ssrf_protector.validate_url(url)
@@ -981,7 +984,7 @@ class DeeprMCPServer:
             "grok": ("xai_api_key", "XAI_API_KEY"),
         }
         config_key, env_key = key_map.get(provider, (None, None))
-        if config_key:
+        if config_key and env_key:
             return self.config.get(config_key) or os.environ.get(env_key, "")
         return None
 
@@ -1111,7 +1114,7 @@ def _validate_expert_name_component(value: str) -> str | None:
     return None
 
 
-async def _list_skills(expert_name: str) -> dict:
+async def _list_skills(expert_name: str) -> dict[str, Any]:
     """List available/installed skills for an expert."""
     err = _validate_expert_name_component(expert_name or "")
     if err:
@@ -1146,7 +1149,7 @@ async def _list_skills(expert_name: str) -> dict:
         return {"error": str(e)}
 
 
-async def _install_skill(expert_name: str, skill_name: str) -> dict:
+async def _install_skill(expert_name: str, skill_name: str) -> dict[str, Any]:
     """Install a skill on an expert."""
     if not expert_name or not skill_name:
         return {"error": "expert_name and skill_name are required"}
@@ -1182,7 +1185,7 @@ async def _install_skill(expert_name: str, skill_name: str) -> dict:
 # ------------------------------------------------------------------ #
 
 
-def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list:
+def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list[dict[str, Any]]:
     """Build the tools list for tools/list response.
 
     If use_gateway is True, only return the gateway tool (dynamic discovery).
@@ -1193,7 +1196,7 @@ def _build_tools_list(server: DeeprMCPServer, use_gateway: bool = True) -> list:
     return [t.to_mcp_format() for t in server.registry.all_tools()]
 
 
-async def _handle_initialize(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_initialize(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle MCP initialize handshake."""
     return {
         "protocolVersion": "2024-11-05",
@@ -1210,7 +1213,7 @@ async def _handle_initialize(server: DeeprMCPServer, params: dict) -> dict:
     }
 
 
-async def _handle_tools_list(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_tools_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle tools/list."""
     # If client sent _fullList hint, return all tools
     full_list = params.get("_fullList", False)
@@ -1218,7 +1221,7 @@ async def _handle_tools_list(server: DeeprMCPServer, params: dict) -> dict:
     return {"tools": tools}
 
 
-async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle tools/call - dispatch to appropriate tool method.
 
     Integrates security checks:
@@ -1307,7 +1310,7 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
     signed = server.instruction_signer.sign(instruction)
     logger.debug("Signed instruction for tool '%s': nonce=%s", name, signed.nonce)
 
-    tool_dispatch = {
+    tool_dispatch: dict[str, Callable[[dict[str, Any]], Awaitable[Any]]] = {
         "deepr_status": lambda args: server.deepr_status(),
         "deepr_tool_search": lambda args: server.deepr_tool_search(
             query=args.get("query", ""),
@@ -1419,14 +1422,14 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict) -> dict:
         }
 
 
-async def _handle_resources_list(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_resources_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/list."""
     uris = server.resource_handler.list_resources()
     resources = [{"uri": uri, "name": uri.split("/")[-1], "mimeType": "application/json"} for uri in uris]
     return {"resources": resources}
 
 
-async def _handle_resources_read(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_resources_read(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/read."""
     uri = params.get("uri", "")
     response = server.resource_handler.read_resource(uri)
@@ -1453,11 +1456,11 @@ async def _handle_resources_read(server: DeeprMCPServer, params: dict) -> dict:
     }
 
 
-async def _handle_resources_subscribe(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_resources_subscribe(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/subscribe."""
     uri = params.get("uri", "")
 
-    async def _notification_callback(data: dict):
+    async def _notification_callback(data: dict[str, Any]) -> None:
         # In stdio mode, notifications are written directly to stdout
         # The transport layer handles this
         pass
@@ -1466,23 +1469,24 @@ async def _handle_resources_subscribe(server: DeeprMCPServer, params: dict) -> d
     return result
 
 
-async def _handle_resources_unsubscribe(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_resources_unsubscribe(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle resources/unsubscribe."""
     sub_id = params.get("subscription_id", "")
     result = await server.resource_handler.handle_unsubscribe(sub_id)
     return result
 
 
-async def _handle_prompts_list(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_prompts_list(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle prompts/list - return available prompt templates."""
     return {"prompts": list_prompts()}
 
 
-async def _handle_prompts_get(server: DeeprMCPServer, params: dict) -> dict:
+async def _handle_prompts_get(server: DeeprMCPServer, params: dict[str, Any]) -> dict[str, Any]:
     """Handle prompts/get - render a prompt template with arguments."""
     name = params.get("name", "")
     arguments = params.get("arguments", {})
-    return get_prompt(name, arguments)
+    result: dict[str, Any] = get_prompt(name, arguments)
+    return result
 
 
 # ------------------------------------------------------------------ #
@@ -1504,7 +1508,7 @@ _LEGACY_METHOD_MAP = {
 # ------------------------------------------------------------------ #
 
 
-async def run_stdio_server():
+async def run_stdio_server() -> None:
     """Run MCP server using StdioServer for proper JSON-RPC dispatch."""
     global _server_start_time
     _server_start_time = time.time()
@@ -1513,31 +1517,31 @@ async def run_stdio_server():
     stdio = StdioServer()
 
     # Register MCP protocol methods
-    async def handle_initialize(params: dict) -> dict:
+    async def handle_initialize(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_initialize(deepr_server, params)
 
-    async def handle_tools_list(params: dict) -> dict:
+    async def handle_tools_list(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_tools_list(deepr_server, params)
 
-    async def handle_tools_call(params: dict) -> dict:
+    async def handle_tools_call(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_tools_call(deepr_server, params)
 
-    async def handle_resources_list(params: dict) -> dict:
+    async def handle_resources_list(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_resources_list(deepr_server, params)
 
-    async def handle_resources_read(params: dict) -> dict:
+    async def handle_resources_read(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_resources_read(deepr_server, params)
 
-    async def handle_resources_subscribe(params: dict) -> dict:
+    async def handle_resources_subscribe(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_resources_subscribe(deepr_server, params)
 
-    async def handle_resources_unsubscribe(params: dict) -> dict:
+    async def handle_resources_unsubscribe(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_resources_unsubscribe(deepr_server, params)
 
-    async def handle_prompts_list(params: dict) -> dict:
+    async def handle_prompts_list(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_prompts_list(deepr_server, params)
 
-    async def handle_prompts_get(params: dict) -> dict:
+    async def handle_prompts_get(params: dict[str, Any]) -> dict[str, Any]:
         return await _handle_prompts_get(deepr_server, params)
 
     # Register standard MCP methods
@@ -1552,8 +1556,8 @@ async def run_stdio_server():
     stdio.register_method("prompts/get", handle_prompts_get)
 
     # Register legacy method names for backward compatibility
-    def make_legacy_handler(tool_name):
-        async def _make_legacy(params):
+    def make_legacy_handler(tool_name: str) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
+        async def _make_legacy(params: dict[str, Any]) -> dict[str, Any]:
             return await _handle_tools_call(deepr_server, {"name": tool_name, "arguments": params})
 
         return _make_legacy
@@ -1567,7 +1571,7 @@ async def run_stdio_server():
     await stdio.run()
 
 
-def main():
+def main() -> None:
     """Entry point for MCP server."""
     try:
         asyncio.run(run_stdio_server())
