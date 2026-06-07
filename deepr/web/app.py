@@ -416,7 +416,11 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt
 
 
-_SAFE_NAME_RE = re.compile(r"^[\w\s\-().,']+$")  # letters, digits, spaces, basic punctuation
+# Allow only a literal space (not the whole \s class). \s also matches
+# newlines, tabs, and other control whitespace, which would let an expert
+# name carry a line break that splits a copied/agent-run shell command (the
+# health-check recommended-action strings interpolate the name).
+_SAFE_NAME_RE = re.compile(r"^[\w \-().,']+$")  # letters, digits, single spaces, basic punctuation
 
 
 def _validate_expert_name(name: str) -> str | None:
