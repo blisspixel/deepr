@@ -433,6 +433,24 @@ class SkillExecutor:
                 "cost": 0.0,
             }
 
+        # Enforce the skill's per-call budget cap on any caller/model-supplied
+        # ``budget`` argument. Paid first-party MCP tools (primr/distillr)
+        # accept a ``budget`` parameter and will spend up to it. Without
+        # clamping, the model — or prompt-injected content steering it — could
+        # pass an arbitrarily large budget and blow past both the manifest
+        # ``max_per_call`` and whatever budget the skill has left.
+        tool_props = (tool.parameters or {}).get("properties", {})
+        if isinstance(tool_props, dict) and "budget" in tool_props:
+            cap = float(self._skill.budget.max_per_call)
+            # Never authorize more than the skill's remaining budget.
+            cap = min(cap, max(0.0, self._budget_remaining))
+            requested = arguments.get("budget")
+            try:
+                requested = float(requested) if requested is not None else cap
+            except (TypeError, ValueError):
+                requested = cap
+            arguments = {**arguments, "budget": round(max(0.0, min(requested, cap)), 4)}
+
         proxy_key = f"{tool.server_command}:{' '.join(tool.server_args)}"
 
         # Lock the proxy-spawn so concurrent invocations don't both create

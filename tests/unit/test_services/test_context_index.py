@@ -1,7 +1,7 @@
 """Tests for context index service (context discovery 6.1-6.3)."""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -39,7 +39,7 @@ def sample_report(temp_index_dir):
         "job_id": "test-job-123",
         "prompt": "What are the best practices for Kubernetes deployment?",
         "model": "o4-mini-deep-research",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
     (report_dir / "metadata.json").write_text(json.dumps(metadata))
 
@@ -121,7 +121,7 @@ class TestSearchResult:
             report_id="abc123",
             job_id="job-456",
             prompt="Test prompt",
-            created_at=datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc),
+            created_at=datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC),
             similarity=0.85,
             report_path=Path("/reports/job-456"),
             model="o4-mini-deep-research",
@@ -173,7 +173,7 @@ class TestIndexingAndSearch:
                 str(report_dir),
                 "Summary about Kubernetes",
                 None,  # No embedding
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
 
@@ -224,7 +224,7 @@ class TestExplicitContext:
                 str(report_dir),
                 "Summary",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
@@ -260,7 +260,7 @@ class TestExplicitContext:
                 str(report_dir),
                 "Summary",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
@@ -302,7 +302,7 @@ class TestExplicitContext:
                 str(report_dir),
                 "Summary",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
@@ -336,11 +336,11 @@ class TestExplicitContext:
                 metadata["job_id"],
                 metadata["prompt"],
                 metadata["model"],
-                datetime.now(timezone.utc).isoformat(),  # Fresh date
+                datetime.now(UTC).isoformat(),  # Fresh date
                 str(report_dir),
                 "Summary",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
@@ -359,7 +359,7 @@ class TestExplicitContext:
         conn = sqlite3.connect(context_index.db_path)
         cursor = conn.cursor()
 
-        old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        old_date = (datetime.now(UTC) - timedelta(days=60)).isoformat()
         cursor.execute(
             """
             INSERT INTO reports
@@ -375,7 +375,7 @@ class TestExplicitContext:
                 str(report_dir),
                 "Summary",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
@@ -383,3 +383,59 @@ class TestExplicitContext:
 
         is_stale = context_index.check_stale_context(metadata["job_id"], max_age_days=30)
         assert is_stale is True
+
+
+class TestReportLookupWildcardRejection:
+    """Regression: get_report_by_job_id must not resolve empty or LIKE-wildcard
+    ids to an arbitrary report (the deepr_reflect / deepr_expert_absorb
+    wildcard-selection bug)."""
+
+    @staticmethod
+    def _insert(context_index, job_id: str, report_dir):
+        import sqlite3
+
+        conn = sqlite3.connect(context_index.db_path)
+        conn.execute(
+            """
+            INSERT INTO reports
+            (report_id, job_id, prompt, model, created_at, report_path, summary, embedding_idx, indexed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"report-{job_id}",
+                job_id,
+                "secret prompt",
+                "o4-mini-deep-research",
+                datetime.now(UTC).isoformat(),
+                str(report_dir),
+                "Summary",
+                None,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+    @pytest.mark.parametrize("bad_id", ["", "   ", "%", "_", "%%", "\t"])
+    def test_wildcard_and_empty_ids_match_nothing(self, context_index, sample_report, bad_id):
+        report_dir, metadata = sample_report
+        self._insert(context_index, metadata["job_id"], report_dir)
+
+        assert context_index.get_report_by_job_id(bad_id) is None
+        assert context_index.get_report_content(bad_id) is None
+
+    def test_literal_prefix_still_matches(self, context_index, sample_report):
+        report_dir, metadata = sample_report
+        self._insert(context_index, metadata["job_id"], report_dir)
+
+        # A genuine prefix of the real id must still resolve.
+        result = context_index.get_report_by_job_id(metadata["job_id"][:8])
+        assert result is not None
+        assert result.job_id == metadata["job_id"]
+
+    def test_underscore_is_literal_not_wildcard(self, context_index, sample_report):
+        # SQLite '_' matches any single char. With escaping, a query of "_"
+        # must not match a job id like "test-job-123".
+        report_dir, metadata = sample_report
+        self._insert(context_index, metadata["job_id"], report_dir)
+        assert context_index.get_report_by_job_id("_") is None

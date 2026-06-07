@@ -559,8 +559,22 @@ class ContextIndex:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Try exact match first, then prefix match
-        cursor.execute("SELECT * FROM reports WHERE job_id = ? OR job_id LIKE ?", (job_id, f"{job_id}%"))
+        # Reject empty/whitespace ids before building a LIKE pattern. An empty
+        # prefix becomes LIKE '%' and would resolve to an arbitrary indexed
+        # report — the wildcard-selection bug behind deepr_reflect /
+        # deepr_expert_absorb. A missing id must mean "no match", not "any".
+        if not job_id or not job_id.strip():
+            conn.close()
+            return None
+
+        # Escape SQL LIKE wildcards in the caller-controlled prefix so a value
+        # like "%" or "_" is treated literally and cannot match every/any
+        # report. The backslash is the ESCAPE character.
+        like_prefix = job_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        cursor.execute(
+            "SELECT * FROM reports WHERE job_id = ? OR job_id LIKE ? ESCAPE '\\'",
+            (job_id, f"{like_prefix}%"),
+        )
         row = cursor.fetchone()
         conn.close()
 

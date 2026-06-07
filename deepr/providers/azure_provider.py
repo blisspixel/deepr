@@ -195,11 +195,13 @@ class AzureProvider(DeepResearchProvider):
                 output = [
                     {
                         "type": block.type,
-                        "content": [{"type": item.type, "text": getattr(item, "text", "")} for item in block.content]
+                        "content": [
+                            {"type": item.type, "text": getattr(item, "text", "")} for item in (block.content or [])
+                        ]
                         if hasattr(block, "content")
                         else [],
                     }
-                    for block in response.output
+                    for block in response.output or []
                 ]
 
             # Parse timestamps
@@ -213,7 +215,9 @@ class AzureProvider(DeepResearchProvider):
 
             return ResearchResponse(
                 id=response.id,
-                status=response.status,
+                # Responses API status vocabulary is a superset of the
+                # ResearchResponse contract Literal.
+                status=response.status,  # type: ignore[arg-type]
                 created_at=created_at,
                 completed_at=completed_at,
                 model=getattr(response, "model", None),
@@ -246,7 +250,7 @@ class AzureProvider(DeepResearchProvider):
         """Upload document to Azure OpenAI."""
         try:
             with open(file_path, "rb") as f:
-                file_obj = await self.client.files.create(file=f, purpose=purpose)
+                file_obj = await self.client.files.create(file=f, purpose=purpose)  # type: ignore[arg-type]
             return str(file_obj.id)
         except (OpenAIAPIError, OSError) as e:
             raise ProviderError(

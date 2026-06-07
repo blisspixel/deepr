@@ -14,6 +14,7 @@ ExpertStore is re-exported here for backwards compatibility.
 Requirements: 1.2 - ExpertProfile Refactoring
 """
 
+import shlex
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -222,7 +223,7 @@ class ExpertProfile:
             return {
                 "status": "incomplete",
                 "message": "Expert needs initial learning curriculum",
-                "action_required": f"Run: deepr expert learn {self.name} --budget 5",
+                "action_required": f"Run: deepr expert learn {shlex.quote(self.name)} --budget 5",
             }
 
         status = self.freshness_checker.check(last_learning=self.knowledge_cutoff_date, last_activity=self.updated_at)
@@ -280,7 +281,7 @@ class ExpertProfile:
             "knowledge_cutoff": datetime_to_iso(self.knowledge_cutoff_date),
             "message": freshness.get("message"),
             "action_required": freshness.get("action_required"),
-            "refresh_command": f"deepr expert learn {self.name} --budget {estimated_cost:.2f}",
+            "refresh_command": f"deepr expert learn {shlex.quote(self.name)} --budget {estimated_cost:.2f}",
         }
 
     def suggest_refresh(self) -> dict[str, Any] | None:

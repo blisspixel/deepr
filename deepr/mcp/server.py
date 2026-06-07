@@ -374,6 +374,14 @@ class DeeprMCPServer:
                 summary = session.get_session_summary()
             finally:
                 self.sessions.pop(session_key, None)
+                # ExpertChatSession registers a CostSession in the global
+                # CostSafetyManager on construction. Popping our local cache
+                # entry does not release that, so without this close the
+                # manager's _sessions dict grows unbounded across queries.
+                try:
+                    session.cost_safety.close_session(session.session_id)
+                except Exception:
+                    logger.debug("Cost session cleanup skipped for %s", session_key, exc_info=False)
 
             return {
                 "answer": response_text,
@@ -420,11 +428,27 @@ class DeeprMCPServer:
             if not expert:
                 return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
 
+            # Validation runs one small paid LLM call. ExpertValidator clamps
+            # max_evidence and rejects off-allowlist model overrides, but the
+            # spend itself must still pass through cost safety so the "free"
+            # label cannot be used to drain budget across repeated calls.
+            from deepr.experts.cost_safety import get_cost_safety_manager
             from deepr.services.expert_validator import (
                 DEFAULT_VALIDATION_MODEL,
                 ExpertValidator,
                 ExpertValidatorError,
             )
+
+            cost_safety = get_cost_safety_manager()
+            session_id = f"mcp_validate_{uuid.uuid4().hex[:8]}"
+            _validate_cost = 0.02
+            allowed, reason, _ = cost_safety.check_operation(
+                session_id=session_id,
+                operation_type="mcp_expert_validate",
+                estimated_cost=_validate_cost,
+            )
+            if not allowed:
+                return _make_error("BUDGET_EXCEEDED", f"Validation blocked by cost safety: {reason}")
 
             try:
                 validator = ExpertValidator(
@@ -434,6 +458,14 @@ class DeeprMCPServer:
                 result = await validator.validate(expert, claim)
             except ExpertValidatorError as e:
                 return _make_error("EXPERT_VALIDATE_INVALID_INPUT", str(e))
+
+            cost_safety.record_cost(
+                session_id=session_id,
+                operation_type="mcp_expert_validate",
+                actual_cost=_validate_cost,
+                provider="openai",
+                model=validator.model if isinstance(validator.model, str) else "",
+            )
 
             return result.to_dict()
         except (OSError, KeyError, ValueError, DeeprError) as e:
@@ -518,7 +550,7 @@ class DeeprMCPServer:
         provenance (deduped). Mutates the expert and runs one small extraction
         call. Set dry_run to preview without writing.
         """
-        from deepr.experts.report_absorber import ReportAbsorber, ReportAbsorberError
+        from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber, ReportAbsorberError
         from deepr.services.context_index import ContextIndex
 
         try:
@@ -530,8 +562,36 @@ class DeeprMCPServer:
             if not report_text:
                 return _make_error("REPORT_NOT_FOUND", f"No report found for id '{report_id}'")
 
+            # Absorption runs a paid extraction call (even in dry_run, which
+            # only skips the writes). Gate it through the same cost-safety
+            # manager that deepr_research uses so daily/monthly limits and the
+            # circuit breaker apply instead of being bypassed.
+            from deepr.experts.cost_safety import get_cost_safety_manager
+
+            cost_safety = get_cost_safety_manager()
+            session_id = f"mcp_absorb_{uuid.uuid4().hex[:8]}"
+            allowed, reason, _ = cost_safety.check_operation(
+                session_id=session_id,
+                operation_type="mcp_expert_absorb",
+                estimated_cost=ESTIMATED_EXTRACTION_COST,
+            )
+            if not allowed:
+                return _make_error("BUDGET_EXCEEDED", f"Absorb blocked by cost safety: {reason}")
+
             absorber = ReportAbsorber(expert)
             result = await absorber.absorb(report_id, report_text, min_confidence=min_confidence, dry_run=dry_run)
+
+            # Record the extraction spend regardless of dry_run — the provider
+            # call happened either way, so the ledger must reflect it.
+            _absorb_model = getattr(absorber, "model", "")
+            cost_safety.record_cost(
+                session_id=session_id,
+                operation_type="mcp_expert_absorb",
+                actual_cost=float(result.estimated_cost),
+                provider="openai",
+                model=_absorb_model if isinstance(_absorb_model, str) else "",
+            )
+
             if not result.dry_run:
                 expert.total_research_cost += result.estimated_cost
                 expert.last_knowledge_refresh = datetime.now(UTC)
@@ -1506,6 +1566,20 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
                 {
                     "type": "text",
                     "text": json.dumps(_make_error("INVALID_PARAMS", "job_id is required and must not be empty")),
+                }
+            ],
+            "isError": True,
+        }
+
+    # Validate report_id for tools that resolve a report by id. An empty or
+    # whitespace value would otherwise reach ContextIndex's prefix lookup and
+    # (historically) match an arbitrary report. Reject it at the boundary.
+    if name in ("deepr_reflect", "deepr_expert_absorb") and not str(arguments.get("report_id") or "").strip():
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(_make_error("INVALID_PARAMS", "report_id is required and must not be empty")),
                 }
             ],
             "isError": True,
