@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from deepr.experts.reflection import ReflectionReport
 from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
-from deepr.mcp.server import DeeprMCPServer
+from deepr.mcp.server import DeeprMCPServer, _handle_tools_call
 
 
 @pytest.fixture
@@ -61,3 +62,35 @@ class TestReflectTool:
 
         assert out["verdict"] == "accept"
         assert out["overall_score"] == 0.84
+
+
+class TestReportIdDispatchValidation:
+    """Regression: an empty/whitespace report_id must be rejected at the
+    dispatch boundary before it can reach ContextIndex's prefix lookup (which
+    historically matched an arbitrary report for an empty/wildcard prefix)."""
+
+    @staticmethod
+    def _error_code(out: dict) -> str | None:
+        assert out.get("isError") is True
+        return json.loads(out["content"][0]["text"]).get("error_code")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad", ["", "   ", "\t"])
+    async def test_reflect_empty_report_id_rejected(self, mock_server, bad):
+        out = await _handle_tools_call(
+            mock_server,
+            {"name": "deepr_reflect", "arguments": {"report_id": bad, "_approved": True}},
+        )
+        assert self._error_code(out) == "INVALID_PARAMS"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad", ["", "   "])
+    async def test_absorb_empty_report_id_rejected(self, mock_server, bad):
+        out = await _handle_tools_call(
+            mock_server,
+            {
+                "name": "deepr_expert_absorb",
+                "arguments": {"expert_name": "X", "report_id": bad, "_approved": True},
+            },
+        )
+        assert self._error_code(out) == "INVALID_PARAMS"

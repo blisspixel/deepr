@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from deepr.experts.skills.definition import SkillDefinition, SkillTool
+from deepr.experts.skills.definition import SkillBudget, SkillDefinition, SkillTool
 from deepr.experts.skills.executor import _COST_TIER_ESTIMATES, MCPClientProxy, SkillExecutor
 
 # ---------------------------------------------------------------------------
@@ -727,3 +727,99 @@ class TestCostTierEstimates:
             < _COST_TIER_ESTIMATES["medium"]
             < _COST_TIER_ESTIMATES["high"]
         )
+
+
+# ---------------------------------------------------------------------------
+# Budget-argument clamping for paid MCP tools (security regression)
+# ---------------------------------------------------------------------------
+
+
+def _make_budgeted_mcp_tool(name: str = "ingest", cost_tier: str = "high") -> SkillTool:
+    """An MCP tool that declares a ``budget`` parameter (like primr/distillr)."""
+    return SkillTool(
+        name=name,
+        type="mcp",
+        description=f"MCP tool {name}",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "budget": {"type": "number"},
+            },
+        },
+        cost_tier=cost_tier,
+        server_command="distill-mcp",
+        server_args=[],
+    )
+
+
+def _make_skill_with_budget(tmp_path: Path, tools: list[SkillTool], max_per_call: float) -> SkillDefinition:
+    skill_dir = tmp_path / "paid-skill"
+    skill_dir.mkdir(exist_ok=True)
+    return SkillDefinition(
+        name="paid-skill",
+        version="1.0.0",
+        description="Paid skill",
+        path=skill_dir,
+        tier="built-in",
+        tools=tools,
+        budget=SkillBudget(max_per_call=max_per_call, default_budget=max_per_call),
+    )
+
+
+class TestSkillExecutorBudgetArgClamp:
+    """Regression: a caller/model-supplied ``budget`` argument to a paid MCP
+    tool must be clamped to the manifest ``max_per_call`` and the remaining
+    skill budget so prompt-injection cannot drive unbounded provider spend."""
+
+    @pytest.mark.asyncio
+    async def test_oversized_budget_clamped_to_max_per_call(self, tmp_path):
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
+        executor = SkillExecutor(skill, budget_remaining=100.0)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "ok"}
+            await executor.execute_tool("ingest", {"query": "x", "budget": 999.0})
+
+        sent_args = mock_call.call_args.args[1]
+        assert sent_args["budget"] == pytest.approx(2.0)
+
+    @pytest.mark.asyncio
+    async def test_missing_budget_is_injected_at_cap(self, tmp_path):
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=2.0)
+        executor = SkillExecutor(skill, budget_remaining=100.0)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "ok"}
+            await executor.execute_tool("ingest", {"query": "x"})
+
+        sent_args = mock_call.call_args.args[1]
+        assert sent_args["budget"] == pytest.approx(2.0)
+
+    @pytest.mark.asyncio
+    async def test_budget_clamped_to_remaining_when_below_cap(self, tmp_path):
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=5.0)
+        executor = SkillExecutor(skill, budget_remaining=0.75)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "ok"}
+            await executor.execute_tool("ingest", {"query": "x", "budget": 5.0})
+
+        sent_args = mock_call.call_args.args[1]
+        assert sent_args["budget"] == pytest.approx(0.75)
+
+    @pytest.mark.asyncio
+    async def test_smaller_caller_budget_is_respected(self, tmp_path):
+        tool = _make_budgeted_mcp_tool()
+        skill = _make_skill_with_budget(tmp_path, [tool], max_per_call=5.0)
+        executor = SkillExecutor(skill, budget_remaining=100.0)
+
+        with patch.object(MCPClientProxy, "call_tool", new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"result": "ok"}
+            await executor.execute_tool("ingest", {"query": "x", "budget": 0.5})
+
+        sent_args = mock_call.call_args.args[1]
+        assert sent_args["budget"] == pytest.approx(0.5)

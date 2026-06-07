@@ -278,3 +278,23 @@ class TestNoProviderCall:
         ]
         report = _run(monkeypatch, _profile(), beliefs)
         assert isinstance(report, HealthReport)
+
+
+class TestRecommendedActionShellQuoting:
+    """Regression: recommended-action command strings interpolate the expert
+    name. A name carrying shell metacharacters / newlines must be shlex-quoted
+    so a copied or agent-run command cannot be split into a second command."""
+
+    def test_coverage_command_quotes_malicious_name(self, monkeypatch):
+        import shlex
+
+        prof = _profile(documents=3, claims=[])
+        prof.name = "Evil\necho injected"
+        report = _run(monkeypatch, prof)
+        action = _action(report, "coverage")
+        assert action is not None
+        # The whole malicious name is enclosed by shlex.quote, so the newline
+        # is contained inside a single-quoted token rather than terminating
+        # the command and starting `echo injected`.
+        assert shlex.quote("Evil\necho injected") in action.command
+        assert "expert refresh 'Evil" in action.command
