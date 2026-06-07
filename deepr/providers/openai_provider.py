@@ -234,7 +234,9 @@ class OpenAIProvider(DeepResearchProvider):
 
             return ResearchResponse(
                 id=response.id,
-                status=response.status,
+                # Responses API status vocabulary (incl. "incomplete") is a
+                # superset of the ResearchResponse contract Literal.
+                status=response.status,  # type: ignore[arg-type]
                 created_at=created_at,
                 completed_at=completed_at,
                 model=getattr(response, "model", None),
@@ -259,7 +261,7 @@ class OpenAIProvider(DeepResearchProvider):
         """Upload document to OpenAI."""
         try:
             with open(file_path, "rb") as f:
-                file_obj = await self.client.files.create(file=f, purpose=purpose)
+                file_obj = await self.client.files.create(file=f, purpose=purpose)  # type: ignore[arg-type]
             return str(file_obj.id)
         except (OSError, openai.OpenAIError) as e:
             raise ProviderError(

@@ -163,11 +163,13 @@ omit = [
 # curriculum.py, lazy_graph_rag.py) that are exercised by end-to-end
 # and live-provider tests rather than units.
 #
-# 78, not 80, because branch coverage was switched on (Phase E): it counts
-# untaken branches the line metric ignored, so the same suite measures ~78%
-# branch where it measured ~82% line. The ratchet target is 78 -> 85 -> 90 ->
-# 95 as branch-covering tests land - a higher bar than the old 80% line gate.
-fail_under = 78
+# Branch coverage is on (Phase E): it counts untaken branches the line metric
+# ignored, so the same suite measures lower than the old line metric. The
+# ratchet target is 80 -> 85 -> 90 -> 95 as branch-covering tests land - a
+# higher bar than the old 80% line gate. Raised 78 -> 80 once the branch suite
+# cleared it (pure-module test backfill: converters, commands, thought_stream,
+# user_profile, local storage, a2a routing).
+fail_under = 80
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

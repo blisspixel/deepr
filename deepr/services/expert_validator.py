@@ -43,8 +43,32 @@ _ALLOWED_VERDICTS: frozenset[str] = frozenset({"pass", "warn", "fail"})
 
 # Default model for validation. Cheap + fast reasoning model is the right
 # fit: the task is bounded to JSON-shaped assessment over <=2 KB of evidence
-# context, so a flagship is wasteful. Callers can override.
+# context, so a flagship is wasteful. Callers can override, but only within
+# the cheap-model allowlist below.
 DEFAULT_VALIDATION_MODEL = "gpt-5-mini"
+
+# Validation is a single small JSON-shaped call. Restrict any caller-supplied
+# model override to a known set of cheap models so an untrusted caller (e.g.
+# an MCP client) cannot point the "free" validate tool at an expensive
+# flagship and amplify provider spend. Unknown overrides fall back to the
+# default rather than being trusted verbatim.
+ALLOWED_VALIDATION_MODELS: frozenset[str] = frozenset(
+    {
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-4.1-mini",
+        "gpt-4o-mini",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    }
+)
+
+# Hard caps on caller-controlled cost amplifiers. ``max_evidence`` bounds how
+# many beliefs are packed into the prompt; an unbounded value lets a caller
+# force the entire (potentially huge) expert worldview into one provider call.
+# ``MAX_CLAIM_CHARS`` bounds the free-text claim for the same reason.
+MAX_EVIDENCE_CAP = 50
+MAX_CLAIM_CHARS = 10_000
 
 
 @dataclass
@@ -129,8 +153,17 @@ class ExpertValidator:
                 raise ExpertValidatorError("OPENAI_API_KEY is not set. Pass a client explicitly or set the env var.")
             client = AsyncOpenAI(api_key=api_key)
         self.client = client
-        self.model = model
-        self.max_evidence = max_evidence
+        # Reject an out-of-allowlist model override rather than trusting it:
+        # the validate surface is advertised as a cheap "free" tool, so a
+        # caller must not be able to point it at an expensive flagship.
+        self.model = model if model in ALLOWED_VALIDATION_MODELS else DEFAULT_VALIDATION_MODEL
+        # Clamp the evidence count into a sane range. ``int()`` guards against
+        # a caller passing a float/str; values <=0 fall back to 1.
+        try:
+            evidence = int(max_evidence)
+        except (TypeError, ValueError):
+            evidence = 8
+        self.max_evidence = max(1, min(evidence, MAX_EVIDENCE_CAP))
 
     async def validate(self, expert: ExpertProfile, claim: str) -> ValidationResult:
         """Run a single validation against an expert.
@@ -149,6 +182,8 @@ class ExpertValidator:
         """
         if not claim or not claim.strip():
             raise ExpertValidatorError("claim must be a non-empty string")
+        if len(claim) > MAX_CLAIM_CHARS:
+            raise ExpertValidatorError(f"claim exceeds {MAX_CLAIM_CHARS} character limit")
 
         manifest = expert.get_manifest()
 

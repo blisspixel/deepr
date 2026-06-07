@@ -153,7 +153,7 @@ class AnthropicProvider(DeepResearchProvider):
             # Multi-turn loop for tool use
             max_turns = 5  # Prevent infinite loops
             for _turn in range(max_turns):
-                response = self.client.messages.create(
+                response = self.client.messages.create(  # type: ignore[call-overload]  # plain dicts for thinking/messages/tools; SDK wants typed params
                     model=self.model,
                     max_tokens=self.thinking_budget + 16000,  # Must be > thinking budget
                     thinking={"type": "enabled", "budget_tokens": self.thinking_budget},
