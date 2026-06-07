@@ -224,6 +224,7 @@ class ModelRouter:
         budget_remaining: float | None = None,
         current_model: str = "gpt-5.2",
         provider_constraint: str | None = None,
+        allow_research_model: bool = True,
     ) -> ModelConfig:
         """Select the optimal model for a query.
 
@@ -233,6 +234,11 @@ class ModelRouter:
             budget_remaining: Remaining budget in dollars (None = unlimited)
             current_model: The default/current model being used
             provider_constraint: Optional provider constraint (e.g., "openai" for vector store compatibility)
+            allow_research_model: Whether the expensive deep-research model may
+                be selected. Callers that cannot actually run a research job
+                (e.g. a non-agentic chat turn) pass False so a research-worded
+                query without an explicit budget is not silently routed to the
+                ~$2 deep-research model.
 
         Returns:
             ModelConfig with provider, model, and cost estimate
@@ -250,7 +256,11 @@ class ModelRouter:
         if provider_constraint == "openai":
             # Preserve explicit deep-research behavior for research tasks when budget allows.
             # Benchmark routing is useful, but should not downgrade this core path.
-            if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
+            if (
+                allow_research_model
+                and task_type == "research"
+                and (budget_remaining is None or budget_remaining >= 2.0)
+            ):
                 return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
 
             # Try benchmark-driven selection first
@@ -290,7 +300,7 @@ class ModelRouter:
             # Simple factual queries → fast cheap model
             return ModelConfig(provider="xai", model="grok-4.3", cost_estimate=0.05, confidence=0.95)
 
-        if task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
+        if allow_research_model and task_type == "research" and (budget_remaining is None or budget_remaining >= 2.0):
             # Deep research → o3-deep-research (best quality for deep research)
             return ModelConfig(provider="openai", model="o3-deep-research", cost_estimate=2.0, confidence=0.9)
 
