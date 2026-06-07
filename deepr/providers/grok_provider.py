@@ -437,14 +437,16 @@ class GrokProvider(DeepResearchProvider):
             try:
                 response = await self.client.chat.completions.create(
                     model=single_model,
-                    messages=messages,
+                    messages=messages,  # type: ignore[arg-type]  # plain dicts; SDK wants typed message params
                     temperature=request.temperature if request.temperature is not None else 0.7,
                 )
                 content = response.choices[0].message.content or ""
                 usage = response.usage
+                prompt_tokens = usage.prompt_tokens if usage else 0
+                completion_tokens = usage.completion_tokens if usage else 0
                 cost = self._calculate_cost(
-                    usage.prompt_tokens,
-                    usage.completion_tokens,
+                    prompt_tokens,
+                    completion_tokens,
                     single_model,
                 )
                 budget.record(cost)
@@ -456,8 +458,8 @@ class GrokProvider(DeepResearchProvider):
                     cost=cost,
                     status=AgentStatus.SUCCESS if cost <= budget.max_cost else AgentStatus.BUDGET_EXCEEDED,
                     metadata={
-                        "tokens_input": usage.prompt_tokens,
-                        "tokens_output": usage.completion_tokens,
+                        "tokens_input": prompt_tokens,
+                        "tokens_output": completion_tokens,
                     },
                 )
             except Exception as e:
@@ -610,12 +612,14 @@ class GrokProvider(DeepResearchProvider):
             )
             content = response.choices[0].message.content or ""
             usage = response.usage
-            cost = self._calculate_cost(usage.prompt_tokens, usage.completion_tokens, model)
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            completion_tokens = usage.completion_tokens if usage else 0
+            cost = self._calculate_cost(prompt_tokens, completion_tokens, model)
             return {
                 "content": content,
                 "cost": cost,
-                "tokens_input": usage.prompt_tokens,
-                "tokens_output": usage.completion_tokens,
+                "tokens_input": prompt_tokens,
+                "tokens_output": completion_tokens,
             }
         except Exception as e:
             # Fallback: concatenate agent outputs

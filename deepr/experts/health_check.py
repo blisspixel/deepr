@@ -19,6 +19,7 @@ The report is two-phase by design (see ROADMAP Phase 4):
 from __future__ import annotations
 
 import logging
+import shlex
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -224,7 +225,7 @@ class ExpertHealthChecker:
             action = RecommendedAction(
                 category="freshness",
                 description="Refresh knowledge to clear staleness",
-                command=details.get("refresh_command") or f"deepr expert refresh {self.profile.name}",
+                command=details.get("refresh_command") or f"deepr expert refresh {shlex.quote(self.profile.name)}",
                 estimated_cost=cost,
                 approval_tier=_approval_tier_for_cost(cost),
             )
@@ -258,7 +259,7 @@ class ExpertHealthChecker:
             action = RecommendedAction(
                 category="contradictions",
                 description=f"Adjudicate {count} contradiction(s) and revise beliefs",
-                command=f"deepr expert resolve-conflicts {self.profile.name}",
+                command=f"deepr expert resolve-conflicts {shlex.quote(self.profile.name)}",
                 estimated_cost=cost,
                 approval_tier=_approval_tier_for_cost(cost),
             )
@@ -330,7 +331,7 @@ class ExpertHealthChecker:
             action = RecommendedAction(
                 category="gaps",
                 description=f"Fill the top {n} highest-value gap(s)",
-                command=f"deepr expert fill-gaps {self.profile.name} --top {n}",
+                command=f"deepr expert fill-gaps {shlex.quote(self.profile.name)} --top {n}",
                 estimated_cost=cost,
                 approval_tier=_approval_tier_for_cost(cost),
             )
@@ -349,7 +350,7 @@ class ExpertHealthChecker:
             action = RecommendedAction(
                 category="coverage",
                 description="Synthesize ingested documents into beliefs",
-                command=f"deepr expert refresh {self.profile.name} --synthesize",
+                command=f"deepr expert refresh {shlex.quote(self.profile.name)} --synthesize",
                 estimated_cost=0.50,
                 approval_tier=_approval_tier_for_cost(0.50),
             )

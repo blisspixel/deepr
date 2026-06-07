@@ -255,6 +255,36 @@ class TestModelSelection:
         assert config.provider == "gemini"
         assert config.model == "gemini-3.1-pro-preview"
 
+    def test_research_with_no_budget_and_research_disallowed_avoids_deep_research(self, router):
+        """Regression: a non-agentic chat turn (no explicit budget) must not be
+        silently routed to the ~$2 deep-research model just because the query
+        is research-worded. allow_research_model=False blocks that path."""
+        config = router.select_model(
+            "Research the latest AI trends comprehensively",
+            provider_constraint="openai",
+            budget_remaining=None,
+            allow_research_model=False,
+        )
+        assert config.model != "o3-deep-research"
+        assert config.cost_estimate < 2.0
+
+    def test_research_disallowed_no_constraint_avoids_deep_research(self, router):
+        config = router.select_model(
+            "Investigate the current state of quantum computing in depth",
+            budget_remaining=None,
+            allow_research_model=False,
+        )
+        assert config.model != "o3-deep-research"
+
+    def test_research_allowed_by_default_preserves_deep_research(self, router):
+        """Default (allow_research_model=True) keeps the existing agentic path."""
+        config = router.select_model(
+            "Research the latest AI trends comprehensively",
+            provider_constraint="openai",
+            budget_remaining=5.0,
+        )
+        assert config.model == "o3-deep-research"
+
 
 class TestFallbackModel:
     """Test fallback model selection."""

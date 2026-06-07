@@ -18,15 +18,16 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
+_GENAI_IMPORT_ERROR: Exception | None
 try:
     from google import genai
     from google.genai import types
     from google.genai.errors import APIError as GenaiAPIError
 except Exception as exc:  # pragma: no cover - depends on optional SDK state
-    genai = None
-    types = None
-    GenaiAPIError = Exception
-    _GENAI_IMPORT_ERROR: Exception | None = exc
+    genai = None  # type: ignore[assignment]
+    types = None  # type: ignore[assignment]
+    GenaiAPIError = Exception  # type: ignore[assignment,misc]
+    _GENAI_IMPORT_ERROR = exc
 else:
     _GENAI_IMPORT_ERROR = None
 
@@ -404,7 +405,7 @@ class GeminiProvider(DeepResearchProvider):
                 else:
                     complexity = "medium"
 
-                config_params = {}
+                config_params: dict[str, Any] = {}
 
                 thinking_config = self._get_thinking_config(model, complexity)
                 if thinking_config:
@@ -456,7 +457,7 @@ class GeminiProvider(DeepResearchProvider):
                     if hasattr(chunk, "candidates") and chunk.candidates:
                         candidate = chunk.candidates[0]
                         if hasattr(candidate, "content") and candidate.content:
-                            for part in candidate.content.parts:
+                            for part in candidate.content.parts or []:
                                 if hasattr(part, "text") and part.text:
                                     if hasattr(part, "thought") and part.thought:
                                         thought_parts.append(part.text)
@@ -769,10 +770,13 @@ class GeminiProvider(DeepResearchProvider):
         try:
             # Run synchronous SDK calls in thread pool to avoid blocking event loop
             def _cleanup_store() -> None:
-                # Delete documents first
-                docs = self.client.file_search_stores.documents.list(file_search_store_name=store_name)
+                # Delete documents first. The installed google-genai stub
+                # disagrees with the runtime kwarg name across versions, so the
+                # call-arg is pinned with a scoped ignore.
+                docs = self.client.file_search_stores.documents.list(file_search_store_name=store_name)  # type: ignore[call-arg]
                 for doc in docs:
-                    self.client.file_search_stores.documents.delete(name=doc.name)
+                    if doc.name:
+                        self.client.file_search_stores.documents.delete(name=doc.name)
 
                 # Delete the store itself
                 self.client.file_search_stores.delete(name=store_name)

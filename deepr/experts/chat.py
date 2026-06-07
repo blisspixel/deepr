@@ -384,13 +384,18 @@ Budget remaining: ${budget_remaining:.2f}
             budget_remaining = self.budget - self.cost_accumulated
 
         # Use router to select model
-        # Constrain to OpenAI provider for vector store compatibility
+        # Constrain to OpenAI provider for vector store compatibility.
+        # Only allow the expensive deep-research model when this session can
+        # actually run a research job (agentic). A non-agentic chat turn with
+        # no explicit budget must not be silently routed to the ~$2
+        # deep-research model just because the question contains "research".
         return self.router.select_model(
             query=query,
             context_size=context_size,
             budget_remaining=budget_remaining,
             current_model=self.expert.model,
             provider_constraint="openai",  # Expert vector store requires OpenAI
+            allow_research_model=self.agentic,
         )
 
     def should_use_tot(self, query: str) -> bool:
@@ -692,13 +697,34 @@ Budget remaining: ${budget_remaining:.2f}
             findings: list = []
             absorber = KnowledgeAbsorber()
 
+            # Bound autonomous probing. The domain detector returns one
+            # suggestion per regex match, so a message stuffed with many
+            # domain-like tokens would otherwise fan out into one MCP
+            # subprocess lookup per token (each up to the recon tool's 45s
+            # timeout) before the turn can respond. Dedup domains, cap the
+            # number of probes, and enforce an overall wall-clock deadline.
+            import time as _time
+
+            _MAX_RECON_PROBES = 3
+            _PROBE_DEADLINE_SECONDS = 60.0
+            _probe_started = _time.monotonic()
+            _seen_domains: set[str] = set()
+            _probe_count = 0
+
             for sug in suggestions:
                 if sug.tool_name != "lookup_tenant":
                     continue  # For the pilot we only auto-fire the primary; others are LLM-driven
+                domain = str(sug.arguments.get("domain", "")).strip().lower()
+                if not domain or domain in _seen_domains:
+                    continue
+                if _probe_count >= _MAX_RECON_PROBES:
+                    break
+                if _time.monotonic() - _probe_started > _PROBE_DEADLINE_SECONDS:
+                    break
+                _seen_domains.add(domain)
+                _probe_count += 1
                 # Execute via the safe MCP proxy path (allowlist, timeout, budget=0 already enforced)
-                raw = await executor.execute_tool(
-                    "lookup_tenant", {"domain": sug.arguments.get("domain", ""), "format": "json"}
-                )
+                raw = await executor.execute_tool("lookup_tenant", {"domain": domain, "format": "json"})
                 if "error" in raw:
                     continue
 
