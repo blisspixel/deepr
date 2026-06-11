@@ -210,6 +210,23 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        # Temporal perspective queries - cost-$0 and read-only, but they
+        # surface belief content (claims, evidence, conflicts), so SENSITIVE
+        # like health_check rather than plain READ.
+        "deepr_what_changed": ToolConfig(
+            name="deepr_what_changed",
+            category=ToolCategory.SENSITIVE,
+            description="Perspective delta since a timestamp (read-only)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
+        "deepr_contested": ToolConfig(
+            name="deepr_contested",
+            category=ToolCategory.SENSITIVE,
+            description="Open contradiction pairs with both sides (read-only)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Reflect runs a small paid evaluation call and surfaces report content;
         # read-only (no mutation) but SENSITIVE like the other expert tools.
         "deepr_reflect": ToolConfig(

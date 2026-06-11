@@ -64,6 +64,14 @@ def create_provider(provider_type: ProviderType, **kwargs: Any) -> DeepResearchP
     Raises:
         ValueError: If provider_type is not supported
     """
+    # load_config() redacts secrets to "***" (so the config dict can be
+    # logged/serialized safely). Callers historically passed that dict's
+    # api_key straight through, which would override every provider's
+    # env-var fallback with a masked string and 401 at the first real
+    # call. Treat the placeholder (or empty string) as "not provided".
+    if kwargs.get("api_key") in ("***", ""):
+        kwargs["api_key"] = None
+
     if provider_type == "openai":
         return OpenAIProvider(**kwargs)
     elif provider_type == "azure":
