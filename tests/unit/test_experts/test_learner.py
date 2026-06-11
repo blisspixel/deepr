@@ -411,3 +411,166 @@ class TestLearningProgressEdgeCases:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestDurableJobTracking:
+    """Learner research jobs must be recoverable and correctly credited.
+
+    Live-validation findings: submitted jobs lived only at the provider
+    (orphaned if the run was interrupted), and the final summary always
+    said "Completed: 0 topics" because the poll loop never credited
+    progress with the topics it completed.
+    """
+
+    def _topic(self, title="Topic 1"):
+        from deepr.experts.curriculum import LearningTopic
+
+        return LearningTopic(
+            title=title,
+            description="d",
+            research_prompt="Research it",
+            research_mode="focus",
+            research_type="research",
+            estimated_cost=0.10,
+            estimated_minutes=5,
+            priority=1,
+        )
+
+    def _learner(self, tmp_path):
+        config = {
+            "openai_api_key": "test-key",
+            "storage_path": str(tmp_path / "out"),
+            "queue_db_path": str(tmp_path / "queue" / "q.db"),
+        }
+        return AutonomousLearner(config)
+
+    @pytest.mark.asyncio
+    async def test_record_job_in_queue_creates_processing_job(self, tmp_path):
+        from deepr.queue import create_queue
+        from deepr.queue.base import JobStatus
+
+        learner = self._learner(tmp_path)
+        expert = MagicMock()
+        expert.name = "Test Expert"
+
+        local_id = await learner._record_job_in_queue("resp_abc123", self._topic(), expert)
+
+        assert local_id is not None
+        assert local_id.startswith("learn-")
+        queue = create_queue("local", db_path=str(tmp_path / "queue" / "q.db"))
+        job = await queue.get_job(local_id)
+        assert job is not None
+        assert job.status is JobStatus.PROCESSING
+        assert job.provider_job_id == "resp_abc123"
+        assert job.metadata["expert_name"] == "Test Expert"
+        assert job.metadata["source"] == "expert_learn"
+
+    @pytest.mark.asyncio
+    async def test_sync_marks_completed_with_cost(self, tmp_path):
+        from deepr.queue import create_queue
+        from deepr.queue.base import JobStatus
+
+        learner = self._learner(tmp_path)
+        expert = MagicMock()
+        expert.name = "Test Expert"
+        local_id = await learner._record_job_in_queue("resp_done", self._topic(), expert)
+
+        await learner._sync_job_status_in_queue("resp_done", "completed", 0.04)
+
+        queue = create_queue("local", db_path=str(tmp_path / "queue" / "q.db"))
+        job = await queue.get_job(local_id)
+        assert job.status is JobStatus.COMPLETED
+        assert job.cost == 0.04
+
+    @pytest.mark.asyncio
+    async def test_sync_unknown_job_is_noop(self, tmp_path):
+        learner = self._learner(tmp_path)
+        # No queue record exists - must not raise
+        await learner._sync_job_status_in_queue("resp_never_recorded", "completed", 0.01)
+
+    @pytest.mark.asyncio
+    async def test_poll_credits_completed_topics(self, tmp_path):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+
+        from deepr.experts.curriculum import LearningCurriculum
+
+        learner = self._learner(tmp_path)
+        learner.research = MagicMock()
+        learner.research.provider.get_status = AsyncMock(
+            return_value=SimpleNamespace(status="completed", usage=SimpleNamespace(cost=0.05))
+        )
+        learner._integrate_reports = AsyncMock()
+        learner.cost_safety = MagicMock()
+
+        expert = MagicMock()
+        expert.name = "Test Expert"
+        session = MagicMock()
+        session.is_circuit_open = False
+        session.session_id = "s1"
+
+        curriculum = LearningCurriculum(
+            expert_name="Test Expert",
+            domain="t",
+            topics=[self._topic()],
+            total_estimated_cost=0.10,
+            total_estimated_minutes=5,
+            generated_at=datetime.now(UTC),
+        )
+        progress = LearningProgress(
+            curriculum=curriculum,
+            completed_topics=[],
+            failed_topics=[],
+            total_cost=0.0,
+            started_at=datetime.now(UTC),
+            job_topics={"resp_1": "Topic 1"},
+        )
+
+        await learner._poll_and_integrate_reports(expert, ["resp_1"], session, None, progress)
+
+        assert progress.completed_topics == ["Topic 1"]
+        assert progress.failed_topics == []
+        assert progress.success_rate() == 1.0
+        learner._integrate_reports.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_poll_credits_failed_topics(self, tmp_path):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+
+        from deepr.experts.curriculum import LearningCurriculum
+
+        learner = self._learner(tmp_path)
+        learner.research = MagicMock()
+        learner.research.provider.get_status = AsyncMock(return_value=SimpleNamespace(status="failed", usage=None))
+        learner._integrate_reports = AsyncMock()
+        learner.cost_safety = MagicMock()
+
+        expert = MagicMock()
+        expert.name = "Test Expert"
+        session = MagicMock()
+        session.is_circuit_open = False
+        session.session_id = "s1"
+
+        curriculum = LearningCurriculum(
+            expert_name="Test Expert",
+            domain="t",
+            topics=[self._topic()],
+            total_estimated_cost=0.10,
+            total_estimated_minutes=5,
+            generated_at=datetime.now(UTC),
+        )
+        progress = LearningProgress(
+            curriculum=curriculum,
+            completed_topics=[],
+            failed_topics=[],
+            total_cost=0.0,
+            started_at=datetime.now(UTC),
+            job_topics={"resp_1": "Topic 1"},
+        )
+
+        await learner._poll_and_integrate_reports(expert, ["resp_1"], session, None, progress)
+
+        assert progress.failed_topics == ["Topic 1"]
+        assert progress.completed_topics == []
+        learner._integrate_reports.assert_not_awaited()

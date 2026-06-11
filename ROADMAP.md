@@ -526,8 +526,9 @@ Honest caveats (why this is experimental): CLI agents are not deep-research APIs
   - [ ] Performance regression tests
   - [ ] Raise per-module coverage on core modules above the 80% global gate
 - [ ] Live-validation findings (2026-06-11, sub-$5 end-to-end run):
-  - [ ] Learner async-job durability: `expert make --learn` submits provider deep-research jobs that are NOT recorded in the local queue - if the CLI exits, the job (and its spend) is orphaned with no retrieval path (salvageable only via the raw provider response id). Route learner submissions through the queue + poller like `research` jobs, and absorb results on completion.
-  - [ ] Learner UX: curriculum + source spend (~$0.29) is incurred before the per-topic budget preflight; reorder so an unaffordable plan costs $0. Also reports "Learning Complete, 0 topics" while a job is still running in the background - report submitted-async state honestly.
+  - [x] Learner job durability (corrected severity: the in-process poll/integrate loop does complete and integrate reports; the gap was *interrupted* runs): submitted jobs are now recorded in the local queue (`learn-<id>`, PROCESSING with the provider job id) so `deepr status`/`list` see them and an interrupted run is recoverable; terminal states and cost sync back to the queue record; polling that stops early lists the still-running jobs honestly.
+  - [x] Learner summary bookkeeping: the final "Learning Complete" report always said "Completed: 0 topics / 0.0%" because the poll loop never credited `progress.completed_topics`. Job-to-topic mapping (`LearningProgress.job_topics`) now credits completed/failed topics so the summary reflects reality.
+  - [ ] Learner UX: curriculum + source spend (~$0.29) is incurred before the per-topic budget preflight; reorder so an unaffordable plan costs $0.
   - [ ] Windows console encoding: `costs timeline` (rich box-drawing chars) crashes with UnicodeEncodeError on cp1252 consoles when piped; force UTF-8 output on the CLI entry point.
   - [ ] Contradiction heuristic precision: absorb-time flagging marked 4 pairs on the first live report, at least some of which are phrasing-level (negation heuristic), not substantive conflicts - adjudication exists, but consider a cheap same-meaning screen before flagging.
 
