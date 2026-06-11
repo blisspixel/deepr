@@ -227,3 +227,59 @@ class TestErrorMessageQuality:
         message = str(error).lower()
 
         assert "--budget" in message or "increase budget" in message
+
+
+class TestMinViableBudgetPreflight:
+    """generate_curriculum must refuse unaffordable budgets BEFORE any paid call.
+
+    Live-validation finding: generation + source discovery spent ~$0.10-0.30
+    and then every topic was skipped at the per-topic budget gate, so an
+    unaffordable plan still cost money.
+    """
+
+    def _generator(self):
+        from unittest.mock import MagicMock
+
+        from deepr.experts.curriculum import CurriculumGenerator
+
+        return CurriculumGenerator(MagicMock())
+
+    def test_below_minimum_raises_before_spending(self):
+        import asyncio
+
+        import pytest
+
+        from deepr.experts.curriculum import MIN_VIABLE_LEARN_BUDGET
+
+        generator = self._generator()
+        with pytest.raises(ValueError, match="minimum viable learning budget"):
+            asyncio.run(
+                generator.generate_curriculum(
+                    expert_name="X",
+                    domain="testing",
+                    initial_documents=[],
+                    budget_limit=MIN_VIABLE_LEARN_BUDGET / 2,
+                )
+            )
+
+    def test_no_budget_limit_skips_preflight(self):
+        """budget_limit=None must not trip the floor (it proceeds to the
+        normal flow, which here fails later on the mocked config - proving
+        the preflight itself did not reject)."""
+        import asyncio
+
+        import pytest
+
+        generator = self._generator()
+        with pytest.raises(Exception) as excinfo:
+            asyncio.run(
+                generator.generate_curriculum(
+                    expert_name="X",
+                    domain="testing",
+                    initial_documents=[],
+                    budget_limit=None,
+                    enable_discovery=False,
+                    timeout=1,
+                )
+            )
+        assert "minimum viable learning budget" not in str(excinfo.value)
