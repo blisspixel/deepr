@@ -1,7 +1,7 @@
 """Shared data models and cost estimation."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 API_VERSION = "2.6.0"
@@ -15,7 +15,7 @@ def generate_job_id() -> str:
 
 def get_current_timestamp() -> str:
     """Get current UTC timestamp in ISO 8601 format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def calculate_ttl(days: int = DEFAULT_TTL_DAYS) -> int:
@@ -28,7 +28,7 @@ def calculate_ttl(days: int = DEFAULT_TTL_DAYS) -> int:
     Returns:
         Unix timestamp for expiration
     """
-    return int(datetime.now(timezone.utc).timestamp()) + (days * 24 * 60 * 60)
+    return int(datetime.now(UTC).timestamp()) + (days * 24 * 60 * 60)
 
 
 def estimate_cost(model: str) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 """Tests for ExpertPolicy, ManifestDelta, and manifest comparison."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from deepr.core.contracts import (
     Claim,
@@ -46,7 +46,7 @@ def _make_manifest(
         claims=claims or [],
         gaps=gaps or [],
         policies=policies or {},
-        generated_at=time or datetime.now(timezone.utc),
+        generated_at=time or datetime.now(UTC),
     )
 
 

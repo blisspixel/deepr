@@ -19,7 +19,6 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Schema version for migrated profiles
 CURRENT_SCHEMA_VERSION = "2.0.0"
@@ -53,7 +52,7 @@ def find_expert_profiles(base_dir: Path) -> list[Path]:
     return profiles
 
 
-def load_profile(path: Path) -> Optional[dict]:
+def load_profile(path: Path) -> dict | None:
     """Load a profile from disk.
 
     Args:
