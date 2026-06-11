@@ -423,3 +423,69 @@ def test_load_benchmark_rankings_logs_warning_on_invalid_json(tmp_path, monkeypa
 
     assert rankings is None
     assert "Could not load benchmark data" in caplog.text
+
+
+class TestLoadBenchmarkRankings:
+    """_load_benchmark_rankings reads data/benchmarks (CWD-relative).
+
+    CI has no local benchmark files, so these paths were only ever covered
+    on dev machines; exercise them with synthetic fixtures on a tmp CWD.
+    """
+
+    def _write_benchmark(self, tmp_path, payload):
+        import json
+
+        bench = tmp_path / "data" / "benchmarks"
+        bench.mkdir(parents=True)
+        (bench / "benchmark_2026.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_no_dir_returns_none(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        assert auto_mode_module._load_benchmark_rankings() is None
+
+    def test_no_files_returns_none(self, tmp_path, monkeypatch):
+        (tmp_path / "data" / "benchmarks").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        assert auto_mode_module._load_benchmark_rankings() is None
+
+    def test_corrupt_json_returns_none(self, tmp_path, monkeypatch):
+        bench = tmp_path / "data" / "benchmarks"
+        bench.mkdir(parents=True)
+        (bench / "benchmark_2026.json").write_text("{not json", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        assert auto_mode_module._load_benchmark_rankings() is None
+
+    def test_empty_rankings_returns_none(self, tmp_path, monkeypatch):
+        self._write_benchmark(tmp_path, {"rankings": []})
+        monkeypatch.chdir(tmp_path)
+        assert auto_mode_module._load_benchmark_rankings() is None
+
+    def test_builds_sorted_rankings_with_overall(self, tmp_path, monkeypatch):
+        self._write_benchmark(
+            tmp_path,
+            {
+                "rankings": [
+                    {"model_key": "openai/gpt-5.4", "scores_by_type": {"reasoning": 0.7, "synthesis": 0.9}},
+                    {"model_key": "openai/gpt-5.4-mini", "scores_by_type": {"reasoning": 0.9}},
+                    # Same model again at a lower score - best score must win
+                    {"model_key": "openai/gpt-5.4-mini", "scores_by_type": {"reasoning": 0.5}},
+                    # Not in the registry - must be filtered out
+                    {"model_key": "openai/removed-model-xyz", "scores_by_type": {"reasoning": 1.0}},
+                    # Malformed key without provider/ - must be skipped
+                    {"model_key": "bare-model", "scores_by_type": {"reasoning": 1.0}},
+                ]
+            },
+        )
+        monkeypatch.chdir(tmp_path)
+        rankings = auto_mode_module._load_benchmark_rankings()
+
+        assert rankings is not None
+        reasoning = rankings["reasoning"]
+        # Best score per model, sorted quality desc; filtered entries absent
+        assert [(r[0], r[1]) for r in reasoning] == [("openai", "gpt-5.4-mini"), ("openai", "gpt-5.4")]
+        assert reasoning[0][2] == 0.9  # best-of merged scores
+        assert all("removed-model-xyz" not in r[1] and "bare-model" not in r[1] for r in reasoning)
+        # _overall present, ordered by average quality
+        overall = rankings["_overall"]
+        assert overall[0][1] == "gpt-5.4-mini" or overall[0][1] == "gpt-5.4"
+        assert {r[1] for r in overall} == {"gpt-5.4", "gpt-5.4-mini"}
