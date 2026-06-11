@@ -16,6 +16,18 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def default_cost_data_dir() -> Path:
+    """Resolve the cost-data directory.
+
+    Honors DEEPR_COST_DATA_DIR so deployments can relocate cost state and -
+    critically - so the test suite can isolate itself: the default is
+    CWD-relative, and unit tests running from the repo root were appending
+    fabricated cost events to the user's real canonical ledger.
+    """
+    base = os.environ.get("DEEPR_COST_DATA_DIR", "").strip()
+    return Path(base) if base else Path("data/costs")
+
+
 @dataclass
 class CostLedgerEvent:
     """Single immutable cost event in the canonical ledger."""
@@ -79,7 +91,7 @@ class CostLedger:
     """Append-only cost ledger with idempotency support."""
 
     def __init__(self, ledger_path: Path | None = None):
-        self.ledger_path = ledger_path or Path("data/costs/cost_ledger.jsonl")
+        self.ledger_path = ledger_path or default_cost_data_dir() / "cost_ledger.jsonl"
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._idempotency_keys: set[str] = set()

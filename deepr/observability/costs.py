@@ -517,7 +517,9 @@ class CostDashboard:
             alert_thresholds: Alert thresholds (default: 0.5, 0.8, 0.95)
         """
         if storage_path is None:
-            storage_path = Path("data/costs/cost_log.json")
+            from deepr.observability.cost_ledger import default_cost_data_dir
+
+            storage_path = default_cost_data_dir() / "cost_log.json"
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         ledger_path = self.storage_path.with_name("cost_ledger.jsonl")
@@ -812,6 +814,38 @@ class CostDashboard:
             Filtered entries
         """
         return self.aggregator._filter_by_date(start_date, end_date)
+
+    def rebuild_from_ledger(self) -> int:
+        """Rebuild dashboard entries from the canonical cost ledger.
+
+        The ledger is the append-only source of truth; the dashboard is a
+        derived view (the regeneration invariant). Real cost flows write the
+        ledger through several recorders that bypass ``record_cost``, so the
+        dashboard can drift - ``costs doctor`` detects that, this repairs it.
+
+        Returns:
+            Number of entries in the rebuilt view.
+        """
+        events = self.ledger.get_events()
+        self.entries.clear()
+        for ev in events:
+            self.entries.append(
+                CostEntry(
+                    timestamp=ev.timestamp,
+                    operation=ev.operation,
+                    provider=ev.provider,
+                    model=ev.model,
+                    cost=ev.cost_usd,
+                    tokens_input=ev.tokens_input,
+                    tokens_output=ev.tokens_output,
+                    task_id=ev.task_id,
+                    metadata={"source": ev.source, **(ev.metadata or {})},
+                )
+            )
+        self.entries.sort(key=lambda e: e.timestamp)
+        self.aggregator = CostAggregator(self.entries)
+        self._save()
+        return len(self.entries)
 
     def _save(self):
         """Save entries to disk using atomic write pattern.

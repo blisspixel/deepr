@@ -350,11 +350,23 @@ def expert_costs(name: str):
 
 @costs.command("doctor")
 @click.option("--drift-threshold", default=0.01, type=float, show_default=True, help="Allowed absolute drift in USD")
-def costs_doctor(drift_threshold: float):
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    help="Rebuild the dashboard view from the canonical ledger before checking (repairs drift)",
+)
+def costs_doctor(drift_threshold: float, rebuild: bool):
     """Run zero-cost integrity checks for cost tracking."""
     dashboard = CostDashboard()
     ledger_path = Path(dashboard.storage_path).with_name("cost_ledger.jsonl")
     ledger = CostLedger(ledger_path=ledger_path)
+
+    if rebuild:
+        # The ledger is the append-only source of truth; the dashboard is a
+        # derived view and may drift (several recorders write the ledger
+        # directly). Regenerate the view rather than trusting it.
+        count = dashboard.rebuild_from_ledger()
+        console.print(f"[green]Rebuilt dashboard view from ledger ({count} entries)[/green]")
 
     checks: list[tuple[str, bool, str]] = []
 
