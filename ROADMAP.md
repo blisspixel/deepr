@@ -443,11 +443,15 @@ Deepr is an orchestration layer over hosted model APIs - it does not train, fine
 - Model-weight protection (extraction/inversion/membership-inference defenses, watermarking/fingerprinting, TEEs/enclaves, homomorphic encryption, confidential computing, post-quantum model crypto) - Deepr holds no weights; it calls hosted APIs.
 - Inference-layer isolation (confidential VMs / GPU enclaves for serving) - inference runs on the providers' infrastructure under their shared-responsibility model.
 
-### Phase 6: Plan-Quota Backends (subscription CLIs as bounded-cost research capacity)
+### Phase 6: Plan-Quota and Local Backends (paid plans + owned hardware as bounded-cost research capacity)
 
-Goal: let Deepr execute research through the agentic CLIs a user already pays for by subscription (Claude Code, Codex CLI, Gemini CLI), treating plan quota as a *bounded prepaid pool* instead of metered API spend - with hard guarantees that no path can produce a surprise bill.
+Goal: let Deepr execute research through capacity the user already pays for or owns - subscription agentic CLIs (Claude Code, Codex CLI, Antigravity CLI, Kiro CLI) and local GPUs (Ollama) - treating plans as *bounded prepaid pools* and local inference as truly free at the margin, with hard guarantees that no path can produce a surprise bill.
 
-Why this matters: a $20-300/month plan with quota windows or monthly credit pools is often dramatically cheaper than metered API calls for batch research, and Deepr's queue is exactly the workload shape (non-urgent, schedulable) that can soak up quota that would otherwise expire unused. The cost story is the product: "your existing subscriptions become research capacity." The flagship use case is **background expert maintenance**: scheduled `expert sync`, `health-check`, and gap-fill jobs (Phase 4) are non-urgent by definition - route them to plan-quota backends by default and experts stay current at ~$0 marginal cost, draining quota that would otherwise expire.
+The routing principle (the **capacity waterfall**): for any job whose quality floor permits it, drain owned/prepaid capacity first - `local` -> `plan_quota`/`credit_pool` -> `api_metered` (budget-gated, last resort). You are paying for the plans anyway; the metered API is only ever reached explicitly, never by accident. A realistic stack (3x Google accounts + Kiro Power + Claude Max + ChatGPT Plus + Grok free API credits + one RTX-class GPU) represents hundreds of dollars of monthly prepaid capacity plus unlimited local tokens before the first metered dollar.
+
+Why this matters: a $20-300/month plan with quota windows or monthly credit pools is often dramatically cheaper than metered API calls for batch research, and Deepr's queue is exactly the workload shape (non-urgent, schedulable) that can soak up quota that would otherwise expire unused. The cost story is the product: "your existing subscriptions become research capacity." The flagship use case is **background expert maintenance**: scheduled `expert sync`, `health-check`, and gap-fill jobs (Phase 4) are non-urgent by definition - route them to plan-quota/local backends by default and experts stay current at ~$0 marginal cost, draining quota that would otherwise expire.
+
+Platform requirement: every adapter must work on Windows, macOS, and Linux (subprocess invocation, auth-profile discovery, and path handling are per-OS; the vendor CLIs themselves are cross-platform). No adapter ships supporting only the dev machine's OS.
 
 Vendor reality (verified June 2026 - revalidate before implementation, this churns quarterly):
 
@@ -456,6 +460,7 @@ Vendor reality (verified June 2026 - revalidate before implementation, this chur
 - **Google Antigravity CLI** (`agy`): Gemini CLI and its 1,000 req/day plan quotas *stop serving on June 18, 2026* - the replacement is the closed-source Antigravity CLI under Google AI Pro ($20) / AI Ultra ($100, 5x) / AI Ultra top tier ($200) with **weekly compute-based caps** (heavy users report multi-day cooldowns). Headless agent creation and scheduled background tasks are first-class features, so the path is supported - but the weekly window math and opaque compute units make the observed-quota tracker mandatory here.
 - **Kiro CLI**: officially sanctioned for automation ("reviews during CI/CD"); credit plans from Free (50/mo) to Power ($200/mo, 10,000 credits). Caveat: **overage bills automatically at $0.04/credit at month-end** - the adapter must detect/require overage protection off, or cap usage below the credit ceiling, to honor no-surprise-bills.
 - **Grok**: consumer plans (including SuperGrok Heavy $300/mo) have *no officially supported headless plan-quota path* - the plan quota is locked to the grok.com/X surfaces. However, xAI's data-sharing program grants up to **$175/month in free API credits**, which is the same bounded-prepaid-pool shape; model it as a credit-pool cost source on the existing Grok API provider rather than a CLI adapter. (Grok Build CLI is early-access and API-metered, not plan-quota.)
+- **Local (Ollama)**: an RTX-class GPU runs open-weight models at genuinely $0 marginal cost - no quota window at all, just hardware availability. Two honest constraints: (1) quality - local models are not deep-research APIs, so local handles the quality-tolerant steps of the expert loop (absorption, summarization, contradiction heuristics, gap detection, draft synthesis) while quality-critical synthesis routes up the waterfall, with eval benchmarks deciding the floor per task type; (2) contention - the GPU is often shared with the user's interactive work (IDE agents, coding), so the adapter needs availability windows (e.g. off-hours) and an optional GPU-utilization probe before dispatch. For scheduled expert maintenance, neither constraint matters: the jobs are quality-tolerant and time-flexible by design.
 
 Design (builds on existing kernel primitives - cost ledger, budget contracts, provider registry, auto-mode routing):
 
@@ -468,6 +473,8 @@ Design (builds on existing kernel primitives - cost ledger, budget contracts, pr
   - [ ] `cli-antigravity` (`agy`; weekly compute caps; replaces the pre-June-18 `gemini -p` plan)
   - [ ] `cli-kiro` (`kiro` CLI; monthly credits; requires overage guard)
   - [ ] Grok credit pool: no CLI adapter - flag the existing Grok API provider as `credit_pool` when the data-sharing free-credit program is active, with the monthly credit amount as the bound
+- [ ] **Local backend** (`local-ollama`): a `DeepResearchProvider` over the Ollama HTTP API (works identically on Windows/macOS/Linux); `cost_source: local`, no quota window. Availability scheduling instead: configurable time windows (e.g. outside work hours) plus an optional GPU-utilization/VRAM probe before dispatch so background research never fights the user's interactive sessions. Eval harness benchmarks local models alongside cloud ones so the router knows which task types clear the quality floor locally.
+- [ ] **Capacity waterfall in auto mode**: routing preference order `local -> plan_quota/credit_pool -> api_metered`, gated by per-task quality floors from benchmarks; metered is reached only when no free-at-margin source can meet the floor, and is still budget-checked as today.
 - [ ] **Auth-mode detection**: adapters verify the CLI is authenticated via subscription login (OAuth profile), not an API key. An API-key-authenticated CLI is metered spend wearing a CLI costume - refuse to classify it as `plan_quota`, route it through the normal budget guards instead.
 - [ ] **No-surprise-bills invariants** (kernel-enforced, tested):
   - [ ] A `plan_quota`/`credit_pool` backend never falls back to a metered API without an explicit `--allow-paid-fallback` (or config equivalent); default is queue-until-reset.
@@ -485,7 +492,7 @@ Honest caveats (why this is experimental): CLI agents are not deep-research APIs
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
 - [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
-- [ ] Local model support on NVIDIA hardware (DGX Spark, Jetson Orin Nano Super) with automatic offload when cloud budget exhausted
+- [ ] Local model support beyond the Phase 6 `local-ollama` backend (DGX Spark, Jetson Orin Nano Super, multi-GPU); the core local backend + budget-exhausted offload now lives in Phase 6's capacity waterfall
 - [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
 - [ ] Skill marketplace and meta-skills
 - [ ] Multi-agent swarm support beyond bounded subagent orchestration
@@ -560,7 +567,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
 | v2.14 | Graph-structured expert memory, expert freshness/sync, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
 | v2.15 | Autonomous research campaigns, ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
-| v2.16 | Plan-quota backends (Phase 6): subscription CLI execution, quota ledger, quota-aware scheduling | Planned |
+| v2.16 | Plan-quota + local backends (Phase 6): subscription CLI execution, local Ollama, quota ledger, capacity-waterfall routing | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
 
 ---
