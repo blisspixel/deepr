@@ -230,3 +230,43 @@ class TestSafeTestPrompts:
         # Negative - should return first
         prompt = get_safe_test_prompt(-1)
         assert prompt is not None
+
+
+class TestCostDataDirIsolation:
+    """Cost state must honor DEEPR_COST_DATA_DIR.
+
+    Live-validation regression: the ledger and dashboard defaulted to
+    CWD-relative paths, so unit tests running from the repo root appended
+    fabricated cost events to the developer's real canonical ledger.
+    """
+
+    def test_ledger_honors_env_dir(self, tmp_path, monkeypatch):
+        from deepr.observability.cost_ledger import CostLedger
+
+        monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "isolated"))
+        ledger = CostLedger()
+        assert ledger.ledger_path == tmp_path / "isolated" / "cost_ledger.jsonl"
+
+    def test_dashboard_honors_env_dir(self, tmp_path, monkeypatch):
+        from deepr.observability.costs import CostDashboard
+
+        monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "isolated"))
+        dash = CostDashboard()
+        assert dash.storage_path == tmp_path / "isolated" / "cost_log.json"
+        assert dash.ledger.ledger_path == tmp_path / "isolated" / "cost_ledger.jsonl"
+
+    def test_explicit_path_still_wins(self, tmp_path, monkeypatch):
+        from deepr.observability.cost_ledger import CostLedger
+
+        monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "ignored"))
+        explicit = tmp_path / "explicit.jsonl"
+        assert CostLedger(ledger_path=explicit).ledger_path == explicit
+
+    def test_autouse_isolation_active(self):
+        """The conftest autouse fixture must already point cost state at tmp."""
+        import os
+
+        from deepr.observability.cost_ledger import default_cost_data_dir
+
+        assert os.environ.get("DEEPR_COST_DATA_DIR"), "autouse isolation fixture not active"
+        assert "data" + os.sep + "costs" not in str(default_cost_data_dir())
