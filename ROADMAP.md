@@ -352,10 +352,11 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] Surface as previewable candidates with cost estimate; ingestion stays opt-in and budget-bounded
 - [ ] Output style contract for human-read artifacts (distinct from anti-hallucination rules):
   - [ ] A register/anti-slop style guard for briefings and reports (banned filler, em-dash overuse, spelling consistency), separate from the provenance/grounding rules in the research prompts
-- [ ] Expert freshness / watch (stay current on a topic over time):
-  - [ ] `deepr expert sync NAME` - pull deltas from subscribed sources (distillr refresh, recon delta, primr delta) and integrate only what changed, timestamped
-  - [ ] Per-topic refresh cadence and source list, budget-bounded; depends on the Phase 2b distillr freshness path
-  - [ ] Schedulable; surfaces a change summary (what is new, what shifted, what to review)
+- [~] Expert freshness / watch (stay current on a topic over time):
+  - [x] `deepr expert sync NAME` (v2.13.x) - researches each due subscription with a delta-only freshness prompt ("what changed since <last sync>; if nothing, say so"), absorbs through the verification-gated pipeline (dedup + contradiction flagging), and surfaces the perspective delta via `what_changed`. `subscribe`/`subscriptions` manage topics; `--dry-run` previews at $0; a "no significant changes" answer skips the paid extraction entirely.
+  - [x] Per-topic refresh cadence and budget (`--every Nd --budget X`), run-level budget ceiling with skip-not-fail exhaustion, refuse-below-floor preflight; engine takes an injectable research function (unit-tested free)
+  - [x] Schedulable: idempotent per cadence window, so cron / host-platform schedulers (Anthropic scheduled deployments, Antigravity tasks) can run it daily and only due topics spend money; change summary printed per run
+  - [ ] First-party instrument deltas as sync sources (distillr refresh, recon delta, primr delta) - the generic research-based sync ships first; instrument-specific delta verbs land when the siblings expose them (Phase 2b follow-on)
 - [ ] Dynamic tool selection via gap analysis:
   - [x] Gap-to-tool mapping engine (v2.13): `GapRouter` maps each gap to recon/distillr/primr/research by keyword signal, with installed-instrument detection and fallback. CLI `deepr expert route-gaps` + `deepr_route_gaps` MCP tool. Read-only advisory.
   - [x] Value/cost estimation per gap-fill option (per-route cost estimate + ev_cost_ratio ordering)
