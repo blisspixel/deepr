@@ -98,13 +98,10 @@ jobs:
       fail-fast: false
       matrix:
         # Floor is 3.12 (3.11 supported only to Oct 2027; 3.12 to Oct 2028 -
-        # see Phase E). 3.14 is exercised but non-blocking until every optional
-        # dependency publishes 3.14 wheels.
-        python-version: ["3.12", "3.13"]
-        include:
-          - python-version: "3.14"
-            experimental: true
-    continue-on-error: ${{ matrix.experimental || false }}
+        # see Phase E). 3.14 promoted to blocking 2026-06-11: the full
+        # [dev,full] extras install and the entire suite pass on it, so the
+        # original wheel-availability caveat no longer applies.
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
