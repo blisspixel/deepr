@@ -7,10 +7,13 @@
 
 **Domain experts, not another chat window.**
 
+In plain terms: you bring your own AI accounts (OpenAI, Gemini, Grok, Anthropic — any one is enough), and Deepr routes each research question to the cheapest model that can handle it, then builds experts that remember what they learned.
+
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows — so your experts are always available as team members, not just tools you invoke manually.
 
 ```bash
 # Auto-routes to the best model per query: Grok 4.1 Fast ($0.01) -> GPT-5.4 -> o3-deep-research
+# (--budget is a ceiling, not a price: most queries cost far less than the cap)
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3
 
 # Expert accumulates knowledge across sessions, fills its own gaps
@@ -34,6 +37,8 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 ## Why Deepr?
 
 **If you need one research report, use ChatGPT Deep Research or Gemini.** They're easier. For a single question, they're the right tool.
+
+**Who Deepr is for:** analysts and research teams who batch dozens of queries; developers building agents that need grounded, citable knowledge mid-task; anyone running research on a schedule instead of in a chat window. You should be comfortable with a terminal — or use the web dashboard once it's set up. If you ask ChatGPT one question a day on your phone, Deepr is more tool than you need.
 
 **Deepr is for when research is infrastructure, not a one-off:**
 
