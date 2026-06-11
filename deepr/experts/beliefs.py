@@ -252,6 +252,33 @@ class BeliefChange:
 
         return f"Belief updated: {self.new_claim}"
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "belief_id": self.belief_id,
+            "change_type": self.change_type,
+            "old_claim": self.old_claim,
+            "new_claim": self.new_claim,
+            "old_confidence": self.old_confidence,
+            "new_confidence": self.new_confidence,
+            "reason": self.reason,
+            "evidence": self.evidence,
+            "timestamp": self.timestamp.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BeliefChange":
+        return cls(
+            belief_id=data["belief_id"],
+            change_type=data["change_type"],
+            new_claim=data.get("new_claim", ""),
+            new_confidence=float(data.get("new_confidence", 0.0)),
+            old_claim=data.get("old_claim", ""),
+            old_confidence=float(data.get("old_confidence", 0.0)),
+            reason=data.get("reason", ""),
+            evidence=data.get("evidence", ""),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else _utc_now(),
+        )
+
 
 class BeliefStore:
     """Store and manage beliefs for an expert.
@@ -286,12 +313,65 @@ class BeliefStore:
 
         self.storage_path = self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
+        # Append-only belief event log (TKG step 1, see
+        # docs/design/temporal-knowledge-graph.md): every change is appended
+        # here unbounded, so temporal queries (what_changed) are exact instead
+        # of limited to the 100-record changes.json window. The legacy
+        # changes list is still written for one release (dual-write).
+        self.events_path = self.storage_dir / "events.jsonl"
 
         self.beliefs: dict[str, Belief] = {}
         self.domain_index: dict[str, set[str]] = {}
         self.changes: list[BeliefChange] = []
 
         self._load()
+
+    @property
+    def has_event_log(self) -> bool:
+        """True when the append-only event log exists (new-format stores)."""
+        return self.events_path.exists()
+
+    def _record_change(self, change: BeliefChange) -> None:
+        """Record a belief change in both the legacy window and the event log.
+
+        The JSONL append happens immediately (not deferred to _save) so the
+        event survives even if a later step in the calling operation fails.
+        """
+        self.changes.append(change)
+        with open(self.events_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(change.to_dict()) + "\n")
+
+    def iter_events(self, since: datetime | None = None) -> list[BeliefChange]:
+        """Read belief events from the append-only log, oldest first.
+
+        Args:
+            since: If given, only events strictly after this timestamp.
+
+        Returns:
+            All matching events (the log is unbounded, unlike ``changes``).
+            Malformed lines are skipped with a warning, never fatal.
+        """
+        if since is not None and since.tzinfo is None:
+            since = since.replace(tzinfo=UTC)
+
+        events: list[BeliefChange] = []
+        if not self.events_path.exists():
+            return events
+        with open(self.events_path, encoding="utf-8") as f:
+            for line_no, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    change = BeliefChange.from_dict(json.loads(line))
+                except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                    logger.warning("Skipping malformed belief event (%s:%d): %s", self.events_path, line_no, exc)
+                    continue
+                ts = change.timestamp if change.timestamp.tzinfo else change.timestamp.replace(tzinfo=UTC)
+                if since is not None and ts <= since:
+                    continue
+                events.append(change)
+        return events
 
     def add_belief(self, belief: Belief, check_conflicts: bool = True) -> tuple[Belief, BeliefChange | None]:
         """Add a belief to the store.
@@ -324,7 +404,7 @@ class BeliefStore:
         change = BeliefChange(
             belief_id=belief.id, change_type="created", new_claim=belief.claim, new_confidence=belief.confidence
         )
-        self.changes.append(change)
+        self._record_change(change)
 
         self._save()
         return belief, change
@@ -360,7 +440,7 @@ class BeliefStore:
             new_confidence=belief.confidence,
             reason="contested: contradicts " + ", ".join(other.id for other in conflicting),
         )
-        self.changes.append(change)
+        self._record_change(change)
 
         self._save()
         return belief, change
@@ -405,7 +485,7 @@ class BeliefStore:
             reason=reason,
             evidence=new_evidence or "",
         )
-        self.changes.append(change)
+        self._record_change(change)
 
         self._save()
         return change
@@ -448,7 +528,7 @@ class BeliefStore:
             reason=reason,
             evidence=evidence,
         )
-        self.changes.append(change)
+        self._record_change(change)
 
         self._save()
         return change
@@ -477,7 +557,7 @@ class BeliefStore:
             new_confidence=0.0,
             reason=reason,
         )
-        self.changes.append(change)
+        self._record_change(change)
 
         # Remove from active beliefs
         del self.beliefs[belief_id]
@@ -626,7 +706,7 @@ class BeliefStore:
                 new_confidence=merged_confidence,
                 reason="Merged beliefs",
             )
-            self.changes.append(change)
+            self._record_change(change)
             self._save()
             return existing, change
 
