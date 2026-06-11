@@ -42,7 +42,11 @@ class CostEstimator:
     Deep Research is EXPENSIVE - always estimate before running.
     """
 
-    # Pricing per 1M tokens (as of Jan 2025)
+    # DEPRECATED: kept only for backward compatibility with external callers.
+    # Pricing lookups now go through deepr.providers.registry.get_token_pricing
+    # (the single source of truth). This 4-model snapshot silently priced every
+    # other model at o3-deep-research rates - e.g. a $10/$50 frontier model
+    # would pass pre-flight at $2/$8.
     PRICING = {
         "o3-deep-research": {
             "input": 2.00,  # $2.00 per 1M input tokens
@@ -61,6 +65,17 @@ class CostEstimator:
             "output": 0.03,
         },
     }
+
+    @staticmethod
+    def _get_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
+        """Resolve per-1M-token pricing from the model registry.
+
+        The registry handles alias resolution, normalization, longest-match,
+        tiered pricing, and logs a warning for unknown models.
+        """
+        from deepr.providers.registry import get_token_pricing
+
+        return get_token_pricing(model, input_tokens=input_tokens)
 
     @classmethod
     def estimate_prompt_tokens(cls, prompt: str, documents: list[Any] | None = None) -> int:
@@ -101,14 +116,12 @@ class CostEstimator:
         Returns:
             Cost estimate with min/max/expected
         """
-        # Get base model pricing
-        pricing = cls.PRICING.get(model)
-        if pricing is None:
-            logger.warning("Unknown model '%s' for cost estimation, using o3-deep-research pricing as default", model)
-            pricing = cls.PRICING["o3-deep-research"]
-
-        # Estimate input tokens
+        # Estimate input tokens first so tiered-pricing models (Gemini 3.x
+        # Pro above 200K input tokens) are estimated at the tier rate.
         input_tokens = cls.estimate_prompt_tokens(prompt, documents)
+
+        # Get base model pricing from the registry (single source of truth)
+        pricing = cls._get_pricing(model, input_tokens=input_tokens)
 
         # Deep Research models generate A LOT of output
         # Typical ranges:
@@ -189,10 +202,7 @@ class CostEstimator:
         Returns:
             Total cost in USD
         """
-        pricing = cls.PRICING.get(model)
-        if pricing is None:
-            logger.warning("Unknown model '%s' for cost estimation, using o3-deep-research pricing as default", model)
-            pricing = cls.PRICING["o3-deep-research"]
+        pricing = cls._get_pricing(model, input_tokens=input_tokens)
 
         input_cost = (input_tokens / 1_000_000) * pricing["input"]
         output_cost = (output_tokens / 1_000_000) * pricing["output"]

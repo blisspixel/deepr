@@ -123,7 +123,7 @@ class TestAnthropicProviderInit:
                 with patch("deepr.providers.anthropic_provider.ToolRegistry"):
                     provider = AnthropicProvider()
 
-                    assert provider.model == "claude-opus-4-5"
+                    assert provider.model == "claude-opus-4-8"
                     assert provider.thinking_budget >= 1024
 
     def test_init_custom_model(self):
@@ -163,12 +163,16 @@ class TestAnthropicProviderModelMapping:
 
     def test_map_opus(self, provider):
         """Should map opus variants."""
-        assert provider.get_model_name("claude-opus") == "claude-opus-4-5"
-        assert provider.get_model_name("claude-4-opus") == "claude-opus-4-5"
+        assert provider.get_model_name("claude-opus") == "claude-opus-4-8"
+        assert provider.get_model_name("claude-4-opus") == "claude-opus-4-8"
+
+    def test_map_fable(self, provider):
+        """Should map fable to the frontier model."""
+        assert provider.get_model_name("claude-fable") == "claude-fable-5"
 
     def test_map_sonnet(self, provider):
         """Should map sonnet variants."""
-        assert provider.get_model_name("claude-sonnet") == "claude-sonnet-4-5"
+        assert provider.get_model_name("claude-sonnet") == "claude-sonnet-4-6"
 
     def test_map_haiku(self, provider):
         """Should map haiku variants."""
@@ -178,6 +182,91 @@ class TestAnthropicProviderModelMapping:
         """Should return default model for unknown keys."""
         result = provider.get_model_name("unknown-model")
         assert result == provider.model
+
+
+@pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic SDK not installed")
+class TestAnthropicThinkingParam:
+    """Tests for model-aware thinking configuration.
+
+    Adaptive-only models reject ``budget_tokens`` with a 400, so the
+    provider must select the thinking shape per model.
+    """
+
+    def _provider(self, model):
+        from deepr.providers.anthropic_provider import AnthropicProvider
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+            with patch("deepr.providers.anthropic_provider.Anthropic"):
+                with patch("deepr.providers.anthropic_provider.ToolRegistry"):
+                    return AnthropicProvider(model=model)
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "claude-fable-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+        ],
+    )
+    def test_adaptive_models_use_adaptive(self, model):
+        """4.6+/Fable must use adaptive thinking (budget_tokens 400s)."""
+        provider = self._provider(model)
+        assert provider._build_thinking_param() == {"type": "adaptive"}
+
+    @pytest.mark.parametrize("model", ["claude-opus-4-5", "claude-sonnet-4-5", "claude-opus-4-1"])
+    def test_legacy_models_use_budget(self, model):
+        """Pre-4.6 models keep the enabled+budget form."""
+        provider = self._provider(model)
+        param = provider._build_thinking_param()
+        assert param is not None
+        assert param["type"] == "enabled"
+        assert param["budget_tokens"] == provider.thinking_budget
+
+    def test_haiku_omits_thinking(self):
+        """Haiku has no Extended Thinking - param must be omitted."""
+        provider = self._provider("claude-haiku-4-5")
+        assert provider._build_thinking_param() is None
+
+
+class TestFable5Pricing:
+    """Claude Fable 5 must be priced everywhere money is calculated.
+
+    An unregistered model silently falls back to o4-mini pricing
+    ($1.10/$4.40), which would under-bill a $10/$50 model ~10x.
+    """
+
+    def test_fable_in_provider_pricing(self):
+        from deepr.providers.anthropic_provider import ANTHROPIC_PRICING
+
+        assert ANTHROPIC_PRICING["claude-fable-5"]["input"] == 10.00
+        assert ANTHROPIC_PRICING["claude-fable-5"]["output"] == 50.00
+
+    def test_fable_in_registry_token_pricing(self):
+        from deepr.providers.registry import get_token_pricing
+
+        prices = get_token_pricing("claude-fable-5")
+        assert prices["input"] == 10.00
+        assert prices["output"] == 50.00
+
+    def test_current_anthropic_models_in_registry_pricing(self):
+        """Every current Anthropic model must resolve to its own price."""
+        from deepr.providers.registry import get_token_pricing
+
+        expected = {
+            "claude-fable-5": (10.00, 50.00),
+            "claude-opus-4-8": (5.00, 25.00),
+            "claude-opus-4-7": (5.00, 25.00),
+            "claude-opus-4-6": (5.00, 25.00),
+            "claude-sonnet-4-6": (3.00, 15.00),
+            "claude-sonnet-4-5": (3.00, 15.00),
+            "claude-haiku-4-5": (1.00, 5.00),
+        }
+        for model, (inp, out) in expected.items():
+            prices = get_token_pricing(model)
+            assert prices["input"] == inp, f"{model} input price wrong: {prices}"
+            assert prices["output"] == out, f"{model} output price wrong: {prices}"
 
 
 @pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic SDK not installed")

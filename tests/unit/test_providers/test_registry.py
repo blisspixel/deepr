@@ -213,5 +213,51 @@ class TestCostEstimateMatching:
         assert get_cost_estimate("totally-made-up-model-xyz") == 0.20
 
 
+class TestTokenPricingTiers:
+    """Settlement-side pricing must match what the provider actually bills.
+
+    Tiered pricing (Gemini 3.x Pro above 200K input tokens: 2x input,
+    1.5x output) previously applied only to pre-flight estimates; actual
+    cost settlement silently used base rates, under-recording large jobs.
+    """
+
+    def test_base_rates_below_threshold(self):
+        from deepr.providers.registry import get_token_pricing
+
+        prices = get_token_pricing("gemini-3.1-pro-preview", input_tokens=100_000)
+        assert prices == get_token_pricing("gemini-3.1-pro-preview")
+
+    def test_tier_rates_above_threshold(self):
+        from deepr.providers.registry import get_token_pricing
+
+        base = get_token_pricing("gemini-3.1-pro-preview")
+        tiered = get_token_pricing("gemini-3.1-pro-preview", input_tokens=300_000)
+        assert tiered["input"] == round(base["input"] * 2.0, 6)
+        assert tiered["output"] == round(base["output"] * 1.5, 6)
+
+    def test_settlement_uses_tier_rates(self):
+        from deepr.providers.base import UsageStats
+
+        small = UsageStats.calculate_cost(100_000, 10_000, "gemini-3.1-pro-preview")
+        large = UsageStats.calculate_cost(300_000, 10_000, "gemini-3.1-pro-preview")
+        # Large job must cost more than 3x the small one (3x tokens AND 2x rate)
+        assert large > small * 3
+
+    def test_non_tiered_model_unaffected(self):
+        from deepr.providers.registry import get_token_pricing
+
+        assert get_token_pricing("claude-opus-4-8", input_tokens=500_000) == get_token_pricing("claude-opus-4-8")
+
+    def test_unknown_model_fallback_warns(self, caplog):
+        import logging
+
+        from deepr.providers.registry import get_token_pricing
+
+        with caplog.at_level(logging.WARNING, logger="deepr.providers.registry"):
+            prices = get_token_pricing("totally-made-up-model-xyz")
+        assert prices == {"input": 1.10, "output": 4.40}
+        assert any("No registry pricing" in r.message for r in caplog.records)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

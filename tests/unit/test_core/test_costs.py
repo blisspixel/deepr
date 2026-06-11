@@ -116,8 +116,10 @@ class TestCostEstimator:
             input_tokens=1_000_000,
             output_tokens=1_000_000,
         )
-        # input: 2.00, output: 8.00 => 10.00
-        assert cost == 10.0
+        # Registry rates: input 11.00, output 44.00 => 55.00.
+        # (The estimator's legacy 4-model table priced this at $2/$8 -
+        # a ~5x underestimate; pricing now comes from the registry.)
+        assert cost == 55.0
 
     def test_calculate_actual_cost_with_reasoning_tokens(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -126,8 +128,8 @@ class TestCostEstimator:
             output_tokens=0,
             reasoning_tokens=1_000_000,
         )
-        # reasoning at output rate: 8.00
-        assert cost == 8.0
+        # reasoning at registry output rate: 44.00
+        assert cost == 44.0
 
     def test_calculate_actual_cost_unknown_model(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -135,8 +137,8 @@ class TestCostEstimator:
             input_tokens=1_000_000,
             output_tokens=1_000_000,
         )
-        # Falls back to o3-deep-research pricing
-        assert cost == 10.0
+        # Falls back to o4-mini default rates (1.10 + 4.40), with a warning
+        assert cost == 5.5
 
     def test_calculate_actual_cost_zero_tokens(self):
         cost = CostEstimator.calculate_actual_cost(
