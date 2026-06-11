@@ -179,7 +179,8 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 **Sequenced work:**
 
-- [x] Raise Python floor to 3.12 (dropped 3.9/3.10/3.11); classifiers + ruff `target-version` (`py312`) + CI matrix (3.12/3.13 blocking, 3.14 non-blocking) updated; `uv.lock` regenerated
+- [x] Raise Python floor to 3.12 (dropped 3.9/3.10/3.11); classifiers + ruff `target-version` (`py312`) + CI matrix updated; `uv.lock` regenerated
+- [x] Python 3.14 promoted to a **blocking** CI matrix entry (2026-06-11): the full `[dev,full]` extras install and the entire suite pass on 3.14, so the wheel-availability caveat that kept it non-blocking no longer applies. Full supported window: 3.12 / 3.13 / 3.14, all blocking.
 - [x] Modernize syntax to the 3.12 baseline via Ruff autofix (PEP 604 `X | None`, `datetime.UTC`, exception/import aliases)
 - [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
 - [x] Dependabot (pip + github-actions + npm, weekly)
