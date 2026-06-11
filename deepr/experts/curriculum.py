@@ -416,11 +416,14 @@ class CurriculumGenerator:
                     if attempt > 0:
                         progress.update(f"Retrying... (attempt {attempt + 1}/{max_retries})")
 
-                # Get API key
+                # Get API key. load_config() redacts secrets to "***" - treat
+                # the placeholder as absent so the env-var fallback applies.
                 if isinstance(self.config, dict):
                     api_key = self.config.get("api_key") or self.config.get("openai_api_key")
                 else:
                     api_key = self.config.provider.openai_api_key
+                if api_key in ("***", ""):
+                    api_key = os.getenv("OPENAI_API_KEY")
 
                 # Create client with timeout
                 client = AsyncOpenAI(api_key=api_key, timeout=httpx.Timeout(timeout, connect=10.0))

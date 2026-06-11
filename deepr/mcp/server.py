@@ -26,6 +26,8 @@ Tools exposed:
 - deepr_route_gaps: Route an expert's gaps to the best instrument (recon/distillr/primr/research)
 - deepr_expert_absorb: Promote a research report into expert beliefs (verification-gated)
 - deepr_reflect: Self-evaluate a research report (grounding/completeness/calibration/directness)
+- deepr_what_changed: Perspective delta since a timestamp (added/revised/contested/archived beliefs)
+- deepr_contested: Open contradiction pairs with both sides' claims and provenance
 
 Resources:
 - deepr://campaigns/{id}/status - Job state and progress
@@ -532,6 +534,58 @@ class DeeprMCPServer:
             return {"expert_name": expert_name, "routes": [r.to_dict() for r in routes]}
         except (OSError, KeyError, ValueError) as e:
             return _make_error("ROUTE_GAPS_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_what_changed
+    # ------------------------------------------------------------------ #
+    async def what_changed(self, expert_name: str, since: str) -> dict[str, Any]:
+        """Perspective delta since a timestamp (read-only, cost-$0).
+
+        Returns beliefs added / revised / contested / archived after ``since``
+        (ISO 8601), each with its change reason and current snapshot - so a
+        host agent that consulted this expert before re-syncs in one call
+        instead of re-reading everything.
+        """
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            from datetime import datetime
+
+            from deepr.experts.beliefs import BeliefStore
+            from deepr.experts.perspective import what_changed as _what_changed
+
+            try:
+                since_dt = datetime.fromisoformat(since)
+            except ValueError:
+                return _make_error("INVALID_TIMESTAMP", f"'since' is not ISO 8601: {since!r}")
+
+            belief_store = BeliefStore(expert_name)
+            return _what_changed(belief_store, since_dt, expert_name=expert_name).to_dict()
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("WHAT_CHANGED_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_contested
+    # ------------------------------------------------------------------ #
+    async def contested(self, expert_name: str) -> dict[str, Any]:
+        """Open contradiction pairs with both sides' claims (read-only, cost-$0).
+
+        Surfaces live conflicts - both beliefs, confidence, provenance, and
+        whether the pair is open or dangling - instead of a smoothed narrative.
+        Resolution stays with ``expert resolve-conflicts``.
+        """
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            from deepr.experts.beliefs import BeliefStore
+            from deepr.experts.perspective import contested as _contested
+
+            belief_store = BeliefStore(expert_name)
+            return _contested(belief_store, expert_name=expert_name)
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("CONTESTED_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_expert_absorb
@@ -1529,6 +1583,13 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
             expert_name=args.get("expert_name", ""),
             top_n=args.get("top_n", 5),
         ),
+        "deepr_what_changed": lambda args: server.what_changed(
+            expert_name=args.get("expert_name", ""),
+            since=args.get("since", ""),
+        ),
+        "deepr_contested": lambda args: server.contested(
+            expert_name=args.get("expert_name", ""),
+        ),
         "deepr_reflect": lambda args: server.reflect(
             report_id=args.get("report_id", ""),
             depth=args.get("depth", 1),
@@ -1712,6 +1773,8 @@ _LEGACY_METHOD_MAP = {
     "route_gaps": "deepr_route_gaps",
     "expert_absorb": "deepr_expert_absorb",
     "reflect": "deepr_reflect",
+    "what_changed": "deepr_what_changed",
+    "contested": "deepr_contested",
 }
 
 
