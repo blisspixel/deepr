@@ -40,6 +40,7 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 - **Scaling research** — Batch 50 queries at $2 instead of clicking "Deep Research" 50 times. Auto-mode routes each query to the cheapest model that can handle it.
 - **Building persistent experts** — Agents that accumulate knowledge across sessions, track beliefs with confidence, detect their own gaps, and research to fill them.
 - **Feeding AI workflows** — Your coding agents call Deepr experts via MCP mid-task. They get living knowledge with citations, not hallucinations or stale training data.
+- **Grounding always-on agents** — The autopilot platforms (Microsoft Autopilots, OpenAI Workspace Agents, Google Antigravity, AWS AgentCore) run agents for months, but their memory is shallow session state. An always-on agent has exactly the problem Deepr experts solve: it needs durable, verified, current domain knowledge with provenance, and a cheap way to re-sync with what changed since it last asked.
 - **Composing into agent teams** — Experts expose structured outputs with handoff-ready artifacts. An upstream signal agent can feed findings into a Deepr expert, which produces research that a downstream strategy or proposal agent consumes. Deepr doesn't orchestrate the team — it plays a role on it.
 - **Running continuously** — Scripts, cron jobs, CI pipelines. No browser, no manual clicking.
 - **Auditing everything** — Every routing choice, source trust decision, and cost is captured as a structured decision record.
@@ -101,6 +102,8 @@ See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 ### MCP Integration — Experts as Consultable Roles
 
 Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 23 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+
+This matters most for the new generation of always-on agents: an agent that runs for months needs durable, verified, current domain knowledge with provenance — and a cheap way to re-sync ("what changed since I last consulted you?") instead of re-reading everything. Deepr experts are that knowledge layer; the host platform keeps the schedule, Deepr keeps the perspective.
 
 ### Web Dashboard
 
