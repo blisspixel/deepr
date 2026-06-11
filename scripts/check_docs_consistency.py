@@ -99,7 +99,7 @@ class Check:
 
 CHECKS: list[Check] = [
     # Front-door README (kept current via this check, not by discipline)
-    Check("README.md", r"(\d[\d,]*)\+ tests \(Python 3\.12\)", "tests", "floor"),
+    Check("README.md", r"(\d[\d,]*)\+ tests \(Python 3\.12[-/0-9.]*\)", "tests", "floor"),
     Check("README.md", r"(\d+) MCP tools", "mcp_tools", "exact"),
     # ROADMAP "Current Status" is the canonical home for status numbers
     Check("ROADMAP.md", r"(\d[\d,]*)\+ unit tests", "tests", "floor"),

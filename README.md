@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.13.0-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.13.0)
+[![Version](https://img.shields.io/badge/version-2.13.1-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.13.1)
 
 **Domain experts, not another chat window.**
 
@@ -182,7 +182,7 @@ Optional env controls:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 4990+ tests (Python 3.12).
+**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 5200+ tests (Python 3.12-3.14).
 
 **Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates.
 
@@ -223,7 +223,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## Security
 
-4990+ tests (Python 3.12). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+5200+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
