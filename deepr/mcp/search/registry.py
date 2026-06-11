@@ -562,6 +562,53 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_what_changed",
+            description=(
+                "Perspective delta: what an expert's beliefs did since a timestamp - added, revised, "
+                "contested (recorded with contradiction edges), or archived - each with its change "
+                "reason and current snapshot. Read-only and cost-$0. Use this to re-sync with an "
+                "expert you consulted before instead of re-reading everything. "
+                "Example: deepr_what_changed(expert_name='AI Strategy Expert', since='2026-06-01T00:00:00+00:00')"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "since": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp; changes strictly after this moment are returned",
+                    },
+                },
+                "required": ["expert_name", "since"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
+            name="deepr_contested",
+            description=(
+                "Open contradiction pairs in an expert's beliefs - both sides' claims, confidence, "
+                "and provenance, plus whether each pair is open or dangling. Read-only and cost-$0. "
+                "Surfaces live conflicts instead of a smoothed narrative; resolution stays with "
+                "expert resolve-conflicts. Example: deepr_contested(expert_name='AI Strategy Expert')"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                },
+                "required": ["expert_name"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_reflect",
             description=(
                 "Self-evaluate a completed research report before relying on or absorbing it. Scores "

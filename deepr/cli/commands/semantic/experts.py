@@ -1071,6 +1071,125 @@ def absorb_report(
             )
 
 
+@expert.command(name="what-changed")
+@click.argument("name")
+@click.option("--since", default="7d", help="ISO 8601 timestamp, or relative shorthand like 7d / 24h / 30m")
+@click.option("--json", "json_output", is_flag=True, help="Output JSON")
+def what_changed_cmd(name: str, since: str, json_output: bool):
+    """Show how NAME's perspective changed since a point in time.
+
+    Read-only and cost-$0. Buckets belief changes after --since into
+    added / revised / contested / archived, each with its reason and a
+    current snapshot. This is the re-sync query: catch up with an expert
+    you consulted before instead of re-reading everything.
+
+    EXAMPLES:
+      deepr expert what-changed "AI Strategy Expert" --since 7d
+      deepr expert what-changed "AI Strategy Expert" --since 2026-06-01
+    """
+    import json as _json
+    import re
+    import sys
+    from datetime import UTC, datetime, timedelta
+
+    from deepr.experts.beliefs import BeliefStore
+    from deepr.experts.perspective import what_changed as _what_changed
+    from deepr.experts.profile import ExpertStore
+
+    if not ExpertStore().load(name):
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    rel = re.fullmatch(r"(\d+)([dhm])", since.strip().lower())
+    if rel:
+        amount, unit = int(rel.group(1)), rel.group(2)
+        delta = {"d": timedelta(days=amount), "h": timedelta(hours=amount), "m": timedelta(minutes=amount)}[unit]
+        since_dt = datetime.now(UTC) - delta
+    else:
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError:
+            print_error(f"--since is neither ISO 8601 nor relative (7d/24h/30m): {since}")
+            sys.exit(2)
+
+    result = _what_changed(BeliefStore(name), since_dt, expert_name=name)
+
+    if json_output:
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    print_header(f"Perspective delta: {name}")
+    console.print(f"Since {result.since.isoformat()}  -  {result.total_changes} change(s)")
+    if result.window_truncated:
+        print_warning("Change history window truncated (last 100 records); earlier changes not shown.")
+
+    for title, entries in (
+        ("Added", result.added),
+        ("Revised", result.revised),
+        ("Contested", result.contested),
+        ("Archived", result.archived),
+    ):
+        if not entries:
+            continue
+        console.print()
+        print_section_header(f"{title} ({len(entries)})")
+        for e in entries:
+            console.print(f"  - {e['claim']}  [dim](conf {e['confidence']:.2f})[/dim]")
+            if e.get("reason"):
+                console.print(f"    [dim]{e['reason']}[/dim]")
+
+    if result.total_changes == 0:
+        console.print("[dim]No changes in this window.[/dim]")
+
+
+@expert.command(name="contested")
+@click.argument("name")
+@click.option("--json", "json_output", is_flag=True, help="Output JSON")
+def contested_cmd(name: str, json_output: bool):
+    """Show NAME's open contradictions - both sides, confidence, provenance.
+
+    Read-only and cost-$0. Surfaces live conflicts (recorded by absorb-time
+    flagging and belief integration) instead of a smoothed narrative.
+    Resolve them with: deepr expert resolve-conflicts NAME
+
+    EXAMPLE:
+      deepr expert contested "AI Strategy Expert"
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.beliefs import BeliefStore
+    from deepr.experts.perspective import contested as _contested
+    from deepr.experts.profile import ExpertStore
+
+    if not ExpertStore().load(name):
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    result = _contested(BeliefStore(name), expert_name=name)
+
+    if json_output:
+        click.echo(_json.dumps(result, indent=2))
+        return
+
+    print_header(f"Contested beliefs: {name}")
+    console.print(f"{result['contested_count']} pair(s), {result['open_count']} open")
+    for pair in result["pairs"]:
+        console.print()
+        marker = "[yellow]open[/yellow]" if pair["status"] == "open" else "[dim]dangling[/dim]"
+        console.print(f"  [{marker}]")
+        console.print(f"  A: {pair['a']['claim']}  [dim](conf {pair['a'].get('confidence', 0):.2f})[/dim]")
+        b_claim = pair["b"].get("claim") or f"<{pair['b'].get('note', 'missing')}>"
+        b_conf = pair["b"].get("confidence")
+        conf_str = f"  [dim](conf {b_conf:.2f})[/dim]" if isinstance(b_conf, (int, float)) else ""
+        console.print(f"  B: {b_claim}{conf_str}")
+
+    if result["contested_count"] == 0:
+        console.print("[dim]No contested beliefs.[/dim]")
+    else:
+        console.print(f"\nAdjudicate with: deepr expert resolve-conflicts '{name}'")
+
+
 @expert.command(name="delete")
 @click.argument("name")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")

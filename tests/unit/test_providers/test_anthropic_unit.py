@@ -453,3 +453,34 @@ class TestAnthropicProviderNotImplemented:
         """Should raise NotImplementedError."""
         with pytest.raises(NotImplementedError):
             await provider.list_vector_stores()
+
+
+class TestCreateProviderRedactedKey:
+    """create_provider must not pass load_config()'s "***" placeholder through.
+
+    Live-validation regression: load_config() redacts api_key to "***" for
+    safe logging, but ~30 CLI call sites pass that dict value into
+    create_provider, which overrode every provider's env-var fallback with a
+    masked string and 401'd at the first real API call.
+    """
+
+    def test_redacted_key_falls_back_to_env(self, monkeypatch):
+        from deepr.providers import create_provider
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-from-env")
+        provider = create_provider("openai", api_key="***")
+        assert provider.api_key == "sk-real-from-env"
+
+    def test_empty_key_falls_back_to_env(self, monkeypatch):
+        from deepr.providers import create_provider
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-from-env")
+        provider = create_provider("openai", api_key="")
+        assert provider.api_key == "sk-real-from-env"
+
+    def test_real_key_passes_through(self, monkeypatch):
+        from deepr.providers import create_provider
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-env-should-lose")
+        provider = create_provider("openai", api_key="sk-explicit-wins")
+        assert provider.api_key == "sk-explicit-wins"
