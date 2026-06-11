@@ -90,9 +90,9 @@ export default function ResearchStudio() {
       })
       return
     }
-    if (finalFiles.length === 0) return
+    if (sized.length === 0) return
     const readResults = await Promise.all(
-      finalFiles.map(file =>
+      sized.map(file =>
         new Promise<{ file: File; name: string; content: string }>((resolve, reject) => {
           const reader = new FileReader()
           reader.onload = (event) => {
@@ -115,8 +115,8 @@ export default function ResearchStudio() {
       setUploadedFiles(prev => [...prev, ...successful.map(s => s.file)])
       setUploadedFileContents(prev => [...prev, ...successful.map(s => ({ name: s.name, content: s.content }))])
     }
-    if (successful.length < finalFiles.length) {
-      toast.warning(`Failed to read ${finalFiles.length - successful.length} file(s)`)
+    if (successful.length < sized.length) {
+      toast.warning(`Failed to read ${sized.length - successful.length} file(s)`)
     }
   }, [])
 
