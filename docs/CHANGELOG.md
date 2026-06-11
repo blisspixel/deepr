@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.2] - 2026-06-11
+
+### Added
+- **Expert sync - scheduled freshness with delta-only integration.** The
+  flagship loop-closer: `deepr expert subscribe NAME TOPIC [--every Nd]
+  [--budget X]` registers what an expert stays current on;
+  `deepr expert sync NAME` researches only due subscriptions with a
+  delta-only freshness prompt ("what changed since <last sync>; if nothing
+  meaningful, say exactly so"), absorbs through the verification-gated
+  pipeline (dedup + contradiction-as-signal), and reports the perspective
+  delta via `what_changed`. Per-topic budgets inside a run ceiling,
+  skip-not-fail exhaustion, `--dry-run` at $0; "no significant changes"
+  answers skip the paid extraction. Idempotent per cadence window, so cron
+  or host-platform schedulers can run it daily and only due topics spend.
+- **Simple default surface** (top finding of a six-persona cold review,
+  hit by 5 of 6 reviewers): `deepr --help` opens with a worked
+  three-command quickstart and lists five core commands (research, expert,
+  costs, doctor, web) before an Advanced section; deprecated commands and
+  single-letter aliases hidden but functional. `.env.example` reduced
+  179 -> 19 lines (one key + budget ceilings; full template in
+  `.env.example.full`). README gained a plain-language one-liner,
+  budget-is-a-ceiling note, and a who-this-is-for block.
+- **Durable learner jobs.** Every `expert learn` research submission is
+  recorded in the local queue (`learn-<id>`, PROCESSING with the provider
+  job id) so interrupted runs are recoverable via `deepr status`/`list`;
+  terminal states and actual cost sync back. The completion summary now
+  credits completed/failed topics (was always "Completed: 0 topics").
+- **Frontend lint actually runs.** No ESLint config existed, so
+  `npm run lint` had failed on every invocation since the frontend was
+  built. Added `.eslintrc.cjs` (vite react-ts baseline) and fixed every
+  violation it surfaced.
+
+### Fixed
+- **Web cost endpoints read the canonical ledger.** `/api/cost/summary`,
+  `/api/cost/trends`, and `/api/cost/breakdown` computed spend from queue
+  job costs - a third parallel money source that missed every CLI / MCP /
+  expert spend path (dashboard showed "TODAY $0.00" against real ledger
+  spend). All three now read the append-only cost ledger fresh per
+  request; the daily-limit preflight counts cross-process spend.
+- **Expert stats tell the truth in the web UI.** List/detail endpoints
+  read legacy profile fields, showing "2 docs, 0 findings" for an expert
+  with 7 documents and 24 beliefs; the Claims tab omitted the belief
+  store entirely, so absorbed beliefs (the expert's actual perspective)
+  never appeared. Counts now come from the profile document counter, the
+  canonical belief store, and the manifest gap backlog; Claims merges
+  belief-store beliefs with confidence decay and contradiction edges.
+- **Unaffordable learn budgets refused at $0.** `generate_curriculum`
+  raises before its first paid call when the budget cannot fund even the
+  cheapest plan (previously spent ~$0.10-0.30 on generation/discovery and
+  then skipped every topic).
+- **research-studio file upload crash.** A refactor left dangling
+  `finalFiles` references; the frontend had not type-checked since.
+
+### Changed
+- **README screenshots regenerated from live data** (all 11 assets,
+  1440x900) via the improved `screenshot-qa.mjs` (dynamic job/expert
+  selection from the API, `--viewport` mode); the capture run doubles as
+  a web-layer regression check - it is what surfaced the cost and expert
+  API bugs above.
+- **Frontend dependencies updated with real verification** (CI does not
+  build the frontend, so PR checks alone proved nothing):
+  typescript-eslint 7.18 -> 8.61 (plugin + parser together), date-fns 4,
+  immer 11, lucide-react 1.17, react-query/axios/socket.io-client/radix
+  minors - lint, tsc, and production build verified locally.
+- **CI actions updated**: actions/checkout v6, actions/upload-artifact v7,
+  astral-sh/setup-uv v7 with `activate-environment: true` (v7 stopped
+  auto-creating the venv - the bumped action fails without it).
+- **Roadmap** records the six-persona panel review findings (calibration
+  evidence, source-trust scoring with confidence floors, mutation audit
+  log, allowlist enforcement tests) and marks the shipped items.
+
 ## [2.13.1] - 2026-06-11
 
 ### Added
