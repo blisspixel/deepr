@@ -45,7 +45,7 @@ These features are well-tested and used regularly:
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
-- **Provider support**: OpenAI (GPT-5.4, GPT-5.4-pro, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3.5 Flash, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.20 flagship: Reasoning/Non-Reasoning/Multi-Agent; plus 4.3), Anthropic (Claude Opus 4.8/4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
+- **Provider support**: OpenAI (GPT-5.5, GPT-5.5-pro, GPT-5.4 family, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3.5 Flash, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.20 flagship: Reasoning/Non-Reasoning/Multi-Agent; plus 4.3), Anthropic (Claude Fable 5, Opus 4.8/4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
 - **Local storage**: SQLite persistence, markdown reports, expert profiles
 
 ### Experimental (Works but Evolving)
@@ -163,7 +163,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - **Coverage**: branch coverage enabled; the `fail_under` gate ratchets 80 -> 85 -> 90 -> 95 as branch-covering tests land (80 is the current branch floor; branch is stricter than the old 80% line metric). The justified omit list (LLM-driven and live-provider paths) is preserved, not erased to inflate the number.
 - **Security**: `pip-audit` blocking on every push; Dependabot weekly (pip + github-actions + npm); SBOM via `uv export` per release; OpenSSF secure-coding practices (boundary validation with Pydantic v2, no secret logging, exception safety) as review criteria.
 - **Architecture discipline** (Power-of-10, adapted to Python): bounded loops, narrowest-scope declarations, small functions, no runtime `eval`/`exec` - enforced where Ruff can (complexity, S-rules) and applied as review guidance where it cannot.
-- **Validation & invariants** ("parse, don't validate"): external data is parsed once at the boundary into rich domain types (strict Pydantic v2 with `strict=True, extra='forbid'`, frozen dataclasses, `NewType`s) so illegal states are unrepresentable and core logic never receives raw, possibly-invalid primitives. Safety-critical kernel invariants (budget never overspends, cost ledger stays append-only, every claim carries a citation) are enforced with targeted runtime assertions plus the existing Pydantic models. (We evaluated the `deal` Design-by-Contract library and chose plain asserts + Pydantic instead - same guarantees on the paths that matter, no extra dependency or runtime-stripping complexity.)
+- **Validation & invariants** ("parse, don't validate"): external data is parsed once at the boundary into rich domain types (strict Pydantic v2 with `strict=True, extra='forbid'`, frozen dataclasses, `NewType`s) so illegal states are unrepresentable and core logic never receives raw, possibly-invalid primitives. Safety-critical kernel invariants (budget never overspends, cost ledger stays append-only, every claim carries a citation) are enforced with targeted runtime assertions plus the existing Pydantic models. A further **regeneration invariant** keeps generated artifacts honest: every per-expert SKILL.md export, report, briefing, and expert digest is a derived view, never the source of truth - it must be fully regenerable from the structured belief store and is never hand-edited as authoritative, so a stale or hand-edited artifact can never silently become canonical knowledge (the structured-store-is-canonical, views-are-disposable discipline that lets synthesis happen at compile/query time instead of destructively at ingest). (We evaluated the `deal` Design-by-Contract library and chose plain asserts + Pydantic instead - same guarantees on the paths that matter, no extra dependency or runtime-stripping complexity.)
 - **Testing rigor**: beyond branch coverage, prove the suite actually catches regressions. Periodic **mutation testing** (mutmut or equivalent) on kernel modules; **property-based and stateful Hypothesis** for complex lifecycles (budget ledger, expert knowledge/belief state, queue); and **fault-injection / chaos tests** at provider and network boundaries (timeouts, malformed payloads, provider outages) to prove the auto-fallback, circuit breakers, exception hygiene, and structured logging behave under turbulence. `xfail` stays disallowed in CI.
 - **Supply chain**: hash-pinned, reproducible installs (`uv sync --frozen` / `uv.lock` hashes) in CI; `uv lock --upgrade` on a schedule behind review gates. *If/when Deepr publishes to PyPI*, publish via OIDC trusted publishing (no static credentials in CI) with GitHub build-provenance attestation. (Full SLSA L3 + in-toto/Sigstore is a deliberate non-goal - see below.)
 - **Concurrency discipline** (review guidance): prefer explicit message passing (queues, immutable payloads) over shared mutable state; any shared mutable state crosses threads only behind explicit, reviewable synchronization. Applied as review guidance, not a free-threading mandate (see non-goals).
@@ -190,7 +190,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`), `UP047` (PEP 695 generics), and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [x] Enable `--cov-branch` (branch baseline 78%, raised to 80% gate); `fail_under = 80`, ratcheting 80 -> 85 -> 90 -> 95 as branch tests land
 - [x] `C901` complexity cap (max-complexity 10) surfaced as an advisory CI signal (134 functions over cap); promote to blocking as the worst offenders are refactored. S-rules remain advisory (all 93 current findings are in the documented-legacy set)
-- [ ] "Parse, don't validate" pass: strict Pydantic (`strict=True, extra='forbid'`) at boundaries + targeted kernel invariant assertions (budget, append-only ledger, citation provenance)
+- [ ] "Parse, don't validate" pass: strict Pydantic (`strict=True, extra='forbid'`) at boundaries + targeted kernel invariant assertions (budget, append-only ledger, citation provenance, generated-artifact regenerability)
 - [x] Mutation testing (mutmut) wired as a scheduled/on-demand non-blocking job over kernel modules (`[tool.mutmut]` scope: core/, cost ledger, cost safety); establish + raise the mutation score next
 - [ ] Expand Hypothesis to property-based + stateful tests on kernel lifecycles (budget ledger, expert/belief state, queue)
 - [ ] Fault-injection / chaos tests at provider + network boundaries (timeouts, malformed payloads, provider outages) to validate fallback, circuit breakers, and logging
@@ -312,7 +312,12 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] Knowledge graph with typed nodes (fact, signal, inference, belief) and edges (supports, contradicts, enables)
   - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
   - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
-  - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically
+  - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically (consumes the absorb/ingest contradiction-as-signal path above; conflicts become belief-revision candidates with contradiction edges, not silent drops)
+- [ ] Regenerated expert digest (a browsable view over the structured store, never the source of truth):
+  - [ ] A scheduled / on-demand "compilation" pass reads the belief graph and emits a browsable digest (topic summaries, cross-references, contradiction flags) as a derived artifact; the structured belief store stays canonical, the digest is always regenerable and never hand-edited (enforces the Phase E regeneration invariant)
+  - [ ] Surface the contradiction flags from the contradiction-as-signal path so a reader sees open conflicts rather than a smoothed narrative
+  - [ ] Reuse the `expert sync` cadence + scheduled `health-check`; expose as an expert view in the web dashboard
+  - Rationale: the structured-store-plus-regenerated-view hybrid gives precise queries and multi-agent read/write on the canonical store with browsable pre-synthesis on top, without the synthesis drift of a hand-maintained wiki. The architectural choice is explicit: synthesis happens at query/compile time over a structured source of truth, not destructively at ingest.
 - [~] Knowledge maintenance loop (the expert keeps its own house in order, building on the staleness + contradiction detection above):
   - [x] `deepr expert health-check NAME` (v2.12) - read-side audit in one pass: belief contradictions (free heuristic), claims missing source provenance, beliefs past their confidence/refresh threshold, the open-gap backlog, and documents ingested but not synthesized. CLI + `deepr_expert_health_check` MCP tool. Deferred: orphaned/broken-link citation checks and suggested new topics + cross-links.
   - [x] Two-phase output: findings, then an action menu where each item carries its command, estimated cost, and the approval tier (AUTO_APPROVE/NOTIFY/CONFIRM) that would gate it; corrective research stays opt-in (the audit proposes, it never runs an action)
@@ -320,8 +325,12 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] For corpus-backed experts, delegate the underlying audit to distillr's `audit` rather than reimplementing link/contradiction/coverage scans; Deepr adds belief-state mapping, confidence, and the action menu on top
 - [~] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
   - [x] `deepr expert absorb REPORT_ID` (v2.12) - promote a completed report into permanent beliefs with report provenance, instead of treating reports as terminal artifacts. CLI (`--dry-run` preview) + `deepr_expert_absorb` MCP tool. Deferred: the post-research "integrate this?" inline prompt.
-  - [x] Verification-gated by design: extraction yields report-grounded candidate claims (each self-rated for report support), weak claims are dropped, and any claim contradicting an existing belief is rejected by the same free heuristic health-check uses - so "the model writes something slightly wrong, you save it, the next answer builds on the mistake" cannot happen silently
+  - [x] Verification-gated by design: extraction yields report-grounded candidate claims (each self-rated for report support), weak claims are dropped, and any claim contradicting an existing belief is held back by the same free heuristic health-check uses - so "the model writes something slightly wrong, you save it, the next answer builds on the mistake" cannot happen silently
   - [x] Dedup against existing beliefs and integrate the delta only (reuses `BeliefStore.add_belief`); consuming distillr's corpus-side `ask` verb with verification is the remaining follow-on
+  - [ ] Contradiction-as-signal (not just rejection): today the absorb contradiction gate drops a conflicting candidate outright (`report_absorber._contradicts_existing` -> `RejectedClaim("contradicts_existing")`), which keeps a bad claim out but also smooths away the contradiction, the one thing most worth surfacing. Input-time synthesis (absorb -> beliefs) is the "Wiki" pattern whose known failure mode is turning old syntheses into confident-but-stale claims; keeping contradictions as queryable signals is the structured-store property Deepr's graph memory is meant to provide. Reframe a detected conflict as a belief-revision signal rather than a silent drop, reusing existing infrastructure:
+    - [ ] Emit conflicts as a distinct `flagged_contradiction` outcome (candidate + the belief it conflicts with + which is newer / better-sourced) in the absorb result and the health-check action menu; never silently discarded
+    - [ ] When budget allows, route the pair through the existing `ConflictResolver.resolve` adjudication (a_wins / b_wins / merged / needs_human_review) already used by `expert resolve-conflicts`, instead of a heuristic-only drop; `needs_human_review` becomes an approval-gated revision candidate
+    - [ ] Preserve the safety property: a contradicting claim still never auto-overwrites a belief without adjudication or approval, but the conflict is recorded via `BeliefStore.add_belief`'s existing contradiction edges so belief revision is possible instead of lost
 - [ ] Gap-driven discovery (audit proposes what is missing, not just what the user asked for):
   - [ ] Wire health-check coverage findings into auto-generated discovery queries: "you have 12 sources on X but zero on Y - preview candidates?" This is corpus-gap-driven, complementing the existing goal-driven discovery
   - [ ] Surface as previewable candidates with cost estimate; ingestion stays opt-in and budget-bounded
@@ -434,6 +443,38 @@ Deepr is an orchestration layer over hosted model APIs - it does not train, fine
 - Model-weight protection (extraction/inversion/membership-inference defenses, watermarking/fingerprinting, TEEs/enclaves, homomorphic encryption, confidential computing, post-quantum model crypto) - Deepr holds no weights; it calls hosted APIs.
 - Inference-layer isolation (confidential VMs / GPU enclaves for serving) - inference runs on the providers' infrastructure under their shared-responsibility model.
 
+### Phase 6: Plan-Quota Backends (subscription CLIs as bounded-cost research capacity)
+
+Goal: let Deepr execute research through the agentic CLIs a user already pays for by subscription (Claude Code, Codex CLI, Gemini CLI), treating plan quota as a *bounded prepaid pool* instead of metered API spend - with hard guarantees that no path can produce a surprise bill.
+
+Why this matters: a $20-200/month plan with rolling quota windows is often dramatically cheaper than metered API calls for batch research, and Deepr's queue is exactly the workload shape (non-urgent, schedulable) that can soak up quota that would otherwise expire unused. The cost story is the product: "your existing subscriptions become research capacity."
+
+Vendor reality (verified June 2026 - revalidate before implementation, this churns):
+
+- **Claude Code**: headless `claude -p` / Agent SDK usage bills a *separate monthly credit pool* per plan tier ($20 Pro / $100 Max 5x / $200 Max 20x) as of June 15, 2026; automation stops when the pool empties unless overflow billing is enabled. Bounded and predictable - but Deepr must verify overflow billing is OFF to honor the no-surprise-bills invariant. Interactive sessions draw from 5-hour rolling windows instead.
+- **Codex CLI**: `codex exec` is officially documented for scripting/CI; Plus/Pro quota is compute-equivalent units on a rolling 5-hour window, no rollover. Tiers: Plus, Pro 5x, Pro 20x.
+- **Gemini CLI**: free personal tier ~1,000 requests/day; AI Pro/Ultra plans raise limits. Headless `-p` mode supported.
+- **Grok / Kiro**: no officially supported headless plan-quota CLI path as of June 2026 - excluded until the vendor documents one.
+
+Design (builds on existing kernel primitives - cost ledger, budget contracts, provider registry, auto-mode routing):
+
+- [ ] **Cost-source model**: extend provider profiles with `cost_source: api_metered | plan_quota | local`. Plan-quota backends report marginal cost $0 but consume quota units; the ledger records both (a `quota_ledger.jsonl` sibling to the cost ledger, same append-only discipline).
+- [ ] **Quota window tracker**: per-backend `QuotaWindow` (window type: rolling-5h / daily / monthly-credit-pool; usage observed; reset time). Quota exhaustion (429 / vendor error signature) marks the window saturated and reschedules instead of failing the job.
+- [ ] **CLI provider adapters** (each implements the existing `DeepResearchProvider` contract; subprocess invocation in JSON/headless mode; no API keys touched):
+  - [ ] `cli-claude` (first - best structured output and tool control: `claude -p --output-format json --allowedTools ...`)
+  - [ ] `cli-codex` (`codex exec`)
+  - [ ] `cli-gemini` (`gemini -p`)
+- [ ] **Auth-mode detection**: adapters verify the CLI is authenticated via subscription login (OAuth profile), not an API key. An API-key-authenticated CLI is metered spend wearing a CLI costume - refuse to classify it as `plan_quota`, route it through the normal budget guards instead.
+- [ ] **No-surprise-bills invariants** (kernel-enforced, tested):
+  - [ ] A `plan_quota` backend never falls back to a metered API without an explicit `--allow-paid-fallback` (or config equivalent); default is queue-until-reset.
+  - [ ] Claude adapter checks/warns on overflow billing being enabled before first use and on a cadence.
+  - [ ] Quota events land in the ledger as $0-cost entries with quota units, so `costs show` reflects reality and anomaly detection sees volume spikes even at $0.
+- [ ] **Quota-aware scheduling**: the queue learns window math - defer non-urgent jobs to the next reset, drain batches into open windows (overnight = free capacity), interleave across multiple plan backends before touching any metered API. This is the "auto-schedule around it" piece.
+- [ ] **Auto-mode integration**: routing treats plan-quota backends as cost-0 candidates weighted by benchmarked quality (eval harness gains CLI-backend support); `--dry-run`/`--preview` show "plan quota (N units, resets HH:MM)" instead of dollars.
+- [ ] **ToS guardrail**: ship only backends whose vendors officially document headless plan usage (all three above do today); revalidate at implementation time and per release.
+
+Honest caveats (why this is experimental): CLI agents are not deep-research APIs - citation quality and output contracts differ and must be normalized through the existing reflection/verification loop; vendor quota mechanics churn quarterly (the tracker treats limits as *observed*, not configured); subprocess lifecycle on long jobs needs the same async-durability treatment as MCP clients (reuse that layer).
+
 ### Backlog (Not in Active Sequence)
 
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)
@@ -514,6 +555,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
 | v2.14 | Graph-structured expert memory, expert freshness/sync, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
 | v2.15 | Autonomous research campaigns, ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
+| v2.16 | Plan-quota backends (Phase 6): subscription CLI execution, quota ledger, quota-aware scheduling | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
 
 ---
