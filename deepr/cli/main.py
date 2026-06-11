@@ -20,14 +20,61 @@ import click
 
 from deepr import __version__
 
+# The panel-review finding behind this split: 40+ top-level commands buried
+# the three verbs most users need. Help shows these first, in this order;
+# everything else lands under "Advanced commands". Behavior is unchanged -
+# every command works exactly as before, this only shapes --help output.
+_CORE_COMMAND_ORDER = ["research", "expert", "costs", "doctor", "web"]
+_CORE_COMMANDS = set(_CORE_COMMAND_ORDER)
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+
+class SectionedGroup(click.Group):
+    """Click group whose help lists core commands first, the rest as Advanced."""
+
+    def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        visible: list[tuple[str, click.Command]] = []
+        for name in self.list_commands(ctx):
+            cmd = self.get_command(ctx, name)
+            if cmd is None or cmd.hidden:
+                continue
+            visible.append((name, cmd))
+        if not visible:
+            return
+
+        limit = formatter.width - 6 - max(len(name) for name, _ in visible)
+
+        core: dict[str, str] = {}
+        advanced: list[tuple[str, str]] = []
+        for name, cmd in visible:
+            short = cmd.get_short_help_str(limit)
+            if name in _CORE_COMMANDS:
+                core[name] = short
+            else:
+                advanced.append((name, short))
+
+        if core:
+            with formatter.section("Core commands"):
+                formatter.write_dl([(name, core[name]) for name in _CORE_COMMAND_ORDER if name in core])
+        if advanced:
+            with formatter.section("Advanced commands"):
+                formatter.write_dl(sorted(advanced))
+
+
+@click.group(cls=SectionedGroup, context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(version=__version__, prog_name="Deepr")
 def cli():
     """
     Deepr - Research automation platform.
 
-    Knowledge is Power. Automate It.
+    \b
+    Most workflows need three commands:
+      deepr research "your question" --budget 2    Run research (budget is a ceiling, not a price)
+      deepr expert chat "Expert Name"              Consult a persistent domain expert
+      deepr costs show                             See exactly what you have spent
+
+    \b
+    deepr doctor verifies your setup. Everything else lives under
+    Advanced commands below - you will not need most of it on day one.
     """
     pass
 
@@ -78,13 +125,18 @@ from deepr.cli.commands.semantic.skills import skill
 
 cli.add_command(skill)
 
-# Deprecated commands (kept for backward compatibility with warnings)
+# Deprecated commands (kept for backward compatibility with warnings).
+# Hidden from --help so the listing stays navigable; they still execute.
+for _legacy in (status.status, status.get, status.list_jobs, status.cancel):
+    _legacy.hidden = True
 cli.add_command(status.status)
 cli.add_command(status.get)
 cli.add_command(status.list_jobs, name="list")
 cli.add_command(status.cancel)
 
-# Quick aliases
+# Quick single-letter aliases - functional but hidden from --help
+for _alias in (run.run_alias, status.status_alias, status.list_alias):
+    _alias.hidden = True
 cli.add_command(run.run_alias)
 cli.add_command(status.status_alias)
 cli.add_command(status.list_alias)
