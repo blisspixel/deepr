@@ -137,3 +137,77 @@ class TestContested:
         assert result["open_count"] == 0
         assert result["pairs"][0]["status"] == "dangling"
         assert result["pairs"][0]["b"]["belief_id"] == "gone123"
+
+
+class TestBeliefEventLog:
+    """The append-only events.jsonl (TKG step 1): unbounded, durable, exact.
+
+    See docs/design/temporal-knowledge-graph.md - the event log removes
+    what_changed's 100-record truncation caveat; legacy stores without the
+    log keep the honest caveat.
+    """
+
+    def test_events_appended_and_replayed_across_reload(self, tmp_path):
+        store = _store(tmp_path)
+        b1, _ = store.add_belief(_belief("Fact one"), check_conflicts=False)
+        store.add_belief(_belief("Fact two"), check_conflicts=False)
+        store.update_belief(b1.id, new_confidence=0.95, reason="corroborated")
+        store.archive_belief(b1.id, reason="superseded")
+
+        reloaded = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        events = reloaded.iter_events()
+        kinds = [e.change_type for e in events]
+        assert kinds == ["created", "created", "updated", "archived"]
+        assert events[2].new_confidence == 0.95
+        assert events[2].reason == "corroborated"
+
+    def test_what_changed_is_exact_beyond_the_legacy_window(self, tmp_path):
+        store = _store(tmp_path)
+        epoch = datetime.now(UTC) - timedelta(days=1)
+        for i in range(120):
+            store.add_belief(_belief(f"Fact number {i}"), check_conflicts=False)
+
+        # Reload so the legacy changes list is capped by _save's 100-record
+        # window - the event log must still have all 120.
+        reloaded = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        assert len(reloaded.changes) <= 100
+
+        delta = what_changed(reloaded, epoch)
+        assert len(delta.added) == 120
+        assert delta.window_truncated is False
+        assert delta.to_dict()["window_note"] == ""
+
+    def test_legacy_store_without_log_reports_truncation(self, tmp_path):
+        store = _store(tmp_path)
+        epoch = datetime.now(UTC) - timedelta(days=1)
+        for i in range(120):
+            store.add_belief(_belief(f"Fact number {i}"), check_conflicts=False)
+        store.events_path.unlink()  # simulate a pre-event-log store
+
+        reloaded = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        assert reloaded.has_event_log is False
+
+        delta = what_changed(reloaded, epoch)
+        assert len(delta.added) <= 100
+        assert delta.window_truncated is True
+        assert "bounded" in delta.to_dict()["window_note"]
+
+    def test_malformed_event_lines_skipped_not_fatal(self, tmp_path):
+        store = _store(tmp_path)
+        store.add_belief(_belief("Good fact"), check_conflicts=False)
+        with open(store.events_path, "a", encoding="utf-8") as f:
+            f.write("this is not json\n")
+            f.write('{"missing": "required fields"}\n')
+        store.add_belief(_belief("Another good fact"), check_conflicts=False)
+
+        events = store.iter_events()
+        assert [e.new_claim for e in events] == ["Good fact", "Another good fact"]
+
+    def test_since_filter_is_strictly_after(self, tmp_path):
+        store = _store(tmp_path)
+        store.add_belief(_belief("Before"), check_conflicts=False)
+        cutoff = store.iter_events()[-1].timestamp
+        store.add_belief(_belief("After"), check_conflicts=False)
+
+        events = store.iter_events(since=cutoff)
+        assert [e.new_claim for e in events] == ["After"]
