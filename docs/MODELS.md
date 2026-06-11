@@ -68,9 +68,9 @@ The following legacy models will stop accepting API requests on **May 15, 2026 a
 
 ### Anthropic Claude (`ANTHROPIC_API_KEY`)
 - **Deep Research**: No turnkey API — uses Extended Thinking + tool use + web search orchestration
-- **Models**: Claude Opus 4.7, Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 4.5, Claude Haiku 4.5
+- **Models**: Claude Fable 5, Claude Opus 4.8, Claude Opus 4.7, Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 4.5, Claude Haiku 4.5
 - **Best for**: Complex reasoning with transparent thinking, coding tasks, nuanced analysis
-- **Note**: Opus 4.7 (GA Apr 16, 2026; leads SWE-bench Pro at 64.3%) is the latest and recommended for research (~$0.85/query, $5/$25 per MTok — note its new tokenizer uses up to ~35% more tokens for the same text). Sonnet 4.6 ($3/$15) is the best-value coding model. Opus 4.7/4.6 and Sonnet 4.6 include the full 1M context window at standard pricing. All models support Extended Thinking. Requires a web search backend (Brave, Tavily, or DuckDuckGo)
+- **Note**: Opus 4.8 (GA May 28, 2026) is the recommended research flagship (~$0.85/query, $5/$25 per MTok). Claude Fable 5 ($10/$50 per MTok, ~$2.20/query) is the frontier tier above Opus — most capable, but its new tokenizer uses ~30% more tokens for the same text, its safety classifiers can refuse cyber/bio research topics, and it requires 30-day data retention; opt in deliberately. Sonnet 4.6 ($3/$15) is the best-value coding model. Fable 5, Opus 4.6+ and Sonnet 4.6 include the full 1M context window at standard pricing. Opus 4.6+, Sonnet 4.6, and Fable 5 use Adaptive Thinking (the provider sends `{"type": "adaptive"}` automatically; legacy models keep budgeted Extended Thinking). Requires a web search backend (Brave, Tavily, or DuckDuckGo)
 
 ### Azure OpenAI (`AZURE_OPENAI_KEY`)
 - **Models**: Same as OpenAI, deployed through Azure
