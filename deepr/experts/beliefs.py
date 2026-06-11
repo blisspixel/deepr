@@ -329,6 +329,42 @@ class BeliefStore:
         self._save()
         return belief, change
 
+    def add_contested_belief(self, belief: Belief, conflicting: list[Belief]) -> tuple[Belief, BeliefChange]:
+        """Store a belief as contested: contradiction edges, no merge, no revision.
+
+        Unlike ``add_belief``, this never routes through similarity merging or
+        conflict-resolution strategies, so the existing beliefs it contradicts
+        are guaranteed untouched (NEWER_WINS / HIGHER_CONFIDENCE would otherwise
+        revise them). Both sides get contradiction edges so the conflict stays
+        queryable - a belief-revision candidate for ``resolve-conflicts`` /
+        health-check, never a silent drop or a silent overwrite.
+
+        Args:
+            belief: The new, contested belief to record.
+            conflicting: Existing beliefs it contradicts (edges added both ways).
+
+        Returns:
+            Tuple of (stored belief, change record).
+        """
+        for other in conflicting:
+            belief.add_contradiction(other.id)
+            other.add_contradiction(belief.id)
+
+        self.beliefs[belief.id] = belief
+        self._index_belief(belief)
+
+        change = BeliefChange(
+            belief_id=belief.id,
+            change_type="created",
+            new_claim=belief.claim,
+            new_confidence=belief.confidence,
+            reason="contested: contradicts " + ", ".join(other.id for other in conflicting),
+        )
+        self.changes.append(change)
+
+        self._save()
+        return belief, change
+
     def update_belief(
         self,
         belief_id: str,
