@@ -123,3 +123,12 @@ jobs:
         # the pyproject setting and allow coverage to drop without
         # tripping CI (R4 audit caught this discrepancy).
         run: python -m pytest tests/unit/ --ignore=tests/data -q --tb=short --cov=deepr --cov-report=term-missing
+
+      - name: Enforce coverage gate
+        # pytest-cov printed "FAIL Required test coverage ..." on 3.12/3.13
+        # without failing the step (observed 2026-06-11: jobs green at 79.75%
+        # against an 80% gate; only 3.14 propagated the failure). Enforce the
+        # gate explicitly and version-independently: `coverage report` reads
+        # fail_under from pyproject (single source of truth) and exits 2 when
+        # the total is below it.
+        run: python -m coverage report > /dev/null
