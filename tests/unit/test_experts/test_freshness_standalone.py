@@ -3,7 +3,7 @@
 Requirements: 1.3 - Test Coverage
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -190,7 +190,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_fresh(self, checker):
         """Should return fresh for recent learning."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=10)
 
         status = checker.check(last_learning=last_learning)
@@ -208,7 +208,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_aging(self, checker):
         """Should return aging for moderately old learning."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=60)
 
         status = checker.check(last_learning=last_learning)
@@ -217,7 +217,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_stale(self, checker):
         """Should return stale for old learning."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=100)
 
         status = checker.check(last_learning=last_learning)
@@ -226,7 +226,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_critical(self, checker):
         """Should return critical for very old learning."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=200)
 
         status = checker.check(last_learning=last_learning)
@@ -243,7 +243,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_uses_activity_fallback(self, checker):
         """Should use activity as fallback."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_activity = now - timedelta(days=30)
 
         status = checker.check(last_learning=None, last_activity=last_activity)
@@ -252,7 +252,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_includes_details(self, checker):
         """Should include details in status."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=10)
 
         status = checker.check(last_learning=last_learning)
@@ -263,7 +263,7 @@ class TestFreshnessCheckerCheck:
 
     def test_check_with_knowledge_sources(self, checker):
         """Should analyze knowledge sources."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=10)
         sources = [
             {"date": (now - timedelta(days=5)).isoformat()},
@@ -286,21 +286,21 @@ class TestFreshnessCheckerMethods:
 
     def test_is_stale_true(self, checker):
         """Should return True when stale."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=100)
 
         assert checker.is_stale(last_learning=last_learning) is True
 
     def test_is_stale_false(self, checker):
         """Should return False when fresh."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=10)
 
         assert checker.is_stale(last_learning=last_learning) is False
 
     def test_days_until_stale_positive(self, checker):
         """Should return positive days until stale."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=30)
 
         days = checker.days_until_stale(last_learning=last_learning)
@@ -310,7 +310,7 @@ class TestFreshnessCheckerMethods:
 
     def test_days_until_stale_negative(self, checker):
         """Should return negative when already stale."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=100)
 
         days = checker.days_until_stale(last_learning=last_learning)
@@ -325,7 +325,7 @@ class TestFreshnessCheckerMethods:
 
     def test_get_status(self, checker):
         """Should return status dictionary."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_learning = now - timedelta(days=10)
 
         status = checker.get_status(last_learning=last_learning)
@@ -460,7 +460,7 @@ class TestFreshnessCheckerSourceAnalysis:
     def test_analyze_sources_with_dates(self):
         """Should calculate age statistics."""
         checker = FreshnessChecker()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         sources = [
             {"date": (now - timedelta(days=10)).isoformat()},

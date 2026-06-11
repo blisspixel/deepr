@@ -1,6 +1,6 @@
 """Tests for cost dashboard CLI commands (ROADMAP 4.3)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,7 +10,7 @@ from click.testing import CliRunner
 
 def utc_now():
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 from deepr.cli.main import cli

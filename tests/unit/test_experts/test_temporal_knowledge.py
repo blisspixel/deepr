@@ -5,14 +5,14 @@ knowledge evolution, staleness detection, and timeline management.
 """
 
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 
 def utc_now():
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 from deepr.experts.temporal_knowledge import KnowledgeEvolution, KnowledgeFact, TemporalKnowledgeTracker
@@ -25,8 +25,8 @@ class TestFactIdUniqueness:
 
     def test_same_second_distinct_microseconds_distinct_ids(self, tmp_path):
         tracker = TemporalKnowledgeTracker("Test Expert", base_path=str(tmp_path))
-        base = datetime(2026, 6, 1, 12, 0, 0, 1000, tzinfo=timezone.utc)
-        later = datetime(2026, 6, 1, 12, 0, 0, 2000, tzinfo=timezone.utc)  # same second, +1ms
+        base = datetime(2026, 6, 1, 12, 0, 0, 1000, tzinfo=UTC)
+        later = datetime(2026, 6, 1, 12, 0, 0, 2000, tzinfo=UTC)  # same second, +1ms
         assert tracker._generate_fact_id("AI strategy", base) != tracker._generate_fact_id("AI strategy", later)
 
 

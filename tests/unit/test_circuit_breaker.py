@@ -11,7 +11,7 @@ Properties: 5 (State Machine), 6 (Fail-Fast)
 """
 
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -184,12 +184,12 @@ class TestCircuitBreakerStateMachineProperty:
         assert cb.state == CircuitState.OPEN
 
         # Simulate time passing (less than timeout)
-        cb.last_state_change = datetime.now(timezone.utc) - timedelta(seconds=timeout - 1)
+        cb.last_state_change = datetime.now(UTC) - timedelta(seconds=timeout - 1)
         cb._check_recovery()
         assert cb.state == CircuitState.OPEN, "Circuit should remain OPEN before timeout"
 
         # Simulate time passing (at or after timeout)
-        cb.last_state_change = datetime.now(timezone.utc) - timedelta(seconds=timeout)
+        cb.last_state_change = datetime.now(UTC) - timedelta(seconds=timeout)
         cb._check_recovery()
         assert cb.state == CircuitState.HALF_OPEN, "Circuit should be HALF_OPEN after timeout"
 
@@ -207,7 +207,7 @@ class TestCircuitBreakerStateMachineProperty:
         assert cb.state == CircuitState.OPEN
 
         # Transition to HALF_OPEN
-        cb.last_state_change = datetime.now(timezone.utc) - timedelta(seconds=2)
+        cb.last_state_change = datetime.now(UTC) - timedelta(seconds=2)
         cb._check_recovery()
         assert cb.state == CircuitState.HALF_OPEN
 
@@ -230,7 +230,7 @@ class TestCircuitBreakerStateMachineProperty:
         assert cb.state == CircuitState.OPEN
 
         # Transition to HALF_OPEN
-        cb.last_state_change = datetime.now(timezone.utc) - timedelta(seconds=2)
+        cb.last_state_change = datetime.now(UTC) - timedelta(seconds=2)
         cb._check_recovery()
         assert cb.state == CircuitState.HALF_OPEN
 
@@ -345,7 +345,7 @@ class TestCircuitBreakerFailFastProperty:
         cb.record_failure("Error")
 
         # Transition to HALF_OPEN
-        cb.last_state_change = datetime.now(timezone.utc) - timedelta(seconds=2)
+        cb.last_state_change = datetime.now(UTC) - timedelta(seconds=2)
         cb._check_recovery()
 
         assert cb.state == CircuitState.HALF_OPEN
@@ -386,7 +386,7 @@ class TestCircuitBreakerFailFastProperty:
         cb.failure_threshold = 1
         cb.recovery_timeout = 1
         cb.record_failure("Error")
-        cb.last_state_change = datetime.now(timezone.utc) - timedelta(seconds=2)
+        cb.last_state_change = datetime.now(UTC) - timedelta(seconds=2)
         cb._check_recovery()
 
         assert cb.state == CircuitState.HALF_OPEN

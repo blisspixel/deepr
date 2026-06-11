@@ -3,7 +3,7 @@
 Tests to_claim() and to_gap() adapters that bridge old types to canonical contracts.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from deepr.core.contracts import Claim, Gap, TrustClass
 
@@ -66,7 +66,7 @@ class TestBeliefsToClaim:
     def test_preserves_timestamps(self):
         from deepr.experts.beliefs import Belief
 
-        ts = datetime(2025, 3, 15, tzinfo=timezone.utc)
+        ts = datetime(2025, 3, 15, tzinfo=UTC)
         b = Belief(claim="test", confidence=0.5, domain="d", created_at=ts, updated_at=ts)
         claim = b.to_claim()
         assert claim.created_at == ts
@@ -84,8 +84,8 @@ class TestSynthesisBeliefToClaim:
             statement="AI is transformative",
             confidence=0.85,
             evidence=["paper.pdf"],
-            formed_at=datetime.now(timezone.utc),
-            last_updated=datetime.now(timezone.utc),
+            formed_at=datetime.now(UTC),
+            last_updated=datetime.now(UTC),
         )
         claim = b.to_claim()
         assert claim.statement == "AI is transformative"
@@ -98,8 +98,8 @@ class TestSynthesisBeliefToClaim:
             statement="test",
             confidence=0.5,
             evidence=[],
-            formed_at=datetime.now(timezone.utc),
-            last_updated=datetime.now(timezone.utc),
+            formed_at=datetime.now(UTC),
+            last_updated=datetime.now(UTC),
         )
         claim = b.to_claim()
         assert claim.domain == "ML"
@@ -112,8 +112,8 @@ class TestSynthesisBeliefToClaim:
             statement="s",
             confidence=0.5,
             evidence=["src1.md", "src2.md"],
-            formed_at=datetime.now(timezone.utc),
-            last_updated=datetime.now(timezone.utc),
+            formed_at=datetime.now(UTC),
+            last_updated=datetime.now(UTC),
         )
         claim = b.to_claim()
         assert len(claim.sources) == 2
@@ -127,8 +127,8 @@ class TestSynthesisBeliefToClaim:
             statement="s",
             confidence=0.5,
             evidence=[],
-            formed_at=datetime.now(timezone.utc),
-            last_updated=datetime.now(timezone.utc),
+            formed_at=datetime.now(UTC),
+            last_updated=datetime.now(UTC),
         )
         claim = b.to_claim()
         assert len(claim.id) == 12
@@ -140,28 +140,28 @@ class TestSynthesisKnowledgeGapToGap:
     def test_preserves_topic(self):
         from deepr.experts.synthesis import KnowledgeGap
 
-        kg = KnowledgeGap(topic="quantum", questions=["What?"], priority=4, identified_at=datetime.now(timezone.utc))
+        kg = KnowledgeGap(topic="quantum", questions=["What?"], priority=4, identified_at=datetime.now(UTC))
         gap = kg.to_gap()
         assert gap.topic == "quantum"
 
     def test_preserves_questions(self):
         from deepr.experts.synthesis import KnowledgeGap
 
-        kg = KnowledgeGap(topic="t", questions=["Q1", "Q2"], priority=3, identified_at=datetime.now(timezone.utc))
+        kg = KnowledgeGap(topic="t", questions=["Q1", "Q2"], priority=3, identified_at=datetime.now(UTC))
         gap = kg.to_gap()
         assert gap.questions == ["Q1", "Q2"]
 
     def test_preserves_priority(self):
         from deepr.experts.synthesis import KnowledgeGap
 
-        kg = KnowledgeGap(topic="t", questions=[], priority=5, identified_at=datetime.now(timezone.utc))
+        kg = KnowledgeGap(topic="t", questions=[], priority=5, identified_at=datetime.now(UTC))
         gap = kg.to_gap()
         assert gap.priority == 5
 
     def test_generates_content_hash_id(self):
         from deepr.experts.synthesis import KnowledgeGap
 
-        kg = KnowledgeGap(topic="t", questions=[], priority=3, identified_at=datetime.now(timezone.utc))
+        kg = KnowledgeGap(topic="t", questions=[], priority=3, identified_at=datetime.now(UTC))
         gap = kg.to_gap()
         assert len(gap.id) == 12
 
@@ -172,34 +172,28 @@ class TestMetacognitionKnowledgeGapToGap:
     def test_preserves_topic(self):
         from deepr.experts.metacognition import KnowledgeGap
 
-        kg = KnowledgeGap(
-            topic="NLP", first_encountered=datetime.now(timezone.utc), times_asked=3, research_triggered=False
-        )
+        kg = KnowledgeGap(topic="NLP", first_encountered=datetime.now(UTC), times_asked=3, research_triggered=False)
         gap = kg.to_gap()
         assert gap.topic == "NLP"
 
     def test_uses_times_asked(self):
         from deepr.experts.metacognition import KnowledgeGap
 
-        kg = KnowledgeGap(
-            topic="t", first_encountered=datetime.now(timezone.utc), times_asked=7, research_triggered=False
-        )
+        kg = KnowledgeGap(topic="t", first_encountered=datetime.now(UTC), times_asked=7, research_triggered=False)
         gap = kg.to_gap()
         assert gap.times_asked == 7
 
     def test_priority_capped_at_5(self):
         from deepr.experts.metacognition import KnowledgeGap
 
-        kg = KnowledgeGap(
-            topic="t", first_encountered=datetime.now(timezone.utc), times_asked=100, research_triggered=False
-        )
+        kg = KnowledgeGap(topic="t", first_encountered=datetime.now(UTC), times_asked=100, research_triggered=False)
         gap = kg.to_gap()
         assert gap.priority == 5
 
     def test_filled_when_research_completed(self):
         from deepr.experts.metacognition import KnowledgeGap
 
-        ts = datetime(2025, 6, 1, tzinfo=timezone.utc)
+        ts = datetime(2025, 6, 1, tzinfo=UTC)
         kg = KnowledgeGap(
             topic="t",
             first_encountered=ts,
@@ -215,7 +209,7 @@ class TestMetacognitionKnowledgeGapToGap:
     def test_not_filled_when_no_confidence_after(self):
         from deepr.experts.metacognition import KnowledgeGap
 
-        ts = datetime(2025, 6, 1, tzinfo=timezone.utc)
+        ts = datetime(2025, 6, 1, tzinfo=UTC)
         kg = KnowledgeGap(topic="t", first_encountered=ts, times_asked=2, research_triggered=True, research_date=ts)
         gap = kg.to_gap()
         assert gap.filled is False
@@ -240,9 +234,7 @@ class TestRoundTrip:
     def test_synthesis_gap_round_trip(self):
         from deepr.experts.synthesis import KnowledgeGap
 
-        kg = KnowledgeGap(
-            topic="ML ops", questions=["How to deploy?"], priority=4, identified_at=datetime.now(timezone.utc)
-        )
+        kg = KnowledgeGap(topic="ML ops", questions=["How to deploy?"], priority=4, identified_at=datetime.now(UTC))
         gap = kg.to_gap()
         d = gap.to_dict()
         restored = Gap.from_dict(d)

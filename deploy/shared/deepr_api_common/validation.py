@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Any, Optional
+from typing import Any
 
 # Constants
 MAX_PROMPT_LENGTH = 10000
@@ -33,7 +33,7 @@ def sanitize_string(value: str, max_length: int = 1000) -> str:
     return value[:max_length].strip()
 
 
-def validate_prompt(prompt: Any) -> tuple[bool, Optional[str], Optional[str]]:
+def validate_prompt(prompt: Any) -> tuple[bool, str | None, str | None]:
     """
     Validate prompt field.
 
@@ -49,7 +49,7 @@ def validate_prompt(prompt: Any) -> tuple[bool, Optional[str], Optional[str]]:
     return True, sanitize_string(prompt, MAX_PROMPT_LENGTH), None
 
 
-def validate_model(model: Optional[str]) -> tuple[bool, str, Optional[str]]:
+def validate_model(model: str | None) -> tuple[bool, str, str | None]:
     """
     Validate model field.
 
@@ -63,7 +63,7 @@ def validate_model(model: Optional[str]) -> tuple[bool, str, Optional[str]]:
     return True, model, None
 
 
-def validate_priority(priority: Any) -> tuple[bool, int, Optional[str]]:
+def validate_priority(priority: Any) -> tuple[bool, int, str | None]:
     """
     Validate priority field.
 
@@ -77,7 +77,7 @@ def validate_priority(priority: Any) -> tuple[bool, int, Optional[str]]:
     return True, priority, None
 
 
-def validate_enable_web_search(value: Any) -> tuple[bool, bool, Optional[str]]:
+def validate_enable_web_search(value: Any) -> tuple[bool, bool, str | None]:
     """
     Validate enable_web_search field.
 
@@ -91,7 +91,7 @@ def validate_enable_web_search(value: Any) -> tuple[bool, bool, Optional[str]]:
     return True, value, None
 
 
-def validate_metadata(metadata: Any) -> tuple[bool, dict, Optional[str]]:
+def validate_metadata(metadata: Any) -> tuple[bool, dict, str | None]:
     """
     Validate metadata field.
 
@@ -107,7 +107,7 @@ def validate_metadata(metadata: Any) -> tuple[bool, dict, Optional[str]]:
     return True, metadata, None
 
 
-def validate_status_filter(status: Optional[str]) -> tuple[bool, Optional[str], Optional[str]]:
+def validate_status_filter(status: str | None) -> tuple[bool, str | None, str | None]:
     """
     Validate status filter parameter.
 
@@ -122,7 +122,7 @@ def validate_status_filter(status: Optional[str]) -> tuple[bool, Optional[str], 
     return True, status, None
 
 
-def validate_limit(limit_str: Optional[str], max_limit: int = 1000) -> tuple[bool, int, Optional[str]]:
+def validate_limit(limit_str: str | None, max_limit: int = 1000) -> tuple[bool, int, str | None]:
     """
     Validate limit parameter.
 
@@ -140,7 +140,7 @@ def validate_limit(limit_str: Optional[str], max_limit: int = 1000) -> tuple[boo
         return False, 0, "Invalid limit parameter"
 
 
-def validate_job_request(body: dict[str, Any]) -> tuple[bool, dict[str, Any], Optional[str]]:
+def validate_job_request(body: dict[str, Any]) -> tuple[bool, dict[str, Any], str | None]:
     """
     Validate complete job submission request.
 

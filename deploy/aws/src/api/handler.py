@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -208,7 +208,7 @@ def submit_job(event: dict) -> dict:
         return response(400, {"error": f"Metadata exceeds maximum size of {MAX_METADATA_SIZE} bytes"})
 
     job_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     submitted_at = now.isoformat()
 
     # Calculate TTL (90 days from now)
@@ -341,7 +341,7 @@ def cancel_job(job_id: str) -> dict:
                 ":cancelled": "cancelled",
                 ":queued": "queued",
                 ":running": "running",
-                ":now": datetime.now(timezone.utc).isoformat(),
+                ":now": datetime.now(UTC).isoformat(),
             },
         )
         logger.info(f"Job cancelled: {job_id}")

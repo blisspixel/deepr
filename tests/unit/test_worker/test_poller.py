@@ -1,6 +1,6 @@
 """Tests for job poller worker."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -142,7 +142,7 @@ class TestJobPoller:
         mock_job = MagicMock()
         mock_job.id = "stuck-job"
         mock_job.provider_job_id = "pj-stuck"
-        mock_job.submitted_at = datetime.now(timezone.utc) - timedelta(minutes=15)
+        mock_job.submitted_at = datetime.now(UTC) - timedelta(minutes=15)
 
         mock_resp = MagicMock()
         mock_resp.status = "queued"

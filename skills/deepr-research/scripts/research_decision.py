@@ -7,7 +7,6 @@ and provides cost/time estimates for informed decision-making.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class ResearchMode(Enum):
@@ -115,8 +114,8 @@ QUICK_INDICATORS = frozenset(
 def classify_query(
     query: str,
     *,
-    force_mode: Optional[ResearchMode] = None,
-    max_budget: Optional[float] = None,
+    force_mode: ResearchMode | None = None,
+    max_budget: float | None = None,
 ) -> ResearchDecision:
     """
     Classify a research query and recommend optimal mode.
