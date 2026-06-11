@@ -509,6 +509,19 @@ Design (builds on existing kernel primitives - cost ledger, budget contracts, pr
 
 Honest caveats (why this is experimental): CLI agents are not deep-research APIs - citation quality and output contracts differ and must be normalized through the existing reflection/verification loop; vendor quota mechanics churn quarterly (the tracker treats limits as *observed*, not configured); subprocess lifecycle on long jobs needs the same async-durability treatment as MCP clients (reuse that layer).
 
+### Panel-Review Findings (2026-06-11, six-persona cold review)
+
+A mock panel (business buyer, indie hacker, enterprise AI architect, research scientist, non-technical user, AI YouTuber) reviewed the repo cold. Convergent findings, ranked by how many seats hit them independently:
+
+- [ ] **Simple default surface** (5 of 6 hit this wall): 40+ CLI commands and a 9KB `.env` bury the three verbs that matter. Ship a beginner surface - `deepr research`, `deepr expert chat`, `deepr costs` - with everything else discoverable but not front-loaded; a minimal `.env.example` (one key + budget) with the full template moved to `.env.example.full`.
+- [ ] **Confidence calibration evidence** (the scientist's "who validates the validator"): extraction confidence is model self-assessment with no empirical calibration. Add a calibration harness to eval methodology v2 (Phase 3): human-annotated held-out reports -> precision/recall of extraction + calibration curve (does 0.7 confidence mean ~70% grounded?); publish the numbers. Until then the honest claim is "report-grounded candidates with confidence-as-signal", never "verified facts".
+- [ ] **Source-trust scoring with confidence floors** (architect + scientist independently): mark belief provenance by source tier (primary/secondary/tertiary); tertiary-source claims cap at 0.6 confidence regardless of extraction score; >0.8 requires secondary-source corroboration. Also the deterministic backstop for ingestion-time prompt injection (a poisoned web result cannot become a high-confidence belief).
+- [ ] **Expert mutation audit log** (architect): absorb/resolve-conflicts/learn mutate beliefs with no record of who/when/what-changed-state. Append-only audit entries ({timestamp, operation, expert, actor, before/after hash}) - required for any team deployment, cheap now, painful later.
+- [ ] **Allowlist enforcement tests** (architect, cheap): parametrized tests asserting every MCP tool x ResearchMode combination is actually gated as the allowlist declares, so a refactor cannot silently drop a confirmation gate.
+- [ ] **Circuit-breaker / session-budget coordination audit** (architect, cheap): verify a circuit-breaker trip surfaces as a BLOCKED reason in the session (not a silent failure) and that semantics between the two layers are documented.
+- [ ] **README clarity passes** (buyer + non-technical user): "--budget 3" reads as a price, not a cap - say "budget ceiling" at first use; the "layer underneath" sentence loses non-technical readers - one plain-language paragraph up top ("you bring AI accounts; Deepr routes work to the cheapest one that can do the job and builds experts that remember"); add an explicit "who this is for / not for" block (the buyer, the builder, the agent-host user - not the casual ChatGPT user).
+- Validated by the panel (no action, keep doing): cost-control architecture (every seat), the belief/gap/perspective model as the genuine differentiator, docs honesty about experimental status, hosted-MCP-endpoint promotion (the architect's #1 blocker matches Phase 5's new item exactly), and the close-the-loop sequencing.
+
 ### Backlog (Not in Active Sequence)
 
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)
