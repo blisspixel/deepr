@@ -1,7 +1,5 @@
 """Security utilities - API key validation, headers."""
 
-from typing import Optional
-
 # Security headers for all responses
 SECURITY_HEADERS: dict[str, str] = {
     "X-Content-Type-Options": "nosniff",
@@ -28,7 +26,7 @@ def get_all_response_headers() -> dict[str, str]:
     }
 
 
-def validate_api_key_from_headers(auth_header: Optional[str], api_key_header: Optional[str], expected_key: str) -> bool:
+def validate_api_key_from_headers(auth_header: str | None, api_key_header: str | None, expected_key: str) -> bool:
     """
     Validate API key from request headers.
 

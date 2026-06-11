@@ -7,7 +7,7 @@ Tests cover:
 """
 
 import tempfile
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,7 +15,7 @@ import pytest
 
 def utc_now():
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 from deepr.observability.costs import (

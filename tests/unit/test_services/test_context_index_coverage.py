@@ -12,7 +12,7 @@ Targets:
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -41,7 +41,7 @@ def _write_report(reports_dir: Path, job_id: str, prompt: str, model: str = "o3"
                 "job_id": job_id,
                 "prompt": prompt,
                 "model": model,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         )
     )
@@ -198,11 +198,11 @@ def _seed(idx: ContextIndex, job_id: str, prompt: str, summary: str, embedding: 
             job_id,
             prompt,
             "o3",
-            datetime.now(timezone.utc).isoformat(),
+            datetime.now(UTC).isoformat(),
             str(rd),
             summary,
             embedding_idx,
-            datetime.now(timezone.utc).isoformat(),
+            datetime.now(UTC).isoformat(),
         ),
     )
     conn.execute(
@@ -250,11 +250,11 @@ class TestSearch:
                 "jk",
                 "neural networks",
                 "o3",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
                 str(rd),
                 "summary about networks",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.execute(
@@ -329,11 +329,11 @@ class TestFindRelated:
                 "ghost",
                 "x",
                 "o3",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
                 "/nonexistent/path/never/here",
                 "x summary",
                 0,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.execute(
@@ -413,11 +413,11 @@ class TestGetReportContent:
                 "j_long",
                 "x",
                 "o3",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
                 str(rd),
                 "s",
                 None,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
@@ -443,7 +443,7 @@ class TestSearchResultDataclass:
             report_id="r1",
             job_id="j1",
             prompt="p",
-            created_at=datetime(2026, 5, 17, tzinfo=timezone.utc),
+            created_at=datetime(2026, 5, 17, tzinfo=UTC),
             similarity=0.9,
             report_path=tmp_path / "x",
             model="o3",

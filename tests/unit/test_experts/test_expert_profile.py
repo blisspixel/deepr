@@ -4,7 +4,7 @@ Tests the expert profile data structure, serialization, freshness detection,
 and programmatic date injection without making any external API calls.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -13,7 +13,7 @@ from deepr.experts.profile import DEFAULT_EXPERT_SYSTEM_MESSAGE, ExpertProfile, 
 
 def utc_now():
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TestExpertProfileDataStructure:

@@ -12,7 +12,7 @@ Properties: 7 (Flush Triggers), 8 (Retention on Failure)
 
 import tempfile
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -274,7 +274,7 @@ class TestCostBufferFlushTriggersProperty:
             initial_buffer_count = dashboard.buffer_count
 
             # Simulate time passing by manipulating _last_flush
-            dashboard._last_flush = datetime.now(timezone.utc) - timedelta(seconds=flush_interval + 1)
+            dashboard._last_flush = datetime.now(UTC) - timedelta(seconds=flush_interval + 1)
 
             # Record another entry - should trigger time-based flush
             dashboard.record("chat", "anthropic", 0.02)

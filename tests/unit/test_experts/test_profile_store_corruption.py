@@ -10,7 +10,7 @@ attached as an attribute on the returned list.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from deepr.experts.profile_store import ExpertStore
@@ -29,8 +29,8 @@ def _valid_profile_dict(name: str) -> dict:
         "vector_store_id": "",
         "description": "test expert",
         "domain": "test",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "schema_version": 1,
     }
 

@@ -1,6 +1,6 @@
 """Unit tests for context pruner."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from deepr.services.context_pruner import (
     ContextItem,
@@ -17,8 +17,8 @@ class TestContextPruner:
         pruner = ContextPruner()
 
         items = [
-            ContextItem(id="1", text="Short item 1", source="test", timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="2", text="Short item 2", source="test", timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="1", text="Short item 1", source="test", timestamp=datetime.now(UTC), phase=1),
+            ContextItem(id="2", text="Short item 2", source="test", timestamp=datetime.now(UTC), phase=1),
         ]
 
         kept, decision = pruner.prune(items, "test query", token_budget=10000)
@@ -32,9 +32,9 @@ class TestContextPruner:
 
         # Create items that exceed a small budget
         items = [
-            ContextItem(id="1", text="A" * 1000, source="test", timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="2", text="B" * 1000, source="test", timestamp=datetime.now(timezone.utc), phase=1),
-            ContextItem(id="3", text="C" * 1000, source="test", timestamp=datetime.now(timezone.utc), phase=1),
+            ContextItem(id="1", text="A" * 1000, source="test", timestamp=datetime.now(UTC), phase=1),
+            ContextItem(id="2", text="B" * 1000, source="test", timestamp=datetime.now(UTC), phase=1),
+            ContextItem(id="3", text="C" * 1000, source="test", timestamp=datetime.now(UTC), phase=1),
         ]
 
         kept, decision = pruner.prune(items, "test query", token_budget=500)
@@ -51,21 +51,21 @@ class TestContextPruner:
                 id="1",
                 text="Python testing best practices " * 50,
                 source="test",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 phase=1,
             ),
             ContextItem(
                 id="2",
                 text="Weather forecast for tomorrow " * 50,
                 source="test",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 phase=1,
             ),
             ContextItem(
                 id="3",
                 text="Unit testing with pytest " * 50,
                 source="test",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 phase=1,
             ),
         ]
@@ -81,8 +81,8 @@ class TestContextPruner:
         """Test that recent items are kept preferentially."""
         pruner = ContextPruner()
 
-        old_time = datetime.now(timezone.utc) - timedelta(hours=24)
-        new_time = datetime.now(timezone.utc)
+        old_time = datetime.now(UTC) - timedelta(hours=24)
+        new_time = datetime.now(UTC)
 
         items = [
             ContextItem(id="1", text="Old finding about X " * 50, source="test", timestamp=old_time, phase=1),
@@ -107,11 +107,11 @@ class TestRelevanceScoring:
             id="1",
             text="Python testing frameworks comparison",
             source="test",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             phase=1,
         )
 
-        score = pruner.score_item(item, "Python testing frameworks", datetime.now(timezone.utc))
+        score = pruner.score_item(item, "Python testing frameworks", datetime.now(UTC))
 
         assert score > 0.5
 
@@ -123,11 +123,11 @@ class TestRelevanceScoring:
             id="1",
             text="Recipe for chocolate cake",
             source="test",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             phase=1,
         )
 
-        score = pruner.score_item(item, "Python testing frameworks", datetime.now(timezone.utc))
+        score = pruner.score_item(item, "Python testing frameworks", datetime.now(UTC))
 
         # With importance=0.5 default, minimum score will be around 0.15-0.3
         # depending on recency weight
@@ -141,7 +141,7 @@ class TestRelevanceScoring:
             id="1",
             text="Same content for testing",
             source="test",
-            timestamp=datetime.now(timezone.utc) - timedelta(days=7),
+            timestamp=datetime.now(UTC) - timedelta(days=7),
             phase=1,
         )
 
@@ -149,11 +149,11 @@ class TestRelevanceScoring:
             id="2",
             text="Same content for testing",
             source="test",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             phase=1,
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         old_score = pruner.score_item(old_item, "query", now)
         new_score = pruner.score_item(new_item, "query", now)
 
@@ -168,7 +168,7 @@ class TestDeduplication:
         """Test that duplicate items are removed during pruning."""
         pruner = ContextPruner()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items = [
             ContextItem(id="1", text="Duplicate content here", source="test", timestamp=now, phase=1),
             ContextItem(id="2", text="Duplicate content here", source="test", timestamp=now, phase=1),
@@ -184,7 +184,7 @@ class TestDeduplication:
         """Test that near-duplicate items are detected."""
         pruner = ContextPruner(dedup_threshold=0.9)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items = [
             ContextItem(
                 id="1", text="The quick brown fox jumps over the lazy dog", source="test", timestamp=now, phase=1
@@ -214,7 +214,7 @@ class TestPruningDecision:
         """Test that PruningDecision contains useful metrics."""
         pruner = ContextPruner()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items = [
             ContextItem(id=str(i), text="Item " + str(i) + " " * 50, source="test", timestamp=now, phase=1)
             for i in range(10)
@@ -234,7 +234,7 @@ class TestContextItem:
 
     def test_context_item_creation(self):
         """Test creating a ContextItem."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         item = ContextItem(
             id="test1",
@@ -258,7 +258,7 @@ class TestContextItem:
             id="test1",
             text="This is a test sentence with several words",
             source="test",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             phase=1,
         )
 
@@ -268,7 +268,7 @@ class TestContextItem:
 
     def test_context_item_to_dict(self):
         """Test ContextItem serialization."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         item = ContextItem(
             id="test1",
             text="Test content",
@@ -301,7 +301,7 @@ class TestEdgeCases:
         """Test pruning with zero budget."""
         pruner = ContextPruner()
 
-        items = [ContextItem(id="1", text="Content", source="test", timestamp=datetime.now(timezone.utc), phase=1)]
+        items = [ContextItem(id="1", text="Content", source="test", timestamp=datetime.now(UTC), phase=1)]
 
         kept, _decision = pruner.prune(items, "query", token_budget=0)
 
@@ -312,7 +312,7 @@ class TestEdgeCases:
         """Test pruning with very large budget."""
         pruner = ContextPruner()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items = [ContextItem(id=str(i), text=f"Item {i}", source="test", timestamp=now, phase=1) for i in range(100)]
 
         kept, decision = pruner.prune(items, "query", token_budget=1000000)

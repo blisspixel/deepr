@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import azure.functions as func
 from azure.cosmos import CosmosClient
@@ -209,10 +209,10 @@ def submit_job(req: func.HttpRequest) -> func.HttpResponse:
         return response(400, {"error": f"Metadata exceeds maximum size of {MAX_METADATA_SIZE} bytes"})
 
     job_id = str(uuid.uuid4())
-    submitted_at = datetime.now(timezone.utc).isoformat()
+    submitted_at = datetime.now(UTC).isoformat()
 
     # Calculate TTL (90 days from now in Unix timestamp)
-    ttl = int(datetime.now(timezone.utc).timestamp()) + (90 * 24 * 60 * 60)
+    ttl = int(datetime.now(UTC).timestamp()) + (90 * 24 * 60 * 60)
 
     job = {
         # Cosmos DB document id. The container's partition-key path is
@@ -352,7 +352,7 @@ def cancel_job(req: func.HttpRequest) -> func.HttpResponse:
 
         etag = job.get("_etag")
         job["status"] = "cancelled"
-        job["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+        job["cancelled_at"] = datetime.now(UTC).isoformat()
         try:
             jobs_container.replace_item(
                 item=job_id,

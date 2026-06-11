@@ -2,7 +2,7 @@
 
 import asyncio
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -184,7 +184,7 @@ class TestTaskDurabilityIntegration:
                     "h2": {"text": "Hypothesis 2", "status": "invalidated"},
                 },
                 "metadata": {
-                    "start_time": datetime.now(timezone.utc).isoformat(),
+                    "start_time": datetime.now(UTC).isoformat(),
                     "model": "o4-mini",
                     "token_usage": 5000,
                 },

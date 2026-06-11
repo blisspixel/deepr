@@ -3,7 +3,7 @@
 Tests creation, serialization round-trips, ID generation, and computed properties.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from deepr.core.contracts import (
     Claim,
@@ -167,7 +167,7 @@ class TestGap:
         assert d["filled"] is False
 
     def test_round_trip(self):
-        ts = datetime(2025, 6, 1, tzinfo=timezone.utc)
+        ts = datetime(2025, 6, 1, tzinfo=UTC)
         gap = Gap.create(
             topic="testing",
             questions=["Q1"],
