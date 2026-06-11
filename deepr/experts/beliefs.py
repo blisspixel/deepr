@@ -280,6 +280,62 @@ class BeliefChange:
         )
 
 
+# Edge types for the typed belief graph (TKG step 2, see
+# docs/design/temporal-knowledge-graph.md). "contradicts" is symmetric;
+# the others are directed src -> dst.
+EDGE_TYPES = ("supports", "contradicts", "enables", "derived_from")
+_SYMMETRIC_EDGE_TYPES = ("contradicts",)
+
+# Provenance string recorded on edges created by the one-time migration of
+# legacy contradictions_with lists.
+_MIGRATED_PROVENANCE = "migrated:contradictions_with"
+
+
+@dataclass
+class Edge:
+    """A typed relationship between two beliefs.
+
+    Provenance accumulates: re-asserting the same relationship from a new
+    report adds provenance to the existing edge instead of duplicating it
+    (the dedup policy from the TKG design doc).
+    """
+
+    src_id: str
+    dst_id: str
+    edge_type: str  # one of EDGE_TYPES
+    provenance: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=_utc_now)
+
+    def key(self) -> tuple[str, str, str]:
+        """Canonical identity. Symmetric types sort endpoints so A-B == B-A."""
+        if self.edge_type in _SYMMETRIC_EDGE_TYPES:
+            lo, hi = sorted((self.src_id, self.dst_id))
+            return (lo, hi, self.edge_type)
+        return (self.src_id, self.dst_id, self.edge_type)
+
+    def touches(self, belief_id: str) -> bool:
+        return belief_id in (self.src_id, self.dst_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "src_id": self.src_id,
+            "dst_id": self.dst_id,
+            "edge_type": self.edge_type,
+            "provenance": list(self.provenance),
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Edge":
+        return cls(
+            src_id=data["src_id"],
+            dst_id=data["dst_id"],
+            edge_type=data["edge_type"],
+            provenance=list(data.get("provenance", [])),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else _utc_now(),
+        )
+
+
 class BeliefStore:
     """Store and manage beliefs for an expert.
 
@@ -287,6 +343,7 @@ class BeliefStore:
         expert_name: Name of the expert
         beliefs: Dictionary of beliefs by ID
         domain_index: Index of beliefs by domain
+        edges: Typed belief-graph edges keyed by canonical identity
         conflict_resolution: Default conflict resolution strategy
     """
 
@@ -323,8 +380,58 @@ class BeliefStore:
         self.beliefs: dict[str, Belief] = {}
         self.domain_index: dict[str, set[str]] = {}
         self.changes: list[BeliefChange] = []
+        self.edges: dict[tuple[str, str, str], Edge] = {}
 
         self._load()
+
+    def add_edge(
+        self,
+        src_id: str,
+        dst_id: str,
+        edge_type: str,
+        provenance: str = "",
+        *,
+        save: bool = True,
+    ) -> Edge:
+        """Record a typed edge between two beliefs (deduplicating by identity).
+
+        Re-asserting an existing relationship appends new provenance to the
+        existing edge. For ``contradicts`` edges the beliefs' legacy
+        ``contradictions_with`` lists are kept in sync (both directions) so
+        every existing reader keeps working during the migration window.
+        """
+        if edge_type not in EDGE_TYPES:
+            raise ValueError(f"Unknown edge type: {edge_type!r} (expected one of {EDGE_TYPES})")
+        if src_id == dst_id:
+            raise ValueError("An edge cannot connect a belief to itself")
+
+        edge = Edge(src_id=src_id, dst_id=dst_id, edge_type=edge_type)
+        existing = self.edges.get(edge.key())
+        if existing is not None:
+            if provenance and provenance not in existing.provenance:
+                existing.provenance.append(provenance)
+            edge = existing
+        else:
+            if provenance:
+                edge.provenance.append(provenance)
+            self.edges[edge.key()] = edge
+
+        if edge_type == "contradicts":
+            a, b = self.beliefs.get(src_id), self.beliefs.get(dst_id)
+            if a is not None:
+                a.add_contradiction(dst_id)
+            if b is not None:
+                b.add_contradiction(src_id)
+
+        if save:
+            self._save()
+        return edge
+
+    def edges_for(self, belief_id: str, edge_type: str | None = None) -> list[Edge]:
+        """All edges touching a belief, optionally filtered by type."""
+        return [
+            e for e in self.edges.values() if e.touches(belief_id) and (edge_type is None or e.edge_type == edge_type)
+        ]
 
     @property
     def has_event_log(self) -> bool:
@@ -390,16 +497,15 @@ class BeliefStore:
             # Resolve conflict
             return self._resolve_conflict(existing, belief)
 
-        # Check for contradictions
+        # Add belief first so add_edge can mirror contradictions_with
+        self.beliefs[belief.id] = belief
+        self._index_belief(belief)
+
+        # Check for contradictions (typed edge + legacy field, via add_edge)
         if check_conflicts:
             contradictions = self._find_contradictions(belief)
             for contra in contradictions:
-                belief.add_contradiction(contra.id)
-                contra.add_contradiction(belief.id)
-
-        # Add belief
-        self.beliefs[belief.id] = belief
-        self._index_belief(belief)
+                self.add_edge(belief.id, contra.id, "contradicts", provenance="detected:add_belief", save=False)
 
         change = BeliefChange(
             belief_id=belief.id, change_type="created", new_claim=belief.claim, new_confidence=belief.confidence
@@ -426,12 +532,11 @@ class BeliefStore:
         Returns:
             Tuple of (stored belief, change record).
         """
-        for other in conflicting:
-            belief.add_contradiction(other.id)
-            other.add_contradiction(belief.id)
-
         self.beliefs[belief.id] = belief
         self._index_belief(belief)
+
+        for other in conflicting:
+            self.add_edge(belief.id, other.id, "contradicts", provenance="contested:absorb", save=False)
 
         change = BeliefChange(
             belief_id=belief.id,
@@ -727,6 +832,7 @@ class BeliefStore:
     def _save(self):
         """Save beliefs to disk."""
         data = {
+            "edges": [e.to_dict() for e in self.edges.values()],
             "beliefs": {bid: b.to_dict() for bid, b in self.beliefs.items()},
             "changes": [
                 {
@@ -776,6 +882,31 @@ class BeliefStore:
         # Rebuild domain index
         for belief in self.beliefs.values():
             self._index_belief(belief)
+
+        # Load typed edges
+        for edata in data.get("edges", []):
+            try:
+                edge = Edge.from_dict(edata)
+            except (KeyError, ValueError) as exc:
+                logger.warning("Skipping malformed edge in %s: %s", self.storage_path, exc)
+                continue
+            self.edges[edge.key()] = edge
+
+        # One-time, idempotent migration (TKG step 2): legacy
+        # contradictions_with lists become typed contradicts edges. Key-based
+        # dedup makes re-running free; the legacy field stays in sync (both
+        # directions are already recorded on the beliefs) for one release.
+        migrated = 0
+        for belief in self.beliefs.values():
+            for other_id in belief.contradictions_with:
+                probe = Edge(src_id=belief.id, dst_id=other_id, edge_type="contradicts")
+                if probe.key() not in self.edges:
+                    probe.provenance.append(_MIGRATED_PROVENANCE)
+                    self.edges[probe.key()] = probe
+                    migrated += 1
+        if migrated:
+            logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, self.expert_name)
+            self._save()
 
         # Load changes
         for cdata in data.get("changes", []):
