@@ -270,3 +270,134 @@ class TestCostDataDirIsolation:
 
         assert os.environ.get("DEEPR_COST_DATA_DIR"), "autouse isolation fixture not active"
         assert "data" + os.sep + "costs" not in str(default_cost_data_dir())
+
+
+class TestDashboardRebuildFromLedger:
+    """The dashboard is a derived view; rebuild_from_ledger regenerates it
+    from the canonical ledger (drift repair for costs doctor --rebuild)."""
+
+    def test_rebuild_mirrors_ledger(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+        from deepr.observability.costs import CostDashboard
+
+        dash = CostDashboard()
+        dash.ledger.record_event(
+            operation="research_submit",
+            provider="openai",
+            cost_usd=1.25,
+            model="o4-mini-deep-research",
+            task_id="job-1",
+            source="test.rebuild",
+        )
+        dash.ledger.record_event(
+            operation="curriculum_plan",
+            provider="openai",
+            cost_usd=0.05,
+            model="gpt-5-mini",
+            task_id="job-2",
+            source="test.rebuild",
+        )
+        # Dashboard view is empty (events went straight to the ledger)
+        assert sum(e.cost for e in dash.entries) == 0.0
+
+        count = dash.rebuild_from_ledger()
+
+        assert count == 2
+        assert abs(sum(e.cost for e in dash.entries) - 1.30) < 1e-9
+        assert dash.entries[0].metadata["source"] == "test.rebuild"
+        # Rebuild persists: a fresh dashboard sees the regenerated view
+        fresh = CostDashboard()
+        assert abs(sum(e.cost for e in fresh.entries) - 1.30) < 1e-9
+
+    def test_rebuild_replaces_stale_view(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+        from deepr.observability.costs import CostDashboard, CostEntry
+
+        dash = CostDashboard()
+        # Fabricated entry in the view only (the pollution scenario)
+        dash.entries.append(CostEntry(operation="fake", provider="test", cost=99.0))
+        dash.ledger.record_event(operation="real", provider="openai", cost_usd=0.10, source="test.rebuild")
+
+        dash.rebuild_from_ledger()
+
+        assert all(e.operation != "fake" for e in dash.entries)
+        assert abs(sum(e.cost for e in dash.entries) - 0.10) < 1e-9
+
+
+class TestCostLedgerIntegrity:
+    """Canonical ledger behaviors that guard against double/under-billing."""
+
+    def _ledger(self, tmp_path):
+        from deepr.observability.cost_ledger import CostLedger
+
+        return CostLedger(ledger_path=tmp_path / "ledger.jsonl")
+
+    def test_idempotency_key_prevents_double_billing(self, tmp_path):
+        ledger = self._ledger(tmp_path)
+        _, first = ledger.record_event(
+            operation="submit", provider="openai", cost_usd=2.0, idempotency_key="job-1:submit"
+        )
+        _, second = ledger.record_event(
+            operation="submit", provider="openai", cost_usd=2.0, idempotency_key="job-1:submit"
+        )
+        assert first is True
+        assert second is False
+        assert ledger.get_total_cost() == 2.0
+
+    def test_idempotency_index_survives_reload(self, tmp_path):
+        from deepr.observability.cost_ledger import CostLedger
+
+        ledger = self._ledger(tmp_path)
+        ledger.record_event(operation="submit", provider="openai", cost_usd=1.0, idempotency_key="k1")
+
+        reloaded = CostLedger(ledger_path=tmp_path / "ledger.jsonl")
+        _, recorded = reloaded.record_event(operation="submit", provider="openai", cost_usd=1.0, idempotency_key="k1")
+        assert recorded is False
+        assert reloaded.get_total_cost() == 1.0
+
+    def test_corrupt_line_logged_not_fatal(self, tmp_path, caplog):
+        import logging
+
+        from deepr.observability.cost_ledger import CostLedger
+
+        path = tmp_path / "ledger.jsonl"
+        ledger = self._ledger(tmp_path)
+        ledger.record_event(operation="a", provider="openai", cost_usd=0.5, idempotency_key="good")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write('{"broken json\n')
+
+        with caplog.at_level(logging.ERROR, logger="deepr.observability.cost_ledger"):
+            reloaded = CostLedger(ledger_path=path)
+        assert any("Corrupted cost ledger line" in r.message for r in caplog.records)
+        # The good record still loads and dedupes
+        _, recorded = reloaded.record_event(operation="a", provider="openai", cost_usd=0.5, idempotency_key="good")
+        assert recorded is False
+
+    def test_negative_cost_clamped(self, tmp_path):
+        ledger = self._ledger(tmp_path)
+        event, _ = ledger.record_event(operation="weird", provider="openai", cost_usd=-3.0)
+        assert event.cost_usd == 0.0
+        assert ledger.get_total_cost() == 0.0
+
+    def test_get_events_filters(self, tmp_path):
+        from datetime import UTC, datetime, timedelta
+
+        ledger = self._ledger(tmp_path)
+        ledger.record_event(operation="a", provider="openai", cost_usd=1.0, source="src.one")
+        ledger.record_event(operation="b", provider="openai", cost_usd=2.0, source="src.two")
+
+        by_source = ledger.get_events(source="src.one")
+        assert len(by_source) == 1
+        assert by_source[0].cost_usd == 1.0
+
+        future = datetime.now(UTC) + timedelta(days=1)
+        assert ledger.get_events(start_date=future) == []
+        assert ledger.get_events(end_date=future, start_date=future - timedelta(days=2)) != []
+        assert ledger.get_total_cost(source="src.two") == 2.0
+
+    def test_get_health_reports_path_and_writable(self, tmp_path):
+        ledger = self._ledger(tmp_path)
+        ledger.record_event(operation="a", provider="openai", cost_usd=0.1)
+        health = ledger.get_health()
+        assert health["writable"] is True
+        assert "ledger.jsonl" in str(health["path"])

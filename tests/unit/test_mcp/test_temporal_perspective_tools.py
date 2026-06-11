@@ -1,0 +1,104 @@
+"""Tests for the deepr_what_changed / deepr_contested MCP server methods.
+
+The query logic itself is covered in tests/unit/test_experts/test_perspective.py;
+these tests cover the server-side wrapping: expert lookup, timestamp parsing,
+error shapes, and the wiring to a real BeliefStore (on a tmp dir).
+"""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.mcp.server import DeeprMCPServer
+
+
+@pytest.fixture
+def server():
+    """DeeprMCPServer with mocked collaborators (no network, no filesystem)."""
+    with (
+        patch("deepr.mcp.server.ExpertStore"),
+        patch("deepr.mcp.server.load_config", return_value={}),
+        patch("deepr.mcp.server.get_resource_handler", return_value=MagicMock()),
+    ):
+        srv = DeeprMCPServer()
+    srv.store = MagicMock()
+    return srv
+
+
+def _real_store(tmp_path) -> BeliefStore:
+    return BeliefStore("Perspective Test Expert", storage_dir=tmp_path / "beliefs")
+
+
+class TestWhatChangedTool:
+    @pytest.mark.asyncio
+    async def test_expert_not_found(self, server):
+        server.store.load.return_value = None
+        out = await server.what_changed("Missing Expert", "2026-01-01T00:00:00+00:00")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_invalid_timestamp(self, server):
+        server.store.load.return_value = MagicMock()
+        out = await server.what_changed("X", "not-a-timestamp")
+        assert out["error_code"] == "INVALID_TIMESTAMP"
+
+    @pytest.mark.asyncio
+    async def test_returns_delta_with_added_beliefs(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        store.add_belief(
+            Belief(claim="MCP hosts should filter tools", confidence=0.9, domain="ai"), check_conflicts=False
+        )
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.what_changed("Perspective Test Expert", "2020-01-01T00:00:00+00:00")
+
+        assert out["total_changes"] == 1
+        assert out["added"][0]["claim"] == "MCP hosts should filter tools"
+        assert out["window_truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_changes_before_since_excluded(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        store.add_belief(Belief(claim="Old fact", confidence=0.8, domain="ai"), check_conflicts=False)
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.what_changed("Perspective Test Expert", "2099-01-01T00:00:00+00:00")
+
+        assert out["total_changes"] == 0
+
+
+class TestContestedTool:
+    @pytest.mark.asyncio
+    async def test_expert_not_found(self, server):
+        server.store.load.return_value = None
+        out = await server.contested("Missing Expert")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_lists_open_pairs(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        existing = Belief(claim="X is true", confidence=0.6, domain="ai")
+        store.add_belief(existing, check_conflicts=False)
+        store.add_contested_belief(Belief(claim="X is not true", confidence=0.9, domain="ai"), [existing])
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.contested("Perspective Test Expert")
+
+        assert out["contested_count"] == 1
+        assert out["open_count"] == 1
+        assert out["pairs"][0]["status"] == "open"
+
+    @pytest.mark.asyncio
+    async def test_empty_store_returns_zero(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.contested("Perspective Test Expert")
+
+        assert out["contested_count"] == 0
+        assert out["pairs"] == []
