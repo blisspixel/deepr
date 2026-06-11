@@ -1,0 +1,202 @@
+"""Temporal perspective queries over an expert's belief store.
+
+These are the first two tools of the temporal-knowledge-graph query surface
+(ROADMAP Phase 4, v2.14): read-side, cost-$0 layers over structures the
+belief store already persists, shipped ahead of the full typed-edge graph.
+
+- ``what_changed``: the perspective delta since a timestamp - beliefs added,
+  revised, contested, or archived - so a host agent (an always-on autopilot,
+  a coding agent with ephemeral context) re-syncs with an expert it consulted
+  before instead of re-reading everything.
+- ``contested``: open contradiction pairs with both sides' claims, confidence,
+  and provenance, so consumers see live conflicts rather than a smoothed
+  narrative. Consumes the contradiction edges that absorb-time flagging and
+  ``add_belief`` record.
+
+A corpus is what was read; a perspective is what is believed. These queries
+expose the *perspective*: not content, but calibrated epistemic state with
+history.
+
+Caveat recorded honestly: the belief store persists the last 100 change
+records, so ``what_changed`` is exact within that window and reports
+truncation beyond it (``window_truncated``).
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+from deepr.experts.beliefs import Belief, BeliefStore
+
+logger = logging.getLogger(__name__)
+
+# Reason prefix written by BeliefStore.add_contested_belief - identifies a
+# change record as a contested (contradiction-flagged) creation.
+_CONTESTED_REASON_PREFIX = "contested:"
+
+
+def _belief_summary(belief: Belief) -> dict[str, Any]:
+    """Compact, consumer-facing snapshot of one belief."""
+    return {
+        "belief_id": belief.id,
+        "claim": belief.claim,
+        "confidence": round(belief.get_current_confidence(), 3),
+        "source_type": belief.source_type,
+        "evidence_refs": list(belief.evidence_refs),
+        "updated_at": belief.updated_at.isoformat(),
+        "contradictions_with": list(belief.contradictions_with),
+    }
+
+
+@dataclass
+class PerspectiveDelta:
+    """What an expert's perspective did since a point in time."""
+
+    expert_name: str
+    since: datetime
+    added: list[dict[str, Any]] = field(default_factory=list)
+    revised: list[dict[str, Any]] = field(default_factory=list)
+    contested: list[dict[str, Any]] = field(default_factory=list)
+    archived: list[dict[str, Any]] = field(default_factory=list)
+    window_truncated: bool = False
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    @property
+    def total_changes(self) -> int:
+        return len(self.added) + len(self.revised) + len(self.contested) + len(self.archived)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "expert_name": self.expert_name,
+            "since": self.since.isoformat(),
+            "total_changes": self.total_changes,
+            "added": self.added,
+            "revised": self.revised,
+            "contested": self.contested,
+            "archived": self.archived,
+            "window_truncated": self.window_truncated,
+            "window_note": (
+                "Change history is bounded (last 100 records); earlier changes in the requested "
+                "range are not included. Re-baseline with a full belief read."
+                if self.window_truncated
+                else ""
+            ),
+            "generated_at": self.generated_at.isoformat(),
+        }
+
+
+def what_changed(store: BeliefStore, since: datetime, *, expert_name: str = "") -> PerspectiveDelta:
+    """Compute the perspective delta since ``since``.
+
+    Buckets persisted ``BeliefChange`` records strictly after ``since``:
+
+    - ``contested``: creations recorded by ``add_contested_belief`` (the
+      contradiction-as-signal path) - new claims that conflict with an
+      existing belief and are stored with contradiction edges.
+    - ``added``: ordinary belief creations.
+    - ``revised``: updates/revisions to existing beliefs (old claim and
+      confidence included when recorded).
+    - ``archived``: beliefs retired from the store.
+
+    Each entry carries the change reason and, when the belief still exists,
+    a current snapshot - so a consumer can act on the delta without a second
+    round trip.
+    """
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=UTC)
+
+    delta = PerspectiveDelta(expert_name=expert_name or store.expert_name, since=since)
+
+    changes = list(store.changes)
+    # The store keeps a bounded window. If the oldest retained record is
+    # newer than `since`, older changes in the requested range were dropped.
+    if changes and min(c.timestamp for c in changes) > since and len(changes) >= 100:
+        delta.window_truncated = True
+
+    for change in changes:
+        ts = change.timestamp if change.timestamp.tzinfo else change.timestamp.replace(tzinfo=UTC)
+        if ts <= since:
+            continue
+
+        entry: dict[str, Any] = {
+            "belief_id": change.belief_id,
+            "claim": change.new_claim,
+            "confidence": round(change.new_confidence, 3),
+            "reason": change.reason,
+            "timestamp": ts.isoformat(),
+        }
+        current = store.beliefs.get(change.belief_id)
+        if current is not None:
+            entry["current"] = _belief_summary(current)
+
+        if change.change_type == "created" and change.reason.startswith(_CONTESTED_REASON_PREFIX):
+            delta.contested.append(entry)
+        elif change.change_type == "created":
+            delta.added.append(entry)
+        elif change.change_type in ("updated", "revised"):
+            if change.old_claim:
+                entry["old_claim"] = change.old_claim
+            entry["old_confidence"] = round(change.old_confidence, 3)
+            delta.revised.append(entry)
+        elif change.change_type == "archived":
+            delta.archived.append(entry)
+        else:  # unknown change types stay visible rather than silently dropped
+            entry["change_type"] = change.change_type
+            delta.revised.append(entry)
+
+    return delta
+
+
+@dataclass
+class ContestedPair:
+    """One open contradiction between two beliefs, both sides included."""
+
+    a: dict[str, Any]
+    b: dict[str, Any]
+    status: str  # "open" | "dangling" (one side no longer in the store)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"a": self.a, "b": self.b, "status": self.status}
+
+
+def contested(store: BeliefStore, *, expert_name: str = "") -> dict[str, Any]:
+    """List open contradiction pairs with both sides' claims and provenance.
+
+    Pure read over the ``contradictions_with`` edges. A pair is ``open`` when
+    both beliefs are still in the store; ``dangling`` when one side has been
+    removed (its id is reported so the stale edge can be cleaned up by
+    maintenance). Resolution belongs to ``expert resolve-conflicts`` - this
+    query only makes the conflicts visible.
+    """
+    pairs: list[ContestedPair] = []
+    seen: set[tuple[str, str]] = set()
+
+    for belief in store.beliefs.values():
+        for other_id in belief.contradictions_with:
+            key = (min(belief.id, other_id), max(belief.id, other_id))
+            if key in seen:
+                continue
+            seen.add(key)
+
+            other = store.beliefs.get(other_id)
+            if other is not None:
+                pairs.append(ContestedPair(a=_belief_summary(belief), b=_belief_summary(other), status="open"))
+            else:
+                pairs.append(
+                    ContestedPair(
+                        a=_belief_summary(belief),
+                        b={"belief_id": other_id, "claim": "", "note": "no longer in store"},
+                        status="dangling",
+                    )
+                )
+
+    return {
+        "expert_name": expert_name or store.expert_name,
+        "contested_count": len(pairs),
+        "open_count": sum(1 for p in pairs if p.status == "open"),
+        "pairs": [p.to_dict() for p in pairs],
+        "generated_at": datetime.now(UTC).isoformat(),
+    }

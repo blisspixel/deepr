@@ -42,6 +42,10 @@ class ContextBuilder:
             token_budget: Maximum tokens for context (default from constants)
             enable_pruning: Whether to enable intelligent pruning
         """
+        # load_config() redacts secrets to "***" - treat the placeholder as
+        # absent so the env-var fallback applies instead of a bogus key.
+        if api_key in ("***", ""):
+            api_key = None
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self.token_budget = token_budget or MAX_CONTEXT_TOKENS
         self.enable_pruning = enable_pruning

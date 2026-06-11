@@ -355,6 +355,8 @@ class TestLegacyMethods:
             "deepr_expert_absorb",
             "deepr_route_gaps",
             "deepr_reflect",
+            "deepr_what_changed",
+            "deepr_contested",
         }
         for legacy, new in _LEGACY_METHOD_MAP.items():
             assert new in valid_tools, f"Legacy '{legacy}' maps to unknown tool '{new}'"
