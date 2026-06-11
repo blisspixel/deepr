@@ -393,3 +393,95 @@ class TestEdgeCases:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestOpenAIBenchmarkRouting:
+    """ModelRouter benchmark loading + selection (data/benchmarks is CWD-relative;
+    CI has no local benchmark files, so these paths need synthetic fixtures)."""
+
+    def _write_benchmark(self, tmp_path, payload):
+        import json
+
+        bench = tmp_path / "data" / "benchmarks"
+        bench.mkdir(parents=True)
+        (bench / "benchmark_2026.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def _router_with(self, tmp_path, monkeypatch, payload):
+        self._write_benchmark(tmp_path, payload)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("DEEPR_USE_BENCHMARK_ROUTING", "true")
+        return ModelRouter()
+
+    def test_no_benchmark_dir_loads_none(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        router = ModelRouter()
+        assert router._openai_bench is None
+
+    def test_corrupt_benchmark_loads_none(self, tmp_path, monkeypatch):
+        bench = tmp_path / "data" / "benchmarks"
+        bench.mkdir(parents=True)
+        (bench / "benchmark_2026.json").write_text("{nope", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        assert ModelRouter()._openai_bench is None
+
+    def test_non_openai_only_data_loads_none(self, tmp_path, monkeypatch):
+        router = self._router_with(
+            tmp_path,
+            monkeypatch,
+            {"rankings": [{"model_key": "xai/grok-4-3", "scores_by_type": {"reasoning": 0.9}}]},
+        )
+        assert router._openai_bench is None
+
+    def test_loads_openai_rankings_sorted(self, tmp_path, monkeypatch):
+        router = self._router_with(
+            tmp_path,
+            monkeypatch,
+            {
+                "rankings": [
+                    {"model_key": "openai/gpt-5.4", "scores_by_type": {"reasoning": 0.7}},
+                    {"model_key": "openai/gpt-5.4-mini", "scores_by_type": {"reasoning": 0.9}},
+                    {"model_key": "xai/grok-4-3", "scores_by_type": {"reasoning": 0.95}},  # filtered
+                ]
+            },
+        )
+        ranked = router._openai_bench["reasoning"]
+        assert [r[0] for r in ranked] == ["gpt-5.4-mini", "gpt-5.4"]
+
+    def test_select_respects_budget_and_sets_effort(self, tmp_path, monkeypatch):
+        router = self._router_with(
+            tmp_path,
+            monkeypatch,
+            {
+                "rankings": [
+                    {"model_key": "openai/gpt-5.4", "scores_by_type": {"reasoning": 0.95}},
+                    {"model_key": "openai/gpt-5.4-mini", "scores_by_type": {"reasoning": 0.8}},
+                ]
+            },
+        )
+        # gpt-5.4 (cost 0.30) exceeds the budget; must fall through to mini
+        cfg = router._select_openai_from_benchmarks("moderate", "reasoning", budget_remaining=0.10)
+        assert cfg is not None
+        assert cfg.model == "gpt-5.4-mini"
+        assert cfg.reasoning_effort == "medium"
+        assert cfg.confidence <= 0.95
+
+    def test_select_returns_none_without_data_or_task(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        router = ModelRouter()
+        assert router._select_openai_from_benchmarks("simple", "factual", None) is None
+
+        router2 = self._router_with(
+            tmp_path,
+            monkeypatch,
+            {"rankings": [{"model_key": "openai/gpt-5.4", "scores_by_type": {"synthesis": 0.9}}]},
+        )
+        assert router2._select_openai_from_benchmarks("complex", "coding", None) is None
+
+    def test_benchmark_routing_disabled_by_env(self, tmp_path, monkeypatch):
+        self._write_benchmark(
+            tmp_path,
+            {"rankings": [{"model_key": "openai/gpt-5.4", "scores_by_type": {"reasoning": 0.9}}]},
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("DEEPR_USE_BENCHMARK_ROUTING", "false")
+        assert ModelRouter()._openai_bench is None
