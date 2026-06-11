@@ -211,3 +211,79 @@ class TestBeliefEventLog:
 
         events = store.iter_events(since=cutoff)
         assert [e.new_claim for e in events] == ["After"]
+
+
+class TestTypedEdges:
+    """Typed belief-graph edges (TKG step 2): dedup, symmetry, migration."""
+
+    def test_edge_roundtrip_and_dedup_with_provenance_accumulation(self, tmp_path):
+        store = _store(tmp_path)
+        a, _ = store.add_belief(_belief("A"), check_conflicts=False)
+        b, _ = store.add_belief(_belief("B"), check_conflicts=False)
+
+        e1 = store.add_edge(a.id, b.id, "supports", provenance="report-1")
+        e2 = store.add_edge(a.id, b.id, "supports", provenance="report-2")
+        assert e1 is e2
+        assert e1.provenance == ["report-1", "report-2"]
+
+        reloaded = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        edges = reloaded.edges_for(a.id, "supports")
+        assert len(edges) == 1
+        assert edges[0].provenance == ["report-1", "report-2"]
+
+    def test_contradicts_is_symmetric_and_mirrors_legacy_field(self, tmp_path):
+        store = _store(tmp_path)
+        a, _ = store.add_belief(_belief("X is true"), check_conflicts=False)
+        b, _ = store.add_belief(_belief("Unrelated"), check_conflicts=False)
+
+        store.add_edge(a.id, b.id, "contradicts", provenance="manual")
+        # Reversed direction dedups onto the same edge
+        store.add_edge(b.id, a.id, "contradicts", provenance="reversed")
+        assert len(store.edges_for(a.id, "contradicts")) == 1
+        # Legacy field mirrored both ways - existing readers keep working
+        assert b.id in a.contradictions_with
+        assert a.id in b.contradictions_with
+
+    def test_contested_belief_writes_typed_edge(self, tmp_path):
+        store = _store(tmp_path)
+        existing, _ = store.add_belief(_belief("X is true"), check_conflicts=False)
+        challenger = _belief("X is not true", confidence=0.9)
+        store.add_contested_belief(challenger, [existing])
+
+        edges = store.edges_for(challenger.id, "contradicts")
+        assert len(edges) == 1
+        assert "contested:absorb" in edges[0].provenance
+
+    def test_legacy_store_migrates_contradictions_to_edges(self, tmp_path):
+        import json as _json
+
+        store = _store(tmp_path)
+        existing, _ = store.add_belief(_belief("X is true"), check_conflicts=False)
+        challenger = _belief("X is not true", confidence=0.9)
+        store.add_contested_belief(challenger, [existing])
+
+        # Simulate a pre-edge-store file: strip the edges key
+        data = _json.loads(store.storage_path.read_text(encoding="utf-8"))
+        data.pop("edges", None)
+        store.storage_path.write_text(_json.dumps(data), encoding="utf-8")
+
+        reloaded = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        edges = reloaded.edges_for(challenger.id, "contradicts")
+        assert len(edges) == 1
+        assert "migrated:contradictions_with" in edges[0].provenance
+
+        # Idempotent: a second reload neither duplicates nor re-migrates
+        again = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+        assert len(again.edges_for(challenger.id, "contradicts")) == 1
+
+    def test_invalid_edges_rejected(self, tmp_path):
+        import pytest as _pytest
+
+        store = _store(tmp_path)
+        a, _ = store.add_belief(_belief("A"), check_conflicts=False)
+        b, _ = store.add_belief(_belief("B"), check_conflicts=False)
+
+        with _pytest.raises(ValueError, match="Unknown edge type"):
+            store.add_edge(a.id, b.id, "refutes")
+        with _pytest.raises(ValueError, match="itself"):
+            store.add_edge(a.id, a.id, "supports")
