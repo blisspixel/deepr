@@ -158,6 +158,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.13.0] - 2026-06-01
 
 ### Added
+- **Expert-as-guardrail (`deepr expert validate NAME CLAIM`,
+  `deepr_expert_validate`).** The expert applies its existing knowledge as a
+  read-only validator: PASS/WARN/FAIL verdict with confidence, reasoning,
+  supporting/contradicting claims (resolved to canonical `Claim` objects with
+  full citation provenance), and caveats. `--from-file -` reads the claim from
+  stdin; structured JSON output makes the verdict machine-actionable for
+  downstream agents that need domain validation before acting. Never mutates
+  the expert. (Shipped 2026-05-27; entry added retroactively during the
+  roadmap/changelog reconciliation.)
 - **Per-expert SKILL.md export (`deepr expert export-skill NAME`).** Packages a
   single expert as an installable agentskills.io skill for any compatible host
   (Claude Code, Codex CLI, Gemini CLI, VS Code Copilot, Cursor, OpenClaw): the
