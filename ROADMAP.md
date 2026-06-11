@@ -637,7 +637,7 @@ stability last, because a contract freezes everything underneath it.
 Completes the epistemic core while the belief store is still easy to
 migrate. Design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-knowledge-graph.md).
 
-1. Belief event log (append-only; `what_changed` loses its truncation caveat)
+1. [x] Belief event log (shipped: append-only `events.jsonl` dual-written with the legacy window; `what_changed` reads the log when present and is exact with no truncation; legacy stores keep the honest caveat)
 2. Typed edges + migration; absorb/sync write support/provenance edges
 3. `explain_belief` (`deepr expert why` + MCP) - the third temporal query
 4. Regenerated expert digest (derived view, never canonical)

@@ -17,9 +17,10 @@ A corpus is what was read; a perspective is what is believed. These queries
 expose the *perspective*: not content, but calibrated epistemic state with
 history.
 
-Caveat recorded honestly: the belief store persists the last 100 change
-records, so ``what_changed`` is exact within that window and reports
-truncation beyond it (``window_truncated``).
+Stores with the append-only belief event log (``events.jsonl``, written by
+every change since v2.13.x) get exact deltas with no window limit. Legacy
+stores without the log fall back to the bounded 100-record ``changes``
+window and report truncation honestly (``window_truncated``).
 """
 
 from __future__ import annotations
@@ -110,11 +111,17 @@ def what_changed(store: BeliefStore, since: datetime, *, expert_name: str = "") 
 
     delta = PerspectiveDelta(expert_name=expert_name or store.expert_name, since=since)
 
-    changes = list(store.changes)
-    # The store keeps a bounded window. If the oldest retained record is
-    # newer than `since`, older changes in the requested range were dropped.
-    if changes and min(c.timestamp for c in changes) > since and len(changes) >= 100:
-        delta.window_truncated = True
+    if store.has_event_log:
+        # Append-only event log: unbounded, so the delta is exact - no
+        # truncation possible. (iter_events already filters strictly-after.)
+        changes = store.iter_events(since)
+    else:
+        # Legacy store: bounded window. If the oldest retained record is
+        # newer than `since`, older changes in the requested range were
+        # dropped.
+        changes = list(store.changes)
+        if changes and min(c.timestamp for c in changes) > since and len(changes) >= 100:
+            delta.window_truncated = True
 
     for change in changes:
         ts = change.timestamp if change.timestamp.tzinfo else change.timestamp.replace(tzinfo=UTC)
