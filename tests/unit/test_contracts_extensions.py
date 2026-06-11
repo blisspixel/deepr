@@ -1,6 +1,6 @@
 """Tests for contracts.py extensions: SupportClass, SourceValidation, ConsensusResult."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -16,7 +16,7 @@ from deepr.core.contracts import (
 
 
 def _utc_now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------

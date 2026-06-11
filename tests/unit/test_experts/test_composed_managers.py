@@ -6,6 +6,8 @@ with ExpertProfile and that delegation works correctly.
 Requirements: 5.1, 5.2, 5.3 - Composed manager integration
 """
 
+from datetime import UTC
+
 from deepr.experts import ActivityTracker, BudgetManager, ExpertProfile
 
 
@@ -278,7 +280,7 @@ class TestActivityTrackerStandalone:
 
     def test_activity_tracker_get_activity_count_since(self):
         """get_activity_count_since should count activities after timestamp."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         tracker = ActivityTracker()
 
@@ -287,26 +289,26 @@ class TestActivityTrackerStandalone:
         tracker.record_activity("research")
 
         # Count from an hour ago (should get all)
-        since = datetime.now(timezone.utc) - timedelta(hours=1)
+        since = datetime.now(UTC) - timedelta(hours=1)
         count = tracker.get_activity_count_since(since)
 
         assert count == 2
 
     def test_activity_tracker_get_activity_count_since_filters(self):
         """get_activity_count_since should filter old activities."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         tracker = ActivityTracker()
 
         # Add an old entry manually
-        old_time = datetime.now(timezone.utc) - timedelta(days=2)
+        old_time = datetime.now(UTC) - timedelta(days=2)
         tracker.activity_history.append({"timestamp": old_time.isoformat(), "type": "chat", "details": None})
 
         # Add a recent entry
         tracker.record_activity("chat")
 
         # Count from yesterday (should only get the recent one)
-        since = datetime.now(timezone.utc) - timedelta(days=1)
+        since = datetime.now(UTC) - timedelta(days=1)
         count = tracker.get_activity_count_since(since)
 
         assert count == 1

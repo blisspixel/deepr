@@ -1,6 +1,6 @@
 """Create demo experts for the web dashboard ($0 cost, no API calls)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from deepr.experts.profile import ExpertProfile
 from deepr.experts.profile_store import ExpertStore
@@ -96,7 +96,7 @@ demos = [
     },
 ]
 
-now = datetime.now(timezone.utc)
+now = datetime.now(UTC)
 
 for demo in demos:
     if store.exists(demo["name"]):

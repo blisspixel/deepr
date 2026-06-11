@@ -7,7 +7,7 @@ Validates: Requirements 12.3
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -36,7 +36,7 @@ def test_staleness_detection(max_age_days: int, days_since_refresh: int) -> None
 
     **Validates: Requirements 12.3**
     """
-    now = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    now = datetime(2025, 6, 1, tzinfo=UTC)
     last_refreshed = now - timedelta(days=days_since_refresh)
 
     policy = RefreshPolicy(
@@ -59,7 +59,7 @@ def test_force_refresh_always_stale(max_age_days: int) -> None:
 
     **Validates: Requirements 12.3**
     """
-    now = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    now = datetime(2025, 6, 1, tzinfo=UTC)
     # Even if just refreshed
     last_refreshed = now
 

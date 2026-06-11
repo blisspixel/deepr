@@ -42,9 +42,7 @@ class MockCostLedger:
         self.events: list[dict[str, Any]] = []
 
     def record_event(self, profile_name: str, tool_name: str, cost: float, trace_id: str) -> None:
-        self.events.append(
-            {"profile_name": profile_name, "tool_name": tool_name, "cost": cost, "trace_id": trace_id}
-        )
+        self.events.append({"profile_name": profile_name, "tool_name": tool_name, "cost": cost, "trace_id": trace_id})
 
 
 class TestPrimrProfileLoading:

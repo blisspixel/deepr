@@ -6,7 +6,7 @@ Feature: mcp-client-agent-interop
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -66,7 +66,7 @@ def test_property_13_progress_event_structure(
         progress_pct=progress_pct,
         phase=phase,
         elapsed_seconds=elapsed,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     notifier.emit(event)
 
@@ -118,7 +118,7 @@ def test_property_13_emit_dispatches_to_correct_server(
         progress_pct=None,
         phase=phase,
         elapsed_seconds=elapsed,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     notifier.emit(event)
 
@@ -162,7 +162,7 @@ def test_property_13_unsubscribe_stops_delivery(
         progress_pct=50.0,
         phase=phase,
         elapsed_seconds=elapsed,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     notifier.emit(event)
 

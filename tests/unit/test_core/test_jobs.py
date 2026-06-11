@@ -4,7 +4,7 @@ Requirements: 1.3 - Test Coverage
 """
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -279,7 +279,7 @@ class TestJobManagerCleanup:
     async def test_cleanup_removes_old_completed(self, manager):
         """Should remove old completed jobs."""
         # Create an old completed job
-        old_timestamp = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        old_timestamp = (datetime.now(UTC) - timedelta(days=10)).isoformat()
         old_record = {
             "response_id": "resp_old",
             "status": "completed",
@@ -305,7 +305,7 @@ class TestJobManagerCleanup:
     async def test_cleanup_preserves_queued(self, manager):
         """Should preserve queued jobs even if old."""
         # Create an old queued job
-        old_timestamp = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        old_timestamp = (datetime.now(UTC) - timedelta(days=10)).isoformat()
         old_record = {
             "response_id": "resp_old",
             "status": "queued",
