@@ -227,6 +227,12 @@ Goal: Deepr works as both MCP provider and consumer for real workflows, and spea
 
 See [docs/AGENTIC_VISION.md](docs/AGENTIC_VISION.md) for the full agentic architecture rationale.
 
+**The autopilot era validates the interop bet (June 2026 landscape).** Every major platform now ships always-on, long-running autonomous agents: Microsoft "Autopilots" (Scout on the Windows Agent Runtime, Work IQ API, Copilot Frontier), OpenAI AgentKit consolidating onto the Agents SDK + Workspace Agents (Connector Registry takes third-party MCP servers), Google Antigravity 2.0 (desktop/CLI/SDK + Managed Agents in the Gemini API + scheduled tasks), Amazon Bedrock AgentCore (managed harness, Memory, Observability, and *Payments* - agents autonomously paying for MCP servers and other agents), and Anthropic Managed Agents (MCP connectors, scheduled deployments). Deepr's position is unchanged and strengthened: it is the *knowledge role* these autopilots delegate to, never a competing orchestrator. Their persistence is shallow (session/long-term memory stores); a Deepr expert is calibrated epistemic state - which is exactly what an always-on agent checking in periodically needs (`what_changed` deltas, contested claims, gap backlogs). Three consequences for sequencing:
+
+- **Remote MCP becomes strategic, not backlog**: cloud-hosted autopilots cannot call a stdio server on a laptop. A hosted, authenticated Deepr MCP endpoint (Streamable HTTP/SSE) is the price of admission to every platform above - promote from backlog when Phase 4c/5 work allows.
+- **Hosts own the schedule, Deepr owns the verbs**: platform-native scheduling (Anthropic scheduled deployments, Antigravity scheduled tasks, Scout's always-on loop) can drive `deepr_expert_sync`/`health-check` instead of Deepr-side cron - consistent with the non-goal of owning the workflow.
+- **Handoff schemas and budget contracts gain a consumer**: AgentCore Payments previews agents paying per tool call; Deepr's budget contracts and versioned handoff schemas (Phase 5) map directly onto that - an autopilot paying per consult needs exactly the machine-validated artifacts and cost bounds Deepr already produces.
+
 - [x] MCP client connections (stdio + SSE)
 - [x] Configurable MCP client profiles (named server presets with connection details, auth, budget propagation, trace ID stitching, and automatic fallback)
 - [x] Async durability (resume/reconnect, timeout/cancel, progress notifications)
