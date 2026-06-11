@@ -12,8 +12,14 @@ mistake." So absorption is gated, not blind:
    (One call regardless of claim count, so cost stays predictable.)
 2. Confidence gate: candidates below ``min_confidence`` are dropped.
 3. Contradiction gate (cost-$0): a candidate that contradicts an existing
-   belief - by the same free heuristic ``health-check`` uses - is rejected, not
-   silently absorbed. This is the core safety property.
+   belief - by the same free heuristic ``health-check`` uses - is never
+   silently absorbed. By default it becomes a *flagged contradiction*: stored
+   as a contested belief with contradiction edges both ways (contradiction-as-
+   signal - the conflict is queryable and feeds ``expert resolve-conflicts``),
+   while the existing belief is guaranteed untouched. The core safety property
+   holds either way: a contradicting claim never overwrites a belief without
+   adjudication or approval. Pass ``flag_contradictions=False`` for the legacy
+   silent drop.
 4. Dedup + integrate: survivors go through ``BeliefStore.add_belief``, which
    dedupes near-duplicates and integrates only the delta, with the report id
    recorded as provenance on every belief.
@@ -96,6 +102,47 @@ class RejectedClaim:
 
 
 @dataclass
+class FlaggedContradiction:
+    """A candidate that contradicts an existing belief, kept as a signal.
+
+    Contradiction-as-signal (ROADMAP Phase 4): the conflict is the most
+    informative thing absorption can surface, so instead of silently dropping
+    the candidate we record it as a *contested* belief with contradiction
+    edges both ways. The existing belief is never revised or overwritten -
+    adjudication (``ConflictResolver.resolve`` / ``expert resolve-conflicts``)
+    and human approval own any actual belief revision.
+    """
+
+    statement: str
+    confidence: float
+    belief_id: str  # candidate's belief id ("" until recorded in a live run)
+    conflicts_with_id: str
+    conflicts_with_claim: str
+    conflicts_with_confidence: float
+    outcome: str  # "flagged" | "would_flag"
+    # The candidate is always the newer side; better_sourced compares
+    # report-grounded confidence so reviewers see which way the scale tips.
+    better_sourced: str = "tie"  # "candidate" | "existing" | "tie"
+    resolution: str = ""  # adjudication outcome when requested: a_wins | b_wins | merged | needs_human_review
+    resolution_explanation: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "statement": self.statement,
+            "confidence": round(self.confidence, 3),
+            "belief_id": self.belief_id,
+            "conflicts_with_id": self.conflicts_with_id,
+            "conflicts_with_claim": self.conflicts_with_claim,
+            "conflicts_with_confidence": round(self.conflicts_with_confidence, 3),
+            "outcome": self.outcome,
+            "newer": "candidate",
+            "better_sourced": self.better_sourced,
+            "resolution": self.resolution,
+            "resolution_explanation": self.resolution_explanation,
+        }
+
+
+@dataclass
 class AbsorptionResult:
     """The outcome of one absorb run."""
 
@@ -105,6 +152,7 @@ class AbsorptionResult:
     total_candidates: int
     absorbed: list[AbsorbedClaim] = field(default_factory=list)
     rejected: list[RejectedClaim] = field(default_factory=list)
+    flagged: list[FlaggedContradiction] = field(default_factory=list)
     estimated_cost: float = 0.0
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -126,8 +174,10 @@ class AbsorptionResult:
             "added_count": self.added_count,
             "merged_count": self.merged_count,
             "rejected_count": len(self.rejected),
+            "flagged_count": len(self.flagged),
             "absorbed": [a.to_dict() for a in self.absorbed],
             "rejected": [r.to_dict() for r in self.rejected],
+            "flagged": [f.to_dict() for f in self.flagged],
             "estimated_cost": round(self.estimated_cost, 4),
             "generated_at": self.generated_at.isoformat(),
         }
@@ -177,6 +227,8 @@ class ReportAbsorber:
         min_confidence: float = 0.6,
         dry_run: bool = False,
         max_claims: int = _MAX_CLAIMS,
+        flag_contradictions: bool = True,
+        adjudicate: bool = False,
     ) -> AbsorptionResult:
         """Extract, gate, and (unless dry_run) integrate report claims.
 
@@ -186,9 +238,16 @@ class ReportAbsorber:
             min_confidence: Drop candidates the report supports more weakly.
             dry_run: Extract and gate but write nothing (preview).
             max_claims: Upper bound on candidates extracted.
+            flag_contradictions: Record contradicting candidates as contested
+                beliefs with contradiction edges (the signal) instead of
+                silently dropping them. False restores the legacy drop.
+            adjudicate: Additionally run ``ConflictResolver.resolve`` on each
+                flagged pair (one paid LLM call per conflict) and record the
+                verdict on the flag. Advisory only - never mutates beliefs.
+                Ignored on dry runs (previews stay extraction-cost only).
 
         Returns:
-            AbsorptionResult describing what was absorbed and what was held back.
+            AbsorptionResult describing what was absorbed, held back, and flagged.
         """
         text = (report_text or "").strip()
         if not text:
@@ -202,6 +261,7 @@ class ReportAbsorber:
 
         absorbed: list[AbsorbedClaim] = []
         rejected: list[RejectedClaim] = []
+        flagged: list[FlaggedContradiction] = []
 
         for cand in candidates:
             if cand.confidence < min_confidence:
@@ -220,13 +280,17 @@ class ReportAbsorber:
 
             conflict = self._contradicts_existing(belief, existing)
             if conflict is not None:
-                rejected.append(
-                    RejectedClaim(
-                        cand.statement,
-                        "contradicts_existing",
-                        f"conflicts with belief {conflict.id}: {conflict.claim}",
+                if not flag_contradictions:
+                    rejected.append(
+                        RejectedClaim(
+                            cand.statement,
+                            "contradicts_existing",
+                            f"conflicts with belief {conflict.id}: {conflict.claim}",
+                        )
                     )
-                )
+                    continue
+                flagged.append(await self._flag_contradiction(belief, conflict, dry_run=dry_run, adjudicate=adjudicate))
+                existing.append(belief)
                 continue
 
             if dry_run:
@@ -247,8 +311,59 @@ class ReportAbsorber:
             total_candidates=len(candidates),
             absorbed=absorbed,
             rejected=rejected,
+            flagged=flagged,
             estimated_cost=ESTIMATED_EXTRACTION_COST,
         )
+
+    async def _flag_contradiction(
+        self,
+        belief: Belief,
+        conflict: Belief,
+        *,
+        dry_run: bool,
+        adjudicate: bool,
+    ) -> FlaggedContradiction:
+        """Record a contradicting candidate as a contested belief (the signal).
+
+        Safety property: the existing belief is never revised or overwritten
+        here. ``add_contested_belief`` bypasses similarity merging and
+        conflict-resolution strategies entirely; it only stores the candidate
+        with contradiction edges both ways so ``expert resolve-conflicts`` and
+        health-check can adjudicate later. Optional adjudication is advisory -
+        its verdict is recorded on the flag, never applied to the store.
+        """
+        if belief.confidence > conflict.confidence:
+            better = "candidate"
+        elif belief.confidence < conflict.confidence:
+            better = "existing"
+        else:
+            better = "tie"
+
+        flag = FlaggedContradiction(
+            statement=belief.claim,
+            confidence=belief.confidence,
+            belief_id="" if dry_run else belief.id,
+            conflicts_with_id=conflict.id,
+            conflicts_with_claim=conflict.claim,
+            conflicts_with_confidence=conflict.confidence,
+            outcome="would_flag" if dry_run else "flagged",
+            better_sourced=better,
+        )
+
+        if not dry_run:
+            self.belief_store.add_contested_belief(belief, [conflict])
+            if adjudicate:
+                try:
+                    resolver = ConflictResolver(client=self._client)
+                    result = await resolver.resolve(belief, conflict)
+                    flag.resolution = result.outcome
+                    flag.resolution_explanation = result.explanation
+                except Exception as exc:  # adjudication is best-effort advisory
+                    logger.warning("Conflict adjudication failed for %s: %s", belief.id, exc)
+                    flag.resolution = "adjudication_failed"
+                    flag.resolution_explanation = str(exc)
+
+        return flag
 
     @staticmethod
     def _contradicts_existing(belief: Belief, existing: list[Belief]) -> Belief | None:

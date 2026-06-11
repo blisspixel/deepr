@@ -1024,11 +1024,12 @@ def absorb_report(
         return
 
     print_header(f"Absorb report into {result.expert_name}")
-    mode = "[yellow]DRY RUN[/yellow] - nothing written" if result.dry_run else "applied"
+    if result.dry_run:
+        console.print("[yellow]DRY RUN[/yellow] - nothing written")
     console.print(
         f"Candidates: {result.total_candidates}  "
         f"Absorbed: {len(result.absorbed)} (added {result.added_count}, merged {result.merged_count})  "
-        f"Rejected: {len(result.rejected)}  [dim]({mode})[/dim]"
+        f"Rejected: {len(result.rejected)}  Flagged: {len(result.flagged)}"
     )
 
     if result.absorbed:
@@ -1037,6 +1038,18 @@ def absorb_report(
         for a in result.absorbed:
             print_list_item(f"{a.statement}  [dim](conf {a.confidence:.2f}, {a.outcome})[/dim]")
 
+    if result.flagged:
+        console.print()
+        print_section_header("Flagged contradictions (recorded as contested, existing beliefs untouched)")
+        for f in result.flagged:
+            console.print(f"  [yellow]![/yellow] {f.statement}  [dim](conf {f.confidence:.2f}, {f.outcome})[/dim]")
+            console.print(
+                f"    [dim]contradicts {f.conflicts_with_id}: {f.conflicts_with_claim} "
+                f"(conf {f.conflicts_with_confidence:.2f}; better sourced: {f.better_sourced})[/dim]"
+            )
+            if f.resolution:
+                console.print(f"    [dim]adjudication: {f.resolution} - {f.resolution_explanation}[/dim]")
+
     if result.rejected:
         console.print()
         print_section_header("Rejected")
@@ -1044,10 +1057,18 @@ def absorb_report(
             console.print(f"  [dim]-[/dim] {r.statement}")
             console.print(f"    [dim]{r.reason}: {r.detail}[/dim]")
 
-    if not result.absorbed and not result.rejected:
+    if not result.absorbed and not result.rejected and not result.flagged:
         print_warning("No claims extracted from the report.")
-    elif not result.dry_run and result.absorbed:
-        print_success(f"Integrated {len(result.absorbed)} belief(s). Audit anytime: deepr expert health-check '{name}'")
+    elif not result.dry_run and (result.absorbed or result.flagged):
+        if result.absorbed:
+            print_success(
+                f"Integrated {len(result.absorbed)} belief(s). Audit anytime: deepr expert health-check '{name}'"
+            )
+        if result.flagged:
+            print_warning(
+                f"{len(result.flagged)} contradiction(s) recorded as contested. "
+                f"Review with: deepr expert resolve-conflicts '{name}'"
+            )
 
 
 @expert.command(name="delete")
