@@ -32,7 +32,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.13.1)
+## Current Status (v2.13.2)
 
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5200+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
@@ -290,7 +290,7 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
   - [x] `deepr eval` preflight warns when newer relevant models are missing from the registry
   - [ ] Scheduled CI job that alerts on provider model drift
 - [x] Routing preview: `deepr research --preview` shows model choice, estimated cost band, and (in `--auto` mode) routing confidence and reasoning before executing. Works for both explicit `--model/--provider` runs and `--auto` mode. JSON output (`--json`) emits a structured `{preview, executed, provider, model, cost_estimate}` payload for machine consumers. Back-compat: `--dry-run` is preserved as an alias.
-- [ ] Eval methodology v2:
+- [ ] Eval methodology v2 (design: [docs/design/calibration-and-trust.md](docs/design/calibration-and-trust.md)):
   - [ ] Citation quality, grounding, synthesis depth, temporal accuracy
   - [ ] Expert-specific metrics: gap-detection success rate, belief-revision accuracy, citation freshness score, integration quality
   - [ ] Task-level cost-efficiency scoring
@@ -316,7 +316,7 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [x] Reflection metadata in output (per-dimension scores + issues + overall + follow-up queries)
   - [x] Configurable reflection depth (0 = skip, 1 = single pass, 2+ = rigorous)
   - [ ] Automatic re-research on the gaps reflection identifies (currently emits follow-up queries; running them is still manual/opt-in)
-- [ ] Graph-structured expert memory (the temporal knowledge graph - what makes an expert a *perspective*, not a corpus):
+- [ ] Graph-structured expert memory (design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-knowledge-graph.md)) (the temporal knowledge graph - what makes an expert a *perspective*, not a corpus):
   - Framing: a corpus is what was read; a perspective is what is *believed* - claims with calibrated confidence, provenance, recency, known gaps, and open conflicts. RAG gives a host agent retrieval over content; a Deepr expert gives it an epistemic state it can interrogate. The temporal dimension is what elevates the graph beyond content: beliefs have trajectories (strengthening, decaying, contested, revised), and the graph remembers *when* and *why* each shift happened. That unlocks queries no document store can answer: "why do you believe X" (inference chain), "what changed since I last consulted you" (perspective delta), "what is currently contested" (open contradiction pairs with both sides' evidence), "what would change your mind" (the support/contradict structure around a belief), and "what do you know you don't know" (the gap backlog as negative knowledge - an expert that says "I have nothing on Y" is refusing hallucinated authority).
   - [ ] Knowledge graph with typed nodes (fact, signal, inference, belief) and edges (supports, contradicts, enables)
   - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
@@ -438,7 +438,7 @@ Goal: production posture for multi-user and autonomous deployments.
   - [ ] WebSocket benchmark progress
   - [ ] Run comparison deltas
   - [ ] Provider validation action in UI
-- [ ] Hosted MCP endpoint (the autopilot on-ramp - promoted from backlog, see Phase 2 landscape note):
+- [ ] Hosted MCP endpoint (design: [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md)) (the autopilot on-ramp - promoted from backlog, see Phase 2 landscape note):
   - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
   - [ ] Per-key budget contracts and rate limits (reuses BudgetPropagator); read-only tool profile as the default exposure
   - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
@@ -466,6 +466,8 @@ Deepr is an orchestration layer over hosted model APIs - it does not train, fine
 - Inference-layer isolation (confidential VMs / GPU enclaves for serving) - inference runs on the providers' infrastructure under their shared-responsibility model.
 
 ### Phase 6: Plan-Quota and Local Backends (paid plans + owned hardware as bounded-cost research capacity)
+
+Design: [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md)
 
 Goal: let Deepr execute research through capacity the user already pays for or owns - subscription agentic CLIs (Claude Code, Codex CLI, Antigravity CLI, Kiro CLI) and local GPUs (Ollama) - treating plans as *bounded prepaid pools* and local inference as truly free at the margin, with hard guarantees that no path can produce a surprise bill.
 
@@ -608,10 +610,110 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.12 | Distillr + Primr integrations (Phase 2b complete); Phase E: `mcp/` flipped into the blocking `mypy --strict` gate (third strict island); first Phase 4 knowledge-loop increments - `expert health-check` and `expert absorb` (CLI + MCP, 21 tools); routing preview; bug-hunt fixes | Complete |
 | v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
 | v2.13.1 | Claude Fable 5; temporal perspective queries (`what-changed`/`contested`, MCP 25 tools); contradiction-as-signal in absorb; cost-guard hardening (pricing single-source, tiered settlement, ledger test-isolation, `costs doctor --rebuild`); CI coverage gate made blocking; Python 3.14 blocking; live-validation bug sweep ("***" api_key, orphaned learner jobs found) | Complete |
-| v2.14 | Temporal query tools (`what_changed`, `contested` - the autopilot wedge), expert freshness/sync, graph-structured expert memory, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
-| v2.15 | Autonomous research campaigns, ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
-| v2.16 | Plan-quota + local backends (Phase 6): subscription CLI execution, local Ollama, quota ledger, capacity-waterfall routing | Planned |
-| v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
+| v2.13.2 | Expert sync (subscribe/subscriptions/sync - the flagship loop-closer); simple default surface (sectioned help, 19-line .env.example, README clarity); durable learner jobs + $0 refusal of unaffordable budgets; web cost/expert APIs read canonical sources; screenshots regenerated from live data; frontend lint bootstrapped + deps verified; repo hygiene (one branch, zero bot-authored commits) | Complete |
+| v2.14 | The perspective release (see Version Plan below) | Planned |
+| v2.15 | The evidence release | Planned |
+| v2.16 | The capacity release | Planned |
+| v2.17 | The reach release | Planned |
+| v3.0 | The contract release - defined by criteria, not features | Future |
+
+## Version Plan (logical order, not a calendar)
+
+Versions are sequenced by dependency and risk, never by dates - this is a
+spare-time project with no SLA, and pretending otherwise would be the kind
+of false promise the rest of this roadmap avoids. Each release has a
+*theme* (the question it answers), its contents come from the phases above,
+and the order encodes a deliberate logic:
+
+**capability -> evidence -> capacity -> reach -> contract.**
+
+Close the loops while the surface is small; measure before making claims;
+make tokens cheap before inviting always-on consumers; open the remote door
+only when what is behind it is measured and affordable; and promise
+stability last, because a contract freezes everything underneath it.
+
+### v2.14 - The perspective release ("why do you believe that?")
+
+Completes the epistemic core while the belief store is still easy to
+migrate. Design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-knowledge-graph.md).
+
+1. Belief event log (append-only; `what_changed` loses its truncation caveat)
+2. Typed edges + migration; absorb/sync write support/provenance edges
+3. `explain_belief` (`deepr expert why` + MCP) - the third temporal query
+4. Regenerated expert digest (derived view, never canonical)
+5. Loop-closer completion: autonomous gap-fill execution (route-gaps
+   advises -> executes within budget), auto re-research from reflection
+   follow-ups, absorb-time contradiction flags in the health-check menu
+
+### v2.15 - The evidence release ("prove it")
+
+Turns claims into measurements before any wider exposure. Design:
+[docs/design/calibration-and-trust.md](docs/design/calibration-and-trust.md).
+
+1. Source-trust floors (deterministic confidence caps by provenance tier -
+   also the ingestion-time prompt-injection backstop)
+2. Calibration harness + published `docs/CALIBRATION.md`; absorb threshold
+   derived from the measured curve
+3. Eval methodology v2 (expert-specific metrics, versioned methodology);
+   A/B shadow mode once there are metrics to compare
+4. Engineering evidence (Phase E continuation): `mcp/` strict gate,
+   mutation-score baseline + ratchet, fault-injection tests, frontend
+   lint/tsc/build in CI (currently local-only)
+
+### v2.16 - The capacity release ("stop paying twice")
+
+Phase 6 in full: plans and hardware people already pay for become bounded
+research capacity, making always-on freshness affordable. Design:
+[docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md).
+
+1. Backend abstraction + quota ledger + `deepr capacity` visibility
+2. `cli-claude` adapter (opt-in), then `local-ollama` with eval-gated
+   admission
+3. Capacity-waterfall routing with quality gates; remaining adapters
+   (codex, antigravity post-cutover, kiro with reserve floor)
+4. Multi-account pools last (multiplies a working mechanism)
+
+### v2.17 - The reach release ("callable from anywhere")
+
+Opens the remote door - after evidence (2.15) and cheap capacity (2.16),
+because a hosted endpoint invites always-on consumers who will exercise
+both. Design: [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md).
+
+1. Streamable HTTP transport; scoped API keys (mode/expert/budget);
+   tool-call audit log (doubles as the mutation audit trail)
+2. Versioned handoff schemas (downstream agents get stability guarantees)
+3. Expert Crews (Phase 4c) + autonomous research campaigns (Phase 4b) -
+   the multi-expert deliverables, now consumable remotely
+4. Ops analytics: cost-vs-quality frontier, routing-drift and anomaly
+   alerts (flying blind ends before 3.0)
+
+### v3.0 - The contract release (criteria, not features)
+
+3.0 is declared when an always-on agent platform can rely on Deepr as
+organizational knowledge infrastructure *without the author in the loop*.
+The criteria, all measurable:
+
+- [ ] Handoff schemas versioned with a published deprecation policy
+- [ ] Calibration published and current for the shipping extraction model
+- [ ] Hosted endpoint with scoped auth, per-key budgets, audit log
+- [ ] Multi-user safety: RBAC, workspace isolation, mutation audit trail
+- [ ] A documented supported-surface statement (what is stable, what is
+      experimental, what export guarantees exist if the project stops)
+- [ ] Zero known silent-money paths (every spend source writes the
+      canonical ledger; proven by fault-injection, not assertion)
+
+Anything not on this list ships in a 2.x when ready; nothing waits for 3.0
+that does not gate the contract.
+
+### Deliberately unversioned
+
+- **Phase E** (engineering standards) and **model-registry currency** are
+  continuous - every release carries its share.
+- **Bug-hunt sweeps and live validations** happen per release, not as
+  versioned features (they have found real bugs every time they have run).
+- **Intentionally not planned**: hosted-by-Deepr SaaS, SLAs, enterprise
+  SSO before team features exist, full SLSA L3 (see Non-Goals) - listed so
+  their absence reads as a decision, not an oversight.
 
 ---
 
