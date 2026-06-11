@@ -82,6 +82,28 @@ class TestCostEstimator:
         assert tokens_long > tokens
         assert tokens_long > 100
 
+    def test_pricing_sourced_from_registry(self):
+        """Estimator must use registry pricing, not its legacy 4-model table.
+
+        The legacy table priced every unknown model at o3-deep-research
+        rates ($2/$8), so a $10/$50 frontier model passed pre-flight at a
+        ~5x underestimate.
+        """
+        # Long prompt so per-token differences survive 2-decimal rounding
+        prompt = "Analyze the macroeconomic effects of energy transition policy. " * 600
+
+        fable = CostEstimator.estimate_cost(prompt, "claude-fable-5")
+        opus = CostEstimator.estimate_cost(prompt, "claude-opus-4-8")
+        # Fable 5 ($10/$50) must estimate strictly above Opus 4.8 ($5/$25);
+        # under the old table both collapsed to the o3 default.
+        assert fable.expected_cost > opus.expected_cost
+
+    def test_actual_cost_uses_registry_rates(self):
+        """calculate_actual_cost must bill registry rates per model."""
+        fable = CostEstimator.calculate_actual_cost("claude-fable-5", input_tokens=100_000, output_tokens=50_000)
+        # $10/1M * 100K + $50/1M * 50K = $1.00 + $2.50 = $3.50
+        assert abs(fable - 3.50) < 0.01
+
 
 class TestCostController:
     """Test cost control and limits (no API calls)."""

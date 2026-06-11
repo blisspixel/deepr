@@ -565,3 +565,37 @@ class TestResetCostSafetyManager:
         """Test that reset is safe when no manager exists."""
         reset_cost_safety_manager()  # First reset
         reset_cost_safety_manager()  # Should not raise
+
+
+class TestCostSessionHardCeiling:
+    """CostSession.can_proceed must enforce the absolute per-op ceiling.
+
+    Previously only CostSafetyManager.check_and_reserve enforced the $10
+    ceiling; legacy callers using CostSession directly could approve a
+    single operation above it as long as the session budget allowed.
+    """
+
+    def test_rejects_above_absolute_ceiling(self):
+        from deepr.experts.cost_safety import CostSafetyManager, CostSession
+
+        session = CostSession(
+            session_id="test_ceiling",
+            session_type="chat",
+            budget_limit=100.0,  # plenty of session budget
+        )
+        over = CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION + 0.50
+        ok, reason = session.can_proceed(over)
+        assert ok is False
+        assert "ceiling" in reason.lower()
+
+    def test_allows_below_ceiling_within_budget(self):
+        from deepr.experts.cost_safety import CostSession
+
+        session = CostSession(
+            session_id="test_ceiling_ok",
+            session_type="chat",
+            budget_limit=100.0,
+        )
+        ok, reason = session.can_proceed(5.0)
+        assert ok is True
+        assert reason == "OK"
