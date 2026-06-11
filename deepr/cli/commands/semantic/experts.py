@@ -1190,6 +1190,164 @@ def contested_cmd(name: str, json_output: bool):
         console.print(f"\nAdjudicate with: deepr expert resolve-conflicts '{name}'")
 
 
+@expert.command(name="subscribe")
+@click.argument("name")
+@click.argument("topic")
+@click.option("--query", "-q", default="", help="Extra focus for the freshness prompt")
+@click.option("--every", "cadence_days", type=float, default=7.0, show_default=True, help="Refresh cadence in days")
+@click.option("--budget", "-b", type=float, default=0.50, show_default=True, help="Per-sync budget for this topic")
+def subscribe_cmd(name: str, topic: str, query: str, cadence_days: float, budget: float):
+    """Subscribe NAME to a topic so `deepr expert sync` keeps it current.
+
+    EXAMPLES:
+      deepr expert subscribe "MCP Interop Expert" "MCP specification changes"
+      deepr expert subscribe "AI Policy Expert" "EU AI Act enforcement" --every 3 --budget 1
+    """
+    import sys
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.sync import Subscription, SubscriptionStore
+
+    if not ExpertStore().load(name):
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    store = SubscriptionStore(name)
+    try:
+        store.add(Subscription(topic=topic, query=query, cadence_days=cadence_days, budget=budget))
+    except ValueError as exc:
+        print_error(str(exc))
+        sys.exit(2)
+
+    print_success(f"Subscribed '{name}' to: {topic} (every {cadence_days:g}d, ${budget:.2f}/sync)")
+    console.print(f"Run when due: deepr expert sync '{name}'")
+
+
+@expert.command(name="subscriptions")
+@click.argument("name")
+@click.option("--remove", "remove_topic", default=None, help="Unsubscribe from a topic")
+@click.option("--json", "json_output", is_flag=True, help="Output JSON")
+def subscriptions_cmd(name: str, remove_topic: str | None, json_output: bool):
+    """List (or remove) NAME's topic subscriptions."""
+    import json as _json
+    import sys
+    from datetime import UTC, datetime
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.sync import SubscriptionStore
+
+    if not ExpertStore().load(name):
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    store = SubscriptionStore(name)
+
+    if remove_topic:
+        if store.remove(remove_topic):
+            print_success(f"Unsubscribed from: {remove_topic}")
+        else:
+            print_error(f"No subscription found for: {remove_topic}")
+            sys.exit(2)
+        return
+
+    if json_output:
+        click.echo(_json.dumps({"subscriptions": [s.to_dict() for s in store.subscriptions]}, indent=2))
+        return
+
+    print_header(f"Subscriptions: {name}")
+    if not store.subscriptions:
+        console.print("[dim]No subscriptions. Add one with: deepr expert subscribe[/dim]")
+        return
+    now = datetime.now(UTC)
+    for s in store.subscriptions:
+        due = "[yellow]due[/yellow]" if s.is_due(now) else "current"
+        last = s.last_synced.strftime("%Y-%m-%d %H:%M") if s.last_synced else "never"
+        console.print(
+            f"  - {s.topic}  [dim](every {s.cadence_days:g}d, ${s.budget:.2f}/sync, last: {last})[/dim]  {due}"
+        )
+
+
+@expert.command(name="sync")
+@click.argument("name")
+@click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Total budget ceiling for this run")
+@click.option("--all", "sync_all", is_flag=True, help="Sync every subscription, not just due ones")
+@click.option("--dry-run", is_flag=True, help="Show what would sync; no research, no spend")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+@click.option("--json", "json_output", is_flag=True, help="Output JSON")
+def sync_cmd(name: str, budget: float, sync_all: bool, dry_run: bool, yes: bool, json_output: bool):
+    """Pull deltas for NAME's due subscriptions and integrate what changed.
+
+    For each due topic: researches only what changed since the last sync,
+    absorbs the delta through the verification-gated pipeline (dedup +
+    contradiction flagging), then reports the perspective delta. Designed
+    to run on a schedule - only due subscriptions spend money.
+
+    EXAMPLES:
+      deepr expert sync "MCP Interop Expert"
+      deepr expert sync "AI Policy Expert" --dry-run
+      deepr expert sync "AI Policy Expert" --all --budget 5 -y
+    """
+    import asyncio
+    import json as _json
+    import sys
+
+    from deepr.experts.profile import ExpertStore
+    from deepr.experts.sync import ExpertSyncEngine, SubscriptionStore
+
+    profile = ExpertStore().load(name)
+    if not profile:
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    subs = SubscriptionStore(name)
+    targets = subs.subscriptions if sync_all else subs.due()
+    if not targets:
+        print_success("Nothing to sync - no subscriptions are due.")
+        console.print(f"Subscriptions: deepr expert subscriptions '{name}'")
+        return
+
+    if not dry_run and not yes:
+        est = sum(min(s.budget, budget) for s in targets)
+        if not click.confirm(f"Sync {len(targets)} topic(s), estimated up to ${min(est, budget):.2f}?", default=False):
+            print_warning("Cancelled.")
+            return
+
+    engine = ExpertSyncEngine(profile)
+    result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
+
+    if json_output:
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    print_header(f"Sync: {name}")
+    for o in result.outcomes:
+        marker = {
+            "synced": "[green]synced[/green]",
+            "no_changes": "[dim]no changes[/dim]",
+            "would_sync": "[yellow]would sync[/yellow]",
+            "skipped": "[yellow]skipped[/yellow]",
+            "failed": "[red]failed[/red]",
+        }.get(o.status, o.status)
+        line = f"  {marker}  {o.topic}"
+        if o.status == "synced":
+            line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
+        elif o.detail:
+            line += f"  [dim]{o.detail[:90]}[/dim]"
+        console.print(line)
+
+    if not dry_run:
+        console.print(f"\nTotal cost: ${result.total_cost:.3f}")
+        delta = result.delta or {}
+        if delta.get("total_changes"):
+            console.print(
+                f"Perspective delta: {len(delta.get('added', []))} added, "
+                f"{len(delta.get('contested', []))} contested, {len(delta.get('revised', []))} revised"
+            )
+            console.print(f"Inspect: deepr expert what-changed '{name}' --since 1h")
+        if any(o.flagged for o in result.outcomes):
+            print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
+
+
 @expert.command(name="delete")
 @click.argument("name")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
