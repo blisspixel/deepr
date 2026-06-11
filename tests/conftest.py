@@ -46,6 +46,20 @@ def pytest_configure(config):
 # =============================================================================
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cost_data(tmp_path, monkeypatch):
+    """Keep every test's cost state away from the user's real ledger.
+
+    The canonical cost ledger and cost dashboard default to CWD-relative
+    paths (data/costs/...). Tests run from the repo root, so any test that
+    exercised cost recording was appending fabricated cost events to the
+    developer's real append-only ledger - inflating `costs show` with
+    fake spend (caught during live validation). DEEPR_COST_DATA_DIR is
+    honored by both components; point it at a per-test tmp dir.
+    """
+    monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
+
+
 @pytest.fixture
 def temp_dir(tmp_path):
     """Provide temporary directory for tests.
