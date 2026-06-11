@@ -19,6 +19,16 @@ from deepr.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
+# Rough cost of curriculum generation itself (discovery + synthesis calls,
+# gpt-5.2 class; observed ~$0.05-0.10 per run).
+ESTIMATED_GENERATION_COST = 0.10
+
+# Smallest budget that can produce any learning value: generation overhead
+# plus one focus-mode research topic (~$0.04-0.05). Below this, generation
+# would spend money and then every topic would be skipped at the per-topic
+# budget gate - so we refuse BEFORE the first paid call.
+MIN_VIABLE_LEARN_BUDGET = 0.15
+
 
 class CurriculumGenerationProgress:
     """Track and display curriculum generation progress.
@@ -260,7 +270,22 @@ class CurriculumGenerator:
 
         Returns:
             LearningCurriculum with topics ordered by priority and dependencies
+
+        Raises:
+            ValueError: If budget_limit cannot fund even the cheapest possible
+                plan. Checked BEFORE any paid call so an unaffordable plan
+                costs $0 (previously curriculum generation + source discovery
+                spent ~$0.10-0.30 and then every topic was skipped at the
+                per-topic budget gate).
         """
+        if budget_limit is not None and budget_limit < MIN_VIABLE_LEARN_BUDGET:
+            raise ValueError(
+                f"Budget ${budget_limit:.2f} is below the minimum viable learning budget "
+                f"(${MIN_VIABLE_LEARN_BUDGET:.2f}: curriculum generation ~"
+                f"${ESTIMATED_GENERATION_COST:.2f} plus at least one focus-mode topic). "
+                f"Raise --budget or skip --learn and add knowledge via expert absorb."
+            )
+
         # Check for environment variable override
         timeout = int(os.getenv("DEEPR_CURRICULUM_TIMEOUT", str(timeout)) or str(timeout))
 
