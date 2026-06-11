@@ -6,7 +6,7 @@ heuristic, and the large-context cost tier.
 """
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -232,8 +232,8 @@ class TestResponseBuilders:
             "search_queries_count": 100,  # 100 * $0.035 = $3.50
             "output": "report body",
             "citations": [{"url": "https://example.com"}],
-            "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
-            "completed_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+            "created_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "completed_at": datetime(2026, 1, 1, tzinfo=UTC),
         }
         out = provider._build_deep_research_response("interaction_123", job_data)
         assert out.id == "interaction_123"
@@ -261,8 +261,8 @@ class TestResponseBuilders:
             "usage": {"input_tokens": 1000, "output_tokens": 200, "total_tokens": 1200},
             "output": "final answer",
             "thoughts": "thinking trace",
-            "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
-            "completed_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+            "created_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "completed_at": datetime(2026, 1, 1, tzinfo=UTC),
             "request": request,
         }
         out = provider._get_regular_job_status("j1")

@@ -1,6 +1,6 @@
 """Tests for expert profile serializer module."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from deepr.experts.serializer import (
@@ -18,7 +18,7 @@ class TestDatetimeToIso:
     """Tests for datetime_to_iso."""
 
     def test_with_datetime(self):
-        dt = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
         result = datetime_to_iso(dt)
         assert result == "2024-06-15T12:00:00+00:00"
 
@@ -39,7 +39,7 @@ class TestIsoToDatetime:
         assert iso_to_datetime(None) is None
 
     def test_with_datetime_passthrough(self):
-        dt = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 1, tzinfo=UTC)
         result = iso_to_datetime(dt)
         assert result is dt
 
@@ -64,7 +64,7 @@ class TestProfileToDict:
 
     def test_datetime_conversion(self):
         # Test datetime field handling via the roundtrip functions
-        dt = datetime(2024, 3, 1, tzinfo=timezone.utc)
+        dt = datetime(2024, 3, 1, tzinfo=UTC)
         iso = datetime_to_iso(dt)
         restored = iso_to_datetime(iso)
         assert restored == dt
@@ -130,7 +130,7 @@ class TestProfileSerializer:
     """Tests for ProfileSerializer class methods."""
 
     def test_serialize_datetime(self):
-        dt = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 1, tzinfo=UTC)
         result = ProfileSerializer.serialize_datetime(dt)
         assert isinstance(result, str)
         assert "2024" in result

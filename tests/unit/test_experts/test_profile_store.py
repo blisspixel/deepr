@@ -4,7 +4,7 @@ Requirements: 1.2 - ExpertProfile Refactoring
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -158,7 +158,7 @@ class TestExpertStore:
         # Create experts with different update times
         from datetime import timedelta
 
-        base_time = datetime.now(timezone.utc)
+        base_time = datetime.now(UTC)
 
         for i in range(3):
             profile = ExpertProfile(

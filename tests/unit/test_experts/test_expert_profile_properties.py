@@ -7,7 +7,7 @@ Uses Hypothesis to verify universal correctness properties:
 Requirements: 4.5, 4.6 - Property-based testing for ExpertProfile
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -17,7 +17,7 @@ from deepr.experts.profile import ExpertProfile
 
 def utc_now():
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 from deepr.experts.activity_tracker import ActivityTracker
@@ -45,7 +45,7 @@ domain_velocity_strategy = st.sampled_from(["slow", "medium", "fast"])
 
 # Strategy for reasonable datetime values (within last 2 years) - timezone-aware
 datetime_strategy = st.datetimes(
-    min_value=datetime(2024, 1, 1), max_value=datetime(2026, 12, 31), timezones=st.just(timezone.utc)
+    min_value=datetime(2024, 1, 1), max_value=datetime(2026, 12, 31), timezones=st.just(UTC)
 )
 
 # Strategy for optional datetime

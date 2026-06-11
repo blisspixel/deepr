@@ -76,7 +76,7 @@ from deepr.storage import create_storage
 
 # Prompt primitives (template menus for MCP clients)
 try:
-    from skills.deepr_research_prompts import get_prompt, list_prompts  # type: ignore
+    from skills.deepr_research_prompts import get_prompt, list_prompts
 except ImportError:
     # Fallback: load prompts module from skills directory without sys.path manipulation
     try:

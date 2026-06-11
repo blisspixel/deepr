@@ -6,7 +6,7 @@ _handle_completion success + queue-update-failure, _handle_failure persistence.
 """
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -145,7 +145,7 @@ class TestCheckJobStatus:
 
     @pytest.mark.asyncio
     async def test_queued_short_time_logs_only(self, poller):
-        recent = datetime.now(timezone.utc) - timedelta(minutes=2)
+        recent = datetime.now(UTC) - timedelta(minutes=2)
         resp = MagicMock(status="queued")
         poller.provider.get_status = AsyncMock(return_value=resp)
         poller._handle_failure = AsyncMock()
@@ -154,7 +154,7 @@ class TestCheckJobStatus:
 
     @pytest.mark.asyncio
     async def test_queued_stuck_triggers_cancel_and_fail(self, poller):
-        old = datetime.now(timezone.utc) - timedelta(minutes=15)
+        old = datetime.now(UTC) - timedelta(minutes=15)
         resp = MagicMock(status="queued")
         poller.provider.get_status = AsyncMock(return_value=resp)
         poller.provider.cancel_job = AsyncMock()
@@ -168,7 +168,7 @@ class TestCheckJobStatus:
 
     @pytest.mark.asyncio
     async def test_queued_stuck_cancel_failure_still_marks_failed(self, poller):
-        old = datetime.now(timezone.utc) - timedelta(minutes=20)
+        old = datetime.now(UTC) - timedelta(minutes=20)
         resp = MagicMock(status="queued")
         poller.provider.get_status = AsyncMock(return_value=resp)
         poller.provider.cancel_job = AsyncMock(side_effect=RuntimeError("no can do"))

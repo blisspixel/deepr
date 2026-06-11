@@ -1,7 +1,7 @@
 """Unit tests for task durability."""
 
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -210,7 +210,7 @@ class TestDurableTask:
 
     def test_task_to_dict(self):
         """Test DurableTask serialization."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         task = DurableTask(
             id="task123",
             job_id="job456",

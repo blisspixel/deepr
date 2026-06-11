@@ -45,9 +45,7 @@ class MockCostLedger:
         self.events: list[dict[str, Any]] = []
 
     def record_event(self, profile_name: str, tool_name: str, cost: float, trace_id: str) -> None:
-        self.events.append(
-            {"profile_name": profile_name, "tool_name": tool_name, "cost": cost, "trace_id": trace_id}
-        )
+        self.events.append({"profile_name": profile_name, "tool_name": tool_name, "cost": cost, "trace_id": trace_id})
 
 
 class TestDistillrProfileLoading:
@@ -128,12 +126,7 @@ class TestDistillrAutoDiscovery:
             lambda name: "/usr/bin/distill-mcp" if name == "distill-mcp" else None,
         )
         config_path = tmp_path / "integrations.yaml"
-        config_path.write_text(
-            "profiles:\n"
-            "  - name: distillr\n"
-            "    command: distill-mcp\n"
-            "    budget_limit: 9.0\n"
-        )
+        config_path.write_text("profiles:\n  - name: distillr\n    command: distill-mcp\n    budget_limit: 9.0\n")
         profiles = ConfigLoader().load(config_path)
         distillr = [p for p in profiles if p.name == "distillr"]
         # Exactly one (no duplicate from auto-discovery), and it is the user's.
