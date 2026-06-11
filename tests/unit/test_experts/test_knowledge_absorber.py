@@ -58,9 +58,7 @@ class TestDistillrAbsorption:
 
     def test_metadata_only_falls_back_to_single_finding(self) -> None:
         absorber = KnowledgeAbsorber()
-        findings = absorber.categorize_distillr_response(
-            {"summary": "nothing found"}, topic="quantum"
-        )
+        findings = absorber.categorize_distillr_response({"summary": "nothing found"}, topic="quantum")
         assert len(findings) == 1
         assert findings[0].category == "academic"
         assert "quantum" in findings[0].text
@@ -74,9 +72,7 @@ class TestDistillrAbsorption:
 
     def test_topic_inferred_from_query_key(self) -> None:
         absorber = KnowledgeAbsorber()
-        findings = absorber.categorize_distillr_response(
-            {"query": "graph rag", "results": ["hit"]}
-        )
+        findings = absorber.categorize_distillr_response({"query": "graph rag", "results": ["hit"]})
         assert any("hit" in f.text for f in findings)
 
     def test_non_dict_returns_empty(self) -> None:
@@ -139,17 +135,13 @@ class TestPrimrAbsorption:
 
     def test_company_inferred_from_domain(self) -> None:
         absorber = KnowledgeAbsorber()
-        findings = absorber.categorize_primr_response(
-            {"domain": "acme.com", "mode": "full", "report_path": "r.md"}
-        )
+        findings = absorber.categorize_primr_response({"domain": "acme.com", "mode": "full", "report_path": "r.md"})
         assert findings
         assert "acme.com" in findings[0].text
 
     def test_estimate_metadata_falls_back_to_strategic_summary(self) -> None:
         absorber = KnowledgeAbsorber()
-        findings = absorber.categorize_primr_response(
-            {"estimated_cost": 0.6, "estimated_minutes": 40}, company="acme"
-        )
+        findings = absorber.categorize_primr_response({"estimated_cost": 0.6, "estimated_minutes": 40}, company="acme")
         assert len(findings) == 1
         assert findings[0].category == "strategic"
 

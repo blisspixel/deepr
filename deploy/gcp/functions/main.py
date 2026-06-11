@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import functions_framework
 from google.cloud import firestore, pubsub_v1, storage
@@ -203,7 +203,7 @@ def submit_job(request):
         return response(400, {"error": f"Metadata exceeds maximum size of {MAX_METADATA_SIZE} bytes"})
 
     job_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     submitted_at = now.isoformat()
 
     # Calculate TTL (90 days from now) for automatic cleanup
@@ -337,7 +337,7 @@ def cancel_job(job_id: str):
             return ("terminal", job.get("status"))
         transaction.update(
             doc_ref,
-            {"status": "cancelled", "cancelled_at": datetime.now(timezone.utc).isoformat()},
+            {"status": "cancelled", "cancelled_at": datetime.now(UTC).isoformat()},
         )
         return ("ok", None)
 

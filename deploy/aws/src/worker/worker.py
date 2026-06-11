@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import boto3
 
@@ -66,7 +66,7 @@ def update_job_status(job_id: str, status: str, **kwargs):
         names = {"#status": "status", "#updated_at": "updated_at"}
         values = {
             ":status": status,
-            ":updated_at": datetime.now(timezone.utc).isoformat(),
+            ":updated_at": datetime.now(UTC).isoformat(),
         }
         sets = ["#status = :status", "#updated_at = :updated_at"]
         for i, (k, v) in enumerate(kwargs.items()):
@@ -222,7 +222,7 @@ async def process_message(message):
             return True
 
         # Update status to processing
-        update_job_status(job_id, "processing", started_at=datetime.now(timezone.utc).isoformat())
+        update_job_status(job_id, "processing", started_at=datetime.now(UTC).isoformat())
 
         # Execute research
         content, cost, tokens = await execute_research(job)
@@ -232,7 +232,7 @@ async def process_message(message):
 
         # Update status to completed
         update_job_status(
-            job_id, "completed", completed_at=datetime.now(timezone.utc).isoformat(), cost=cost, tokens_used=tokens
+            job_id, "completed", completed_at=datetime.now(UTC).isoformat(), cost=cost, tokens_used=tokens
         )
 
         logger.info(f"Completed job {job_id} (cost: ${cost:.2f}, tokens: {tokens})")

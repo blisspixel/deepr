@@ -9,7 +9,6 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -18,8 +17,8 @@ class Citation:
 
     index: int
     source: str
-    url: Optional[str] = None
-    accessed: Optional[str] = None
+    url: str | None = None
+    accessed: str | None = None
 
     def format(self) -> str:
         """Format citation for bibliography."""
@@ -40,7 +39,7 @@ class ResearchMetadata:
     duration_seconds: int
     cost: float
     job_id: str
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
 
     @property
     def duration_formatted(self) -> str:
@@ -258,7 +257,7 @@ def format_result(result: RawResult) -> str:
     return output
 
 
-def load_template(template_path: Optional[Path] = None) -> str:
+def load_template(template_path: Path | None = None) -> str:
     """Load the report template."""
     if template_path is None:
         template_path = Path(__file__).parent.parent / "templates" / "research_report.md"

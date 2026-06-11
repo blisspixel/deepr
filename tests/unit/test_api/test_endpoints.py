@@ -9,7 +9,7 @@ Feature: code-quality-security-hardening
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -44,9 +44,9 @@ def create_mock_job(
     mock_job.priority = priority
     mock_job.cost = cost
     mock_job.tokens_used = tokens_used
-    mock_job.submitted_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-    mock_job.started_at = datetime(2024, 1, 1, 12, 0, 1, tzinfo=timezone.utc)
-    mock_job.completed_at = datetime(2024, 1, 1, 12, 5, 0, tzinfo=timezone.utc)
+    mock_job.submitted_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+    mock_job.started_at = datetime(2024, 1, 1, 12, 0, 1, tzinfo=UTC)
+    mock_job.completed_at = datetime(2024, 1, 1, 12, 5, 0, tzinfo=UTC)
     mock_job.metadata = {"test": "value"}
     mock_job.provider_job_id = "resp_abc123"
     mock_job.enable_web_search = True

@@ -1,6 +1,6 @@
 """Unit tests for temporal knowledge tracker."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from deepr.observability.temporal_tracker import (
     FindingType,
@@ -257,7 +257,7 @@ class TestTemporalFindingDataclass:
             "confidence": 0.8,
             "source": "test",
             "finding_type": "fact",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "related_findings": [],
             "tags": ["test"],
             "metadata": {},

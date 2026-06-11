@@ -6,7 +6,7 @@ LAST N matching rows. The previous implementation returned the FIRST N
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -21,7 +21,7 @@ def log(tmp_path: Path):
 
 def _make_event(idx: int) -> RoutingDecisionEvent:
     return RoutingDecisionEvent(
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         provider="openai",
         model=f"gpt-{idx}",
         complexity="medium",

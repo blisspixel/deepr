@@ -56,7 +56,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -2336,7 +2336,7 @@ def print_report(summaries: list[ModelSummary], results: list[EvalResult], total
 def print_json_report(summaries: list[ModelSummary], results: list[EvalResult], total_cost: float):
     """Print report as JSON."""
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "total_cost": total_cost,
         "models": len(summaries),
         "evals": len(results),
@@ -2374,7 +2374,7 @@ def save_results(summaries: list[ModelSummary], results: list[EvalResult], total
     out_file = out_dir / f"benchmark_{timestamp}.json"
 
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "total_cost": total_cost,
         "rankings": [asdict(s) for s in summaries],
         "results": [
@@ -2464,7 +2464,7 @@ def emit_routing_config(summaries: list[ModelSummary], results: list[EvalResult]
             overall_ranking.append(s.model_key)
 
     config = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "model_count": len(summaries),
         "task_preferences": preferences,
         "overall_ranking": overall_ranking,
