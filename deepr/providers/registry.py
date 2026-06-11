@@ -4,7 +4,10 @@ Defines capabilities, costs, and specializations for all supported models across
 Used by ModelRouter to make intelligent routing decisions.
 """
 
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -764,6 +767,30 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
     # Note: Anthropic does NOT have a turnkey deep research API like OpenAI/Gemini.
     # Research capability is achieved via Extended Thinking + tool use + our orchestration.
     # For research, we recommend Opus 4.8 - most capable, Adaptive Thinking, production-grade agents.
+    # Claude Fable 5 — frontier tier above Opus (GA Jun 2026); premium price, opt-in only
+    "anthropic/claude-fable-5": ModelCapability(
+        provider="anthropic",
+        model="claude-fable-5",
+        cost_per_query=2.20,  # 2x Opus per-token rate AND ~30% more tokens (new tokenizer)
+        latency_ms=20000,
+        context_window=1_000_000,
+        specializations=["research", "reasoning", "coding", "analysis", "complex_tasks", "agents"],
+        strengths=[
+            "Anthropic's most capable model (Mythos-class tier above Opus)",
+            "State-of-the-art long-horizon agentic work and reasoning",
+            "Thinking always on (adaptive); 1M context, 128K max output",
+            "Strong multi-agent delegation and self-verification",
+        ],
+        weaknesses=[
+            "2x Opus per-token price ($10/$50) plus ~30% more tokens per text (new tokenizer)",
+            "Safety classifiers may refuse requests (cyber/bio research topics)",
+            "Requires 30-day data retention (not available under ZDR)",
+            "Long single-turn latency (minutes on hard tasks)",
+            "No native deep research API (requires orchestration)",
+        ],
+        input_cost_per_1m=10.00,
+        output_cost_per_1m=50.00,
+    ),
     # Claude Opus 4.8 — most capable Claude (GA May 28, 2026); recommended flagship
     "anthropic/claude-opus-4-8": ModelCapability(
         provider="anthropic",
@@ -1061,13 +1088,18 @@ def _normalize_model_name(name: str) -> str:
     return name.replace(".", "-").lower()
 
 
-def get_token_pricing(model: str) -> dict[str, float]:
+def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, float]:
     """Get per-token pricing for a model.
 
     Searches registry by model name across all providers.
 
     Args:
         model: Model name (e.g., "o3-deep-research", "grok-4-1-fast-non-reasoning")
+        input_tokens: Optional prompt size in tokens. When provided and the
+            model has tiered pricing (e.g. Gemini 3.x Pro charges more above
+            200K input tokens), the returned rates reflect the tier so that
+            settlement (UsageStats.calculate_cost) matches what the provider
+            actually bills instead of silently under-recording.
 
     Returns:
         Dict with "input" and "output" costs per 1M tokens.
@@ -1079,10 +1111,20 @@ def get_token_pricing(model: str) -> dict[str, float]:
     resolved = _MODEL_ALIASES.get(model, model)
     needle = _normalize_model_name(resolved)
 
+    def _with_tier(prices: dict[str, float]) -> dict[str, float]:
+        if input_tokens is not None:
+            for tiered_model, (threshold, input_mult, output_mult) in _TIERED_PRICING.items():
+                if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
+                    return {
+                        "input": round(prices["input"] * input_mult, 6),
+                        "output": round(prices["output"] * output_mult, 6),
+                    }
+        return prices
+
     # Exact match (normalized)
     for cap in MODEL_CAPABILITIES.values():
         if cap.input_cost_per_1m > 0 and _normalize_model_name(cap.model) == needle:
-            return {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m}
+            return _with_tier({"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m})
 
     # Partial match — longest cap.model first so e.g. ``gemini-2.5-flash-lite``
     # matches its own entry before the shorter ``gemini-2.5-flash`` prefix
@@ -1094,21 +1136,31 @@ def get_token_pricing(model: str) -> dict[str, float]:
     )
     for cap in candidates:
         if _normalize_model_name(cap.model) in needle:
-            return {"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m}
+            return _with_tier({"input": cap.input_cost_per_1m, "output": cap.output_cost_per_1m})
 
-    # Default to o4-mini pricing
+    # Default to o4-mini pricing. This is a silent-money hazard for
+    # unregistered expensive models (e.g. a $10/$50 frontier model would
+    # bill internally at $1.10/$4.40), so make it loud.
+    logger.warning(
+        "No registry pricing for model %r; defaulting to o4-mini rates ($1.10/$4.40 per 1M). "
+        "Add the model to deepr/providers/registry.py to bill it correctly.",
+        model,
+    )
     default = MODEL_CAPABILITIES.get("openai/o4-mini-deep-research")
     if default:
         return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
     return {"input": 1.10, "output": 4.40}
 
 
-# Models whose published pricing doubles for prompts exceeding a per-model
-# input-token threshold. Used by get_cost_estimate() so pre-flight budget
-# checks reflect tiered pricing rather than the base cost_per_query rate.
-_TIERED_PRICING: dict[str, tuple[int, float]] = {
-    "gemini-3.1-pro-preview": (200_000, 2.0),
-    "gemini-3-pro-preview": (200_000, 2.0),
+# Models whose published pricing rises for prompts exceeding a per-model
+# input-token threshold: (threshold, input_multiplier, output_multiplier).
+# Gemini 3.x Pro: $2/$12 -> $4/$18 above 200K input tokens (2x input,
+# 1.5x output). Used by get_cost_estimate() for pre-flight budget checks
+# and by get_token_pricing(input_tokens=...) at settlement so the ledger
+# records what the provider actually bills.
+_TIERED_PRICING: dict[str, tuple[int, float, float]] = {
+    "gemini-3.1-pro-preview": (200_000, 2.0, 1.5),
+    "gemini-3-pro-preview": (200_000, 2.0, 1.5),
 }
 
 # Caller-facing aliases that resolve to expensive deep-research provider
@@ -1156,9 +1208,11 @@ def get_cost_estimate(model: str, input_tokens: int | None = None) -> float:
                 break
 
     if input_tokens is not None:
-        for tiered_model, (threshold, multiplier) in _TIERED_PRICING.items():
+        for tiered_model, (threshold, input_mult, _output_mult) in _TIERED_PRICING.items():
             if _normalize_model_name(tiered_model) in needle and input_tokens > threshold:
-                return round(base * multiplier, 4)
+                # Large-context jobs are input-dominated; the input multiplier
+                # is the conservative per-query scaling for pre-flight checks.
+                return round(base * input_mult, 4)
 
     return base
 

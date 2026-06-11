@@ -54,26 +54,44 @@ class AnthropicProvider(DeepResearchProvider):
     """
 
     SUPPORTED_MODELS = [
-        "claude-opus-4-5",  # Latest flagship - $5/$25 per MTok
-        "claude-opus-4-1",  # Legacy - $15/$75 per MTok
-        "claude-opus-4",  # Legacy - $15/$75 per MTok
-        "claude-sonnet-4-5",  # Best value for research - $3/$15 per MTok
-        "claude-sonnet-4",  # Previous gen - $3/$15 per MTok
-        "claude-sonnet-3-7",  # Legacy - $3/$15 per MTok
+        "claude-fable-5",  # Frontier tier - $10/$50 per MTok (new tokenizer ~30% more tokens)
+        "claude-opus-4-8",  # Flagship - $5/$25 per MTok (adaptive thinking only)
+        "claude-opus-4-7",  # Previous flagship - $5/$25 per MTok (adaptive thinking only)
+        "claude-opus-4-6",  # $5/$25 per MTok (adaptive thinking recommended)
+        "claude-opus-4-5",  # $5/$25 per MTok
+        "claude-opus-4-1",  # Deprecated (retires 2026-08-05) - $15/$75 per MTok
+        "claude-opus-4",  # Deprecated (retires 2026-06-15) - $15/$75 per MTok
+        "claude-sonnet-4-6",  # Best value - $3/$15 per MTok (adaptive thinking recommended)
+        "claude-sonnet-4-5",  # Previous gen - $3/$15 per MTok
+        "claude-sonnet-4",  # Deprecated (retires 2026-06-15) - $3/$15 per MTok
         "claude-haiku-4-5",  # Fast/cheap - $1/$5 per MTok (no Extended Thinking)
     ]
 
     # Recommended models by use case
     RECOMMENDED_MODELS = {
-        "research": "claude-opus-4-5",  # Best reasoning for deep research (~$0.80/query)
-        "balanced": "claude-sonnet-4-5",  # Good quality, lower cost (~$0.48/query)
+        "research": "claude-opus-4-8",  # Best reasoning for deep research (~$0.85/query)
+        "frontier": "claude-fable-5",  # Most capable, premium price (~$2.20/query)
+        "balanced": "claude-sonnet-4-6",  # Good quality, lower cost (~$0.48/query)
         "fast": "claude-haiku-4-5",  # Quick answers, cheapest (no Extended Thinking)
     }
+
+    # Models where thinking is adaptive-only: sending budget_tokens returns 400.
+    # claude-fable-5 additionally rejects an explicit {"type": "disabled"}.
+    ADAPTIVE_THINKING_MODELS = (
+        "claude-fable-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+    )
+
+    # Models with no Extended Thinking support at all - omit the param.
+    NO_THINKING_MODELS = ("claude-haiku-4-5",)
 
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-opus-4-5",  # Default to Opus for research quality
+        model: str = "claude-opus-4-8",  # Default to Opus for research quality
         thinking_budget: int = 32000,  # Higher budget for Opus research tasks
         web_search_backend: str = "auto",  # brave, tavily, duckduckgo, auto
     ):
@@ -82,13 +100,16 @@ class AnthropicProvider(DeepResearchProvider):
 
         Args:
             api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
-            model: Claude model (default: claude-opus-4-5 for best research quality)
-            thinking_budget: Token budget for Extended Thinking (default 32K for research)
+            model: Claude model (default: claude-opus-4-8 for best research quality)
+            thinking_budget: Token budget for Extended Thinking on legacy models.
+                Adaptive-thinking models (4.6+/Fable) ignore the budget but still
+                use it to size max_tokens headroom.
             web_search_backend: Web search backend (brave, tavily, duckduckgo, auto)
 
         Model recommendations:
-            - Research tasks: claude-opus-4-5 (~$0.80/query) - best reasoning
-            - Balanced: claude-sonnet-4-5 (~$0.48/query) - good quality, lower cost
+            - Research tasks: claude-opus-4-8 (~$0.85/query) - best reasoning
+            - Frontier: claude-fable-5 (~$2.20/query) - most capable, 2x token rate
+            - Balanced: claude-sonnet-4-6 (~$0.48/query) - good quality, lower cost
             - Fast/cheap: claude-haiku-4-5 - no Extended Thinking support
         """
         if not ANTHROPIC_AVAILABLE:
@@ -110,6 +131,20 @@ class AnthropicProvider(DeepResearchProvider):
 
         # Initialize tool executor
         self.tool_executor = ToolRegistry.create_executor(web_search=True, backend=web_search_backend)
+
+    def _build_thinking_param(self) -> dict[str, Any] | None:
+        """Return the thinking config appropriate for the configured model.
+
+        - Adaptive-only models (Opus 4.6+, Sonnet 4.6, Fable 5): sending
+          ``budget_tokens`` returns a 400, so use ``{"type": "adaptive"}``.
+        - Haiku has no Extended Thinking: omit the param entirely.
+        - Older models keep the legacy enabled+budget form.
+        """
+        if any(self.model.startswith(m) for m in self.NO_THINKING_MODELS):
+            return None
+        if any(self.model.startswith(m) for m in self.ADAPTIVE_THINKING_MODELS):
+            return {"type": "adaptive"}
+        return {"type": "enabled", "budget_tokens": self.thinking_budget}
 
     async def submit_research(self, request: ResearchRequest) -> str:
         """
@@ -153,14 +188,34 @@ class AnthropicProvider(DeepResearchProvider):
             # Multi-turn loop for tool use
             max_turns = 5  # Prevent infinite loops
             for _turn in range(max_turns):
+                request_kwargs: dict[str, Any] = {
+                    "model": self.model,
+                    "max_tokens": self.thinking_budget + 16000,  # Headroom above thinking
+                    "system": system_prompt,
+                    "messages": messages,
+                    "tools": tools,
+                }
+                thinking_param = self._build_thinking_param()
+                if thinking_param is not None:
+                    request_kwargs["thinking"] = thinking_param
                 response = self.client.messages.create(  # type: ignore[call-overload]  # plain dicts for thinking/messages/tools; SDK wants typed params
-                    model=self.model,
-                    max_tokens=self.thinking_budget + 16000,  # Must be > thinking budget
-                    thinking={"type": "enabled", "budget_tokens": self.thinking_budget},
-                    system=system_prompt,
-                    messages=messages,
-                    tools=tools,
+                    **request_kwargs
                 )
+
+                # Safety classifiers (claude-fable-5) can decline with a
+                # successful HTTP 200 + stop_reason "refusal". Pre-output
+                # refusals carry an empty content array, so reading blocks
+                # below would silently yield an empty report billed as
+                # success. Surface it as a provider error instead.
+                if getattr(response, "stop_reason", None) == "refusal":
+                    details = getattr(response, "stop_details", None)
+                    category = getattr(details, "category", None) if details else None
+                    raise ProviderError(
+                        f"Anthropic safety classifiers declined the request"
+                        f"{f' (category: {category})' if category else ''}. "
+                        "Retry on a different model (e.g. claude-opus-4-8).",
+                        provider="anthropic",
+                    )
 
                 # Accumulate usage from this turn
                 turn_usage = getattr(response, "usage", None)
@@ -273,6 +328,8 @@ class AnthropicProvider(DeepResearchProvider):
 
             return job_id
 
+        except ProviderError:
+            raise
         except AnthropicError as e:
             raise ProviderError(message=f"Anthropic API error: {e}", provider="anthropic", original_error=e) from e
         except Exception as e:
@@ -348,19 +405,19 @@ class AnthropicProvider(DeepResearchProvider):
         Map generic model key to Anthropic model name.
 
         Examples:
-            "claude-4-opus" -> "claude-opus-4-5"
-            "claude-sonnet" -> "claude-sonnet-4-5"
+            "claude-4-opus" -> "claude-opus-4-8"
+            "claude-sonnet" -> "claude-sonnet-4-6"
             "claude-haiku" -> "claude-haiku-4-5"
         """
         model_mapping = {
-            # Current generation (4.5)
-            "claude-opus": "claude-opus-4-5",
-            "claude-4-opus": "claude-opus-4-5",
-            "claude-sonnet": "claude-sonnet-4-5",
+            # Current generation
+            "claude-fable": "claude-fable-5",
+            "claude-opus": "claude-opus-4-8",
+            "claude-4-opus": "claude-opus-4-8",
+            "claude-sonnet": "claude-sonnet-4-6",
             "claude-haiku": "claude-haiku-4-5",
             # Legacy mappings
             "claude-4-opus-legacy": "claude-opus-4-1",
-            "claude-3.7-sonnet": "claude-sonnet-3-7",
         }
 
         return model_mapping.get(model_key, self.model)
@@ -434,10 +491,40 @@ Always show your work. Transparency builds trust."""
         return "".join(parts)
 
 
-# Pricing (as of 2026-02)
+# Pricing (as of 2026-06)
 # Source: https://www.anthropic.com/pricing
+# INFORMATIONAL ONLY: actual billing/estimates use deepr/providers/registry.py
+# (get_token_pricing). When adding a model, update the registry first - an
+# unregistered model silently bills at the o4-mini default rate.
 ANTHROPIC_PRICING = {
-    # Claude 4.5 series (latest)
+    # Claude 5 family
+    "claude-fable-5": {
+        "input": 10.00,  # per MTok - new tokenizer uses ~30% more tokens for the same text
+        "output": 50.00,
+        "thinking": 10.00,  # Thinking always on, charged at input rate
+    },
+    # Claude 4.6-4.8 series
+    "claude-opus-4-8": {
+        "input": 5.00,  # per MTok
+        "output": 25.00,
+        "thinking": 5.00,  # Adaptive Thinking charged at input rate
+    },
+    "claude-opus-4-7": {
+        "input": 5.00,
+        "output": 25.00,
+        "thinking": 5.00,
+    },
+    "claude-opus-4-6": {
+        "input": 5.00,
+        "output": 25.00,
+        "thinking": 5.00,
+    },
+    "claude-sonnet-4-6": {
+        "input": 3.00,
+        "output": 15.00,
+        "thinking": 3.00,
+    },
+    # Claude 4.5 series
     "claude-opus-4-5": {
         "input": 5.00,  # per MTok - 66% cheaper than Opus 4!
         "output": 25.00,
@@ -484,8 +571,20 @@ ANTHROPIC_TOOL_PRICING = {
     # Note: Web search also incurs token costs for results
 }
 
-# Prompt caching pricing (for Opus 4.5)
+# Prompt caching pricing (cache_write = 1.25x input, cache_read = 0.1x input)
 ANTHROPIC_CACHE_PRICING = {
+    "claude-fable-5": {
+        "cache_write": 12.50,
+        "cache_read": 1.00,
+    },
+    "claude-opus-4-8": {
+        "cache_write": 6.25,
+        "cache_read": 0.50,
+    },
+    "claude-sonnet-4-6": {
+        "cache_write": 3.75,
+        "cache_read": 0.30,
+    },
     "claude-opus-4-5": {
         "cache_write": 6.25,  # per MTok to write to cache
         "cache_read": 0.50,  # per MTok to read from cache (90% savings!)

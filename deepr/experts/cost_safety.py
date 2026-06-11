@@ -362,6 +362,15 @@ class CostSession:
         if self.is_circuit_open:
             return False, f"Session circuit breaker open: {self._circuit_open_reason}"
 
+        # Hard per-operation ceiling. check_and_reserve() enforces this at
+        # the manager level, but legacy callers using CostSession directly
+        # must not bypass the absolute safety limit.
+        if estimated_cost > CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:
+            return False, (
+                f"Estimated cost ${estimated_cost:.2f} exceeds absolute per-op ceiling "
+                f"${CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION:.2f}"
+            )
+
         # Check budget
         remaining = self.get_remaining_budget()
         if estimated_cost > remaining:

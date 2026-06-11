@@ -57,10 +57,13 @@ class UsageStats:
         Calculate cost based on token usage and model.
 
         Pricing is sourced from the model registry (providers/registry.py).
+        Passing input_tokens lets tiered-pricing models (Gemini 3.x Pro
+        above 200K input tokens) settle at the rate the provider actually
+        bills instead of the base rate.
         """
         from .registry import get_token_pricing
 
-        prices = get_token_pricing(model)
+        prices = get_token_pricing(model, input_tokens=input_tokens)
 
         input_cost = (input_tokens / 1_000_000) * prices["input"]
         output_cost = (output_tokens / 1_000_000) * prices["output"]
