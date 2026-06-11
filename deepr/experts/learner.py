@@ -5,8 +5,9 @@ and integrating findings into expert knowledge bases.
 """
 
 import asyncio
+import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from deepr.core.documents import DocumentManager
@@ -17,6 +18,8 @@ from deepr.experts.profile import ExpertProfile, ExpertStore
 from deepr.providers import create_provider
 from deepr.storage import create_storage
 from deepr.utils.security import SSRFError, sanitize_name, validate_url
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,6 +32,10 @@ class LearningProgress:
     total_cost: float
     started_at: datetime
     completed_at: datetime | None = None
+    # provider job id -> topic title, so completion polling can credit the
+    # right topic (previously the poll loop tracked job ids only and the
+    # final summary always reported "Completed: 0 topics")
+    job_topics: dict[str, str] = field(default_factory=dict)
 
     def is_complete(self) -> bool:
         """Check if all topics are completed or failed."""
@@ -82,6 +89,10 @@ class AutonomousLearner:
         from deepr.experts.cost_safety import get_cost_safety_manager
 
         self.cost_safety = get_cost_safety_manager()
+
+        # provider job id -> local queue job id (durable tracking of
+        # submitted research jobs; see _record_job_in_queue)
+        self._queue_ids: dict[str, str] = {}
 
     async def execute_curriculum(
         self,
@@ -238,7 +249,7 @@ class AutonomousLearner:
             self._log_progress("", "Step 3: Waiting for Research Completion", "", callback=progress_callback)
 
             if all_job_ids:
-                await self._poll_and_integrate_reports(expert, all_job_ids, session, progress_callback)
+                await self._poll_and_integrate_reports(expert, all_job_ids, session, progress_callback, progress)
 
             progress.completed_at = datetime.now(UTC)
 
@@ -339,6 +350,7 @@ class AutonomousLearner:
 
                 if job_id:
                     job_ids.append(job_id)
+                    progress.job_topics[job_id] = topic.title
                     # Record estimated cost (actual cost reconciled later)
                     session.record_operation(
                         operation_type="research_submit",
@@ -347,6 +359,14 @@ class AutonomousLearner:
                     )
                     progress.total_cost = session.total_cost
                     self._log_progress(f"    Job submitted: {job_id}", callback=callback)
+                    # Durable tracking: record the job in the local queue so an
+                    # interrupted run is recoverable (deepr status/list) instead
+                    # of the provider job being orphaned with its spend.
+                    local_id = await self._record_job_in_queue(job_id, topic, expert)
+                    if local_id:
+                        self._log_progress(
+                            f"    Tracked locally as {local_id} (deepr status {local_id})", callback=callback
+                        )
                 else:
                     session.record_failure("research_submit", f"No job ID returned for {topic.title}")
                     progress.failed_topics.append(topic.title)
@@ -357,6 +377,71 @@ class AutonomousLearner:
                 progress.failed_topics.append(topic.title)
 
         return job_ids
+
+    async def _record_job_in_queue(
+        self, provider_job_id: str, topic: LearningTopic, expert: ExpertProfile
+    ) -> str | None:
+        """Record a submitted learner job in the local queue (best-effort).
+
+        Without this, learner research jobs lived only at the provider: an
+        interrupted run (Ctrl-C, crash, machine sleep) orphaned the job and
+        its spend with no retrieval path through Deepr. With a queue record,
+        `deepr status <id>` / `deepr list` see it and the normal result flow
+        can recover it. Failure to record must never block learning.
+        """
+        try:
+            import uuid
+
+            from deepr.queue import create_queue
+            from deepr.queue.base import JobStatus, ResearchJob
+
+            db_path = "queue/research_queue.db"
+            if isinstance(self.config, dict):
+                db_path = self.config.get("queue_db_path", db_path) or db_path
+            from pathlib import Path
+
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            queue = create_queue("local", db_path=db_path)
+
+            local_id = f"learn-{uuid.uuid4().hex[:8]}"
+            job = ResearchJob(
+                id=local_id,
+                prompt=topic.research_prompt,
+                model="o4-mini-deep-research" if topic.research_mode == "campaign" else "gpt-4.1",
+                metadata={
+                    "source": "expert_learn",
+                    "expert_name": expert.name,
+                    "topic": topic.title,
+                    "research_mode": topic.research_mode,
+                },
+            )
+            await queue.enqueue(job)
+            await queue.update_status(local_id, JobStatus.PROCESSING, provider_job_id=provider_job_id)
+            self._queue_ids[provider_job_id] = local_id
+            return local_id
+        except Exception as exc:  # durable tracking is best-effort
+            logger.warning("Could not record learner job %s in local queue: %s", provider_job_id, exc)
+            return None
+
+    async def _sync_job_status_in_queue(self, provider_job_id: str, status: str, cost: float | None = None) -> None:
+        """Mirror a learner job's terminal state into the local queue (best-effort)."""
+        local_id = self._queue_ids.get(provider_job_id)
+        if not local_id:
+            return
+        try:
+            from deepr.queue import create_queue
+            from deepr.queue.base import JobStatus
+
+            db_path = "queue/research_queue.db"
+            if isinstance(self.config, dict):
+                db_path = self.config.get("queue_db_path", db_path) or db_path
+            queue = create_queue("local", db_path=db_path)
+            target = JobStatus.COMPLETED if status == "completed" else JobStatus.FAILED
+            await queue.update_status(local_id, target)
+            if cost is not None and target is JobStatus.COMPLETED:
+                await queue.update_results(local_id, report_paths={}, cost=cost)
+        except Exception as exc:
+            logger.warning("Could not sync learner job %s status in local queue: %s", provider_job_id, exc)
 
     def _save_learning_progress(
         self, expert: ExpertProfile, progress: LearningProgress, remaining_topics: list[LearningTopic]
@@ -834,6 +919,7 @@ class AutonomousLearner:
         job_ids: list[str],
         session,  # SessionCostTracker
         callback: Callable | None = None,
+        progress: LearningProgress | None = None,
     ):
         """Poll for job completion and integrate reports into expert's knowledge."""
         from datetime import datetime
@@ -878,9 +964,15 @@ class AutonomousLearner:
                         self._log_progress(f"  {job_id[:20]}... COMPLETED", callback=callback)
                         pending.remove(job_id)
                         completed.add(job_id)
+                        # Credit the topic so the final summary reflects
+                        # reality (previously always "Completed: 0 topics")
+                        if progress is not None:
+                            topic_title = progress.job_topics.get(job_id, job_id)
+                            if topic_title not in progress.completed_topics:
+                                progress.completed_topics.append(topic_title)
 
-                        if response.usage:
-                            cost = response.usage.cost
+                        cost: float | None = response.usage.cost if response.usage else None
+                        if cost is not None:
                             total_cost += cost
                             # Record actual cost (may differ from estimate)
                             self.cost_safety.record_cost(
@@ -890,12 +982,18 @@ class AutonomousLearner:
                                 details=f"Job {job_id[:12]}",
                             )
                             self._log_progress(f"       Cost: ${cost:.4f}", callback=callback)
+                        await self._sync_job_status_in_queue(job_id, "completed", cost)
 
                     elif response.status in ["failed", "cancelled"]:
                         self._log_progress(f"  {job_id[:20]}... {response.status.upper()}", callback=callback)
                         pending.remove(job_id)
                         failed.add(job_id)
+                        if progress is not None:
+                            topic_title = progress.job_topics.get(job_id, job_id)
+                            if topic_title not in progress.failed_topics:
+                                progress.failed_topics.append(topic_title)
                         session.record_failure("research_poll", f"Job {job_id} {response.status}")
+                        await self._sync_job_status_in_queue(job_id, "failed")
 
                     elif response.status in ["in_progress", "queued"]:
                         # Still running, check next time
@@ -909,7 +1007,7 @@ class AutonomousLearner:
                 self._log_progress(f"Elapsed: {elapsed:.1f} min, waiting 30s...", "", callback=callback)
                 await asyncio.sleep(30)
 
-        # All jobs complete
+        # All jobs complete (or polling stopped early, e.g. circuit breaker)
         elapsed_total = (datetime.now() - start_time).total_seconds() / 60
         self._log_progress(
             "",
@@ -921,6 +1019,16 @@ class AutonomousLearner:
             "",
             callback=callback,
         )
+
+        if pending:
+            # Be honest about jobs still running at the provider; they are
+            # tracked in the local queue, so they are recoverable.
+            lines = ["", f"{len(pending)} job(s) still running at the provider:"]
+            for job_id in pending:
+                local_id = self._queue_ids.get(job_id)
+                lines.append(f"  {local_id or job_id}  (deepr status {local_id or job_id})")
+            lines.append("Results can be retrieved once complete: deepr list")
+            self._log_progress(*lines, callback=callback)
 
         # Download and upload reports to vector store
         if completed:
