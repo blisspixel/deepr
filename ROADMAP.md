@@ -523,6 +523,11 @@ Honest caveats (why this is experimental): CLI agents are not deep-research APIs
   - [ ] Provider fallback integration tests
   - [ ] Performance regression tests
   - [ ] Raise per-module coverage on core modules above the 80% global gate
+- [ ] Live-validation findings (2026-06-11, sub-$5 end-to-end run):
+  - [ ] Learner async-job durability: `expert make --learn` submits provider deep-research jobs that are NOT recorded in the local queue - if the CLI exits, the job (and its spend) is orphaned with no retrieval path (salvageable only via the raw provider response id). Route learner submissions through the queue + poller like `research` jobs, and absorb results on completion.
+  - [ ] Learner UX: curriculum + source spend (~$0.29) is incurred before the per-topic budget preflight; reorder so an unaffordable plan costs $0. Also reports "Learning Complete, 0 topics" while a job is still running in the background - report submitted-async state honestly.
+  - [ ] Windows console encoding: `costs timeline` (rich box-drawing chars) crashes with UnicodeEncodeError on cp1252 consoles when piped; force UTF-8 output on the CLI entry point.
+  - [ ] Contradiction heuristic precision: absorb-time flagging marked 4 pairs on the first live report, at least some of which are phrasing-level (negation heuristic), not substantive conflicts - adjudication exists, but consider a cheap same-meaning screen before flagging.
 
 ---
 
