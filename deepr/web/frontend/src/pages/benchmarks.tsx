@@ -109,7 +109,7 @@ export default function Benchmarks() {
     queryKey: ['config'],
     queryFn: () => configApi.get(),
   })
-  const providerKeys = config?.provider_keys ?? {}
+  const providerKeys = useMemo(() => config?.provider_keys ?? {}, [config])
 
   const { data: fileList } = useQuery({
     queryKey: ['benchmarks', 'list'],
@@ -157,7 +157,7 @@ export default function Benchmarks() {
   })
 
   const result = latestData?.result
-  const rankings = result?.rankings ?? []
+  const rankings = useMemo(() => result?.rankings ?? [], [result])
   const results = result?.results ?? []
 
   // Build registry lookup
