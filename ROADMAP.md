@@ -32,9 +32,9 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.13)
+## Current Status (v2.13.1)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 4990+ unit tests, 80% branch coverage on Python 3.12-3.14. Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5200+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
 ### Stable (Production-Ready)
 
@@ -592,6 +592,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
 | v2.12 | Distillr + Primr integrations (Phase 2b complete); Phase E: `mcp/` flipped into the blocking `mypy --strict` gate (third strict island); first Phase 4 knowledge-loop increments - `expert health-check` and `expert absorb` (CLI + MCP, 21 tools); routing preview; bug-hunt fixes | Complete |
 | v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
+| v2.13.1 | Claude Fable 5; temporal perspective queries (`what-changed`/`contested`, MCP 25 tools); contradiction-as-signal in absorb; cost-guard hardening (pricing single-source, tiered settlement, ledger test-isolation, `costs doctor --rebuild`); CI coverage gate made blocking; Python 3.14 blocking; live-validation bug sweep ("***" api_key, orphaned learner jobs found) | Complete |
 | v2.14 | Temporal query tools (`what_changed`, `contested` - the autopilot wedge), expert freshness/sync, graph-structured expert memory, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
 | v2.15 | Autonomous research campaigns, ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
 | v2.16 | Plan-quota + local backends (Phase 6): subscription CLI execution, local Ollama, quota ledger, capacity-waterfall routing | Planned |

@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-06-11
+
+### Added
+- **Claude Fable 5 support.** Anthropic's new frontier tier (`claude-fable-5`,
+  $10/$50 per MTok, 1M context) registered in the model registry, provider
+  `SUPPORTED_MODELS`, pricing tables, and docs/MODELS.md. The registry entry is
+  itself a budget guard: an unregistered model silently bills at the o4-mini
+  default rate (~10x under for Fable). Opt-in only - premium price, new
+  tokenizer (~30% more tokens), safety classifiers, 30-day retention.
+- **Temporal perspective queries (`what-changed`, `contested`).** The first two
+  tools of the TKG query surface (the autopilot wedge), shipped ahead of the
+  full graph as read-side, cost-$0 layers over structures the belief store
+  already persists. `deepr expert what-changed NAME --since 7d|ISO` buckets
+  belief changes into added / revised / contested / archived with reasons and
+  current snapshots (re-sync with an expert instead of re-reading everything);
+  `deepr expert contested NAME` lists open contradiction pairs with both sides'
+  claims, confidence, and provenance. CLI + MCP (`deepr_what_changed`,
+  `deepr_contested`); MCP surface now 25 tools.
+- **Contradiction-as-signal in `expert absorb`.** A candidate claim that
+  contradicts an existing belief is no longer silently dropped: by default it
+  is recorded as a *contested* belief via the new
+  `BeliefStore.add_contested_belief` - contradiction edges both ways, queryable
+  by health-check / `resolve-conflicts` / `contested`, never lost. The safety
+  property is preserved and regression-tested: `add_contested_belief` bypasses
+  similarity merging and conflict-resolution strategies entirely, so the
+  existing belief is guaranteed untouched. Optional `adjudicate=True` runs
+  `ConflictResolver.resolve` per conflict (advisory; verdict recorded on the
+  flag, never applied). `flag_contradictions=False` restores the legacy drop.
+- **`deepr costs doctor --rebuild`.** Regenerates the cost dashboard view from
+  the canonical append-only ledger (the regeneration invariant applied to
+  money) - repairs the ledger-vs-dashboard drift the doctor already detects.
+- **`DEEPR_COST_DATA_DIR`.** Env override for the cost-state directory, honored
+  by both the canonical ledger and the dashboard.
+
+### Fixed
+- **Anthropic provider sent `budget_tokens` thinking unconditionally**, which
+  returns a 400 on Opus 4.7/4.8 (and Fable 5) - models the registry already
+  recommended. The provider now selects thinking per model: adaptive for
+  4.6+/Fable, omitted for Haiku, legacy enabled+budget for older models.
+  Fable 5 safety-classifier refusals surface as a `ProviderError` instead of an
+  empty billed report. Default model: `claude-opus-4-5` -> `claude-opus-4-8`.
+- **Pricing single-sourcing.** `CostEstimator` delegates to the registry
+  instead of its stale 4-model table, which priced every unlisted model at
+  o3-deep-research rates (o3-deep-research itself was ~5x underpriced at $2/$8
+  vs the registry's $11/$44). Tiered pricing (Gemini 3.x Pro >200K input: 2x
+  input / 1.5x output) now applies at settlement, not just estimates, so the
+  ledger records what the provider bills. Unknown-model pricing fallback logs
+  a warning. `CostSession.can_proceed` enforces the $10 absolute per-operation
+  ceiling previously checked only in `check_and_reserve`.
+- **`load_config()`'s redacted `"***"` api_key passed through to providers.**
+  ~30 CLI call sites handed the masked placeholder to `create_provider`,
+  overriding every provider's env-var fallback and 401-ing at the first real
+  call (caught by live validation - `expert make` was broken). The factory and
+  the two direct constructors (curriculum learn loop, ContextBuilder) now treat
+  `"***"`/empty as not-provided.
+- **Unit tests polluted the real cost ledger.** The ledger and dashboard
+  default to CWD-relative paths, so tests run from the repo root appended
+  ~1,200 fabricated cost events (~$860 phantom spend) to the developer's real
+  canonical ledger over the project's life. An autouse conftest fixture now
+  isolates every test via `DEEPR_COST_DATA_DIR`.
+- **The CI coverage gate was silently non-blocking.** pytest-cov printed
+  "FAIL Required test coverage not reached" on the 3.12/3.13 jobs without
+  failing the step (HEAD was green at 79.75% against an 80% gate; only the
+  3.14 job propagated the failure). CI now runs an explicit
+  `coverage report` gate step (reads `fail_under` from pyproject, fails
+  version-independently). The CI-vs-local coverage gap was also structural:
+  benchmark-rankings loaders read CWD-relative `data/benchmarks/*.json` that
+  exist only on dev machines - now covered by synthetic-fixture tests.
+
+### Changed
+- **Python 3.14 promoted to a blocking CI matrix entry.** The full
+  `[dev,full]` extras install and the entire suite pass on 3.14; supported
+  window 3.12/3.13/3.14, all blocking.
+- ruff 0.15 modernization autofixes (datetime.UTC, PEP 604 optionals) across
+  51 files; generic Claude model-name mappings updated (opus -> 4-8,
+  sonnet -> 4-6, new fable); retired `claude-sonnet-3-7` removed.
+
 ## [2.13.0] - 2026-06-01
 
 ### Added
