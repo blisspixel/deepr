@@ -883,35 +883,29 @@ def cleanup_stale_jobs():
 
 @app.route("/api/cost/summary", methods=["GET"])
 def get_cost_summary():
-    """Get cost summary with daily/monthly spending."""
+    """Get cost summary with daily/monthly spending.
+
+    Spend totals come from the canonical append-only cost ledger - the
+    single source of truth that every recorder writes (research jobs,
+    expert learning, absorb/validate calls, MCP tools). The previous
+    implementation summed queue job costs plus expert-profile counters,
+    which missed every CLI-side spend path and double-counted others.
+    """
     try:
+        from deepr.observability.cost_ledger import CostLedger
+
         all_jobs = run_async(queue.list_jobs(limit=10000))
 
         now = datetime.now(UTC)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # Calculate job spending
-        daily_spending = sum(
-            (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start
-        )
-        monthly_spending = sum(
-            (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= month_start
-        )
-        total_spending = sum((j.cost or 0) for j in all_jobs)
-
-        # Include expert learning costs (tracked on profiles, not in queue)
-        try:
-            from deepr.experts.profile_store import ExpertStore
-
-            expert_store = ExpertStore()
-            expert_total = sum(e.total_research_cost for e in expert_store.list_all())
-            total_spending += expert_total
-            # Expert monthly spending (from budget manager tracking)
-            expert_monthly = sum(e.monthly_spending for e in expert_store.list_all())
-            monthly_spending += expert_monthly
-        except Exception as exc:
-            logger.debug("Expert store unavailable while computing cost summary: %s", exc, exc_info=exc)
+        # Read the ledger fresh per request so spend recorded by other
+        # processes (CLI runs, MCP server) is visible immediately.
+        ledger = CostLedger()
+        daily_spending = ledger.get_total_cost(start_date=today_start)
+        monthly_spending = ledger.get_total_cost(start_date=month_start)
+        total_spending = ledger.get_total_cost()
 
         completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
         avg_cost = total_spending / len(completed_jobs) if completed_jobs else 0
@@ -942,20 +936,23 @@ def get_cost_summary():
 
 @app.route("/api/cost/trends", methods=["GET"])
 def get_cost_trends():
-    """Get daily spending trends."""
+    """Get daily spending trends (from the canonical cost ledger)."""
     try:
+        from deepr.observability.cost_ledger import CostLedger
+
         days = max(1, min(_safe_int(request.args.get("days", 30), 30), 365))
-        all_jobs = run_async(queue.list_jobs(limit=10000))
 
         now = datetime.now(UTC)
         cutoff = now - timedelta(days=days)
 
-        # Group by day
+        # Group ledger events by day - every spend path writes the ledger,
+        # so the trend reflects research jobs, expert learning, and tool
+        # calls alike (queue job costs missed everything but jobs).
         daily_costs = {}
-        for job in all_jobs:
-            if job.completed_at and _ensure_utc(job.completed_at) >= cutoff and job.cost:
-                day_key = job.completed_at.strftime("%Y-%m-%d")
-                daily_costs[day_key] = daily_costs.get(day_key, 0) + job.cost
+        for event in CostLedger().get_events(start_date=cutoff):
+            if event.cost_usd:
+                day_key = event.timestamp.strftime("%Y-%m-%d")
+                daily_costs[day_key] = daily_costs.get(day_key, 0) + event.cost_usd
 
         # Build trend data
         trends = []
@@ -980,20 +977,22 @@ def get_cost_breakdown():
         time_range = request.args.get("time_range", "30d")
         days = _parse_time_range(time_range, 30)
 
-        all_jobs = run_async(queue.list_jobs(limit=10000))
+        from deepr.observability.cost_ledger import CostLedger
+
         now = datetime.now(UTC)
         cutoff = now - timedelta(days=days)
 
-        # Group by model
+        # Group canonical ledger events by model (covers CLI/MCP/expert
+        # spend, not just queue jobs; events without a model roll up
+        # under "unknown" so the totals still reconcile with the ledger)
         model_costs = {}
-        for job in all_jobs:
-            if job.completed_at and _ensure_utc(job.completed_at) >= cutoff:
-                model = job.model or "unknown"
-                if model not in model_costs:
-                    model_costs[model] = {"cost": 0, "count": 0, "tokens": 0}
-                model_costs[model]["cost"] += job.cost or 0
-                model_costs[model]["count"] += 1
-                model_costs[model]["tokens"] += job.tokens_used or 0
+        for event in CostLedger().get_events(start_date=cutoff):
+            model = event.model or "unknown"
+            if model not in model_costs:
+                model_costs[model] = {"cost": 0, "count": 0, "tokens": 0}
+            model_costs[model]["cost"] += event.cost_usd
+            model_costs[model]["count"] += 1
+            model_costs[model]["tokens"] += event.tokens_input + event.tokens_output
 
         breakdown = [
             {
@@ -1085,12 +1084,13 @@ def estimate_cost():
                 reason = f"Exceeds per-job limit of ${cost_controller.max_cost_per_job}"
             else:
                 try:
-                    all_jobs = run_async(queue.list_jobs(limit=10000))
+                    # Canonical ledger, not queue job costs: CLI/MCP spend
+                    # must count against the daily limit too.
+                    from deepr.observability.cost_ledger import CostLedger
+
                     now = datetime.now(UTC)
                     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    daily_actual = sum(
-                        (j.cost or 0) for j in all_jobs if j.completed_at and _ensure_utc(j.completed_at) >= today_start
-                    )
+                    daily_actual = CostLedger().get_total_cost(start_date=today_start)
                     if daily_actual + est_expected > cost_controller.max_daily_cost:
                         allowed = False
                         reason = f"Would exceed daily limit of ${cost_controller.max_daily_cost}"
@@ -1462,6 +1462,38 @@ def update_config():
 # =============================================================================
 
 
+def _expert_counts(profile) -> tuple[int, int, int]:
+    """Real knowledge counts for an expert: (documents, findings, open gaps).
+
+    The legacy mapping read profile.source_files (seed files only) and
+    profile.research_jobs, which undercounted both documents and findings -
+    an expert with 7 documents and 25 absorbed beliefs displayed as
+    "2 docs, 0 findings". Documents come from the profile counter (which
+    learning/integration updates), findings from the canonical belief store,
+    gaps from the manifest backlog.
+    """
+    doc_count = max(
+        int(getattr(profile, "total_documents", 0) or 0),
+        len(getattr(profile, "source_files", []) or []),
+    )
+
+    finding_count = len(getattr(profile, "research_jobs", []) or [])
+    try:
+        from deepr.experts.beliefs import BeliefStore
+
+        finding_count = max(finding_count, len(BeliefStore(profile.name).beliefs))
+    except Exception as exc:
+        logger.debug("Could not read belief store for %s: %s", profile.name, exc, exc_info=exc)
+
+    gap_count = 0
+    try:
+        gap_count = len(profile.get_manifest().gaps)
+    except Exception as exc:
+        logger.debug("Could not read expert manifest for %s: %s", profile.name, exc, exc_info=exc)
+
+    return doc_count, finding_count, gap_count
+
+
 @app.route("/api/experts", methods=["GET"])
 def list_experts():
     """List all domain experts."""
@@ -1472,18 +1504,13 @@ def list_experts():
         profiles = store.list_all()
         experts = []
         for profile in profiles:
-            gap_count = 0
-            try:
-                manifest = profile.get_manifest()
-                gap_count = len(manifest.gaps)
-            except Exception as exc:
-                logger.debug("Could not read expert manifest for %s: %s", profile.name, exc, exc_info=exc)
+            doc_count, finding_count, gap_count = _expert_counts(profile)
             experts.append(
                 {
                     "name": profile.name,
                     "description": getattr(profile, "description", "") or "",
-                    "document_count": len(getattr(profile, "source_files", [])),
-                    "finding_count": len(getattr(profile, "research_jobs", [])),
+                    "document_count": doc_count,
+                    "finding_count": finding_count,
                     "gap_count": gap_count,
                     "total_cost": getattr(profile, "total_research_cost", 0.0),
                     "last_active": getattr(profile, "updated_at", datetime.now(UTC)).isoformat(),
@@ -1576,20 +1603,15 @@ def get_expert(name):
             return jsonify({"error": "Expert not found"}), 404
 
         profile = store.load(decoded_name)
-        gap_count = 0
-        try:
-            manifest = profile.get_manifest()
-            gap_count = len(manifest.gaps)
-        except Exception as exc:
-            logger.debug("Could not read expert manifest for %s: %s", profile.name, exc, exc_info=exc)
+        doc_count, finding_count, gap_count = _expert_counts(profile)
 
         return jsonify(
             {
                 "expert": {
                     "name": profile.name,
                     "description": getattr(profile, "description", "") or "",
-                    "document_count": len(getattr(profile, "source_files", [])),
-                    "finding_count": len(getattr(profile, "research_jobs", [])),
+                    "document_count": doc_count,
+                    "finding_count": finding_count,
                     "gap_count": gap_count,
                     "total_cost": getattr(profile, "total_research_cost", 0.0),
                     "last_active": getattr(profile, "updated_at", datetime.now(UTC)).isoformat(),
@@ -2053,7 +2075,22 @@ def get_expert_claims(name):
         if not profile:
             return jsonify({"claims": []})
         manifest = profile.get_manifest()
-        claims = manifest.claims
+        claims = list(manifest.claims)
+
+        # Include the canonical belief store (absorb/learning writes there,
+        # not to manifest claims) so the web surfaces the expert's actual
+        # perspective - confidence-decayed, with contradiction edges.
+        try:
+            from deepr.experts.beliefs import BeliefStore
+
+            seen_ids = {getattr(c, "id", None) for c in claims}
+            for belief in BeliefStore(decoded_name).beliefs.values():
+                claim = belief.to_claim()
+                if claim.id not in seen_ids:
+                    claims.append(claim)
+        except Exception as exc:
+            logger.debug("Could not merge belief store for %s: %s", decoded_name, exc, exc_info=exc)
+
         if domain_filter:
             claims = [c for c in claims if c.domain == domain_filter]
         if min_confidence > 0:
