@@ -321,9 +321,10 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
   - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically (consumes the absorb/ingest contradiction-as-signal path above - shipped; conflicts become belief-revision candidates with contradiction edges, not silent drops)
   - [ ] Temporal-graph query surface for host agents (MCP tools, so Claude Code / Copilot / Cursor consult the *perspective*, not just the content):
-    - [ ] `deepr_explain_belief` - inference chain + provenance + confidence trajectory for one belief
-    - [ ] `deepr_what_changed` - perspective delta since a timestamp or prior trace ID (beliefs added / revised / contested / resolved); lets a host agent cheaply re-sync with an expert it consulted before instead of re-reading everything
-    - [ ] `deepr_contested` - open contradiction pairs with both sides' claims, evidence, and adjudication status (consumes the absorb-time flags shipped above)
+    - [ ] `deepr_what_changed` - perspective delta since a timestamp or prior trace ID (beliefs added / revised / contested / resolved); lets a host agent cheaply re-sync with an expert it consulted before instead of re-reading everything. **Ships early**: does not need the full graph - `BeliefStore.changes` (timestamped BeliefChange records) already contains the delta; this is a query + serialization layer over existing data.
+    - [ ] `deepr_contested` - open contradiction pairs with both sides' claims, evidence, and adjudication status. **Ships early**: contradiction edges (`contradictions_with`) and absorb-time contested records exist today; this is a read-side view, not new structure.
+    - [ ] `deepr_explain_belief` - inference chain + provenance + confidence trajectory for one belief. Provenance and history exist today (evidence_refs, belief history); full inference *chains* (trace through supporting beliefs) need the typed-edge graph above, so this one lands with it.
+    - Sequencing note: the first two are the autopilot-facing wedge (re-sync + open-conflicts) and should land in v2.14 ahead of the full graph; they also keep the graph work honest by fixing the query contracts first.
     - Rationale: host agents have ephemeral context and monthly-plan economics; the expert is the durable, shared epistemic state across their sessions *and across different agents* - Claude Code and Copilot consulting the same expert get the same calibrated perspective, which is what makes experts organizational knowledge rather than per-tool caches.
 - [ ] Regenerated expert digest (a browsable view over the structured store, never the source of truth):
   - [ ] A scheduled / on-demand "compilation" pass reads the belief graph and emits a browsable digest (topic summaries, cross-references, contradiction flags) as a derived artifact; the structured belief store stays canonical, the digest is always regenerable and never hand-edited (enforces the Phase E regeneration invariant)
@@ -434,6 +435,11 @@ Goal: production posture for multi-user and autonomous deployments.
   - [ ] WebSocket benchmark progress
   - [ ] Run comparison deltas
   - [ ] Provider validation action in UI
+- [ ] Hosted MCP endpoint (the autopilot on-ramp - promoted from backlog, see Phase 2 landscape note):
+  - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
+  - [ ] Per-key budget contracts and rate limits (reuses BudgetPropagator); read-only tool profile as the default exposure
+  - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
+  - Rationale: cloud-hosted always-on agents (Autopilots, Workspace Agents, Managed Agents, AgentCore) cannot reach a stdio server on a laptop; a reachable endpoint is the price of admission to every host platform, and it is transport + auth around tools that already exist.
 - [ ] Team features (auth, workspaces, RBAC, audit log)
 - [ ] Permission boundaries (`--allow-write`, tool allowlists, budget policy enforcement)
 - [ ] Execution isolation (sandboxed parsing, resource limits, egress controls)
@@ -507,7 +513,7 @@ Honest caveats (why this is experimental): CLI agents are not deep-research APIs
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
 - [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
 - [ ] Local model support beyond the Phase 6 `local-ollama` backend (DGX Spark, Jetson Orin Nano Super, multi-GPU); the core local backend + budget-exhausted offload now lives in Phase 6's capacity waterfall
-- [ ] Remote MCP and edge deployment (SSE, Cloudflare Workers)
+- [ ] Edge deployment of the hosted MCP endpoint (Cloudflare Workers etc.; the core hosted endpoint itself is now a Phase 5 item)
 - [ ] Skill marketplace and meta-skills
 - [ ] Multi-agent swarm support beyond bounded subagent orchestration
 - [ ] `deepr ui` Textual dashboard
@@ -579,7 +585,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.11.0 | Recon native integration (Phase 2b #1), version centralization, doc_reviewer hardening, MCP/async cancellation correctness | Complete |
 | v2.12 | Distillr + Primr integrations (Phase 2b complete); Phase E: `mcp/` flipped into the blocking `mypy --strict` gate (third strict island); first Phase 4 knowledge-loop increments - `expert health-check` and `expert absorb` (CLI + MCP, 21 tools); routing preview; bug-hunt fixes | Complete |
 | v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
-| v2.14 | Graph-structured expert memory, expert freshness/sync, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
+| v2.14 | Temporal query tools (`what_changed`, `contested` - the autopilot wedge), expert freshness/sync, graph-structured expert memory, Expert Crews (Phase 4c), autonomous gap-fill execution | Planned |
 | v2.15 | Autonomous research campaigns, ops analytics, anomaly alerts, team/RBAC, security hardening | Planned |
 | v2.16 | Plan-quota + local backends (Phase 6): subscription CLI execution, local Ollama, quota ledger, capacity-waterfall routing | Planned |
 | v3.0+ | Self-improving routing, autonomous learning, campaign orchestration | Future |
