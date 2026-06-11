@@ -107,17 +107,125 @@ async def test_low_confidence_rejected(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_contradicting_claim_rejected(tmp_path):
+async def test_contradicting_claim_flagged_as_contested(tmp_path):
+    """Contradiction-as-signal (default): the conflict is recorded, not dropped.
+
+    The candidate is stored as a *contested* belief with contradiction edges
+    both ways; the existing belief is guaranteed untouched.
+    """
     existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
     content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
     absorber = _absorber(content, tmp_path, beliefs=[existing])
     result = await absorber.absorb("rep1", "body")
 
     assert result.absorbed == []
+    assert result.rejected == []
+    assert len(result.flagged) == 1
+    flag = result.flagged[0]
+    assert flag.outcome == "flagged"
+    assert flag.conflicts_with_id == existing.id
+    assert flag.conflicts_with_claim == existing.claim
+    assert flag.better_sourced == "tie"  # 0.9 vs 0.9
+
+    # Both beliefs exist, linked by contradiction edges.
+    assert len(absorber.belief_store.beliefs) == 2
+    contested = absorber.belief_store.beliefs[flag.belief_id]
+    assert existing.id in contested.contradictions_with
+    assert contested.id in absorber.belief_store.beliefs[existing.id].contradictions_with
+
+
+@pytest.mark.asyncio
+async def test_flagged_contradiction_never_overwrites_existing(tmp_path):
+    """Safety regression: a similar, higher-confidence contradicting candidate
+    must not revise the existing belief.
+
+    Routing the candidate through plain add_belief would hit _find_similar
+    (negations are >0.7 word-similar) and HIGHER_CONFIDENCE would rewrite the
+    existing claim with the contradicting text. add_contested_belief bypasses
+    that entirely.
+    """
+    existing = Belief(claim="The system is memory safe by default", confidence=0.6, domain="ai")
+    content = _claims_json(
+        {"statement": "The system is not memory safe by default", "confidence": 0.95, "evidence": []}
+    )
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    result = await absorber.absorb("rep1", "body")
+
+    assert len(result.flagged) == 1
+    assert result.flagged[0].better_sourced == "candidate"
+    kept = absorber.belief_store.beliefs[existing.id]
+    assert kept.claim == "The system is memory safe by default"  # untouched
+    assert kept.confidence == 0.6
+
+
+@pytest.mark.asyncio
+async def test_contradiction_dry_run_flags_without_writing(tmp_path):
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    result = await absorber.absorb("rep1", "body", dry_run=True)
+
+    assert len(result.flagged) == 1
+    assert result.flagged[0].outcome == "would_flag"
+    assert result.flagged[0].belief_id == ""  # not recorded
+    assert len(absorber.belief_store.beliefs) == 1  # nothing written
+    assert absorber.belief_store.beliefs[existing.id].contradictions_with == []
+
+
+@pytest.mark.asyncio
+async def test_contradicting_claim_rejected_with_legacy_flag_off(tmp_path):
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    result = await absorber.absorb("rep1", "body", flag_contradictions=False)
+
+    assert result.absorbed == []
+    assert result.flagged == []
     assert len(result.rejected) == 1
     assert result.rejected[0].reason == "contradicts_existing"
     # The contradicting candidate must NOT have been written.
     assert len(absorber.belief_store.beliefs) == 1
+
+
+@pytest.mark.asyncio
+async def test_adjudication_verdict_recorded_but_never_applied(tmp_path, monkeypatch):
+    """Adjudication is advisory: the verdict lands on the flag, beliefs stay."""
+    from deepr.experts.conflict_resolver import ConflictResolutionResult, ConflictResolver
+
+    async def _fake_resolve(self, belief_a, belief_b, context=""):
+        return ConflictResolutionResult(
+            belief_a_id=belief_a.id,
+            belief_b_id=belief_b.id,
+            outcome="needs_human_review",
+            explanation="claims are time-sensitive; verify against current docs",
+        )
+
+    monkeypatch.setattr(ConflictResolver, "resolve", _fake_resolve)
+
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    result = await absorber.absorb("rep1", "body", adjudicate=True)
+
+    flag = result.flagged[0]
+    assert flag.resolution == "needs_human_review"
+    assert "time-sensitive" in flag.resolution_explanation
+    # Verdict recorded, store untouched beyond the contested record itself.
+    assert absorber.belief_store.beliefs[existing.id].claim == existing.claim
+
+
+@pytest.mark.asyncio
+async def test_flagged_contradiction_serializes(tmp_path):
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+    result = await absorber.absorb("rep1", "body")
+
+    d = result.to_dict()
+    assert d["flagged_count"] == 1
+    assert d["flagged"][0]["outcome"] == "flagged"
+    assert d["flagged"][0]["newer"] == "candidate"
+    assert d["flagged"][0]["conflicts_with_id"] == existing.id
 
 
 @pytest.mark.asyncio
