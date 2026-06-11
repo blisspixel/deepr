@@ -638,7 +638,7 @@ Completes the epistemic core while the belief store is still easy to
 migrate. Design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-knowledge-graph.md).
 
 1. [x] Belief event log (shipped: append-only `events.jsonl` dual-written with the legacy window; `what_changed` reads the log when present and is exact with no truncation; legacy stores keep the honest caveat)
-2. Typed edges + migration; absorb/sync write support/provenance edges
+2. [~] Typed edges + migration (shipped: `Edge` store with canonical-key dedup + provenance accumulation, symmetric `contradicts`, idempotent migration of legacy `contradictions_with` lists, contested/detected write paths route through `add_edge` with the legacy field mirrored for one release; remaining: absorb/sync writing `supports`/`derived_from` edges - lands with explain_belief so the chains have consumers)
 3. `explain_belief` (`deepr expert why` + MCP) - the third temporal query
 4. Regenerated expert digest (derived view, never canonical)
 5. Loop-closer completion: autonomous gap-fill execution (route-gaps
