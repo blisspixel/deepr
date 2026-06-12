@@ -30,8 +30,13 @@ DEPRECATION_REGISTRY: dict[str, DeprecationEntry] = {
     "o3-deep-research": DeprecationEntry(
         old_model="o3-deep-research",
         new_model="o3-deep-research-2025-06-26",
-        sunset_date="2026-03-26",
-        warning="OpenAI is removing the unversioned 'o3-deep-research' alias. Use 'o3-deep-research-2025-06-26' or 'o4-mini-deep-research'. This is a legacy model.",
+        # The previously recorded sunset (2026-03-26) did not happen - the
+        # unversioned alias is still served by the live API (verified
+        # 2026-06-11). Informational entry only: with no sunset date, runs
+        # do not warn (a default model that triggered its own deprecation
+        # warning on every run was a live-reported confusion).
+        sunset_date="",
+        warning="The unversioned 'o3-deep-research' alias is still served (verified 2026-06-11). Pin 'o3-deep-research-2025-06-26' for reproducibility, or use 'o4-mini-deep-research' ($2/$8 per MTok) for cheaper runs.",
     ),
     # Grok retirement wave (May 15, 2026)
     "grok-4-1-fast-reasoning": DeprecationEntry(

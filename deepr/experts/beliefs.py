@@ -506,6 +506,10 @@ class BeliefStore:
             contradictions = self._find_contradictions(belief)
             for contra in contradictions:
                 self.add_edge(belief.id, contra.id, "contradicts", provenance="detected:add_belief", save=False)
+            # Same-polarity related beliefs become supports edges - the
+            # structure explain_belief walks (TKG steps 2/4)
+            for related in self._find_related(belief):
+                self.add_edge(belief.id, related.id, "supports", provenance="detected:add_belief", save=False)
 
         change = BeliefChange(
             belief_id=belief.id, change_type="created", new_claim=belief.claim, new_confidence=belief.confidence
@@ -743,6 +747,38 @@ class BeliefStore:
                 return existing
 
         return None
+
+    def _find_related(self, belief: Belief) -> list[Belief]:
+        """Same-domain beliefs in the related-but-distinct similarity band.
+
+        Same word-overlap machinery as _find_similar (>0.7 merges) and the
+        contradiction heuristic, restricted to matching polarity: overlap in
+        [0.35, 0.7) reads as "talks about the same thing, compatible claim".
+        These become `supports` edges so explain_belief has chains to walk.
+        Free and phrasing-level - the same precision caveats as the negation
+        heuristic apply, which is why edges carry provenance and are
+        advisory structure, never a confidence input.
+
+        Returns at most the 3 strongest matches to keep the graph sparse.
+        """
+        negation_words = {"not", "no", "never", "false", "incorrect", "wrong"}
+        belief_words = set(belief.claim.lower().split())
+        has_negation = bool(belief_words & negation_words)
+
+        scored: list[tuple[float, Belief]] = []
+        for existing in self.get_beliefs_by_domain(belief.domain):
+            if existing.id == belief.id:
+                continue
+            existing_words = set(existing.claim.lower().split())
+            if bool(existing_words & negation_words) != has_negation:
+                continue
+            overlap = len(belief_words & existing_words)
+            similarity = overlap / max(len(belief_words), len(existing_words), 1)
+            if 0.35 <= similarity < 0.7:
+                scored.append((similarity, existing))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [b for _, b in scored[:3]]
 
     def _find_contradictions(self, belief: Belief) -> list[Belief]:
         """Find beliefs that might contradict.

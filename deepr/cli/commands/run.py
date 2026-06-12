@@ -297,6 +297,46 @@ def focus(
     )
 
 
+def _model_supports_web_search(model: str) -> bool:
+    """Whether a model accepts the web-search tool on submission.
+
+    Nano-tier models reject web_search_preview outright (live finding
+    2026-06-11: --auto routed gpt-4.1-nano with the tool attached and every
+    provider failed). Unknown models default to True; the submit loop also
+    retries once without the tool on a tool-rejection error, so this list
+    only needs to catch the common cases up front.
+    """
+    return "nano" not in model.lower()
+
+
+def _provider_for_model(model: str) -> str | None:
+    """Resolve which provider serves an explicitly requested model."""
+    try:
+        from deepr.providers.registry import MODEL_CAPABILITIES
+
+        normalized = model.lower().replace(".", "-")
+        for key, cap in MODEL_CAPABILITIES.items():
+            if cap.model.lower().replace(".", "-") == normalized:
+                return key.split("/", 1)[0]
+    except Exception as exc:
+        logger.debug("Provider lookup for model %s failed: %s", model, exc, exc_info=exc)
+    return None
+
+
+async def _mark_job_failed(job_id: str, error: str) -> None:
+    """Mark a queued job FAILED so a failed submission never leaves a zombie.
+
+    Live finding (2026-06-11): an all-providers-failed --auto run exited
+    with the job still QUEUED, which the user had to cancel manually.
+    Best-effort: a queue error must not mask the original failure.
+    """
+    try:
+        queue = SQLiteQueue()
+        await queue.update_status(job_id=job_id, status=JobStatus.FAILED, error=str(error)[:500])
+    except Exception as exc:
+        logger.warning("Could not mark job %s as failed: %s", job_id, exc)
+
+
 async def _run_single(
     query: str,
     model: str,
@@ -310,6 +350,7 @@ async def _run_single(
     trace_flags: TraceFlags | None = None,
     no_fallback: bool = False,
     user_specified_provider: bool = True,
+    user_specified_model: bool = False,
 ):
     """Execute single research job with automatic provider fallback.
 
@@ -365,8 +406,11 @@ async def _run_single(
     # Initialize provider router for intelligent selection and fallback
     router = AutonomousProviderRouter()
 
-    # Router-based provider selection when user didn't specify
-    if not user_specified_provider:
+    # Router-based provider selection - ONLY when the user specified neither
+    # provider nor model. An explicit -m must always win (live finding
+    # 2026-06-11: -m o4-mini-deep-research was silently overridden to the
+    # pinned default, which also made the cheaper model unselectable).
+    if not user_specified_provider and not user_specified_model:
         try:
             selected_provider, selected_model = router.select_provider(
                 task_type="research",
@@ -377,15 +421,32 @@ async def _run_single(
                 console.print(f"  [dim]Router selected: {provider}/{model}[/dim]")
         except Exception as exc:
             logger.debug("Router selection failed; using requested/default provider: %s", exc, exc_info=exc)
+    elif user_specified_model and not user_specified_provider:
+        # Honor the explicit model; just resolve which provider serves it.
+        inferred = _provider_for_model(model)
+        if inferred and inferred != provider:
+            provider = inferred
+            if output_context.mode == OutputMode.VERBOSE:
+                console.print(f"  [dim]Using {provider} (serves requested model {model})[/dim]")
+
+    # Drop the web-search tool up front for models known to reject it
+    # (the submit loop also retries once without it on rejection).
+    if not no_web and not _model_supports_web_search(model):
+        no_web = True
+        if output_context.mode == OutputMode.VERBOSE:
+            print_warning(f"{model} does not support the web-search tool; running without web search")
 
     # Check for deprecated model and display warning
     from deepr.routing.deprecation import check_deprecation
 
+    # Only warn for entries with a real sunset date. Date-less entries are
+    # informational mappings; warning on every default run trained users to
+    # ignore the warnings (and one stale date outlived the model's actual
+    # retirement plan - live finding 2026-06-11).
     dep_entry = check_deprecation(model)
-    if dep_entry:
-        retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
+    if dep_entry and dep_entry.sunset_date:
         msg = (
-            f"⚠ Model '{dep_entry.old_model}' is deprecated{retirement_info}. "
+            f"⚠ Model '{dep_entry.old_model}' is deprecated (retires {dep_entry.sunset_date}). "
             f"Recommended successor: {dep_entry.new_model}"
         )
         click.echo(msg, err=True)
@@ -468,6 +529,7 @@ async def _run_single(
         fallback_count = 0
         last_error = None
         success = False
+        web_tool_retry_done = False  # one retry without web tool on rejection
 
         while fallback_count <= MAX_FALLBACK_ATTEMPTS:
             try:
@@ -550,6 +612,21 @@ async def _run_single(
             except CoreProviderError as e:
                 # Generic provider error or unavailable: immediate fallback
                 last_error = e
+                # Tool-rejection defense: if the model rejected the web-search
+                # tool, retry the SAME provider/model once without it instead
+                # of burning through every fallback with the same bad request.
+                err_text = str(e).lower()
+                if (
+                    not no_web
+                    and not web_tool_retry_done
+                    and ("web_search" in err_text or "tool" in err_text)
+                    and ("not supported" in err_text or "unsupported" in err_text or "invalid" in err_text)
+                ):
+                    web_tool_retry_done = True
+                    no_web = True
+                    if output_context.mode == OutputMode.VERBOSE:
+                        print_warning(f"{current_model} rejected the web-search tool; retrying without it")
+                    continue
                 try:
                     router.record_result(current_provider, current_model, success=False, error=str(e))
                 except Exception as exc:
@@ -571,6 +648,7 @@ async def _run_single(
                 )
                 formatter.complete(result)
                 emitter.fail_task(op, str(last_error))
+                await _mark_job_failed(job_id, f"{current_provider}/{current_model} failed: {last_error}")
                 return
 
             # Get fallback from router
@@ -599,6 +677,7 @@ async def _run_single(
                 )
                 formatter.complete(result)
                 emitter.fail_task(op, "all_providers_failed")
+                await _mark_job_failed(job_id, f"All providers failed. Last error: {last_error}")
                 return
 
             fallback_provider, fallback_model = fallback
@@ -686,9 +765,31 @@ def _show_research_header(
 
 
 def _check_budget(yes: bool, estimated_cost: float, output_context: OutputContext) -> bool:
-    """Check budget approval. Returns True if approved, False if cancelled."""
-    if yes or check_budget_approval(estimated_cost):
+    """Check budget approval. Returns True if approved, False if cancelled.
+
+    -y skips the *confirmation*, never the *budget gate*. Previously
+    `yes` short-circuited before check_budget_approval, so any headless
+    run (`-y`, every --auto execution, agents driving deepr) could spend
+    past the monthly budget without the gate ever being consulted - the
+    exact "surprise bill" path the budget exists to prevent. When the
+    gate requires human judgment and there is no human (-y), the run is
+    REFUSED with instructions, not waved through: a non-interactive
+    caller cannot consent on the operator's behalf.
+    """
+    if check_budget_approval(estimated_cost):
         return True
+
+    # Gate says this spend needs a human decision.
+    if yes:
+        click.echo(
+            f"Budget gate: estimated ${estimated_cost:.2f} needs confirmation "
+            "(over/near the monthly budget, or above the $1 cautious-mode floor) "
+            "and -y cannot consent to it. Raise the budget with "
+            "'deepr budget set <amount>' to authorize headless spend at this level, "
+            "or run interactively.",
+            err=True,
+        )
+        return False
 
     if output_context.mode == OutputMode.VERBOSE:
         if not click.confirm(f"Proceed with estimated cost ${estimated_cost:.2f}?"):
