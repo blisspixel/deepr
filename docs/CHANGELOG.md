@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Abstention as a first-class absorb outcome (`insufficient` bucket).
+  Candidates the report supports weakly (extraction confidence in
+  [0.4, min_confidence)) are no longer lumped into "rejected": they
+  render as "insufficient grounding - abstained, not refuted", natural
+  re-research targets that may well be true. The DAVinCI/TRUST
+  "Not Enough Info" pattern from the calibration literature corpus;
+  noise below 0.4 stays rejected. CLI summary and MCP payload carry
+  insufficient_count.
+
+### Added
 - Source-trust confidence ceilings (v2.15 evidence release, panel finding
   shipped). `Belief.trust_class` (primary/secondary/tertiary; retroactive
   tertiary default for all pre-floor beliefs) with deterministic caps
