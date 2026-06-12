@@ -799,6 +799,67 @@ def validate_claim(
         print_success("Claim is consistent with expert knowledge.")
 
 
+def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool) -> None:
+    """Execute the health-check archive-candidates action (the consolidation pass).
+
+    $0, no LLM. Candidates pass every lifecycle gate (decayed below floor,
+    long-unevidenced, no recorded usage, not contested); each archival is
+    event-logged with a full snapshot so it is reversible belief-by-belief.
+    See docs/design/belief-lifecycle.md.
+    """
+    import json as _json
+    import sys
+    from pathlib import Path
+
+    from deepr.experts.beliefs import BeliefStore
+
+    # Opening a BeliefStore creates its directory; only open stores that
+    # already exist so a typo'd name cannot create state.
+    beliefs_dir = Path("data/experts") / name / "beliefs"
+    if not beliefs_dir.exists():
+        print_error(f"No belief store found for expert: {name}")
+        sys.exit(2)
+
+    belief_store = BeliefStore(name)
+    candidates = belief_store.archive_candidates()
+
+    if not candidates:
+        if json_output:
+            click.echo(_json.dumps({"expert": name, "archived": [], "count": 0}))
+        else:
+            print_success("No beliefs eligible for lifecycle archival.")
+        return
+
+    if not json_output:
+        print_header(f"Archive candidates: {name}")
+        for b in candidates:
+            console.print(
+                f"  - {b.claim[:100]} [dim](confidence {b.get_current_confidence():.2f}, "
+                f"updated {b.updated_at.date().isoformat()}, retrievals {b.retrieval_count})[/dim]"
+            )
+        console.print()
+
+    if not yes:
+        if not click.confirm(f"Archive {len(candidates)} belief(s)? (reversible - snapshots kept in the event log)"):
+            click.echo("Cancelled. Nothing archived.")
+            return
+
+    changes = belief_store.archive_stale()
+
+    if json_output:
+        click.echo(
+            _json.dumps(
+                {
+                    "expert": name,
+                    "count": len(changes),
+                    "archived": [{"belief_id": c.belief_id, "claim": c.old_claim, "reason": c.reason} for c in changes],
+                }
+            )
+        )
+    else:
+        print_success(f"Archived {len(changes)} belief(s). Restore any of them via the event-log snapshot.")
+
+
 @expert.command(name="health-check")
 @click.argument("name")
 @click.option(
@@ -807,20 +868,34 @@ def validate_claim(
     is_flag=True,
     help="Emit the full structured health report as JSON",
 )
-def health_check(name: str, json_output: bool):
+@click.option(
+    "--archive-stale",
+    "archive_stale",
+    is_flag=True,
+    help="Archive the eligible stale beliefs (reversible; snapshots kept in the event log)",
+)
+@click.option("--yes", "-y", is_flag=True, help="With --archive-stale: skip confirmation")
+def health_check(name: str, json_output: bool, archive_stale: bool, yes: bool):
     """Audit an expert's knowledge state. Read-only, costs nothing.
 
     Runs a set of free, read-side checks - knowledge freshness, belief
     contradictions (heuristic), claims missing source provenance, beliefs
-    decayed below the confidence threshold, the open-gap backlog, and ingested
-    documents that were never synthesized - and prints findings plus a
-    recommended-action menu. Each recommended action carries its CLI command,
-    an estimated cost, and the approval tier that would gate it. The audit only
-    proposes; running an action is a separate, opt-in step.
+    decayed below the confidence threshold, lifecycle archive candidates, the
+    open-gap backlog, and ingested documents that were never synthesized - and
+    prints findings plus a recommended-action menu. Each recommended action
+    carries its CLI command, an estimated cost, and the approval tier that
+    would gate it. The audit only proposes; running an action is a separate,
+    opt-in step.
+
+    With --archive-stale, the archive-candidates action executes: beliefs that
+    are decayed below the floor, long-unevidenced, unused, and not contested
+    are archived ($0, no LLM). Every archival is event-logged with a full
+    snapshot, so it is reversible belief-by-belief.
 
     EXAMPLES:
       deepr expert health-check "AI Strategy Expert"
       deepr expert health-check "AI Strategy Expert" --json
+      deepr expert health-check "AI Strategy Expert" --archive-stale
     """
     import json as _json
     import sys
@@ -834,6 +909,10 @@ def health_check(name: str, json_output: bool):
         print_error(f"Expert not found: {name}")
         click.echo("List available experts: deepr expert list")
         sys.exit(2)
+
+    if archive_stale:
+        _archive_stale_beliefs(name, yes=yes, json_output=json_output)
+        return
 
     report = ExpertHealthChecker(profile).run()
 
