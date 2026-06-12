@@ -276,6 +276,13 @@ class ReportAbsorber:
                 evidence_refs=[f"report:{report_id}", *cand.evidence],
                 domain=self.expert.domain or "",
                 source_type=SOURCE_TYPE,
+                # Research-derived knowledge is tertiary: the source-trust
+                # ceiling (0.6 single-source / 0.8 with independent
+                # corroboration) applies at read time - the deterministic
+                # ingestion-time prompt-injection backstop. A single
+                # poisoned web result cannot mint a near-certain belief
+                # regardless of extraction confidence.
+                trust_class="tertiary",
             )
 
             conflict = self._contradicts_existing(belief, existing)

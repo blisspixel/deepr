@@ -533,7 +533,8 @@ deepr expert reflect "Azure Architect" <job_id> --depth 2
 ### Knowledge Maintenance
 
 ```bash
-# Read-only, cost-$0 audit: freshness, contradictions, missing provenance,
+# Read-only, cost-$0 audit: freshness, contradictions (recorded absorb-time
+# flags + fresh heuristic detections, deduplicated), missing provenance,
 # decayed beliefs, open-gap backlog, un-synthesized docs - with a recommended
 # action menu (command + estimated cost + approval tier per action).
 deepr expert health-check "Azure Architect"
@@ -541,6 +542,40 @@ deepr expert health-check "Azure Architect" --json
 
 # Route open gaps to the best instrument (recon/distillr/primr/research), $0
 deepr expert route-gaps "Azure Architect" --top 10
+
+# ...and EXECUTE the highest-value research-route fills, budget-bounded
+# (specialist instruments are deferred with their command, never auto-run)
+deepr expert route-gaps "Azure Architect" --execute --dry-run     # preview, $0
+deepr expert route-gaps "Azure Architect" --execute --budget 1 -y
+
+# Stay current: subscribe to topics, sync pulls only what changed (delta
+# prompts, verified absorb; idempotent per cadence window - cron-able)
+deepr expert subscribe "Azure Architect" "Azure Landing Zone updates" --every 7 --budget 0.50
+deepr expert subscriptions "Azure Architect"
+deepr expert sync "Azure Architect" --dry-run
+deepr expert sync "Azure Architect" -y
+
+# Run the follow-up queries reflection emits for weak reports
+deepr expert reflect "Azure Architect" <job_id> --execute-followups --budget 1 -y
+```
+
+### Temporal Perspective Queries
+
+```bash
+# All read-side, cost-$0, also available as MCP tools for host agents.
+
+# Re-sync: what did the expert's beliefs do since a point in time?
+deepr expert what-changed "Azure Architect" --since 7d
+
+# Open conflicts: contradiction pairs with both sides + provenance
+deepr expert contested "Azure Architect"
+
+# Introspection: why does the expert believe X? Evidence roots, confidence
+# trajectory (event log), support chains (typed graph), contradictions.
+deepr expert why "Azure Architect" "landing zone subscription vending"
+
+# Browsable derived view: beliefs by domain, conflicts surfaced, byte-stable
+deepr expert digest "Azure Architect" --print
 ```
 
 ### Distribution
