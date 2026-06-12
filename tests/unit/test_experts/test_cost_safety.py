@@ -599,3 +599,53 @@ class TestCostSessionHardCeiling:
         ok, reason = session.can_proceed(5.0)
         assert ok is True
         assert reason == "OK"
+
+
+class TestSpendingSummaryContract:
+    """get_spending_summary is the contract `deepr budget safety` renders.
+
+    The command crashed with KeyError('percent_used') because the summary
+    lacked the fields the renderer reads - found live, 2026-06-12. These
+    tests pin the full rendered contract.
+    """
+
+    def test_summary_carries_rendered_fields(self):
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        manager = CostSafetyManager()
+        manager.daily_cost = 2.0
+        manager.monthly_cost = 20.0
+        summary = manager.get_spending_summary()
+
+        for bucket in ("daily", "monthly"):
+            for key in ("spent", "limit", "remaining", "percent_used"):
+                assert key in summary[bucket], f"{bucket}.{key} missing"
+        assert summary["limits"]["per_operation"] == CostSafetyManager.ABSOLUTE_MAX_PER_OPERATION
+        assert summary["limits"]["daily"] == manager.max_daily
+        assert summary["limits"]["monthly"] == manager.max_monthly
+        assert summary["daily"]["percent_used"] == pytest.approx(2.0 / manager.max_daily * 100)
+
+    def test_percent_used_zero_limit_is_safe(self):
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        manager = CostSafetyManager()
+        manager.max_daily = 0.0
+        assert manager.get_spending_summary()["daily"]["percent_used"] == 0.0
+
+    def test_env_caps_apply_to_safety_manager(self, monkeypatch):
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "1.00")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "25.00")
+        manager = CostSafetyManager()
+        assert manager.max_daily == 1.0
+        assert manager.max_monthly == 25.0
+
+    def test_env_caps_invalid_or_oversized_fall_back(self, monkeypatch):
+        from deepr.experts.cost_safety import CostSafetyManager
+
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "not-a-number")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "999999")
+        manager = CostSafetyManager()
+        assert manager.max_daily == 50.0
+        assert manager.max_monthly == CostSafetyManager.ABSOLUTE_MAX_MONTHLY
