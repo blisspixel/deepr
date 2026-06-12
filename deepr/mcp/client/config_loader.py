@@ -41,18 +41,33 @@ RECON_PROFILE_TEMPLATE: dict[str, Any] = {
     "budget_limit": 0.0,
     "cost_per_call": 0.0,
     "auto_approve": [
+        # Read-side, $0, no state mutation (verified against recon-tool
+        # v2.1.18's shipped surface, 2026-06-11)
         "lookup_tenant",
         "analyze_posture",
         "assess_exposure",
         "find_hardening_gaps",
         "chain_lookup",
+        "compare_postures",
+        "get_fingerprints",
+        "get_signals",
+        "explain_signal",
+        "discover_fingerprint_candidates",
         "get_posteriors",
         "explain_dag",
+        "export_graph",
+        "get_infrastructure_clusters",
+        "cluster_verification_tokens",
     ],
     "require_approval": [
+        # Simulation / hypothesis / state-mutating tools
         "simulate_hardening",
         "test_hypothesis",
         "inject_ephemeral_fingerprint",
+        "list_ephemeral_fingerprints",
+        "clear_ephemeral_fingerprints",
+        "reevaluate_domain",
+        "reload_data",
     ],
     "progress": False,
 }
@@ -64,8 +79,12 @@ RECON_PROFILE_TEMPLATE: dict[str, Any] = {
 #
 # Unlike recon, distillr spends model budget (ingestion runs cost money and take
 # minutes), so its profile caps per-call spend, sets a long timeout, enables
-# progress notifications, and only auto-approves the free read-side tool
-# (query_library). Cost-incurring tools require approval.
+# progress notifications, and only auto-approves the free read-side corpus
+# tools (find/read insights and concepts, gap/cost/doctor reads). Ingestion,
+# synthesis, and watch-list mutation require approval.
+# Tool names verified against distillr v0.11.1's shipped surface (2026-06-11);
+# the v2.12-era names (query_library, ingest_papers/youtube/sites, refresh)
+# no longer exist.
 DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
     "name": "distillr",
     "description": "Source ingestion engine: YouTube, websites, and arXiv papers into a structured Markdown corpus with cross-source synthesis. Absorbed as academic/strategic knowledge with provenance.",
@@ -77,15 +96,31 @@ DISTILLR_PROFILE_TEMPLATE: dict[str, Any] = {
     "budget_limit": 2.0,  # cap model spend per ingestion call
     "cost_per_call": 0.0,  # actual cost is reported by the tool response
     "auto_approve": [
-        "query_library",  # search existing corpus: no new ingestion, no/low cost
+        # Free read-side: search/read the existing corpus, no new ingestion
+        "find_insights",
+        "read_insight",
+        "find_concepts",
+        "read_concept",
+        "concept_history",
+        "concept_diff",
+        "research_gaps",
+        "costs",
+        "doctor",
     ],
     "require_approval": [
+        # Ingestion / synthesis (spend money) and watch-list mutation
         "discover",
-        "ingest_papers",
-        "ingest_youtube",
-        "ingest_sites",
-        "refresh",
-        "estimate",
+        "papers",
+        "learn_topic",
+        "process_video_url",
+        "search_videos",
+        "site_batch",
+        "catch_up",  # the freshness/delta pull (re-ingests new material)
+        "synthesize",
+        "resynthesize_topic",
+        "generate_report",
+        "watch_add",
+        "watch_remove",
     ],
     "progress": True,
 }
@@ -112,17 +147,28 @@ PRIMR_PROFILE_TEMPLATE: dict[str, Any] = {
     "budget_limit": 5.0,  # cap model spend per company analysis
     "cost_per_call": 0.0,  # actual cost is reported by the tool response
     "auto_approve": [
+        # Free read-side (verified against primr v1.29.3's shipped surface,
+        # 2026-06-11; the v2.12-era batch_analyze / quick_lookup are gone)
         "estimate_run",  # pre-flight cost/duration estimate, free
+        "estimate_strategy",  # per-strategy estimate, free
+        "estimate_skill_pack",  # skill-pack estimate, free
         "check_jobs",  # poll async job status, free
+        "wait_for_status_change",  # long-poll job status, free
+        "show_usage",  # spend/usage report, free
         "doctor",  # health check, free
+        "query_roadmap",  # read primr's own roadmap notes, free
+        "get_hypotheses",  # read saved hypotheses, free
     ],
     "require_approval": [
+        # Spend money or mutate state
         "research_company",
         "generate_strategy",
-        "batch_analyze",
-        "quick_lookup",  # cheaper (~$0.10, ~5m) but still spends money
-        "delta",
-        "hiring_signals",
+        "generate_skill_pack",
+        "run_qa",
+        "delegate_to_agent",
+        "save_hypothesis",
+        "clear_jobs",
+        "cancel_job",
     ],
     "progress": True,
 }

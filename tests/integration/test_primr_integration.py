@@ -57,9 +57,9 @@ class TestPrimrProfileLoading:
         assert profile.budget_limit == 5.0
         assert profile.timeout == 3600
         # Approval model: only free read-side tools auto-approve.
-        assert set(profile.auto_approve) == {"estimate_run", "check_jobs", "doctor"}
+        assert {"estimate_run", "estimate_strategy", "check_jobs", "doctor", "show_usage"} <= set(profile.auto_approve)
         assert "research_company" in profile.require_approval
-        assert "batch_analyze" in profile.require_approval
+        assert "delegate_to_agent" in profile.require_approval  # paid handoff tool, never auto
 
     def test_primr_template_matches_spec(self) -> None:
         assert PRIMR_PROFILE_TEMPLATE["name"] == "primr"
@@ -77,7 +77,7 @@ class TestPrimrProfileLoading:
             "    timeout: 3600\n"
             "    budget_limit: 5.0\n"
             "    auto_approve: [estimate_run, check_jobs, doctor]\n"
-            "    require_approval: [research_company, batch_analyze]\n"
+            "    require_approval: [research_company, generate_strategy]\n"
             "    progress: true\n"
         )
         profiles = ConfigLoader().load(config_path)
