@@ -232,23 +232,78 @@ class ExpertHealthChecker:
 
         return HealthFinding("freshness", severity, summary, details), action
 
+    def _recorded_contested_pairs(self) -> list[dict[str, Any]]:
+        """Open contested pairs recorded in the belief store (absorb/sync flags).
+
+        Separate method so tests can stub it without touching the on-disk
+        store; failures are non-fatal - the audit must stay read-only.
+        """
+        try:
+            from pathlib import Path
+
+            from deepr.experts.beliefs import BeliefStore
+            from deepr.experts.perspective import contested as contested_query
+
+            # BeliefStore.__init__ creates its directory; a read-only audit
+            # must not create state, so only open stores that already exist
+            # (same CWD-pollution class as the cost-ledger test bug).
+            beliefs_dir = Path("data/experts") / self.profile.name / "beliefs"
+            if not beliefs_dir.exists():
+                return []
+            recorded = contested_query(BeliefStore(self.profile.name), expert_name=self.profile.name)
+            return [p for p in recorded["pairs"] if p["status"] == "open"]
+        except Exception as exc:
+            logger.debug("Could not read recorded contested pairs: %s", exc, exc_info=exc)
+            return []
+
     def _check_contradictions(
         self, manifest: Any, beliefs: list[Belief]
     ) -> tuple[HealthFinding, RecommendedAction | None]:
+        """Open contradictions: recorded flags first, then fresh heuristic.
+
+        Two sources, deduplicated by id pair:
+        - recorded: contested pairs already flagged at absorb/sync time
+          (contradiction edges in the belief store) - these were detected
+          when the conflicting claim arrived and persist until adjudicated.
+          Previously the audit ignored them and only re-ran the heuristic,
+          so the action menu never showed the absorb-time flags.
+        - heuristic: newly detected by the free negation heuristic on this
+          run (pairs the recorded set does not already cover).
+        """
         from deepr.experts.conflict_resolver import ConflictResolver
 
-        pairs = ConflictResolver.detect_contradictions_heuristic(beliefs)
-        count = len(pairs)
+        recorded_pairs = self._recorded_contested_pairs()
+
+        recorded_keys = {frozenset((p["a"]["belief_id"], p["b"]["belief_id"])) for p in recorded_pairs}
+        heuristic_pairs = [
+            (a, b)
+            for a, b in ConflictResolver.detect_contradictions_heuristic(beliefs)
+            if frozenset((a.id, b.id)) not in recorded_keys
+        ]
+
+        count = len(recorded_pairs) + len(heuristic_pairs)
         severity = "warning" if count else "ok"
-        summary = (
-            f"{count} potential belief contradiction(s) detected (heuristic)."
-            if count
-            else "No belief contradictions detected (heuristic pass)."
-        )
+        if count:
+            summary = (
+                f"{count} open contradiction(s): {len(recorded_pairs)} recorded (absorb/sync-time flags), "
+                f"{len(heuristic_pairs)} newly detected (heuristic)."
+            )
+        else:
+            summary = "No belief contradictions detected (recorded + heuristic pass)."
         detail = {
             "count": count,
-            "pairs": [
-                {"a": a.claim, "b": b.claim, "domain": a.domain, "a_id": a.id, "b_id": b.id} for a, b in pairs[:10]
+            "recorded": [
+                {
+                    "a": p["a"]["claim"],
+                    "b": p["b"]["claim"],
+                    "a_id": p["a"]["belief_id"],
+                    "b_id": p["b"]["belief_id"],
+                }
+                for p in recorded_pairs[:10]
+            ],
+            "heuristic": [
+                {"a": a.claim, "b": b.claim, "domain": a.domain, "a_id": a.id, "b_id": b.id}
+                for a, b in heuristic_pairs[:10]
             ],
         }
 
@@ -258,7 +313,10 @@ class ExpertHealthChecker:
             cost = round(0.02 * count, 2)
             action = RecommendedAction(
                 category="contradictions",
-                description=f"Adjudicate {count} contradiction(s) and revise beliefs",
+                description=(
+                    f"Adjudicate {count} contradiction(s) "
+                    f"({len(recorded_pairs)} recorded, {len(heuristic_pairs)} new) and revise beliefs"
+                ),
                 command=f"deepr expert resolve-conflicts {shlex.quote(self.profile.name)}",
                 estimated_cost=cost,
                 approval_tier=_approval_tier_for_cost(cost),
