@@ -1,57 +1,53 @@
-#!/bin/bash
-# Install deepr CLI globally so it can be used anywhere
+#!/usr/bin/env bash
+# Easy one-line installer for deepr (macOS / Linux)
+# Usage (recommended):
+#   curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
 
-set -e  # Exit on error
+set -euo pipefail
 
-echo "Installing deepr CLI..."
-echo
+PACKAGE="deepr-research"
+CLI="deepr"
 
-# Check Python version
-python_version=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' || python --version 2>&1 | grep -oP '\d+\.\d+')
-echo "Python version: $python_version"
+echo "==> Installing $PACKAGE (CLI: $CLI) ..."
 
-# Install in editable mode for development
-echo "Installing in editable mode..."
-pip install -e .
-
-# Verify installation
-echo
-echo "Verifying installation..."
-if command -v deepr &> /dev/null; then
-    echo "✓ deepr command is available"
-    deepr --version || echo "deepr CLI installed successfully"
-else
-    echo "✗ deepr command not found in PATH"
-    echo "  Try: pip install --user -e ."
-    echo "  And ensure ~/.local/bin (or equivalent) is in your PATH"
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 (3.12+) is required."
     exit 1
 fi
 
-echo
-echo "Checking environment variables..."
-missing=0
-if [ -z "$OPENAI_API_KEY" ]; then
-    echo "  ⚠ OPENAI_API_KEY not set (required for research)"
-    missing=1
-fi
-for key in XAI_API_KEY GEMINI_API_KEY AZURE_OPENAI_API_KEY; do
-    if [ -n "${!key}" ]; then
-        echo "  ✓ $key set"
-    fi
-done
-if [ $missing -eq 1 ]; then
-    echo "  Set required keys in .env or your shell profile"
+PYTHON=python3
+PYVER=$($PYTHON -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "0.0")
+if [ "$(printf '%s\n' "3.12" "$PYVER" | sort -V | head -1)" != "3.12" ]; then
+    echo "Error: Python 3.12+ is required (found $PYVER)."
+    exit 1
 fi
 
-echo
-echo "Installation complete! You can now use 'deepr' from anywhere."
-echo
+if ! command -v pipx >/dev/null 2>&1; then
+    echo "==> pipx not found. Installing pipx..."
+    $PYTHON -m pip install --user pipx
+    $PYTHON -m pipx ensurepath
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+echo "==> Using pipx to install $PACKAGE ..."
+pipx install "$PACKAGE"
+
+echo ""
+echo "==> Installation complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Open a new terminal"
+echo "  2. Run: $CLI doctor"
+echo "  3. Copy .env.example to .env and add at least one API key"
+echo "  4. $CLI budget set 50"
+echo ""
 echo "Quick start:"
-echo "  deepr --help                   # Show all commands"
-echo "  deepr doctor                   # Check configuration"
-echo "  deepr expert list              # List experts"
-echo "  deepr research \"query\"         # Run research"
-echo
-echo "MCP server:"
-echo "  python -m deepr.mcp.server     # Start MCP server (stdio)"
-echo
+echo "  $CLI research \"your question\" --auto"
+echo ""
+echo "Note: deepr has powerful optional features. See README for extras."
+echo ""
+echo "For development (advanced scripts available in scripts/):"
+echo "  git clone https://github.com/blisspixel/deepr.git"
+echo "  cd deepr/deepr"
+echo "  pipx install -e ."
+echo ""
