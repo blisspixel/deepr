@@ -559,11 +559,15 @@ class CostSafetyManager:
         self._ledger = CostLedger()
         self._strict_tracking = os.getenv("DEEPR_COST_TRACKING_STRICT", "0").lower() in {"1", "true", "yes", "on"}
 
-        # Global daily/monthly tracking
+        # Global daily/monthly tracking. Limits honor the same env caps the
+        # research budget gate reads (DEEPR_MAX_COST_PER_DAY/_MONTH), so a
+        # dev machine capped at $1/day is capped for autonomous expert
+        # operations too - one knob, every spender. Values are clamped to
+        # the absolute ceilings; unset/invalid env falls back to defaults.
         self.daily_cost: float = 0.0
         self.monthly_cost: float = 0.0
-        self.max_daily: float = 50.0  # Default $50/day limit
-        self.max_monthly: float = 500.0  # Default $500/month limit
+        self.max_daily: float = self._env_limit("DEEPR_MAX_COST_PER_DAY", 50.0, self.ABSOLUTE_MAX_DAILY)
+        self.max_monthly: float = self._env_limit("DEEPR_MAX_COST_PER_MONTH", 500.0, self.ABSOLUTE_MAX_MONTHLY)
         self._last_daily_reset: float = time.time()
         self._last_monthly_reset: float = time.time()
 
@@ -578,6 +582,20 @@ class CostSafetyManager:
         # estimated_cost. record_cost / refund_reservation drain them.
         self._reserved_daily: float = 0.0
         self._reservations: dict[str, float] = {}
+
+    @staticmethod
+    def _env_limit(var: str, default: float, ceiling: float) -> float:
+        """Read a spend limit from the environment, clamped to (0, ceiling]."""
+        raw = os.getenv(var)
+        if not raw:
+            return default
+        try:
+            value = float(raw)
+        except ValueError:
+            return default
+        if value <= 0:
+            return default
+        return min(value, ceiling)
 
     @property
     def circuit_breaker(self) -> CostCircuitBreaker:
@@ -816,18 +834,32 @@ class CostSafetyManager:
         """Get global spending summary.
 
         Returns:
-            Dictionary with daily and monthly spending info
+            Dictionary with daily and monthly spending info (including
+            percent_used) plus the configured limits - the exact contract
+            `deepr budget safety` renders. The command crashed with
+            KeyError before these fields existed; regression-tested now.
         """
+
+        def _percent(spent: float, limit: float) -> float:
+            return (spent / limit * 100.0) if limit > 0 else 0.0
+
         return {
             "daily": {
                 "spent": self.daily_cost,
                 "limit": self.max_daily,
                 "remaining": max(0, self.max_daily - self.daily_cost),
+                "percent_used": _percent(self.daily_cost, self.max_daily),
             },
             "monthly": {
                 "spent": self.monthly_cost,
                 "limit": self.max_monthly,
                 "remaining": max(0, self.max_monthly - self.monthly_cost),
+                "percent_used": _percent(self.monthly_cost, self.max_monthly),
+            },
+            "limits": {
+                "per_operation": self.ABSOLUTE_MAX_PER_OPERATION,
+                "daily": self.max_daily,
+                "monthly": self.max_monthly,
             },
             "active_sessions": len(self._sessions),
         }
