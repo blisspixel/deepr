@@ -8,6 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Belief lifecycle and salience substrate (design:
+  `docs/design/belief-lifecycle.md`), grounded in a nine-corpus review of
+  the 2026 agent-memory and claim-verification literature (the documented
+  root failure mode of agent memory is monotonic accumulation - deepr
+  shared it with 17 of 20 surveyed systems):
+  - Bi-temporal valid time: belief events carry an optional world-valid
+    `invalidated_at` (when the fact stopped being true) distinct from the
+    event timestamp (when the store learned it) - the Graphiti pattern,
+    added while the event schema is young. Old event lines parse
+    unchanged.
+  - Lossless archival: archival events embed a full belief snapshot and
+    `restore_belief` rebuilds from the log alone - reversibility is
+    executable, not aspirational. Pre-snapshot archival events honestly
+    return None.
+  - Usage salience: per-belief `retrieval_count`/`last_retrieved_at` +
+    `BeliefStore.record_retrieval`, recordable only from already-mutating
+    surfaces - the read-side query surface (validate, why, digest,
+    contested, what-changed) stays pure/$0, regression-tested. Usage only
+    ever protects a belief from archival; absence never condemns one.
+  - Consolidation pass: health-check gains an `archive_candidates`
+    finding and an `--archive-stale` action ($0, no LLM). Candidates must
+    pass every gate - decayed below 0.2, unevidenced 90+ days, no
+    recorded usage, and not contested (contested beliefs are signal,
+    never garbage - the Rashomon rule). Dry-listed with confirmation;
+    every archival event-logged with snapshot and thresholds.
+  Live-validated end to end at $0: inject stale belief, audit flags it,
+  CLI archives it, snapshot restores it.
+- Roadmap absorbs the rest of the corpus review: entailment-shaped
+  contradiction screen and atomic claim decomposition (v2.15, from the
+  claim-verification corpus), continuity-property metrics for eval
+  methodology v2 (the ATANT audit shows popular memory benchmarks test
+  at most 2 of 7 continuity properties), and ADAM-style memory
+  extraction/poisoning cases for the Phase 5 red-team suite.
+
+### Added
 - Abstention as a first-class absorb outcome (`insufficient` bucket).
   Candidates the report supports weakly (extraction confidence in
   [0.4, min_confidence)) are no longer lumped into "rejected": they

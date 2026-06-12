@@ -1,9 +1,13 @@
 """Live integration tests for Azure AI Foundry provider.
 
-These tests require Azure credentials and are skipped when
-AZURE_PROJECT_ENDPOINT is not set.
+These tests submit REAL, PAID provider calls, so they require an explicit
+double opt-in: Azure credentials (AZURE_PROJECT_ENDPOINT) AND
+DEEPR_RUN_LIVE_TESTS=1. Credentials alone must never be enough - a dev
+machine with a configured .env running a casual `pytest tests` must not
+spend money as a side effect (no-surprise-bills applies to the test
+suite too).
 
-Run with: pytest tests/integration/test_azure_foundry_live.py -v
+Run with: DEEPR_RUN_LIVE_TESTS=1 pytest tests/integration/test_azure_foundry_live.py -v
 """
 
 import os
@@ -11,10 +15,14 @@ import os
 import pytest
 
 AZURE_ENDPOINT = os.getenv("AZURE_PROJECT_ENDPOINT")
-SKIP_REASON = "AZURE_PROJECT_ENDPOINT not set — skipping live Azure Foundry tests"
+RUN_LIVE = os.getenv("DEEPR_RUN_LIVE_TESTS") == "1"
+SKIP_REASON = (
+    "live Azure Foundry tests need AZURE_PROJECT_ENDPOINT and the explicit "
+    "DEEPR_RUN_LIVE_TESTS=1 opt-in (they spend real money)"
+)
 
 
-@pytest.mark.skipif(not AZURE_ENDPOINT, reason=SKIP_REASON)
+@pytest.mark.skipif(not (AZURE_ENDPOINT and RUN_LIVE), reason=SKIP_REASON)
 class TestAzureFoundryLive:
     """Live tests against Azure AI Foundry Agent Service."""
 
