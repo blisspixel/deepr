@@ -1,6 +1,6 @@
 name: distillr
-version: 0.1.0
-description: Native first-party source ingestion. Turns YouTube videos, websites, and arXiv papers into a structured Markdown corpus with cross-source synthesis. Powered by the distillr MCP server. Spends model budget, so ingestion is approval-gated; searching the existing corpus is free.
+version: 0.2.0
+description: Native first-party source ingestion. Turns YouTube videos, websites, and arXiv papers into a structured Markdown corpus with cross-source synthesis. Powered by the distillr MCP server. Spends model budget, so ingestion is approval-gated; searching the existing corpus is free. Tool names verified against distillr v0.11.1 (2026-06-11).
 domains: ["academic", "literature", "corpus", "research-sources"]
 
 triggers:
@@ -8,21 +8,49 @@ triggers:
   patterns: []
 
 tools:
-  - name: query_library
+  - name: find_insights
     type: mcp
     description: |
       Search the existing distillr corpus without ingesting anything new.
-      Free / low cost. ALWAYS try this first: the expert may already have a
-      synthesized corpus on the topic, in which case no paid ingestion is
-      needed. Returns matching topics, synthesis paths, and metadata.
+      Free. ALWAYS try this first: the expert may already have a synthesized
+      corpus on the topic, in which case no paid ingestion is needed.
+      Returns matching insights with paths; follow up with read_insight.
     server:
       command: distill-mcp
       args: []
-    remote_tool_name: query_library
+    remote_tool_name: find_insights
     parameters:
       query:
         type: string
         description: Topic or question to search the existing corpus for
+    cost_tier: free
+    timeout_seconds: 60
+
+  - name: read_insight
+    type: mcp
+    description: Read one insight document from the corpus by path (free; pair with find_insights).
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: read_insight
+    parameters:
+      path:
+        type: string
+        description: Insight path returned by find_insights
+    cost_tier: free
+    timeout_seconds: 60
+
+  - name: research_gaps
+    type: mcp
+    description: Free per-topic gap report from the corpus (what the library does not yet cover). Useful before deciding what to ingest.
+    server:
+      command: distill-mcp
+      args: []
+    remote_tool_name: research_gaps
+    parameters:
+      topic:
+        type: string
+        description: Existing corpus topic to analyze for gaps
     cost_tier: free
     timeout_seconds: 60
 
@@ -40,78 +68,72 @@ tools:
     cost_tier: low
     timeout_seconds: 120
 
-  - name: ingest_papers
+  - name: papers
     type: mcp
     description: |
       Ingest arXiv / academic papers matching a query into the corpus and
       produce a cross-paper synthesis. Costs model budget and takes minutes.
-      Returns topic, papers_ingested, synthesis_path, and actual cost.
+      Returns the topic, ingested papers, synthesis path, and actual cost.
     server:
       command: distill-mcp
       args: []
-    remote_tool_name: ingest_papers
+    remote_tool_name: papers
     parameters:
+      topic:
+        type: string
+        description: Corpus topic to file the papers under
       query:
         type: string
-        description: Topic to ingest papers on (e.g. "embedded finance platform economics")
-      budget:
+        description: arXiv search query (e.g. "temporal knowledge graph confidence calibration")
+      limit:
         type: number
-        description: Optional cap on model spend for this ingestion run (USD)
+        description: Max papers to ingest (default 5)
     cost_tier: high
     timeout_seconds: 900
 
-  - name: ingest_youtube
+  - name: learn_topic
     type: mcp
     description: Ingest YouTube videos (transcripts) on a topic into the corpus with synthesis. Costs model budget and takes minutes.
     server:
       command: distill-mcp
       args: []
-    remote_tool_name: ingest_youtube
+    remote_tool_name: learn_topic
     parameters:
-      query:
+      topic:
         type: string
-        description: Topic or channel/playlist to ingest transcripts from
-      budget:
-        type: number
-        description: Optional cap on model spend for this ingestion run (USD)
+        description: Topic to discover and ingest video transcripts for
     cost_tier: high
     timeout_seconds: 900
 
-  - name: ingest_sites
+  - name: site_batch
     type: mcp
-    description: Ingest websites / articles on a topic into the corpus with synthesis. Costs model budget and takes minutes.
+    description: Ingest websites / articles into the corpus with synthesis. Costs model budget and takes minutes.
     server:
       command: distill-mcp
       args: []
-    remote_tool_name: ingest_sites
+    remote_tool_name: site_batch
     parameters:
-      query:
+      config:
         type: string
-        description: Topic or seed URLs to ingest
-      budget:
-        type: number
-        description: Optional cap on model spend for this ingestion run (USD)
+        description: Batch config (seed URLs / topic mapping)
     cost_tier: high
     timeout_seconds: 900
 
-  - name: refresh
+  - name: catch_up
     type: mcp
     description: |
-      Re-run ingestion on a topic already in the corpus and integrate ONLY new
+      Re-check a watched topic already in the corpus and integrate ONLY new
       material (delta). This is the freshness engine: use it to keep an expert
       current on a topic over time without re-ingesting everything. Cheaper
       than a full ingest because it skips already-known sources.
     server:
       command: distill-mcp
       args: []
-    remote_tool_name: refresh
+    remote_tool_name: catch_up
     parameters:
       topic:
         type: string
         description: Existing corpus topic to check for new material
-      budget:
-        type: number
-        description: Optional cap on model spend for this refresh run (USD)
     cost_tier: medium
     timeout_seconds: 900
 

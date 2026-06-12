@@ -336,7 +336,7 @@ class KnowledgeAbsorber:
         self,
         payload: dict[str, Any],
         topic: str = "",
-        tool: str = "distillr/ingest_papers",
+        tool: str = "distillr/papers",
     ) -> list[AbsorbedFinding]:
         """Specialized parser for distillr corpus-ingestion / query output.
 
@@ -352,7 +352,7 @@ class KnowledgeAbsorber:
         primary fact) and tops out below recon's DNS-grade certainty.
 
         Falls back gracefully to a single summary finding for unrecognised
-        shapes (e.g. query_library metadata-only responses).
+        shapes (e.g. find_insights metadata-only responses).
         """
         findings: list[AbsorbedFinding] = []
         if not isinstance(payload, dict):
