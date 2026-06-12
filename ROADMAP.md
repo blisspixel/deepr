@@ -57,7 +57,7 @@ These features work but APIs or behavior may change:
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
 - **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `find_insights` corpus search first)
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
-- **MCP server**: Functional with 25 tools, but MCP spec itself is still maturing
+- **MCP server**: Functional with 26 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -73,7 +73,7 @@ These features work but APIs or behavior may change:
 - Expert system with autonomous learning, agentic chat (streaming, 27 slash commands, 4 chat modes, visible reasoning, context compaction, approval flows, expert council, task planning, memory commands), knowledge synthesis, curriculum preview (`expert plan`), guardrail validation (`expert validate`), knowledge maintenance (`expert health-check`), report-to-knowledge absorption (`expert absorb`), report reflection (`expert reflect`), gap-to-tool routing (`expert route-gaps`), per-expert SKILL.md export (`expert export-skill`), domain-specific skills, AI-generated portraits
 - Expert skills system: 7 built-in skills, Python + MCP tool types, auto-activation triggers, three-tier storage
 - Conversations API for browsing and resuming past chat sessions
-- MCP server with 25 tools, persistence, security, multi-runtime configs
+- MCP server with 26 tools, persistence, security, multi-runtime configs
 - Web dashboard (12 pages: overview, research studio, research live, results library, result detail, expert hub, expert profile, cost intelligence, models & benchmarks, trace explorer, help, settings)
 - CLI trace flags (`--explain`, `--timeline`, `--full-trace`)
 - Output modes (`--verbose`, `--json`, `--quiet`)
@@ -643,7 +643,7 @@ migrate. Design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-
 
 1. [x] Belief event log (shipped: append-only `events.jsonl` dual-written with the legacy window; `what_changed` reads the log when present and is exact with no truncation; legacy stores keep the honest caveat)
 2. [x] Typed edges + migration (shipped: `Edge` store with canonical-key dedup + provenance accumulation, symmetric `contradicts`, idempotent migration of legacy `contradictions_with` lists, contested/detected write paths route through `add_edge` with the legacy field mirrored for one release; `supports` edges now written for same-polarity related beliefs in the 0.35-0.7 similarity band - the free heuristic family, advisory structure only, never a confidence input)
-3. `explain_belief` (`deepr expert why` + MCP) - the third temporal query
+3. [x] `explain_belief` (`deepr expert why` + MCP `deepr_explain_belief`, tool 26) - the third temporal query, shipped: belief resolution by id or query-coverage text match, evidence roots, confidence trajectory from the event log (legacy fallback), depth-bounded cycle-safe walk over supports/derived_from chains, direct-neighbor contradictions with status. Read-side, cost-$0. Live-validated day one (the symmetric text matcher rejected a real query against the exact belief it described - fixed to query-coverage scoring with prefix tolerance).
 4. Regenerated expert digest (derived view, never canonical)
 5. Loop-closer completion: autonomous gap-fill execution (route-gaps
    advises -> executes within budget), auto re-research from reflection
