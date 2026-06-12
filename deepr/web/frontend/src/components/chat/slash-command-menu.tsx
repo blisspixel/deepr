@@ -23,7 +23,7 @@ export function SlashCommandMenu({ inputValue, visible, onSelect, onClose }: Sla
 
   // Group by category
   const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, cmd) => {
-    ;(acc[cmd.category] ??= []).push(cmd)
+    (acc[cmd.category] ??= []).push(cmd)
     return acc
   }, {})
 

@@ -163,11 +163,31 @@ cli.add_command(web.web)
 cli.add_command(eval_cmd.evaluate)
 
 
+def _ensure_utf8_console() -> None:
+    """Reconfigure stdout/stderr to UTF-8 on Windows.
+
+    Windows consoles default to cp1252; any CLI output containing arrows,
+    box-drawing, or other non-Latin-1 characters (help text, rich tables,
+    cost timelines) crashes with UnicodeEncodeError (live finding
+    2026-06-11: `deepr research -h` crashed on a cp1252 console).
+    errors="replace" keeps output flowing even on truly limited codepages.
+    """
+    if sys.platform == "win32":
+        for stream in (sys.stdout, sys.stderr):
+            reconfigure = getattr(stream, "reconfigure", None)
+            if reconfigure is not None:
+                try:
+                    reconfigure(encoding="utf-8", errors="replace")
+                except (ValueError, OSError):
+                    pass  # non-reconfigurable stream (e.g. closed/redirected)
+
+
 def main():
     """Entry point for CLI.
 
     When invoked with no arguments, launches interactive mode.
     """
+    _ensure_utf8_console()
     # If no arguments provided (just 'deepr'), launch interactive mode.
     # Route through Click with an explicit subcommand to avoid NoArgsIsHelpError
     # from the root group parser.
