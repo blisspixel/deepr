@@ -706,7 +706,7 @@ wheels = [
 
 [[package]]
 name = "deepr-research"
-version = "2.13.1"
+version = "2.13.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -778,7 +778,7 @@ web = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiofiles", specifier = ">=23.0.0,<25.0.0" },
+    { name = "aiofiles", specifier = ">=23.0.0,<26.0.0" },
     { name = "aiohttp", specifier = ">=3.9.0,<4.0.0" },
     { name = "anthropic", specifier = ">=0.40.0,<1.0.0" },
     { name = "azure-ai-agents", marker = "extra == 'azure-foundry'", specifier = ">=1.0.0b4" },

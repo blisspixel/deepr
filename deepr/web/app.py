@@ -652,8 +652,10 @@ def submit_job():
             try:
                 allowed, deny_reason = cost_controller.check_cost_limit(estimate_obj)
             except Exception as exc:
-                logger.warning(f"CostController.check_cost_limit failed: {exc}")
-                allowed, deny_reason = True, None
+                # Fail CLOSED: a broken money-gate must not wave spend
+                # through (previously this defaulted to allowed=True).
+                logger.error(f"CostController.check_cost_limit failed; denying submission: {exc}")
+                allowed, deny_reason = False, "Cost limit check unavailable; submission denied (fail-closed)"
             if not allowed:
                 return jsonify(
                     {
