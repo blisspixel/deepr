@@ -17,7 +17,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         if (typeof ref === "function") {
           ref(node)
         } else if (ref) {
-          ;(ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = node
+          (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = node
         }
       },
       [ref]

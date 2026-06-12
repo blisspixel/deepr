@@ -7,6 +7,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Belief event log (TKG step 1).** Every belief change (created/updated/
+  revised/archived/contested/merged) appends to `events.jsonl` - the
+  cost-ledger pattern applied to knowledge. Written at change time (not
+  deferred to save), so events survive mid-operation failures.
+  `what_changed` reads the log when present and is exact with no
+  truncation caveat (proven: a 120-belief delta returns complete past the
+  old 100-record window); legacy stores keep the honest truncation
+  report. Design: docs/design/temporal-knowledge-graph.md.
+- **Typed belief-graph edges (TKG step 2).** `Edge(src, dst, type,
+  provenance[], created_at)` with supports/contradicts/enables/
+  derived_from; `contradicts` is symmetric (A-B == B-A); re-asserting a
+  relationship accumulates provenance instead of duplicating. Legacy
+  `contradictions_with` lists migrate idempotently on first load with the
+  legacy field mirrored for one release, so every existing reader keeps
+  working. Conflict detection and contested-absorb route through
+  `add_edge`; same-polarity related beliefs (0.35-0.7 similarity band)
+  now get `supports` edges - the structure `explain_belief` will walk.
+- **First-party integrations re-verified + live drift check.** All three
+  sibling integrations had silently drifted since v2.12: primr v1.29.3
+  removed `batch_analyze`/`quick_lookup` (still referenced in profile,
+  skill pack, and prompt), distillr v0.11.1 renamed its entire verb
+  surface (the one auto-approved tool, `query_library`, no longer
+  existed - the free corpus path was dead), recon v2.1.18 added five
+  tools. Profiles, skill packs, prompts, and tests rebuilt on the real
+  surfaces (recon 22/22, distillr 21/21, primr 17/17 declared-vs-live).
+  New `scripts/validate_integrations.py`: $0 `tools/list` handshake
+  through Deepr's own MCP client diffing reality against the profiles -
+  its first run corrected two errors in the static fix itself.
+- **Budget gate hardening (no-surprise-bills audit).** Three holes found
+  and closed: (1) `-y` short-circuited the monthly budget gate entirely -
+  every headless run could spend past the budget unchecked; `-y` now
+  skips confirmation, never the gate, and refuses when the gate wants a
+  human. (2) Cautious mode's under-$1 auto-approve had no cumulative cap
+  (a loop of $0.99 jobs was unbounded); now capped at $25/month of
+  ledger-verified spend. (3) The web submit gate failed open when the
+  limit check itself errored; now fail-closed. Budget decisions read
+  max(side counter, canonical ledger) so no entry point can make the
+  month look cheaper than it was.
+- **Saturation-aware eval rankings + $0 regeneration.** The benchmark's
+  routing-preference generation used plain max() over per-task scores; on
+  tasks where the question set has no headroom (gpt-4.1-nano scored a
+  mean 1.00 over 896 reasoning evals), the "best" pick degenerated to
+  iteration order - which is how auto mode came to route reasoning
+  queries to a nano model. Tasks are now flagged saturated (top-2 tie
+  within 0.02, or top score >= 0.99) and their best_quality pick is
+  chosen by discriminative quality (mean score across tasks that DO
+  discriminate) among models above a competence floor. New
+  `--regenerate-rankings` rebuilds routing_preferences.json from stored
+  benchmark data with zero API calls - the entire fix was validated and
+  deployed without spending anything (10 of 14 task types were
+  saturated; reasoning now elects gpt-5.2). A paid eval run is only
+  needed when a new model must be benchmarked (`--new-models` with the
+  $1 preflight cap) or when the harder question set ships (eval
+  methodology v2, planned v2.15).
+
+### Fixed
+- **Six live findings from an external agent driving deepr headless**
+  (2026-06-11) - the most valuable bug report class, all front-door issues:
+  - `deepr research` now accepts `--budget/-b` (alias of `--limit/-l`) -
+    the README documented a flag the CLI did not have.
+  - Windows cp1252 consoles no longer crash on CLI output containing
+    arrows/box characters (`deepr research -h` raised UnicodeEncodeError):
+    stdout/stderr are reconfigured to UTF-8 with replacement at entry.
+    Also closes the earlier `costs timeline` encoding finding.
+  - `--auto` no longer pairs the web-search tool with models that reject
+    it (gpt-4.1-nano took the tool, errored, and burned every fallback):
+    nano-tier models drop the tool up front, and the submit loop retries
+    the same model once without the tool on a tool-rejection error.
+  - A run that fails on every provider now marks its queue job FAILED -
+    previously it exited with the job still QUEUED, leaving a zombie the
+    user had to cancel manually.
+  - An explicit `-m` is never overridden by routing: previously
+    `-m o4-mini-deep-research` without `--provider` was silently replaced
+    by the pinned default (which also made the cheaper deep-research
+    model unselectable). The provider is now inferred from the registry
+    for explicitly requested models.
+  - The o3-deep-research deprecation warning cited a retirement date
+    (2026-03-26) that passed without the model retiring (alias
+    live-verified still served). The entry is informational now, and
+    date-less entries no longer warn on every run.
+- **Deep-research pricing drift** (live pricing page, 2026-06-11):
+  o3-deep-research corrected $11/$44 -> $10/$40 per MTok;
+  o4-mini-deep-research corrected $1.10/$4.40 (the plain o4-mini rate,
+  copied by mistake) -> $2/$8. Registry remains the single pricing
+  source, so estimates and settlement both pick up the corrections.
+  Full four-provider sweep verified everything else current (gpt-5.5/
+  5.5-pro, grok-4.3/4.20, gemini-3.5-flash, claude-opus-4-8/fable-5
+  all present and correctly priced; gemini-2.0-flash retired upstream
+  June 1 and was already absent).
+
 ## [2.13.2] - 2026-06-11
 
 ### Added
