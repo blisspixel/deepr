@@ -1,66 +1,57 @@
-# Install deepr CLI globally so it can be used anywhere (PowerShell)
+# Easy one-line installer for deepr (Windows PowerShell)
+# Usage (recommended):
+#   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.ps1 | iex"
 
-Write-Host "Installing deepr CLI..." -ForegroundColor Cyan
+$ErrorActionPreference = "Stop"
+
+$Package = "deepr-research"
+$Cli = "deepr"
+
+Write-Host "==> Installing $Package (CLI: $Cli) ..." -ForegroundColor Cyan
 Write-Host ""
 
-# Check Python version
-try {
-    $pythonVersion = (python --version 2>&1) -replace 'Python ', ''
-    Write-Host "Python version: $pythonVersion" -ForegroundColor Green
-} catch {
-    Write-Host "Error: Python not found. Please install Python 3.9+ first." -ForegroundColor Red
+$python = "python"
+if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
+    $python = "py"
+}
+if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
+    Write-Host "Error: Python 3.12+ is required." -ForegroundColor Red
     exit 1
 }
 
-# Install in editable mode for development
-Write-Host "Installing in editable mode..." -ForegroundColor Yellow
-pip install -e .
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Installation failed!" -ForegroundColor Red
+$ver = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
+    Write-Host "Error: Python 3.12+ is required (found $ver)." -ForegroundColor Red
     exit 1
 }
 
-# Verify installation
-Write-Host ""
-Write-Host "Verifying installation..." -ForegroundColor Yellow
-
-try {
-    $null = Get-Command deepr -ErrorAction Stop
-    Write-Host "✓ deepr command is available" -ForegroundColor Green
-    deepr --version
-} catch {
-    Write-Host "✗ deepr command not found in PATH" -ForegroundColor Red
-    Write-Host "  Try: pip install --user -e ." -ForegroundColor Yellow
-    Write-Host "  And ensure Python Scripts directory is in your PATH" -ForegroundColor Yellow
-    exit 1
+if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+    Write-Host "==> pipx not found. Installing pipx..." -ForegroundColor Yellow
+    & $python -m pip install --user pipx --quiet
+    & $python -m pipx ensurepath
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
 }
 
-Write-Host ""
-Write-Host "Checking environment variables..." -ForegroundColor Yellow
-$missing = $false
-if (-not $env:OPENAI_API_KEY) {
-    Write-Host "  WARNING: OPENAI_API_KEY not set (required for research)" -ForegroundColor Red
-    $missing = $true
-}
-foreach ($key in @("XAI_API_KEY", "GEMINI_API_KEY", "AZURE_OPENAI_API_KEY")) {
-    if ([Environment]::GetEnvironmentVariable($key)) {
-        Write-Host "  $key set" -ForegroundColor Green
-    }
-}
-if ($missing) {
-    Write-Host "  Set required keys in .env or system environment" -ForegroundColor Yellow
-}
+Write-Host "==> Using pipx to install $Package ..." -ForegroundColor Green
+pipx install $Package
 
 Write-Host ""
-Write-Host "Installation complete! You can now use 'deepr' from anywhere." -ForegroundColor Green
+Write-Host "==> Installation complete!" -ForegroundColor Green
 Write-Host ""
-Write-Host "Quick start:" -ForegroundColor Cyan
-Write-Host "  deepr --help                   # Show all commands"
-Write-Host "  deepr doctor                   # Check configuration"
-Write-Host "  deepr expert list              # List experts"
-Write-Host "  deepr research `"query`"         # Run research"
+Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "  1. Open a NEW terminal"
+Write-Host "  2. Run: $Cli doctor"
+Write-Host "  3. Copy .env.example to .env and add at least one API key (XAI/Gemini/OpenAI/Anthropic)"
+Write-Host "  4. $Cli budget set 50"
 Write-Host ""
-Write-Host "MCP server:" -ForegroundColor Cyan
-Write-Host "  python -m deepr.mcp.server     # Start MCP server (stdio)"
+Write-Host "Quick start:"
+Write-Host "  $Cli research `"your question`" --auto"
+Write-Host ""
+Write-Host "Note: deepr has powerful optional features (web dashboard, full extras)."
+Write-Host "      See README for pipx install deepr-research[web] etc. (advanced users)."
+Write-Host ""
+Write-Host "For development / editable from source (see existing scripts/ for advanced setup):"
+Write-Host "  git clone https://github.com/blisspixel/deepr.git"
+Write-Host "  cd deepr/deepr"
+Write-Host "  pipx install -e ."
 Write-Host ""
