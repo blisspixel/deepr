@@ -89,6 +89,15 @@ class AbsorbedClaim:
         }
 
 
+# Below this extraction confidence a candidate is noise (rejected outright);
+# between here and min_confidence the honest verdict is "the report does not
+# support this strongly enough" - abstention, not falsity. The distinction is
+# the DAVinCI/TRUST "Not Enough Info" pattern (docs/design/
+# calibration-and-trust.md, literature grounding): collapsing both into
+# "rejected" made weak support read as refutation.
+INSUFFICIENT_GROUNDING_FLOOR = 0.4
+
+
 @dataclass
 class RejectedClaim:
     """A candidate the gates held back, with the reason it was held back."""
@@ -99,6 +108,22 @@ class RejectedClaim:
 
     def to_dict(self) -> dict[str, Any]:
         return {"statement": self.statement, "reason": self.reason, "detail": self.detail}
+
+
+@dataclass
+class InsufficientGroundingClaim:
+    """A candidate the report did not support strongly enough to absorb.
+
+    Distinct from rejected: this is abstention ("not enough evidence in THIS
+    report"), not refutation. These are natural re-research targets - the
+    claim may well be true, the report just is not the source that proves it.
+    """
+
+    statement: str
+    confidence: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"statement": self.statement, "confidence": round(self.confidence, 3)}
 
 
 @dataclass
@@ -153,6 +178,7 @@ class AbsorptionResult:
     absorbed: list[AbsorbedClaim] = field(default_factory=list)
     rejected: list[RejectedClaim] = field(default_factory=list)
     flagged: list[FlaggedContradiction] = field(default_factory=list)
+    insufficient: list[InsufficientGroundingClaim] = field(default_factory=list)
     estimated_cost: float = 0.0
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -175,9 +201,11 @@ class AbsorptionResult:
             "merged_count": self.merged_count,
             "rejected_count": len(self.rejected),
             "flagged_count": len(self.flagged),
+            "insufficient_count": len(self.insufficient),
             "absorbed": [a.to_dict() for a in self.absorbed],
             "rejected": [r.to_dict() for r in self.rejected],
             "flagged": [f.to_dict() for f in self.flagged],
+            "insufficient": [i.to_dict() for i in self.insufficient],
             "estimated_cost": round(self.estimated_cost, 4),
             "generated_at": self.generated_at.isoformat(),
         }
@@ -262,12 +290,19 @@ class ReportAbsorber:
         absorbed: list[AbsorbedClaim] = []
         rejected: list[RejectedClaim] = []
         flagged: list[FlaggedContradiction] = []
+        insufficient: list[InsufficientGroundingClaim] = []
 
         for cand in candidates:
             if cand.confidence < min_confidence:
-                rejected.append(
-                    RejectedClaim(cand.statement, "low_confidence", f"{cand.confidence:.2f} < {min_confidence:.2f}")
-                )
+                # Abstention vs refutation: a candidate the report supports
+                # weakly (but above the noise floor) is "insufficient
+                # grounding" - a re-research target, not a falsehood.
+                if cand.confidence >= INSUFFICIENT_GROUNDING_FLOOR:
+                    insufficient.append(InsufficientGroundingClaim(cand.statement, cand.confidence))
+                else:
+                    rejected.append(
+                        RejectedClaim(cand.statement, "low_confidence", f"{cand.confidence:.2f} < {min_confidence:.2f}")
+                    )
                 continue
 
             belief = Belief(
@@ -319,6 +354,7 @@ class ReportAbsorber:
             absorbed=absorbed,
             rejected=rejected,
             flagged=flagged,
+            insufficient=insufficient,
             estimated_cost=ESTIMATED_EXTRACTION_COST,
         )
 

@@ -289,3 +289,29 @@ def test_get_client_without_key_raises(monkeypatch):
     absorber = ReportAbsorber(_expert(), belief_store=MagicMock())
     with pytest.raises(ReportAbsorberError):
         absorber._get_client()
+
+
+class TestInsufficientGrounding:
+    """Abstention vs refutation: weak report support is not falsity."""
+
+    @pytest.mark.asyncio
+    async def test_uncertain_band_lands_in_insufficient_not_rejected(self, tmp_path):
+        # One strong claim, one weakly-supported claim, one noise claim
+        content = json.dumps(
+            {
+                "claims": [
+                    {"statement": "Strong claim", "confidence": 0.9, "evidence": ["s"]},
+                    {"statement": "Weakly supported claim", "confidence": 0.5, "evidence": []},
+                    {"statement": "Noise claim", "confidence": 0.2, "evidence": []},
+                ]
+            }
+        )
+        absorber = _absorber(content, tmp_path)
+        result = await absorber.absorb("r1", "report text")
+
+        assert [a.statement for a in result.absorbed] == ["Strong claim"]
+        assert [i.statement for i in result.insufficient] == ["Weakly supported claim"]
+        assert [r.statement for r in result.rejected] == ["Noise claim"]
+        assert result.to_dict()["insufficient_count"] == 1
+        # Abstained claims are never written to the store
+        assert all("Weakly supported" not in b.claim for b in absorber.belief_store.beliefs.values())
