@@ -1,4 +1,4 @@
-# Easy one-line installer for deepr (Windows PowerShell)
+﻿# Easy one-line installer for deepr (Windows PowerShell)
 # Usage (recommended):
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.ps1 | iex"
 
