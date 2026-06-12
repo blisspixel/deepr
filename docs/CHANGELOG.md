@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Auto re-research from reflection (`deepr expert reflect ...
+  --execute-followups [--budget X]`). The last advisory half-loop closed:
+  the follow-up queries reflection emits for weak reports now actually
+  run, through the same gap-fill engine (run-ceiling budget,
+  skip-not-fail, verification-gated absorb with contradiction flagging).
+  Opt-in with confirmation - plain reflect stays read-only. With this,
+  every v2.14 loop-closer is shipped: sync, gap-fill execution,
+  reflection follow-ups, and health-check actioning of absorb-time flags.
+- Autonomous gap-fill execution (`deepr expert route-gaps --execute`).
+  The gap-to-tool router graduates from advisory to action: the
+  highest-value research-route fills run (ordered by the router's
+  value-per-dollar signal), findings absorb through the
+  verification-gated pipeline (dedup + contradiction flagging), and the
+  sweep is budget-bounded (per-gap inside a run ceiling, skip-not-fail,
+  --dry-run at $0, confirmation with an upper-bound estimate). Bounded
+  autonomy deliberately: specialist-instrument routes (recon/distillr/
+  primr) are deferred with their exact command printed - approval-gated
+  multi-minute paid jobs must not start as a side effect of a sweep.
 - Health-check now surfaces absorb/sync-time contradiction flags. The
   contradictions check merges recorded contested pairs (the contradiction
   edges that absorb and sync write when a conflicting claim arrives) with
