@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.3] - 2026-06-11
+
 ### Added
 - **Belief event log (TKG step 1).** Every belief change (created/updated/
   revised/archived/contested/merged) appends to `events.jsonl` - the
