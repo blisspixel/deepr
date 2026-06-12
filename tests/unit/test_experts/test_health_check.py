@@ -298,3 +298,57 @@ class TestRecommendedActionShellQuoting:
         # the command and starting `echo injected`.
         assert shlex.quote("Evil\necho injected") in action.command
         assert "expert refresh 'Evil" in action.command
+
+
+def _recorded_pair(a_id="belief-aaa", b_id="belief-bbb"):
+    return {
+        "status": "open",
+        "a": {"belief_id": a_id, "claim": "X is true", "confidence": 0.6},
+        "b": {"belief_id": b_id, "claim": "X is not true", "confidence": 0.9},
+    }
+
+
+class TestRecordedContestedPairs:
+    """Absorb/sync-time contradiction flags appear in the audit + action menu."""
+
+    def test_recorded_flags_surface_with_action(self, monkeypatch):
+        prof = _profile()
+        monkeypatch.setattr(
+            "deepr.experts.health_check.ExpertHealthChecker._recorded_contested_pairs",
+            lambda self: [_recorded_pair()],
+        )
+        report = _run(monkeypatch, prof)
+        finding = _finding(report, "contradictions")
+        assert finding.severity == "warning"
+        assert "1 recorded" in finding.summary
+        assert finding.detail["recorded"][0]["a"] == "X is true"
+        action = _action(report, "contradictions")
+        assert action is not None
+        assert "1 recorded" in action.description
+
+    def test_recorded_and_heuristic_deduplicate_by_id_pair(self, monkeypatch):
+        prof = _profile()
+        a = Belief(claim="K8s requires Docker for runtime", confidence=0.6, domain="d")
+        b = Belief(claim="K8s does not requires Docker for runtime", confidence=0.9, domain="d")
+        monkeypatch.setattr(
+            "deepr.experts.health_check.ExpertHealthChecker._recorded_contested_pairs",
+            lambda self: [_recorded_pair(a.id, b.id)],
+        )
+        report = _run(monkeypatch, prof, beliefs=[a, b])
+        finding = _finding(report, "contradictions")
+        assert finding.detail["count"] == 1  # the heuristic re-detection is deduped
+        assert "1 recorded" in finding.summary
+        assert "0 newly detected" in finding.summary
+
+    def test_read_only_audit_does_not_create_store_dirs(self, monkeypatch, tmp_path):
+        import os
+
+        prof = _profile()
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            report = _run(monkeypatch, prof)
+            assert _finding(report, "contradictions").severity == "ok"
+            assert not (tmp_path / "data" / "experts" / "Test Expert").exists()
+        finally:
+            os.chdir(cwd)
