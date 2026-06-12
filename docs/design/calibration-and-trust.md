@@ -83,12 +83,12 @@ DAVinCI, 2605.11334 VERDI) run through the validated distillr integration:
   extraction) get one cheap calibrator call; confident and clearly-weak
   claims skip it. This is a bounded-cost upgrade to the pipeline and slots
   between extraction and the trust floors.
-- **Adopt: abstention as a first-class outcome** - DAVinCI overrides
-  low-attribution verdicts to "Not Enough Info" rather than guessing;
-  TRUST abstains on 70-82% of hard claims. Absorb currently has
-  absorbed/rejected/flagged; add an explicit `insufficient_grounding`
-  bucket distinct from rejected, so "the report does not really support
-  this" stops masquerading as "this is false".
+- **Adopted: abstention as a first-class outcome** (shipped 2026-06-11) -
+  DAVinCI overrides low-attribution verdicts to "Not Enough Info" rather
+  than guessing; TRUST abstains on 70-82% of hard claims. Absorb now has
+  an `insufficient` bucket (extraction confidence in [0.4, min_confidence)):
+  abstained claims render as re-research targets, never as refutations,
+  and are never written to the store.
 - **Use for threshold derivation**: VERDI's Platt-scaled logistic
   regression over verification-trace features is the cheap post-hoc
   calibrator shape - apply Platt scaling to the calibration-harness
