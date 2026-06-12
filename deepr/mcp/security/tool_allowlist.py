@@ -227,6 +227,13 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_explain_belief": ToolConfig(
+            name="deepr_explain_belief",
+            category=ToolCategory.SENSITIVE,
+            description="Why the expert believes something (read-only)",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Reflect runs a small paid evaluation call and surfaces report content;
         # read-only (no mutation) but SENSITIVE like the other expert tools.
         "deepr_reflect": ToolConfig(

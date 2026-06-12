@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- explain_belief - the introspection query (TKG step 4, third temporal
+  tool). `deepr expert why NAME BELIEF` and MCP `deepr_explain_belief`
+  (tool 26): resolves a belief by id or claim text (query-coverage match
+  with prefix tolerance), then returns evidence roots (provenance), the
+  confidence trajectory from the append-only event log, supporting/
+  derived-from chains walked depth-bounded and cycle-safe over the typed
+  belief graph, and open contradictions with status. Read-side, cost-$0,
+  SENSITIVE-tier in the MCP allowlist like the other perspective queries.
+  Live-validated day one: the original symmetric text matcher rejected
+  "dynamic tool discovery" against the exact belief describing it
+  (short query vs long claim); rescoring by query coverage fixed it.
+
 ## [2.13.3] - 2026-06-11
 
 ### Added
