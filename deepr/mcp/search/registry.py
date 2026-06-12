@@ -609,6 +609,35 @@ def create_default_registry() -> ToolRegistry:
 
     registry.register(
         ToolSchema(
+            name="deepr_explain_belief",
+            description=(
+                "Why the expert believes something: evidence roots (provenance), the confidence "
+                "trajectory from the append-only event log, supporting/derived-from chains walked "
+                "over the typed belief graph (depth-bounded), and any open contradictions. "
+                "Read-only and cost-$0. The introspection query - use it to debug trust in a claim "
+                "instead of taking the confidence number on faith. The belief argument is a belief "
+                "id or claim text (fuzzy matched). "
+                "Example: deepr_explain_belief(expert_name='AI Strategy Expert', belief='dynamic tool discovery')"
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "expert_name": {"type": "string", "description": "Name of the expert"},
+                    "belief": {"type": "string", "description": "Belief id or claim text to explain"},
+                    "depth": {
+                        "type": "integer",
+                        "description": "Max hops along support chains (default 2, max 5)",
+                    },
+                },
+                "required": ["expert_name", "belief"],
+            },
+            category="experts",
+            cost_tier="free",
+        )
+    )
+
+    registry.register(
+        ToolSchema(
             name="deepr_reflect",
             description=(
                 "Self-evaluate a completed research report before relying on or absorbing it. Scores "
