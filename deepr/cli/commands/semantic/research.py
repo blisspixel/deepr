@@ -62,7 +62,15 @@ def detect_research_mode(prompt: str) -> str:
 @click.option("--no-code", is_flag=True, help="Disable code interpreter")
 @click.option("--upload", "-u", multiple=True, help="Upload files for context")
 @click.option("--scrape", "-s", help="Scrape website for primary source research")
-@click.option("--limit", "-l", type=float, help="Cost limit in dollars")
+@click.option(
+    "--limit",
+    "-l",
+    "--budget",
+    "-b",
+    "limit",
+    type=float,
+    help="Budget ceiling for this run in dollars (a cap, not a price; --budget is an alias)",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip budget confirmation")
 @click.option(
     "--mode",
@@ -160,8 +168,10 @@ def research(
     """
     from deepr.cli.validation import validate_budget, validate_prompt, validate_upload_files
 
-    # Track whether user explicitly specified a provider (before defaults are applied)
+    # Track whether user explicitly specified provider/model (before defaults
+    # are applied) - an explicit -m must never be overridden by routing
     user_specified_provider = provider is not None
+    user_specified_model = model is not None
 
     # Validate query/prompt length
     try:
@@ -400,6 +410,7 @@ def research(
             trace_flags=trace_flags,
             no_fallback=no_fallback,
             user_specified_provider=user_specified_provider,
+            user_specified_model=user_specified_model,
         ),
         runner=asyncio.run,
     )
@@ -883,6 +894,7 @@ def _run_auto_research(
             trace_flags=trace_flags,
             no_fallback=no_fallback,
             user_specified_provider=True,  # We chose the provider via routing
+            user_specified_model=True,  # ...and the model; do not re-route
         ),
         runner=asyncio.run,
     )
