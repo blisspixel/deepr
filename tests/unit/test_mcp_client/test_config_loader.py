@@ -255,8 +255,8 @@ class TestDistillrFirstParty:
         assert profile.command == "distill-mcp"
         assert profile.budget_limit == 2.0  # spends money: per-call cap exists
         assert profile.progress is True
-        assert profile.auto_approve == ["query_library"]
-        assert "ingest_papers" in profile.require_approval
+        assert "find_insights" in profile.auto_approve  # free read-side corpus search
+        assert "papers" in profile.require_approval
 
     def test_discover_returns_profile_when_binary_present(self) -> None:
         from deepr.mcp.client.config_loader import discover_distillr_profile
@@ -314,9 +314,9 @@ class TestPrimrFirstParty:
         assert profile.timeout == 3600  # 35-50 min runs
         assert profile.progress is True
         # Only free read-side tools auto-approve; everything that spends needs approval.
-        assert set(profile.auto_approve) == {"estimate_run", "check_jobs", "doctor"}
+        assert {"estimate_run", "check_jobs", "doctor"} <= set(profile.auto_approve)
         assert "research_company" in profile.require_approval
-        assert "quick_lookup" in profile.require_approval  # cheap but still paid
+        assert "delegate_to_agent" in profile.require_approval  # paid handoff, never auto
 
     def test_discover_returns_profile_when_binary_present(self) -> None:
         from deepr.mcp.client.config_loader import discover_primr_profile

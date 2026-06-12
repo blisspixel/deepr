@@ -1,12 +1,13 @@
 name: primr
-version: 0.1.0
+version: 0.2.0
 description: >-
   Native first-party strategic company intelligence. Adaptive scraping plus AI
   synthesis into consultant-grade briefs (competitive positioning, hiring
   signals, strategic initiatives, tech stack). Powered by the primr MCP server.
-  The heaviest instrument: full runs take 35-50 minutes and cost real money, so
-  every analysis is approval-gated. Always estimate first; use quick_lookup for
-  fast context.
+  The heaviest instrument: full runs take 23-50 minutes and cost real money, so
+  every analysis is approval-gated. Always estimate first (estimate_run /
+  estimate_strategy); for fast free company context use the recon skill.
+  Tool names verified against primr v1.29.3 (2026-06-11).
 domains: ["strategic", "competitive-intelligence", "company-research", "due-diligence"]
 
 triggers:
@@ -35,26 +36,6 @@ tools:
         description: Analysis depth to estimate
     cost_tier: free
     timeout_seconds: 60
-
-  - name: quick_lookup
-    type: mcp
-    description: |
-      Lighter, faster company context: recon pre-flight + scrape only, no deep
-      research synthesis. Roughly 5 minutes and ~$0.10. Use when you need fast
-      grounding on a company rather than a full 35-50 min strategic brief.
-    server:
-      command: primr-mcp
-      args: ["--stdio"]
-    remote_tool_name: quick_lookup
-    parameters:
-      domain:
-        type: string
-        description: Company domain for quick context
-      budget:
-        type: number
-        description: Optional cap on model spend for this lookup (USD)
-    cost_tier: medium
-    timeout_seconds: 600
 
   - name: research_company
     type: mcp
@@ -101,22 +82,19 @@ tools:
     cost_tier: high
     timeout_seconds: 1800
 
-  - name: batch_analyze
+  - name: estimate_strategy
     type: mcp
-    description: Analyze multiple companies in one batch (e.g. a sector map). Cost scales with company count; always estimate and approve first.
+    description: Free pre-flight estimate for a specific analysis strategy (cost band, duration). Use with estimate_run before any paid run.
     server:
       command: primr-mcp
       args: ["--stdio"]
-    remote_tool_name: batch_analyze
+    remote_tool_name: estimate_strategy
     parameters:
-      domains:
-        type: array
-        description: List of company domains to analyze
-      budget:
-        type: number
-        description: Total budget cap across the batch (USD)
-    cost_tier: high
-    timeout_seconds: 3600
+      strategy:
+        type: string
+        description: Strategy name (see primr --list-strategies)
+    cost_tier: free
+    timeout_seconds: 60
 
   - name: check_jobs
     type: mcp
