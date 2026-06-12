@@ -73,6 +73,37 @@ typed *edges* are the unlock, typed *nodes* are speculative.
   loses nothing.
 - All reads stay cost-$0 (no LLM calls in the query surface).
 
+## Literature grounding (distillr corpus `deepr-tkg`, 2026-06-11, ~$0.11)
+
+Four-paper synthesis (arXiv 2408.05861, 2605.22142, 2604.11544, 2501.13956)
+run through the validated distillr integration. What it confirms and what
+it changes:
+
+- **Confirms the explicit-structure bet**: explicit temporal structure
+  inside the graph (qualifiers, bi-temporal edges, phase rotation)
+  consistently beats unstructured neural buffers under capacity
+  constraints (best symbolic TKG 46.5 vs best neural 11.2 QA accuracy at
+  capacity 512 on RoomKG). Deepr's inspectable belief store + event log is
+  the right family of design.
+- **Confirms append-only**: every production-grade system in the corpus
+  avoids destructive overwriting (Graphiti's timed invalidation, phase
+  shadowing). The event log (step 1, shipped) is this pattern.
+- **Adopt: bi-temporal semantics** (Graphiti, arXiv 2501.13956): separate
+  *record time* (when the store learned/retired a belief - the event log
+  already provides this) from *world-valid time* (when the fact was true).
+  Concretely: supersession/archival events should carry an optional
+  `invalidated_at` world-time, so "what did we believe on date X" and
+  "what was true on date X" become distinct, answerable queries. Cheap to
+  add while the event schema is young; painful later.
+- **Adopt later: hybrid retrieval** for the query surface at scale -
+  Graphiti's cosine + BM25 + graph-BFS with reranking is the proven shape
+  for memory queries over large stores; relevant when the digest and
+  explain_belief outgrow linear scans.
+- **Blind spot to avoid repeating**: none of the four papers measures
+  update/query latency at scale. Keep the read-side $0 and add simple
+  query timing to observability once stores grow past a few thousand
+  beliefs, so deepr has the number the literature lacks.
+
 ## Open questions
 
 - Edge dedup policy when the same support relationship is re-absorbed from

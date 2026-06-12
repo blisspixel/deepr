@@ -71,6 +71,35 @@ quality) with versioned methodology so runs compare across time. The
 calibration harness is the first concrete v2 metric; A/B shadow mode
 follows once metrics exist to compare.
 
+## Literature grounding (distillr corpus `deepr-calibration`, 2026-06-11, ~$0.14)
+
+Four-paper synthesis (arXiv 2601.16555 RRC, 2604.12184 TRUST, 2604.21193
+DAVinCI, 2605.11334 VERDI) run through the validated distillr integration:
+
+- **Adopt: selective recalibration** - the corpus thesis is that a
+  threshold-triggered *second* check on uncertain claims only beats both
+  single-pass scoring and always-on multi-agent aggregation. Mapped to
+  absorb: claims landing in an uncertainty band (roughly 0.5-0.75 after
+  extraction) get one cheap calibrator call; confident and clearly-weak
+  claims skip it. This is a bounded-cost upgrade to the pipeline and slots
+  between extraction and the trust floors.
+- **Adopt: abstention as a first-class outcome** - DAVinCI overrides
+  low-attribution verdicts to "Not Enough Info" rather than guessing;
+  TRUST abstains on 70-82% of hard claims. Absorb currently has
+  absorbed/rejected/flagged; add an explicit `insufficient_grounding`
+  bucket distinct from rejected, so "the report does not really support
+  this" stops masquerading as "this is false".
+- **Use for threshold derivation**: VERDI's Platt-scaled logistic
+  regression over verification-trace features is the cheap post-hoc
+  calibrator shape - apply Platt scaling to the calibration-harness
+  outputs when deriving absorb's default threshold from the measured
+  curve (Part 1 step 4), rather than reading the raw curve.
+- **Confirmed caveat**: recalibration thresholds in the literature are
+  dataset-specific with unreported search cost. The harness must derive
+  thresholds from Deepr's own corpus and re-derive on extraction-model
+  changes - both already in the design; the corpus says they are
+  load-bearing, not optional.
+
 ## Order of operations
 
 1. Wire trust class through absorb (recording only - no behavior change;
