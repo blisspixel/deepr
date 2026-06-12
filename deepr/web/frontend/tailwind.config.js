@@ -82,7 +82,10 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        // Research-instrument type: IBM Plex Sans (self-hosted via
+        // @fontsource) + JetBrains Mono for data. Deliberately not Inter -
+        // see docs/design/web-ui-refinement.md (de-slop pass).
+        sans: ['"IBM Plex Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
         mono: ['"JetBrains Mono"', '"IBM Plex Mono"', '"Source Code Pro"', 'Consolas', '"Courier New"', 'monospace'],
       },
       borderRadius: {
