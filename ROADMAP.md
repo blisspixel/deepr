@@ -296,6 +296,7 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
   - [x] Saturation-aware rankings (2026-06-11): tasks where the question set has no headroom (top-2 tie or top score >= 0.99) are flagged and their best_quality pick uses discriminative quality above a competence floor - plain max() had elected gpt-4.1-nano "best at reasoning" off a mean 1.00 over 896 evals, which auto mode then obeyed. `--regenerate-rankings` rebuilds routing prefs from stored data at $0; 10 of 14 task types were saturated. The harder question set (fixing saturation at the source) remains the v2 core below.
   - [ ] Citation quality, grounding, synthesis depth, temporal accuracy
   - [ ] Expert-specific metrics: gap-detection success rate, belief-revision accuracy, citation freshness score, integration quality
+  - [ ] Continuity-property metrics, measured from stored expert state at $0 (the ATANT audit shows popular memory benchmarks test at most 2 of 7 continuity properties - measure Deepr's own surface instead of chasing LoCoMo-style scores): staleness honesty, abstention correctness, contradiction surfacing, what-changed exactness (see [docs/design/belief-lifecycle.md](docs/design/belief-lifecycle.md))
   - [ ] Task-level cost-efficiency scoring
   - [ ] Methodology versioning for run comparability
 - [ ] A/B shadow mode (opt-in): run shadow query in parallel against baseline for continuous routing comparison
@@ -321,19 +322,19 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [x] Automatic re-research on the gaps reflection identifies (2026-06-11): `deepr expert reflect NAME REPORT --execute-followups [--budget X]` runs the emitted follow-up queries through the gap-fill engine (same budget discipline: run ceiling, skip-not-fail, verification-gated absorb with contradiction flagging) - reflection stops being advisory exactly when the report needs reinforcement. Opt-in flag + confirmation; never runs as a side effect of plain reflect.
 - [ ] Graph-structured expert memory (design: [docs/design/temporal-knowledge-graph.md](docs/design/temporal-knowledge-graph.md)) (the temporal knowledge graph - what makes an expert a *perspective*, not a corpus):
   - Framing: a corpus is what was read; a perspective is what is *believed* - claims with calibrated confidence, provenance, recency, known gaps, and open conflicts. RAG gives a host agent retrieval over content; a Deepr expert gives it an epistemic state it can interrogate. The temporal dimension is what elevates the graph beyond content: beliefs have trajectories (strengthening, decaying, contested, revised), and the graph remembers *when* and *why* each shift happened. That unlocks queries no document store can answer: "why do you believe X" (inference chain), "what changed since I last consulted you" (perspective delta), "what is currently contested" (open contradiction pairs with both sides' evidence), "what would change your mind" (the support/contradict structure around a belief), and "what do you know you don't know" (the gap backlog as negative knowledge - an expert that says "I have nothing on Y" is refusing hallucinated authority).
-  - [ ] Knowledge graph with typed nodes (fact, signal, inference, belief) and edges (supports, contradicts, enables)
-  - [ ] Temporal awareness: confidence trajectories, staleness detection, refresh triggers
-  - [ ] Inference chains: expert can explain *why* it believes something (trace through evidence)
-  - [ ] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically (consumes the absorb/ingest contradiction-as-signal path above - shipped; conflicts become belief-revision candidates with contradiction edges, not silent drops)
+  - [x] Knowledge graph with typed edges (supports, contradicts, enables, derived_from) - shipped v2.14 (canonical-key dedup, provenance accumulation, symmetric contradicts, idempotent migration of legacy `contradictions_with`). Typed *nodes* stay deliberately implicit (`source_type` already distinguishes fact/signal/inference) until a concrete query needs more.
+  - [x] Temporal awareness: confidence trajectories (belief event log, v2.14), staleness detection (health-check), refresh triggers (sync cadence)
+  - [x] Inference chains: `deepr expert why` / `deepr_explain_belief` (v2.14) - depth-bounded, cycle-safe walk to evidence roots with confidence trajectory
+  - [x] Contradiction detection: new evidence that conflicts with existing beliefs surfaces automatically (contradiction-as-signal absorb path + contested view + health-check merge; conflicts become belief-revision candidates with contradiction edges, not silent drops)
   - [ ] Temporal-graph query surface for host agents (MCP tools, so Claude Code / Copilot / Cursor consult the *perspective*, not just the content):
     - [x] `deepr_what_changed` (v2.13.x) - perspective delta since a timestamp (beliefs added / revised / contested / archived, each with reason + current snapshot); lets a host agent cheaply re-sync with an expert it consulted before instead of re-reading everything. Shipped early as planned - a query layer over `BeliefStore.changes` (honest caveat: the store keeps the last 100 change records; truncation is reported). CLI `deepr expert what-changed NAME --since 7d` + MCP tool.
     - [x] `deepr_contested` (v2.13.x) - open contradiction pairs with both sides' claims, confidence, and provenance (open vs dangling status). Read-side view over `contradictions_with` edges + absorb-time contested records. CLI `deepr expert contested NAME` + MCP tool.
     - [ ] `deepr_explain_belief` - inference chain + provenance + confidence trajectory for one belief. Provenance and history exist today (evidence_refs, belief history); full inference *chains* (trace through supporting beliefs) need the typed-edge graph above, so this one lands with it.
     - Sequencing note: the first two are the autopilot-facing wedge (re-sync + open-conflicts) and should land in v2.14 ahead of the full graph; they also keep the graph work honest by fixing the query contracts first.
     - Rationale: host agents have ephemeral context and monthly-plan economics; the expert is the durable, shared epistemic state across their sessions *and across different agents* - Claude Code and Copilot consulting the same expert get the same calibrated perspective, which is what makes experts organizational knowledge rather than per-tool caches.
-- [ ] Regenerated expert digest (a browsable view over the structured store, never the source of truth):
-  - [ ] A scheduled / on-demand "compilation" pass reads the belief graph and emits a browsable digest (topic summaries, cross-references, contradiction flags) as a derived artifact; the structured belief store stays canonical, the digest is always regenerable and never hand-edited (enforces the Phase E regeneration invariant)
-  - [ ] Surface the contradiction flags from the contradiction-as-signal path so a reader sees open conflicts rather than a smoothed narrative
+- [~] Regenerated expert digest (a browsable view over the structured store, never the source of truth):
+  - [x] On-demand "compilation" pass (`deepr expert digest`, v2.14): reads beliefs + typed edges + contradictions and emits a browsable Markdown digest - $0, no LLM, byte-stable for an unchanged store, derived-view marker enforced before overwrite (the Phase E regeneration invariant made executable)
+  - [x] Surface the contradiction flags from the contradiction-as-signal path so a reader sees open conflicts rather than a smoothed narrative
   - [ ] Reuse the `expert sync` cadence + scheduled `health-check`; expose as an expert view in the web dashboard
   - Rationale: the structured-store-plus-regenerated-view hybrid gives precise queries and multi-agent read/write on the canonical store with browsable pre-synthesis on top, without the synthesis drift of a hand-maintained wiki. The architectural choice is explicit: synthesis happens at query/compile time over a structured source of truth, not destructively at ingest.
 - [~] Knowledge maintenance loop (the expert keeps its own house in order, building on the staleness + contradiction detection above):
@@ -341,6 +342,14 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [x] Two-phase output: findings, then an action menu where each item carries its command, estimated cost, and the approval tier (AUTO_APPROVE/NOTIFY/CONFIRM) that would gate it; corrective research stays opt-in (the audit proposes, it never runs an action)
   - [x] Cost-$0 by default (audit only); schedulable so experts self-maintain on a cadence (the scheduled monthly health check, not just scheduled refresh)
   - [ ] For corpus-backed experts, delegate the underlying audit to distillr's `audit` rather than reimplementing link/contradiction/coverage scans; Deepr adds belief-state mapping, confidence, and the action menu on top
+- [~] Belief lifecycle and salience (design: [docs/design/belief-lifecycle.md](docs/design/belief-lifecycle.md)) - memory governance, grounded in the 2026-06 memory-systems corpus review (monotonic accumulation is the literature's documented root failure mode; outcome-driven forgetting converges to true usefulness; contested beliefs are irreducible signal):
+  - [x] Bi-temporal valid time (2026-06-12): belief events carry optional world-valid `invalidated_at` distinct from record time, while the event schema is young (Graphiti pattern, adopted in the TKG design)
+  - [x] Lossless archival (2026-06-12): archival events carry a full belief snapshot; `restore_belief` rebuilds from the log - reversibility executable, not aspirational
+  - [x] Usage salience substrate (2026-06-12): per-belief retrieval counters, recordable only from already-mutating paths (read-side queries stay pure/$0; MCP READ_ONLY depends on that - regression-tested); usage only ever *protects* a belief from archival, never condemns one. First production producer lands with the chat worldview-to-BeliefStore bridge; absorb-merge already protects via `updated_at` movement.
+  - [x] Consolidation pass (2026-06-12): health-check surfaces archive candidates (decayed below floor AND long-unevidenced AND unused AND not contested - the Rashomon rule: contested beliefs are never garbage-collected) with an `--archive-stale` action flag; dry-run default, event-logged with snapshot + thresholds; $0
+  - [ ] Entailment-shaped contradiction screen (v2.15): one cheap entailment call per flagged pair in the uncertain band only, merged with the selective-recalibration mechanism (lexical heuristics stay the free first pass; the claim-verification corpus shows lexical overlap has near-zero correlation with human grounding judgments)
+  - [ ] Atomic claim decomposition at absorb (v2.15): extraction prompt enforces one-assertion decontextualized claims (decomposition is worth 20+ F1 points in the verification literature); deterministic atomicity-rate check; calibration harness measures whether prompt-level enforcement suffices before any paid split pass
+  - [ ] Outcome attribution (later): the second When-to-Forget counter (did the answer that used this belief succeed?) waits on an outcome signal - reflection verdicts or host-agent feedback as task-success proxy
 - [~] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
   - [x] `deepr expert absorb REPORT_ID` (v2.12) - promote a completed report into permanent beliefs with report provenance, instead of treating reports as terminal artifacts. CLI (`--dry-run` preview) + `deepr_expert_absorb` MCP tool. Deferred: the post-research "integrate this?" inline prompt.
   - [x] Verification-gated by design: extraction yields report-grounded candidate claims (each self-rated for report support), weak claims are dropped, and any claim contradicting an existing belief is held back by the same free heuristic health-check uses - so "the model writes something slightly wrong, you save it, the next answer builds on the mistake" cannot happen silently
@@ -458,7 +467,7 @@ Deepr is an orchestration layer over hosted model APIs - it does not train, fine
 - [ ] **Indirect prompt-injection defense for ingested/tool content.** Web search results, scraped pages, uploaded docs, and first-party MCP tool output (recon/distillr/primr) are untrusted input that flows into prompts and into expert beliefs. Extend `utils/prompt_security.PromptSanitizer` to the ingestion + tool-result boundary (not just user prompts), delimit/quarantine untrusted spans, and gate belief absorption behind the existing verify/reflection step so a poisoned source cannot silently become a belief. This is Deepr's #1 AI-security risk.
 - [ ] **Agentic trust boundaries.** Formalize the existing approval tiers (AUTO_APPROVE/NOTIFY/CONFIRM) + per-MCP-server tool allowlists, rate limits, and egress controls (overlaps Phase 2 elicitation sandboxing); capability-scope what each tool/expert may do, and never auto-approve a paid or write-capable tool.
 - [ ] **Output/handoff validation.** Validate MCP/A2A outputs against the published handoff schemas (above) before downstream agents consume them - a compromised expert must not emit malformed/unsafe artifacts.
-- [ ] **Agentic red-team suite.** Automated prompt-injection / jailbreak / tool-abuse tests against expert chat and the ingestion paths (the security-flavored sibling of the Phase E fault-injection tests); track attack-success-rate as a metric.
+- [ ] **Agentic red-team suite.** Automated prompt-injection / jailbreak / tool-abuse tests against expert chat and the ingestion paths (the security-flavored sibling of the Phase E fault-injection tests); track attack-success-rate as a metric. Include memory-specific attacks from the 2026 literature: ADAM-style adaptive extraction probing through the MCP read tools, and trust-floor bypass attempts (can a crafted report mint a high-confidence belief?) - the floors are the poisoning backstop and need adversarial verification, not just unit tests.
 - [ ] **Threat model doc** (MITRE ATLAS-style) for Deepr's actual surface - ingestion, agentic tools, MCP/web/A2A endpoints, secret handling - that records what is explicitly out of scope (see below) so effort stays proportional.
 - [ ] Secret hygiene hardening: least-privilege provider keys, no secrets in logs/traces (redaction exists), and secret-scanning in CI.
 
@@ -501,6 +510,7 @@ Design (builds on existing kernel primitives - cost ledger, budget contracts, pr
   - [ ] `cli-kiro` (`kiro` CLI; monthly credits; requires overage guard)
   - [ ] Grok credit pool: no CLI adapter - flag the existing Grok API provider as `credit_pool` when the data-sharing free-credit program is active, with the monthly credit amount as the bound
 - [ ] **Local backend** (`local-ollama`): a `DeepResearchProvider` over the Ollama HTTP API (works identically on Windows/macOS/Linux); `cost_source: local`, no quota window. Availability scheduling instead: configurable time windows (e.g. outside work hours) plus an optional GPU-utilization/VRAM probe before dispatch so background research never fights the user's interactive sessions.
+- [ ] **Local-first process validation** (early, cheap, before the full backend): an ollama-backed research function plugged into the engines' existing injectable seams (sync, gap-fill, reflection follow-ups, absorb extraction all take a `research_fn`/client). Even where local output quality is below the research floor, the *flow* is fully real - submit, extract, verify, absorb, contradict, archive - so the whole expert lifecycle can be exercised end-to-end at $0 on owned hardware during development. This is the dev-validation counterpart of the production waterfall: quality-tolerant validation runs go local first, paid models are for validating *quality*, not *plumbing*.
 - [ ] **Eval-gated local admission** (free does not outrank quality): a local model is *not routable* until the user has benchmarked it with `deepr eval` (which gains Ollama-target support); the router only assigns it task types whose measured quality clears the floor. Admission is per model+version - swapping the local model invalidates its eval and drops it from routing until re-benchmarked (`eval new` already detects missing model+tier combos; extend it to local targets). Cheap to run since local eval costs $0 - the cost is honesty, not money.
 - [ ] **Capacity waterfall in auto mode**: routing preference order `local -> plan_quota/credit_pool -> api_metered`, gated by per-task quality floors from benchmarks; metered is reached only when no free-at-margin source can meet the floor, and is still budget-checked as today.
 - [ ] **Auth-mode detection**: adapters verify the CLI is authenticated via subscription login (OAuth profile), not an API key. An API-key-authenticated CLI is metered spend wearing a CLI costume - refuse to classify it as `plan_quota`, route it through the normal budget guards instead.
@@ -549,7 +559,7 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
   - [x] Learner summary bookkeeping: the final "Learning Complete" report always said "Completed: 0 topics / 0.0%" because the poll loop never credited `progress.completed_topics`. Job-to-topic mapping (`LearningProgress.job_topics`) now credits completed/failed topics so the summary reflects reality.
   - [x] Learner UX: `generate_curriculum` now refuses budgets below the minimum viable learning budget ($0.15: generation overhead + one focus topic) BEFORE the first paid call, so an unaffordable plan costs $0 instead of ~$0.10-0.30 of generation/discovery spend followed by every topic being skipped.
   - [x] Windows console encoding: fixed globally at the CLI entry point (stdout/stderr reconfigure to UTF-8 with replacement on Windows) - closes both the `costs timeline` crash and the `research -h` crash from the external-agent run below.
-  - [ ] Contradiction heuristic precision: absorb-time flagging marked 4 pairs on the first live report, at least some of which are phrasing-level (negation heuristic), not substantive conflicts - adjudication exists, but consider a cheap same-meaning screen before flagging. (The selective-recalibration design from the calibration corpus - one cheap second check on the uncertain band only - is the planned v2.15 shape for this.)
+  - [ ] Contradiction heuristic precision: absorb-time flagging marked 4 pairs on the first live report, at least some of which are phrasing-level (negation heuristic), not substantive conflicts - adjudication exists, but consider a cheap same-meaning screen before flagging. (The selective-recalibration design from the calibration corpus - one cheap second check on the uncertain band only - is the planned v2.15 shape for this. The claim-verification corpus sharpens the requirement: the screen must be entailment-shaped, not lexical - lexical overlap shows near-zero correlation with human grounding judgments, and the current false flags ARE the lexical failure mode. Tracked in [docs/design/belief-lifecycle.md](docs/design/belief-lifecycle.md).)
 - [x] External-agent live validation (2026-06-11, second wave): another app drove deepr headless and surfaced six front-door findings - documented-but-missing `--budget` flag, cp1252 help crash, `--auto` pairing web-search with a tool-rejecting model, zombie QUEUED job after total failure, explicit `-m` silently overridden by routing, and a deprecation warning citing a retirement date that had passed without the retirement. All six fixed with regression tests, plus the no-surprise-bills audit they triggered (the `-y` budget-gate bypass, the uncapped cautious-mode auto-approve, the fail-open web gate). Details in the changelog. The meta-lesson stands: every external live run has found real bugs the suite could not.
 
 ---
@@ -655,11 +665,23 @@ Turns claims into measurements before any wider exposure. Design:
 [docs/design/calibration-and-trust.md](docs/design/calibration-and-trust.md).
 
 1. [x] Source-trust floors (shipped 2026-06-11 - see the panel-findings entry; deterministic read-time ceilings, retroactive, regression-tested through every write path)
-2. Calibration harness + published `docs/CALIBRATION.md`; absorb threshold
+2. [x] Belief lifecycle substrate (shipped 2026-06-12, design:
+   [docs/design/belief-lifecycle.md](docs/design/belief-lifecycle.md)):
+   bi-temporal valid time on events, lossless snapshot archival +
+   restore, usage-salience counters (protective-only), health-check
+   archive candidates + `--archive-stale` consolidation pass - all $0,
+   grounded in the memory-systems corpus review (monotonic accumulation
+   is the literature's root failure mode)
+3. Calibration harness + published `docs/CALIBRATION.md`; absorb threshold
    derived from the measured curve
-3. Eval methodology v2 (expert-specific metrics, versioned methodology);
-   A/B shadow mode once there are metrics to compare
-4. Engineering evidence (Phase E continuation): `mcp/` strict gate,
+4. Entailment-shaped contradiction screen + atomic claim decomposition
+   at absorb (the two cheap absorb-quality upgrades from the
+   claim-verification corpus; the screen shares the selective
+   recalibration budget and injection point)
+5. Eval methodology v2 (expert-specific metrics + continuity-property
+   metrics, versioned methodology); A/B shadow mode once there are
+   metrics to compare
+6. Engineering evidence (Phase E continuation): `mcp/` strict gate,
    mutation-score baseline + ratchet, fault-injection tests; [x] frontend
    lint/tsc/build now a blocking CI job (2026-06-11 - previously
    local-only, which is how a type-breaking dangling identifier and a
@@ -672,11 +694,15 @@ research capacity, making always-on freshness affordable. Design:
 [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md).
 
 1. Backend abstraction + quota ledger + `deepr capacity` visibility
-2. `cli-claude` adapter (opt-in), then `local-ollama` with eval-gated
+2. Local-first process validation (the ollama-backed `research_fn`
+   through the engines' injectable seams) - lands first because it makes
+   every subsequent increment's validation free: plumbing is proven at
+   $0 on owned hardware, paid models validate quality only
+3. `cli-claude` adapter (opt-in), then `local-ollama` with eval-gated
    admission
-3. Capacity-waterfall routing with quality gates; remaining adapters
+4. Capacity-waterfall routing with quality gates; remaining adapters
    (codex, antigravity post-cutover, kiro with reserve floor)
-4. Multi-account pools last (multiplies a working mechanism)
+5. Multi-account pools last (multiplies a working mechanism)
 
 ### v2.17 - The reach release ("callable from anywhere")
 

@@ -315,8 +315,16 @@ class TestConfigFile:
     """Tests for config file loading."""
 
     @pytest.fixture(autouse=True)
-    def reset_settings(self):
-        """Reset Settings singleton before each test."""
+    def reset_settings(self, monkeypatch):
+        """Reset Settings singleton and isolate the developer's environment.
+
+        Env overrides beat config files by design (_apply_env), so a real
+        .env on the dev machine - e.g. the $1/day validation caps - would
+        silently override the file values these tests assert. Same
+        isolation class as the cost-ledger test pollution.
+        """
+        for var in ("DEEPR_MAX_COST_PER_JOB", "DEEPR_MAX_COST_PER_DAY", "DEEPR_MAX_COST_PER_MONTH"):
+            monkeypatch.delenv(var, raising=False)
         Settings.reset()
         yield
         Settings.reset()
