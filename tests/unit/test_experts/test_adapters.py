@@ -35,7 +35,10 @@ class TestBeliefsToClaim:
     def test_applies_confidence_decay(self):
         from deepr.experts.beliefs import Belief
 
-        b = Belief(claim="test", confidence=0.9, domain="d")
+        # secondary trust: decay is the only adjustment (tertiary would
+        # additionally hit the source-trust ceiling - covered in
+        # test_trust_floors.py)
+        b = Belief(claim="test", confidence=0.9, domain="d", trust_class="secondary")
         claim = b.to_claim()
         # Freshly created, so decay should be minimal
         assert 0.89 <= claim.confidence <= 0.91

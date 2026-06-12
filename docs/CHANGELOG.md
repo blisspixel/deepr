@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Source-trust confidence ceilings (v2.15 evidence release, panel finding
+  shipped). `Belief.trust_class` (primary/secondary/tertiary; retroactive
+  tertiary default for all pre-floor beliefs) with deterministic caps
+  applied at read time like decay: tertiary single-source reads at most
+  0.60, two independent tertiary sources at most 0.80, secondary+
+  uncapped. Because enforcement is read-time, the cap holds through every
+  write path (absorb, sync, merge, adjudication) and no model judgment
+  can lift it - only new better-sourced evidence raises the ceiling.
+  Absorb marks research-derived beliefs tertiary, making this the
+  deterministic ingestion-time prompt-injection backstop: a poisoned
+  report claiming 0.98 extraction confidence stores a belief that reads
+  <= 0.60 (regression-tested). Honest framing: extraction confidence
+  means report support, never truth probability - measured calibration
+  is the harness, next.
+
+### Added
 - Frontend checks are a blocking CI job (lint with zero warnings, tsc,
   production build on Node 22 with npm cache). Previously the React
   frontend was verified only by hand - which is how a type-breaking
