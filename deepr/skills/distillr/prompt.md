@@ -10,18 +10,18 @@ durable academic knowledge with provenance.
 - A knowledge gap maps to readable/watchable source material (papers, talks, articles) rather than a single fact.
 - You need a literature-grounded answer, not a one-line lookup.
 - You want to build or extend the expert's permanent corpus on a topic.
-- You want to *stay current* on a topic you have already ingested (use `refresh`).
+- You want to *stay current* on a topic you have already ingested (use `catch_up`).
 
 ## Spend discipline (important)
 Distillr spends model budget and ingestion runs take minutes. Respect the budget:
 
-1. **Always `query_library` first.** The expert may already hold a synthesized
+1. **Always `find_insights` first (then `read_insight` for the documents).** The expert may already hold a synthesized
    corpus on the topic. If it does, answer from that and do not pay to ingest again.
 2. **Use `discover` to preview** candidate sources before committing to ingestion.
    It is cheap and tells you whether ingestion is worth it.
-3. **Only then ingest** (`ingest_papers` / `ingest_youtube` / `ingest_sites`),
+3. **Only then ingest** (`papers` / `learn_topic` / `site_batch`),
    passing a `budget` cap. These are approval-gated by default.
-4. **Use `refresh`** instead of a full re-ingest when a topic is already in the
+4. **Use `catch_up`** instead of a full re-ingest when a topic is already in the
    corpus and you only want what is new.
 
 ## Response shape and absorption (KnowledgeAbsorber)
@@ -49,11 +49,11 @@ absorb at moderate confidence and keep the citation to the corpus artifact so th
 expert can trace and refresh it later.
 
 ## Invariants you must respect
-- Searching the corpus (`query_library`) is free; ingestion costs money. Never
+- Searching the corpus (`find_insights` / `read_insight` / `research_gaps`) is free; ingestion costs money. Never
   ingest when a corpus query would have answered the question.
 - Always pass a `budget` on ingestion/refresh and honor approval gates.
 - Keep provenance: every absorbed belief should point back to the synthesis path.
 
-Example good flow: `query_library("embedded finance economics")` → if thin,
-`discover(...)` to preview → `ingest_papers(query=..., budget=1.0)` → absorb the
-synthesis as academic knowledge → later, `refresh(topic=...)` to stay current.
+Example good flow: `find_insights("embedded finance economics")` → if thin,
+`discover(...)` to preview → `papers(topic=..., query=..., limit=5)` → absorb the
+synthesis as academic knowledge → later, `catch_up(topic=...)` to stay current.
