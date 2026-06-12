@@ -53,21 +53,42 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 
 ## Quick Start
 
-```bash
-pip install -e .                        # Install
-cp .env.example .env                    # Add at least one API key
-deepr doctor && deepr budget set 5      # Verify setup, set $5 budget
-deepr research "Your question here"     # Run your first research job
-```
+**Deepr runs on Windows, macOS, and Linux** (Python 3.12+). It works with one or more of OpenAI, Gemini, Grok, or Anthropic (any single key is enough to start).
 
-Results saved to `reports/` as markdown with citations. **You only need one API key to start** — OpenAI, Gemini, Grok, or Anthropic all work. Add more keys later and auto mode will route each query to the best available model.
+### Recommended (virtual environment or pipx)
+
+This avoids PATH issues on Windows and keeps dependencies isolated.
 
 ```bash
-pip install -e ".[web]"                 # Web dashboard
-pip install -e ".[full]"                # All features
+# 1. Create a virtual environment (recommended)
+python -m venv .venv
+# Windows (PowerShell):   .\.venv\Scripts\Activate.ps1
+# macOS / Linux:          source .venv/bin/activate
+
+# 2. Install (core)
+pip install -e .
+
+# 3. (Optional but useful) Web dashboard + extras
+# pip install -e ".[web]"
+# pip install -e ".[full]"
+
+# 4. Verify
+cp .env.example .env
+deepr doctor && deepr budget set 5
+deepr research "Your question here"
 ```
 
-See [docs/QUICK_START.md](docs/QUICK_START.md) for a guided setup.
+**Even simpler with pipx** (excellent for CLIs):
+
+```bash
+pipx install -e .
+# or from PyPI later: pipx install deepr-research
+deepr doctor
+```
+
+Results saved to `reports/` as markdown with citations. **You only need one API key to start**. Add more later and auto-mode routes to the best/cheapest model per task.
+
+See [docs/QUICK_START.md](docs/QUICK_START.md) and [docs/INSTALL.md](docs/INSTALL.md) for guided setup, Windows notes, and extras.
 
 ## Features
 
