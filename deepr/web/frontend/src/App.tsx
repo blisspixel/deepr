@@ -16,7 +16,7 @@ const CostIntelligence = lazy(() => import('@/pages/cost-intelligence'))
 const TraceExplorer = lazy(() => import('@/pages/trace-explorer'))
 const Models = lazy(() => import('@/pages/benchmarks'))
 const Help = lazy(() => import('@/pages/help'))
-const Settings = lazy(() => import('@/pages/Settings'))
+const Settings = lazy(() => import('@/pages/settings'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
