@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Regenerated expert digest (`deepr expert digest NAME [--print] [--force]`).
+  The Phase E regeneration invariant made executable: a compile pass over
+  the canonical belief store (beliefs + typed edges + open contradictions)
+  emits a browsable Markdown digest - $0, no LLM call, deterministic and
+  byte-stable for an unchanged store (the "as of" stamp derives from the
+  latest belief event, not the wall clock). Open contradictions are
+  surfaced with both sides and the resolve-conflicts pointer, never
+  smoothed; contested beliefs are flagged inline. The CLI refuses to
+  overwrite a digest that lost its derived-view marker (possible
+  hand-edit) unless --force - a stale or edited artifact can never
+  silently become canonical knowledge.
 - explain_belief - the introspection query (TKG step 4, third temporal
   tool). `deepr expert why NAME BELIEF` and MCP `deepr_explain_belief`
   (tool 26): resolves a belief by id or claim text (query-coverage match
