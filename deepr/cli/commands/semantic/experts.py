@@ -1086,6 +1086,7 @@ def absorb_report(
     console.print(
         f"Candidates: {result.total_candidates}  "
         f"Absorbed: {len(result.absorbed)} (added {result.added_count}, merged {result.merged_count})  "
+        f"Insufficient: {len(result.insufficient)}  "
         f"Rejected: {len(result.rejected)}  Flagged: {len(result.flagged)}"
     )
 
@@ -1107,6 +1108,16 @@ def absorb_report(
             if f.resolution:
                 console.print(f"    [dim]adjudication: {f.resolution} - {f.resolution_explanation}[/dim]")
 
+    if result.insufficient:
+        console.print()
+        print_section_header("Insufficient grounding (abstained - not refuted)")
+        console.print(
+            "  [dim]This report does not support these strongly enough to absorb; "
+            "they may still be true. Natural re-research targets.[/dim]"
+        )
+        for i in result.insufficient:
+            console.print(f"  [dim]?[/dim] {i.statement}  [dim](report support {i.confidence:.2f})[/dim]")
+
     if result.rejected:
         console.print()
         print_section_header("Rejected")
@@ -1114,7 +1125,7 @@ def absorb_report(
             console.print(f"  [dim]-[/dim] {r.statement}")
             console.print(f"    [dim]{r.reason}: {r.detail}[/dim]")
 
-    if not result.absorbed and not result.rejected and not result.flagged:
+    if not result.absorbed and not result.rejected and not result.flagged and not result.insufficient:
         print_warning("No claims extracted from the report.")
     elif not result.dry_run and (result.absorbed or result.flagged):
         if result.absorbed:
