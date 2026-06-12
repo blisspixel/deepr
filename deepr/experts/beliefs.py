@@ -24,7 +24,7 @@ import json
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -84,6 +84,15 @@ class Belief:
     # research syntheses - the default, and the retroactive default for
     # every belief stored before this field existed).
     trust_class: str = "tertiary"
+    # Usage salience (docs/design/belief-lifecycle.md): how often this
+    # belief was load-bearing in an answer, bumped via record_retrieval -
+    # and ONLY from surfaces that already mutate the expert; read-side
+    # queries (validate, why, digest, contested, what-changed) stay pure.
+    # Protective signal only: recent usage shields a belief from archival;
+    # absence of usage never condemns one (read-only consumers leave no
+    # trace by design).
+    retrieval_count: int = 0
+    last_retrieved_at: datetime | None = None
 
     def __post_init__(self):
         if not self.id:
@@ -208,6 +217,8 @@ class Belief:
             "decay_rate": self.decay_rate,
             "history": self.history,
             "trust_class": self.trust_class,
+            "retrieval_count": self.retrieval_count,
+            "last_retrieved_at": self.last_retrieved_at.isoformat() if self.last_retrieved_at else None,
         }
 
     @classmethod
@@ -226,6 +237,10 @@ class Belief:
             history=data.get("history", []),
             # Pre-floor beliefs default tertiary: retroactive honesty
             trust_class=data.get("trust_class", "tertiary"),
+            retrieval_count=int(data.get("retrieval_count", 0) or 0),
+            last_retrieved_at=(
+                datetime.fromisoformat(data["last_retrieved_at"]) if data.get("last_retrieved_at") else None
+            ),
         )
 
 
@@ -242,7 +257,15 @@ class BeliefChange:
         new_confidence: New confidence
         reason: Reason for change
         evidence: Evidence that triggered change
-        timestamp: When change occurred
+        timestamp: When change occurred (record time: when the store
+            learned about it)
+        invalidated_at: Optional world-valid time - when the underlying
+            fact stopped being true, as distinct from when the store
+            retired it (bi-temporal semantics, Graphiti pattern; see
+            docs/design/belief-lifecycle.md). Only meaningful on
+            archived/revised events.
+        snapshot: Full belief dict captured at archival, so an archive is
+            reversible from the event log alone (restore_belief).
     """
 
     belief_id: str
@@ -254,6 +277,8 @@ class BeliefChange:
     reason: str = ""
     evidence: str = ""
     timestamp: datetime = field(default_factory=_utc_now)
+    invalidated_at: datetime | None = None
+    snapshot: dict[str, Any] | None = None
 
     def to_expression(self) -> str:
         """Generate natural language expression of change.
@@ -285,7 +310,7 @@ class BeliefChange:
         return f"Belief updated: {self.new_claim}"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "belief_id": self.belief_id,
             "change_type": self.change_type,
             "old_claim": self.old_claim,
@@ -296,6 +321,13 @@ class BeliefChange:
             "evidence": self.evidence,
             "timestamp": self.timestamp.isoformat(),
         }
+        # Optional bi-temporal/archival fields are emitted only when set,
+        # keeping event-log lines lean and pre-change events byte-identical.
+        if self.invalidated_at is not None:
+            out["invalidated_at"] = self.invalidated_at.isoformat()
+        if self.snapshot is not None:
+            out["snapshot"] = self.snapshot
+        return out
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "BeliefChange":
@@ -309,6 +341,8 @@ class BeliefChange:
             reason=data.get("reason", ""),
             evidence=data.get("evidence", ""),
             timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else _utc_now(),
+            invalidated_at=(datetime.fromisoformat(data["invalidated_at"]) if data.get("invalidated_at") else None),
+            snapshot=data.get("snapshot"),
         )
 
 
@@ -632,7 +666,13 @@ class BeliefStore:
         return change
 
     def revise_belief(
-        self, belief_id: str, new_claim: str, new_confidence: float, reason: str, evidence: str = ""
+        self,
+        belief_id: str,
+        new_claim: str,
+        new_confidence: float,
+        reason: str,
+        evidence: str = "",
+        invalidated_at: datetime | None = None,
     ) -> BeliefChange | None:
         """Revise a belief with new information.
 
@@ -642,6 +682,9 @@ class BeliefStore:
             new_confidence: New confidence
             reason: Reason for revision
             evidence: Supporting evidence
+            invalidated_at: Optional world-valid time at which the OLD
+                claim stopped being true (bi-temporal semantics; the event
+                timestamp records when the store learned of it)
 
         Returns:
             BeliefChange record or None
@@ -668,18 +711,31 @@ class BeliefStore:
             new_confidence=new_confidence,
             reason=reason,
             evidence=evidence,
+            invalidated_at=invalidated_at,
         )
         self._record_change(change)
 
         self._save()
         return change
 
-    def archive_belief(self, belief_id: str, reason: str = "") -> BeliefChange | None:
-        """Archive a belief (soft delete).
+    def archive_belief(
+        self, belief_id: str, reason: str = "", invalidated_at: datetime | None = None
+    ) -> BeliefChange | None:
+        """Archive a belief (soft delete, reversible from the event log).
+
+        The archival event carries a full snapshot of the belief so
+        ``restore_belief`` can rebuild it - reversibility is executable,
+        not aspirational (docs/design/belief-lifecycle.md). Edges touching
+        the archived belief are kept; the contested view already renders
+        dangling edges honestly.
 
         Args:
             belief_id: ID of belief to archive
             reason: Reason for archiving
+            invalidated_at: Optional world-valid time - when the underlying
+                fact stopped being true (bi-temporal semantics), as
+                distinct from the event timestamp (when the store retired
+                the belief).
 
         Returns:
             BeliefChange record or None
@@ -697,6 +753,8 @@ class BeliefStore:
             old_confidence=belief.confidence,
             new_confidence=0.0,
             reason=reason,
+            invalidated_at=invalidated_at,
+            snapshot=belief.to_dict(),
         )
         self._record_change(change)
 
@@ -706,6 +764,138 @@ class BeliefStore:
 
         self._save()
         return change
+
+    def restore_belief(self, belief_id: str) -> Belief | None:
+        """Restore an archived belief from its archival snapshot.
+
+        Scans the event log for the most recent ``archived`` event carrying
+        a snapshot for this belief and re-adds it verbatim (no similarity
+        merge, no conflict resolution - the belief returns exactly as it
+        left). Pre-snapshot archival events (older stores) cannot be
+        restored; the method returns None for those.
+
+        Args:
+            belief_id: ID of the belief to restore.
+
+        Returns:
+            The restored Belief, the live Belief if it was never archived,
+            or None when no restorable snapshot exists.
+        """
+        existing = self.beliefs.get(belief_id)
+        if existing is not None:
+            return existing
+
+        snapshot: dict[str, Any] | None = None
+        for event in self.iter_events():
+            if event.belief_id == belief_id and event.change_type == "archived" and event.snapshot:
+                snapshot = event.snapshot  # latest archival wins
+        if snapshot is None:
+            return None
+
+        belief = Belief.from_dict(snapshot)
+        self.beliefs[belief.id] = belief
+        self._index_belief(belief)
+
+        change = BeliefChange(
+            belief_id=belief.id,
+            change_type="created",
+            new_claim=belief.claim,
+            new_confidence=belief.confidence,
+            reason="restored from archival snapshot",
+        )
+        self._record_change(change)
+
+        self._save()
+        return belief
+
+    def record_retrieval(self, belief_ids: list[str], context: str = "") -> int:
+        """Record that beliefs were load-bearing in an answer (usage salience).
+
+        Call ONLY from surfaces that already mutate the expert (e.g. chat
+        knowledge assembly); the read-side query surface (validate, why,
+        digest, contested, what-changed) is documented pure and MCP
+        READ_ONLY mode depends on that staying true. Usage is state, not
+        events - retrieval tallies would bloat the append-only log.
+
+        Args:
+            belief_ids: IDs of the beliefs that were actually used.
+            context: Optional free-text note for debug logging only.
+
+        Returns:
+            Number of beliefs whose counters were updated.
+        """
+        now = _utc_now()
+        touched = 0
+        for bid in belief_ids:
+            belief = self.beliefs.get(bid)
+            if belief is None:
+                continue
+            belief.retrieval_count += 1
+            belief.last_retrieved_at = now
+            touched += 1
+        if touched:
+            logger.debug("Recorded retrieval of %d belief(s)%s", touched, f" ({context})" if context else "")
+            self._save()
+        return touched
+
+    def archive_candidates(self, *, min_confidence: float = 0.2, unused_days: int = 90) -> list[Belief]:
+        """Beliefs eligible for lifecycle archival (docs/design/belief-lifecycle.md).
+
+        A belief is a candidate only if ALL gates pass:
+
+        - current (decayed, trust-capped) confidence below ``min_confidence``
+        - not updated or re-evidenced within ``unused_days``
+        - no recorded retrieval within ``unused_days`` (usage protects;
+          its absence never condemns - the other gates must also hold)
+        - not a side of any open contradiction (contested beliefs are
+          signal, never garbage - the Rashomon rule)
+
+        Returns:
+            Candidates sorted by current confidence, weakest first.
+        """
+        cutoff = _utc_now() - timedelta(days=unused_days)
+
+        def _aware(ts: datetime) -> datetime:
+            return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+        candidates = []
+        for belief in self.beliefs.values():
+            if belief.get_current_confidence() >= min_confidence:
+                continue
+            if _aware(belief.updated_at) > cutoff:
+                continue
+            if belief.last_retrieved_at is not None and _aware(belief.last_retrieved_at) > cutoff:
+                continue
+            if belief.contradictions_with or self.edges_for(belief.id, "contradicts"):
+                continue
+            candidates.append(belief)
+        return sorted(candidates, key=lambda b: b.get_current_confidence())
+
+    def archive_stale(
+        self, *, min_confidence: float = 0.2, unused_days: int = 90, reason: str = ""
+    ) -> list[BeliefChange]:
+        """Archive every current archive candidate (the consolidation pass).
+
+        Each archival is event-logged with a full snapshot and the
+        thresholds used, so the pass is reversible belief-by-belief via
+        ``restore_belief``. $0 - no LLM, pure store operation.
+
+        Returns:
+            The archival change records (empty when nothing qualified).
+        """
+        changes = []
+        for belief in self.archive_candidates(min_confidence=min_confidence, unused_days=unused_days):
+            change = self.archive_belief(
+                belief.id,
+                reason=reason
+                or (
+                    f"lifecycle: confidence {belief.get_current_confidence():.2f} < {min_confidence}, "
+                    f"unused {unused_days}+ days"
+                ),
+            )
+            if change is not None:
+                changes.append(change)
+        return changes
 
     def get_beliefs_by_domain(self, domain: str) -> list[Belief]:
         """Get all beliefs in a domain.
@@ -902,20 +1092,7 @@ class BeliefStore:
         data = {
             "edges": [e.to_dict() for e in self.edges.values()],
             "beliefs": {bid: b.to_dict() for bid, b in self.beliefs.items()},
-            "changes": [
-                {
-                    "belief_id": c.belief_id,
-                    "change_type": c.change_type,
-                    "old_claim": c.old_claim,
-                    "new_claim": c.new_claim,
-                    "old_confidence": c.old_confidence,
-                    "new_confidence": c.new_confidence,
-                    "reason": c.reason,
-                    "evidence": c.evidence,
-                    "timestamp": c.timestamp.isoformat(),
-                }
-                for c in self.changes[-100:]  # Keep last 100 changes
-            ],
+            "changes": [c.to_dict() for c in self.changes[-100:]],  # Keep last 100 changes
         }
 
         from deepr.utils.atomic_io import atomic_write_json
@@ -976,21 +1153,13 @@ class BeliefStore:
             logger.info("Migrated %d contradictions_with pair(s) to typed edges for %s", migrated, self.expert_name)
             self._save()
 
-        # Load changes
+        # Load changes (canonical from_dict carries the optional
+        # bi-temporal/snapshot fields; absent fields default to None)
         for cdata in data.get("changes", []):
-            self.changes.append(
-                BeliefChange(
-                    belief_id=cdata["belief_id"],
-                    change_type=cdata["change_type"],
-                    old_claim=cdata.get("old_claim", ""),
-                    new_claim=cdata["new_claim"],
-                    old_confidence=cdata.get("old_confidence", 0.0),
-                    new_confidence=cdata["new_confidence"],
-                    reason=cdata.get("reason", ""),
-                    evidence=cdata.get("evidence", ""),
-                    timestamp=datetime.fromisoformat(cdata["timestamp"]) if "timestamp" in cdata else datetime.now(UTC),
-                )
-            )
+            try:
+                self.changes.append(BeliefChange.from_dict(cdata))
+            except (KeyError, ValueError) as exc:
+                logger.warning("Skipping malformed change record in %s: %s", self.storage_path, exc)
 
 
 class SharedBeliefStore:

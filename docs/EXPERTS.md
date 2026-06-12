@@ -234,14 +234,29 @@ deepr expert reflect "Azure Architect" <job_id> --depth 2 --json
 
 ### Health Check
 Read-only, cost-$0 audit of an expert's knowledge state: freshness, belief
-contradictions, claims missing source provenance, decayed beliefs, the open-gap
-backlog, and documents ingested but never synthesized. Prints findings plus a
-recommended-action menu (each action shows its command, estimated cost, and the
-approval tier that would gate it). Schedulable for periodic self-maintenance.
+contradictions, claims missing source provenance, decayed beliefs, lifecycle
+archive candidates, the open-gap backlog, and documents ingested but never
+synthesized. Prints findings plus a recommended-action menu (each action shows
+its command, estimated cost, and the approval tier that would gate it).
+Schedulable for periodic self-maintenance.
 ```bash
 deepr expert health-check "Azure Architect"
 deepr expert health-check "Azure Architect" --json   # structured, for agents
 ```
+
+### Lifecycle Archival (consolidation pass)
+Belief stores must not grow monotonically - the documented root failure mode
+of agent memory. The audit lists beliefs eligible for archival, and
+`--archive-stale` archives them ($0, no LLM). A belief qualifies only if it
+passes every gate: decayed below the confidence floor, not updated or
+re-evidenced in 90+ days, no recorded usage, and not a side of an open
+contradiction (contested beliefs are signal, never garbage). Every archival is
+event-logged with a full snapshot, so it is reversible belief-by-belief.
+```bash
+deepr expert health-check "Azure Architect" --archive-stale     # confirm first
+deepr expert health-check "Azure Architect" --archive-stale -y  # no prompt
+```
+Design: [docs/design/belief-lifecycle.md](design/belief-lifecycle.md).
 
 ### Route Gaps to Instruments (and Execute the Fills)
 Advisory by default (read-only, $0): map each open knowledge gap to the best
