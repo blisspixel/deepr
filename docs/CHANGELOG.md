@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Health-check now surfaces absorb/sync-time contradiction flags. The
+  contradictions check merges recorded contested pairs (the contradiction
+  edges that absorb and sync write when a conflicting claim arrives) with
+  freshly heuristic-detected ones, deduplicated by id pair - previously
+  the audit re-ran the heuristic only and the recorded flags never
+  reached the action menu. Summary and the adjudicate action distinguish
+  "N recorded, M new". The read path is genuinely read-only: the audit
+  no longer creates belief-store directories as a side effect
+  (regression-tested - same CWD-pollution class as the cost-ledger bug).
 - Regenerated expert digest (`deepr expert digest NAME [--print] [--force]`).
   The Phase E regeneration invariant made executable: a compile pass over
   the canonical belief store (beliefs + typed edges + open contradictions)
