@@ -228,6 +228,7 @@ class TestReport:
             "contradictions",
             "provenance",
             "stale_beliefs",
+            "archive_candidates",
             "gaps",
             "coverage",
         }
