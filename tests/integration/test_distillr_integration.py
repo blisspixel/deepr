@@ -62,16 +62,16 @@ class TestDistillrProfileLoading:
         # Distillr spends money: a per-call cap must exist (recon is 0 = free).
         assert profile.budget_limit == 2.0
         # Only the free read-side tool auto-approves; ingestion needs approval.
-        assert "query_library" in profile.auto_approve
-        assert "ingest_papers" in profile.require_approval
-        assert "refresh" in profile.require_approval
+        assert "find_insights" in profile.auto_approve
+        assert "papers" in profile.require_approval
+        assert "catch_up" in profile.require_approval  # the freshness/delta verb
 
     def test_distillr_template_matches_spec(self) -> None:
         assert DISTILLR_PROFILE_TEMPLATE["name"] == "distillr"
         assert DISTILLR_PROFILE_TEMPLATE["command"] == "distill-mcp"
         assert DISTILLR_PROFILE_TEMPLATE["budget_limit"] == 2.0
         assert DISTILLR_PROFILE_TEMPLATE["progress"] is True
-        assert DISTILLR_PROFILE_TEMPLATE["auto_approve"] == ["query_library"]
+        assert "find_insights" in DISTILLR_PROFILE_TEMPLATE["auto_approve"]  # free read-side corpus search
 
     def test_distillr_profile_from_yaml_config(self, tmp_path: Path) -> None:
         config_content = """\
@@ -82,8 +82,8 @@ profiles:
     enabled: true
     timeout: 900
     budget_limit: 2.0
-    auto_approve: [query_library]
-    require_approval: [ingest_papers, ingest_youtube, ingest_sites, refresh]
+    auto_approve: [find_insights]
+    require_approval: [papers, learn_topic, site_batch, catch_up]
     progress: true
 """
         config_path = tmp_path / "integrations.yaml"
@@ -94,7 +94,7 @@ profiles:
         distillr = next(p for p in profiles if p.name == "distillr")
         assert distillr.command == "distill-mcp"
         assert distillr.budget_limit == 2.0
-        assert distillr.auto_approve == ["query_library"]
+        assert distillr.auto_approve == ["find_insights"]
 
 
 class TestDistillrAutoDiscovery:
@@ -192,7 +192,7 @@ class TestKnowledgeAbsorptionFromDistillr:
             "insights": ["Platform economics favor network effects", "Regulatory moats matter"],
             "cost": 0.82,
         }
-        findings = absorber.categorize_distillr_response(payload, tool="distillr/ingest_papers")
+        findings = absorber.categorize_distillr_response(payload, tool="distillr/papers")
 
         assert len(findings) >= 3  # synthesis summary + 2 insights
         assert all(f.category == "academic" for f in findings)
