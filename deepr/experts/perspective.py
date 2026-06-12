@@ -46,6 +46,7 @@ def _belief_summary(belief: Belief) -> dict[str, Any]:
         "claim": belief.claim,
         "confidence": round(belief.get_current_confidence(), 3),
         "source_type": belief.source_type,
+        "trust_class": belief.trust_class,
         "evidence_refs": list(belief.evidence_refs),
         "updated_at": belief.updated_at.isoformat(),
         "contradictions_with": list(belief.contradictions_with),

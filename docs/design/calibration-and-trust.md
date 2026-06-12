@@ -102,11 +102,8 @@ DAVinCI, 2605.11334 VERDI) run through the validated distillr integration:
 
 ## Order of operations
 
-1. Wire trust class through absorb (recording only - no behavior change;
-   backfill existing beliefs as TERTIARY unless provenance says better).
-2. Enforce floors in `BeliefStore.add_belief`/`add_contested_belief` +
-   tests proving a TERTIARY claim cannot exceed its cap through any path
-   (absorb, sync, merge, adjudication).
+1. [x] Wire trust class through absorb (shipped 2026-06-11: `Belief.trust_class`, absorb marks research-derived beliefs tertiary, retroactive tertiary default on load).
+2. [x] Enforce floors (shipped 2026-06-11, design refinement: enforcement lives in `Belief.get_current_confidence` - read-time like decay - rather than at the write paths, so the cap holds retroactively and through EVERY path including merge and adjudication; regression-tested incl. the poisoned-0.98-extraction scenario).
 3. Build the calibration corpus + grading harness (`deepr eval calibrate`).
 4. First calibration run; publish `docs/CALIBRATION.md`; derive absorb's
    default threshold from the curve.
