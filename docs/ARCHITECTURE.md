@@ -98,7 +98,23 @@ graph TB
   - `learner.py`: Autonomous learning execution
   - `chat.py`: Interactive Q&A with experts
   - `router.py`: Routes queries to appropriate models
-  - `beliefs.py`: Belief formation with confidence levels
+  - `beliefs.py`: The temporal knowledge graph's canonical store - beliefs
+    with confidence (time decay + deterministic source-trust ceilings:
+    tertiary caps at 0.60/0.80, secondary+ uncapped), typed edges
+    (supports/contradicts/enables/derived_from), and an append-only
+    `events.jsonl` belief event log (the cost-ledger pattern applied to
+    knowledge)
+  - `perspective.py`: Read-side temporal queries - `what_changed` (delta
+    since a timestamp), `contested` (open contradiction pairs),
+    `explain_belief` (evidence roots + confidence trajectory + graph chains)
+  - `digest.py`: Regenerated browsable view over the store (byte-stable,
+    derived-view marker; the store stays canonical)
+  - `sync.py` / `gap_fill.py`: Budget-bounded loop-closers - scheduled
+    topic freshness and gap-fill execution, both absorbing through the
+    verification-gated pipeline
+  - `report_absorber.py`: Verification-gated output-to-knowledge promotion
+    (extraction, dedup, contradiction-as-signal flagging)
+  - `health_check.py`: Read-only knowledge-state audit with an action menu
   - `metacognition.py`: Gap awareness and self-assessment
   - `memory.py`: Conversation and knowledge memory
   - `synthesis.py`: Knowledge synthesis from documents

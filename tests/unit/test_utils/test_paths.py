@@ -475,6 +475,13 @@ class TestPathHandlerPropertyTests:
         # Skip paths that would cause issues
         assume(not path_str.startswith("\n"))
         assume(not path_str.startswith("\r"))
+        # Windows reserved device names (NUL, CON, COM1, ...) normalize to
+        # \\.\NUL-style device paths, which pathlib does not consider
+        # absolute - a property of Windows devices, not of the normalizer.
+        # (Hypothesis found this with the literal input "NUL".)
+        if os.name == "nt":
+            stem = path_str.split(".")[0].split("\\")[-1].split("/")[-1].strip().upper()
+            assume(stem not in {"CON", "PRN", "AUX", "NUL"} and not (len(stem) == 4 and stem[:3] in {"COM", "LPT"}))
 
         try:
             normalized = PathHandler.normalize(path_str)

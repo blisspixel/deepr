@@ -96,7 +96,7 @@ class TestConfidenceDecay:
 
     def test_no_decay_when_fresh(self):
         """Test no decay for recently updated belief."""
-        belief = Belief(claim="Fresh belief", confidence=0.9, decay_rate=0.01)
+        belief = Belief(claim="Fresh belief", confidence=0.9, decay_rate=0.01, trust_class="secondary")
 
         # Just created, should have same confidence
         current = belief.get_current_confidence()
@@ -104,7 +104,7 @@ class TestConfidenceDecay:
 
     def test_decay_over_time(self):
         """Test confidence decays over time."""
-        belief = Belief(claim="Old belief", confidence=0.9, decay_rate=0.01)
+        belief = Belief(claim="Old belief", confidence=0.9, decay_rate=0.01, trust_class="secondary")
         # Simulate 30 days old
         belief.updated_at = datetime.now(UTC) - timedelta(days=30)
 
@@ -217,7 +217,7 @@ class TestBeliefStore:
         """Test getting beliefs by domain."""
         store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs")
 
-        store.add_belief(Belief(claim="Python fact", confidence=0.9, domain="python"))
+        store.add_belief(Belief(claim="Python fact", confidence=0.9, domain="python", trust_class="secondary"))
         store.add_belief(Belief(claim="Java fact", confidence=0.8, domain="java"))
         store.add_belief(Belief(claim="Another Python fact", confidence=0.7, domain="python"))
 
@@ -274,7 +274,7 @@ class TestBeliefStore:
         store = BeliefStore(expert_name="test", storage_dir=tmp_path / "beliefs")
 
         # Add fresh belief
-        fresh = Belief(claim="Fresh", confidence=0.9, domain="test")
+        fresh = Belief(claim="Fresh", confidence=0.9, domain="test", trust_class="secondary")
         store.add_belief(fresh)
 
         # Add stale belief (old and low confidence after decay)
@@ -439,7 +439,7 @@ class TestSharedBeliefStore:
         """Test sharing a belief."""
         store = SharedBeliefStore(storage_dir=tmp_path / "shared")
 
-        belief = Belief(claim="Python is popular", confidence=0.9, domain="programming")
+        belief = Belief(claim="Python is popular", confidence=0.9, domain="programming", trust_class="secondary")
 
         result = store.share_belief(belief, "expert1")
 
@@ -462,9 +462,9 @@ class TestSharedBeliefStore:
         """Test getting shared beliefs by domain."""
         store = SharedBeliefStore(storage_dir=tmp_path / "shared")
 
-        store.share_belief(Belief(claim="Fact 1", confidence=0.9, domain="python"), "expert1")
-        store.share_belief(Belief(claim="Fact 2", confidence=0.8, domain="python"), "expert2")
-        store.share_belief(Belief(claim="Java fact", confidence=0.9, domain="java"), "expert1")
+        store.share_belief(Belief(claim="Fact 1", confidence=0.9, domain="python", trust_class="secondary"), "expert1")
+        store.share_belief(Belief(claim="Fact 2", confidence=0.8, domain="python", trust_class="secondary"), "expert2")
+        store.share_belief(Belief(claim="Java fact", confidence=0.9, domain="java", trust_class="secondary"), "expert1")
 
         python_beliefs = store.get_shared_beliefs("python")
         java_beliefs = store.get_shared_beliefs("java")
@@ -477,8 +477,10 @@ class TestSharedBeliefStore:
         store = SharedBeliefStore(storage_dir=tmp_path / "shared")
 
         # Share beliefs in different domains
-        store.share_belief(Belief(claim="Python fact", confidence=0.9, domain="python"), "expert1")
-        store.share_belief(Belief(claim="Java fact", confidence=0.9, domain="java"), "expert2")
+        store.share_belief(
+            Belief(claim="Python fact", confidence=0.9, domain="python", trust_class="secondary"), "expert1"
+        )
+        store.share_belief(Belief(claim="Java fact", confidence=0.9, domain="java", trust_class="secondary"), "expert2")
 
         # Each domain should only see its own beliefs
         python_beliefs = store.get_shared_beliefs("python")
@@ -497,7 +499,7 @@ class TestSharedBeliefStore:
         """Test tracking of belief contributors."""
         store = SharedBeliefStore(storage_dir=tmp_path / "shared")
 
-        belief = Belief(claim="Shared knowledge", confidence=0.9, domain="test")
+        belief = Belief(claim="Shared knowledge", confidence=0.9, domain="test", trust_class="secondary")
 
         store.share_belief(belief, "expert1")
 
@@ -510,11 +512,15 @@ class TestSharedBeliefStore:
         store = SharedBeliefStore(storage_dir=tmp_path / "shared")
 
         # First expert shares
-        belief1 = Belief(claim="Python is popular for data science", confidence=0.8, domain="python")
+        belief1 = Belief(
+            claim="Python is popular for data science", confidence=0.8, domain="python", trust_class="secondary"
+        )
         store.share_belief(belief1, "expert1")
 
         # Second expert corroborates with similar belief
-        belief2 = Belief(claim="Python is popular for data science work", confidence=0.85, domain="python")
+        belief2 = Belief(
+            claim="Python is popular for data science work", confidence=0.85, domain="python", trust_class="secondary"
+        )
         store.share_belief(belief2, "expert2")
 
         # Get the shared belief
@@ -532,8 +538,12 @@ class TestSharedBeliefStore:
         expert = BeliefStore(expert_name="test", storage_dir=tmp_path / "expert")
 
         # Share some beliefs
-        shared.share_belief(Belief(claim="Fact 1", confidence=0.9, domain="test"), "other_expert")
-        shared.share_belief(Belief(claim="Fact 2", confidence=0.85, domain="test"), "other_expert")
+        shared.share_belief(
+            Belief(claim="Fact 1", confidence=0.9, domain="test", trust_class="secondary"), "other_expert"
+        )
+        shared.share_belief(
+            Belief(claim="Fact 2", confidence=0.85, domain="test", trust_class="secondary"), "other_expert"
+        )
 
         # Import to expert
         imported = shared.import_to_expert(expert, "test", max_beliefs=10)
@@ -546,7 +556,7 @@ class TestSharedBeliefStore:
         store = SharedBeliefStore(storage_dir=tmp_path / "shared")
 
         # Add fresh belief
-        fresh = Belief(claim="Fresh", confidence=0.9, domain="test")
+        fresh = Belief(claim="Fresh", confidence=0.9, domain="test", trust_class="secondary")
         store.share_belief(fresh, "expert1")
 
         # Add stale belief
@@ -574,7 +584,7 @@ class TestBeliefPersistence:
 
         # Create store and add beliefs
         store1 = BeliefStore(expert_name="test", storage_dir=storage_dir)
-        store1.add_belief(Belief(claim="Fact 1", confidence=0.9, domain="test"))
+        store1.add_belief(Belief(claim="Fact 1", confidence=0.9, domain="test", trust_class="secondary"))
         store1.add_belief(Belief(claim="Fact 2", confidence=0.8, domain="test"))
 
         # Create new store instance (should load from disk)
@@ -589,7 +599,9 @@ class TestBeliefPersistence:
 
         # Create store and share beliefs
         store1 = SharedBeliefStore(storage_dir=storage_dir)
-        store1.share_belief(Belief(claim="Shared fact", confidence=0.9, domain="test"), "expert1")
+        store1.share_belief(
+            Belief(claim="Shared fact", confidence=0.9, domain="test", trust_class="secondary"), "expert1"
+        )
 
         # Create new store instance
         store2 = SharedBeliefStore(storage_dir=storage_dir)
@@ -993,8 +1005,12 @@ class TestDecayMathProperties:
     )
     @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
     def test_decay_formula_correctness(self, confidence, decay_rate, days):
-        """Property: Decay follows exponential formula."""
-        belief = Belief(claim="Test", confidence=confidence, decay_rate=decay_rate)
+        """Property: Decay follows exponential formula.
+
+        secondary trust pins the property to the decay FORMULA in isolation;
+        the tertiary source-trust ceiling is covered in test_trust_floors.py.
+        """
+        belief = Belief(claim="Test", confidence=confidence, decay_rate=decay_rate, trust_class="secondary")
         belief.updated_at = datetime.now(UTC) - timedelta(days=days)
 
         current = belief.get_current_confidence()
