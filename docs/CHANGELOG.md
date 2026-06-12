@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Frontend checks are a blocking CI job (lint with zero warnings, tsc,
+  production build on Node 22 with npm cache). Previously the React
+  frontend was verified only by hand - which is how a type-breaking
+  dangling identifier and a missing ESLint config survived for months.
+  First item of the v2.15 evidence release.
+
 ## [2.14.0] - 2026-06-11
 
 ### Added
