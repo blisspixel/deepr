@@ -879,18 +879,30 @@ def health_check(name: str, json_output: bool):
 @click.argument("name")
 @click.option("--top", "-t", "top_n", type=int, default=5, show_default=True, help="How many top gaps to route")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured routes as JSON")
-def route_gaps(name: str, top_n: int, json_output: bool):
+@click.option("--execute", "execute_fills", is_flag=True, help="Execute the research-route fills (budget-bounded)")
+@click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Run budget ceiling for --execute")
+@click.option("--dry-run", is_flag=True, help="With --execute: show what would run; no spend")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def route_gaps(name: str, top_n: int, json_output: bool, execute_fills: bool, budget: float, dry_run: bool, yes: bool):
     """Route an expert's knowledge gaps to the best instrument to fill each.
 
-    Read-only and costs nothing. Maps each gap to recon (infrastructure),
-    distillr (academic), primr (strategic), or general research (default),
-    flagging which instruments are installed and estimating the cost. Advisory:
-    it recommends, it does not fill.
+    Advisory by default (read-only, $0): maps each gap to recon
+    (infrastructure), distillr (academic), primr (strategic), or general
+    research, with availability and cost estimates.
+
+    With --execute, the loop closes: the highest-value research-route
+    fills actually run (ordered by value-per-dollar), findings absorb
+    through the verification-gated pipeline, and budgets bound the sweep
+    (per-gap inside a run ceiling, skip-not-fail). Specialist-instrument
+    routes are deliberately DEFERRED with their command printed - paid
+    multi-minute jobs must not start as a side effect of a sweep.
 
     EXAMPLES:
       deepr expert route-gaps "AI Strategy Expert"
-      deepr expert route-gaps "AI Strategy Expert" --top 10 --json
+      deepr expert route-gaps "AI Strategy Expert" --execute --dry-run
+      deepr expert route-gaps "AI Strategy Expert" --execute --budget 1 -y
     """
+    import asyncio
     import json as _json
     import sys
 
@@ -906,6 +918,51 @@ def route_gaps(name: str, top_n: int, json_output: bool):
 
     gaps = profile.get_manifest().top_gaps(top_n)
     routes = GapRouter().route(gaps)
+
+    if execute_fills:
+        from deepr.experts.gap_fill import GapFillEngine
+
+        research_routes = [r for r in routes if r.instrument == "research"]
+        if not routes:
+            print_success("No open knowledge gaps to fill.")
+            return
+        if not dry_run and not yes:
+            est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
+            if not click.confirm(
+                f"Execute up to {len(research_routes)} research fill(s), estimated up to ${est:.2f} "
+                f"(ceiling ${budget:.2f})? Specialist routes are deferred.",
+                default=False,
+            ):
+                print_warning("Cancelled.")
+                return
+
+        engine = GapFillEngine(profile)
+        result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=dry_run))
+
+        if json_output:
+            click.echo(_json.dumps(result.to_dict(), indent=2))
+            return
+
+        print_header(f"Gap fill: {name}")
+        marker = {
+            "filled": "[green]filled[/green]",
+            "deferred": "[yellow]deferred[/yellow]",
+            "would_fill": "[yellow]would fill[/yellow]",
+            "skipped": "[yellow]skipped[/yellow]",
+            "failed": "[red]failed[/red]",
+        }
+        for o in result.outcomes:
+            line = f"  {marker.get(o.status, o.status)}  {o.topic}"
+            if o.status == "filled":
+                line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
+            elif o.detail:
+                line += f"  [dim]{o.detail[:100]}[/dim]"
+            console.print(line)
+        if not dry_run:
+            console.print(f"\nTotal cost: ${result.total_cost:.3f}")
+            if any(o.flagged for o in result.outcomes):
+                print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
+        return
 
     if json_output:
         click.echo(_json.dumps({"expert_name": profile.name, "routes": [r.to_dict() for r in routes]}, indent=2))
@@ -1951,7 +2008,16 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
 @click.argument("report_id")
 @click.option("--depth", type=int, default=1, show_default=True, help="0 = skip, 1 = single pass, 2+ = rigorous")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured reflection report as JSON")
-def reflect_report(name: str, report_id: str, depth: int, json_output: bool):
+@click.option(
+    "--execute-followups",
+    is_flag=True,
+    help="Run the follow-up queries reflection emits (budget-bounded; findings absorb verification-gated)",
+)
+@click.option("--budget", "-b", type=float, default=1.0, show_default=True, help="Budget ceiling for follow-ups")
+@click.option("--yes", "-y", is_flag=True, help="Skip follow-up confirmation")
+def reflect_report(
+    name: str, report_id: str, depth: int, json_output: bool, execute_followups: bool, budget: float, yes: bool
+):
     """Self-evaluate a research report before relying on or absorbing it.
 
     Scores the report against its question on grounding, completeness,
@@ -1960,9 +2026,14 @@ def reflect_report(name: str, report_id: str, depth: int, json_output: bool):
     context of NAME's domain. A natural pre-step to `expert absorb`. Costs one
     small evaluation call.
 
+    With --execute-followups the loop closes: the emitted follow-up queries
+    actually run (budget-bounded, skip-not-fail) and their findings absorb
+    through the verification-gated pipeline - reflection stops being
+    advisory exactly when the report needs reinforcement.
+
     EXAMPLES:
       deepr expert reflect "AI Strategy Expert" <job_id>
-      deepr expert reflect "AI Strategy Expert" <job_id> --depth 2 --json
+      deepr expert reflect "AI Strategy Expert" <job_id> --execute-followups --budget 1 -y
     """
     import json as _json
     import sys
@@ -2024,6 +2095,38 @@ def reflect_report(name: str, report_id: str, depth: int, json_output: bool):
         print_success(f"Report is sound. Safe to absorb: deepr expert absorb '{name}' {report_id}")
     elif report.verdict == "re_research":
         print_warning("Quality is weak; re-research the gaps above before absorbing.")
+
+    # Close the loop: run the follow-ups reflection emitted, budget-bounded.
+    if execute_followups:
+        if not report.followups:
+            console.print("[dim]No follow-up queries to execute.[/dim]")
+            return
+        from deepr.experts.gap_fill import GapFillEngine, routes_from_queries
+
+        if not yes:
+            if not click.confirm(
+                f"Run {len(report.followups)} follow-up research quer(ies), ceiling ${budget:.2f}?",
+                default=False,
+            ):
+                print_warning("Follow-ups not executed.")
+                return
+
+        routes = routes_from_queries(report.followups)
+        fill = asyncio.run(GapFillEngine(profile).execute(routes, budget=budget, top=len(routes)))
+
+        console.print()
+        print_section_header("Follow-up execution")
+        for o in fill.outcomes:
+            if o.status == "filled":
+                console.print(
+                    f"  [green]filled[/green]  {o.topic[:70]}  "
+                    f"[dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
+                )
+            else:
+                console.print(f"  [yellow]{o.status}[/yellow]  {o.topic[:70]}  [dim]{o.detail[:80]}[/dim]")
+        console.print(f"\nTotal cost: ${fill.total_cost:.3f}")
+        if any(o.flagged for o in fill.outcomes):
+            print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
 
 
 @expert.command(name="export-skill")
