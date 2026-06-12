@@ -28,6 +28,7 @@ Tools exposed:
 - deepr_reflect: Self-evaluate a research report (grounding/completeness/calibration/directness)
 - deepr_what_changed: Perspective delta since a timestamp (added/revised/contested/archived beliefs)
 - deepr_contested: Open contradiction pairs with both sides' claims and provenance
+- deepr_explain_belief: Why the expert believes something (evidence, history, support chains)
 
 Resources:
 - deepr://campaigns/{id}/status - Job state and progress
@@ -586,6 +587,34 @@ class DeeprMCPServer:
             return _contested(belief_store, expert_name=expert_name)
         except (OSError, KeyError, ValueError) as e:
             return _make_error("CONTESTED_FAILED", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Tool: deepr_explain_belief
+    # ------------------------------------------------------------------ #
+    async def explain_belief(self, expert_name: str, belief: str, depth: int = 2) -> dict[str, Any]:
+        """Why the expert believes something (read-only, cost-$0).
+
+        The introspection query: resolves ``belief`` (id or claim text,
+        fuzzy-matched), then returns the evidence roots, the confidence
+        trajectory from the append-only event log, supporting/derived-from
+        chains walked over the typed belief graph (depth-bounded), and any
+        open contradictions. Lets a host agent debug its trust in a claim
+        instead of taking the confidence number on faith.
+        """
+        try:
+            expert = self.store.load(expert_name)
+            if not expert:
+                return _make_error("EXPERT_NOT_FOUND", f"Expert '{expert_name}' not found")
+            from deepr.experts.beliefs import BeliefStore
+            from deepr.experts.perspective import explain_belief as _explain_belief
+
+            belief_store = BeliefStore(expert_name)
+            result = _explain_belief(belief_store, belief, expert_name=expert_name, depth=max(1, min(depth, 5)))
+            if result is None:
+                return _make_error("BELIEF_NOT_FOUND", f"No belief matches: {belief!r}")
+            return result.to_dict()
+        except (OSError, KeyError, ValueError) as e:
+            return _make_error("EXPLAIN_BELIEF_FAILED", str(e))
 
     # ------------------------------------------------------------------ #
     # Tool: deepr_expert_absorb
@@ -1590,6 +1619,11 @@ async def _handle_tools_call(server: DeeprMCPServer, params: dict[str, Any]) -> 
         "deepr_contested": lambda args: server.contested(
             expert_name=args.get("expert_name", ""),
         ),
+        "deepr_explain_belief": lambda args: server.explain_belief(
+            expert_name=args.get("expert_name", ""),
+            belief=args.get("belief", ""),
+            depth=args.get("depth", 2),
+        ),
         "deepr_reflect": lambda args: server.reflect(
             report_id=args.get("report_id", ""),
             depth=args.get("depth", 1),
@@ -1775,6 +1809,7 @@ _LEGACY_METHOD_MAP = {
     "reflect": "deepr_reflect",
     "what_changed": "deepr_what_changed",
     "contested": "deepr_contested",
+    "explain_belief": "deepr_explain_belief",
 }
 
 

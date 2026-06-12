@@ -158,6 +158,169 @@ def what_changed(store: BeliefStore, since: datetime, *, expert_name: str = "") 
 
 
 @dataclass
+class BeliefExplanation:
+    """Why an expert believes something: evidence, history, and graph context.
+
+    The third temporal query (``deepr expert why`` / ``deepr_explain_belief``):
+    introspection over a single belief. Built entirely from persisted
+    structures - evidence_refs (provenance roots), the append-only event log
+    (confidence trajectory), and typed edges (support/contradiction chains) -
+    so it stays read-side and cost-$0 like the rest of the query surface.
+    """
+
+    expert_name: str
+    belief: dict[str, Any]
+    evidence_roots: list[str] = field(default_factory=list)
+    trajectory: list[dict[str, Any]] = field(default_factory=list)
+    supports: list[dict[str, Any]] = field(default_factory=list)
+    derived_from: list[dict[str, Any]] = field(default_factory=list)
+    contradicts: list[dict[str, Any]] = field(default_factory=list)
+    depth: int = 2
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "expert_name": self.expert_name,
+            "belief": self.belief,
+            "evidence_roots": self.evidence_roots,
+            "trajectory": self.trajectory,
+            "supports": self.supports,
+            "derived_from": self.derived_from,
+            "contradicts": self.contradicts,
+            "depth": self.depth,
+            "generated_at": self.generated_at.isoformat(),
+        }
+
+
+_WORD_PUNCT = ".,;:!?'\"()[]{}"
+
+
+def _resolve_belief(store: BeliefStore, belief_ref: str) -> Belief | None:
+    """Resolve a belief by exact id, then by best claim-text match.
+
+    Matching scores how much of the QUERY the claim covers (not symmetric
+    overlap - a short query against a long claim must still match), with
+    punctuation stripped and prefix tolerance for plurals/inflections
+    ("tool" matches "tools,"). Live finding 2026-06-11: the symmetric
+    score rejected "dynamic tool discovery" against the exact belief it
+    described because the claim sentence was long.
+    """
+    exact = store.beliefs.get(belief_ref)
+    if exact is not None:
+        return exact
+
+    ref_words = {w.strip(_WORD_PUNCT) for w in belief_ref.lower().split()} - {""}
+    if not ref_words:
+        return None
+
+    best: tuple[float, Belief] | None = None
+    for belief in store.beliefs.values():
+        claim_words = {w.strip(_WORD_PUNCT) for w in belief.claim.lower().split()} - {""}
+        matched = 0
+        for rw in ref_words:
+            if rw in claim_words:
+                matched += 1
+            elif len(rw) > 3 and any((cw.startswith(rw) or rw.startswith(cw)) and len(cw) > 3 for cw in claim_words):
+                matched += 1  # prefix tolerance: tool/tools, graph/graphs
+        coverage = matched / len(ref_words)
+        if coverage >= 0.6 and (best is None or coverage > best[0]):
+            best = (coverage, belief)
+    return best[1] if best else None
+
+
+def explain_belief(
+    store: BeliefStore,
+    belief_ref: str,
+    *,
+    expert_name: str = "",
+    depth: int = 2,
+) -> BeliefExplanation | None:
+    """Explain one belief: provenance, confidence history, and graph chains.
+
+    Args:
+        store: The expert's belief store.
+        belief_ref: Belief id, or claim text to fuzzy-match (>0.3 overlap).
+        expert_name: Display name (defaults to the store's).
+        depth: Max hops to walk along supports/derived_from chains (the
+            contradicts list is direct neighbors only - a contradiction two
+            hops away is not a contradiction of THIS belief).
+
+    Returns:
+        BeliefExplanation, or None when no belief matches ``belief_ref``.
+    """
+    belief = _resolve_belief(store, belief_ref)
+    if belief is None:
+        return None
+
+    explanation = BeliefExplanation(
+        expert_name=expert_name or store.expert_name,
+        belief=_belief_summary(belief),
+        evidence_roots=list(belief.evidence_refs),
+        depth=max(1, depth),
+    )
+
+    # Confidence trajectory from the append-only event log (exact); legacy
+    # stores without the log fall back to the bounded changes window.
+    events = store.iter_events() if store.has_event_log else list(store.changes)
+    for change in events:
+        if change.belief_id != belief.id:
+            continue
+        ts = change.timestamp if change.timestamp.tzinfo else change.timestamp.replace(tzinfo=UTC)
+        entry: dict[str, Any] = {
+            "change_type": change.change_type,
+            "confidence": round(change.new_confidence, 3),
+            "reason": change.reason,
+            "timestamp": ts.isoformat(),
+        }
+        if change.old_claim and change.old_claim != change.new_claim:
+            entry["old_claim"] = change.old_claim
+        explanation.trajectory.append(entry)
+
+    # Walk supports/derived_from chains breadth-first, depth-bounded and
+    # cycle-safe. Each entry records the edge's provenance and how many
+    # hops from the root it sits.
+    visited: set[str] = {belief.id}
+    frontier = [(belief.id, 0)]
+    while frontier:
+        current_id, level = frontier.pop(0)
+        if level >= explanation.depth:
+            continue
+        for edge in store.edges_for(current_id):
+            other_id = edge.dst_id if edge.src_id == current_id else edge.src_id
+            if edge.edge_type == "contradicts":
+                # Direct neighbors only - record once, from the root belief
+                if current_id == belief.id and other_id not in {c["belief_id"] for c in explanation.contradicts}:
+                    other = store.beliefs.get(other_id)
+                    explanation.contradicts.append(
+                        {
+                            "belief_id": other_id,
+                            "claim": other.claim if other else "",
+                            "confidence": round(other.get_current_confidence(), 3) if other else None,
+                            "provenance": list(edge.provenance),
+                            "status": "open" if other is not None else "dangling",
+                        }
+                    )
+                continue
+            if other_id in visited:
+                continue
+            visited.add(other_id)
+            other = store.beliefs.get(other_id)
+            entry = {
+                "belief_id": other_id,
+                "claim": other.claim if other else "",
+                "confidence": round(other.get_current_confidence(), 3) if other else None,
+                "evidence_refs": list(other.evidence_refs) if other else [],
+                "provenance": list(edge.provenance),
+                "hops": level + 1,
+            }
+            bucket = explanation.derived_from if edge.edge_type == "derived_from" else explanation.supports
+            bucket.append(entry)
+            frontier.append((other_id, level + 1))
+
+    return explanation
+
+
+@dataclass
 class ContestedPair:
     """One open contradiction between two beliefs, both sides included."""
 

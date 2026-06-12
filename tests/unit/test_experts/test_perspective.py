@@ -287,3 +287,95 @@ class TestTypedEdges:
             store.add_edge(a.id, b.id, "refutes")
         with _pytest.raises(ValueError, match="itself"):
             store.add_edge(a.id, a.id, "supports")
+
+
+class TestExplainBelief:
+    """The introspection query (TKG step 4): evidence, history, chains."""
+
+    def test_explains_by_id_with_evidence_and_trajectory(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        belief = Belief(
+            claim="MCP supports dynamic tool discovery", confidence=0.7, domain="ai", evidence_refs=["report:mcp-2026"]
+        )
+        store.add_belief(belief, check_conflicts=False)
+        store.update_belief(belief.id, new_confidence=0.9, reason="corroborated by spec")
+
+        result = explain_belief(store, belief.id)
+        assert result is not None
+        assert result.belief["claim"] == "MCP supports dynamic tool discovery"
+        assert result.evidence_roots == ["report:mcp-2026"]
+        kinds = [t["change_type"] for t in result.trajectory]
+        assert kinds == ["created", "updated"]
+        assert result.trajectory[-1]["confidence"] == 0.9
+        assert result.trajectory[-1]["reason"] == "corroborated by spec"
+
+    def test_resolves_by_fuzzy_claim_text(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        store.add_belief(_belief("Temporal knowledge graphs beat flat buffers"), check_conflicts=False)
+
+        result = explain_belief(store, "temporal knowledge graphs")
+        assert result is not None
+        assert "Temporal knowledge graphs" in result.belief["claim"]
+
+    def test_unknown_reference_returns_none(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        store.add_belief(_belief("Something"), check_conflicts=False)
+        assert explain_belief(store, "completely unrelated zebra quantum") is None
+
+    def test_walks_support_chain_depth_bounded_and_cycle_safe(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        a, _ = store.add_belief(_belief("Claim A root"), check_conflicts=False)
+        b, _ = store.add_belief(_belief("Claim B middle"), check_conflicts=False)
+        c, _ = store.add_belief(_belief("Claim C far"), check_conflicts=False)
+        store.add_edge(a.id, b.id, "supports", provenance="report-1")
+        store.add_edge(b.id, c.id, "supports", provenance="report-2")
+        store.add_edge(c.id, a.id, "supports", provenance="cycle-edge")  # cycle
+
+        shallow = explain_belief(store, a.id, depth=1)
+        assert {e["belief_id"] for e in shallow.supports} == {b.id, c.id}  # both touch A at 1 hop
+        deep = explain_belief(store, a.id, depth=3)
+        ids = {e["belief_id"] for e in deep.supports}
+        assert ids == {b.id, c.id}  # cycle does not duplicate or recurse forever
+        hops = {e["belief_id"]: e["hops"] for e in deep.supports}
+        assert hops[b.id] == 1
+
+    def test_contradictions_are_direct_neighbors_with_status(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        x, _ = store.add_belief(_belief("X is true"), check_conflicts=False)
+        challenger = _belief("X is not true", confidence=0.9)
+        store.add_contested_belief(challenger, [x])
+
+        result = explain_belief(store, x.id)
+        assert len(result.contradicts) == 1
+        assert result.contradicts[0]["belief_id"] == challenger.id
+        assert result.contradicts[0]["status"] == "open"
+        assert "contested:absorb" in result.contradicts[0]["provenance"]
+
+    def test_to_dict_shape(self, tmp_path):
+        from deepr.experts.perspective import explain_belief
+
+        store = _store(tmp_path)
+        b, _ = store.add_belief(_belief("Shape test"), check_conflicts=False)
+        d = explain_belief(store, b.id).to_dict()
+        for key in (
+            "expert_name",
+            "belief",
+            "evidence_roots",
+            "trajectory",
+            "supports",
+            "derived_from",
+            "contradicts",
+            "depth",
+            "generated_at",
+        ):
+            assert key in d

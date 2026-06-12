@@ -1142,6 +1142,87 @@ def what_changed_cmd(name: str, since: str, json_output: bool):
         console.print("[dim]No changes in this window.[/dim]")
 
 
+@expert.command(name="why")
+@click.argument("name")
+@click.argument("belief_ref")
+@click.option("--depth", type=int, default=2, show_default=True, help="Max hops along support chains")
+@click.option("--json", "json_output", is_flag=True, help="Output JSON")
+def why_cmd(name: str, belief_ref: str, depth: int, json_output: bool):
+    """Explain why NAME believes something - evidence, history, and chains.
+
+    Read-only and cost-$0. BELIEF_REF is a belief id or claim text (fuzzy
+    matched). Shows the evidence roots (provenance), the confidence
+    trajectory from the append-only event log, the supporting/derived-from
+    chains walked over the typed belief graph, and any open contradictions.
+    This is the introspection query - the third temporal query after
+    what-changed and contested.
+
+    EXAMPLES:
+      deepr expert why "MCP Interop Expert" "dynamic tool discovery"
+      deepr expert why "AI Strategy Expert" belief-a1b2c3 --depth 3 --json
+    """
+    import json as _json
+    import sys
+
+    from deepr.experts.beliefs import BeliefStore
+    from deepr.experts.perspective import explain_belief as _explain_belief
+    from deepr.experts.profile import ExpertStore
+
+    if not ExpertStore().load(name):
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    result = _explain_belief(BeliefStore(name), belief_ref, expert_name=name, depth=depth)
+    if result is None:
+        print_error(f"No belief matches: {belief_ref}")
+        console.print("List beliefs via the expert profile or what-changed; ids look like belief-<hex>.")
+        sys.exit(2)
+
+    if json_output:
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    b = result.belief
+    print_header(f"Why: {name}")
+    console.print(f"  {b['claim']}")
+    console.print(f"  [dim]confidence {b['confidence']:.2f}  -  {b['belief_id']}  -  source: {b['source_type']}[/dim]")
+
+    if result.evidence_roots:
+        console.print()
+        print_section_header(f"Evidence ({len(result.evidence_roots)})")
+        for ref in result.evidence_roots:
+            console.print(f"  - {ref}")
+
+    if result.trajectory:
+        console.print()
+        print_section_header(f"History ({len(result.trajectory)})")
+        for t in result.trajectory:
+            line = f"  {t['timestamp'][:16]}  {t['change_type']:<9} conf {t['confidence']:.2f}"
+            if t.get("reason"):
+                line += f"  [dim]{t['reason'][:60]}[/dim]"
+            console.print(line)
+
+    for title, entries in (("Supported by", result.supports), ("Derived from", result.derived_from)):
+        if not entries:
+            continue
+        console.print()
+        print_section_header(f"{title} ({len(entries)})")
+        for e in entries:
+            console.print(f"  - {e['claim']}  [dim](conf {e['confidence']}, {e['hops']} hop(s))[/dim]")
+            if e.get("provenance"):
+                console.print(f"    [dim]via {', '.join(e['provenance'][:3])}[/dim]")
+
+    if result.contradicts:
+        console.print()
+        print_section_header(f"Contradicted by ({len(result.contradicts)})")
+        for c in result.contradicts:
+            console.print(f"  - {c['claim']}  [dim](conf {c['confidence']}, {c['status']})[/dim]")
+        console.print(f"  [dim]Adjudicate: deepr expert resolve-conflicts '{name}'[/dim]")
+
+    if not (result.evidence_roots or result.trajectory or result.supports or result.contradicts):
+        console.print("[dim]No recorded evidence, history, or graph context for this belief.[/dim]")
+
+
 @expert.command(name="contested")
 @click.argument("name")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
