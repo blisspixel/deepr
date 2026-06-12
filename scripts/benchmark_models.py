@@ -2417,6 +2417,52 @@ def load_all_prior_results() -> list[dict]:
     return results
 
 
+def saved_result_to_eval(r: dict) -> EvalResult:
+    """Rehydrate one saved benchmark result dict into an EvalResult."""
+    return EvalResult(
+        model_key=r.get("model", ""),
+        task_type=r.get("task_type", ""),
+        difficulty=r.get("difficulty", ""),
+        prompt="",  # not stored in saved format
+        response="",
+        latency_ms=r.get("latency_ms", 0),
+        error=r.get("error", ""),
+        tier=r.get("tier", "chat"),
+        judge_score=r.get("judge_score", 0.0),
+        reference_score=r.get("reference_score", 0.0),
+        combined_score=r.get("quality", 0.0),
+        judge_details=r.get("judge_details", {}),
+        citation_count=r.get("citation_count", 0),
+        citation_score=r.get("citation_score", 0.0),
+        report_length=r.get("report_length", 0),
+    )
+
+
+def regenerate_rankings_only() -> int:
+    """Rebuild routing_preferences.json from stored benchmark data. $0.
+
+    No API calls: rehydrates every saved result, rebuilds summaries, and
+    re-emits the routing config with the current generation logic. Use
+    after changing ranking/saturation logic or registry membership so
+    routing picks update without paying to re-run evals.
+    """
+    prior = load_all_prior_results()
+    if not prior:
+        print("No saved benchmark data under data/benchmarks/ - nothing to regenerate.")
+        return 2
+    results = [saved_result_to_eval(r) for r in prior if r.get("model") and not r.get("error")]
+    registry = load_registry()
+    summaries = build_summaries(results, registry)
+    config_file = emit_routing_config(summaries, results)
+    config = json.loads(config_file.read_text())
+    saturated = [tt for tt, p in config["task_preferences"].items() if p.get("saturated")]
+    print(f"Regenerated {config_file} from {len(results)} stored results ({config['model_count']} models). Cost: $0")
+    if saturated:
+        print(f"Saturated (non-discriminative) tasks flagged: {', '.join(saturated)}")
+        print("Their best_quality picks use the discriminative-quality tie-break.")
+    return 0
+
+
 def get_covered_model_tiers(prior: list[dict]) -> set[tuple[str, str]]:
     """Return set of (model_key, tier) pairs already benchmarked with non-error results."""
     covered = set()
@@ -2429,8 +2475,32 @@ def get_covered_model_tiers(prior: list[dict]) -> set[tuple[str, str]]:
     return covered
 
 
+# A task is "saturated" when it can no longer discriminate at the top:
+# either multiple models tie within epsilon of the top score (plain max()
+# then degenerates to iteration order), or the top score itself hits the
+# ceiling (a mean of ~1.0 over hundreds of evals proves the questions have
+# no headroom, not that the model is best - live consequence 2026-06-11:
+# gpt-4.1-nano elected best_quality for "reasoning" with a mean 1.00 over
+# 896 evals, and auto mode routed real reasoning queries to a nano model).
+SATURATION_EPSILON = 0.02
+SATURATION_MIN_TIED = 2
+SATURATION_CEILING = 0.99
+# On a saturated task, every model above this floor is "competent" and the
+# winner is chosen by discriminative quality - anchoring on the saturated
+# task's own near-ceiling scores would just re-elect the lenient-grade
+# artifact (a 0.9799 vs 0.98 float edge can exclude the real contender).
+SATURATION_COMPETENCE_FLOOR = 0.85
+
+
 def emit_routing_config(summaries: list[ModelSummary], results: list[EvalResult]) -> Path:
-    """Write routing preferences JSON for future auto_mode integration."""
+    """Write routing preferences JSON for future auto_mode integration.
+
+    Saturation-aware: on tasks where several models tie at the top, the
+    best_quality tie-break uses each model's mean score across the tasks
+    that DO discriminate, so a small model acing easy questions cannot
+    outrank a frontier model by iteration order. Saturated tasks are
+    flagged in the output so consumers know the pick is low-confidence.
+    """
     out_dir = PROJECT_ROOT / "data" / "benchmarks"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "routing_preferences.json"
@@ -2441,9 +2511,31 @@ def emit_routing_config(summaries: list[ModelSummary], results: list[EvalResult]
     results = [r for r in results if r.model_key in registry]
 
     task_types = sorted({r.task_type for r in results})
+
+    # Pass 1: find saturated tasks
+    saturated: set[str] = set()
+    tied_by_task: dict[str, list[ModelSummary]] = {}
+    for tt in task_types:
+        top = max((s.scores_by_type.get(tt, 0) for s in summaries), default=0.0)
+        tied = [s for s in summaries if s.scores_by_type.get(tt, 0) >= top - SATURATION_EPSILON]
+        tied_by_task[tt] = tied
+        if top > 0 and (len(tied) >= SATURATION_MIN_TIED or top >= SATURATION_CEILING):
+            saturated.add(tt)
+
+    # Discriminative quality prior: mean score across non-saturated tasks
+    discriminative_tasks = [tt for tt in task_types if tt not in saturated]
+
+    def discriminative_quality(s: ModelSummary) -> float:
+        scores = [s.scores_by_type[tt] for tt in discriminative_tasks if tt in s.scores_by_type]
+        return sum(scores) / len(scores) if scores else 0.0
+
     preferences = {}
     for tt in task_types:
-        best_quality = max(summaries, key=lambda s: s.scores_by_type.get(tt, 0))
+        if tt in saturated:
+            competent = [s for s in summaries if s.scores_by_type.get(tt, 0) >= SATURATION_COMPETENCE_FLOOR]
+            best_quality = max(competent or tied_by_task[tt], key=discriminative_quality)
+        else:
+            best_quality = max(summaries, key=lambda s: s.scores_by_type.get(tt, 0))
         best_value = max(
             summaries,
             key=lambda s: s.scores_by_type.get(tt, 0) / max(s.total_cost, 0.0001),
@@ -2453,6 +2545,7 @@ def emit_routing_config(summaries: list[ModelSummary], results: list[EvalResult]
             "best_quality_score": best_quality.scores_by_type.get(tt, 0),
             "best_value": best_value.model_key,
             "best_value_score": best_value.scores_by_type.get(tt, 0),
+            "saturated": tt in saturated,
         }
 
     # Deduplicate overall ranking (models appear in multiple tiers)
@@ -2836,6 +2929,11 @@ Examples:
     parser.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
     parser.add_argument("--save", action="store_true", help="Save results to data/benchmarks/")
     parser.add_argument("--emit-routing-config", action="store_true", help="Write routing_preferences.json")
+    parser.add_argument(
+        "--regenerate-rankings",
+        action="store_true",
+        help="Rebuild routing_preferences.json from stored benchmark data only - no API calls, $0",
+    )
     parser.add_argument("--compare", metavar="FILE", help="Compare against a previous benchmark run")
     parser.add_argument("--dry-run", action="store_true", help="Show plan without making API calls")
     parser.add_argument(
@@ -2878,6 +2976,10 @@ Examples:
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # Regenerate rankings from stored data and exit ($0, no API calls)
+    if args.regenerate_rankings:
+        sys.exit(regenerate_rankings_only())
 
     # Show prompts and exit
     if args.show_prompts:
@@ -3026,24 +3128,7 @@ Examples:
             tier = r.get("tier", "chat")
             if (model, tier) in new_keys:
                 continue  # don't duplicate — new results take precedence
-            er = EvalResult(
-                model_key=model,
-                task_type=r.get("task_type", ""),
-                difficulty=r.get("difficulty", ""),
-                prompt="",  # not stored in saved format
-                response="",
-                latency_ms=r.get("latency_ms", 0),
-                error=r.get("error", ""),
-                tier=tier,
-                judge_score=r.get("judge_score", 0.0),
-                reference_score=r.get("reference_score", 0.0),
-                combined_score=r.get("quality", 0.0),
-                judge_details=r.get("judge_details", {}),
-                citation_count=r.get("citation_count", 0),
-                citation_score=r.get("citation_score", 0.0),
-                report_length=r.get("report_length", 0),
-            )
-            all_results.append(er)
+            all_results.append(saved_result_to_eval(r))
             merged_count += 1
         if merged_count:
             print(f"  Merged {merged_count} prior results into output")

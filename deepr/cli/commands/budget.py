@@ -46,6 +46,34 @@ def save_budget_config(config):
         json.dump(config, f, indent=2)
 
 
+# Cumulative auto-approve ceiling for cautious mode (monthly_limit=0): the
+# under-$1 convenience stops without confirmation once the month's real
+# (ledger) spend reaches this. Set an explicit budget to go higher.
+CAUTIOUS_MODE_MONTHLY_CEILING = 25.0
+
+
+def _ledger_month_spend() -> float:
+    """Current calendar-month spend from the canonical cost ledger.
+
+    The budget.json counter only sees spend recorded through
+    record_spending; the ledger sees every recorder (CLI, web, MCP,
+    expert learning). Budget decisions use whichever is HIGHER, so a
+    path that bypassed the side counter cannot make the month look
+    cheaper than it was. Best-effort: a ledger read failure returns 0
+    and the side counter still applies.
+    """
+    try:
+        from datetime import UTC
+
+        from deepr.observability.cost_ledger import CostLedger
+
+        now = datetime.now(UTC)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return CostLedger().get_total_cost(start_date=month_start)
+    except Exception:
+        return 0.0
+
+
 def check_budget_approval(estimated_cost: float) -> bool:
     """
     Check if job should auto-execute based on budget.
@@ -58,9 +86,11 @@ def check_budget_approval(estimated_cost: float) -> bool:
 
     # Mode 1: Confirm every job (budget = 0)
     if monthly_limit == 0:
-        # QoL: Auto-approve small jobs under $1 even in cautious mode
-        # This reduces friction for typical research jobs
-        if estimated_cost < 1.0:
+        # QoL: Auto-approve small jobs under $1 even in cautious mode -
+        # but only up to a cumulative monthly ceiling (canonical ledger).
+        # Without the ceiling, a headless loop of $0.99 jobs was unbounded:
+        # "under $1 each" must never become a surprise bill in aggregate.
+        if estimated_cost < 1.0 and _ledger_month_spend() + estimated_cost < CAUTIOUS_MODE_MONTHLY_CEILING:
             return True
         return False
 
@@ -68,8 +98,10 @@ def check_budget_approval(estimated_cost: float) -> bool:
     if monthly_limit == -1:
         return True
 
-    # Mode 3: Budget limit
-    current_spending = config.get("monthly_spending", 0.0)
+    # Mode 3: Budget limit. Spend = max(side counter, canonical ledger) so
+    # spend recorded by other entry points (web, MCP, expert learning)
+    # counts against the month even if record_spending never saw it.
+    current_spending = max(config.get("monthly_spending", 0.0), _ledger_month_spend())
     new_total = current_spending + estimated_cost
 
     # Auto-approve if under 80% of budget

@@ -322,8 +322,10 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Expensive",
             "Slow (2-5 minutes)",
         ],
-        input_cost_per_1m=11.0,
-        output_cost_per_1m=44.0,
+        # $10/$40 standard (batch is 50% off) - verified against the live
+        # OpenAI pricing page 2026-06-11; the previous $11/$44 was wrong
+        input_cost_per_1m=10.0,
+        output_cost_per_1m=40.0,
     ),
     "openai/o4-mini-deep-research": ModelCapability(
         provider="openai",
@@ -339,8 +341,10 @@ MODEL_CAPABILITIES: dict[str, ModelCapability] = {
             "Excellent for strategic decisions",
         ],
         weaknesses=["Expensive ($2 per query)", "Slow (30-60 seconds minimum)", "Overkill for simple queries"],
-        input_cost_per_1m=1.10,
-        output_cost_per_1m=4.40,
+        # $2/$8 standard (batch is 50% off) - verified 2026-06-11; the
+        # previous $1.10/$4.40 was the plain o4-mini rate copied by mistake
+        input_cost_per_1m=2.00,
+        output_cost_per_1m=8.00,
     ),
     # xAI Models (Grok)
     # Grok 4.20 — Flagship (March 2026)
@@ -1146,7 +1150,11 @@ def get_token_pricing(model: str, input_tokens: int | None = None) -> dict[str, 
         "Add the model to deepr/providers/registry.py to bill it correctly.",
         model,
     )
-    default = MODEL_CAPABILITIES.get("openai/o4-mini-deep-research")
+    # Plain o4-mini ($1.10/$4.40), as the warning above documents. (This
+    # previously pointed at o4-mini-deep-research, which only matched the
+    # documented rates because that entry carried a mistakenly copied
+    # price - corrected to $2/$8 on 2026-06-11.)
+    default = MODEL_CAPABILITIES.get("openai/o4-mini")
     if default:
         return {"input": default.input_cost_per_1m, "output": default.output_cost_per_1m}
     return {"input": 1.10, "output": 4.40}

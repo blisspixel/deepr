@@ -116,10 +116,9 @@ class TestCostEstimator:
             input_tokens=1_000_000,
             output_tokens=1_000_000,
         )
-        # Registry rates: input 11.00, output 44.00 => 55.00.
-        # (The estimator's legacy 4-model table priced this at $2/$8 -
-        # a ~5x underestimate; pricing now comes from the registry.)
-        assert cost == 55.0
+        # Registry rates: input 10.00, output 40.00 => 50.00 (live OpenAI
+        # pricing verified 2026-06-11; the earlier $11/$44 was wrong).
+        assert cost == 50.0
 
     def test_calculate_actual_cost_with_reasoning_tokens(self):
         cost = CostEstimator.calculate_actual_cost(
@@ -128,8 +127,8 @@ class TestCostEstimator:
             output_tokens=0,
             reasoning_tokens=1_000_000,
         )
-        # reasoning at registry output rate: 44.00
-        assert cost == 44.0
+        # reasoning at registry output rate: 40.00
+        assert cost == 40.0
 
     def test_calculate_actual_cost_unknown_model(self):
         cost = CostEstimator.calculate_actual_cost(
