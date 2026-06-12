@@ -60,6 +60,20 @@ def _isolate_cost_data(tmp_path, monkeypatch):
     monkeypatch.setenv("DEEPR_COST_DATA_DIR", str(tmp_path / "costs"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_budget_env(monkeypatch):
+    """Keep the developer's real .env spend caps out of the suite.
+
+    deepr loads .env on import, so DEEPR_MAX_COST_* values set on the dev
+    machine (e.g. the $1/day validation caps) silently override the
+    defaults and config-file values tests assert. Same isolation class as
+    the ledger fixture above. Tests that exercise the env caps set them
+    explicitly via monkeypatch, which runs after this and wins.
+    """
+    for var in ("DEEPR_MAX_COST_PER_JOB", "DEEPR_MAX_COST_PER_DAY", "DEEPR_MAX_COST_PER_MONTH"):
+        monkeypatch.delenv(var, raising=False)
+
+
 @pytest.fixture
 def temp_dir(tmp_path):
     """Provide temporary directory for tests.
