@@ -181,6 +181,7 @@ class ExpertHealthChecker:
             self._check_contradictions,
             self._check_provenance,
             self._check_stale_beliefs,
+            self._check_archive_candidates,
             self._check_gap_backlog,
             self._check_coverage,
         ):
@@ -362,6 +363,70 @@ class ExpertHealthChecker:
             ],
         }
         return HealthFinding("stale_beliefs", severity, summary, detail), None
+
+    def _archive_candidate_summaries(self) -> list[dict[str, Any]]:
+        """Lifecycle archive candidates from the belief store (read-only).
+
+        Separate method so tests can stub it; same existence-check pattern
+        as ``_recorded_contested_pairs`` - a read-only audit must not
+        create state, so only stores that already exist are opened.
+        """
+        try:
+            from pathlib import Path
+
+            from deepr.experts.beliefs import BeliefStore
+
+            beliefs_dir = Path("data/experts") / self.profile.name / "beliefs"
+            if not beliefs_dir.exists():
+                return []
+            store = BeliefStore(self.profile.name)
+            return [
+                {
+                    "id": b.id,
+                    "claim": b.claim,
+                    "confidence": round(b.get_current_confidence(), 3),
+                    "updated_at": b.updated_at.isoformat(),
+                    "retrieval_count": b.retrieval_count,
+                }
+                for b in store.archive_candidates()
+            ]
+        except Exception as exc:
+            logger.debug("Could not compute archive candidates: %s", exc, exc_info=exc)
+            return []
+
+    def _check_archive_candidates(
+        self, manifest: Any, beliefs: list[Belief]
+    ) -> tuple[HealthFinding, RecommendedAction | None]:
+        """Lifecycle governance: beliefs eligible for reversible archival.
+
+        Candidates pass ALL gates in BeliefStore.archive_candidates -
+        decayed below the floor, long-unevidenced, no recorded usage, and
+        not contested (contested beliefs are signal, never garbage). The
+        audit proposes; archival itself is the opt-in --archive-stale
+        action, event-logged with snapshots so it is reversible
+        belief-by-belief (docs/design/belief-lifecycle.md).
+        """
+        candidates = self._archive_candidate_summaries()
+        count = len(candidates)
+        severity = "info" if count else "ok"
+        summary = (
+            f"{count} belief(s) eligible for reversible archival (decayed, unevidenced, unused, uncontested)."
+            if count
+            else "No beliefs eligible for lifecycle archival."
+        )
+        detail = {"count": count, "examples": candidates[:10]}
+
+        action = None
+        if count:
+            action = RecommendedAction(
+                category="archive_candidates",
+                description=f"Archive {count} stale belief(s) (reversible; snapshots kept in the event log)",
+                command=f"deepr expert health-check {shlex.quote(self.profile.name)} --archive-stale",
+                estimated_cost=0.0,
+                approval_tier=ApprovalTier.CONFIRM.value,
+            )
+
+        return HealthFinding("archive_candidates", severity, summary, detail), action
 
     def _check_gap_backlog(
         self, manifest: Any, beliefs: list[Belief]

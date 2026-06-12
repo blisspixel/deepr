@@ -706,7 +706,7 @@ wheels = [
 
 [[package]]
 name = "deepr-research"
-version = "2.13.2"
+version = "2.14.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
