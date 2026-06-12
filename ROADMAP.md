@@ -55,7 +55,7 @@ These features work but APIs or behavior may change:
 - **Web dashboard**: Local research management UI - 12 polished pages with WebSocket push, skeleton loading, shadcn/ui components, mobile nav, accessibility
 - **Expert skills**: Domain-specific capability packages with Python tools and MCP bridging. 7 built-in skills (incl. native Recon, Distillr, and Primr), CLI management, web API, auto-activation triggers
 - **Native Recon instrument** (v2.11.0): auto-discovered when `pip install recon-tool` is present; autonomous cost-$0 domain probe in agentic expert chat; passive infrastructure/email-security intelligence absorbed into expert context
-- **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `query_library` first)
+- **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `find_insights` corpus search first)
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
 - **MCP server**: Functional with 25 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
@@ -270,12 +270,12 @@ Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID
   - [x] MCP client connection to distillr's ingest and query tools (built-in `distillr` skill + auto-discovered profile when `distill-mcp` is on PATH)
   - [x] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge (`KnowledgeAbsorber.categorize_distillr_response`, absorbed as academic findings with synthesis-path provenance)
   - [x] Async handling with progress notifications for long ingestion runs (profile `progress: true`, reusing the existing MCP client `ProgressNotifier`)
-  - [x] Budget propagation (cap model spend per ingestion) — per-call `budget_limit` cap enforced by `BudgetPropagator`; only free `query_library` auto-approves, ingestion is approval-gated
+  - [x] Budget propagation (cap model spend per ingestion) — per-call `budget_limit` cap enforced by `BudgetPropagator`; only free read-side corpus tools auto-approve, ingestion is approval-gated (tool names re-verified against distillr v0.11.1, 2026-06-11)
   - [x] Freshness engine: consume distillr's refresh/delta tool to re-run a subscribed topic and integrate only new material - this is what powers expert "stay current" (see Phase 4 expert sync)
   - [ ] Topic subscriptions: experts register topics with distillr; scheduled sync pulls deltas over time (lands with Phase 4 `expert sync`)
   - [ ] Consume distillr's corpus-layer verbs as they ship (`ask`, `audit`, gap-driven discover) instead of reimplementing them; Deepr's job is verification, belief integration, and orchestration on top of distillr's corpus primitives
 - [x] (3) Primr integration (`pip install primr`) — **delivered in v2.12**:
-  - [x] MCP client connection to primr's analyze_company and batch tools (built-in `primr` skill + auto-discovered profile when `primr-mcp` is on PATH; `research_company`, `batch_analyze`, `generate_strategy`)
+  - [x] MCP client connection to primr's analyze_company and batch tools (built-in `primr` skill + auto-discovered profile when `primr-mcp` is on PATH; `research_company`, `generate_strategy`; surface re-verified against primr v1.29.3, 2026-06-11 - the v2.12-era `batch_analyze`/`quick_lookup` were removed upstream)
   - [x] Expert skill for autonomous company deep-dive delegation (`deepr/skills/primr/`, every paid tool approval-gated, free `estimate_run`/`check_jobs`/`doctor` auto-approve)
   - [x] Async durability for 35-50 min runs (profile `progress: true` + 60m timeout; `check_jobs` polling and resume via the existing MCP task-durability layer; per-call `budget_limit` cap of $5 enforced by `BudgetPropagator`)
   - [x] Quick-mode tool for lighter/faster company context (`quick_lookup`: recon + scrape only, ~5 min)
@@ -289,6 +289,7 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 - [ ] Stale-model CI checks + provider-family alerting
   - [x] `deepr eval` preflight warns when newer relevant models are missing from the registry
   - [ ] Scheduled CI job that alerts on provider model drift
+  - [x] First-party tool-surface drift check (`scripts/validate_integrations.py`, 2026-06-11): live `tools/list` handshake against installed recon/distillr/primr through Deepr's own MCP client, diffed against the profile approval lists. Built after all three integrations were found silently drifted (primr removed `batch_analyze`/`quick_lookup`; distillr renamed its entire verb surface; recon added five tools). $0; run after upgrading any sibling tool. The live check immediately corrected two errors in the static fix itself - this class of break is only catchable live.
 - [x] Routing preview: `deepr research --preview` shows model choice, estimated cost band, and (in `--auto` mode) routing confidence and reasoning before executing. Works for both explicit `--model/--provider` runs and `--auto` mode. JSON output (`--json`) emits a structured `{preview, executed, provider, model, cost_estimate}` payload for machine consumers. Back-compat: `--dry-run` is preserved as an alias.
 - [ ] Eval methodology v2 (design: [docs/design/calibration-and-trust.md](docs/design/calibration-and-trust.md)):
   - [ ] Citation quality, grounding, synthesis depth, temporal accuracy

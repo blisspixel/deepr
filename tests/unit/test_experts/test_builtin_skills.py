@@ -24,11 +24,11 @@ def test_first_party_skills_expose_expected_tools() -> None:
 
     distillr = manager.get_skill("distillr")
     assert distillr is not None
-    assert {t.name for t in distillr.tools} >= {"query_library", "ingest_papers", "refresh"}
+    assert {t.name for t in distillr.tools} >= {"find_insights", "papers", "catch_up"}
 
     primr = manager.get_skill("primr")
     assert primr is not None
-    assert {t.name for t in primr.tools} >= {"estimate_run", "research_company", "quick_lookup"}
+    assert {t.name for t in primr.tools} >= {"estimate_run", "research_company", "estimate_strategy"}
 
 
 def test_every_builtin_skill_tool_is_well_formed() -> None:
