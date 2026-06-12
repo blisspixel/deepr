@@ -10,8 +10,10 @@
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    /* One decisive accent: petrol teal (research-instrument identity,
+       not the shadcn template blue) - docs/design/web-ui-refinement.md */
+    --primary: 172 65% 30%;
+    --primary-foreground: 0 0% 98%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
     --muted: 240 4.8% 95.9%;
@@ -22,8 +24,8 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --ring: 172 65% 30%;
+    --radius: 0.375rem;
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 98%;
@@ -34,14 +36,14 @@
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-primary: 172 65% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 221.2 83.2% 53.3%;
+    --sidebar-ring: 172 65% 30%;
 
-    --chart-1: 221 50% 50%;
+    --chart-1: 172 55% 36%;
     --chart-2: 142 45% 42%;
     --chart-3: 38 55% 50%;
     --chart-4: 280 40% 52%;
@@ -58,8 +60,8 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 172 50% 48%;
+    --primary-foreground: 200 25% 8%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
     --muted: 240 3.7% 15.9%;
@@ -70,7 +72,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 217.2 91.2% 59.8%;
+    --ring: 172 50% 48%;
 
     --success: 142 71% 45%;
     --success-foreground: 0 0% 9%;
@@ -81,14 +83,14 @@
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 172 50% 48%;
+    --sidebar-primary-foreground: 200 25% 8%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 172 50% 48%;
 
-    --chart-1: 221 50% 56%;
+    --chart-1: 172 45% 52%;
     --chart-2: 142 45% 48%;
     --chart-3: 38 55% 54%;
     --chart-4: 280 40% 58%;
@@ -107,8 +109,11 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
       'Helvetica Neue', Arial, sans-serif;
+    /* Tabular numerals body-wide: metrics, costs, and timestamps align
+       like an instrument readout (docs/design/web-ui-refinement.md). */
+    font-feature-settings: 'tnum' 1;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -173,17 +178,3 @@
   }
 }
 
-/* Glassmorphism utilities */
-@layer utilities {
-  .glass {
-    background: hsl(var(--background) / 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .glass-heavy {
-    background: hsl(var(--background) / 0.6);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-  }
-}
