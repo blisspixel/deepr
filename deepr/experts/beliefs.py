@@ -78,6 +78,12 @@ class Belief:
     decay_rate: float = 0.01  # Per day
     history: list[dict[str, Any]] = field(default_factory=list)
     id: str = field(default="")
+    # Provenance tier of the weakest load-bearing source: "primary"
+    # (operator-supplied documents), "secondary" (official docs,
+    # first-party instrument output), or "tertiary" (web search results,
+    # research syntheses - the default, and the retroactive default for
+    # every belief stored before this field existed).
+    trust_class: str = "tertiary"
 
     def __post_init__(self):
         if not self.id:
@@ -86,15 +92,34 @@ class Belief:
             content = f"{self.claim}:{self.domain}:{self.created_at.isoformat()}"
             self.id = hashlib.sha256(content.encode()).hexdigest()[:12]
 
+    def _trust_ceiling(self) -> float:
+        """Deterministic confidence cap from source trust (v2.15 evidence).
+
+        Floors are computed at read time (like decay), so they apply
+        retroactively and through every write path - absorb, sync, merge,
+        adjudication. No model judgment can lift them; only new,
+        better-sourced evidence can:
+
+        - tertiary, single source: 0.60 (one web result cannot make a
+          belief near-certain - also the deterministic backstop against
+          ingestion-time prompt injection)
+        - tertiary, two+ independent sources: 0.80
+        - secondary/primary: uncapped (1.0)
+        """
+        if self.trust_class in ("primary", "secondary"):
+            return 1.0
+        independent_sources = len(set(self.evidence_refs))
+        return 0.80 if independent_sources >= 2 else 0.60
+
     def get_current_confidence(self) -> float:
-        """Get confidence with decay applied.
+        """Get confidence with decay and the source-trust ceiling applied.
 
         Returns:
-            Current confidence after decay
+            Current confidence after decay, capped by trust class.
         """
         days_elapsed = (datetime.now(UTC) - self.updated_at).days
         decayed = self.confidence * math.exp(-self.decay_rate * days_elapsed)
-        return max(0.0, min(1.0, decayed))
+        return max(0.0, min(self._trust_ceiling(), decayed))
 
     def update_confidence(self, new_confidence: float, reason: str = ""):
         """Update belief confidence.
@@ -152,7 +177,11 @@ class Belief:
         """
         from deepr.core.contracts import Claim, Source, TrustClass
 
-        sources = [Source.create(title=ref, trust_class=TrustClass.TERTIARY) for ref in self.evidence_refs]
+        trust = {
+            "primary": TrustClass.PRIMARY,
+            "secondary": TrustClass.SECONDARY,
+        }.get(self.trust_class, TrustClass.TERTIARY)
+        sources = [Source.create(title=ref, trust_class=trust) for ref in self.evidence_refs]
         return Claim(
             id=self.id,
             statement=self.claim,
@@ -178,6 +207,7 @@ class Belief:
             "source_type": self.source_type,
             "decay_rate": self.decay_rate,
             "history": self.history,
+            "trust_class": self.trust_class,
         }
 
     @classmethod
@@ -194,6 +224,8 @@ class Belief:
             source_type=data.get("source_type", "learned"),
             decay_rate=data.get("decay_rate", 0.01),
             history=data.get("history", []),
+            # Pre-floor beliefs default tertiary: retroactive honesty
+            trust_class=data.get("trust_class", "tertiary"),
         )
 
 

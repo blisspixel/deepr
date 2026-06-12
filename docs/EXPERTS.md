@@ -243,13 +243,88 @@ deepr expert health-check "Azure Architect"
 deepr expert health-check "Azure Architect" --json   # structured, for agents
 ```
 
-### Route Gaps to Instruments
-Read-only, cost-$0 advisory: map each open knowledge gap to the best instrument
-to fill it - recon (infrastructure), distillr (academic), primr (strategic), or
-general research (default) - with availability, cost estimate, and rationale.
+### Route Gaps to Instruments (and Execute the Fills)
+Advisory by default (read-only, $0): map each open knowledge gap to the best
+instrument to fill it - recon (infrastructure), distillr (academic), primr
+(strategic), or general research (default) - with availability, cost estimate,
+and rationale. With `--execute`, the highest-value research-route fills
+actually run (budget-bounded, skip-not-fail) and their findings absorb through
+the verification-gated pipeline. Specialist-instrument routes are deliberately
+deferred with their command printed - paid multi-minute jobs never start as a
+side effect of a sweep.
 ```bash
 deepr expert route-gaps "Azure Architect"
-deepr expert route-gaps "Azure Architect" --top 10 --json
+deepr expert route-gaps "Azure Architect" --execute --dry-run    # preview, $0
+deepr expert route-gaps "Azure Architect" --execute --budget 1 -y
+```
+
+### Stay Current: Subscriptions and Sync
+Subscribe an expert to topics with a refresh cadence and per-sync budget; sync
+researches only what is DUE with a delta-only prompt ("what changed since the
+last sync; if nothing meaningful, say exactly so"), absorbs through the
+verification gate, and reports the perspective delta. Idempotent per cadence
+window - run it from cron or a host platform's scheduler and only due topics
+spend money. A "no significant changes" answer skips the paid extraction.
+```bash
+deepr expert subscribe "Azure Architect" "Azure Landing Zone updates" --every 7 --budget 0.50
+deepr expert subscriptions "Azure Architect"          # list, with due markers
+deepr expert sync "Azure Architect" --dry-run         # preview, $0
+deepr expert sync "Azure Architect" -y                # run due topics
+```
+
+### Auto Re-Research from Reflection
+When `expert reflect` finds a report weak, it emits follow-up queries. With
+`--execute-followups` they actually run (same budget discipline) and absorb -
+reflection stops being advisory exactly when the report needs reinforcement.
+```bash
+deepr expert reflect "Azure Architect" <job_id> --execute-followups --budget 1 -y
+```
+
+## Temporal Perspective Queries
+
+A corpus is what was read; a perspective is what is *believed* - claims with
+calibrated confidence, provenance, recency, and open conflicts. Three
+read-side, cost-$0 queries expose the perspective (CLI and MCP):
+
+### What Changed (re-sync)
+The perspective delta since a timestamp: beliefs added / revised / contested /
+archived, each with its reason and current snapshot. The cheap way for you (or
+a host agent) to catch up with an expert instead of re-reading everything.
+Exact with no window limit on stores with the belief event log.
+```bash
+deepr expert what-changed "Azure Architect" --since 7d
+deepr expert what-changed "Azure Architect" --since 2026-06-01 --json
+```
+
+### Contested (open conflicts)
+Open contradiction pairs with both sides' claims, confidence, and provenance -
+live conflicts surfaced deliberately, never smoothed into a narrative.
+Resolution stays with `expert resolve-conflicts`.
+```bash
+deepr expert contested "Azure Architect"
+```
+
+### Why (introspection)
+Why the expert believes something: evidence roots, the confidence trajectory
+from the append-only event log, supporting/derived-from chains walked over the
+typed belief graph, and any open contradictions. Accepts a belief id or claim
+text (fuzzy matched). Use it to debug trust in a claim instead of taking the
+confidence number on faith.
+```bash
+deepr expert why "Azure Architect" "landing zone subscription vending"
+deepr expert why "Azure Architect" belief-a1b2c3 --depth 3 --json
+```
+
+### Digest (browsable derived view)
+Compile the belief store into a browsable Markdown digest: beliefs by domain
+sorted by confidence, open contradictions with both sides, graph stats. $0, no
+LLM call, byte-stable for an unchanged store. The digest is a derived view -
+the belief store stays canonical, and the CLI refuses to overwrite a digest
+that lost its derived-view marker (a hand-edited artifact must never silently
+become canonical knowledge).
+```bash
+deepr expert digest "Azure Architect"            # writes <knowledge dir>/digest.md
+deepr expert digest "Azure Architect" --print
 ```
 
 ## Sharing Experts as Skills
@@ -449,6 +524,29 @@ Experts track structured **claims** — atomic assertions with confidence scores
 - Sources carry a `TrustClass` (primary, secondary, tertiary, self_generated) and content hash
 - Claims track contradictions and supersession chains
 - View claims via web API: `GET /api/experts/<name>/claims?min_confidence=0.7`
+
+**Source-trust ceilings (deterministic, applied at read time like decay):**
+a belief's displayed confidence is capped by its provenance tier, and no model
+judgment can lift the cap — only new, better-sourced evidence can.
+
+| Trust tier | Ceiling | Typical sources |
+|---|---|---|
+| tertiary, one source | 0.60 | web search results, research syntheses (the default) |
+| tertiary, 2+ independent sources | 0.80 | the same claim absorbed from different reports |
+| secondary / primary | uncapped | official docs, first-party instruments / operator-supplied documents |
+
+This is also the deterministic backstop against ingestion-time prompt
+injection: a single poisoned web result cannot mint a near-certain belief, no
+matter how confidently the extraction rates it. Honest framing throughout:
+extraction confidence means "how strongly this report supports the claim",
+never "how likely the claim is true" — calibration evidence for those numbers
+is the v2.15 harness (see docs/design/calibration-and-trust.md).
+
+**Storage (the temporal knowledge graph):** the belief store is canonical —
+`beliefs.json` (claims + typed edges: supports / contradicts / enables /
+derived_from) plus an append-only `events.jsonl` recording every change.
+Everything else (digest, SKILL.md export, reports) is a derived, regenerable
+view.
 
 ### Knowledge Gap Scoring
 
