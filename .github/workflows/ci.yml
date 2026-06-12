@@ -94,6 +94,36 @@ jobs:
           path: sbom-requirements.txt
           if-no-files-found: error
 
+  frontend:
+    # The web frontend was previously verified only by hand: CI never ran
+    # lint/tsc/build, so a dangling identifier that broke type-checking and
+    # a missing ESLint config both survived for months (found 2026-06-11
+    # while verifying dependency bumps locally). This job closes that gap.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deepr/web/frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: deepr/web/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint (eslint, zero warnings)
+        run: npm run lint
+
+      - name: Type check (tsc)
+        run: npx tsc --noEmit
+
+      - name: Production build (vite)
+        run: npx vite build
+
   test:
     runs-on: ubuntu-latest
     strategy:
