@@ -32,7 +32,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.13.2)
+## Current Status (v2.14.0)
 
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5200+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
@@ -615,7 +615,7 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.13 | Expert intelligence + distribution: reflection loop (`reflect`), gap-to-tool router (`route-gaps`), per-expert SKILL.md export (`export-skill`); MCP 23 tools; second + third bug-hunt sweeps (broken `deepr_get_result`, `/why` crash, conversation path-traversal, naive-datetime/div-zero/fact-id fixes) | Complete |
 | v2.13.1 | Claude Fable 5; temporal perspective queries (`what-changed`/`contested`, MCP 25 tools); contradiction-as-signal in absorb; cost-guard hardening (pricing single-source, tiered settlement, ledger test-isolation, `costs doctor --rebuild`); CI coverage gate made blocking; Python 3.14 blocking; live-validation bug sweep ("***" api_key, orphaned learner jobs found) | Complete |
 | v2.13.2 | Expert sync (subscribe/subscriptions/sync - the flagship loop-closer); simple default surface (sectioned help, 19-line .env.example, README clarity); durable learner jobs + $0 refusal of unaffordable budgets; web cost/expert APIs read canonical sources; screenshots regenerated from live data; frontend lint bootstrapped + deps verified; repo hygiene (one branch, zero bot-authored commits) | Complete |
-| v2.14 | The perspective release (see Version Plan below) | Planned |
+| v2.14 | The perspective release: belief event log, typed edges, temporal query trio (what-changed/contested/why), regenerated digest, all five loop-closers (sync, gap-fill --execute, reflect --execute-followups, health-check flag actioning, durable learner jobs) | Complete |
 | v2.15 | The evidence release | Planned |
 | v2.16 | The capacity release | Planned |
 | v2.17 | The reach release | Planned |
@@ -661,8 +661,10 @@ Turns claims into measurements before any wider exposure. Design:
 3. Eval methodology v2 (expert-specific metrics, versioned methodology);
    A/B shadow mode once there are metrics to compare
 4. Engineering evidence (Phase E continuation): `mcp/` strict gate,
-   mutation-score baseline + ratchet, fault-injection tests, frontend
-   lint/tsc/build in CI (currently local-only)
+   mutation-score baseline + ratchet, fault-injection tests; [x] frontend
+   lint/tsc/build now a blocking CI job (2026-06-11 - previously
+   local-only, which is how a type-breaking dangling identifier and a
+   missing ESLint config survived for months)
 
 ### v2.16 - The capacity release ("stop paying twice")
 
