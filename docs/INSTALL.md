@@ -4,35 +4,65 @@ Complete installation guide for Deepr on Linux, macOS, and Windows.
 
 ## Quick Install (5 minutes)
 
-### Step 1: Install Deepr
+**Deepr works on Windows, macOS, and Linux** (Python 3.12+). The package on PyPI is `deepr-research`; the CLI command is `deepr`.
+
+### Recommended: virtual environment (avoids Windows PATH surprises)
 
 **Linux / macOS:**
 ```bash
-# Clone repository
 git clone https://github.com/blisspixel/deepr.git
 cd deepr
 
-# Install (this creates the 'deepr' command)
-pip install -e .
+python -m venv .venv
+source .venv/bin/activate
 
-# Verify installation
+pip install -e .          # core
+# pip install -e ".[full]"  # web + everything
+
+cp .env.example .env
+deepr doctor && deepr budget set 50
 deepr --version
 ```
 
-**Windows:**
+**Windows (PowerShell):**
 ```powershell
-# Clone repository
 git clone https://github.com/blisspixel/deepr.git
 cd deepr
 
-# Install (this creates the 'deepr' command)
-pip install -e .
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 
-# Verify installation
+pip install -e .          # core
+# pip install -e ".[full]"  # web + everything
+
+cp .env.example .env
+deepr doctor && deepr budget set 50
 deepr --version
 ```
 
-The `pip install -e .` command installs Deepr and creates the `deepr` command that works system-wide in your terminal.
+**Alternative with pipx** (simplest for CLI tools — handles isolation + PATH automatically):
+
+```bash
+pipx install -e .
+# later from PyPI: pipx install deepr-research
+```
+
+### Bare / fast path (works if you previously fixed the user PATH)
+
+```powershell
+pip install -e .
+```
+
+**Windows note:** Bare installs with a global Python often put the CLI in `%APPDATA%\Python\Python312\Scripts`, which may not be on PATH. The venv/pipx recommendations above are strongly preferred. recon-tool (for native domain intel in experts) is **optional** — `deepr doctor` will suggest it when useful, but it is not a required dependency.
+
+
+```powershell
+pip install -e .
+```
+
+**Windows note (common gotcha):** A bare `pip install` with a global Python (e.g. `C:\Program Files\Python...`) without admin rights puts scripts in your user `%APPDATA%\Python\Python312\Scripts`. That folder is often missing from `PATH`, so `deepr` won't be found even though the package installed. The venv or pipx path above is the reliable fix. (We now document this pattern across projects.)
+
+**Note on optional recon-tool:** `deepr doctor` may suggest `pip install -U recon-tool` for enhanced native domain intelligence in experts. This is **optional** — not a hard dependency. It adds passive DNS recon when available.
 
 ### Step 2: Configure API Keys
 
@@ -65,6 +95,8 @@ ANTHROPIC_API_KEY=...       # Complex reasoning, coding (Extended Thinking)
 # Budget limits (recommended):
 DEEPR_MAX_COST_PER_MONTH=50.0
 ```
+
+**Optional enhancement:** `deepr doctor` may suggest `pip install -U recon-tool` for native passive DNS recon in experts. This is **not a hard dependency** — it only unlocks extra signals when present.
 
 **Getting API Keys:**
 - OpenAI: https://platform.openai.com/api-keys
@@ -101,35 +133,25 @@ That's it! You're ready to use Deepr.
 
 ## Advanced Installation
 
-### From PyPI (when published)
+### From PyPI
 
 ```bash
-pip install deepr
+pip install deepr-research
 deepr --version
 ```
 
-### Development Installation
-
-For contributing to Deepr:
+### Development Installation (recommended)
 
 ```bash
-# Clone repository
 git clone https://github.com/blisspixel/deepr.git
 cd deepr
 
-# Create virtual environment (recommended)
-python -m venv venv
+# Create + activate venv (strongly recommended)
+python -m venv .venv
+# Windows: .\.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
 
-# Activate virtual environment
-# Linux/macOS:
-source venv/bin/activate
-# Windows:
-venv\Scripts\activate
-
-# Install in editable mode
-pip install -e .
-
-# Run tests
+pip install -e ".[dev]"   # or just -e . for core
 python -m pytest
 ```
 
