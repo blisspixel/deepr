@@ -102,3 +102,69 @@ class TestContestedTool:
 
         assert out["contested_count"] == 0
         assert out["pairs"] == []
+
+
+class TestExplainBeliefTool:
+    @pytest.mark.asyncio
+    async def test_expert_not_found(self, server):
+        server.store.load.return_value = None
+        out = await server.explain_belief("Missing Expert", "anything")
+        assert out["error_code"] == "EXPERT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_belief_not_found(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        store.add_belief(Belief(claim="Something specific", confidence=0.8, domain="ai"), check_conflicts=False)
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.explain_belief("Perspective Test Expert", "zebra quantum nonsense")
+
+        assert out["error_code"] == "BELIEF_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_explains_with_trajectory_and_contradictions(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        target = Belief(
+            claim="MCP supports dynamic discovery", confidence=0.7, domain="ai", evidence_refs=["report:abc"]
+        )
+        store.add_belief(target, check_conflicts=False)
+        challenger = Belief(claim="MCP does not support dynamic discovery", confidence=0.9, domain="ai")
+        store.add_contested_belief(challenger, [target])
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.explain_belief("Perspective Test Expert", target.id, depth=2)
+
+        assert out["belief"]["claim"] == "MCP supports dynamic discovery"
+        assert out["evidence_roots"] == ["report:abc"]
+        assert [t["change_type"] for t in out["trajectory"]] == ["created"]
+        assert len(out["contradicts"]) == 1
+        assert out["contradicts"][0]["status"] == "open"
+
+    @pytest.mark.asyncio
+    async def test_depth_clamped_to_sane_range(self, server, tmp_path):
+        server.store.load.return_value = MagicMock()
+        store = _real_store(tmp_path)
+        b = Belief(claim="Depth clamp test", confidence=0.8, domain="ai")
+        store.add_belief(b, check_conflicts=False)
+
+        with patch("deepr.experts.beliefs.BeliefStore", return_value=store):
+            out = await server.explain_belief("Perspective Test Expert", b.id, depth=99)
+
+        assert out["depth"] == 5  # clamped
+
+
+class TestExplainBeliefWiring:
+    def test_registered_in_search_registry(self):
+        from deepr.mcp.search.registry import create_default_registry
+
+        registry = create_default_registry()
+        names = {t.name for t in registry.all_tools()}
+        assert "deepr_explain_belief" in names
+
+    def test_allowlist_blocks_in_read_only(self):
+        from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
+
+        allowlist = ToolAllowlist(mode=ResearchMode.READ_ONLY)
+        assert allowlist.is_allowed("deepr_explain_belief") is False

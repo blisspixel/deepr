@@ -357,6 +357,7 @@ class TestLegacyMethods:
             "deepr_reflect",
             "deepr_what_changed",
             "deepr_contested",
+            "deepr_explain_belief",
         }
         for legacy, new in _LEGACY_METHOD_MAP.items():
             assert new in valid_tools, f"Legacy '{legacy}' maps to unknown tool '{new}'"
