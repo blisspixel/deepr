@@ -1271,6 +1271,60 @@ def contested_cmd(name: str, json_output: bool):
         console.print(f"\nAdjudicate with: deepr expert resolve-conflicts '{name}'")
 
 
+@expert.command(name="digest")
+@click.argument("name")
+@click.option("--print", "print_only", is_flag=True, help="Print to stdout instead of writing the file")
+@click.option("--force", is_flag=True, help="Overwrite even if the existing file looks hand-edited")
+def digest_cmd(name: str, print_only: bool, force: bool):
+    """Compile NAME's belief store into a browsable digest (derived view).
+
+    Read-only over the store, $0, no LLM call - synthesis happens at
+    compile time over structured truth. The digest is always regenerable
+    and never authoritative: the belief store stays canonical. Open
+    contradictions are surfaced, not smoothed over. Byte-stable for an
+    unchanged store (the "as of" stamp comes from the latest belief
+    event, not the clock).
+
+    Writes <knowledge dir>/digest.md by default; refuses to overwrite a
+    file that lost its derived-view marker (it may have been hand-edited,
+    which the regeneration invariant exists to prevent) unless --force.
+
+    EXAMPLES:
+      deepr expert digest "MCP Interop Expert"
+      deepr expert digest "AI Strategy Expert" --print
+    """
+    import sys
+
+    from deepr.experts.beliefs import BeliefStore
+    from deepr.experts.digest import DIGEST_MARKER, build_digest
+    from deepr.experts.profile import ExpertStore
+
+    store = ExpertStore()
+    if not store.load(name):
+        print_error(f"Expert not found: {name}")
+        sys.exit(2)
+
+    content = build_digest(BeliefStore(name), expert_name=name)
+
+    if print_only:
+        click.echo(content)
+        return
+
+    out_path = store.get_knowledge_dir(name) / "digest.md"
+    if out_path.exists() and DIGEST_MARKER not in out_path.read_text(encoding="utf-8", errors="replace"):
+        if not force:
+            print_error(
+                f"{out_path} exists without the derived-view marker - it may have been hand-edited. "
+                "The digest is a regenerable view, never authoritative; use --force to overwrite."
+            )
+            sys.exit(2)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(content, encoding="utf-8")
+    print_success(f"Digest written: {out_path}")
+    console.print("[dim]Derived view - regenerate any time; the belief store stays canonical.[/dim]")
+
+
 @expert.command(name="subscribe")
 @click.argument("name")
 @click.argument("topic")
