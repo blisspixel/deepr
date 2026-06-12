@@ -53,6 +53,22 @@ Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents
 
 ## Quick Start
 
+**One-line install**
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.ps1 | iex"
+```
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
+```
+
+After the installer finishes, open a **new** terminal and run `deepr doctor`.
+
+---
+
 **Deepr runs on Windows, macOS, and Linux** (Python 3.12+). It works with one or more of OpenAI, Gemini, Grok, or Anthropic (any single key is enough to start).
 
 ### Recommended (virtual environment or pipx)
