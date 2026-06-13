@@ -37,6 +37,39 @@ _DEFAULT_JOB_BUDGET = 5.0
 _DEFAULT_DAY_BUDGET = 25.0
 _DEFAULT_MONTH_BUDGET = 200.0
 
+# Data-location env vars (ADR 0004). DEEPR_DATA_DIR is the one knob; experts
+# and reports derive from it. Point it at a synced folder (OneDrive/Dropbox/
+# iCloud) and your experts + research follow you across machines.
+_DATA_DIR = "DEEPR_DATA_DIR"
+_EXPERTS_PATH = "DEEPR_EXPERTS_PATH"
+_REPORTS_PATH = "DEEPR_REPORTS_PATH"
+
+
+def _resolve_data_dir_updates(env_file: dict[str, str], *, yes: bool, data_dir: str | None) -> dict[str, str]:
+    """Decide data-location env updates so experts + reports can be portable.
+
+    A chosen directory sets DEEPR_DATA_DIR plus explicit experts/reports
+    subpaths (so both follow it). Blank/unset keeps the default ./data
+    (backward compatible). Never overwrites an existing DEEPR_DATA_DIR silently.
+    """
+    chosen = data_dir
+    if chosen is None and not yes and not env_file.get(_DATA_DIR):
+        entered = click.prompt(
+            "\nData folder for experts + research (blank = ./data; or a synced "
+            "folder like ~/OneDrive/deepr to share across machines)",
+            default="",
+            show_default=False,
+        ).strip()
+        chosen = entered or None
+    if not chosen:
+        return {}
+    base = chosen.rstrip("/\\")
+    return {
+        _DATA_DIR: base,
+        _EXPERTS_PATH: f"{base}/experts",
+        _REPORTS_PATH: f"{base}/reports",
+    }
+
 
 def _key_is_set(value: str | None) -> bool:
     """True when ``value`` is a real key, not empty or a placeholder."""
@@ -143,6 +176,9 @@ def _print_summary(env_file: dict[str, str]) -> None:
         return
     print_success(f"Ready: {len(usable)} provider(s) configured ({', '.join(usable)}).")
     console.print(f"Per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
+    data_dir = env_file.get(_DATA_DIR)
+    if data_dir:
+        console.print(f"Data location: {data_dir} (experts + research; portable across machines)")
     console.print("\nNext steps:")
     console.print('  deepr research "Your question here" --auto')
     console.print("  deepr doctor          # verify connectivity")
@@ -156,13 +192,20 @@ def _print_summary(env_file: dict[str, str]) -> None:
     default=None,
     help=f"Per-job budget ceiling in USD (default ${_DEFAULT_JOB_BUDGET:.0f}).",
 )
-def init(yes: bool, budget: float | None):
+@click.option(
+    "--data-dir",
+    "data_dir",
+    default=None,
+    help="Folder for experts + research (e.g. a synced OneDrive/Dropbox dir to share across machines).",
+)
+def init(yes: bool, budget: float | None, data_dir: str | None):
     """Guided first-run setup: detect keys, write .env, set a budget.
 
     Examples:
-        deepr init                 # interactive wizard
-        deepr init --yes           # scriptable: defaults, no prompts
-        deepr init --budget 3      # set the per-job ceiling
+        deepr init                       # interactive wizard
+        deepr init --yes                 # scriptable: defaults, no prompts
+        deepr init --budget 3            # set the per-job ceiling
+        deepr init --data-dir ~/OneDrive/deepr   # portable experts + research
     """
     print_section_header("Deepr setup")
 
@@ -174,6 +217,7 @@ def init(yes: bool, budget: float | None):
     updates: dict[str, str] = {}
     updates.update(_collect_provider_keys(env_file, yes=yes))
     updates.update(_resolve_budget_updates(env_file, yes=yes, budget=budget))
+    updates.update(_resolve_data_dir_updates(env_file, yes=yes, data_dir=data_dir))
 
     if updates:
         _upsert_env(env_path, updates)

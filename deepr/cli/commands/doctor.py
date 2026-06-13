@@ -452,7 +452,7 @@ def doctor(skip_connectivity: bool):
             return
 
         # Run all checks
-        with click.progressbar(length=6, label="Running checks") as bar:
+        with click.progressbar(length=7, label="Running checks") as bar:
             all_checks.extend(await check_api_keys(config))
             bar.update(1)
 
@@ -461,6 +461,9 @@ def doctor(skip_connectivity: bool):
             bar.update(1)
 
             all_checks.extend(await check_filesystem())
+            bar.update(1)
+
+            all_checks.extend(check_storage_locations())
             bar.update(1)
 
             all_checks.extend(await check_database(config))
@@ -524,6 +527,26 @@ def check_native_instruments() -> list[DiagnosticCheck]:
     checks.append(check)
 
     return checks
+
+
+def check_storage_locations() -> list[DiagnosticCheck]:
+    """Show where experts and research are stored (portable-data visibility).
+
+    These are the artifacts that follow you across machines when DEEPR_DATA_DIR
+    points at a synced folder (ADR 0004). Informational, never a failure.
+    """
+    from deepr.config import experts_root, load_config
+
+    experts = DiagnosticCheck("Experts", "Storage")
+    experts.passed = True
+    experts.message = str(experts_root())
+    experts.details.append("Set DEEPR_DATA_DIR (or DEEPR_EXPERTS_PATH) to a synced folder to share across machines")
+
+    reports = DiagnosticCheck("Research reports", "Storage")
+    reports.passed = True
+    reports.message = str(load_config()["results_dir"])
+
+    return [experts, reports]
 
 
 if __name__ == "__main__":
