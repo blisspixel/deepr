@@ -574,3 +574,115 @@ class TestDurableJobTracking:
         assert progress.failed_topics == ["Topic 1"]
         assert progress.completed_topics == []
         learner._integrate_reports.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_poll_fails_fast_on_non_retryable_error(self, tmp_path):
+        """A non-retryable get_status error (e.g. auth/401) must not loop forever.
+
+        Regression: the poll loop previously only logged get_status
+        exceptions, leaving the job pending and retrying every 30s
+        indefinitely on a persistent 401.
+        """
+        from unittest.mock import AsyncMock
+
+        from deepr.core.errors import ProviderAuthError
+        from deepr.experts.curriculum import LearningCurriculum
+
+        learner = self._learner(tmp_path)
+        learner.research = MagicMock()
+        # Always raises a non-retryable auth error.
+        learner.research.provider.get_status = AsyncMock(side_effect=ProviderAuthError("openai"))
+        learner._integrate_reports = AsyncMock()
+        learner.cost_safety = MagicMock()
+
+        expert = MagicMock()
+        expert.name = "Test Expert"
+        session = MagicMock()
+        session.is_circuit_open = False
+        session.session_id = "s1"
+
+        curriculum = LearningCurriculum(
+            expert_name="Test Expert",
+            domain="t",
+            topics=[self._topic()],
+            total_estimated_cost=0.10,
+            total_estimated_minutes=5,
+            generated_at=datetime.now(UTC),
+        )
+        progress = LearningProgress(
+            curriculum=curriculum,
+            completed_topics=[],
+            failed_topics=[],
+            total_cost=0.0,
+            started_at=datetime.now(UTC),
+            job_topics={"resp_1": "Topic 1"},
+        )
+
+        # Must return promptly (no infinite poll). asyncio is never slept
+        # because the job leaves `pending` on the first failed poll.
+        await learner._poll_and_integrate_reports(expert, ["resp_1"], session, None, progress)
+
+        assert progress.failed_topics == ["Topic 1"]
+        session.record_failure.assert_called()
+        learner._integrate_reports.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_poll_retryable_errors_trip_circuit_breaker(self, tmp_path, monkeypatch):
+        """Repeated retryable get_status errors trip the breaker and stop polling.
+
+        Bounds the loop even when the error is transient (or an unknown
+        exception with no `retryable` field): each failure is recorded, and
+        the circuit breaker eventually opens instead of looping forever.
+        """
+        from unittest.mock import AsyncMock
+
+        from deepr.experts.curriculum import LearningCurriculum
+
+        # Don't actually wait 30s between poll rounds.
+        monkeypatch.setattr("asyncio.sleep", AsyncMock())
+
+        learner = self._learner(tmp_path)
+        learner.research = MagicMock()
+        learner.research.provider.get_status = AsyncMock(side_effect=RuntimeError("transient blip"))
+        learner._integrate_reports = AsyncMock()
+        learner.cost_safety = MagicMock()
+
+        class _BreakerSession:
+            session_id = "s1"
+
+            def __init__(self):
+                self._failures = 0
+
+            @property
+            def is_circuit_open(self):
+                return self._failures >= 2
+
+            def record_failure(self, *args, **kwargs):
+                self._failures += 1
+
+        expert = MagicMock()
+        expert.name = "Test Expert"
+        session = _BreakerSession()
+
+        curriculum = LearningCurriculum(
+            expert_name="Test Expert",
+            domain="t",
+            topics=[self._topic()],
+            total_estimated_cost=0.10,
+            total_estimated_minutes=5,
+            generated_at=datetime.now(UTC),
+        )
+        progress = LearningProgress(
+            curriculum=curriculum,
+            completed_topics=[],
+            failed_topics=[],
+            total_cost=0.0,
+            started_at=datetime.now(UTC),
+            job_topics={"resp_1": "Topic 1"},
+        )
+
+        # Terminates via the circuit breaker rather than hanging.
+        await learner._poll_and_integrate_reports(expert, ["resp_1"], session, None, progress)
+
+        assert session.is_circuit_open is True
+        learner._integrate_reports.assert_not_awaited()
