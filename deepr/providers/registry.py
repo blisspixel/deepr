@@ -26,13 +26,6 @@ class ModelCapability:
     output_cost_per_1m: float = 0.0  # Cost per 1M output tokens (USD)
     deprecated: bool = False  # Whether this model is deprecated
     successor: str | None = None  # Model key to migrate to (e.g. "openai/gpt-4.1")
-    # Published-benchmark-derived overall quality estimate (0-1), used as the
-    # provisional routing prior so auto mode routes sensibly WITHOUT requiring a
-    # paid eval. Sourced from public benchmarks (see scripts/discover_models or
-    # the model-quality research note), not from price. None => fall back to the
-    # crude price-tier heuristic. Kept below measured eval scores so real
-    # benchmark data always wins (see routing.auto_mode._estimate_quality).
-    quality_prior: float | None = None
 
 
 # Model capabilities registry
