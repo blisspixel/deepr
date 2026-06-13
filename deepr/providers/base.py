@@ -268,15 +268,26 @@ class ProviderError(Exception):
         provider: str,
         original_error: Exception | None = None,
         *,
-        category: str = "provider",
-        retryable: bool = False,
+        category: str | None = None,
+        retryable: bool | None = None,
         retry_after: int | None = None,
     ):
         self.message = message
         self.provider = provider
         self.original_error = original_error
-        self.category = category
-        self.retryable = retryable
+
+        # Auto-classify from the wrapped SDK exception when the caller did
+        # not set the envelope explicitly. This means every existing
+        # `raise ProviderError(..., original_error=e)` across all adapters
+        # gets correct category/retryable for free, with no per-site edits.
+        if original_error is not None and (category is None or retryable is None or retry_after is None):
+            auto_category, auto_retryable, auto_retry_after = classify_provider_exception(original_error)
+            category = auto_category if category is None else category
+            retryable = auto_retryable if retryable is None else retryable
+            retry_after = auto_retry_after if retry_after is None else retry_after
+
+        self.category = category if category is not None else "provider"
+        self.retryable = retryable if retryable is not None else False
         self.retry_after = retry_after
         super().__init__(self.message)
 

@@ -19,7 +19,6 @@ from .base import (
     ResearchResponse,
     UsageStats,
     VectorStore,
-    classify_provider_exception,
 )
 
 
@@ -166,30 +165,22 @@ class OpenAIProvider(DeepResearchProvider):
                     fallback_model = None  # Prevent infinite fallback loop
                     return await self.submit_research(fallback_request)
                 else:
-                    # Transient failures that survived every retry stay
-                    # classified retryable so an agent can back off and try
-                    # again later (with retry_after when the SDK supplies it).
-                    _category, _retryable, _retry_after = classify_provider_exception(e)
+                    # Transient failures that survived every retry: the
+                    # envelope (retryable + retry_after) is auto-classified
+                    # from the wrapped SDK exception by ProviderError.
                     raise ProviderError(
                         message=f"Failed after {max_retries} retries: {e}",
                         provider="openai",
                         original_error=e,
-                        category=_category,
-                        retryable=_retryable,
-                        retry_after=_retry_after,
                     ) from e
 
             except openai.OpenAIError as e:
-                # Non-retryable API errors (auth, invalid request, etc.) -
-                # classify so auth surfaces as its own actionable category.
-                _category, _retryable, _retry_after = classify_provider_exception(e)
+                # Non-retryable API errors (auth, invalid request, etc.);
+                # ProviderError auto-classifies auth vs generic from `e`.
                 raise ProviderError(
                     message=f"Failed to submit research: {e!s}",
                     provider="openai",
                     original_error=e,
-                    category=_category,
-                    retryable=_retryable,
-                    retry_after=_retry_after,
                 ) from e
 
         # If we exhausted all retries
