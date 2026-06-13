@@ -711,15 +711,22 @@ Turns claims into measurements before any wider exposure. Design:
    archive candidates + `--archive-stale` consolidation pass - all $0,
    grounded in the memory-systems corpus review (monotonic accumulation
    is the literature's root failure mode)
-3. Calibration harness + published `docs/CALIBRATION.md`; absorb threshold
-   derived from the measured curve
+3. [~] Calibration harness + published `docs/CALIBRATION.md`; absorb threshold
+   derived from the measured curve. Shipped 2026-06-13 ($0, tested): the
+   measurement engine (reliability curve, ECE, numpy Platt scaling, derived
+   threshold), `deepr eval calibrate --from`, and the FActScore/SAFE-shaped
+   grading orchestrator (`grade_corpus`). Remaining: the paid `--corpus` run
+   (extraction + strong-model pre-grade) and the published curve.
 4. Entailment-shaped contradiction screen + atomic claim decomposition
    at absorb (the two cheap absorb-quality upgrades from the
    claim-verification corpus; the screen shares the selective
-   recalibration budget and injection point)
+   recalibration budget and injection point). Atomicity prompt tightened
+   2026-06-13; deterministic-vs-agentic boundary set in
+   [docs/design/checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
 5. Eval methodology v2 (expert-specific metrics + continuity-property
    metrics, versioned methodology); A/B shadow mode once there are
-   metrics to compare
+   metrics to compare. Continuity-property metrics shipped 2026-06-13
+   (`deepr eval continuity`); see Phase 3.
 6. Engineering evidence (Phase E continuation): `mcp/` strict gate,
    mutation-score baseline + ratchet, fault-injection tests; [x] frontend
    lint/tsc/build now a blocking CI job (2026-06-11 - previously
@@ -732,16 +739,22 @@ Phase 6 in full: plans and hardware people already pay for become bounded
 research capacity, making always-on freshness affordable. Design:
 [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md).
 
-1. Backend abstraction + quota ledger + `deepr capacity` visibility
-2. Local-first process validation (the ollama-backed `research_fn`
-   through the engines' injectable seams) - lands first because it makes
-   every subsequent increment's validation free: plumbing is proven at
-   $0 on owned hardware, paid models validate quality only
-3. `cli-claude` adapter (opt-in), then `local-ollama` with eval-gated
-   admission
-4. Capacity-waterfall routing with quality gates; remaining adapters
-   (codex, antigravity post-cutover, kiro with reserve floor)
-5. Multi-account pools last (multiplies a working mechanism)
+**Shipped 2026-06-13:** `deepr capacity` (+ `--probe`) visibility into
+owned/prepaid capacity; the **local-ollama backend** ($0 research through the
+engines' injectable seams, live-validated on owned hardware);
+`expert sync`/`absorb --local` for $0 background maintenance; published
+**routing quality priors** so auto mode routes sensibly without paid evals;
+and **portable experts + research via one data dir** (`experts_root()`
+unification across ~19 sites, `deepr init --data-dir`, `doctor` Storage
+section - [ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)).
+Verified the cli-claude economics change (2026-06-15: separate API-rate credit
+pool), which makes **local the priority adapter**, not cli-claude.
+
+1. [~] Backend abstraction + quota ledger + `deepr capacity` visibility (visibility shipped; the `ResearchBackend` abstraction + quota ledger remain)
+2. [x] Local-first process validation (ollama-backed `research_fn` through the injectable seams) - shipped, the substrate the rest builds on
+3. [~] `local-ollama` shipped (+ `--local` wiring); `cli-claude` adapter and eval-gated admission remain (cli-claude deprioritized per the 2026-06-15 change)
+4. [ ] Capacity-waterfall routing with quality gates; remaining adapters (codex, antigravity post-cutover, kiro with reserve floor)
+5. [ ] Multi-account pools last (multiplies a working mechanism)
 
 ### v2.17 - The reach release ("callable from anywhere")
 
