@@ -1,53 +1,82 @@
-﻿#!/usr/bin/env bash
-# Easy one-line installer for deepr (macOS / Linux)
-# Usage (recommended):
+#!/usr/bin/env bash
+# Deepr installer / updater for macOS / Linux
+#
+# Install or update (recommended one-liner):
 #   curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
+#
+# Re-running this script updates an existing install to the latest version.
+# Uninstall:
+#   curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash -s -- --uninstall
 
 set -euo pipefail
 
 PACKAGE="deepr-research"
 CLI="deepr"
 
-echo "==> Installing $PACKAGE (CLI: $CLI) ..."
+step() { printf '==> %s\n' "$1"; }
 
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "Error: python3 (3.12+) is required."
-    exit 1
+# --- Uninstall path ---------------------------------------------------------
+if [ "${1:-}" = "--uninstall" ]; then
+    step "Uninstalling $PACKAGE ..."
+    if command -v pipx >/dev/null 2>&1; then
+        pipx uninstall "$PACKAGE"
+        echo "Uninstalled. (Your reports, experts, and .env are untouched.)"
+    else
+        echo "pipx not found; nothing to uninstall via pipx."
+    fi
+    exit 0
 fi
 
+# --- Locate a suitable Python ----------------------------------------------
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 (3.12+) is required." >&2
+    exit 1
+fi
 PYTHON=python3
 PYVER=$($PYTHON -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "0.0")
 if [ "$(printf '%s\n' "3.12" "$PYVER" | sort -V | head -1)" != "3.12" ]; then
-    echo "Error: Python 3.12+ is required (found $PYVER)."
+    echo "Error: Python 3.12+ is required (found $PYVER)." >&2
     exit 1
 fi
 
+# --- Ensure pipx ------------------------------------------------------------
 if ! command -v pipx >/dev/null 2>&1; then
-    echo "==> pipx not found. Installing pipx..."
+    step "pipx not found. Installing pipx ..."
     $PYTHON -m pip install --user pipx
     $PYTHON -m pipx ensurepath
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-echo "==> Using pipx to install $PACKAGE ..."
-pipx install "$PACKAGE"
+# --- Install or update (idempotent) ----------------------------------------
+if pipx list 2>/dev/null | grep -q "$PACKAGE"; then
+    step "$PACKAGE already installed. Updating to the latest version ..."
+    pipx upgrade "$PACKAGE"
+else
+    step "Installing $PACKAGE (CLI: $CLI) ..."
+    pipx install "$PACKAGE"
+fi
+
+# --- Report installed version (best effort) ---------------------------------
+shown_version=false
+if command -v "$CLI" >/dev/null 2>&1; then
+    "$CLI" --version && shown_version=true || true
+fi
 
 echo ""
-echo "==> Installation complete!"
+echo "==> Done."
 echo ""
 echo "Next steps:"
-echo "  1. Open a new terminal"
-echo "  2. Run: $CLI doctor"
-echo "  3. Copy .env.example to .env and add at least one API key"
-echo "  4. $CLI budget set 50"
+[ "$shown_version" = true ] || echo "  0. Open a new terminal (so PATH picks up $CLI)"
+echo "  1. $CLI doctor"
+echo "  2. Add at least one API key (XAI / Gemini / OpenAI / Anthropic) to your .env"
+echo "  3. $CLI budget set 50"
 echo ""
 echo "Quick start:"
 echo "  $CLI research \"your question\" --auto"
 echo ""
-echo "Note: deepr has powerful optional features. See README for extras."
+echo "Update later:  re-run this one-liner, or '$CLI upgrade'"
+echo "Uninstall:     re-run this one-liner with -- --uninstall"
 echo ""
-echo "For development (advanced scripts available in scripts/):"
-echo "  git clone https://github.com/blisspixel/deepr.git"
-echo "  cd deepr/deepr"
-echo "  pipx install -e ."
+echo "Dev / editable from source:"
+echo "  git clone https://github.com/blisspixel/deepr.git && cd deepr/deepr && pipx install -e ."
 echo ""
