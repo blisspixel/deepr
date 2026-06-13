@@ -1,95 +1,120 @@
 # Contributing to Deepr
 
-Thanks for your interest in contributing. This document covers the basics.
+Thanks for your interest. This document is the operating manual: how work
+goes from idea to shipped, and the bar it clears on the way.
+
+A note on weight: Deepr is a spare-time, solo-maintained project. The
+practices below are borrowed from how strong teams work, kept deliberately
+light. They exist to make quality repeatable instead of heroic - not to add
+ceremony. Use judgment; most changes are small and need none of the heavier
+steps.
 
 ## Setup
 
 ```bash
 git clone https://github.com/blisspixel/deepr.git
 cd deepr
-pip install -e ".[dev]"
+uv pip install -e ".[dev,full]"   # [dev] alone is NOT enough - the suite imports
+                                  # azure/flask/etc. and fails collection without [full]
 pre-commit install
 ```
 
-## Development Workflow
+Requires Python 3.12+ (tested on 3.12 / 3.13 / 3.14). `uv` is the canonical
+toolchain; plain `pip` works too.
 
-1. Create a branch from `main`.
-2. Make your changes.
-3. Run linting and tests before committing:
+## How we work
 
-```bash
-ruff check deepr/
-python -m pytest tests/unit/ --ignore=tests/data -q --tb=short
-```
+The loop, from smallest to largest change:
 
-4. Pre-commit hooks run automatically on `git commit` (ruff lint, ruff format, trailing whitespace, debug statement detection).
-5. Open a pull request against `main`.
+1. **Frame the goal.** State the decision or problem the change serves, not
+   just the task. If you cannot say what "good" looks like, stop and figure
+   that out first.
+2. **Write a design note _before_ building** when the change touches a
+   contract (a public/MCP/CLI output shape, an on-disk format, an error
+   surface) or spans several modules. A page in `docs/design/` is enough.
+   This is where you discover problems like "there are actually two error
+   hierarchies" before you have written code against the wrong assumption.
+3. **Record the decision** in `docs/decisions/` (an ADR) when a choice is
+   cross-cutting or hard to reverse - the *why*, and the alternatives you
+   rejected. See `docs/decisions/README.md`.
+4. **Build in small, reversible increments.** Prefer additive,
+   backward-compatible changes. One feature or fix per commit/PR. Each
+   increment lands green before the next starts.
+5. **Verify as you go**, then **ship**, then **validate live** where it
+   matters. Live runs have found real bugs every time (see the ROADMAP
+   live-validation entries); a passing suite is necessary, not sufficient.
 
-## Code Style
+## Definition of Done
 
-- **Formatter**: ruff-format (line length 120)
-- **Linter**: ruff (E, F, W, I rules)
-- **Target**: Python 3.9+
+A change is done when all of these hold - not "the code works":
 
-The pre-commit hooks enforce these automatically. No need to run formatters manually.
+- [ ] Tests added/updated; a bug fix ships with a regression test that fails
+      without the fix.
+- [ ] `python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120` is
+      green (this is what CI runs). Do **not** run bare `pytest`:
+      `tests/integration/` needs API keys and one test can hang without them.
+- [ ] Coverage stays at or above the gate (80% branch, `fail_under` in
+      `pyproject.toml`; ratcheting toward 95).
+- [ ] `ruff check deepr/` and `ruff format deepr/` clean.
+- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core deepr/providers deepr/mcp`
+      clean (the blocking strict islands; do not regress the wider baseline).
+- [ ] `python scripts/check_docs_consistency.py` passes (doc counts match
+      source).
+- [ ] Docs updated: CHANGELOG entry; README/guides if behavior changed;
+      ROADMAP item checked off or moved.
+- [ ] No em-dashes in docs/markdown (use ` - `). No AI attribution in commit
+      messages.
+- [ ] CI green after push.
+
+## Code style
+
+- **Formatter / linter**: ruff (line length 120). Pre-commit enforces it.
+- **Types**: `core/`, `providers/`, and `mcp/` are `mypy --strict`-clean and
+  gated; new modules should aim for the same.
+- **Logging**: `logging.getLogger(__name__)` in library code, never
+  `print()`. Specific exception types, not bare `except Exception`.
+- **Single sources of truth**: model pricing/capabilities in
+  `deepr/providers/registry.py`; version in `deepr/__init__.py`; the reports
+  root from `load_config()["results_dir"]` (never hardcode a path).
+- **Parse, don't validate**: validate external data once at the boundary into
+  rich types so core logic never sees raw, possibly-invalid input.
 
 ## Testing
 
 ```bash
-# Run unit tests
-python -m pytest tests/unit/ --ignore=tests/data -q
-
-# Run with coverage
+python -m pytest tests/unit/ --ignore=tests/data -q --timeout=120          # the gate
 python -m pytest tests/unit/ --ignore=tests/data --cov=deepr --cov-report=term-missing
-
-# Run a specific test file
-python -m pytest tests/unit/test_config.py -v
+python -m pytest tests/unit/test_config -v                                  # one area
 ```
 
-Coverage minimum is 75% on core modules (raised from 60% in v2.10.3). CI enforces this on every push and PR.
+Tests must pass with **no API keys and no .env** - a test that only passes
+when a dev key happens to be set is a regression (it has happened twice).
 
-## Project Structure
+## Project structure
 
-- `deepr/` -- Main package
-- `deepr/cli/` -- CLI commands (Click)
-- `deepr/cli/commands/semantic/` -- Semantic commands (research, artifacts, experts)
-- `deepr/core/` -- Research orchestration, costs, context
-- `deepr/providers/` -- Model provider integrations (OpenAI, Gemini, Grok, Azure)
-- `deepr/experts/` -- Domain expert system
-- `deepr/mcp/` -- MCP server and tools
-- `deploy/` -- Cloud deployment templates
-- `deploy/aws/` -- AWS SAM/CloudFormation (Lambda, DynamoDB, Fargate)
-- `deploy/azure/` -- Azure Bicep (Functions, Cosmos DB, Container Apps)
-- `deploy/gcp/` -- GCP Terraform (Cloud Functions, Firestore, Cloud Run)
-- `deploy/shared/` -- Shared API library (`deepr_api_common`)
-- `tests/unit/` -- Unit tests
-- `tests/integration/` -- Integration tests (require API keys)
+- `deepr/` - main package: `cli/` (Click commands), `core/` (orchestration,
+  costs, context), `providers/` (model integrations), `experts/` (domain
+  expert system), `mcp/` (MCP server), `services/`, `storage/`, `queue/`.
+- `docs/` - guides; `docs/design/` (feature design docs); `docs/decisions/`
+  (ADRs).
+- `deploy/` - cloud templates (AWS SAM, Azure Bicep, GCP Terraform) over a
+  shared `deepr_api_common` library.
+- `tests/unit/` - unit tests; `tests/integration/` - require API keys.
 
-## Guidelines
+## Cloud deployment guidelines
 
-- Keep changes focused. One feature or fix per PR.
-- Add tests for new functionality.
-- Use structured logging (`logging.getLogger(__name__)`) in library code, not `print()`.
-- Use specific exception types, not bare `except Exception`.
-- Model pricing and capabilities go in `deepr/providers/registry.py` (single source of truth).
-- Version is defined once in `deepr/__init__.py` and imported elsewhere.
+When modifying `deploy/*/`: use native tooling (SAM / Bicep / Terraform);
+validate input at the handler (prompt length, model, job-id format); include
+security headers (HSTS, X-Frame-Options, X-Content-Type-Options); add CORS
+OPTIONS handling; use `deploy/shared/deepr_api_common/`; verify syntax with
+`python -m py_compile`; test both `Authorization: Bearer` and `X-Api-Key`.
 
-## Cloud Deployment Guidelines
+## High-impact areas
 
-When modifying cloud handlers (`deploy/*/`):
-
-- Use native cloud tooling: SAM for AWS, Bicep for Azure, Terraform for GCP.
-- Validate input at the handler level (prompt length, model, job ID format).
-- Include security headers (HSTS, X-Frame-Options, X-Content-Type-Options).
-- Add CORS OPTIONS handling for browser clients.
-- Use the shared library (`deploy/shared/deepr_api_common/`) for common utilities.
-- Verify handler syntax with `python -m py_compile <handler.py>`.
-- Test API key validation with both `Authorization: Bearer` and `X-Api-Key` headers.
-
-## High-Impact Areas
-
-The most valuable contributions are in: research quality (synthesis prompts, context chaining), provider integrations, cost optimization, and CLI usability. See [ROADMAP.md](ROADMAP.md) for planned work.
+Research quality (synthesis prompts, context chaining), provider
+integrations, cost optimization, expert intelligence, and CLI/agent
+usability. See [ROADMAP.md](ROADMAP.md) for the sequenced plan.
 
 ## Questions
 
-Open an issue at [GitHub Issues](https://github.com/blisspixel/deepr/issues) or email nick@pueo.io.
+[GitHub Issues](https://github.com/blisspixel/deepr/issues) or nick@pueo.io.
