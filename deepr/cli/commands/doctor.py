@@ -19,7 +19,17 @@ class DiagnosticCheck:
         self.category = category
         self.passed = False
         self.message = ""
-        self.details = []
+        self.details: list[str] = []
+        # Severity shown when this check does NOT pass: "error" is a real
+        # problem; "warning" is advisory (e.g. a dated deprecation); "info" is
+        # not a problem (an optional feature not configured, a first-run state).
+        # Only "error" counts against the health summary, so a working setup
+        # with optional pieces unset reads as healthy instead of crying wolf.
+        self.failure_severity = "error"
+
+    @property
+    def severity(self) -> str:
+        return "ok" if self.passed else self.failure_severity
 
 
 async def check_api_keys(config) -> list[DiagnosticCheck]:
@@ -35,7 +45,8 @@ async def check_api_keys(config) -> list[DiagnosticCheck]:
         masked = openai_key[:8] + "..." + openai_key[-4:]
         check.details.append(f"Key: {masked}")
     else:
-        check.message = "Not configured"
+        check.failure_severity = "info"
+        check.message = "Not configured (optional)"
         check.details.append("Set OPENAI_API_KEY in .env")
     checks.append(check)
 
@@ -48,7 +59,8 @@ async def check_api_keys(config) -> list[DiagnosticCheck]:
         masked = gemini_key[:8] + "..." + gemini_key[-4:]
         check.details.append(f"Key: {masked}")
     else:
-        check.message = "Not configured"
+        check.failure_severity = "info"
+        check.message = "Not configured (optional)"
         check.details.append("Set GEMINI_API_KEY in .env")
     checks.append(check)
 
@@ -61,7 +73,8 @@ async def check_api_keys(config) -> list[DiagnosticCheck]:
         masked = xai_key[:8] + "..." + xai_key[-4:]
         check.details.append(f"Key: {masked}")
     else:
-        check.message = "Not configured"
+        check.failure_severity = "info"
+        check.message = "Not configured (optional)"
         check.details.append("Set XAI_API_KEY in .env")
     checks.append(check)
 
@@ -77,9 +90,35 @@ async def check_api_keys(config) -> list[DiagnosticCheck]:
         if azure_endpoint:
             check.details.append(f"Endpoint: {azure_endpoint}")
     else:
-        check.message = "Not configured"
+        check.failure_severity = "info"
+        check.message = "Not configured (optional)"
         check.details.append("Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT in .env")
     checks.append(check)
+
+    # Anthropic (Claude)
+    check = DiagnosticCheck("Anthropic API Key", "API Keys")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_key and anthropic_key != "your-anthropic-api-key":
+        check.passed = True
+        check.message = "Configured"
+        check.details.append(f"Key: {anthropic_key[:8]}...{anthropic_key[-4:]}")
+    else:
+        check.failure_severity = "info"
+        check.message = "Not configured (optional)"
+        check.details.append("Set ANTHROPIC_API_KEY in .env")
+    checks.append(check)
+
+    # Any single provider is enough; the only real error is having none. Each
+    # provider above is individually optional (info), so this is the check that
+    # actually fails a keyless setup.
+    summary = DiagnosticCheck("At least one provider configured", "API Keys")
+    if any(c.passed for c in checks):
+        summary.passed = True
+        summary.message = "Yes"
+    else:
+        summary.message = "No provider keys found"
+        summary.details.append("Add one of OPENAI / GEMINI / XAI / ANTHROPIC_API_KEY (run `deepr init`)")
+    checks.append(summary)
 
     return checks
 
@@ -242,8 +281,9 @@ async def check_database(config) -> list[DiagnosticCheck]:
         check.details.append(f"Path: {db_path}")
 
         if not await asyncio.to_thread(db_path.exists):
-            check.message = "Database not initialized"
-            check.details.append("Run 'deepr jobs list' to initialize")
+            # First run: the queue DB is created on the first job. Not a problem.
+            check.failure_severity = "info"
+            check.message = "Not initialized yet (created on first job)"
         else:
             # Test connection
             conn = sqlite3.connect(str(db_path))
@@ -256,8 +296,14 @@ async def check_database(config) -> list[DiagnosticCheck]:
             check.message = f"Connected ({count} jobs)"
             check.details.append(f"Total jobs: {count}")
     except Exception as e:
-        check.message = f"Cannot access: {str(e)[:50]}"
-        check.details.append(str(e))
+        # "no such table" means the file exists but the schema has not been
+        # created yet (also a first-run state), not a failure to fix.
+        if "no such table" in str(e).lower():
+            check.failure_severity = "info"
+            check.message = "Not initialized yet (created on first job)"
+        else:
+            check.message = f"Cannot access: {str(e)[:50]}"
+            check.details.append(str(e))
     checks.append(check)
 
     return checks
@@ -284,8 +330,16 @@ async def check_deprecated_models(config) -> list[DiagnosticCheck]:
             if dep_entry:
                 check = DiagnosticCheck(f"{label}: {model}", "Deprecated Models")
                 check.passed = False
-                retirement_info = f" (retires {dep_entry.sunset_date})" if dep_entry.sunset_date else ""
-                check.message = f"Deprecated{retirement_info}"
+                # A dated sunset is a real deadline (warning); a deprecation
+                # with no sunset is informational - the alias is still served
+                # and the runtime deliberately does not warn on it, so doctor
+                # should not flag it as a problem either.
+                if dep_entry.sunset_date:
+                    check.failure_severity = "warning"
+                    check.message = f"Deprecated (retires {dep_entry.sunset_date})"
+                else:
+                    check.failure_severity = "info"
+                    check.message = "Newer pinned version available (still served)"
                 check.details.append(f"Successor: {dep_entry.new_model}")
                 check.details.append(dep_entry.warning)
                 checks.append(check)
@@ -305,6 +359,18 @@ async def check_deprecated_models(config) -> list[DiagnosticCheck]:
     return checks
 
 
+def _summarize(checks: list[DiagnosticCheck]) -> dict[str, int]:
+    """Count checks by outcome. Only ``errors`` are real problems; ``warnings``
+    are advisory and ``info`` (optional features, first-run state) are not."""
+    return {
+        "total": len(checks),
+        "passed": sum(1 for c in checks if c.passed),
+        "errors": sum(1 for c in checks if c.severity == "error"),
+        "warnings": sum(1 for c in checks if c.severity == "warning"),
+        "info": sum(1 for c in checks if c.severity == "info"),
+    }
+
+
 def print_checks(checks: list[DiagnosticCheck]):
     """Print diagnostic checks in a formatted way."""
     from deepr.cli.colors import console, get_symbol
@@ -316,35 +382,46 @@ def print_checks(checks: list[DiagnosticCheck]):
             categories[check.category] = []
         categories[check.category].append(check)
 
+    # Display style per severity. "info" is neutral (optional/first-run state),
+    # not a failure - it must not read like a red error.
+    style = {
+        "ok": ("success", "green"),
+        "warning": ("warning", "yellow"),
+        "info": ("info", "dim"),
+        "error": ("error", "red"),
+    }
+
     # Print each category
     for category, category_checks in categories.items():
         console.print()
         console.print(f"[bold cyan]{category}[/bold cyan]")
 
         for check in category_checks:
-            symbol = get_symbol("success") if check.passed else get_symbol("error")
-            color = "green" if check.passed else "red"
-
+            symbol_name, color = style.get(check.severity, ("error", "red"))
+            symbol = get_symbol(symbol_name)
             console.print(f"  [{color}]{symbol}[/{color}] {check.name}: {check.message}")
 
             if check.details:
                 for detail in check.details:
                     console.print(f"      [dim]{detail}[/dim]")
 
-    # Summary
-    total = len(checks)
-    passed = sum(1 for c in checks if c.passed)
-    failed = total - passed
+    # Summary: only real errors count against the bill of health. Warnings are
+    # advisory; info items (optional features, first-run state) are not problems.
+    counts = _summarize(checks)
 
     console.print()
-    console.print(f"[bold]Summary:[/bold] {passed}/{total} checks passed")
+    console.print(f"[bold]Summary:[/bold] {counts['passed']}/{counts['total']} checks passed")
 
-    if failed > 0:
-        symbol = get_symbol("warning")
-        console.print(f"\n[yellow]{symbol}[/yellow] {failed} issue(s) found. See details above.")
+    if counts["errors"]:
+        console.print(
+            f"\n[red]{get_symbol('error')}[/red] {counts['errors']} issue(s) need attention. See details above."
+        )
+    elif counts["warnings"]:
+        console.print(
+            f"\n[yellow]{get_symbol('warning')}[/yellow] No blocking issues; {counts['warnings']} advisory warning(s)."
+        )
     else:
-        symbol = get_symbol("success")
-        console.print(f"\n[green]{symbol}[/green] All checks passed!")
+        console.print(f"\n[green]{get_symbol('success')}[/green] All good. Optional items above are not problems.")
 
 
 @click.command()
@@ -435,10 +512,13 @@ def check_native_instruments() -> list[DiagnosticCheck]:
             check.details.append("recon-tool MCP server available via `recon mcp`")
             check.details.append("Auto-probed in expert chat when domains appear (cost $0)")
         else:
-            check.message = "Not found"
+            # Optional add-on; absence is not a problem.
+            check.failure_severity = "info"
+            check.message = "Not installed (optional)"
             check.details.append("Install with: pip install -U recon-tool")
             check.details.append("Enables zero-config passive recon for experts")
     except Exception as e:
+        check.failure_severity = "info"
         check.message = "Probe error"
         check.details.append(str(e)[:60])
     checks.append(check)

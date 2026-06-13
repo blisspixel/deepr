@@ -119,6 +119,58 @@ class TestDoctorNextStep:
             assert "deepr init" not in result.output
 
 
+class TestDoctorSeverity:
+    """Optional/first-run state must not read as errors (the 'crying wolf' fix)."""
+
+    def test_severity_property(self):
+        from deepr.cli.commands.doctor import DiagnosticCheck
+
+        c = DiagnosticCheck("x", "y")
+        assert c.severity == "error"  # default failure severity
+        c.failure_severity = "info"
+        assert c.severity == "info"
+        c.passed = True
+        assert c.severity == "ok"  # passing always wins
+
+    async def test_unset_optional_provider_is_info_not_error(self, monkeypatch):
+        from deepr.cli.commands.doctor import check_api_keys
+
+        for v in ("OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "ANTHROPIC_API_KEY", "AZURE_OPENAI_API_KEY"):
+            monkeypatch.delenv(v, raising=False)
+        by_name = {c.name: c for c in await check_api_keys({})}
+        assert by_name["OpenAI API Key"].severity == "info"
+        assert by_name["Anthropic API Key"].severity == "info"
+        # The only real error when nothing is set: no provider at all.
+        assert by_name["At least one provider configured"].severity == "error"
+
+    async def test_one_provider_clears_the_summary_error(self, monkeypatch):
+        from deepr.cli.commands.doctor import check_api_keys
+
+        for v in ("OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "ANTHROPIC_API_KEY", "AZURE_OPENAI_API_KEY"):
+            monkeypatch.delenv(v, raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key-123")
+        by_name = {c.name: c for c in await check_api_keys({})}
+        assert by_name["Gemini API Key"].passed
+        assert by_name["At least one provider configured"].severity == "ok"
+        assert by_name["Azure OpenAI Key"].severity == "info"  # unset optional, not an error
+
+    def test_summarize_counts_only_errors_as_issues(self):
+        # The core "stop crying wolf" guarantee: optional (info) and advisory
+        # (warning) checks are not counted as issues; only errors are.
+        from deepr.cli.commands.doctor import DiagnosticCheck, _summarize
+
+        ok = DiagnosticCheck("ok", "c")
+        ok.passed = True
+        optional = DiagnosticCheck("azure", "c")
+        optional.failure_severity = "info"
+        advisory = DiagnosticCheck("deprecated", "c")
+        advisory.failure_severity = "warning"
+        real = DiagnosticCheck("broken", "c")  # default failure_severity = error
+
+        counts = _summarize([ok, optional, advisory, real])
+        assert counts == {"total": 4, "passed": 1, "errors": 1, "warnings": 1, "info": 1}
+
+
 class TestDiagnosticsCommand:
     """Test 'diagnostics' command if it exists as alias."""
 
