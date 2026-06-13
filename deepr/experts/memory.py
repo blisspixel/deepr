@@ -578,7 +578,9 @@ class HierarchicalMemory:
 
         # Set up storage
         if storage_dir is None:
-            storage_dir = Path("data/experts") / expert_name / "memory"
+            from deepr.config import experts_root
+
+            storage_dir = experts_root() / expert_name / "memory"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -985,7 +987,9 @@ def _add_reconstruct_method():
         # Load documents if requested
         documents = []
         if include_documents and episode.context_docs:
-            docs_dir = Path("data/experts") / self.expert_name / "documents"
+            from deepr.config import experts_root
+
+            docs_dir = experts_root() / self.expert_name / "documents"
             for doc_name in episode.context_docs:
                 doc_path = docs_dir / doc_name
                 if doc_path.exists():
