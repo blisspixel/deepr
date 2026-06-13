@@ -1,4 +1,4 @@
-# Quick Start Guide
+﻿# Quick Start Guide
 
 Get started with Deepr in 5 minutes.
 
@@ -43,10 +43,10 @@ Edit `.env` and add at least one API key:
 
 ```bash
 # Pick one to start (add more later for smarter auto-routing):
-OPENAI_API_KEY=sk-...      # Deep research + GPT models — https://platform.openai.com/api-keys
-GEMINI_API_KEY=...          # Cost-effective research    — https://aistudio.google.com/app/apikey
-XAI_API_KEY=...             # Cheapest, web search       — https://console.x.ai/
-ANTHROPIC_API_KEY=...       # Complex reasoning          — https://console.anthropic.com/settings/keys
+OPENAI_API_KEY=sk-...      # Deep research + GPT models â€” https://platform.openai.com/api-keys
+GEMINI_API_KEY=...          # Cost-effective research    â€” https://aistudio.google.com/app/apikey
+XAI_API_KEY=...             # Cheapest, web search       â€” https://console.x.ai/
+ANTHROPIC_API_KEY=...       # Complex reasoning          â€” https://console.anthropic.com/settings/keys
 ```
 
 ### 3. Verify Setup
@@ -97,7 +97,7 @@ When status shows "completed":
 deepr research get <job-id>
 ```
 
-Results are saved to `reports/` directory with citations and sources.
+Results are saved to the `data/reports/` directory with citations and sources.
 
 ---
 
@@ -226,7 +226,7 @@ deepr research list
 deepr research get <job-id>
 
 # 4. Create expert from results
-deepr expert make "Python Async Expert" --files "reports/*/*.md"
+deepr expert make "Python Async Expert" --files "data/reports/*/*.md"
 
 # 5. Have expert learn more
 deepr expert make "Python Async Expert" --files "./docs/*.md" --learn --budget 5
@@ -248,13 +248,13 @@ deepr expert chat "Python Async Expert" --budget 3  # agentic by default
 
 ## Tips for Success
 
-1. **Start small** — Use `deepr research` with small budgets first
-2. **Be specific** — Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
-3. **Add more API keys** — Each key you add makes auto mode smarter (routes to best model per task)
-4. **Monitor costs** — Check `deepr cost summary` regularly
-5. **Use `--auto`** — Auto mode routes simple queries to $0.01 models, saves 90%+ on batch jobs
-6. **Build experts gradually** — Start with documents, add learning later
-7. **Set session budgets** — Always use `--budget` with agentic chat
+1. **Start small** â€” Use `deepr research` with small budgets first
+2. **Be specific** â€” Vague prompts produce vague results (see [EXAMPLES.md](EXAMPLES.md))
+3. **Add more API keys** â€” Each key you add makes auto mode smarter (routes to best model per task)
+4. **Monitor costs** â€” Check `deepr cost summary` regularly
+5. **Use `--auto`** â€” Auto mode routes simple queries to $0.01 models, saves 90%+ on batch jobs
+6. **Build experts gradually** â€” Start with documents, add learning later
+7. **Set session budgets** â€” Always use `--budget` with agentic chat
 
 ---
 

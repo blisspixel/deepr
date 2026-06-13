@@ -3,7 +3,7 @@
 When this skill is active, you can extract structured data from research text.
 
 ## Tool usage
-- **structured_extract** — Pull facts, entities, and relationships from text (free, instant)
+- **structured_extract** - Pull facts, entities, and relationships from text (free, instant)
 
 ## When to use
 - After receiving research results, use this to organize findings
