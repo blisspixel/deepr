@@ -159,9 +159,25 @@ class TestOperationResult:
         assert data["status"] == "error"
         assert data["error"] == "API rate limit exceeded"
         assert data["error_code"] == "RATE_LIMIT"
+        # Envelope always present on failures (reliable agent contract).
+        assert data["category"] == "internal"
+        assert data["retryable"] is False
         # Success fields should not be present
         assert "duration_seconds" not in data
         assert "cost_usd" not in data
+
+    def test_error_result_from_exception_carries_envelope(self):
+        """from_exception reads category/retryable/retry_after off a Deepr error."""
+        from deepr.core.errors import ProviderRateLimitError
+
+        result = OperationResult.from_exception(ProviderRateLimitError("openai", retry_after=42))
+
+        data = json.loads(result.to_json())
+        assert data["status"] == "error"
+        assert data["error_code"] == "PROVIDER_RATE_LIMIT"
+        assert data["category"] == "provider"
+        assert data["retryable"] is True
+        assert data["retry_after"] == 42
 
     def test_success_result_with_missing_optional_fields(self):
         """Success result handles missing optional fields."""
