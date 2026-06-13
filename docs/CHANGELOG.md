@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Unified the reports root across every component. Config-driven writers
+  (CLI `run`, web app) saved under `data/reports`, but `ContextIndex`
+  scanned `./reports`, a no-arg `LocalStorage()` (used by `prep`, `team`,
+  `retrieve_expert_reports`) wrote to `./reports`, and `company_research`
+  fell back to a third root (`results`) - so a completed job could render
+  "No report content available" in the web UI, and search/absorb could
+  not see reports written elsewhere. Every no-arg default now resolves
+  through `load_config()["results_dir"]` (one root, env
+  `DEEPR_REPORTS_PATH` honored everywhere; default `data/reports`).
+  Regression tests cover root agreement, env flow, save-then-scan
+  visibility, and end-to-end web-API retrievability of a saved report.
+- `mypy --strict` providers gate (blocking CI) broke against current
+  Azure SDK releases: `azure-ai-projects` / `azure-ai-agents` now ship
+  typed clients, so the lazily-assigned `self._project_client = None`
+  inferred as `None`-typed and `project_endpoint: str | None` flowed into
+  a `str` parameter. Narrowed the endpoint guard and annotated the lazy
+  clients as `Any`; the gate is green against both old (untyped) and new
+  (typed) SDKs.
+- `tests/unit/test_core/test_company_research.py` only passed when
+  `OPENAI_API_KEY` happened to be set (a dev `.env`, or another module's
+  import-time `os.environ.setdefault` during full-suite collection - an
+  inter-test ordering dependency). An autouse fake-key fixture makes the
+  file self-sufficient on any machine and in any test ordering.
+
+### Added
+- CLI best-practices refinements (audited against clig.dev / kubectl / uv /
+  Heroku conventions, mid-2026):
+  - `deepr` with no arguments now prints help and exits 0 when stdin is not
+    a TTY (a script, CI, or an AI agent driving the CLI), and only launches
+    interactive mode on a real terminal. Previously it always tried
+    interactive mode, which is meaningless to a non-interactive caller.
+  - `deepr completion <bash|zsh|fish>` emits a shell tab-completion script
+    to stdout (install hint to stderr, so `eval "$(deepr completion bash)"`
+    and redirection stay clean). Surfaces Click's native completion behind
+    a documented, discoverable verb.
+- `deepr migrate consolidate` moves reports left under a legacy `./reports`
+  root into the configured root (merges directory collisions one level
+  deep, never overwrites a file; `--dry-run` previews). `ContextIndex`
+  now logs a warning when it finds orphaned reports under the legacy root
+  so they are not silently invisible to search and the dashboard.
+- `AGENTS.md` at the repo root: the canonical, vendor-neutral agent guide
+  (dev setup, test/lint/type commands, hard rules). `CLAUDE.md` is a thin
+  pointer to it so Claude Code picks it up without content drift.
+
 ### Added
 - Belief lifecycle and salience substrate (design:
   `docs/design/belief-lifecycle.md`), grounded in a nine-corpus review of
@@ -654,7 +699,7 @@ tool, plus a follow-on hardening / version-centralization sweep.
 - Replace ``assert False`` with ``raise AssertionError`` (ruff B011).
 - Remove unused locals across A2A / MCP / services coverage tests.
 - ``tests/integration/test_grok_search.py`` moved to
-  ``grok_search_demo.py`` — it was a manual demo, not a pytest test, so
+  ``grok_search_demo.py`` - it was a manual demo, not a pytest test, so
   it no longer triggers collection errors when ``xai_sdk`` is missing.
 
 ### Roadmap
@@ -681,7 +726,7 @@ pass. Coverage threshold raised from 60% to 75%.
 - **Skill MCP subprocess allowlist.** ``server_command`` must be on a
   per-skill allowlist (built-ins only by default; opt in via
   ``DEEPR_SKILL_ALLOW_MCP_COMMANDS=*``). MCP subprocesses no longer
-  inherit the full host environment — only ``server.env`` keys, plus a
+  inherit the full host environment - only ``server.env`` keys, plus a
   minimal ``PATH``/``HOME`` set.
 - **Skill path traversal closed.** ``prompt_file`` rejects absolute paths
   and any path that resolves outside the skill directory.
@@ -697,7 +742,7 @@ pass. Coverage threshold raised from 60% to 75%.
   timeouts.
 - **MCP HTTP transport bearer over plain HTTP** now emits a warning at
   subscribe time when the URL is non-loopback. Body cap set explicitly.
-- **`deepr templates show/delete/use`** sanitise the template name —
+- **`deepr templates show/delete/use`** sanitise the template name  - 
   ``../`` no longer reads or deletes arbitrary files.
 - **MCP confirmation gate** strips the ``_approved`` kwarg before
   dispatch so handlers without that parameter no longer crash with
@@ -753,7 +798,7 @@ pass. Coverage threshold raised from 60% to 75%.
   ``idx % len(workers)``. Output keys sort numerically so ``worker-10``
   lands after ``worker-2``.
 - **`observability/routing_log.py`** ``get_events`` returns the LAST N
-  rows, not the FIRST N — every analytics query in this module was
+  rows, not the FIRST N - every analytics query in this module was
   silently analysing the oldest history slice.
 - **`observability/circuit_breaker.py`** OPEN → HALF_OPEN transition
   now holds ``self._lock`` so concurrent callers can't both fire a
@@ -797,7 +842,7 @@ pass. Coverage threshold raised from 60% to 75%.
   job marked completed without a billing row. Partial UNIQUE index on
   ``provider_job_id`` blocks double-billing on submit-retry races.
 - **`mcp/state/persistence.py`** ``save_job`` is atomic via
-  ``with self._conn:`` — all three INSERTs commit together.
+  ``with self._conn:`` - all three INSERTs commit together.
 
 ### Async / lifecycle
 - **`mcp/transport/stdio.py`** ``stop()`` drains in-flight handler
@@ -813,7 +858,7 @@ pass. Coverage threshold raised from 60% to 75%.
   Reconnect backoff has full jitter. Timeout in ``_send_request``
   forces a reconnect to prevent JSON-RPC framing corruption.
 - **`mcp/state/async_dispatcher.py`** waits for dependencies BEFORE
-  acquiring the concurrency semaphore — fixes a deadlock on chains
+  acquiring the concurrency semaphore - fixes a deadlock on chains
   longer than ``max_concurrent``.
 - **`experts/task_planner.py`** parallel ``_run_step`` coroutines
   serialise through an ``asyncio.Lock`` on the shared session;
@@ -831,7 +876,7 @@ pass. Coverage threshold raised from 60% to 75%.
   (was routing Grok / Claude to ``gemini``).
 - **`--cost-limit`** accepts ``FloatRange(min=0.0)``; **``--phases``**
   accepts ``IntRange(1, 10)``; **``--perspectives``** accepts
-  ``IntRange(1, 12)`` — runaway-spend bypasses closed.
+  ``IntRange(1, 12)`` - runaway-spend bypasses closed.
 - **`deepr team`** uses ``web_search_preview`` for OpenAI providers
   (was using the unknown name ``web_search``).
 - **`deepr search --keyword-only`** is now respected (precedence bug
@@ -839,12 +884,12 @@ pass. Coverage threshold raised from 60% to 75%.
 - **`deepr costs limits`** now persists daily / monthly limits to
   ``cost_data.json`` and validates ``>= 0``.
 
-### Round 4 — auto-mode, emitter, agent budgets, frontend safety
+### Round 4 - auto-mode, emitter, agent budgets, frontend safety
 - **`research/auto_mode.py`** fallback model selection no longer crashes
   when the configured model is missing from the registry; falls back to
   a sane default.
 - **`observability/metadata_emitter.py`** per-job temporal tracker
-  replaces the shared field — fixes the race where parallel jobs
+  replaces the shared field - fixes the race where parallel jobs
   clobbered each other's elapsed-time accounting.
 - **`agents/budget.py`** ``AgentBudget.check`` propagates parent
   remaining downward correctly when a worker spawns a sub-worker so
@@ -854,7 +899,7 @@ pass. Coverage threshold raised from 60% to 75%.
   budget sliders debounced (was firing mutations on every pixel drag);
   cost-intelligence utilisation handles zero-denominator division.
 
-### Round 5 — cost gates, MCP stability, frontend a11y
+### Round 5 - cost gates, MCP stability, frontend a11y
 - **LLM cost-safety gates** added to seven previously uncovered call
   sites that could otherwise drive unbounded spend on long inputs:
   ``experts/citation_validator``, ``gap_discovery``, ``conflict_resolver``,
@@ -866,11 +911,11 @@ pass. Coverage threshold raised from 60% to 75%.
   background task so a chatty MCP subprocess can't fill the pipe buffer
   and deadlock.
 - **`experts/skills/definition.py`** trigger-regex compilation protected
-  from ReDoS — pattern length capped at 256 chars, nested-quantifier
+  from ReDoS - pattern length capped at 256 chars, nested-quantifier
   backtracking patterns rejected.
 - **`mcp/client/pool.py`** terminal ``ProgressEvent`` now emitted on
   tool completion (the ``_progress_notifier`` was stored but never
-  triggered — subscribers saw zero events).
+  triggered - subscribers saw zero events).
 - **`storage/findings_store.py`** in-memory index mutations now guarded
   by ``threading.RLock``.
 - **`cli/commands/research.py`** ``cancel`` merges nested
@@ -887,7 +932,7 @@ pass. Coverage threshold raised from 60% to 75%.
 ### Documentation
 - This file. CHANGELOG was empty for v2.10.3 (3 commits' worth of work
   had no release notes).
-- ``--agentic`` flag references removed — flag doesn't exist; agentic
+- ``--agentic`` flag references removed - flag doesn't exist; agentic
   is the default, ``--no-research`` disables.
 - ``deploy/azure/README.md`` + ``deploy.sh`` corrected to ``functions/``
   (the ``function_app/`` directory was removed).
@@ -1120,7 +1165,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - Standardized error states across all 10+ pages: muted icon, "Unable to load [thing]", consistent backend-down messaging, retry buttons
 - Loading skeleton on Cost Intelligence page (was showing $0 values during load)
 - Expert Profile tabs overflow scroll on mobile (5 tabs: Chat, Claims, Gaps, Decisions, History)
-- Overview empty state no longer references CLI commands — links to web-native budget controls instead
+- Overview empty state no longer references CLI commands - links to web-native budget controls instead
 - Expert Hub error state copy improvement
 - `deepr config set` now supports CLI UX aliases:
   - `cli.animations` -> `DEEPR_ANIMATIONS` (`off|light|full`)
@@ -1145,7 +1190,7 @@ adds explicit opt-out flags for previously implicit unsafe behavior.
 - `to_dict()` method on `ResearchJob` dataclass (enum, datetime, Path serialization)
 - `POST /api/jobs/cleanup-stale` endpoint to mark stuck/orphaned jobs as failed
 - `socketio.run()` replaces `app.run()` for WebSocket support
-- Frontend already handled all events via `use-websocket.ts` — now actually connected
+- Frontend already handled all events via `use-websocket.ts` - now actually connected
 
 **Web Dashboard UX Overhaul**
 - Skeleton loading states: `CardGridSkeleton`, `DetailSkeleton`, `FormSkeleton`, `DashboardSkeleton` replacing all spinner patterns

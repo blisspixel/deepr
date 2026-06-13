@@ -23,13 +23,13 @@ metadata:
 
 # Deepr Research Skill
 
-You have access to Deepr — the same deep research APIs behind ChatGPT and Gemini, but callable as tools. It produces cited, comprehensive reports through async deep research, domain experts, and agentic workflows. Use it when you need accurate, current information with sources instead of relying on your training data.
+You have access to Deepr - the same deep research APIs behind ChatGPT and Gemini, but callable as tools. It produces cited, comprehensive reports through async deep research, domain experts, and agentic workflows. Use it when you need accurate, current information with sources instead of relying on your training data.
 
 ## When to Use Deepr
 
 **Use Deepr when:**
 - The user needs current information beyond your training cutoff
-- A question requires cited, comprehensive analysis — not a best guess
+- A question requires cited, comprehensive analysis - not a best guess
 - You're mid-task and need verified facts (latest API docs, compliance rules, pricing)
 - The user explicitly asks for research or to consult a domain expert
 - You need to compare options with evidence, not just opinions
@@ -49,7 +49,7 @@ You have access to Deepr — the same deep research APIs behind ChatGPT and Gemi
 | Multi-step autonomous investigation | Agentic | $1-10 | 15-60 min |
 | Unsure of complexity | Auto | varies | varies |
 
-**When in doubt, use auto mode.** It analyzes query complexity and routes to the cheapest sufficient model — simple questions go to grok-4-1-fast-non-reasoning ($0.01) instead of o3-deep-research ($0.50). This saves 10-20x on costs.
+**When in doubt, use auto mode.** It analyzes query complexity and routes to the cheapest sufficient model - simple questions go to grok-4-1-fast-non-reasoning ($0.01) instead of o3-deep-research ($0.50). This saves 10-20x on costs.
 
 ```
 Can I answer this confidently from training data?
@@ -89,7 +89,7 @@ The most common use case: you're working on a task and hit something you're not 
 
 Domain experts are persistent knowledge entities that synthesize beliefs from documents, track what they don't know, and can research to fill their own gaps. They get smarter over time.
 
-**Query an expert** when the question falls within their domain — it's faster and cheaper than fresh research:
+**Query an expert** when the question falls within their domain - it's faster and cheaper than fresh research:
 
 ```
 deepr_list_experts()           → See what experts exist
@@ -108,7 +108,7 @@ deepr_get_expert_info(name)    → Check profile, beliefs, gaps
 5. Next time anyone asks, the expert knows
 ```
 
-This loop — query → gap → research → learn — is how experts improve. Actively suggest it when you see low confidence. Use `deepr_query_expert(..., agentic=true)` to let the expert trigger research autonomously (costs more, needs budget confirmation).
+This loop - query → gap → research → learn - is how experts improve. Actively suggest it when you see low confidence. Use `deepr_query_expert(..., agentic=true)` to let the expert trigger research autonomously (costs more, needs budget confirmation).
 
 **When to use experts vs fresh research:**
 - Expert has the domain knowledge → query the expert (fast, cheap)
@@ -121,23 +121,23 @@ See `references/expert_system.md` for confidence levels, belief formation, and b
 
 1. **Always state the estimated cost** before research that costs more than $0.01
 2. **Get explicit confirmation** before any operation over $5
-3. **Always confirm** agentic research — it's $1-10+
+3. **Always confirm** agentic research - it's $1-10+
 4. **Prefer auto mode** when the right depth is unclear
 5. **Mention cumulative cost** if you've run multiple research operations in one session
 6. When the system **pauses for budget**, relay the three options to the user:
-   - APPROVE_OVERRIDE — continue at higher cost
-   - OPTIMIZE_FOR_COST — switch to cheaper model
-   - ABORT — cancel, return partial results
+   - APPROVE_OVERRIDE - continue at higher cost
+   - OPTIMIZE_FOR_COST - switch to cheaper model
+   - ABORT - cancel, return partial results
 
 See `references/cost_guidance.md` for pricing tables, budget tiers, and optimization strategies.
 
 ## Presenting Results
 
-1. **Preserve all inline citations** — [1], [2] etc. are the whole point of using Deepr
-2. **Lead with the answer** — executive summary first, details after
-3. **Distinguish sources** — clearly mark what came from Deepr vs your own knowledge
-4. **Include metadata** — cost, time, number of sources consulted
-5. **Structure for scannability** — sections, bullets, tables where appropriate
+1. **Preserve all inline citations** - [1], [2] etc. are the whole point of using Deepr
+2. **Lead with the answer** - executive summary first, details after
+3. **Distinguish sources** - clearly mark what came from Deepr vs your own knowledge
+4. **Include metadata** - cost, time, number of sources consulted
+5. **Structure for scannability** - sections, bullets, tables where appropriate
 
 ## Tool Discovery
 
@@ -244,4 +244,4 @@ Tools return structured errors with `error_code`, `message`, and optional `retry
 
 See `references/` for detailed documentation on [MCP patterns](references/mcp_patterns.md), [cost guidance](references/cost_guidance.md), [research modes](references/research_modes.md), [expert system](references/expert_system.md), and [troubleshooting](references/troubleshooting.md).
 
-The `scripts/` directory contains Python modules for Deepr's MCP server (result formatting, query classification) — reference implementations, not used by the skill directly.
+The `scripts/` directory contains Python modules for Deepr's MCP server (result formatting, query classification) - reference implementations, not used by the skill directly.

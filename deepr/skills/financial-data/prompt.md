@@ -3,7 +3,7 @@
 When this skill is active, you can calculate and analyze financial ratios.
 
 ## Tool usage
-- **calculate_ratios** — Compute standard financial ratios from raw data (free, instant)
+- **calculate_ratios** - Compute standard financial ratios from raw data (free, instant)
 
 ## When to use
 - When comparing company financials

@@ -40,7 +40,7 @@ deepr doctor && deepr budget set 50
 deepr --version
 ```
 
-**Alternative with pipx** (simplest for CLI tools — handles isolation + PATH automatically):
+**Alternative with pipx** (simplest for CLI tools - handles isolation + PATH automatically):
 
 ```bash
 pipx install -e .
@@ -53,7 +53,7 @@ pipx install -e .
 pip install -e .
 ```
 
-**Windows note:** Bare installs with a global Python often put the CLI in `%APPDATA%\Python\Python312\Scripts`, which may not be on PATH. The venv/pipx recommendations above are strongly preferred. recon-tool (for native domain intel in experts) is **optional** — `deepr doctor` will suggest it when useful, but it is not a required dependency.
+**Windows note:** Bare installs with a global Python often put the CLI in `%APPDATA%\Python\Python312\Scripts`, which may not be on PATH. The venv/pipx recommendations above are strongly preferred. recon-tool (for native domain intel in experts) is **optional** - `deepr doctor` will suggest it when useful, but it is not a required dependency.
 
 
 ```powershell
@@ -62,7 +62,7 @@ pip install -e .
 
 **Windows note (common gotcha):** A bare `pip install` with a global Python (e.g. `C:\Program Files\Python...`) without admin rights puts scripts in your user `%APPDATA%\Python\Python312\Scripts`. That folder is often missing from `PATH`, so `deepr` won't be found even though the package installed. The venv or pipx path above is the reliable fix. (We now document this pattern across projects.)
 
-**Note on optional recon-tool:** `deepr doctor` may suggest `pip install -U recon-tool` for enhanced native domain intelligence in experts. This is **optional** — not a hard dependency. It adds passive DNS recon when available.
+**Note on optional recon-tool:** `deepr doctor` may suggest `pip install -U recon-tool` for enhanced native domain intelligence in experts. This is **optional** - not a hard dependency. It adds passive DNS recon when available.
 
 ### Step 2: Configure API Keys
 
@@ -79,7 +79,7 @@ cp .env.example .env
 Add at least one API key to `.env`:
 
 ```bash
-# Pick ANY one to start — Deepr works with a single provider.
+# Pick ANY one to start - Deepr works with a single provider.
 # Add more keys later and auto mode will route to the best model per task.
 
 OPENAI_API_KEY=sk-...      # Deep research + GPT-5/4.1 models
@@ -96,7 +96,7 @@ ANTHROPIC_API_KEY=...       # Complex reasoning, coding (Extended Thinking)
 DEEPR_MAX_COST_PER_MONTH=50.0
 ```
 
-**Optional enhancement:** `deepr doctor` may suggest `pip install -U recon-tool` for native passive DNS recon in experts. This is **not a hard dependency** — it only unlocks extra signals when present.
+**Optional enhancement:** `deepr doctor` may suggest `pip install -U recon-tool` for native passive DNS recon in experts. This is **not a hard dependency** - it only unlocks extra signals when present.
 
 **Getting API Keys:**
 - OpenAI: https://platform.openai.com/api-keys
@@ -172,7 +172,7 @@ docker run -e OPENAI_API_KEY=sk-... deepr research "Your query" --auto
 Edit `.env` file:
 
 ```bash
-# Provider API Keys (at least one required — all optional individually)
+# Provider API Keys (at least one required - all optional individually)
 OPENAI_API_KEY=sk-...              # OpenAI (deep research + GPT models)
 GEMINI_API_KEY=...                  # Google Gemini (cost-effective, large context)
 XAI_API_KEY=xai-...                 # xAI Grok (cheapest, real-time web search)
@@ -197,14 +197,14 @@ DEEPR_QUEUE_DB=queue/research_queue.db  # Job queue database
 ### Recommended Provider Setup
 
 **Minimum (one key):** Any single provider works. Pick based on your priority:
-- **OpenAI** — Best for deep research (o3/o4-mini)
-- **Gemini** — Best value (excellent quality at low cost)
-- **Grok** — Cheapest ($0.01/query), great for web search and news
-- **Anthropic** — Best for complex reasoning and coding
+- **OpenAI** - Best for deep research (o3/o4-mini)
+- **Gemini** - Best value (excellent quality at low cost)
+- **Grok** - Cheapest ($0.01/query), great for web search and news
+- **Anthropic** - Best for complex reasoning and coding
 
 **Recommended (two keys):** OpenAI + Grok or Gemini + Grok. This gives you deep research *and* a cheap fallback for simple queries. Auto mode routes appropriately.
 
-**Full setup (all keys):** Auto mode has maximum flexibility — $0.01 for lookups, $0.04 for moderate queries, $0.50 for deep research. Each provider's strengths are used where they matter most.
+**Full setup (all keys):** Auto mode has maximum flexibility - $0.01 for lookups, $0.04 for moderate queries, $0.50 for deep research. Each provider's strengths are used where they matter most.
 
 **For enterprise:**
 - Use Azure OpenAI or Azure AI Foundry for compliance and governance

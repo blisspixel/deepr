@@ -1,4 +1,4 @@
-# Deepr Agentic Vision — May 2026 and Beyond
+# Deepr Agentic Vision - May 2026 and Beyond
 
 > How Deepr becomes dramatically more agentic while simultaneously being the best research role on any agent team.
 
@@ -8,8 +8,8 @@
 
 Deepr has a unique position in the agentic ecosystem. It needs to be excellent at **two things simultaneously**:
 
-1. **Being agentic internally** — Experts that truly reason, plan, reflect, self-correct, and learn autonomously
-2. **Playing well on agent teams** — Being the best possible research role that other agents can call via MCP and A2A
+1. **Being agentic internally** - Experts that truly reason, plan, reflect, self-correct, and learn autonomously
+2. **Playing well on agent teams** - Being the best possible research role that other agents can call via MCP and A2A
 
 These aren't in tension. The more genuinely agentic Deepr experts become internally, the more valuable they are as team members on external agent workflows. A research expert that can plan multi-step investigations, reflect on its own gaps, and self-correct its conclusions is dramatically more useful than one that just wraps an LLM call.
 
@@ -23,20 +23,20 @@ Based on current research and production patterns, an agentic system in 2026 has
 
 | Capability | State of the Art | Deepr Today | Gap |
 |-----------|-----------------|-------------|-----|
-| **Planning** — decompose goals into steps | Multi-step planning with replanning on failure | Expert task planning exists but is chat-driven | Experts should autonomously plan research campaigns |
-| **Reflection** — critique own output, self-correct | Generate → critique → revise loops (20% accuracy improvement) | QA exists but is manual/external | Experts should self-evaluate research quality before delivering |
-| **Memory** — persistent, structured, cross-session | Graph-based knowledge networks, Zettelkasten-style linking, temporal awareness | Belief states + gap tracking (good foundation) | Need graph-structured memory with temporal decay and confidence evolution |
-| **Tool use** — dynamic selection based on state | Agents choose tools based on current context, not hardcoded sequences | Skills with auto-triggers (good) | Need dynamic tool selection based on gap analysis, not just pattern matching |
-| **Multi-agent coordination** — handoffs, delegation | A2A protocol, structured task delegation with opaque internals | MCP server (good), but no A2A, no structured handoff protocol | Need A2A support + structured task/artifact contracts |
-| **Guardrails** — layered safety, budget, scope | Input/output guardrails, tool risk ratings, human-in-the-loop | Budget enforcement (excellent), approval flows (good) | Need output quality guardrails and scope-drift detection |
-| **Autonomy with bounds** — run until done, within constraints | Continuous execution with exit conditions and escalation | Agentic chat exists but is session-bound | Need long-running autonomous research campaigns that survive sessions |
+| **Planning** - decompose goals into steps | Multi-step planning with replanning on failure | Expert task planning exists but is chat-driven | Experts should autonomously plan research campaigns |
+| **Reflection** - critique own output, self-correct | Generate → critique → revise loops (20% accuracy improvement) | QA exists but is manual/external | Experts should self-evaluate research quality before delivering |
+| **Memory** - persistent, structured, cross-session | Graph-based knowledge networks, Zettelkasten-style linking, temporal awareness | Belief states + gap tracking (good foundation) | Need graph-structured memory with temporal decay and confidence evolution |
+| **Tool use** - dynamic selection based on state | Agents choose tools based on current context, not hardcoded sequences | Skills with auto-triggers (good) | Need dynamic tool selection based on gap analysis, not just pattern matching |
+| **Multi-agent coordination** - handoffs, delegation | A2A protocol, structured task delegation with opaque internals | MCP server (good), but no A2A, no structured handoff protocol | Need A2A support + structured task/artifact contracts |
+| **Guardrails** - layered safety, budget, scope | Input/output guardrails, tool risk ratings, human-in-the-loop | Budget enforcement (excellent), approval flows (good) | Need output quality guardrails and scope-drift detection |
+| **Autonomy with bounds** - run until done, within constraints | Continuous execution with exit conditions and escalation | Agentic chat exists but is session-bound | Need long-running autonomous research campaigns that survive sessions |
 
 ### What Deepr already does well (keep and amplify)
 
-- **Budgeted autonomy** — This is ahead of the curve. Most agent frameworks are just now adding budget controls. Deepr has multi-layer budget protection, cost ledgers, and per-operation limits. This is a competitive advantage.
-- **Decision records** — Structured audit trails of routing choices, source trust decisions. This maps directly to the "observability" requirement in enterprise agentic systems.
-- **Expert persistence** — Belief states, gap tracking, knowledge accumulation. This is the foundation of agentic memory. Most frameworks are still stateless.
-- **Provider portability** — Multi-provider routing with fallback. This is exactly what production agentic systems need.
+- **Budgeted autonomy** - This is ahead of the curve. Most agent frameworks are just now adding budget controls. Deepr has multi-layer budget protection, cost ledgers, and per-operation limits. This is a competitive advantage.
+- **Decision records** - Structured audit trails of routing choices, source trust decisions. This maps directly to the "observability" requirement in enterprise agentic systems.
+- **Expert persistence** - Belief states, gap tracking, knowledge accumulation. This is the foundation of agentic memory. Most frameworks are still stateless.
+- **Provider portability** - Multi-provider routing with fallback. This is exactly what production agentic systems need.
 
 ---
 
@@ -72,7 +72,7 @@ Expert receives question →
 **The fix:** Research campaigns that survive sessions:
 
 ```bash
-# Launch a campaign — expert works autonomously over hours/days
+# Launch a campaign - expert works autonomously over hours/days
 deepr expert campaign "AI Strategy Expert" \
   --goal "Map the competitive landscape of AI inference providers" \
   --budget 15 \
@@ -87,7 +87,7 @@ deepr expert campaign "AI Strategy Expert" \
 #   - Delivers final synthesis when complete or budget exhausted
 ```
 
-**Why it matters:** Real research isn't a single question. It's a multi-day investigation with branching paths, dead ends, and iterative refinement. An expert that can run autonomously for days — within budget bounds — is qualitatively different from one that only responds to prompts.
+**Why it matters:** Real research isn't a single question. It's a multi-day investigation with branching paths, dead ends, and iterative refinement. An expert that can run autonomously for days - within budget bounds - is qualitatively different from one that only responds to prompts.
 
 **Implementation:**
 - Campaign definition: goal, budget, duration, checkpoint frequency, stop conditions
@@ -125,12 +125,12 @@ Future: knowledge_graph = {
 ```
 
 **Why it matters:** Graph memory enables:
-- **Inference chains** — Expert can explain *why* it believes something (trace back through supporting evidence)
-- **Contradiction detection** — When new evidence conflicts with existing beliefs, the graph shows exactly what's in tension
-- **Temporal awareness** — Expert knows which knowledge is fresh vs. stale and can prioritize refresh
-- **Gap detection** — Disconnected subgraphs reveal knowledge areas that lack supporting evidence
+- **Inference chains** - Expert can explain *why* it believes something (trace back through supporting evidence)
+- **Contradiction detection** - When new evidence conflicts with existing beliefs, the graph shows exactly what's in tension
+- **Temporal awareness** - Expert knows which knowledge is fresh vs. stale and can prioritize refresh
+- **Gap detection** - Disconnected subgraphs reveal knowledge areas that lack supporting evidence
 
-**Implementation:** Start with a lightweight in-memory graph (networkx or similar) persisted as JSON. Don't over-engineer — the value is in the *structure*, not the database technology. Evolve to a proper graph DB only if scale demands it.
+**Implementation:** Start with a lightweight in-memory graph (networkx or similar) persisted as JSON. Don't over-engineer - the value is in the *structure*, not the database technology. Evolve to a proper graph DB only if scale demands it.
 
 ### 4. Dynamic Tool Selection via Gap Analysis
 
@@ -145,7 +145,7 @@ Expert analyzing its knowledge state:
    and I have no academic grounding on payment platform economics."
 
 Expert decides:
-  1. Run recon refresh on stripe.com (free, 2s) — update infrastructure facts
+  1. Run recon refresh on stripe.com (free, 2s) - update infrastructure facts
   2. Skip primr (recent enough, budget-conscious)
   3. Trigger distillr for papers on "payment platform network effects" (fill academic gap)
 ```
@@ -161,7 +161,7 @@ Expert decides:
 **The fix:** Deepr experts should be discoverable and callable via A2A:
 
 ```json
-// /.well-known/agent.json — A2A Agent Card
+// /.well-known/agent.json - A2A Agent Card
 {
   "name": "Deepr AI Strategy Expert",
   "description": "Persistent domain expert specializing in AI industry competitive dynamics",
@@ -193,7 +193,7 @@ Expert decides:
 - **MCP** = how an agent connects to tools (Deepr already does this)
 - **A2A** = how agents talk to each other as peers (Deepr needs this)
 
-With A2A, a planning agent can discover Deepr experts, send them structured tasks, receive streaming progress updates, and get structured results — all without knowing Deepr's internals. This makes Deepr experts first-class citizens on any A2A-compatible agent team.
+With A2A, a planning agent can discover Deepr experts, send them structured tasks, receive streaming progress updates, and get structured results - all without knowing Deepr's internals. This makes Deepr experts first-class citizens on any A2A-compatible agent team.
 
 **Implementation:** Primr already has A2A support (`pip install primr[a2a]`). Follow the same pattern:
 - `deepr a2a` command to start A2A server
@@ -270,7 +270,7 @@ Downstream coding agent about to deploy infrastructure change →
     - Knowledge gaps that limit the assessment
 ```
 
-**Why it matters:** This is a new *consumption pattern* for Deepr experts. They're not just research tools — they're domain validators. This dramatically expands the surface area where Deepr adds value in agent workflows.
+**Why it matters:** This is a new *consumption pattern* for Deepr experts. They're not just research tools - they're domain validators. This dramatically expands the surface area where Deepr adds value in agent workflows.
 
 **Implementation:** Add a `validate` mode to expert MCP/A2A tools alongside the existing `research` and `chat` modes. The expert applies its accumulated knowledge as a filter/validator rather than a generator.
 
@@ -281,7 +281,7 @@ Downstream coding agent about to deploy infrastructure change →
 **The fix:** Package Deepr expert capabilities as portable skills following the agentskills.io open standard:
 
 ```markdown
-# SKILL.md — Deepr Research Expert Skill
+# SKILL.md - Deepr Research Expert Skill
 ---
 name: deepr-research
 description: Deep multi-provider research with persistent expert memory
@@ -399,13 +399,13 @@ These improvements are now part of the [Deepr Roadmap](../ROADMAP.md):
 
 When all of this lands, Deepr experts become:
 
-1. **Self-improving** — They reflect on their own output, catch errors, and self-correct
-2. **Autonomous** — They run multi-day research campaigns within budget bounds
-3. **Structured** — Their knowledge is a graph with provenance, not a flat list
-4. **Strategic** — They choose tools based on gap analysis, not pattern matching
-5. **Interoperable** — They speak MCP (tools), A2A (agent-to-agent), and agentskills.io (portable skills)
-6. **Composable** — They serve as researchers, validators, and council members on any agent team
-7. **Auditable** — Every decision, tool call, reflection pass, and handoff is traced
+1. **Self-improving** - They reflect on their own output, catch errors, and self-correct
+2. **Autonomous** - They run multi-day research campaigns within budget bounds
+3. **Structured** - Their knowledge is a graph with provenance, not a flat list
+4. **Strategic** - They choose tools based on gap analysis, not pattern matching
+5. **Interoperable** - They speak MCP (tools), A2A (agent-to-agent), and agentskills.io (portable skills)
+6. **Composable** - They serve as researchers, validators, and council members on any agent team
+7. **Auditable** - Every decision, tool call, reflection pass, and handoff is traced
 
 This is what "truly agentic" means for a research system: not just "it calls LLMs" but "it reasons about what it knows, what it doesn't know, how to fill the gaps, and whether its output is good enough."
 
@@ -413,9 +413,9 @@ This is what "truly agentic" means for a research system: not just "it calls LLM
 
 ## References
 
-- [OpenAI: A Practical Guide to Building Agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) — Agent design foundations, orchestration patterns, guardrails
-- [A2A Protocol](https://a2a-protocol.org/latest/) — Agent-to-Agent communication standard (Linux Foundation)
-- [MCP Specification](https://modelcontextprotocol.io/specification/) — Tools, Resources, Prompts, Sampling, Elicitation
-- [agentskills.io](https://agentskills.io/) — Portable agent skill standard
-- [Agentic Memory for LLM Agents (arXiv:2502.12110)](https://arxiv.org/abs/2502.12110) — Zettelkasten-inspired dynamic memory organization
-- [Agentic RAG Survey (arXiv:2501.09136)](https://arxiv.org/abs/2501.09136) — Reflection, planning, corrective retrieval patterns
+- [OpenAI: A Practical Guide to Building Agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) - Agent design foundations, orchestration patterns, guardrails
+- [A2A Protocol](https://a2a-protocol.org/latest/) - Agent-to-Agent communication standard (Linux Foundation)
+- [MCP Specification](https://modelcontextprotocol.io/specification/) - Tools, Resources, Prompts, Sampling, Elicitation
+- [agentskills.io](https://agentskills.io/) - Portable agent skill standard
+- [Agentic Memory for LLM Agents (arXiv:2502.12110)](https://arxiv.org/abs/2502.12110) - Zettelkasten-inspired dynamic memory organization
+- [Agentic RAG Survey (arXiv:2501.09136)](https://arxiv.org/abs/2501.09136) - Reflection, planning, corrective retrieval patterns
