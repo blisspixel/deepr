@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file self-sufficient on any machine and in any test ordering.
 
 ### Added
+- Agent-classifiable error envelope on the core exception hierarchy.
+  DeeprError now carries `category` (provider / auth / budget / config /
+  storage / validation / internal) and a boolean `retryable`, and
+  `to_dict()` surfaces them plus `retry_after` (seconds, when known) - the
+  RFC 9457 / agent-error pattern, so a consumer can classify a failure and
+  drive backoff without scraping the message. Transient provider failures
+  (timeout, unavailable, rate-limit) are retryable; auth/budget/config/
+  validation are actionable and not. Fully additive: the existing
+  error/error_code/message/details keys are unchanged. (Follow-on: align
+  the MCP ToolError surface to the same fields.)
 - CLI best-practices refinements (audited against clig.dev / kubectl / uv /
   Heroku conventions, mid-2026):
   - `deepr` with no arguments now prints help and exits 0 when stdin is not
