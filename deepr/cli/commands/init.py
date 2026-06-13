@@ -1,0 +1,182 @@
+"""`deepr init` - guided first-run setup.
+
+Collapses the manual setup path (copy .env.example, hand-edit a key, set a
+budget, run doctor) into one command. It detects which provider keys are
+already in the environment, creates or patches the (gitignored) ``.env`` in
+the current directory, sets a budget ceiling, and prints the exact first
+command to run.
+
+Security: API keys are entered through hidden prompts, never echoed, and only
+ever written to ``.env`` (which is gitignored). ``--yes`` runs
+non-interactively (no secret prompts) so the command is safe in scripts and CI.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import click
+
+from deepr.cli.colors import console, print_section_header, print_success
+
+# Provider label, env var, and where to get a key. Order is the recommended
+# setup order (cheapest-to-validate first); mirrors README + doctor.
+_PROVIDERS: list[tuple[str, str, str]] = [
+    ("Gemini", "GEMINI_API_KEY", "https://aistudio.google.com/app/apikey"),
+    ("OpenAI", "OPENAI_API_KEY", "https://platform.openai.com/api-keys"),
+    ("xAI Grok", "XAI_API_KEY", "https://console.x.ai/"),
+    ("Anthropic", "ANTHROPIC_API_KEY", "https://console.anthropic.com/settings/keys"),
+]
+
+# Canonical budget env vars (deepr/config.py reads these).
+_BUDGET_JOB = "DEEPR_MAX_COST_PER_JOB"
+_BUDGET_DAY = "DEEPR_MAX_COST_PER_DAY"
+_BUDGET_MONTH = "DEEPR_MAX_COST_PER_MONTH"
+_DEFAULT_JOB_BUDGET = 5.0
+_DEFAULT_DAY_BUDGET = 25.0
+_DEFAULT_MONTH_BUDGET = 200.0
+
+
+def _key_is_set(value: str | None) -> bool:
+    """True when ``value`` is a real key, not empty or a placeholder."""
+    if not value or not value.strip():
+        return False
+    return "your-" not in value.lower()
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    """Parse a ``.env`` file into a dict (ignores comments and blank lines)."""
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, val = stripped.partition("=")
+        values[key.strip()] = val.strip()
+    return values
+
+
+def _upsert_env(path: Path, updates: dict[str, str]) -> None:
+    """Update existing keys in place, append new ones, preserving the rest."""
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    remaining = dict(updates)
+    out: list[str] = []
+    for line in lines:
+        key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else None
+        if key is not None and key in remaining:
+            out.append(f"{key}={remaining.pop(key)}")
+        else:
+            out.append(line)
+    for key, val in remaining.items():
+        out.append(f"{key}={val}")
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+def _resolved(env_file: dict[str, str], var: str) -> str | None:
+    """A var's effective value: process environment wins, then the .env file."""
+    return os.getenv(var) or env_file.get(var)
+
+
+def _ensure_env_file(env_path: Path, example_path: Path) -> bool:
+    """Create ``.env`` from the example (or a stub) if missing. Returns created?"""
+    if env_path.exists():
+        return False
+    if example_path.exists():
+        env_path.write_text(example_path.read_text(encoding="utf-8"), encoding="utf-8")
+    else:
+        env_path.write_text("# Deepr configuration\n", encoding="utf-8")
+    return True
+
+
+def _collect_provider_keys(env_file: dict[str, str], *, yes: bool) -> dict[str, str]:
+    """Report detected keys; in interactive mode, prompt (hidden) for missing ones."""
+    updates: dict[str, str] = {}
+    console.print("\nProvider keys (you need at least one):")
+    for label, var, url in _PROVIDERS:
+        if _key_is_set(_resolved(env_file, var)):
+            console.print(f"  [green]+[/green] {label}: detected")
+            continue
+        if yes:
+            console.print(f"  [dim]-[/dim] {label}: not set  ({var}, get one at {url})")
+            continue
+        console.print(f"  [yellow]-[/yellow] {label}: not set  (get one at {url})")
+        if not click.confirm(f"    Add a {label} key now?", default=False):
+            continue
+        key = click.prompt(f"    {var}", hide_input=True, default="", show_default=False).strip()
+        if key:
+            updates[var] = key
+            env_file[var] = key  # so the summary counts it
+    return updates
+
+
+def _resolve_budget_updates(env_file: dict[str, str], *, yes: bool, budget: float | None) -> dict[str, str]:
+    """Decide budget-ceiling env updates without clobbering existing values."""
+    updates: dict[str, str] = {}
+    current_job = env_file.get(_BUDGET_JOB)
+    if budget is not None:
+        updates[_BUDGET_JOB] = f"{budget}"
+    elif not yes:
+        default_budget = float(current_job) if current_job else _DEFAULT_JOB_BUDGET
+        chosen = click.prompt("\nPer-job budget ceiling (USD)", type=float, default=default_budget)
+        updates[_BUDGET_JOB] = f"{chosen}"
+    elif not current_job:
+        updates[_BUDGET_JOB] = f"{_DEFAULT_JOB_BUDGET}"
+    # Ensure daily/monthly caps exist so the cost gate always has a ceiling.
+    if not env_file.get(_BUDGET_DAY):
+        updates[_BUDGET_DAY] = f"{_DEFAULT_DAY_BUDGET}"
+    if not env_file.get(_BUDGET_MONTH):
+        updates[_BUDGET_MONTH] = f"{_DEFAULT_MONTH_BUDGET}"
+    return updates
+
+
+def _print_summary(env_file: dict[str, str]) -> None:
+    """Print usable-provider count, the budget, and the next command."""
+    usable = [label for label, var, _ in _PROVIDERS if _key_is_set(_resolved(env_file, var))]
+    console.print("")
+    if not usable:
+        console.print("[yellow]No provider keys configured yet.[/yellow]")
+        console.print("Add at least one key to .env (or re-run `deepr init`), then:")
+        console.print("  deepr doctor")
+        return
+    print_success(f"Ready: {len(usable)} provider(s) configured ({', '.join(usable)}).")
+    console.print(f"Per-job budget ceiling: ${float(env_file.get(_BUDGET_JOB, _DEFAULT_JOB_BUDGET)):.2f}")
+    console.print("\nNext steps:")
+    console.print('  deepr research "Your question here" --auto')
+    console.print("  deepr doctor          # verify connectivity")
+
+
+@click.command(name="init")
+@click.option("-y", "--yes", is_flag=True, help="Non-interactive: accept defaults, no secret prompts.")
+@click.option(
+    "--budget",
+    type=float,
+    default=None,
+    help=f"Per-job budget ceiling in USD (default ${_DEFAULT_JOB_BUDGET:.0f}).",
+)
+def init(yes: bool, budget: float | None):
+    """Guided first-run setup: detect keys, write .env, set a budget.
+
+    Examples:
+        deepr init                 # interactive wizard
+        deepr init --yes           # scriptable: defaults, no prompts
+        deepr init --budget 3      # set the per-job ceiling
+    """
+    print_section_header("Deepr setup")
+
+    env_path = Path(".env")
+    created = _ensure_env_file(env_path, Path(".env.example"))
+    env_file = _read_env_file(env_path)
+    console.print(f"\nConfig file: [bold]{env_path.resolve()}[/bold]" + ("  (created)" if created else ""))
+
+    updates: dict[str, str] = {}
+    updates.update(_collect_provider_keys(env_file, yes=yes))
+    updates.update(_resolve_budget_updates(env_file, yes=yes, budget=budget))
+
+    if updates:
+        _upsert_env(env_path, updates)
+        env_file.update(updates)
+
+    _print_summary(env_file)
