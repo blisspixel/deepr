@@ -4,6 +4,8 @@ Multi-provider research automation: routes each research question to the cheapes
 
 `ROADMAP.md` is the single source of truth for active work; completed items move to `docs/CHANGELOG.md` at release. Read its Planning Principles before adding features - especially "close the loop before widening it" and "self-improvement is a verification problem".
 
+`CONTRIBUTING.md` is the operating manual: how work goes from idea to shipped (frame -> design note -> small reversible increments -> verify -> ship -> validate) and the **Definition of Done** checklist every change clears. Before a contract-spanning or hard-to-reverse change, write a design note (`docs/design/`) or a decision record (`docs/decisions/`, ADRs) first - the *why*, and the alternatives rejected.
+
 ## Dev environment
 
 - Install: `uv pip install -e ".[dev,full]"` - `[dev]` alone is NOT enough; the suite imports azure/flask/etc. and fails collection without `[full]`.
