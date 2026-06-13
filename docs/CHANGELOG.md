@@ -57,16 +57,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     plus a `classify_provider_exception()` helper that maps a raw provider-
     SDK exception to (category, retryable, retry_after) by class name
     (works across openai/anthropic/gemini/xai/azure without importing each).
-    The OpenAI adapter now populates the envelope on both its transient-
-    exhausted and non-retryable raise paths.
+    `ProviderError` auto-classifies from its `original_error` when the
+    envelope is not set explicitly, so every adapter's existing
+    `raise ProviderError(..., original_error=e)` gets correct classification
+    with no per-site changes - the envelope is populated on every provider
+    path, not just one adapter.
   - The MCP `ToolError` always emits `category` + `retryable` (and
     `retry_after` when known) and gains `ToolError.from_exception(...)`;
     `_make_error()` accepts the classification.
   - The CLI `OperationResult` JSON error output always carries `category` +
     `retryable` (+ `retry_after`), with `OperationResult.from_exception(...)`.
   Fully additive everywhere: existing keys (error/error_code/message/
-  details, retry_hint/fallback_suggestion) are unchanged. (Follow-on:
-  extend SDK-exception classification to the other six provider adapters.)
+  details, retry_hint/fallback_suggestion) are unchanged.
 - CLI best-practices refinements (audited against clig.dev / kubectl / uv /
   Heroku conventions, mid-2026):
   - `deepr` with no arguments now prints help and exits 0 when stdin is not
