@@ -102,6 +102,34 @@ jobs:
           path: sbom-requirements.txt
           if-no-files-found: error
 
+  core-install:
+    # The dev/test/[full] installs always include numpy, bs4, etc., so a broken
+    # *core* install - a runtime import that lives only in an extra - cannot be
+    # caught by the unit suite: it ships green and crashes on the user's first
+    # command. This happened (numpy was in the `docs` extra but imported at CLI
+    # startup, so `pip install deepr-research` produced a CLI that died on every
+    # command). This job installs CORE ONLY and exercises the no-network command
+    # surface, so that class fails here, not on a user's machine.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          activate-environment: true
+          python-version: "3.12"
+
+      - name: Install CORE only (no extras)
+        run: uv pip install .
+
+      - name: Smoke-test the core CLI (no network, no extras)
+        run: |
+          deepr --version
+          deepr --help
+          deepr doctor --skip-connectivity
+          deepr init --yes
+
   frontend:
     # The web frontend was previously verified only by hand: CI never ran
     # lint/tsc/build, so a dangling identifier that broke type-checking and
