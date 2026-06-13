@@ -24,8 +24,10 @@ over reading the raw curve directly.
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -77,6 +79,7 @@ class CalibrationReport:
     decision_threshold: float
     methodology_version: str = CALIBRATION_METHODOLOGY_VERSION
     notes: list[str] = field(default_factory=list)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -196,6 +199,64 @@ def precision_recall_f1(pairs: list[Pair], decision_threshold: float = 0.6) -> t
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
     return precision, recall, f1
+
+
+def parse_graded_pairs(text: str) -> list[Pair]:
+    """Parse a graded-pairs JSONL: one ``{"confidence": float, "grounded": bool}``
+    object per line (extra keys like claim/report_id are ignored). Blank lines
+    and ``#`` comments are skipped; confidence is clamped to [0, 1]."""
+    pairs: list[Pair] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        obj = json.loads(line)
+        conf = max(0.0, min(1.0, float(obj["confidence"])))
+        pairs.append((conf, bool(obj["grounded"])))
+    return pairs
+
+
+def render_calibration_markdown(report: CalibrationReport, *, model: str) -> str:
+    """Render a CalibrationReport as the published ``docs/CALIBRATION.md`` body."""
+    threshold = "n/a" if report.derived_threshold is None else f"{report.derived_threshold:.3f}"
+    lines = [
+        "# Calibration",
+        "",
+        f"Extraction model: `{model}`  ",
+        f"Methodology: v{report.methodology_version}  ",
+        f"Measured: {report.generated_at.date().isoformat()}",
+        "",
+        "Does the absorb extraction confidence mean what it says? This report is",
+        "measured from graded (confidence, grounded) pairs, not asserted.",
+        "",
+        "## Summary",
+        "",
+        f"- Samples: {report.sample_size}",
+        f"- Grounded rate: {report.grounded_rate:.1%}",
+        f"- Expected calibration error (ECE): {report.ece:.3f} (lower is better; 0 = perfect)",
+        f"- ECE after Platt scaling: {report.ece_platt:.3f}",
+        f"- Derived absorb threshold (>= {report.target_grounding:.0%} grounded): {threshold}",
+        f"- Extraction precision / recall / F1 @ {report.decision_threshold}: "
+        f"{report.precision:.2f} / {report.recall:.2f} / {report.f1:.2f}",
+        "",
+        "## Reliability curve",
+        "",
+        "| Confidence bin | n | Mean predicted | Observed grounded |",
+        "|---|---|---|---|",
+    ]
+    lines += [
+        f"| {b.lower:.2f}-{b.upper:.2f} | {b.count} | {b.mean_predicted:.2f} | {b.observed_rate:.2f} |"
+        for b in report.bins
+    ]
+    if report.notes:
+        lines += ["", "## Notes", "", *[f"- {n}" for n in report.notes]]
+    lines += [
+        "",
+        "_Derived view: regenerate with `deepr eval calibrate`. If gold labels were",
+        "seeded by a strong-model pre-grade and spot-corrected, that bias is noted above._",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def measure_calibration(
