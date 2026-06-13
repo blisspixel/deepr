@@ -165,13 +165,16 @@ class ExpertStore:
         all_experts = store.list_all()
     """
 
-    def __init__(self, base_path: str = "data/experts"):
+    def __init__(self, base_path: str | None = None):
         """Initialize the expert store.
 
         Args:
-            base_path: Base directory for storing expert data
+            base_path: Base directory for storing expert data (default: the
+                configured experts root, deepr.config.experts_root).
         """
-        self.base_path = Path(base_path)
+        from deepr.config import experts_root
+
+        self.base_path = Path(base_path) if base_path else experts_root()
         self.base_path.mkdir(parents=True, exist_ok=True)
 
     # =========================================================================
