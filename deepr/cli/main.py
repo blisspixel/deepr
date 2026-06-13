@@ -105,6 +105,9 @@ from deepr.cli.commands import (
     web,
 )
 from deepr.cli.commands import (
+    capacity as capacity_cmd,
+)
+from deepr.cli.commands import (
     eval as eval_cmd,
 )
 from deepr.cli.commands import help as help_cmd
@@ -148,6 +151,7 @@ cli.add_command(status.list_alias)
 
 # Supporting commands
 cli.add_command(budget.budget)
+cli.add_command(capacity_cmd.capacity)
 cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
