@@ -117,6 +117,50 @@ class TestParseAndRender:
         assert "n/a" in md
 
 
+class TestGradeCorpus:
+    async def test_extracts_and_grades_into_pairs(self):
+        from deepr.experts.calibration import grade_corpus
+
+        async def extract(text):
+            return [("claim A", 0.9), ("claim B", 0.4)]
+
+        async def grade(claim, text):
+            return claim == "claim A"  # A grounded, B not
+
+        pairs, records = await grade_corpus({"r1": "report text"}, extract_fn=extract, grade_fn=grade)
+        assert pairs == [(0.9, True), (0.4, False)]
+        assert records[0] == {"report_id": "r1", "claim": "claim A", "confidence": 0.9, "grounded": True}
+
+    async def test_failed_extraction_skips_report_not_run(self):
+        from deepr.experts.calibration import grade_corpus
+
+        async def extract(text):
+            if text == "bad":
+                raise RuntimeError("extraction boom")
+            return [("ok claim", 0.8)]
+
+        async def grade(claim, text):
+            return True
+
+        pairs, _ = await grade_corpus({"good": "x", "bad": "bad"}, extract_fn=extract, grade_fn=grade)
+        assert pairs == [(0.8, True)]  # bad report skipped, good one kept
+
+    async def test_failed_grade_skips_claim(self):
+        from deepr.experts.calibration import grade_corpus
+
+        async def extract(text):
+            return [("a", 0.7), ("b", 0.6)]
+
+        async def grade(claim, text):
+            if claim == "b":
+                raise RuntimeError("grade boom")
+            return True
+
+        pairs, records = await grade_corpus({"r": "t"}, extract_fn=extract, grade_fn=grade)
+        assert pairs == [(0.7, True)]
+        assert len(records) == 1
+
+
 class TestReport:
     def test_empty_pairs(self):
         report = measure_calibration([])
