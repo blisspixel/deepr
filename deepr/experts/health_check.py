@@ -240,7 +240,6 @@ class ExpertHealthChecker:
         store; failures are non-fatal - the audit must stay read-only.
         """
         try:
-
             # BeliefStore.__init__ creates its directory; a read-only audit
             # must not create state, so only open stores that already exist
             # (same CWD-pollution class as the cost-ledger test bug).
@@ -372,7 +371,6 @@ class ExpertHealthChecker:
         create state, so only stores that already exist are opened.
         """
         try:
-
             from deepr.config import experts_root
             from deepr.experts.beliefs import BeliefStore
 
