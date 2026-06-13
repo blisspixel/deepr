@@ -193,7 +193,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [ ] Extend the strict-blocking gate to the rest of the tree, package-by-package (whole-tree `mypy` stays a non-blocking baseline meanwhile)
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`), `UP047` (PEP 695 generics), and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [x] Enable `--cov-branch` (branch baseline 78%, raised to 80% gate); `fail_under = 80`, ratcheting 80 -> 85 -> 90 -> 95 as branch tests land
-- [x] `C901` complexity cap (max-complexity 10) surfaced as an advisory CI signal (134 functions over cap); promote to blocking as the worst offenders are refactored. S-rules remain advisory (all 93 current findings are in the documented-legacy set)
+- [x] `C901` complexity cap (max-complexity 10) and the security `S` rules surfaced as advisory CI signals, then put under a **blocking no-growth ratchet** in Phase Q0 (2026-06-12): the counts (C901 146, S 97) are baselined and CI fails if either grows. Full promotion to blocking `select` (cap to 10, `S` clean) is Phase Q4 as the backlog is refactored down. See [Phase Q](#phase-q-code-health-hardening-foundational-continuous).
 - [ ] "Parse, don't validate" pass: strict Pydantic (`strict=True, extra='forbid'`) at boundaries + targeted kernel invariant assertions (budget, append-only ledger, citation provenance, generated-artifact regenerability)
 - [x] Mutation testing (mutmut) wired as a scheduled/on-demand non-blocking job over kernel modules (`[tool.mutmut]` scope: core/, cost ledger, cost safety); establish + raise the mutation score next
 - [ ] Expand Hypothesis to property-based + stateful tests on kernel lifecycles (budget ledger, expert/belief state, queue)
@@ -777,8 +777,9 @@ that does not gate the contract.
 
 ### Deliberately unversioned
 
-- **Phase E** (engineering standards) and **model-registry currency** are
-  continuous - every release carries its share.
+- **Phase E** (engineering standards), **Phase Q** (code-health hardening),
+  and **model-registry currency** are continuous - every release carries its
+  share.
 - **Bug-hunt sweeps and live validations** happen per release, not as
   versioned features (they have found real bugs every time they have run).
 - **Intentionally not planned**: hosted-by-Deepr SaaS, SLAs, enterprise
