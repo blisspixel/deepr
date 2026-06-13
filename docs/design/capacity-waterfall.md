@@ -31,9 +31,19 @@ the eval-gated admission below is what earns a backend its place).
 
 ### Vendor adapters (June 2026 surfaces; verify before building)
 
+**Verified 2026-06-13 (re-sequences the adapters):** Anthropic's June 15, 2026
+change moves `claude -p` headless + the Agent SDK off the flat subscription onto
+a *separate monthly credit pool* ($20 Pro / $100 Max 5x / $200 Max 20x) billed
+**at standard API rates**, that stops when exhausted unless overflow billing is
+on. So `cli-claude` is bounded-prepaid-at-API-rates, not free, with a real
+overflow-to-bill trap. Consequence: **`local-ollama` (genuinely $0) is the
+priority adapter** (shipped first); `cli-claude` drops in priority and its
+overflow-OFF / hard-stop guard is mandatory, not optional. Re-verify every CLI
+plan's headless economics immediately before building its adapter - this churns.
+
 | Adapter | Mechanism | Quota model | Notes |
 |---|---|---|---|
-| `cli-claude` | `claude -p` headless | Monthly credit pool per plan | Sanctioned; credits visible in /status |
+| `cli-claude` | `claude -p` headless | Separate credit pool, API rates (from 2026-06-15) | Stops/overflows when pool empties - overflow MUST be off; lower priority than local |
 | `cli-codex` | `codex exec` | 5h rolling windows + weekly cap | Sanctioned; window state probeable |
 | `cli-antigravity` | `agy` CLI headless | Weekly compute caps per tier | Gemini CLI dies 2026-06-18; re-verify agy after cutover |
 | `cli-kiro` | kiro CLI | Monthly credits, overage $0.04/credit | Overage risk: hard-stop before cap, never rely on vendor stop |
