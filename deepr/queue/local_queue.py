@@ -571,11 +571,15 @@ class SQLiteQueue(QueueBackend):
 
             cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
+            # Inclusive boundary: with days=0 the cutoff is "now", and a job
+            # completed in the same clock tick must still be cleaned up.
+            # A strict `<` left a timing race (job completed_at == cutoff on a
+            # coarse clock), which intermittently deleted nothing.
             cursor.execute(
                 """
                 DELETE FROM research_queue
                 WHERE status IN ('completed', 'failed', 'cancelled')
-                AND completed_at < ?
+                AND completed_at <= ?
             """,
                 (cutoff,),
             )
