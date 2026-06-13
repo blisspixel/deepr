@@ -33,6 +33,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file self-sufficient on any machine and in any test ordering.
 
 ### Added
+- Guided setup and a portable data directory (UX-first onboarding):
+  - `deepr init` detects existing provider keys, writes `.env`, sets a
+    budget ceiling, and can point storage at a synced folder. Scriptable
+    and CI-safe: `--yes`, `--budget`, `--data-dir` (writes `DEEPR_DATA_DIR`
+    / `DEEPR_EXPERTS_PATH` / `DEEPR_REPORTS_PATH`), no prompts required.
+  - `deepr doctor` gains a severity model (ok / info / warning / error), a
+    one-line `_summarize()` verdict, a storage-locations check, and a
+    ranked "next step" so the most actionable fix is always surfaced.
+  - One experts root: `config.experts_root()` is the single source of
+    truth (`DEEPR_EXPERTS_PATH`, else `DEEPR_DATA_DIR/experts`, else
+    `data/experts`), so setting one data dir relocates experts + research
+    to a synced folder and they follow you across machines. ~12 experts
+    modules were centralized onto it; a guard test prevents split-store
+    regressions. Cost ledger, queue, and traces stay machine-local
+    ([ADR 0004](decisions/0004-one-experts-root-and-portable-data-dir.md)).
+  - `numpy` moved to core dependencies (it is imported at startup) with a
+    CI `core-install` smoke job, so a base `pip install` no longer crashes
+    on first run.
+- Capacity visibility and $0 local-model execution (toward routing on
+  owned/prepaid capacity before metered API):
+  - `deepr capacity` (`--json`, `--probe`) reports detected capacity -
+    local Ollama, plan-based CLIs, metered APIs - with a cost model, so you
+    can see what runs for free before paying per token.
+  - A local Ollama backend (`deepr/backends/local.py`) targets the
+    OpenAI-compatible `/v1` endpoint and plugs into the injectable research
+    seams; `deepr expert absorb --local` and `deepr expert sync --local`
+    run extraction and sync at $0. Expert maintenance (absorb + sync) was
+    extracted into its own module to keep file-size ratchets honest.
+  - Routing **quality priors** (`deepr/routing/quality_priors.py`) seed
+    provisional model rankings from published benchmark indices, so auto
+    mode routes sensibly without every user paying for evals first.
+  Design: [capacity-waterfall.md](design/capacity-waterfall.md).
+- Evidence layer - making expert trust measurable rather than asserted:
+  - `deepr eval continuity` scores staleness honesty, abstention,
+    contradiction-surfacing, and what-changed exactness from stored belief
+    state at $0.
+  - `deepr eval calibrate` answers "does extraction confidence track
+    grounding?" - reliability curve, expected calibration error, and a
+    numpy Platt-scaling threshold (Newton-Raphson, no sklearn). `--from`
+    grades existing pairs at $0; `--corpus` runs the paid extraction +
+    strong-model pre-grade (FActScore/SAFE-style atomic decomposition,
+    `--grader-model`, `--sample`, `--max-cost`, `--yes`). First measured
+    curve committed in [docs/CALIBRATION.md](CALIBRATION.md).
+  - The deterministic-vs-agentic check boundary is documented in
+    [checks-deterministic-vs-agentic.md](design/checks-deterministic-vs-agentic.md)
+    (deterministic for structure/types/ranges; model judgment for semantic
+    grounding, contradiction, and atomicity).
 - Install / update QOL, matching modern CLI tooling (claude / codex / grok):
   - `deepr upgrade` self-updates to the latest released version, detecting
     how deepr was installed (pipx / pip / editable source checkout) and
