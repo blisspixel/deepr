@@ -34,15 +34,19 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ## Current Status (v2.14.0)
 
-Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5200+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
+Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5700+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
+
+**In progress on `main` (toward v2.15 evidence + v2.16 capacity):** an evidence layer (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **$0 local-model execution** (Ollama backend; `expert sync`/`absorb --local`) and **capacity visibility** (`deepr capacity`) toward routing on owned/prepaid capacity before metered API (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)); **portable experts** - one data dir (`DEEPR_DATA_DIR`) relocates experts + research to a synced folder so they follow you across machines ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)); routing **quality priors** so auto mode routes well without paid evals; and guided setup (`deepr init`). The boundary for which checks are deterministic vs model-based is set in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
 
 ### Stable (Production-Ready)
 
 These features are well-tested and used regularly:
 
 - **Core research commands**: `research`, `check`, `learn` - reliable across providers
+- **Guided setup**: `deepr init` (detect keys, write `.env`, set budget + a portable data dir), `deepr doctor` (diagnostics incl. storage roots, severity-aware so optional/first-run state is not flagged as errors)
 - **Cost controls**: Budget limits, canonical cost ledger, cost tracking, `costs show/timeline/breakdown/doctor`
 - **Expert creation**: `expert make`, `expert chat`, `expert export/import`
+- **Portable experts**: one `DEEPR_DATA_DIR` relocates experts + research to a synced folder (cross-machine); default `data/` unchanged ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md))
 - **CLI output modes**: `--verbose`, `--json`, `--quiet`, `--explain`
 - **Context discovery**: `deepr search`, `--context <id>` for reusing prior research
 - **Provider support**: OpenAI (GPT-5.5, GPT-5.5-pro, GPT-5.4 family, GPT-5-mini, GPT-4.1, o3/o4-mini-deep-research), Gemini (3.1 Pro Preview, 3.5 Flash, 3 Flash, 2.5 Flash, Deep Research Agent), xAI Grok (4.20 flagship: Reasoning/Non-Reasoning/Multi-Agent; plus 4.3), Anthropic (Claude Fable 5, Opus 4.8/4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), Azure AI Foundry (o3-deep-research + Bing, GPT-5/5-mini, GPT-4.1/4.1-mini, GPT-4o)
@@ -59,6 +63,8 @@ These features work but APIs or behavior may change:
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
 - **MCP server**: Functional with 26 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` - autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
+- **Local-model execution + capacity** (v2.16, in progress): `deepr capacity` (+ `--probe`) shows owned/prepaid capacity (local Ollama, plan CLIs, metered APIs); a local Ollama backend runs research at $0 via the injectable seams (`expert sync`/`absorb --local`). Capacity-aware routing (drain local/plan before metered API) is not yet wired - this is visibility + local execution today. Design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)
+- **Evidence layer** (v2.15, in progress): `deepr eval continuity` (staleness honesty / abstention / contradiction-surfacing / what-changed exactness, measured from stored state at $0) and `deepr eval calibrate` (does extraction confidence track grounding? reliability curve + ECE + Platt threshold; `--from` graded pairs at $0, `--corpus` runs the paid extraction + pre-grade). First curve in [docs/CALIBRATION.md](docs/CALIBRATION.md)
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
 - **Grok provider**: Grok 4.20 flagship + multi-agent deep research (plus Grok 4.3); legacy models deprecated (retiring May 15, 2026) with auto-migration
