@@ -4,6 +4,7 @@ Complete guide to Deepr features (continuously updated).
 
 ## Table of Contents
 
+- [Setup and Capacity](#setup-and-capacity)
 - [Web Dashboard](#web-dashboard)
 - [Semantic Commands](#semantic-commands)
 - [Context Discovery](#context-discovery)
@@ -725,6 +726,53 @@ deepr eval new --max-estimated-cost 3
 ```
 
 Use `--tier all` full-catalog runs sparingly; they are for periodic baseline refreshes, not daily iteration.
+
+### Evidence Evals (Continuity and Calibration)
+
+Two evals make expert trust measurable instead of asserted.
+
+```bash
+# Continuity: staleness honesty, abstention, contradiction-surfacing,
+# what-changed exactness - measured from stored belief state at $0.
+deepr eval continuity "AI Policy Expert"
+
+# Calibration: does extraction confidence track grounding?
+# Reliability curve + expected calibration error + Platt-derived threshold.
+deepr eval calibrate --from data/calibration/graded.jsonl   # $0, grades existing pairs
+
+# Run the paid extraction + strong-model pre-grade over a corpus.
+deepr eval calibrate --corpus tests/data/calibration \
+  --grader-model gpt-5 --sample 50 --max-cost 3 --yes
+```
+
+Calibration uses FActScore/SAFE-style atomic claim decomposition and a strong-model grader; the threshold fit is numpy Platt scaling (no sklearn). The first measured curve is in [CALIBRATION.md](CALIBRATION.md); the deterministic-vs-model check boundary is in [design/checks-deterministic-vs-agentic.md](design/checks-deterministic-vs-agentic.md).
+
+## Setup and Capacity
+
+```bash
+# Guided setup: detect keys, write .env, set a budget, choose a data dir.
+deepr init                                              # interactive
+deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr # scripted / CI-safe
+
+# Verify connectivity and storage; ranked next step on any problem.
+deepr doctor
+
+# See what you can actually run with: owned/prepaid capacity first.
+deepr capacity            # local Ollama, plan CLIs, metered APIs + cost model
+deepr capacity --probe    # actively probe local endpoint and list models
+deepr capacity --json
+```
+
+`deepr init` writes `DEEPR_DATA_DIR` (and `DEEPR_EXPERTS_PATH` / `DEEPR_REPORTS_PATH`). Pointing the data dir at a synced folder (OneDrive, Dropbox, iCloud) makes experts and research follow you across machines; cost ledger, queue, and traces stay machine-local ([ADR 0004](decisions/0004-one-experts-root-and-portable-data-dir.md)).
+
+Local-model execution runs quality-tolerant steps at $0 against a local Ollama endpoint:
+
+```bash
+deepr expert absorb "Platform Team Expert" report.md --local
+deepr expert sync "Platform Team Expert" --local
+```
+
+See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and routing direction.
 
 ## Cost Management
 
