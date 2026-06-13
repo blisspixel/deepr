@@ -128,6 +128,37 @@ class OperationResult:
     job_id: str | None = None
     error: str | None = None
     error_code: str | None = None
+    # Agent-classification envelope for failures (RFC 9457 / agent pattern):
+    # category to branch on, retryable to drive backoff, retry_after hint.
+    category: str = "internal"
+    retryable: bool = False
+    retry_after: int | None = None
+
+    @classmethod
+    def from_exception(cls, exc: Exception, duration_seconds: float = 0.0, cost_usd: float = 0.0) -> "OperationResult":
+        """Build a failed result carrying classification read off an exception.
+
+        Reads error_code / category / retryable / retry_after from a Deepr
+        exception (DeeprError or provider ProviderError); falls back to
+        generic defaults otherwise.
+        """
+        retry_after = getattr(exc, "retry_after", None)
+        if not isinstance(retry_after, int):
+            details = getattr(exc, "details", None)
+            retry_after = details.get("retry_after") if isinstance(details, dict) else None
+            if not isinstance(retry_after, int):
+                retry_after = None
+        category = getattr(exc, "category", "internal")
+        return cls(
+            success=False,
+            duration_seconds=duration_seconds,
+            cost_usd=cost_usd,
+            error=str(getattr(exc, "message", exc)),
+            error_code=getattr(exc, "error_code", None),
+            category=category if isinstance(category, str) else "internal",
+            retryable=bool(getattr(exc, "retryable", False)),
+            retry_after=retry_after,
+        )
 
     def to_json(self) -> str:
         """Serialize result to JSON string.
@@ -136,7 +167,7 @@ class OperationResult:
             JSON string with all relevant fields
         """
         if self.success:
-            data = {
+            data: dict[str, Any] = {
                 "status": "success",
                 "duration_seconds": self.duration_seconds,
                 "cost_usd": self.cost_usd,
@@ -148,7 +179,13 @@ class OperationResult:
                 "status": "error",
                 "error": self.error or "Unknown error",
                 "error_code": self.error_code or "UNKNOWN",
+                # Always present on failures so machine consumers can rely
+                # on them to classify and decide on retry/backoff.
+                "category": self.category,
+                "retryable": self.retryable,
             }
+            if self.retry_after is not None:
+                data["retry_after"] = self.retry_after
 
         return json.dumps(data, ensure_ascii=False)
 

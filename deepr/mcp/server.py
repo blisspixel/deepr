@@ -133,14 +133,51 @@ class ToolError:
     message: str
     retry_hint: str | None = None
     fallback_suggestion: str | None = None
+    # Agent-classification envelope (RFC 9457 / agent-error pattern): a
+    # category to branch on and a retryable flag to drive backoff, without
+    # parsing the message. Always emitted so consumers can rely on them.
+    category: str = "internal"
+    retryable: bool = False
+    retry_after: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {"error_code": self.error_code, "message": self.message}
+        d: dict[str, Any] = {
+            "error_code": self.error_code,
+            "category": self.category,
+            "retryable": self.retryable,
+            "message": self.message,
+        }
+        if self.retry_after is not None:
+            d["retry_after"] = self.retry_after
         if self.retry_hint:
             d["retry_hint"] = self.retry_hint
         if self.fallback_suggestion:
             d["fallback_suggestion"] = self.fallback_suggestion
         return d
+
+    @classmethod
+    def from_exception(cls, error_code: str, exc: Exception, message: str | None = None) -> "ToolError":
+        """Build a ToolError carrying classification read off a Deepr exception.
+
+        Reads category / retryable / retry_after from any exception that
+        exposes them (DeeprError, provider ProviderError); falls back to the
+        generic internal/non-retryable defaults otherwise.
+        """
+        category = getattr(exc, "category", "internal")
+        retryable = bool(getattr(exc, "retryable", False))
+        retry_after = getattr(exc, "retry_after", None)
+        if not isinstance(retry_after, int):
+            details = getattr(exc, "details", None)
+            retry_after = details.get("retry_after") if isinstance(details, dict) else None
+            if not isinstance(retry_after, int):
+                retry_after = None
+        return cls(
+            error_code=error_code,
+            message=message if message is not None else str(getattr(exc, "message", exc)),
+            category=category if isinstance(category, str) else "internal",
+            retryable=retryable,
+            retry_after=retry_after,
+        )
 
 
 def _make_error(
@@ -148,6 +185,10 @@ def _make_error(
     message: str,
     retry_hint: str | None = None,
     fallback: str | None = None,
+    *,
+    category: str = "internal",
+    retryable: bool = False,
+    retry_after: int | None = None,
 ) -> dict[str, Any]:
     """Convenience for returning a structured error dict from a tool."""
     return ToolError(
@@ -155,6 +196,9 @@ def _make_error(
         message=message,
         retry_hint=retry_hint,
         fallback_suggestion=fallback,
+        category=category,
+        retryable=retryable,
+        retry_after=retry_after,
     ).to_dict()
 
 
