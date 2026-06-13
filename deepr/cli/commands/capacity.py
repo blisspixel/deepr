@@ -72,4 +72,6 @@ def capacity(json_output: bool, probe: bool):
         click.echo(
             "No owned/prepaid capacity detected. Install Ollama or a plan CLI to research without per-call cost."
         )
-    click.echo("Note: capacity-aware routing is in progress (v2.16); research currently runs on metered API providers.")
+    click.echo("Note: CLI 'available' means installed on PATH only - auth, quota window, and overflow")
+    click.echo("state are verified by the adapter at run time. Only the local probe (--probe) round-trips.")
+    click.echo("Capacity-aware routing is in progress (v2.16); research currently runs on metered API providers.")
