@@ -100,6 +100,25 @@ class TestDoctorOutput:
             assert result.exit_code in [0, 1]  # 0 = all pass, 1 = some fail
 
 
+class TestDoctorNextStep:
+    """Test the closing next-step guidance (complements `deepr init`)."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_no_keys_points_to_init(self, runner):
+        with patch.dict("os.environ", {}, clear=True):
+            result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+            assert "deepr init" in result.output
+
+    def test_configured_key_points_to_research(self, runner):
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "real-gemini-key-123"}, clear=True):
+            result = runner.invoke(cli, ["doctor", "--skip-connectivity"])
+            assert "research" in result.output.lower()
+            assert "deepr init" not in result.output
+
+
 class TestDiagnosticsCommand:
     """Test 'diagnostics' command if it exists as alias."""
 
