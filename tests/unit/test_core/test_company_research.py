@@ -7,6 +7,18 @@ import pytest
 from deepr.core.company_research import CompanyResearchOrchestrator
 
 
+@pytest.fixture(autouse=True)
+def _fake_openai_key(monkeypatch):
+    """Several tests build a real OpenAIProvider via _build_research_orchestrator.
+
+    Without this, they only passed when OPENAI_API_KEY happened to be set -
+    either by a dev .env or by other test modules' import-time
+    os.environ.setdefault during full-suite collection. A fake key makes the
+    file self-sufficient on any machine and in any test ordering.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-not-real")
+
+
 class TestCompanyResearchOrchestratorInit:
     """Test CompanyResearchOrchestrator initialization."""
 
