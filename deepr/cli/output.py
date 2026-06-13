@@ -347,22 +347,24 @@ class OutputFormatter:
             description: Description of the operation starting
         """
         if self.context.mode == OutputMode.VERBOSE:
-            # Show spinner for verbose mode
+            # Show spinner for verbose mode. Progress is out-of-band info, so
+            # it renders to stderr (clig.dev): `deepr ... > out` then captures
+            # only the primary result on stdout, never spinner control codes.
             self._progress = Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 TimeElapsedColumn(),
-                console=self._console,
+                console=self._stderr_console,
                 transient=True,
             )
             self._progress.start()
             self._progress_task = self._progress.add_task(description, total=None)
         elif self.context.mode == OutputMode.MINIMAL:
-            # Show minimal spinner
+            # Show minimal spinner (stderr, out-of-band - see above)
             self._progress = Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self._console,
+                console=self._stderr_console,
                 transient=True,
             )
             self._progress.start()
@@ -376,7 +378,9 @@ class OutputFormatter:
             message: Progress message to display
         """
         if self.context.mode == OutputMode.VERBOSE:
-            self._console.print(f"[dim]{message}[/dim]")
+            # Progress messages are out-of-band info -> stderr (clig.dev), so
+            # they never mingle with primary output on stdout.
+            self._stderr_console.print(f"[dim]{message}[/dim]")
 
     def complete(self, result: OperationResult) -> None:
         """Show completion with result.
