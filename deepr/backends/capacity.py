@@ -79,7 +79,14 @@ _PROVIDERS: list[tuple[str, str]] = [
 # (Grok consumer plans have no sanctioned headless path - excluded from the
 # plan-quota set; xAI credits flow through the metered API instead.)
 _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
-    ("Claude Code", "claude", CostModel.CREDIT_POOL, "monthly plan automation credits"),
+    # claude -p moved to a separate API-rate credit pool on 2026-06-15 (stops or
+    # overflow-bills when empty) - bounded-prepaid, not free; overflow must be off.
+    (
+        "Claude Code",
+        "claude",
+        CostModel.CREDIT_POOL,
+        "separate credit pool at API rates (2026-06-15); overflow must be off",
+    ),
     ("Codex CLI", "codex", CostModel.ROLLING_WINDOW, "ChatGPT plan, 5h rolling windows"),
     ("Antigravity", "agy", CostModel.CALENDAR_WINDOW, "Google AI plan, weekly compute caps"),
     ("Kiro CLI", "kiro", CostModel.CALENDAR_WINDOW, "monthly credits (overage risk - reserve floor)"),
@@ -134,9 +141,11 @@ def _detect_plan_quota(which=shutil.which) -> list[CapacitySource]:
             CapacitySource(
                 name=f"{name} ({exe})",
                 kind=BackendKind.PLAN_QUOTA,
-                cost_model=cost_model,
+                # Presence-only: installed on PATH. Auth, quota window, and
+                # overflow state are verified by the adapter at run time, not here.
                 available=present,
-                detail=(f"on PATH - {hint}" if present else f"not installed - {hint}"),
+                cost_model=cost_model,
+                detail=(f"installed (auth/quota checked at run) - {hint}" if present else f"not installed - {hint}"),
             )
         )
     return sources
