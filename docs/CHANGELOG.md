@@ -64,6 +64,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Routing **quality priors** (`deepr/routing/quality_priors.py`) seed
     provisional model rankings from published benchmark indices, so auto
     mode routes sensibly without every user paying for evals first.
+  - Eval-gated local **admission** + automatic owned-capacity-first routing
+    for expert maintenance: `deepr capacity admit <model> --task-class
+    sync|absorb` records the operator's dated acceptance (default 90-day
+    expiry; `admissions` / `revoke` to inspect and withdraw). Once a model
+    is admitted, `deepr expert sync`/`absorb` run on it automatically at $0
+    before any metered API call - the first wired rung of the waterfall.
+    `--local` forces local with no admission; the new `--api` forces
+    metered. The chosen backend and the reason are printed ("why did this
+    run on X"). Admissions are machine-local (`DEEPR_CAPACITY_DATA_DIR`),
+    not in the portable experts dir, since local capacity is per-machine.
   Design: [capacity-waterfall.md](design/capacity-waterfall.md).
 - Evidence layer - making expert trust measurable rather than asserted:
   - `deepr eval continuity` scores staleness honesty, abstention,

@@ -87,3 +87,58 @@ class TestCapacityCommand:
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert any(item["kind"] == "api_metered" for item in data)
+
+
+class TestAdmissionCommands:
+    def _env(self, tmp_path):
+        return {"DEEPR_CAPACITY_DATA_DIR": str(tmp_path / "cap")}
+
+    def test_admit_then_listed(self, tmp_path):
+        runner = CliRunner()
+        env = self._env(tmp_path)
+        r = runner.invoke(capacity, ["admit", "llama3.1", "--task-class", "sync", "-y"], env=env)
+        assert r.exit_code == 0, r.output
+        assert "Admitted 'llama3.1' for 'sync'" in r.output
+
+        r2 = runner.invoke(capacity, ["admissions"], env=env)
+        assert r2.exit_code == 0
+        assert "llama3.1" in r2.output and "sync" in r2.output
+
+    def test_admissions_json_empty(self, tmp_path):
+        r = CliRunner().invoke(capacity, ["admissions", "--json"], env=self._env(tmp_path))
+        assert r.exit_code == 0
+        import json
+
+        assert json.loads(r.output) == []
+
+    def test_admit_cancelled_without_yes(self, tmp_path):
+        env = self._env(tmp_path)
+        r = CliRunner().invoke(capacity, ["admit", "m", "--task-class", "sync"], input="n\n", env=env)
+        assert r.exit_code == 0
+        assert "Cancelled" in r.output
+        r2 = CliRunner().invoke(capacity, ["admissions", "--json"], env=env)
+        import json
+
+        assert json.loads(r2.output) == []
+
+    def test_revoke(self, tmp_path):
+        runner = CliRunner()
+        env = self._env(tmp_path)
+        runner.invoke(capacity, ["admit", "m", "--task-class", "sync", "-y"], env=env)
+        r = runner.invoke(capacity, ["revoke", "m", "--task-class", "sync"], env=env)
+        assert r.exit_code == 0
+        assert "Revoked" in r.output
+        r2 = runner.invoke(capacity, ["admissions", "--json"], env=env)
+        import json
+
+        assert json.loads(r2.output) == []
+
+    def test_revoke_nothing_to_revoke(self, tmp_path):
+        r = CliRunner().invoke(capacity, ["revoke", "ghost", "--task-class", "sync"], env=self._env(tmp_path))
+        assert r.exit_code == 0
+        assert "Nothing to revoke" in r.output
+
+    def test_task_class_required(self, tmp_path):
+        r = CliRunner().invoke(capacity, ["admit", "m", "-y"], env=self._env(tmp_path))
+        assert r.exit_code != 0
+        assert "task-class" in r.output.lower()

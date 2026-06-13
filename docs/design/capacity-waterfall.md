@@ -4,6 +4,15 @@ Target: v2.16 (Phase 6). Status: design, researched June 2026 (vendor
 surfaces verified; re-verify at implementation - this market moves
 monthly).
 
+Shipped so far (2026-06-13): `CostModel`/`BackendKind` types and read-only
+`deepr capacity` detection (step 2); the `local-ollama` backend and `--local`
+execution (step 4 substrate); and eval-gated **local admission** with automatic
+owned-capacity-first selection for expert maintenance - `deepr capacity admit`
+/ `admissions` / `revoke`, and `expert sync`/`absorb` auto-routing to an
+admitted local model at $0 before metered API (the local rung of step 5, with
+`--local`/`--api` overrides). Not yet built: the plan-quota CLI adapters and
+their quota ledger, and per-task-class quality gates beyond the admission flag.
+
 ## Problem
 
 Most operators already pay for capacity Deepr never uses: subscription
