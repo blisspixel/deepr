@@ -24,6 +24,7 @@ understand why it works the way it does.
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and security
 - **[BENCHMARKS.md](BENCHMARKS.md)** - Model benchmarks, scoring methodology, results
+- **[CALIBRATION.md](CALIBRATION.md)** - Measured extraction-confidence calibration (reliability curve, ECE, threshold)
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
 
 ## Design notes and decisions (understanding why)

@@ -192,6 +192,37 @@ deepr eval new --max-estimated-cost 3
 
 The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks.
 
+### Setup and Capacity
+
+`deepr init` is a guided, non-interactive-friendly setup: it detects existing API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage, with a severity-ranked next step. `deepr capacity` shows what you can actually run with - owned/prepaid capacity first (local Ollama, plan-based CLIs), metered APIs last - so you spend owned capacity before paying per token.
+
+```bash
+deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, portable data
+deepr doctor                                               # connectivity + storage health
+deepr capacity --probe                                     # what's available, incl. local models
+```
+
+Local-model execution runs quality-tolerant steps (extraction, sync, draft synthesis) at $0 against a local Ollama endpoint:
+
+```bash
+deepr expert absorb "Platform Team Expert" report.md --local
+deepr expert sync "Platform Team Expert" --local
+```
+
+See [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the capacity model and routing direction.
+
+### Evidence and Calibration
+
+Two evals make trust measurable instead of asserted. `deepr eval continuity` scores an expert's staleness honesty, abstention, contradiction-surfacing, and what-changed exactness from stored state at $0. `deepr eval calibrate` answers "does extraction confidence track actual grounding?" with a reliability curve, expected calibration error, and a Platt-derived threshold - `--from` grades existing pairs at $0, `--corpus` runs the paid extraction and pre-grade.
+
+```bash
+deepr eval continuity "AI Policy Expert"
+deepr eval calibrate --from data/calibration/graded.jsonl   # $0
+deepr eval calibrate --corpus tests/data/calibration --max-cost 3 --yes
+```
+
+See [docs/CALIBRATION.md](docs/CALIBRATION.md) for the first measured curve and [docs/design/checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md) for what belongs in deterministic code versus model judgment.
+
 ### Multi-Provider Support
 
 Start with one API key. Add more to unlock smarter routing. OpenAI, Gemini, Grok, Anthropic, and Azure AI Foundry all supported. Auto-fallback on failures means no single provider outage stops your work.
@@ -242,9 +273,9 @@ Optional env controls:
 
 ## What's Stable vs Experimental
 
-**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage. 5320+ tests (Python 3.12-3.14).
+**Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
 
-**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates.
+**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility + local-model execution (`deepr capacity`, `--local` on expert sync/absorb), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -283,7 +314,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ## Security
 
-5320+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
+5700+ tests (Python 3.12-3.14). Pre-commit hooks run ruff; CI also runs mypy (kernel is `--strict`) and pip-audit. Input validation, prompt-injection sanitization, SSRF protection, API key redaction, budget enforcement. See [Architecture](docs/ARCHITECTURE.md) for details.
 
 **Report vulnerabilities:** [nick@pueo.io](mailto:nick@pueo.io) (not via public issues)
 
