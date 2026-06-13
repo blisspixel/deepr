@@ -18,6 +18,7 @@ Usage:
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -509,7 +510,7 @@ class DSPyOptimizer:
         self.optimization_history_path = self.storage_dir / "optimization_history.json"
 
     def optimize(
-        self, module: Any, method: str = "bootstrap", min_examples: int = 10, metric_fn: callable | None = None
+        self, module: Any, method: str = "bootstrap", min_examples: int = 10, metric_fn: Callable | None = None
     ) -> OptimizationResult:
         """Optimize a DSPy module.
 
@@ -588,7 +589,7 @@ class DSPyOptimizer:
         return trainset
 
     def _optimize_bootstrap(
-        self, module: Any, trainset: list[Any], metric_fn: callable | None = None
+        self, module: Any, trainset: list[Any], metric_fn: Callable | None = None
     ) -> tuple[Any, dict[str, float]]:
         """Optimize using BootstrapFewShot.
 
@@ -614,7 +615,7 @@ class DSPyOptimizer:
         return optimized, metrics
 
     def _optimize_mipro(
-        self, module: Any, trainset: list[Any], metric_fn: callable | None = None
+        self, module: Any, trainset: list[Any], metric_fn: Callable | None = None
     ) -> tuple[Any, dict[str, float]]:
         """Optimize using MIPROv2.
 
