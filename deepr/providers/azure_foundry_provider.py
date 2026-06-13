@@ -88,9 +88,10 @@ class AzureFoundryProvider(DeepResearchProvider):
         """
         import os
 
-        self.project_endpoint = project_endpoint or os.getenv("AZURE_PROJECT_ENDPOINT")
-        if not self.project_endpoint:
+        endpoint = project_endpoint or os.getenv("AZURE_PROJECT_ENDPOINT")
+        if not endpoint:
             raise ValueError("Azure AI Foundry project endpoint is required (set AZURE_PROJECT_ENDPOINT)")
+        self.project_endpoint: str = endpoint
 
         self.deep_research_deployment = (
             deep_research_deployment or os.getenv("AZURE_DEEP_RESEARCH_DEPLOYMENT") or "o3-deep-research"
@@ -108,9 +109,9 @@ class AzureFoundryProvider(DeepResearchProvider):
             "gpt-4o-mini": "gpt-4o-mini",
         }
 
-        # Lazy-initialized clients
-        self._project_client = None
-        self._agents_client = None
+        # Lazy-initialized clients (Any: SDK types are imported lazily)
+        self._project_client: Any = None
+        self._agents_client: Any = None
         self._deep_research_agent_id: str | None = None
         self._regular_agent_ids: dict[str, str] = {}  # model -> agent_id
         self._bing_connection_id: str | None = None
