@@ -12,23 +12,23 @@ Deepr, Recon, Distillr, and Primr are four independent tools that each solve one
 
 | Tool | Solo value | Install |
 |------|-----------|---------|
-| **Recon** | Passive domain intelligence — tech stack, email security, identity providers | `pip install recon-tool` |
-| **Distillr** | Source ingestion — YouTube, websites, arXiv → structured Markdown corpus | `pip install distillr` |
-| **Primr** | Company strategic intelligence — adaptive scraping + AI synthesis → consultant-grade briefs | `pip install primr` |
+| **Recon** | Passive domain intelligence - tech stack, email security, identity providers | `pip install recon-tool` |
+| **Distillr** | Source ingestion - YouTube, websites, arXiv → structured Markdown corpus | `pip install distillr` |
+| **Primr** | Company strategic intelligence - adaptive scraping + AI synthesis → consultant-grade briefs | `pip install primr` |
 | **Deepr** | Multi-provider research automation with persistent expert agents | `pip install -e .` |
 
 **What Deepr adds that none of them have:**
 
-- **Persistent memory** — Recon, Distillr, and Primr produce artifacts. Deepr experts *retain* them as permanent knowledge with beliefs, confidence levels, and gap tracking.
-- **Cross-tool synthesis** — A Deepr expert can combine recon facts + distillr corpus + primr briefs into a unified understanding that no single tool produces.
-- **Autonomous gap detection** — Experts notice what's missing and can trigger the right tool to fill it, without human intervention.
-- **Budget orchestration** — Deepr manages the total spend across all tools under a single budget contract.
-- **Temporal continuity** — Run recon today, primr next week, distillr next month. The expert integrates findings over time and tracks what changed.
+- **Persistent memory** - Recon, Distillr, and Primr produce artifacts. Deepr experts *retain* them as permanent knowledge with beliefs, confidence levels, and gap tracking.
+- **Cross-tool synthesis** - A Deepr expert can combine recon facts + distillr corpus + primr briefs into a unified understanding that no single tool produces.
+- **Autonomous gap detection** - Experts notice what's missing and can trigger the right tool to fill it, without human intervention.
+- **Budget orchestration** - Deepr manages the total spend across all tools under a single budget contract.
+- **Temporal continuity** - Run recon today, primr next week, distillr next month. The expert integrates findings over time and tracks what changed.
 
 **What Deepr does NOT do:**
 
 - Deepr does not replace these tools. It does not re-implement scraping, DNS lookups, or paper ingestion.
-- Deepr does not require these tools. Every integration is optional. An expert without recon/distillr/primr still works — it just uses LLM research instead.
+- Deepr does not require these tools. Every integration is optional. An expert without recon/distillr/primr still works - it just uses LLM research instead.
 - Deepr does not orchestrate these tools in a fixed pipeline. The expert decides what to call based on its gaps, not a hardcoded workflow.
 
 ---
@@ -61,8 +61,8 @@ Each project must remain fully standalone. No circular dependencies, no import-t
 **Rules:**
 
 1. **No Python imports between Deepr ↔ sibling tools.** All communication is via MCP (stdio or HTTP). This means any tool can be upgraded, replaced, or removed without breaking the others.
-2. **Primr → Recon is the only direct dependency** (Primr imports recon for its DNS pre-flight). This is fine — it's a lightweight, fast, free call that Primr owns.
-3. **Deepr discovers tools at runtime.** If recon isn't installed, the expert skill simply isn't available. No startup errors, no degraded mode — just fewer instruments.
+2. **Primr → Recon is the only direct dependency** (Primr imports recon for its DNS pre-flight). This is fine - it's a lightweight, fast, free call that Primr owns.
+3. **Deepr discovers tools at runtime.** If recon isn't installed, the expert skill simply isn't available. No startup errors, no degraded mode - just fewer instruments.
 4. **Each tool ships its own MCP server.** Deepr connects as a client. The tool doesn't know or care that Deepr is calling it vs. Claude Desktop vs. Cursor.
 5. **Structured output is the contract.** Each tool returns JSON (MCP) or Markdown+YAML (filesystem). Deepr consumes the structure; it never screen-scrapes CLI output.
 
@@ -94,7 +94,7 @@ Expert orchestrates:
      Expert absorbs as academic context.
 
   3. Primr → stripe.com (40 min, ~$0.60)
-     Returns: Full strategic brief — competitive positioning,
+     Returns: Full strategic brief - competitive positioning,
               hiring signals (50+ ML roles), API-first architecture,
               regulatory strategy, partnership patterns
      Expert absorbs as strategic knowledge.
@@ -159,7 +159,7 @@ Not every workflow needs all three tools. The simplest compound use:
 
 ```
 Expert researching any company topic:
-  1. Recon → domain (2s, $0) — establish facts
+  1. Recon → domain (2s, $0) - establish facts
   2. Expert proceeds with LLM research, grounded in real data
 
 No Distillr, no Primr needed. Just factual anchoring.
@@ -221,7 +221,7 @@ Not all integrations are equal in complexity or value. Ship them in order of eff
 
 ### Tier 3: Primr (Ship Third)
 
-**Why third:** Long latency (35-50 min), moderate cost (~$0.60-$5), produces large structured artifacts. Needs robust async handling, progress notifications, and budget awareness. But the payoff is huge — it replaces the most expensive and time-consuming expert research pattern (company deep dives).
+**Why third:** Long latency (35-50 min), moderate cost (~$0.60-$5), produces large structured artifacts. Needs robust async handling, progress notifications, and budget awareness. But the payoff is huge - it replaces the most expensive and time-consuming expert research pattern (company deep dives).
 
 **What Deepr needs:**
 - MCP client connection to `primr mcp` (stdio)
@@ -404,7 +404,7 @@ Nice to have:
 
 ### MCP Client Profile System
 
-Deepr needs a general MCP client profile system (Phase 2). First-party integrations are the first consumers of that system, but the system itself is generic — it works with any MCP server.
+Deepr needs a general MCP client profile system (Phase 2). First-party integrations are the first consumers of that system, but the system itself is generic - it works with any MCP server.
 
 ```yaml
 # ~/.deepr/integrations.yaml
@@ -442,11 +442,11 @@ integrations:
 
 **Key design decisions:**
 
-- `enabled: true/false` — Tools are opt-in. If not installed or not configured, they simply don't appear as available instruments.
-- `auto_approve` vs `require_approval` — Free/fast tools auto-approve. Expensive/slow tools require human or expert-level approval.
-- `budget_propagation` — Deepr's per-operation budget flows through. If the expert has $3 remaining and primr estimates $0.60, it proceeds. If it estimates $5, it stops.
-- `timeout` — Appropriate per tool. Recon: 30s. Distillr: 15m. Primr: 60m.
-- `progress: true` — Subscribe to MCP progress notifications for long-running tools.
+- `enabled: true/false` - Tools are opt-in. If not installed or not configured, they simply don't appear as available instruments.
+- `auto_approve` vs `require_approval` - Free/fast tools auto-approve. Expensive/slow tools require human or expert-level approval.
+- `budget_propagation` - Deepr's per-operation budget flows through. If the expert has $3 remaining and primr estimates $0.60, it proceeds. If it estimates $5, it stops.
+- `timeout` - Appropriate per tool. Recon: 30s. Distillr: 15m. Primr: 60m.
+- `progress: true` - Subscribe to MCP progress notifications for long-running tools.
 
 ### Expert Skill Wrappers
 
@@ -477,14 +477,14 @@ behavior:
 
 ### Knowledge Absorption Pipeline
 
-When a tool returns results, the expert needs to *absorb* them — not just store them, but integrate them into its belief system:
+When a tool returns results, the expert needs to *absorb* them - not just store them, but integrate them into its belief system:
 
-1. **Parse** — Extract structured data from tool response
-2. **Categorize** — Map findings to expert knowledge categories (infrastructure, competitive, academic, strategic)
-3. **Confidence-tag** — Assign confidence based on source type (DNS = high, LLM synthesis = medium, inference = low)
-4. **Deduplicate** — Check if expert already knows this (avoid redundant beliefs)
-5. **Integrate** — Update existing beliefs or add new ones with provenance
-6. **Gap-check** — After absorption, re-evaluate gap backlog (some gaps may now be filled)
+1. **Parse** - Extract structured data from tool response
+2. **Categorize** - Map findings to expert knowledge categories (infrastructure, competitive, academic, strategic)
+3. **Confidence-tag** - Assign confidence based on source type (DNS = high, LLM synthesis = medium, inference = low)
+4. **Deduplicate** - Check if expert already knows this (avoid redundant beliefs)
+5. **Integrate** - Update existing beliefs or add new ones with provenance
+6. **Gap-check** - After absorption, re-evaluate gap backlog (some gaps may now be filled)
 
 This pipeline is the same regardless of which tool produced the data. The tool-specific part is only the parsing step.
 
@@ -523,14 +523,14 @@ Individual tools are useful. The compound system is qualitatively different:
 
 | Capability | Recon alone | Distillr alone | Primr alone | Deepr + all three |
 |-----------|-------------|----------------|-------------|-------------------|
-| Company tech stack | ✓ (one-shot) | — | ✓ (embedded) | ✓ (persistent, tracked over time) |
-| Academic depth | — | ✓ (one-shot corpus) | — | ✓ (absorbed into expert memory, cross-referenced with company data) |
-| Strategic analysis | — | — | ✓ (one-shot report) | ✓ (persistent, updated, synthesized across companies) |
-| Cross-source synthesis | — | — | — | ✓ (expert combines all sources into unified understanding) |
-| Temporal tracking | — | — | — | ✓ (expert knows what changed since last analysis) |
-| Autonomous gap filling | — | — | — | ✓ (expert detects gaps, triggers right tool, absorbs results) |
-| Budget-aware orchestration | — | — | — | ✓ (single budget across all tools, smart allocation) |
-| Audit trail | — | — | — | ✓ (every tool call traced, every decision logged) |
+| Company tech stack | ✓ (one-shot) | - | ✓ (embedded) | ✓ (persistent, tracked over time) |
+| Academic depth | - | ✓ (one-shot corpus) | - | ✓ (absorbed into expert memory, cross-referenced with company data) |
+| Strategic analysis | - | - | ✓ (one-shot report) | ✓ (persistent, updated, synthesized across companies) |
+| Cross-source synthesis | - | - | - | ✓ (expert combines all sources into unified understanding) |
+| Temporal tracking | - | - | - | ✓ (expert knows what changed since last analysis) |
+| Autonomous gap filling | - | - | - | ✓ (expert detects gaps, triggers right tool, absorbs results) |
+| Budget-aware orchestration | - | - | - | ✓ (single budget across all tools, smart allocation) |
+| Audit trail | - | - | - | ✓ (every tool call traced, every decision logged) |
 
 The bottom four rows are things that *only exist* when Deepr orchestrates the tools. That's the value proposition of the integrated system.
 
@@ -538,9 +538,9 @@ The bottom four rows are things that *only exist* when Deepr orchestrates the to
 
 ## Links
 
-- [Recon](https://github.com/blisspixel/recon) — Passive domain intelligence
-- [Distillr](https://github.com/blisspixel/distillr) — Source ingestion engine  
-- [Primr](https://github.com/blisspixel/primr) — Strategic company intelligence
-- [Deepr Roadmap — Phase 2](../ROADMAP.md) — MCP client infrastructure
-- [Deepr Roadmap — Phase 2b](../ROADMAP.md) — First-party integrations
-- [Deepr Roadmap — Phase 4](../ROADMAP.md) — Expert skills and corpus import
+- [Recon](https://github.com/blisspixel/recon) - Passive domain intelligence
+- [Distillr](https://github.com/blisspixel/distillr) - Source ingestion engine  
+- [Primr](https://github.com/blisspixel/primr) - Strategic company intelligence
+- [Deepr Roadmap - Phase 2](../ROADMAP.md) - MCP client infrastructure
+- [Deepr Roadmap - Phase 2b](../ROADMAP.md) - First-party integrations
+- [Deepr Roadmap - Phase 4](../ROADMAP.md) - Expert skills and corpus import

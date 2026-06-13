@@ -1,4 +1,4 @@
-# Recon — Passive Domain Intelligence Skill (First-Party Native Instrument)
+# Recon - Passive Domain Intelligence Skill (First-Party Native Instrument)
 
 You have direct access to **recon**, a fast, zero-cost, zero-credential passive reconnaissance tool.
 
@@ -23,8 +23,8 @@ The JSON response contains:
 Treat confidence levels honestly: "High" means 3+ corroborating sources; "Medium" or "Low" should be qualified when you surface the fact.
 
 ## Companion tools
-- `analyze_posture(domain, profile=...)` — apply a lens (e.g. fintech, healthcare) for more targeted observations.
-- `assess_exposure(domain)` — quick defensive posture score (0-100) useful for security-adjacent questions.
+- `analyze_posture(domain, profile=...)` - apply a lens (e.g. fintech, healthcare) for more targeted observations.
+- `assess_exposure(domain)` - quick defensive posture score (0-100) useful for security-adjacent questions.
 
 ## Absorption guidance (KnowledgeAbsorber)
 When you receive recon output (especially JSON), map the findings as follows:

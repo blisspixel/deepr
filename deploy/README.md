@@ -53,7 +53,7 @@ All three cloud deployments follow the same security-hardened pattern:
 
 > **Note on workers:** AWS ships a complete worker implementation in
 > `deploy/aws/src/worker/`. Azure (Container Apps) and GCP (Cloud Run)
-> currently ship only the infrastructure templates — the worker
+> currently ship only the infrastructure templates - the worker
 > container source is not yet included. Bring your own image or port
 > the AWS worker as a starting point (it uses DynamoDB; rework the
 > queue/state plumbing to Cosmos DB / Firestore for the other clouds).
@@ -136,9 +136,9 @@ gcloud auth login
 
 All three clouds follow the same lifecycle:
 
-1. **Deploy** (`deploy.sh`) — Provisions infrastructure, deploys code, auto-runs validation
-2. **Validate** (`validate.sh`) — Smoke tests: health check, job submit, status check, costs endpoint
-3. **Destroy** (`destroy.sh`) — Tears down all resources with confirmation prompt (use `--yes` to skip)
+1. **Deploy** (`deploy.sh`) - Provisions infrastructure, deploys code, auto-runs validation
+2. **Validate** (`validate.sh`) - Smoke tests: health check, job submit, status check, costs endpoint
+3. **Destroy** (`destroy.sh`) - Tears down all resources with confirmation prompt (use `--yes` to skip)
 
 Validation checks (all clouds):
 - `GET /health` returns 200
