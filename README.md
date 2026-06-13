@@ -75,35 +75,43 @@ After the installer finishes, open a **new** terminal and run `deepr init` (guid
 
 **Deepr runs on Windows, macOS, and Linux** (Python 3.12+). It works with one or more of OpenAI, Gemini, Grok, or Anthropic (any single key is enough to start).
 
-### Recommended (virtual environment or pipx)
+### Install from source
 
-This avoids PATH issues on Windows and keeps dependencies isolated.
+If you are not using the one-line installer above, install from a clone. Pick
+the path that matches what you want to do.
+
+**Just use `deepr` (recommended): a global command via pipx.**
 
 ```bash
-# 1. Create a virtual environment (recommended)
-python -m venv .venv
-# Windows (PowerShell):   .\.venv\Scripts\Activate.ps1
-# macOS / Linux:          source .venv/bin/activate
-
-# 2. Install (core)
-pip install -e .
-
-# 3. (Optional but useful) Web dashboard + extras
-# pip install -e ".[web]"
-# pip install -e ".[full]"
-
-# 4. Guided setup + verify
-deepr init                 # detects keys, writes .env, sets a budget ceiling
-deepr doctor               # verify connectivity
-deepr research "Your question here"
+# from the repo root (the inner deepr/ if you cloned the repo)
+pipx install -e .
+# or, once released:  pipx install deepr-research
 ```
 
-**Even simpler with pipx** (excellent for CLIs):
+`pipx` puts `deepr` on your PATH so it works in any terminal with no
+activation, and `-e` tracks your local changes. If `pipx` is missing, run the
+one-line installer above once - it installs pipx for you.
+
+**Develop and run the test suite: a virtual environment.**
 
 ```bash
-pipx install -e .
-# or from PyPI later: pipx install deepr-research
-deepr doctor
+python -m venv .venv
+# Windows (PowerShell):  .\.venv\Scripts\Activate.ps1
+# Windows (cmd):         .venv\Scripts\activate.bat
+# macOS / Linux:         source .venv/bin/activate
+pip install -e ".[dev,full]"   # dev tooling + all extras
+```
+
+> With a venv, `deepr` only works while the venv is **activated**. If you see
+> `deepr: not recognized` (Windows) or `command not found` (macOS/Linux),
+> either activate the venv (commands above) or use the `pipx` install instead.
+
+**Then, however you installed:**
+
+```bash
+deepr init                 # guided setup: detects keys, writes .env, sets a budget ceiling
+deepr doctor               # verify connectivity
+deepr research "Your question here"
 ```
 
 Results saved to `data/reports/` as markdown with citations. **You only need one API key to start**. Add more later and auto-mode routes to the best/cheapest model per task.
