@@ -507,6 +507,27 @@ class AppConfig(BaseModel):
     )
 
 
+def experts_root() -> Path:
+    """The one root for per-expert data (profiles, beliefs, knowledge, memory...).
+
+    Single source of truth so every expert component agrees on one location -
+    the prerequisite for portable experts (point ``DEEPR_DATA_DIR`` at a synced
+    folder and your experts follow you across machines). Resolution:
+
+    1. ``DEEPR_EXPERTS_PATH`` if set (explicit override), else
+    2. ``<DEEPR_DATA_DIR>/experts`` (default ``DEEPR_DATA_DIR`` = ``data``),
+       i.e. ``data/experts`` out of the box - so this is fully backward
+       compatible and data only moves when you set a path.
+
+    Never derive an experts path any other way; a second root splits the store
+    (the failure mode ADR 0001 fixed for reports). See ADR 0004.
+    """
+    explicit = os.getenv("DEEPR_EXPERTS_PATH")
+    if explicit:
+        return Path(explicit)
+    return Path(os.getenv("DEEPR_DATA_DIR", "data")) / "experts"
+
+
 def load_config() -> dict:
     """
     Load configuration as a simple dictionary.
@@ -524,6 +545,7 @@ def load_config() -> dict:
         "queue_db_path": "queue/research_queue.db",
         "storage": config.storage.type,
         "results_dir": config.storage.local_path,
+        "experts_dir": str(experts_root()),
         "max_cost_per_job": float(os.getenv("DEEPR_MAX_COST_PER_JOB", "5.0") or "5.0"),
         "max_daily_cost": float(os.getenv("DEEPR_MAX_COST_PER_DAY", "25.0") or "25.0"),
         "max_monthly_cost": float(os.getenv("DEEPR_MAX_COST_PER_MONTH", "200.0") or "200.0"),
