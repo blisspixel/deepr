@@ -100,6 +100,18 @@ class TestInitYes:
             assert env["MY_OTHER_VAR"] == "keepme"
             assert env["GEMINI_API_KEY"] == "real-key-abc"
 
+    def test_data_dir_sets_portable_paths(self):
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            from pathlib import Path
+
+            result = runner.invoke(init, ["--yes", "--data-dir", "/synced/deepr"])
+            assert result.exit_code == 0
+            env = _read_env_file(Path(".env"))
+            assert env["DEEPR_DATA_DIR"] == "/synced/deepr"
+            assert env["DEEPR_EXPERTS_PATH"] == "/synced/deepr/experts"
+            assert env["DEEPR_REPORTS_PATH"] == "/synced/deepr/reports"
+
 
 class TestInitInteractive:
     def test_adds_one_key_and_sets_budget(self):
@@ -107,8 +119,8 @@ class TestInitInteractive:
         with runner.isolated_filesystem():
             from pathlib import Path
 
-            # Gemini: yes + key; decline OpenAI/Grok/Anthropic; budget 4.
-            result = runner.invoke(init, [], input="y\nreal-gemini-xyz\nn\nn\nn\n4\n")
+            # Gemini: yes + key; decline OpenAI/Grok/Anthropic; budget 4; default data dir.
+            result = runner.invoke(init, [], input="y\nreal-gemini-xyz\nn\nn\nn\n4\n\n")
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert env["GEMINI_API_KEY"] == "real-gemini-xyz"
@@ -119,7 +131,7 @@ class TestInitInteractive:
         with runner.isolated_filesystem():
             from pathlib import Path
 
-            result = runner.invoke(init, [], input="n\nn\nn\nn\n5\n")
+            result = runner.invoke(init, [], input="n\nn\nn\nn\n5\n\n")
             assert result.exit_code == 0
             env = _read_env_file(Path(".env"))
             assert "GEMINI_API_KEY" not in env
