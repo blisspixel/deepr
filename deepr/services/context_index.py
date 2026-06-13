@@ -61,10 +61,17 @@ class ContextIndex:
 
         Args:
             data_dir: Directory for index storage (default: data/)
-            reports_dir: Directory containing reports (default: reports/)
+            reports_dir: Directory containing reports. Defaults to the
+                configured reports root (``storage.local_path`` /
+                ``DEEPR_REPORTS_PATH``) - the same root the CLI and web
+                writers save to.
         """
         self.data_dir = Path(data_dir) if data_dir else Path("data")
-        self.reports_dir = Path(reports_dir) if reports_dir else Path("reports")
+        if reports_dir is None:
+            from deepr.config import load_config
+
+            reports_dir = Path(load_config()["results_dir"])
+        self.reports_dir = Path(reports_dir)
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -135,9 +142,33 @@ class ContextIndex:
         content = f"{job_id}:{created_at}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
+    def _warn_if_legacy_root(self) -> None:
+        """Warn when reports sit under the legacy ./reports root.
+
+        Reports written before the root unification (or by scripts using the
+        old default) are invisible to search, the web dashboard, and expert
+        absorb until consolidated into the configured root.
+        """
+        legacy = Path("reports")
+        try:
+            if not legacy.is_dir() or legacy.resolve() == self.reports_dir.resolve():
+                return
+            has_reports = any((child / "metadata.json").exists() for child in legacy.iterdir() if child.is_dir())
+            if has_reports:
+                logger.warning(
+                    "Found reports under legacy root %s while the configured root is %s. "
+                    "Run 'deepr migrate consolidate' to move them.",
+                    legacy.resolve(),
+                    self.reports_dir,
+                )
+        except OSError:  # pragma: no cover - purely advisory
+            pass
+
     def _scan_reports(self) -> list[dict[str, Any]]:
         """Scan reports directory for unindexed reports."""
         reports = []
+
+        self._warn_if_legacy_root()
 
         if not self.reports_dir.exists():
             return reports

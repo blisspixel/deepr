@@ -93,6 +93,83 @@ def organize(dry_run: bool, reports_dir: str):
 
 
 @migrate.command()
+@click.option("--dry-run", is_flag=True, help="Show what would be moved without making changes")
+@click.option("--source", default="reports", help="Legacy reports root to consolidate from")
+def consolidate(dry_run: bool, source: str):
+    """
+    Move reports from a legacy root (./reports) into the configured root.
+
+    Older versions and some scripts wrote reports to ./reports while the
+    configured root is data/reports (DEEPR_REPORTS_PATH) - anything left
+    behind is invisible to search, the web dashboard, and expert absorb.
+    Directory collisions are merged one level deep; file collisions are
+    skipped, never overwritten.
+    """
+    from deepr.config import load_config
+
+    target_root = Path(load_config()["results_dir"])
+    source_root = Path(source)
+
+    if not source_root.exists():
+        print_success(f"No legacy reports directory at {source_root}. Nothing to consolidate.")
+        return
+    if source_root.resolve() == target_root.resolve():
+        print_success(f"Configured reports root already is {source_root}. Nothing to consolidate.")
+        return
+
+    items = sorted(source_root.iterdir())
+    if not items:
+        if not dry_run:
+            source_root.rmdir()
+        print_success(f"{source_root} is empty. Nothing to consolidate.")
+        return
+
+    click.echo(f"[*] Consolidating {source_root}/ -> {target_root}/")
+    if dry_run:
+        click.echo("\n[DRY RUN] No changes will be made\n")
+    elif not target_root.exists():
+        target_root.mkdir(parents=True)
+
+    moved = 0
+    skipped = 0
+
+    def _move(item: Path, dest: Path, label: str):
+        nonlocal moved, skipped
+        if dest.exists():
+            if item.is_dir() and dest.is_dir():
+                # Merge one level deep (e.g. campaigns/) - never overwrite.
+                for child in sorted(item.iterdir()):
+                    _move(child, dest / child.name, f"{label}/{child.name}")
+                if not dry_run and not any(item.iterdir()):
+                    item.rmdir()
+            else:
+                click.echo(f"  ! {label} -> already exists in target, skipped")
+                skipped += 1
+            return
+        click.echo(f"  * {label} -> {target_root}/")
+        if not dry_run:
+            shutil.move(str(item), str(dest))
+        moved += 1
+
+    for item in items:
+        _move(item, target_root / item.name, item.name)
+
+    if dry_run:
+        print_success(f"Dry run complete: {moved} item(s) would move, {skipped} would be skipped.")
+        return
+
+    # Remove the legacy root if fully drained.
+    try:
+        source_root.rmdir()
+    except OSError:
+        pass
+
+    print_success(f"Moved {moved} item(s) into {target_root}/ ({skipped} skipped).")
+    if skipped:
+        click.echo("Skipped items remain under the legacy root; resolve collisions manually.")
+
+
+@migrate.command()
 @click.option("--reports-dir", default="data/reports", help="Reports directory")
 def stats(reports_dir: str):
     """Show statistics about report organization."""
