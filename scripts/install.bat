@@ -1,35 +1,17 @@
 @echo off
-REM Deepr installation script for Windows
+REM Deepr installer / updater for Windows (cmd.exe wrapper)
+REM Delegates to install.ps1 (single source of truth). Re-run to update.
+REM   install.bat              install or update
+REM   install.bat -Uninstall   remove
 
-echo Installing Deepr...
-echo.
+setlocal
+set "SCRIPT_DIR=%~dp0"
 
-REM Check Python version
-python --version
-if errorlevel 1 (
-    echo ERROR: Python is not installed or not in PATH
-    echo Please install Python 3.9 or higher from python.org
-    pause
-    exit /b 1
-)
+powershell -ExecutionPolicy Bypass -NoProfile -File "%SCRIPT_DIR%install.ps1" %*
+set "RC=%ERRORLEVEL%"
 
-echo.
-echo Installing Deepr package...
-pip install -e .
-
-if errorlevel 1 (
+if not "%RC%"=="0" (
     echo.
-    echo ERROR: Installation failed
-    pause
-    exit /b 1
+    echo Installation failed with exit code %RC%.
 )
-
-echo.
-echo Installation complete!
-echo.
-echo Next steps:
-echo   1. Copy .env.example to .env
-echo   2. Edit .env and add your OPENAI_API_KEY
-echo   3. Run: deepr --version
-echo.
-pause
+exit /b %RC%

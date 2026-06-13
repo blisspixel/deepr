@@ -69,6 +69,8 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/insta
 
 After the installer finishes, open a **new** terminal and run `deepr doctor`.
 
+**Updating:** run `deepr upgrade` (or `deepr upgrade --check` to just see if a newer version exists). Re-running the install one-liner above also updates an existing install. To remove it, re-run the one-liner with `-Uninstall` (Windows) or `-- --uninstall` (macOS/Linux).
+
 ---
 
 **Deepr runs on Windows, macOS, and Linux** (Python 3.12+). It works with one or more of OpenAI, Gemini, Grok, or Anthropic (any single key is enough to start).

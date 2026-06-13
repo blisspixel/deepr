@@ -100,6 +100,7 @@ from deepr.cli.commands import (
     semantic,
     status,
     templates,
+    upgrade,
     vector,
     web,
 )
@@ -154,6 +155,7 @@ cli.add_command(analytics.analytics)
 cli.add_command(templates.templates)
 cli.add_command(migrate.migrate)
 cli.add_command(completion.completion)
+cli.add_command(upgrade.upgrade)
 cli.add_command(doctor.doctor)
 cli.add_command(diagnostics.diagnostics_cli)
 cli.add_command(mcp.mcp)
