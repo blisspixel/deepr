@@ -1,33 +1,50 @@
 # Deepr Documentation
 
-> **Note**: Model information current as of March 2026. AI evolves rapidly - verify at provider websites.
+> Model names and pricing live in the registry (`deepr/providers/registry.py`),
+> which is the single source of truth. AI moves fast - verify at provider
+> websites and treat the registry, not prose, as canonical.
 
-## Getting Started
+Organized by what you are trying to do: learn it, look something up, or
+understand why it works the way it does.
+
+## Getting started (learning)
 
 1. **[INSTALL.md](INSTALL.md)** - Installation and setup
 2. **[QUICK_START.md](QUICK_START.md)** - Your first research job
 3. **[EXAMPLES.md](EXAMPLES.md)** - Real-world usage examples
 
-## Core Documentation
+## Core reference (looking things up)
 
-- **[FEATURES.md](FEATURES.md)** - Complete feature reference
+- **[FEATURES.md](FEATURES.md)** - Complete feature and command reference
 - **[EXPERTS.md](EXPERTS.md)** - Domain expert system guide
 - **[MODELS.md](MODELS.md)** - Model selection and provider guide
+- **[../mcp/README.md](../mcp/README.md)** - MCP server setup and tools
 
 ## Technical
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and security
-- **[BENCHMARKS.md](BENCHMARKS.md)** - Model benchmarks, scoring methodology, and results
+- **[BENCHMARKS.md](BENCHMARKS.md)** - Model benchmarks, scoring methodology, results
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
 
-## Project
+## Design notes and decisions (understanding why)
 
-- **[../ROADMAP.md](../ROADMAP.md)** - Development priorities and status
+The reasoning behind contract-spanning choices, kept versioned with the code.
+
+- **[design/](design/)** - Design notes (the why, with literature grounding):
+  belief lifecycle, temporal knowledge graph, calibration and trust,
+  deterministic-vs-agentic checks, capacity waterfall, hosted MCP endpoint,
+  code health, web UI refinement.
+- **[decisions/](decisions/)** - Architecture Decision Records (ADRs) and the
+  [ADR log](decisions/README.md): the decision, and the alternatives rejected.
+
+## Project direction
+
+- **[../ROADMAP.md](../ROADMAP.md)** - Development priorities and status (single source of truth for active work)
 - **[INTEGRATIONS.md](INTEGRATIONS.md)** - First-party tool integrations (recon, distillr, primr)
 - **[AGENTIC_VISION.md](AGENTIC_VISION.md)** - Agentic architecture, A2A protocol, reflection, campaigns
-- **[VISION.md](VISION.md)** - Future direction (aspirational)
+- **[VISION.md](VISION.md)** - Long-term direction (aspirational)
 
-## Source of Truth (avoid drift)
+## Source of truth (avoid drift)
 
 Volatile facts live in exactly one canonical place. Other docs link to it or
 describe it qualitatively rather than restating the number, so a single update
@@ -46,14 +63,15 @@ The front-door [../README.md](../README.md) may quote headline counts; those
 references are covered by the CI check so they cannot go stale. Secondary docs
 (SECURITY, VISION, AGENTIC_VISION) should stay qualitative and link here.
 
-## Reference
-
-- **[reference/](reference/)** - Technical reference docs
-
 ## Archive
 
-- **[archive/](archive/)** - Historical docs, completed work, old specifications ([policy](ARCHIVE.md))
+Historical docs, completed work, and superseded specifications follow the
+[archive policy](ARCHIVE.md).
 
 ---
 
-**Keeping Current**: When new AI models are released, update the model registry at `deepr/providers/registry.py`. Never hardcode model names elsewhere. For other volatile facts (counts, thresholds), see the "Source of Truth" table above and run `python scripts/check_docs_consistency.py` to verify docs match the code.
+**Keeping current**: when new AI models are released, update the model registry
+at `deepr/providers/registry.py` - never hardcode model names elsewhere. For
+other volatile facts (counts, thresholds), see the "Source of truth" table
+above and run `python scripts/check_docs_consistency.py` to verify docs match
+the code.
