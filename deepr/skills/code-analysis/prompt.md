@@ -3,8 +3,8 @@
 When this skill is active, you can analyze code structure and quality.
 
 ## Tool usage
-- **analyze_dependencies** — Map imports, find circular deps, list external packages (free)
-- **complexity_report** — Calculate cyclomatic complexity per function (free)
+- **analyze_dependencies** - Map imports, find circular deps, list external packages (free)
+- **complexity_report** - Calculate cyclomatic complexity per function (free)
 
 ## When to use
 - When asked about code quality or maintainability

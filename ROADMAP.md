@@ -22,13 +22,13 @@ Deepr is organized in three layers. When contributing, it helps to know which la
 
 | Layer | What lives here | Examples |
 |-------|----------------|----------|
-| **Kernel** — reusable agent infrastructure | Task execution, budget enforcement, provider routing, trace/decision logging | `core/`, `observability/`, `providers/`, `queue/`, `routing/` |
-| **Primitives** — swappable domain modules | Web search, citation extraction, expert memory, summarization, gap detection | `experts/`, `services/`, `tools/`, `storage/` |
-| **Interfaces** — user-facing surfaces | CLI for scripting and experiments, web dashboard for operations and analytics | `cli/`, `web/`, `mcp/` |
+| **Kernel** - reusable agent infrastructure | Task execution, budget enforcement, provider routing, trace/decision logging | `core/`, `observability/`, `providers/`, `queue/`, `routing/` |
+| **Primitives** - swappable domain modules | Web search, citation extraction, expert memory, summarization, gap detection | `experts/`, `services/`, `tools/`, `storage/` |
+| **Interfaces** - user-facing surfaces | CLI for scripting and experiments, web dashboard for operations and analytics | `cli/`, `web/`, `mcp/` |
 
 The kernel is designed to be embeddable in other agent projects. The primitives are specific to research but follow patterns (belief states, gap backlogs, refresh policies) that generalize. The interfaces are thin wrappers over the lower layers.
 
-**Interoperability model:** Deepr is built to be one role on a larger agent team, not the orchestrator. Experts produce structured, handoff-ready artifacts (reports with citations, belief states, gap backlogs) that downstream agents can consume directly. An external orchestrator assigns work to a Deepr expert the same way it would assign work to any other role — via MCP tool calls with budget contracts and trace IDs that stitch across agent boundaries. This means Deepr doesn't need to know about the full workflow; it just needs to do its job well and hand off cleanly.
+**Interoperability model:** Deepr is built to be one role on a larger agent team, not the orchestrator. Experts produce structured, handoff-ready artifacts (reports with citations, belief states, gap backlogs) that downstream agents can consume directly. An external orchestrator assigns work to a Deepr expert the same way it would assign work to any other role - via MCP tool calls with budget contracts and trace IDs that stitch across agent boundaries. This means Deepr doesn't need to know about the full workflow; it just needs to do its job well and hand off cleanly.
 
 ---
 
@@ -58,7 +58,7 @@ These features work but APIs or behavior may change:
 - **Native Distillr instrument** (v2.12): auto-discovered when `pip install distillr` is present (`distill-mcp` on PATH); source ingestion (papers/videos/sites) into a synthesized corpus, absorbed as academic knowledge with provenance; budget-capped and approval-gated (free `find_insights` corpus search first)
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
 - **MCP server**: Functional with 26 tools, but MCP spec itself is still maturing
-- **Agentic expert chat**: enabled by default in `expert chat` — autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
+- **Agentic expert chat**: enabled by default in `expert chat` - autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
 - **Grok provider**: Grok 4.20 flagship + multi-agent deep research (plus Grok 4.3); legacy models deprecated (retiring May 15, 2026) with auto-migration
@@ -143,7 +143,7 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Keep orchestration bounded: no unbounded swarms, no opaque autonomy.
 - Design for composability: experts are roles that receive input, produce handoff-ready output, and participate in multi-agent teams without owning the workflow.
 - Experts are tailored second brains, not one generic vault. The unit of knowledge is the expert: a domain-scoped knowledge base (beliefs, confidence, gaps, citations) that stays current on its topic and deploys as part of an agent team. Deepr gives you second brains with an s, not a single undifferentiated brain, and the value compounds when those brains are consulted as a team.
-- Make experts genuinely agentic: they plan, reflect, self-correct, and learn — not just wrap LLM calls.
+- Make experts genuinely agentic: they plan, reflect, self-correct, and learn - not just wrap LLM calls.
 - Close the loop before widening it (loop engineering): an advisory surface (health-check proposes, route-gaps recommends, reflection emits follow-up queries) is half a loop - the value compounds when it graduates to scheduled, budget-bounded *execution* that persists across process restarts. Prioritize loop closers (expert sync, auto re-research, autonomous gap-fill, durable learner jobs) over adding more advisory surfaces; the trade of tokens for human time is what Phase 6's prepaid/local capacity makes affordable.
 - Self-improvement is a verification problem (recursive self-improvement, bounded): Deepr runs improvement loops (knowledge: research -> verified absorb -> beliefs -> reflection -> re-research; routing: evals -> rankings -> picks -> outcomes; self-knowledge: health-check/what-changed/contested), and is the substrate for *other* agents' improvement loops (trusted memory + perspective deltas + contradiction surfacing + inference chains + bounded spend). The governing insight, proven live 2026-06-11 twice: an unverified improvement loop is a degradation loop - saturated eval scores "improved" routing into a nano model; a bypassable budget gate was no gate. The sign of the feedback is set by measurement integrity and gate integrity, so verification machinery is never overhead on the loops - it IS the loops. Unbounded self-modification stays a non-goal; machinery-level self-improvement (trace-based skill/prompt evolution) ships only behind tests, size limits, and human review.
 - Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
@@ -186,10 +186,11 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [x] Adopt `uv` in CI; commit `uv.lock` + `.python-version`
 - [x] Dependabot (pip + github-actions + npm, weekly)
 - [x] mypy wired into CI (non-blocking baseline) with `[tool.mypy]` config; baseline is 314 errors across 76 of 262 checked files
-- [x] `pip-audit` wired into CI, **blocking** — baseline cleared by bumping flask-cors past CVE-2024-6839/6844/6866; accepted advisories are pinned via `--ignore-vuln` rather than by disabling the gate
+- [x] `pip-audit` wired into CI, **blocking** - baseline cleared by bumping flask-cors past CVE-2024-6839/6844/6866; accepted advisories are pinned via `--ignore-vuln` rather than by disabling the gate
 - [x] `core/` driven to mypy `--strict`-clean (44 kernel errors fixed) and flipped to a **blocking** gate - the first strict island (budget, cost, contracts, research orchestration)
 - [x] `providers/` driven to mypy `--strict`-clean (82 errors fixed across all 7 adapters + `__init__`; included real fixes - grok's vector-store stubs realigned to the base `DeepResearchProvider` contract, optional-import typing) and added to the blocking `mypy --strict deepr/core deepr/providers` gate
-- [ ] Extend the strict-blocking gate to `mcp/` (216 errors), then the rest of the tree (whole-tree `mypy` stays a non-blocking baseline meanwhile)
+- [x] Extend the strict-blocking gate to `mcp/` (216 errors fixed; third strict island, shipped v2.12 - the blocking gate now covers `core/` + `providers/` + `mcp/`)
+- [ ] Extend the strict-blocking gate to the rest of the tree, package-by-package (whole-tree `mypy` stays a non-blocking baseline meanwhile)
 - [ ] Deferred semantic migrations currently ignored in Ruff: `UP042` (str-enum -> `StrEnum`), `UP047` (PEP 695 generics), and `B905` (explicit `zip(strict=)`) - applied deliberately, not by blanket autofix
 - [x] Enable `--cov-branch` (branch baseline 78%, raised to 80% gate); `fail_under = 80`, ratcheting 80 -> 85 -> 90 -> 95 as branch tests land
 - [x] `C901` complexity cap (max-complexity 10) surfaced as an advisory CI signal (134 functions over cap); promote to blocking as the worst offenders are refactored. S-rules remain advisory (all 93 current findings are in the documented-legacy set)
@@ -204,7 +205,7 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 
 ### Phase 1: Agentic Infrastructure Core
 
-Goal: make the agentic layer production-ready — subagent contracts, role-based handoffs, provider resilience.
+Goal: make the agentic layer production-ready - subagent contracts, role-based handoffs, provider resilience.
 
 - [x] Subagent runtime contract (planner → delegated workers → synthesizer) with per-subagent budget and trace IDs
 - [x] Explicit handoff semantics: structured input/output contracts so experts can receive work from upstream agents and produce artifacts that downstream agents consume without custom integration
@@ -257,25 +258,25 @@ See [docs/AGENTIC_VISION.md](docs/AGENTIC_VISION.md) for the full agentic archit
 
 ### Phase 2b: First-Party Tool Integrations
 
-Goal: give experts access to specialized research instruments from sibling projects — grounding facts, source ingestion, and strategic synthesis.
+Goal: give experts access to specialized research instruments from sibling projects - grounding facts, source ingestion, and strategic synthesis.
 
 See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for the full integration contract and implementation details.
 
-Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID stitching. Shipped in effort-to-value order (Recon, then Distillr, then Primr). **All three first-party instruments are now integrated** — Phase 2b is complete; remaining sub-items are follow-ons that depend on the sibling tools shipping new verbs (e.g. distillr `ask`/`audit`) or on Phase 4 (`expert sync`).
+Builds directly on Phase 2 MCP client profiles, budget propagation, and trace ID stitching. Shipped in effort-to-value order (Recon, then Distillr, then Primr). **All three first-party instruments are now integrated** - Phase 2b is complete; remaining sub-items are follow-ons that depend on the sibling tools shipping new verbs (e.g. distillr `ask`/`audit`) or on Phase 4 (`expert sync`).
 
-- [x] (1) Recon integration (`pip install recon-tool`) — **delivered in v2.11.0**:
+- [x] (1) Recon integration (`pip install recon-tool`) - **delivered in v2.11.0**:
   - [x] MCP client connection to recon's `lookup_tenant`, `analyze_posture`, `assess_exposure`, `find_hardening_gaps`, `chain_lookup` tools (auto-discovered when the `recon` binary is on PATH)
-  - [x] Expert skill with auto-trigger on company domain mentions — autonomous cost-$0 probe in expert chat, findings absorbed into the system prompt for the turn via `KnowledgeAbsorber.categorize_recon_response`
+  - [x] Expert skill with auto-trigger on company domain mentions - autonomous cost-$0 probe in expert chat, findings absorbed into the system prompt for the turn via `KnowledgeAbsorber.categorize_recon_response`
   - [x] Trace ID pass-through for cross-tool observability (recon probes recorded in `reasoning_trace` with timestamp, domain, findings_count, cost)
-- [x] (2) Distillr integration (`pip install distillr`) — **delivered in v2.12**:
+- [x] (2) Distillr integration (`pip install distillr`) - **delivered in v2.12**:
   - [x] MCP client connection to distillr's ingest and query tools (built-in `distillr` skill + auto-discovered profile when `distill-mcp` is on PATH)
   - [x] Corpus import bridge: distillr output (MD + YAML) → expert permanent knowledge (`KnowledgeAbsorber.categorize_distillr_response`, absorbed as academic findings with synthesis-path provenance)
   - [x] Async handling with progress notifications for long ingestion runs (profile `progress: true`, reusing the existing MCP client `ProgressNotifier`)
-  - [x] Budget propagation (cap model spend per ingestion) — per-call `budget_limit` cap enforced by `BudgetPropagator`; only free read-side corpus tools auto-approve, ingestion is approval-gated (tool names re-verified against distillr v0.11.1, 2026-06-11)
+  - [x] Budget propagation (cap model spend per ingestion) - per-call `budget_limit` cap enforced by `BudgetPropagator`; only free read-side corpus tools auto-approve, ingestion is approval-gated (tool names re-verified against distillr v0.11.1, 2026-06-11)
   - [x] Freshness engine: consume distillr's refresh/delta tool to re-run a subscribed topic and integrate only new material - this is what powers expert "stay current" (see Phase 4 expert sync)
   - [ ] Topic subscriptions: experts register topics with distillr; scheduled sync pulls deltas over time (lands with Phase 4 `expert sync`)
   - [ ] Consume distillr's corpus-layer verbs as they ship (`ask`, `audit`, gap-driven discover) instead of reimplementing them; Deepr's job is verification, belief integration, and orchestration on top of distillr's corpus primitives
-- [x] (3) Primr integration (`pip install primr`) — **delivered in v2.12**:
+- [x] (3) Primr integration (`pip install primr`) - **delivered in v2.12**:
   - [x] MCP client connection to primr's analyze_company and batch tools (built-in `primr` skill + auto-discovered profile when `primr-mcp` is on PATH; `research_company`, `generate_strategy`; surface re-verified against primr v1.29.3, 2026-06-11 - the v2.12-era `batch_analyze`/`quick_lookup` were removed upstream)
   - [x] Expert skill for autonomous company deep-dive delegation (`deepr/skills/primr/`, every paid tool approval-gated, free `estimate_run`/`check_jobs`/`doctor` auto-approve)
   - [x] Async durability for 35-50 min runs (profile `progress: true` + 60m timeout; `check_jobs` polling and resume via the existing MCP task-durability layer; per-call `budget_limit` cap of $5 enforced by `BudgetPropagator`)
@@ -303,15 +304,15 @@ Goal: continuously validate routing quality/cost claims with measurable feedback
 
 ### Phase 4: Expert Intelligence and Quality Loop
 
-Goal: make experts genuinely agentic — self-correcting, strategically autonomous, graph-structured memory.
+Goal: make experts genuinely agentic - self-correcting, strategically autonomous, graph-structured memory.
 
 **Status.** The first two knowledge-loop increments shipped in **v2.12**:
 `deepr expert health-check` (read-side, cost-$0 audit) and `deepr expert absorb`
-(verification-gated output-to-knowledge loop) — both as CLI commands and MCP
+(verification-gated output-to-knowledge loop) - both as CLI commands and MCP
 tools, reusing the same free contradiction heuristic. **Next up:**
 
-1. **Per-expert SKILL.md export** (Phase 4 skills, below) — the distribution play; the generic packager exists, the expert-scoped export does not.
-2. **Dynamic tool selection via gap analysis** (below) — map infrastructure gaps -> recon, academic gaps -> distillr, strategic gaps -> primr. All three target instruments now exist, so the gap-to-tool engine has somewhere to route.
+1. **Per-expert SKILL.md export** (Phase 4 skills, below) - the distribution play; the generic packager exists, the expert-scoped export does not.
+2. **Dynamic tool selection via gap analysis** (below) - map infrastructure gaps -> recon, academic gaps -> distillr, strategic gaps -> primr. All three target instruments now exist, so the gap-to-tool engine has somewhere to route.
 
 Reflection loop and graph memory are the larger, higher-risk items and come after.
 
@@ -374,9 +375,9 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [x] Value/cost estimation per gap-fill option (per-route cost estimate + ev_cost_ratio ordering)
   - [x] Strategic prioritization that actually *executes* (2026-06-11): `deepr expert route-gaps --execute [--budget X] [--dry-run]` runs the highest-value research-route fills (ev_cost_ratio ordering), absorbs findings through the verification-gated pipeline, per-gap budgets inside a run ceiling with skip-not-fail. Bounded autonomy by design: specialist-instrument routes (recon/distillr/primr) are DEFERRED with their command printed - approval-gated multi-minute paid jobs never start as a side effect of a sweep.
 - [x] Expert-as-guardrail mode:
-  - [x] `validate` tool alongside `research` and `chat` — `deepr expert validate NAME CLAIM` (also `--from-file -` for stdin) and `deepr_expert_validate` MCP tool. Expert applies its existing knowledge as a filter/validator; pure read-side, never mutates the expert.
-  - [x] PASS/WARN/FAIL assessment with citations and confidence — claim IDs returned by the validator model are resolved back to canonical `Claim` objects so callers get full citation provenance, not just statements.
-  - [x] Useful for downstream agents that need domain validation before acting — structured JSON output (verdict, confidence, reasoning, supporting/contradicting claims, caveats) makes the verdict machine-actionable.
+  - [x] `validate` tool alongside `research` and `chat` - `deepr expert validate NAME CLAIM` (also `--from-file -` for stdin) and `deepr_expert_validate` MCP tool. Expert applies its existing knowledge as a filter/validator; pure read-side, never mutates the expert.
+  - [x] PASS/WARN/FAIL assessment with citations and confidence - claim IDs returned by the validator model are resolved back to canonical `Claim` objects so callers get full citation provenance, not just statements.
+  - [x] Useful for downstream agents that need domain validation before acting - structured JSON output (verdict, confidence, reasoning, supporting/contradicting claims, caveats) makes the verdict machine-actionable.
 - [ ] Expert manifest diff (`Delta`) and explicit `ExpertPolicy` type
 - [ ] Optional `--high-trust-only` mode (primary/secondary sources only)
 - [ ] Structured corpus import as first-class skill:
@@ -540,6 +541,13 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 ### Backlog (Not in Active Sequence)
 
+- [~] CLI conformance to mid-2026 best practices (audited 2026-06-12 against clig.dev / kubectl / uv / Heroku / no-color.org; deep-research verified). Deepr already does most of it well: tiered `--verbose/--json/--quiet` with mutual-exclusion, `error_code` in JSON output, stderr discipline in quiet mode, no secrets in argv (keys via env only), kebab-case flags, hidden deprecated commands with warnings + model auto-migration, UTF-8 console handling. Shipped 2026-06-12: non-TTY no-args prints help instead of launching interactive (agent/CI safety); `deepr completion <shell>` for tab-completion. Remaining, by ROI:
+  - [ ] Structured error envelope for agent consumers: extend the JSON error to carry `error_category` + `retryable` (+ `retry_after` where known) alongside the existing `error_code`, so an agent can classify failures and drive backoff without scraping prose (RFC 9457 / Cloudflare agent-error pattern). Highest ROI given deepr is explicitly agent-callable; pairs with the Phase 5 handoff-schema work.
+  - [ ] Progress/spinner stream discipline: the MINIMAL/VERBOSE spinner writes to a stdout `Console`; route all progress to a stderr console so `deepr ... > out` never risks control codes in piped output (JSON/QUIET already emit nothing during the operation, so this is the default-mode gap only).
+  - [ ] Versioned, documented `--json` output schema (output-as-contract): publish the schema and commit to additive-only changes within a major version; overlaps the Phase 5 versioned handoff schemas.
+  - [ ] `--plain` tabular output for `grep`/`awk` (complements `--json` for `jq`), and a global `--no-color` flag (Rich already honors `NO_COLOR`/non-TTY; this adds the explicit override).
+  - [ ] XDG/platform config paths (`$XDG_CONFIG_HOME/deepr`, `%APPDATA%\deepr`) with the current CWD `.deepr/`+`data/` as a documented fallback - invasive (migration + every path reader), so deferred behind a deprecation window.
+  - [ ] Published deprecation window for CLI flags/commands (kubectl model: GA elements live >= 2 releases after a warning naming the replacement) - formalizes the existing hidden-but-functional convention.
 - [ ] Self-improving routing via expert feedback loops (experts detect poor routing in their own gaps → trigger micro-evals → propose routing-table updates)
 - [ ] Azure Foundry durable agent orchestration + HITL (long-running experts that survive restarts, wait for human approval via SignalR/Durable Functions)
 - [ ] Expert watch (extension): broaden `deepr expert sync` (Phase 4) beyond first-party tools to arbitrary configured MCP or REST endpoints on schedule
@@ -554,11 +562,15 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
   - [ ] Provider fallback integration tests
   - [ ] Performance regression tests
   - [ ] Raise per-module coverage on core modules above the 80% global gate
+- [ ] New-machine validation findings (2026-06-12, keyless dev setup):
+  - [ ] `tests/integration/` is not behind the `DEEPR_RUN_LIVE_TESTS=1` double opt-in that the Azure live tests got: on a machine with no API keys, dozens of integration tests fail by attempting real provider calls, and `test_two_phase_curriculum.py` hangs *forever* (a poller retries a 401 "Failed to get status" loop with no retry cap - found only because `pytest-timeout` was added ad hoc). Three fixes: extend the live-test opt-in gate to the whole integration tree (skip cleanly without keys), add a retry/total-time cap to the curriculum poller (a 401 is not a pending job - fail fast on auth errors), and adopt `pytest-timeout` as a dev dependency with a generous default so no future test can hang a run indefinitely.
+  - [x] `tests/unit/test_core/test_company_research.py` only passed when `OPENAI_API_KEY` happened to be set (dev .env, or other modules' import-time `os.environ.setdefault` during full-suite collection - an inter-test ordering dependency). Fixed 2026-06-12: autouse fake-key fixture makes the file self-sufficient in any ordering on any machine.
+  - [x] `mypy --strict` providers gate broke against current Azure SDK releases (`azure-ai-projects`/`azure-ai-agents` now ship typed clients: the lazily-assigned `self._project_client = None` inferred as `None`-typed, and `project_endpoint: str | None` flowed into `endpoint: str`). Fixed 2026-06-12 with a narrowed endpoint guard and `Any` annotations on the lazy clients - the gate is green against both old (untyped) and new (typed) SDKs.
 - [ ] Live-validation findings (2026-06-12, $0 lifecycle/roster run):
   - [x] `deepr budget safety` crashed with KeyError('percent_used') on every invocation - `get_spending_summary` never carried the fields the renderer reads (contract drift, no rendering test). Fixed at the source with the full contract regression-tested; `CostSafetyManager` limits now also honor the same `DEEPR_MAX_COST_PER_DAY/_MONTH` env caps the research gate reads (one knob, every spender), clamped to the absolute ceilings.
   - [x] Dev .env leaked into the suite: settings/config tests asserted file values that env overrides beat by design; live Azure integration tests ran (and attempted submission) on any machine with credentials configured. Both fixed: suite-wide `_isolate_budget_env` autouse fixture, and live tests now need the explicit `DEEPR_RUN_LIVE_TESTS=1` double opt-in.
   - [ ] Daily spend bucketing looks UTC-keyed while ledger timestamps carry local offsets: a 17:50 PDT job shows in the next local day's "Today's Spending" and consumes that day's budget window. Audit the day-boundary convention (pick one, document it, test the boundary).
-  - [ ] Two report roots in active use (found via the result-detail screenshot showing "No report content available" for a completed $3.20 job): config-driven components (CLI run.py, web app) resolve `results_dir` = `data/reports`, while `context_index` defaults to `reports/` and at least one submission script wrote there - so the web can never render reports saved under `reports/`. Unify on ONE root sourced from config everywhere (context_index, scripts, web), migrate existing dirs, and add a cross-component test that a saved report is retrievable through the web API.
+  - [x] Two report roots in active use (found via the result-detail screenshot showing "No report content available" for a completed $3.20 job): config-driven components (CLI run.py, web app) resolved `results_dir` = `data/reports`, while `context_index` defaulted to `reports/` (and `LocalStorage()` no-arg too, used by `prep`/`team`/`retrieve_expert_reports`; `company_research` even fell back to a third root, `results`). Fixed 2026-06-12: every no-arg default now resolves through `load_config()["results_dir"]` (one root, env `DEEPR_REPORTS_PATH` honored everywhere); `deepr migrate consolidate` moves legacy `./reports` content into the configured root (merges dir collisions one level, never overwrites); `ContextIndex` warns when orphaned reports sit under the legacy root; regression tests cover root agreement, env flow, save-then-scan visibility, and web-API retrievability of a saved report.
 - [ ] Live-validation findings (2026-06-11, sub-$5 end-to-end run):
   - [x] Learner job durability (corrected severity: the in-process poll/integrate loop does complete and integrate reports; the gap was *interrupted* runs): submitted jobs are now recorded in the local queue (`learn-<id>`, PROCESSING with the provider job id) so `deepr status`/`list` see them and an interrupted run is recoverable; terminal states and cost sync back to the queue record; polling that stops early lists the still-running jobs honestly.
   - [x] Learner summary bookkeeping: the final "Learning Complete" report always said "Completed: 0 topics / 0.0%" because the poll loop never credited `progress.completed_topics`. Job-to-topic mapping (`LearningProgress.job_topics`) now credits completed/failed topics so the summary reflects reality.
@@ -573,12 +585,12 @@ A mock panel (business buyer, indie hacker, enterprise AI architect, research sc
 
 Explicitly out of scope:
 
-- **General-purpose chat** — Expert chat is domain-focused; for open-ended conversation, use ChatGPT, Claude, Gemini, etc.
-- **Workflow orchestration** — Deepr experts are roles that participate in multi-agent teams, but Deepr is not the orchestrator. It handles its domain (research, knowledge, gap detection) and hands off cleanly. Workflow coordination belongs to a separate orchestration layer.
-- **Real-time responses** — Deep research takes minutes by design; this is a feature, not a bug
-- **Sub-$1 comprehensive research** — Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
-- **Mobile apps** — CLI and web dashboard cover the use cases
-- **Unreliable features** — Nothing ships until it works consistently
+- **General-purpose chat** - Expert chat is domain-focused; for open-ended conversation, use ChatGPT, Claude, Gemini, etc.
+- **Workflow orchestration** - Deepr experts are roles that participate in multi-agent teams, but Deepr is not the orchestrator. It handles its domain (research, knowledge, gap detection) and hands off cleanly. Workflow coordination belongs to a separate orchestration layer.
+- **Real-time responses** - Deep research takes minutes by design; this is a feature, not a bug
+- **Sub-$1 comprehensive research** - Deep research requires substantial compute (use `--auto` for simple queries at $0.01)
+- **Mobile apps** - CLI and web dashboard cover the use cases
+- **Unreliable features** - Nothing ships until it works consistently
 
 ## Contributing
 

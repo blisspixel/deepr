@@ -117,18 +117,18 @@ Experts choose appropriate research depth:
 
 Agentic chat supports 27 slash commands (use `/` in web, `\` in CLI). Chat modes control the expert's behavior:
 
-- **`/ask`** — Quick answers from knowledge base only
-- **`/research`** — Default mode with all tools available
-- **`/advise`** — Structured consulting recommendations with pros/cons
-- **`/focus`** — Always-on chain-of-thought reasoning for complex analysis
+- **`/ask`** - Quick answers from knowledge base only
+- **`/research`** - Default mode with all tools available
+- **`/advise`** - Structured consulting recommendations with pros/cons
+- **`/focus`** - Always-on chain-of-thought reasoning for complex analysis
 
 Other useful commands:
-- `/compact` — Summarize earlier messages to free token budget for longer sessions
-- `/council "question"` — Consult multiple experts on cross-domain questions (see Expert Council below)
-- `/plan "question"` — Break complex queries into parallel subtasks with live progress
-- `/remember <text>` — Pin facts to the session context
-- `/status` — Show session stats (messages, tokens, mode, budget remaining)
-- `/help` — List all available commands
+- `/compact` - Summarize earlier messages to free token budget for longer sessions
+- `/council "question"` - Consult multiple experts on cross-domain questions (see Expert Council below)
+- `/plan "question"` - Break complex queries into parallel subtasks with live progress
+- `/remember <text>` - Pin facts to the session context
+- `/status` - Show session stats (messages, tokens, mode, budget remaining)
+- `/help` - List all available commands
 
 ### Approval Flows
 
@@ -406,9 +406,9 @@ deepr skill create my-custom-skill
 ```
 
 This creates:
-- `skill.yaml` — metadata, triggers, tool definitions
-- `prompt.md` — domain-specific reasoning instructions
-- `tools/` — Python tool implementations
+- `skill.yaml` - metadata, triggers, tool definitions
+- `prompt.md` - domain-specific reasoning instructions
+- `tools/` - Python tool implementations
 
 ### Built-in Skills
 
@@ -533,7 +533,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md#security) for full budget protection detai
 
 ### Claims and Confidence
 
-Experts track structured **claims** — atomic assertions with confidence scores, source provenance, and contradiction tracking. Claims are canonical types defined in `core/contracts.py`:
+Experts track structured **claims** - atomic assertions with confidence scores, source provenance, and contradiction tracking. Claims are canonical types defined in `core/contracts.py`:
 
 - Each claim has a confidence score (0.0-1.0) with time-based decay
 - Sources carry a `TrustClass` (primary, secondary, tertiary, self_generated) and content hash
@@ -542,7 +542,7 @@ Experts track structured **claims** — atomic assertions with confidence scores
 
 **Source-trust ceilings (deterministic, applied at read time like decay):**
 a belief's displayed confidence is capped by its provenance tier, and no model
-judgment can lift the cap — only new, better-sourced evidence can.
+judgment can lift the cap - only new, better-sourced evidence can.
 
 | Trust tier | Ceiling | Typical sources |
 |---|---|---|
@@ -554,10 +554,10 @@ This is also the deterministic backstop against ingestion-time prompt
 injection: a single poisoned web result cannot mint a near-certain belief, no
 matter how confidently the extraction rates it. Honest framing throughout:
 extraction confidence means "how strongly this report supports the claim",
-never "how likely the claim is true" — calibration evidence for those numbers
+never "how likely the claim is true" - calibration evidence for those numbers
 is the v2.15 harness (see docs/design/calibration-and-trust.md).
 
-**Storage (the temporal knowledge graph):** the belief store is canonical —
+**Storage (the temporal knowledge graph):** the belief store is canonical  - 
 `beliefs.json` (claims + typed edges: supports / contradicts / enables /
 derived_from) plus an append-only `events.jsonl` recording every change.
 Everything else (digest, SKILL.md export, reports) is a derived, regenerable
@@ -565,7 +565,7 @@ view.
 
 ### Knowledge Gap Scoring
 
-Gaps are prioritized by **EV/cost ratio** — expected value relative to the estimated cost to fill:
+Gaps are prioritized by **EV/cost ratio** - expected value relative to the estimated cost to fill:
 
 ```
 ev_cost_ratio = expected_value / estimated_cost
@@ -577,7 +577,7 @@ Higher-ratio gaps are filled first, making `expert fill-gaps --top N` a rational
 
 ### Decision Records
 
-Every autonomous action — routing decisions, source trust evaluations, stop conditions, gap fills — is captured as a structured **decision record**:
+Every autonomous action - routing decisions, source trust evaluations, stop conditions, gap fills - is captured as a structured **decision record**:
 
 - Type: routing, stop, pivot, budget, belief_revision, gap_fill, conflict_resolution, source_selection
 - Includes: title, rationale, confidence, alternatives considered, evidence refs, cost impact
@@ -587,7 +587,7 @@ Every autonomous action — routing decisions, source trust evaluations, stop co
 
 ### Expert Manifests
 
-An expert's full state is available as a typed **manifest** — a snapshot composing claims, scored gaps, decision records, and policies:
+An expert's full state is available as a typed **manifest** - a snapshot composing claims, scored gaps, decision records, and policies:
 
 ```bash
 # Via MCP (for AI agents)
@@ -625,7 +625,7 @@ Budget is split evenly among consulted experts with a 10% reserve for synthesis.
 
 ## Limitations
 
-- Early-stage software — more testing needed
+- Early-stage software - more testing needed
 - Vector search quality depends on document quality
 - Research costs can add up with agentic mode
 - Decision records are generated during agentic operations; non-agentic queries produce reports but not decisions
