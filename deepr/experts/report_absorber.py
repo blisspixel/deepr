@@ -422,9 +422,14 @@ class ReportAbsorber:
         system = (
             "You extract atomic, verifiable factual claims from a research report so they can "
             "be stored as an expert's beliefs. Return ONLY a JSON object. Each claim MUST be "
-            "directly supported by the report text - do not infer beyond it, do not add outside "
-            "knowledge. Set confidence to how strongly THIS REPORT supports the claim, not how "
-            "plausible it sounds. Prefer fewer, well-grounded claims over many weak ones."
+            "ATOMIC - exactly one assertion: if a sentence joins two facts (with 'and', 'but', "
+            "';', or a relative clause), split it into separate claims, and never put more than "
+            "one verb-phrase assertion in a claim (LLM-based atomic decomposition is the "
+            "FActScore/SAFE standard; compound claims verify and retrieve worse). Each claim "
+            "MUST be directly supported by the report text - do not infer beyond it, do not add "
+            "outside knowledge. Set confidence to how strongly THIS REPORT supports the claim, "
+            "not how plausible it sounds. Prefer fewer, well-grounded atomic claims over many "
+            "weak or compound ones."
         )
         user = (
             f"Expert domain: {self.expert.domain or 'unspecified'}\n\n"
@@ -432,8 +437,9 @@ class ReportAbsorber:
             "Return JSON with exactly this shape:\n"
             '  {"claims": [{"statement": str, "confidence": number 0-1, '
             '"evidence": [short quote or section from the report]}]}\n'
-            f"Extract at most {max_claims} claims. Each statement must be self-contained "
-            "(resolve pronouns/acronyms) and stand alone without the report."
+            f"Extract at most {max_claims} claims. Each statement must be ATOMIC (one "
+            "assertion - split compound sentences) and self-contained (resolve "
+            "pronouns/acronyms) so it stands alone without the report."
         )
 
         response = await client.chat.completions.create(

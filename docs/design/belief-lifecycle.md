@@ -177,7 +177,11 @@ detection get one cheap entailment-shaped call per flagged pair, in the
 uncertain band only - merged with the selective-recalibration mechanism
 from the calibration design (one budget, one injection point, injectable
 research_fn for $0 tests). Lexical heuristics stay as the free first
-pass; entailment is the screen, per finding 8.
+pass; entailment is the screen, per finding 8. The deterministic-vs-agentic
+boundary this rests on (lexical as a high-recall router, never a verdict;
+decomposition and entailment are model-based) is set out, with cited
+June-2026 grounding, in
+[checks-deterministic-vs-agentic.md](checks-deterministic-vs-agentic.md).
 
 ### 6. Atomic claim decomposition at absorb (v2.15)
 
