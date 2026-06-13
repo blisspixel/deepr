@@ -128,6 +128,45 @@ spending effort shrinking it. None of these change runtime behavior.
   "standards review" reminder issue. *Done:* drift surfaces automatically,
   not by luck.
 
+## Evidence base (2026 research)
+
+A deep, source-verified review (2026-06-13) backs the approach. Highlights,
+with the "why it matters" each implies:
+
+- **The slopware signature is measurable.** Copy-pasted code rose 8.3% ->
+  12.3% of changed lines (2021-2024) while refactoring collapsed 25% ->
+  under 10% (GitClear 2025, 211M changed lines). *Implication:* audit for
+  duplication and reward consolidation - Q1, and the file-size/clone
+  discipline.
+- **Models hallucinate dependencies** at 4.62-6.10% on 2026 frontier models,
+  model-agnostically (arXiv:2605.17062). *Implication:* never auto-install
+  AI-suggested packages; pin with hashes - deepr's hash-pinned `uv.lock`
+  already does this; keep it.
+- **Model staleness is real and doc-grounding is the fix.** With no docs,
+  only ~42.6% of LLM code against changed APIs is executable; treating docs
+  as first-class input raises it to ~66% and adoption to ~93%
+  (arXiv:2604.09515). *Implication:* Q5, and the standing "research/search
+  before claiming, don't trust memory" habit (this plan was written that
+  way).
+- **Ruff is the single-tool gate** (900+ rules: C901 complexity, S/bandit
+  70+ SAST rules, comprehensions, pyupgrade, F401 dead-imports) - Astral
+  docs. *Implication:* Q0.2/Q0.3/Q4 build on exactly this.
+- **Function size**: Google's standard - when a function exceeds ~40 lines,
+  consider splitting (soft trigger, paired with C901). *Implication:* the
+  file-size guard's natural companion; fold a function-length signal into Q4.
+- **Supply chain at publish time**: PyPI Trusted Publishing (OIDC, 15-min
+  tokens) + PEP 740 attestations are the 2026 standard (OpenSSF, PyPI docs).
+  *Implication:* if/when deepr publishes to PyPI, no static `PYPI_TOKEN` -
+  already the roadmap Phase E position.
+- **Coverage is a floor, not the goal**: mutation testing verifies tests
+  actually catch faults (Meta Eng., FSE 2025). *Implication:* Q4 sets a
+  mutation-score target on kernel modules (mutmut is already wired), not just
+  a coverage %.
+
+Full cited report retained in the research run; re-verify the time-sensitive
+items (model cohort, hallucination rates, Ruff rule count) periodically -
+this doc is meant to resist the very staleness it warns about.
+
 ## Principles carried through
 
 - **Ratchet before refactor** - never let the backlog grow; shrink baselines
