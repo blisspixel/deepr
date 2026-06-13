@@ -56,7 +56,9 @@ class CompanyResearchOrchestrator:
         provider_name = config.get("provider", "openai")
         api_key = config.get(f"{provider_name}_api_key") or config.get("api_key")
         provider = create_provider(provider_name, api_key=api_key)
-        storage = LocalStorage(config.get("results_dir", "results"))
+        # No hardcoded fallback: a missing results_dir lets LocalStorage
+        # resolve the configured reports root itself (one root everywhere).
+        storage = LocalStorage(config.get("results_dir"))
         return ResearchOrchestrator(
             provider=provider,
             storage=storage,

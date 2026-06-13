@@ -14,13 +14,20 @@ from .base import ReportMetadata, StorageBackend, StorageError
 class LocalStorage(StorageBackend):
     """Local filesystem implementation of storage backend."""
 
-    def __init__(self, base_path: str = "./reports"):
+    def __init__(self, base_path: str | None = None):
         """
         Initialize local storage.
 
         Args:
-            base_path: Root directory for storing reports
+            base_path: Root directory for storing reports. Defaults to the
+                configured reports root (``storage.local_path`` /
+                ``DEEPR_REPORTS_PATH``) so every component reads and writes
+                the same root.
         """
+        if base_path is None:
+            from deepr.config import load_config
+
+            base_path = load_config()["results_dir"]
         self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
 
