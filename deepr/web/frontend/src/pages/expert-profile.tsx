@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { DetailSkeleton } from '@/components/ui/skeleton'
 import EmptyState from '@/components/shared/empty-state'
+import { ExpertPortrait } from '@/components/expert-portrait'
 
 type TabKey = 'chat' | 'claims' | 'gaps' | 'decisions' | 'history' | 'skills'
 
@@ -542,17 +543,12 @@ export default function ExpertProfile() {
 
         <div className="flex items-start gap-4">
           <div className="relative group/avatar flex-shrink-0">
-            {expert.portrait_url ? (
-              <img
-                src={expert.portrait_url}
-                alt={`${expert.name} portrait`}
-                className="w-12 h-12 rounded-lg object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Users className="w-6 h-6 text-primary" />
-              </div>
-            )}
+            <ExpertPortrait
+              name={expert.name}
+              portraitUrl={expert.portrait_url}
+              className="w-12 h-12 rounded-lg"
+              iconClassName="w-6 h-6"
+            />
             <button
               onClick={() => portraitMutation.mutate(undefined)}
               disabled={portraitMutation.isPending}
@@ -674,13 +670,14 @@ export default function ExpertProfile() {
             >
               {chatMessages.length === 0 && !isStreaming && (
                 <div className="flex flex-col items-center justify-center text-center py-12">
-                  {expert.portrait_url ? (
-                    <img src={expert.portrait_url} alt={expert.name} className="w-16 h-16 rounded-full object-cover mb-3 ring-2 ring-muted" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                      <MessageSquare className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                  )}
+                  <ExpertPortrait
+                    name={expert.name}
+                    portraitUrl={expert.portrait_url}
+                    className="w-16 h-16 rounded-full mb-3 ring-2 ring-muted"
+                    iconClassName="w-6 h-6 text-muted-foreground"
+                    FallbackIcon={MessageSquare}
+                    fallbackClassName="bg-muted"
+                  />
                   <h3 className="text-sm font-medium text-foreground mb-1">Start a conversation</h3>
                   <p className="text-xs text-muted-foreground max-w-xs">
                     Ask {expert.name} questions about their domain expertise.
