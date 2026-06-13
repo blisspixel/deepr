@@ -73,3 +73,42 @@ class TestDeprecationInRouting:
         assert check_deprecation("grok-4.20-0309-reasoning") is None
         assert check_deprecation("gemini-3.1-pro-preview") is None
         assert check_deprecation("o4-mini-deep-research") is None
+
+
+class TestProvisionalQualityPrior:
+    """Published-benchmark priors must override the price-tier proxy so a
+    cheap-but-capable model is not under-ranked just for being cheap."""
+
+    @staticmethod
+    def _cap(output_cost, quality_prior=None):
+        from deepr.providers.registry import ModelCapability
+
+        return ModelCapability(
+            provider="x",
+            model="m",
+            cost_per_query=0.01,
+            latency_ms=1,
+            context_window=1000,
+            specializations=[],
+            strengths=[],
+            weaknesses=[],
+            output_cost_per_1m=output_cost,
+            quality_prior=quality_prior,
+        )
+
+    def test_prior_overrides_price_tier(self):
+        from deepr.routing.auto_mode import _estimate_quality
+
+        # Ultra-cheap by price (would score 0.50) but a strong published prior.
+        assert _estimate_quality(self._cap(0.2, quality_prior=0.72)) == 0.72
+
+    def test_prior_capped_below_measured(self):
+        from deepr.routing.auto_mode import _estimate_quality
+
+        assert _estimate_quality(self._cap(0.2, quality_prior=0.95)) == 0.78
+
+    def test_falls_back_to_price_tier_without_prior(self):
+        from deepr.routing.auto_mode import _estimate_quality
+
+        assert _estimate_quality(self._cap(12.0)) == 0.78  # frontier tier
+        assert _estimate_quality(self._cap(0.2)) == 0.50  # ultra-cheap tier

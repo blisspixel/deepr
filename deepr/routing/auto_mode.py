@@ -252,12 +252,19 @@ _SPEC_TO_TASK_TYPES: dict[str, list[str]] = {
 }
 
 
-def _estimate_quality_from_cost(cap) -> float:
-    """Estimate provisional quality from pricing tier (0.50-0.78).
+def _estimate_quality(cap) -> float:
+    """Provisional quality for an unbenchmarked model (<= 0.78).
 
-    Higher-priced models are assumed more capable. Capped at 0.78 so real
-    benchmark scores (which can reach 1.0) always take priority.
+    Prefer a published-benchmark-derived prior (``quality_prior``) when the
+    registry records one - that reflects real capability independent of price,
+    so a cheap-but-capable model is not under-ranked just for being cheap.
+    Fall back to the crude price-tier heuristic only when no prior exists.
+    Either way the result is capped at 0.78 so measured eval scores (up to 1.0)
+    always sort above provisional entries.
     """
+    prior = getattr(cap, "quality_prior", None)
+    if prior is not None:
+        return min(0.78, max(0.0, float(prior)))
     output_cost = cap.output_cost_per_1m
     if output_cost >= 10.0:
         return 0.78  # Frontier (Opus, GPT-5, deep research)
@@ -298,7 +305,7 @@ def _enrich_with_provisional(
         if cap.deprecated:
             continue
 
-        quality = _estimate_quality_from_cost(cap)
+        quality = _estimate_quality(cap)
         provider, model = model_key.split("/", 1)
         entry: _RankingEntry = (provider, model, quality, cap.cost_per_query)
 
