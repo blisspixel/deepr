@@ -1,6 +1,6 @@
 # Model Selection Guide
 
-> **Note**: Model information current as of May 2026. AI models evolve rapidly - verify current pricing at provider websites. The [model registry](../deepr/providers/registry.py) is the source of truth. Run `deepr providers models` to diff the registry against each provider's live model list (flags newer versions of families you already use, with paste-ready registry stubs), or `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
+> **Note**: The [model registry](../deepr/providers/registry.py) is the single source of truth for model names and pricing. AI models evolve rapidly, so verify at provider websites. Run `deepr providers models` to diff the registry against each provider's live model list (flags newer versions of families you already use, with paste-ready registry stubs), or `python scripts/discover_models.py --show-registry` to see all registered models with pricing.
 
 ## Overview
 
