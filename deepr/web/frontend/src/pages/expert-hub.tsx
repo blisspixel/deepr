@@ -31,6 +31,7 @@ import {
   Users,
 } from 'lucide-react'
 import { CardGridSkeleton } from '@/components/ui/skeleton'
+import { ExpertPortrait } from '@/components/expert-portrait'
 
 export default function ExpertHub() {
   const navigate = useNavigate()
@@ -186,17 +187,12 @@ export default function ExpertHub() {
             >
               <div className="p-5 space-y-4">
                 <div className="flex items-start gap-3">
-                  {expert.portrait_url ? (
-                    <img
-                      src={expert.portrait_url}
-                      alt={`${expert.name} portrait`}
-                      className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-5 h-5 text-primary" />
-                    </div>
-                  )}
+                  <ExpertPortrait
+                    name={expert.name}
+                    portraitUrl={expert.portrait_url}
+                    className="w-10 h-10 rounded-lg flex-shrink-0"
+                    iconClassName="w-5 h-5"
+                  />
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                       {expert.name}
