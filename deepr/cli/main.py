@@ -83,6 +83,7 @@ def cli():
 from deepr.cli.commands import (
     analytics,
     budget,
+    completion,
     config,
     cost,
     costs,
@@ -152,6 +153,7 @@ cli.add_command(config.config)
 cli.add_command(analytics.analytics)
 cli.add_command(templates.templates)
 cli.add_command(migrate.migrate)
+cli.add_command(completion.completion)
 cli.add_command(doctor.doctor)
 cli.add_command(diagnostics.diagnostics_cli)
 cli.add_command(mcp.mcp)
@@ -185,14 +187,22 @@ def _ensure_utf8_console() -> None:
 def main():
     """Entry point for CLI.
 
-    When invoked with no arguments, launches interactive mode.
+    When invoked with no arguments on an interactive terminal, launches
+    interactive mode. With no arguments and a non-interactive stdin (a
+    script, CI, or an AI agent driving the CLI), prints help and exits 0
+    instead - clig.dev: only start interactive elements when stdin is a
+    TTY, never block or surprise a non-interactive caller.
     """
     _ensure_utf8_console()
-    # If no arguments provided (just 'deepr'), launch interactive mode.
-    # Route through Click with an explicit subcommand to avoid NoArgsIsHelpError
-    # from the root group parser.
+    # Route the no-args case through Click with an explicit subcommand to
+    # avoid NoArgsIsHelpError from the root group parser.
     if len(sys.argv) == 1:
-        cli.main(args=["interactive"], prog_name="deepr", standalone_mode=False)
+        stdin = sys.stdin
+        is_tty = bool(stdin) and hasattr(stdin, "isatty") and stdin.isatty()
+        if is_tty:
+            cli.main(args=["interactive"], prog_name="deepr", standalone_mode=False)
+        else:
+            cli.main(args=["--help"], prog_name="deepr", standalone_mode=False)
     else:
         cli()
 
