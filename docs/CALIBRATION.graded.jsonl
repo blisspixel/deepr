@@ -1,0 +1,59 @@
+{"report_id": "seed-mcp", "claim": "The Model Context Protocol (MCP) is an open protocol for connecting AI applications to external tools and data sources.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "MCP defines a client-server architecture.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "In the MCP client-server architecture, a host application runs one or more MCP clients.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Each MCP client is connected to an MCP server that exposes tools, resources, and prompts.", "confidence": 1.0, "grounded": false}
+{"report_id": "seed-mcp", "claim": "MCP servers commonly communicate over two transports.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "MCP servers commonly use stdio for local subprocess servers.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "MCP servers commonly use HTTP-based transports for remote servers.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "The protocol specifies a capability-negotiation handshake during initialization.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "The capability-negotiation handshake lets a client discover which features a server offers.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "The features a server may offer include tools, resources, prompts, and sampling.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Adoption of MCP has grown across multiple AI coding and agent platforms.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Several major vendors are shipping MCP client support.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "It is widely believed that MCP will become the dominant standard for agent-tool interoperability within a year.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Competing approaches to MCP remain.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Some observers speculate that nearly every enterprise agent deployment will rely on MCP by 2027.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "It is uncertain whether nearly every enterprise agent deployment will rely on MCP by 2027.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "A typical integration exposes domain capabilities as tools with JSON-schema inputs.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "A typical integration returns structured results the host model can reason over.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Servers may expose resources as read-only context.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-mcp", "claim": "Servers may expose reusable prompt templates.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Ollama is a tool for running open-weight language models locally.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Ollama exposes an HTTP API on port 11434 by default.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Ollama provides an OpenAI-compatible endpoint at `/v1`.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Existing OpenAI-style clients can target a local model by changing the base URL.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Running models locally has zero marginal cost per request once the hardware is owned.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Running models locally is attractive for high-volume or background workloads.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Latency depends on the model size and the GPU.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Quality depends on the model size and the GPU.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Large models on consumer GPUs can be slow.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Quantized variants trade some quality for speed.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Quantized variants trade some quality for lower memory use.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "It is sometimes claimed that local open-weight models now match frontier hosted models on most tasks.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "On hard reasoning the performance gap between local open-weight models and frontier hosted models generally remains.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "On long-form synthesis the performance gap between local open-weight models and frontier hosted models generally remains.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Local models are often sufficient for summarization.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Local models are often sufficient for extraction.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Local models are often sufficient for draft synthesis.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Ollama can list installed models via its API.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Ollama can pull new models on demand.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Ollama can serve multiple models from one instance.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "Whether a given local model is good enough for a task should be decided by evaluation.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-ollama", "claim": "One should not assume a local model is good enough for a task simply because it is free.", "confidence": 1.0, "grounded": true}
+{"report_id": "seed-routing", "claim": "Auto-mode routing selects a model per query based on task complexity and a quality/cost tradeoff.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Simple factual lookups can be served by small, cheap models.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Complex synthesis and deep research route to stronger, more expensive models.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Routing quality depends on the data behind it.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "With measured benchmark rankings, routing can pick the best model per task type.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Without benchmarks, provisional rankings are used.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Deriving provisional quality from price alone is unreliable.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Cheap models often perform near frontier on easy tasks.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Published benchmark priors give better provisional routing than price.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "A reported figure suggests cost savings of 10-20x from routing simple queries to budget models instead of always using a flagship.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "The exact cost savings figure depends on the query mix.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "Some claim auto-routing eliminates the need for any manual model selection.", "confidence": 0.9, "grounded": true}
+{"report_id": "seed-routing", "claim": "Operators frequently still pin a model for reproducibility.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "The cheapest-capable principle is to pick the least expensive model whose measured quality clears a task's floor.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "The cheapest-capable principle requires honest quality estimates.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "The cheapest-capable principle requires a value-aware selection step.", "confidence": 0.95, "grounded": true}
+{"report_id": "seed-routing", "claim": "The cheapest-capable principle does not rely on quality-maximization alone.", "confidence": 0.95, "grounded": true}
