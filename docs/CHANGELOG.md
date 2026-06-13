@@ -33,16 +33,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file self-sufficient on any machine and in any test ordering.
 
 ### Added
-- Agent-classifiable error envelope on the core exception hierarchy.
-  DeeprError now carries `category` (provider / auth / budget / config /
-  storage / validation / internal) and a boolean `retryable`, and
-  `to_dict()` surfaces them plus `retry_after` (seconds, when known) - the
-  RFC 9457 / agent-error pattern, so a consumer can classify a failure and
-  drive backoff without scraping the message. Transient provider failures
-  (timeout, unavailable, rate-limit) are retryable; auth/budget/config/
-  validation are actionable and not. Fully additive: the existing
-  error/error_code/message/details keys are unchanged. (Follow-on: align
-  the MCP ToolError surface to the same fields.)
+- Agent-classifiable error envelope across every error surface (RFC 9457 /
+  agent-error pattern), so a consumer can classify a failure and drive
+  backoff without scraping the message:
+  - `DeeprError` carries `category` (provider / auth / budget / config /
+    storage / validation / internal) and a boolean `retryable`; `to_dict()`
+    surfaces them plus `retry_after` (seconds, when known). Transient
+    provider failures (timeout, unavailable, rate-limit) are retryable;
+    auth/budget/config/validation are actionable and not.
+  - The provider-layer `ProviderError` gains the same fields + `to_dict()`,
+    plus a `classify_provider_exception()` helper that maps a raw provider-
+    SDK exception to (category, retryable, retry_after) by class name
+    (works across openai/anthropic/gemini/xai/azure without importing each).
+    The OpenAI adapter now populates the envelope on both its transient-
+    exhausted and non-retryable raise paths.
+  - The MCP `ToolError` always emits `category` + `retryable` (and
+    `retry_after` when known) and gains `ToolError.from_exception(...)`;
+    `_make_error()` accepts the classification.
+  - The CLI `OperationResult` JSON error output always carries `category` +
+    `retryable` (+ `retry_after`), with `OperationResult.from_exception(...)`.
+  Fully additive everywhere: existing keys (error/error_code/message/
+  details, retry_hint/fallback_suggestion) are unchanged. (Follow-on:
+  extend SDK-exception classification to the other six provider adapters.)
 - CLI best-practices refinements (audited against clig.dev / kubectl / uv /
   Heroku conventions, mid-2026):
   - `deepr` with no arguments now prints help and exits 0 when stdin is not

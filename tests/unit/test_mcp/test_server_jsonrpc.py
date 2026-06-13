@@ -83,7 +83,14 @@ class TestToolError:
     def test_to_dict_minimal(self):
         err = ToolError(error_code="TEST", message="fail")
         d = err.to_dict()
-        assert d == {"error_code": "TEST", "message": "fail"}
+        # The agent-classification envelope is always present (reliable
+        # contract); retry_after/retry_hint/fallback stay optional.
+        assert d == {
+            "error_code": "TEST",
+            "category": "internal",
+            "retryable": False,
+            "message": "fail",
+        }
 
     def test_to_dict_full(self):
         err = ToolError(
@@ -97,12 +104,35 @@ class TestToolError:
         assert d["retry_hint"] == "Wait 1h"
         assert d["fallback_suggestion"] == "Use cheaper model"
 
+    def test_envelope_always_present(self):
+        d = ToolError(error_code="X", message="m").to_dict()
+        assert d["category"] == "internal"
+        assert d["retryable"] is False
+        assert "retry_after" not in d  # only when known
+
+    def test_from_exception_reads_classification(self):
+        from deepr.core.errors import ProviderRateLimitError
+
+        err = ToolError.from_exception("RATE_LIMIT", ProviderRateLimitError("openai", retry_after=42))
+        d = err.to_dict()
+        assert d["category"] == "provider"
+        assert d["retryable"] is True
+        assert d["retry_after"] == 42
+
     def test_make_error_convenience(self):
         d = _make_error("CODE", "msg", retry_hint="try again")
         assert d["error_code"] == "CODE"
         assert d["message"] == "msg"
         assert d["retry_hint"] == "try again"
+        assert d["category"] == "internal"
+        assert d["retryable"] is False
         assert "fallback_suggestion" not in d
+
+    def test_make_error_with_classification(self):
+        d = _make_error("RATE_LIMIT", "slow down", category="provider", retryable=True, retry_after=30)
+        assert d["category"] == "provider"
+        assert d["retryable"] is True
+        assert d["retry_after"] == 30
 
 
 # ------------------------------------------------------------------ #

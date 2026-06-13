@@ -254,10 +254,63 @@ class DeepResearchProvider(ABC):
 
 
 class ProviderError(Exception):
-    """Base exception for provider-related errors."""
+    """Base exception for provider-related errors.
 
-    def __init__(self, message: str, provider: str, original_error: Exception | None = None):
+    Carries the agent-classification envelope (category / retryable /
+    retry_after) so a caller can decide whether to back off and retry, fall
+    back to another provider, or stop and escalate - without parsing the
+    message. Mirrors the shape of deepr.core.errors.DeeprError.to_dict().
+    """
+
+    def __init__(
+        self,
+        message: str,
+        provider: str,
+        original_error: Exception | None = None,
+        *,
+        category: str = "provider",
+        retryable: bool = False,
+        retry_after: int | None = None,
+    ):
         self.message = message
         self.provider = provider
         self.original_error = original_error
+        self.category = category
+        self.retryable = retryable
+        self.retry_after = retry_after
         super().__init__(self.message)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to the agent-error envelope (RFC 9457 / agent pattern)."""
+        payload: dict[str, Any] = {
+            "error": True,
+            "error_code": "PROVIDER_ERROR",
+            "category": self.category,
+            "retryable": self.retryable,
+            "message": self.message,
+            "details": {"provider": self.provider},
+        }
+        if self.retry_after is not None:
+            payload["retry_after"] = self.retry_after
+        return payload
+
+
+def classify_provider_exception(exc: Exception) -> tuple[str, bool, int | None]:
+    """Classify a raw provider-SDK exception into (category, retryable, retry_after).
+
+    Uses the exception's class name so it works across provider SDKs
+    (openai, anthropic, google-genai, xai, azure) without importing each.
+    Transient failures (rate limit, timeout, connection, unavailable) are
+    retryable; authentication is its own non-retryable category.
+    """
+    name = type(exc).__name__.lower()
+    retry_after_attr = getattr(exc, "retry_after", None)
+    retry_after = retry_after_attr if isinstance(retry_after_attr, int) else None
+
+    if "ratelimit" in name:
+        return ("provider", True, retry_after)
+    if "timeout" in name or "connection" in name or "unavailable" in name or "serviceunavailable" in name:
+        return ("provider", True, retry_after)
+    if "authentication" in name or "permission" in name or "apikey" in name:
+        return ("auth", False, None)
+    return ("provider", False, retry_after)
