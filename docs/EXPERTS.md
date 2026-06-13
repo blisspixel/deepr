@@ -1,6 +1,6 @@
 # Expert System Guide
 
-> **Note**: Model information current as of February 2026. Verify current model capabilities at provider websites.
+> **Note**: Model names and capabilities live in the registry (`../deepr/providers/registry.py`), the single source of truth. AI moves fast - verify at provider websites.
 
 ## Overview
 
