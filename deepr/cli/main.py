@@ -108,6 +108,9 @@ from deepr.cli.commands import (
     eval as eval_cmd,
 )
 from deepr.cli.commands import help as help_cmd
+from deepr.cli.commands import (
+    init as init_cmd,
+)
 
 # Core commands - new structure
 cli.add_command(run.run)
@@ -157,6 +160,7 @@ cli.add_command(migrate.migrate)
 cli.add_command(completion.completion)
 cli.add_command(upgrade.upgrade)
 cli.add_command(doctor.doctor)
+cli.add_command(init_cmd.init)
 cli.add_command(diagnostics.diagnostics_cli)
 cli.add_command(mcp.mcp)
 cli.add_command(help_cmd.help)

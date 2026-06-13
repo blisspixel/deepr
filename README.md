@@ -67,7 +67,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bli
 curl -fsSL https://raw.githubusercontent.com/blisspixel/deepr/main/scripts/install.sh | bash
 ```
 
-After the installer finishes, open a **new** terminal and run `deepr doctor`.
+After the installer finishes, open a **new** terminal and run `deepr init` (guided setup: detects your keys, writes `.env`, sets a budget ceiling), then `deepr doctor` to verify.
 
 **Updating:** run `deepr upgrade` (or `deepr upgrade --check` to just see if a newer version exists). Re-running the install one-liner above also updates an existing install. To remove it, re-run the one-liner with `-Uninstall` (Windows) or `-- --uninstall` (macOS/Linux).
 
@@ -92,9 +92,9 @@ pip install -e .
 # pip install -e ".[web]"
 # pip install -e ".[full]"
 
-# 4. Verify
-cp .env.example .env
-deepr doctor && deepr budget set 5
+# 4. Guided setup + verify
+deepr init                 # detects keys, writes .env, sets a budget ceiling
+deepr doctor               # verify connectivity
 deepr research "Your question here"
 ```
 
