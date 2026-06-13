@@ -80,12 +80,12 @@ class TestProvisionalQualityPrior:
     cheap-but-capable model is not under-ranked just for being cheap."""
 
     @staticmethod
-    def _cap(output_cost, quality_prior=None):
+    def _cap(provider, model, output_cost):
         from deepr.providers.registry import ModelCapability
 
         return ModelCapability(
-            provider="x",
-            model="m",
+            provider=provider,
+            model=model,
             cost_per_query=0.01,
             latency_ms=1,
             context_window=1000,
@@ -93,22 +93,31 @@ class TestProvisionalQualityPrior:
             strengths=[],
             weaknesses=[],
             output_cost_per_1m=output_cost,
-            quality_prior=quality_prior,
         )
 
-    def test_prior_overrides_price_tier(self):
+    def test_get_quality_prior_known_and_unknown(self):
+        from deepr.routing.quality_priors import get_quality_prior
+
+        assert get_quality_prior("gemini", "gemini-2.5-flash") is not None
+        assert get_quality_prior("nope", "nope") is None
+
+    def test_prior_overrides_price_tier(self, monkeypatch):
+        from deepr.routing import quality_priors
         from deepr.routing.auto_mode import _estimate_quality
 
         # Ultra-cheap by price (would score 0.50) but a strong published prior.
-        assert _estimate_quality(self._cap(0.2, quality_prior=0.72)) == 0.72
+        monkeypatch.setitem(quality_priors.QUALITY_PRIORS, "test/cheap-strong", 0.72)
+        assert _estimate_quality(self._cap("test", "cheap-strong", 0.2)) == 0.72
 
-    def test_prior_capped_below_measured(self):
+    def test_prior_capped_below_measured(self, monkeypatch):
+        from deepr.routing import quality_priors
         from deepr.routing.auto_mode import _estimate_quality
 
-        assert _estimate_quality(self._cap(0.2, quality_prior=0.95)) == 0.78
+        monkeypatch.setitem(quality_priors.QUALITY_PRIORS, "test/overrated", 0.95)
+        assert _estimate_quality(self._cap("test", "overrated", 0.2)) == 0.78
 
     def test_falls_back_to_price_tier_without_prior(self):
         from deepr.routing.auto_mode import _estimate_quality
 
-        assert _estimate_quality(self._cap(12.0)) == 0.78  # frontier tier
-        assert _estimate_quality(self._cap(0.2)) == 0.50  # ultra-cheap tier
+        assert _estimate_quality(self._cap("test", "nopriors-frontier", 12.0)) == 0.78
+        assert _estimate_quality(self._cap("test", "nopriors-cheap", 0.2)) == 0.50
