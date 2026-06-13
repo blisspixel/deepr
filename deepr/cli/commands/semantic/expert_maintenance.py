@@ -41,8 +41,9 @@ from deepr.cli.commands.semantic.experts import expert
 @click.option(
     "--local",
     is_flag=True,
-    help="Run extraction on the local Ollama model at $0 (dev/test; quality below the API floor)",
+    help="Force extraction on the local Ollama model at $0 (no admission needed)",
 )
+@click.option("--api", is_flag=True, help="Force the metered API even if a local model is admitted")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt")
 @click.option("--json", "json_output", is_flag=True, help="Emit the structured absorption result as JSON")
 def absorb_report(
@@ -52,6 +53,7 @@ def absorb_report(
     model: str | None,
     dry_run: bool,
     local: bool,
+    api: bool,
     yes: bool,
     json_output: bool,
 ):
@@ -62,8 +64,9 @@ def absorb_report(
     beliefs with the report id recorded as provenance. Deduped against existing
     beliefs, so re-absorbing only adds the delta.
 
-    Costs one small extraction call (~$0.03), or $0 with --local. Use --dry-run
-    to preview the claims and verdicts without writing anything.
+    Costs one small extraction call (~$0.03), or $0 on a local model - forced
+    with --local, or automatically when one is admitted for absorb (see
+    `deepr capacity admit`). Use --dry-run to preview claims without writing.
 
     REPORT_ID is the job id of a completed report (the same id you pass to
     `deepr research --context`; find it with `deepr search`). A job-id prefix
@@ -76,6 +79,10 @@ def absorb_report(
     """
     import json as _json
     import sys
+
+    if local and api:
+        print_error("Use either --local or --api, not both.")
+        sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
     from deepr.experts.report_absorber import ESTIMATED_EXTRACTION_COST, ReportAbsorber, ReportAbsorberError
@@ -96,8 +103,23 @@ def absorb_report(
         click.echo("Find report/job IDs with: deepr search")
         sys.exit(2)
 
-    # Build the absorber - local Ollama ($0) or the metered extraction model.
-    if local:
+    # Pick the backend (capacity waterfall): owned local capacity before metered
+    # API. --local forces local (no admission needed); --api or an explicit
+    # --model forces the metered path; otherwise an admitted+available local
+    # model is used automatically, else metered. Why is always printed below.
+    use_local = local
+    selection_note = ""
+    if not local and not api and model is None:
+        from deepr.backends.admission import TASK_CLASS_ABSORB
+        from deepr.backends.waterfall import choose_maintenance_backend
+
+        choice = choose_maintenance_backend(TASK_CLASS_ABSORB)
+        use_local = choice.is_local
+        if use_local:
+            model = choice.model
+            selection_note = choice.reason
+
+    if use_local:
         from deepr.backends.local import default_local_model, ollama_chat_client
 
         local_model = model or default_local_model()
@@ -106,6 +128,8 @@ def absorb_report(
             sys.exit(2)
         absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
         cost_note = f"$0 (local model {local_model})"
+        if selection_note:
+            console.print(f"[dim]{selection_note}[/dim]")
     else:
         absorber = ReportAbsorber(profile, model=model or "gpt-5-mini")
         cost_note = f"~${ESTIMATED_EXTRACTION_COST:.2f}"
@@ -204,18 +228,22 @@ def absorb_report(
 @click.option(
     "--local",
     is_flag=True,
-    help="Run the sync research on the local Ollama model at $0 (background maintenance on owned hardware)",
+    help="Force sync research on the local Ollama model at $0 (no admission needed)",
 )
+@click.option("--api", is_flag=True, help="Force the metered API even if a local model is admitted")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
-def sync_cmd(name: str, budget: float, sync_all: bool, dry_run: bool, local: bool, yes: bool, json_output: bool):
+def sync_cmd(
+    name: str, budget: float, sync_all: bool, dry_run: bool, local: bool, api: bool, yes: bool, json_output: bool
+):
     """Pull deltas for NAME's due subscriptions and integrate what changed.
 
     For each due topic: researches only what changed since the last sync,
     absorbs the delta through the verification-gated pipeline (dedup +
     contradiction flagging), then reports the perspective delta. Designed
-    to run on a schedule - only due subscriptions spend money, or $0 with
-    --local (background maintenance on owned hardware).
+    to run on a schedule - only due subscriptions spend money, or $0 on a local
+    model (forced with --local, or automatically when one is admitted for sync
+    via `deepr capacity admit`) for background maintenance on owned hardware.
 
     EXAMPLES:
       deepr expert sync "MCP Interop Expert"
@@ -224,6 +252,10 @@ def sync_cmd(name: str, budget: float, sync_all: bool, dry_run: bool, local: boo
     """
     import json as _json
     import sys
+
+    if local and api:
+        print_error("Use either --local or --api, not both.")
+        sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
     from deepr.experts.sync import ExpertSyncEngine, SubscriptionStore
@@ -240,8 +272,22 @@ def sync_cmd(name: str, budget: float, sync_all: bool, dry_run: bool, local: boo
         console.print(f"Subscriptions: deepr expert subscriptions '{name}'")
         return
 
+    # Pick the backend (capacity waterfall): owned local capacity before metered
+    # API. --local forces local; --api forces metered; otherwise an admitted +
+    # available local model is used automatically, else metered.
+    use_local = local
+    selection_note = ""
+    if not local and not api:
+        from deepr.backends.admission import TASK_CLASS_SYNC
+        from deepr.backends.waterfall import choose_maintenance_backend
+
+        choice = choose_maintenance_backend(TASK_CLASS_SYNC)
+        use_local = choice.is_local
+        if use_local:
+            selection_note = choice.reason
+
     if not dry_run and not yes:
-        if local:
+        if use_local:
             prompt = f"Sync {len(targets)} topic(s) on the local model at $0?"
         else:
             est = sum(min(s.budget, budget) for s in targets)
@@ -250,13 +296,15 @@ def sync_cmd(name: str, budget: float, sync_all: bool, dry_run: bool, local: boo
             print_warning("Cancelled.")
             return
 
-    if local:
+    if use_local:
         from deepr.backends.local import default_local_model, make_local_research_fn
 
         local_model = default_local_model()
         if not local_model:
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
+        if selection_note:
+            console.print(f"[dim]{selection_note}[/dim]")
         engine = ExpertSyncEngine(profile, research_fn=make_local_research_fn(local_model))
     else:
         engine = ExpertSyncEngine(profile)

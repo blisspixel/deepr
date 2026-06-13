@@ -765,12 +765,20 @@ deepr capacity --json
 
 `deepr init` writes `DEEPR_DATA_DIR` (and `DEEPR_EXPERTS_PATH` / `DEEPR_REPORTS_PATH`). Pointing the data dir at a synced folder (OneDrive, Dropbox, iCloud) makes experts and research follow you across machines; cost ledger, queue, and traces stay machine-local ([ADR 0004](decisions/0004-one-experts-root-and-portable-data-dir.md)).
 
-Local-model execution runs quality-tolerant steps at $0 against a local Ollama endpoint:
+Local-model execution runs quality-tolerant steps at $0 against a local Ollama endpoint. Force it with `--local`, force the metered API with `--api`, or admit a local model so maintenance uses it automatically (owned capacity before metered API):
 
 ```bash
-deepr expert absorb "Platform Team Expert" report.md --local
-deepr expert sync "Platform Team Expert" --local
+deepr expert absorb "Platform Team Expert" report.md --local   # force local, $0
+deepr expert sync "Platform Team Expert" --api                 # force metered API
+
+# Review local quality first, then admit it for automatic use.
+deepr expert absorb "Platform Team Expert" report.md --local --dry-run
+deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
+deepr capacity admissions          # what's admitted (and when it expires)
+deepr capacity revoke llama3.1 --task-class absorb
 ```
+
+After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions expire (default 90 days) so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and routing direction.
 
