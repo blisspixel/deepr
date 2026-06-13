@@ -87,8 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AGENTS.md` at the repo root: the canonical, vendor-neutral agent guide
   (dev setup, test/lint/type commands, hard rules). `CLAUDE.md` is a thin
   pointer to it so Claude Code picks it up without content drift.
-
-### Added
 - Belief lifecycle and salience substrate (design:
   `docs/design/belief-lifecycle.md`), grounded in a nine-corpus review of
   the 2026 agent-memory and claim-verification literature (the documented
@@ -122,8 +120,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   methodology v2 (the ATANT audit shows popular memory benchmarks test
   at most 2 of 7 continuity properties), and ADAM-style memory
   extraction/poisoning cases for the Phase 5 red-team suite.
-
-### Added
 - Abstention as a first-class absorb outcome (`insufficient` bucket).
   Candidates the report supports weakly (extraction confidence in
   [0.4, min_confidence)) are no longer lumped into "rejected": they
@@ -132,8 +128,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Not Enough Info" pattern from the calibration literature corpus;
   noise below 0.4 stays rejected. CLI summary and MCP payload carry
   insufficient_count.
-
-### Added
 - Source-trust confidence ceilings (v2.15 evidence release, panel finding
   shipped). `Belief.trust_class` (primary/secondary/tertiary; retroactive
   tertiary default for all pre-floor beliefs) with deterministic caps
@@ -148,8 +142,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   <= 0.60 (regression-tested). Honest framing: extraction confidence
   means report support, never truth probability - measured calibration
   is the harness, next.
-
-### Added
 - Frontend checks are a blocking CI job (lint with zero warnings, tsc,
   production build on Node 22 with npm cache). Previously the React
   frontend was verified only by hand - which is how a type-breaking
