@@ -148,6 +148,56 @@ class TestErrorToDict:
         assert json_str is not None
 
 
+class TestErrorEnvelope:
+    """The agent-classifiable envelope (category / retryable / retry_after)."""
+
+    def test_base_error_defaults(self):
+        result = DeeprError("boom").to_dict()
+        assert result["category"] == "internal"
+        assert result["retryable"] is False
+        assert "retry_after" not in result  # only present when known
+
+    def test_transient_provider_errors_are_retryable(self):
+        for err in (
+            ProviderTimeoutError("openai", 30),
+            ProviderUnavailableError("openai", 503),
+            ProviderRateLimitError("openai", retry_after=60),
+        ):
+            d = err.to_dict()
+            assert d["category"] == "provider"
+            assert d["retryable"] is True
+
+    def test_rate_limit_surfaces_retry_after_at_top_level(self):
+        d = ProviderRateLimitError("openai", retry_after=60).to_dict()
+        assert d["retry_after"] == 60
+        assert d["retryable"] is True
+
+    def test_auth_is_its_own_category_and_not_retryable(self):
+        d = ProviderAuthError("openai").to_dict()
+        assert d["category"] == "auth"
+        assert d["retryable"] is False
+
+    def test_actionable_errors_are_not_retryable(self):
+        cases = {
+            "budget": BudgetExceededError(10.0, 5.0),
+            "config": MissingConfigError("OPENAI_API_KEY"),
+            "storage": StoragePermissionError("/x", "write"),
+            "validation": InvalidInputError("name", "too short"),
+        }
+        for expected_category, err in cases.items():
+            d = err.to_dict()
+            assert d["category"] == expected_category
+            assert d["retryable"] is False
+
+    def test_envelope_is_additive_original_keys_intact(self):
+        d = BudgetExceededError(10.0, 5.0).to_dict()
+        # Back-compat: the pre-envelope keys still exist and are unchanged.
+        assert d["error"] is True
+        assert d["error_code"] == "BUDGET_EXCEEDED"
+        assert "message" in d
+        assert "details" in d
+
+
 class TestErrorMessages:
     """Test error messages are helpful."""
 

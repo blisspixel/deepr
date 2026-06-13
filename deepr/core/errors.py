@@ -36,10 +36,20 @@ class DeeprError(Exception):
     Attributes:
         message: Human-readable error message
         error_code: Machine-readable error code (e.g., "PROVIDER_TIMEOUT")
-        details: Optional dict with additional context
+        category: Broad failure class an agent can branch on without parsing
+            the code (e.g. "provider", "auth", "budget", "config",
+            "storage", "validation", "internal")
+        retryable: Whether retrying the same call could plausibly succeed
+            (transient failures: timeouts, rate limits, upstream outages).
+            Auth/budget/config/validation errors are not retryable - they
+            need an action, not a wait.
+        details: Optional dict with additional context. A "retry_after"
+            key (seconds) is surfaced at the top level of to_dict().
     """
 
     error_code: str = "DEEPR_ERROR"
+    category: str = "internal"
+    retryable: bool = False
 
     def __init__(self, message: str, error_code: str | None = None, details: dict[str, Any] | None = None):
         self.message = message
@@ -49,8 +59,25 @@ class DeeprError(Exception):
         super().__init__(message)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert exception to dict for API responses."""
-        return {"error": True, "error_code": self.error_code, "message": self.message, "details": self.details}
+        """Convert exception to a machine-parseable dict for agents/APIs.
+
+        Carries the RFC 9457 / agent-error fields (category, retryable,
+        retry_after) alongside the original code+message so a consumer can
+        classify the failure and drive backoff without scraping prose.
+        Additive: the original keys are unchanged.
+        """
+        payload: dict[str, Any] = {
+            "error": True,
+            "error_code": self.error_code,
+            "category": self.category,
+            "retryable": self.retryable,
+            "message": self.message,
+            "details": self.details,
+        }
+        retry_after = self.details.get("retry_after")
+        if retry_after is not None:
+            payload["retry_after"] = retry_after
+        return payload
 
 
 # Provider Errors
@@ -58,12 +85,16 @@ class ProviderError(DeeprError):
     """Base class for LLM provider errors."""
 
     error_code = "PROVIDER_ERROR"
+    category = "provider"
+    # Generic provider failures are conservatively non-retryable; specific
+    # transient subclasses opt in below.
 
 
 class ProviderTimeoutError(ProviderError):
     """Provider API call timed out."""
 
     error_code = "PROVIDER_TIMEOUT"
+    retryable = True
 
     def __init__(self, provider: str, timeout_seconds: int):
         super().__init__(
@@ -77,6 +108,7 @@ class ProviderRateLimitError(ProviderError):
     """Provider rate limit exceeded."""
 
     error_code = "PROVIDER_RATE_LIMIT"
+    retryable = True
 
     def __init__(self, provider: str, retry_after: int | None = None):
         msg = f"{provider} rate limit exceeded."
@@ -89,6 +121,7 @@ class ProviderAuthError(ProviderError):
     """Provider authentication failed."""
 
     error_code = "PROVIDER_AUTH"
+    category = "auth"  # actionable (fix the key), not retryable
 
     def __init__(self, provider: str, key_name: str = "API_KEY"):
         super().__init__(
@@ -101,6 +134,7 @@ class ProviderUnavailableError(ProviderError):
     """Provider service is unavailable."""
 
     error_code = "PROVIDER_UNAVAILABLE"
+    retryable = True
 
     def __init__(self, provider: str, status_code: int | None = None):
         msg = f"{provider} service is currently unavailable."
@@ -114,6 +148,7 @@ class BudgetError(DeeprError):
     """Base class for budget/cost errors."""
 
     error_code = "BUDGET_ERROR"
+    category = "budget"  # needs a higher budget or reset, not a retry
 
 
 class BudgetExceededError(BudgetError):
@@ -145,6 +180,7 @@ class ConfigurationError(DeeprError):
     """Base class for configuration errors."""
 
     error_code = "CONFIG_ERROR"
+    category = "config"
 
 
 class MissingConfigError(ConfigurationError):
@@ -176,6 +212,7 @@ class StorageError(DeeprError):
     """Base class for storage errors."""
 
     error_code = "STORAGE_ERROR"
+    category = "storage"
 
 
 class FileNotFoundError(StorageError):
@@ -204,6 +241,7 @@ class ValidationError(DeeprError):
     """Base class for validation errors."""
 
     error_code = "VALIDATION_ERROR"
+    category = "validation"
 
 
 class InvalidInputError(ValidationError):
