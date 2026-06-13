@@ -533,6 +533,31 @@ class TestOutputFormatterModeAware:
             formatter = OutputFormatter(context)
             formatter.progress("Step 1 complete")  # Should not raise
 
+    def test_progress_goes_to_stderr_not_stdout(self, capsys):
+        """clig.dev stream discipline: progress is out-of-band -> stderr only.
+
+        A consumer running `deepr ... > out` must capture primary output on
+        stdout without progress text leaking in.
+        """
+        formatter = OutputFormatter(OutputContext(mode=OutputMode.VERBOSE))
+
+        formatter.progress("halfway there")
+
+        captured = capsys.readouterr()
+        assert "halfway there" in captured.err
+        assert "halfway there" not in captured.out
+
+    def test_complete_result_stays_on_stdout(self, capsys):
+        """The success line is primary output and must remain on stdout."""
+        formatter = OutputFormatter(OutputContext(mode=OutputMode.MINIMAL))
+
+        formatter.complete(
+            OperationResult(success=True, duration_seconds=1.0, cost_usd=0.01, report_path="data/reports/x")
+        )
+
+        captured = capsys.readouterr()
+        assert "Research complete" in captured.out
+
 
 class TestOutputFormatterMinimalMode:
     """Tests for OutputFormatter minimal mode output.
