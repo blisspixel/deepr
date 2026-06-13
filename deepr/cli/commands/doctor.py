@@ -397,9 +397,26 @@ def doctor(skip_connectivity: bool):
 
         # Print results
         print_checks(all_checks)
+        print_next_step(all_checks)
 
     # Run async checks
     run_async_command(run_diagnostics())
+
+
+def print_next_step(checks: list[DiagnosticCheck]) -> None:
+    """Closing guidance: the single next command for the user's current state.
+
+    Complements ``deepr init`` - a keyless setup is pointed at the wizard
+    rather than left at a bare pass/fail summary.
+    """
+    key_checks = [c for c in checks if c.category == "API Keys"]
+    if not key_checks:
+        return
+    if not any(c.passed for c in key_checks):
+        click.echo("\nNo provider keys detected. Run `deepr init` for guided setup")
+        click.echo("(or add OPENAI_API_KEY / GEMINI_API_KEY / XAI_API_KEY / ANTHROPIC_API_KEY to .env).")
+    else:
+        click.echo('\nSetup looks good. Try: deepr research "Your question here" --auto')
 
 
 def check_native_instruments() -> list[DiagnosticCheck]:
