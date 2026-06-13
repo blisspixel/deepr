@@ -80,6 +80,12 @@ After the installer finishes, open a **new** terminal and run `deepr init` (guid
 If you are not using the one-line installer above, install from a clone. Pick
 the path that matches what you want to do.
 
+> **Nested path:** the project lives one level down, in `deepr/deepr/` (the
+> folder that contains `pyproject.toml`). After cloning, `cd` into it before
+> any install command, e.g. `cd C:\GitHub\deepr\deepr` (Windows) or
+> `cd deepr/deepr` (macOS/Linux). Running an install from the outer `deepr/`
+> fails with "does not appear to be a Python project".
+
 **Just use `deepr` (recommended): a global command via pipx.**
 
 ```bash
