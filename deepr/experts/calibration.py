@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -38,6 +39,13 @@ CALIBRATION_METHODOLOGY_VERSION = "1.0"
 # Pair = (predicted_confidence in [0, 1], is_grounded). Gold labels come from
 # human grading of held-out reports.
 Pair = tuple[float, bool]
+
+# Grading-pipeline seams (injectable so the orchestrator is tested at $0):
+# extract a report into (claim, self-rated confidence) pairs, and grade whether
+# a claim is grounded in its report. The CLI wires the extraction model and a
+# strong-model pre-grader here; tests pass fakes.
+ExtractFn = Callable[[str], Awaitable[list[tuple[str, float]]]]
+GradeFn = Callable[[str, str], Awaitable[bool]]
 
 
 @dataclass
@@ -214,6 +222,53 @@ def parse_graded_pairs(text: str) -> list[Pair]:
         conf = max(0.0, min(1.0, float(obj["confidence"])))
         pairs.append((conf, bool(obj["grounded"])))
     return pairs
+
+
+async def grade_corpus(
+    reports: dict[str, str],
+    *,
+    extract_fn: ExtractFn,
+    grade_fn: GradeFn,
+    on_progress: Callable[[str], None] | None = None,
+) -> tuple[list[Pair], list[dict[str, Any]]]:
+    """Extract claims from each report and grade their grounding.
+
+    The FActScore/SAFE-shaped pipeline (decompose -> verify), but as pure
+    orchestration over injectable seams: ``extract_fn`` turns a report into
+    (claim, self-rated confidence) pairs, ``grade_fn`` judges whether a claim is
+    grounded in its report. Returns the (confidence, grounded) pairs for
+    ``measure_calibration`` plus per-claim records (report_id, claim,
+    confidence, grounded) - the latter is the file the operator spot-corrects
+    before publishing, since a strong-model pre-grade is a starting point, not
+    ground truth (the grading-as-evidence discipline of ADR-adjacent design).
+
+    A report whose extraction fails, or a claim whose grade fails, is skipped
+    (recorded via on_progress) rather than aborting the whole run - calibration
+    over a large corpus should be resumable, not all-or-nothing. No model calls
+    here; cost lives entirely in the injected fns.
+    """
+    pairs: list[Pair] = []
+    records: list[dict[str, Any]] = []
+    for report_id, text in reports.items():
+        try:
+            claims = await extract_fn(text)
+        except Exception as e:  # one bad report must not sink the corpus
+            if on_progress:
+                on_progress(f"skip {report_id}: extraction failed ({e})")
+            continue
+        for claim, confidence in claims:
+            conf = max(0.0, min(1.0, float(confidence)))
+            try:
+                grounded = await grade_fn(claim, text)
+            except Exception as e:
+                if on_progress:
+                    on_progress(f"skip claim in {report_id}: grading failed ({e})")
+                continue
+            pairs.append((conf, bool(grounded)))
+            records.append({"report_id": report_id, "claim": claim, "confidence": conf, "grounded": bool(grounded)})
+        if on_progress:
+            on_progress(f"graded {report_id}: {len(claims)} claim(s)")
+    return pairs, records
 
 
 def render_calibration_markdown(report: CalibrationReport, *, model: str) -> str:
