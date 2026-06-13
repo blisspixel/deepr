@@ -203,6 +203,28 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [ ] Align tracing with OpenTelemetry semantic conventions; evaluate `structlog` for the logging surface
 - [ ] Extract a reusable CI workflow + Copier/template repo so sibling projects (recon, distillr, primr) inherit the same standard from day zero
 
+### Phase Q: Code-Health Hardening (foundational, continuous)
+
+Goal: hold the whole codebase - not just the strict islands - to a standard
+a human or an AI could admire, and make it impossible to regress. Full
+assessment and rationale: [docs/design/code-health.md](docs/design/code-health.md).
+Sequenced ratchet-first (stop the backlog growing), then tidy duplication,
+then characterize, then decompose the large files, then pay down the
+complexity/security backlog. Audit numbers are from 2026-06-12.
+
+- [x] **Q0 - Ratchets (un-regressable first, no behavior change)** - shipped 2026-06-12, blocking in CI, ruff pinned to 0.15.17 so counts are reproducible:
+  - [x] Q0.1 File-size guard: `scripts/check_file_sizes.py` fails CI on any new `deepr/*.py` over 1000 lines; the 17 current over-ceiling files are grandfathered at their exact size (may shrink, never grow) - a debt register that only ratchets down
+  - [x] Q0.2 Complexity ratchet: `scripts/check_ratchets.py` baselines the 146 C901-over-cap functions; CI fails if the count grows
+  - [x] Q0.3 Security ratchet: same script baselines the 97 ruff `S` findings; CI fails on growth (drive toward flipping `S` into the blocking `select` in Q4)
+- [ ] **Q1 - One way to do each thing:**
+  - [ ] Q1.1 Finish the config migration: `load_config()` (53 sites, formally deprecated) -> typed `get_settings()` (14 sites), package by package, then delete `load_config`
+  - [ ] Q1.2 Resolve duplicate `cost` vs `costs` commands (deprecated alias + warning, >= 2 releases per the deprecation policy)
+  - [ ] Q1.3 Single shared `run_async` helper (3 duplicate definitions today)
+- [ ] **Q2 - Coverage honesty:** characterization tests for the largest coverage-omitted files (`web/app.py`, `experts.py`), then shrink the omit list so the headline number covers the hard parts
+- [ ] **Q3 - Decompose the giant files (after Q2 characterization):** `web/app.py` -> Flask blueprints + app factory; `cli/.../experts.py` -> per-area modules; extract cohesive units from `chat.py` and `mcp/server.py` (mcp stays strict-clean)
+- [ ] **Q4 - Pay down the backlog:** refactor worst C901 offenders and ratchet the cap to 10 blocking; resolve/justify the `S` findings and flip `S` blocking
+- [ ] **Q5 - Staleness defense:** scheduled CI drift checks (dependencies + model registry) and a quarterly standards-review reminder
+
 ### Phase 1: Agentic Infrastructure Core
 
 Goal: make the agentic layer production-ready - subagent contracts, role-based handoffs, provider resilience.
