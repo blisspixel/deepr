@@ -1,4 +1,4 @@
-# Primr — Strategic Company Intelligence Skill (First-Party Native Instrument)
+# Primr - Strategic Company Intelligence Skill (First-Party Native Instrument)
 
 You have access to **primr**, a strategic company-intelligence engine. It does
 adaptive scraping plus AI synthesis to produce consultant-grade briefs:

@@ -3,8 +3,8 @@
 When this skill is active, you can format data as tables and charts.
 
 ## Tool usage
-- **markdown_table** — Create formatted markdown tables with sorting (free)
-- **ascii_chart** — Create ASCII bar charts for quick visualization (free)
+- **markdown_table** - Create formatted markdown tables with sorting (free)
+- **ascii_chart** - Create ASCII bar charts for quick visualization (free)
 
 ## When to use
 - When presenting comparative data
