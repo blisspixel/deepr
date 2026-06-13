@@ -430,7 +430,9 @@ class BeliefStore:
         self.conflict_resolution = conflict_resolution
 
         if storage_dir is None:
-            storage_dir = Path("data/experts") / expert_name / "beliefs"
+            from deepr.config import experts_root
+
+            storage_dir = experts_root() / expert_name / "beliefs"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

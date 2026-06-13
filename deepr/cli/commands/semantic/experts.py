@@ -809,13 +809,13 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool) -> None:
     """
     import json as _json
     import sys
-    from pathlib import Path
-
-    from deepr.experts.beliefs import BeliefStore
 
     # Opening a BeliefStore creates its directory; only open stores that
     # already exist so a typo'd name cannot create state.
-    beliefs_dir = Path("data/experts") / name / "beliefs"
+    from deepr.config import experts_root
+    from deepr.experts.beliefs import BeliefStore
+
+    beliefs_dir = experts_root() / name / "beliefs"
     if not beliefs_dir.exists():
         print_error(f"No belief store found for expert: {name}")
         sys.exit(2)

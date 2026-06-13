@@ -17,12 +17,12 @@ Requirements: 1.2 - ExpertProfile Refactoring
 import shlex
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from deepr.core.contracts import ExpertManifest
 
+from deepr.config import experts_root
 from deepr.experts.activity_tracker import ActivityTracker
 from deepr.experts.budget_manager import BudgetManager
 from deepr.experts.freshness import FreshnessChecker, FreshnessLevel
@@ -377,7 +377,7 @@ class ExpertProfile:
         try:
             from deepr.experts.synthesis import Worldview
 
-            wv_path = Path(f"data/experts/{self.name}/worldview.json")
+            wv_path = experts_root() / self.name / "worldview.json"
             if wv_path.exists():
                 wv = Worldview.load(wv_path)
                 for belief in wv.beliefs:
@@ -410,7 +410,7 @@ class ExpertProfile:
         try:
             from deepr.experts.synthesis import Worldview
 
-            wv_path = Path(f"data/experts/{self.name}/worldview.json")
+            wv_path = experts_root() / self.name / "worldview.json"
             if wv_path.exists():
                 wv = Worldview.load(wv_path)
                 for kg in wv.knowledge_gaps:
@@ -429,7 +429,7 @@ class ExpertProfile:
 
             from deepr.core.contracts import DecisionRecord
 
-            log_dir = Path(f"data/experts/{self.name}/logs")
+            log_dir = experts_root() / self.name / "logs"
             if log_dir.exists():
                 for json_file in sorted(log_dir.glob("decisions*.json"), reverse=True):
                     with open(json_file, encoding="utf-8") as f:

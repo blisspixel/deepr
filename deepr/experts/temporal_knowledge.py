@@ -66,9 +66,11 @@ class KnowledgeEvolution:
 class TemporalKnowledgeTracker:
     """Tracks temporal aspects of expert knowledge."""
 
-    def __init__(self, expert_name: str, base_path: str = "data/experts"):
+    def __init__(self, expert_name: str, base_path: str | None = None):
+        from deepr.config import experts_root
+
         self.expert_name = expert_name
-        self.base_path = Path(base_path)
+        self.base_path = Path(base_path) if base_path else experts_root()
         self.expert_dir = self._get_expert_dir()
         self.temporal_file = self.expert_dir / "temporal_knowledge.json"
 
