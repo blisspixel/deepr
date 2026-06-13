@@ -69,7 +69,10 @@ DEPRECATED/
 /docs/ideas/
 /docs/reference/
 /reports/
-/tests/data/
+# Ignore generated test data, but keep the committed calibration corpus
+# (held-out, versioned reports the calibration harness grades - ADR 0004 / v2.15).
+/tests/data/*
+!/tests/data/calibration/
 
 # Log files
 logs/
