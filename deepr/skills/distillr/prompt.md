@@ -1,4 +1,4 @@
-# Distillr — Source Ingestion Skill (First-Party Native Instrument)
+# Distillr - Source Ingestion Skill (First-Party Native Instrument)
 
 You have access to **distillr**, a source-ingestion engine that turns YouTube
 videos, websites, and arXiv papers into a structured Markdown corpus with

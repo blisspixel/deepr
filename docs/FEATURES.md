@@ -463,7 +463,7 @@ Expert chat is agentic by default; it supports slash commands, chat modes, visib
 ```bash
 # In chat, switch modes with slash commands:
 /ask        # Quick answers, KB-only tools
-/research   # Default — all tools available
+/research   # Default - all tools available
 /advise     # Structured consulting-style recommendations
 /focus      # Always-on chain-of-thought reasoning
 ```

@@ -7,9 +7,9 @@
 
 **Domain experts, not another chat window.**
 
-In plain terms: you bring your own AI accounts (OpenAI, Gemini, Grok, Anthropic — any one is enough), and Deepr routes each research question to the cheapest model that can handle it, then builds experts that remember what they learned.
+In plain terms: you bring your own AI accounts (OpenAI, Gemini, Grok, Anthropic - any one is enough), and Deepr routes each research question to the cheapest model that can handle it, then builds experts that remember what they learned.
 
-ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath — it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows — so your experts are always available as team members, not just tools you invoke manually.
+ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath - it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows - so your experts are always available as team members, not just tools you invoke manually.
 
 ```bash
 # Auto-routes to the best model per query: Grok 4.1 Fast ($0.01) -> GPT-5.4 -> o3-deep-research
@@ -19,37 +19,39 @@ deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterpri
 # Expert accumulates knowledge across sessions, fills its own gaps
 deepr expert chat "AI Strategy Expert" --budget 3
 
-# Batch 50 queries overnight — auto mode picks the right model for each
+# Batch 50 queries overnight - auto mode picks the right model for each
 deepr research --auto --batch queries.txt --budget 10
 ```
 
 Multi-provider (OpenAI, Gemini, Grok, Anthropic, Azure). Callable from AI agents via MCP. Reports and experts saved locally as artifacts you own.
 
 <p align="center">
-  <img src="assets/dashboard.png" width="49%" alt="Dashboard — cost trends, job stats, activity feed" />
-  <img src="assets/expert-hub.png" width="49%" alt="Expert Hub — persistent domain experts with knowledge tracking" />
+  <img src="assets/dashboard.png" width="49%" alt="Dashboard - cost trends, job stats, activity feed" />
+  <img src="assets/expert-hub.png" width="49%" alt="Expert Hub - persistent domain experts with knowledge tracking" />
 </p>
 <p align="center">
-  <img src="assets/expert-profile.png" width="49%" alt="Expert Chat — agentic chat with slash commands and visible reasoning" />
-  <img src="assets/models.png" width="49%" alt="Models & Benchmarks — provider comparison and quality rankings" />
+  <img src="assets/expert-profile.png" width="49%" alt="Expert Chat - agentic chat with slash commands and visible reasoning" />
+  <img src="assets/models.png" width="49%" alt="Models & Benchmarks - provider comparison and quality rankings" />
 </p>
 
 ## Why Deepr?
 
 **If you need one research report, use ChatGPT Deep Research or Gemini.** They're easier. For a single question, they're the right tool.
 
-**Who Deepr is for:** analysts and research teams who batch dozens of queries; developers building agents that need grounded, citable knowledge mid-task; anyone running research on a schedule instead of in a chat window. You should be comfortable with a terminal — or use the web dashboard once it's set up. If you ask ChatGPT one question a day on your phone, Deepr is more tool than you need.
+**Who Deepr is for:** analysts and research teams who batch dozens of queries; developers building agents that need grounded, citable knowledge mid-task; anyone running research on a schedule instead of in a chat window. You should be comfortable with a terminal - or use the web dashboard once it's set up. If you ask ChatGPT one question a day on your phone, Deepr is more tool than you need.
 
 **Deepr is for when research is infrastructure, not a one-off:**
 
-- **Scaling research** — Batch 50 queries at $2 instead of clicking "Deep Research" 50 times. Auto-mode routes each query to the cheapest model that can handle it.
-- **Building persistent experts** — Agents that accumulate knowledge across sessions, track beliefs with confidence, detect their own gaps, and research to fill them.
-- **Feeding AI workflows** — Your coding agents call Deepr experts via MCP mid-task. They get living knowledge with citations, not hallucinations or stale training data.
-- **Grounding always-on agents** — The autopilot platforms (Microsoft Autopilots, OpenAI Workspace Agents, Google Antigravity, AWS AgentCore) run agents for months, but their memory is shallow session state. An always-on agent has exactly the problem Deepr experts solve: it needs durable, verified, current domain knowledge with provenance, and a cheap way to re-sync with what changed since it last asked.
-- **Composing into agent teams** — Experts expose structured outputs with handoff-ready artifacts. An upstream signal agent can feed findings into a Deepr expert, which produces research that a downstream strategy or proposal agent consumes. Deepr doesn't orchestrate the team — it plays a role on it.
-- **Running continuously** — Scripts, cron jobs, CI pipelines. No browser, no manual clicking.
-- **Auditing everything** — Every routing choice, source trust decision, and cost is captured as a structured decision record.
-- **Avoiding lock-in** — Reports and experts are local files you own. If one provider goes down, auto-fallback routes to another.
+- **Scaling research** - Batch 50 queries at $2 instead of clicking "Deep Research" 50 times. Auto-mode routes each query to the cheapest model that can handle it.
+- **Building persistent experts** - Agents that accumulate knowledge across sessions, track beliefs with confidence, detect their own gaps, and research to fill them.
+- **Feeding AI workflows** - Your coding agents call Deepr experts via MCP mid-task. They get living knowledge with citations, not hallucinations or stale training data.
+- **Grounding always-on agents** - The autopilot platforms (Microsoft Autopilots, OpenAI Workspace Agents, Google Antigravity, AWS AgentCore) run agents for months, but their memory is shallow session state. An always-on agent has exactly the problem Deepr experts solve: it needs durable, verified, current domain knowledge with provenance, and a cheap way to re-sync with what changed since it last asked.
+- **Composing into agent teams** - Experts expose structured outputs with handoff-ready artifacts. An upstream signal agent can feed findings into a Deepr expert, which produces research that a downstream strategy or proposal agent consumes. Deepr doesn't orchestrate the team - it plays a role on it.
+- **Running continuously** - Scripts, cron jobs, CI pipelines. No browser, no manual clicking.
+- **Auditing everything** - Every routing choice, source trust decision, and cost is captured as a structured decision record.
+- **Avoiding lock-in** - Reports and experts are local files you own. If one provider goes down, auto-fallback routes to another. If a better tool comes along, your experts move with you.
+
+**Where this is headed, honestly:** the ideas here - persistent experts, budget-bounded autonomy, routing across providers - may well get absorbed into the big platforms over time, and that's fine. The part that stays yours either way is the knowledge: experts are local files you own, portable across tools rather than tied to one vendor's memory. And as subscription plans and local models keep improving, the plan (see the [roadmap](ROADMAP.md) capacity release) is to route more of the work onto capacity you already pay for or own, so keeping a roster of experts current costs close to nothing extra. Deepr is one person's working answer to how those pieces should fit together - if part of it is useful to you, take it.
 
 ## Quick Start
 
@@ -102,7 +104,7 @@ pipx install -e .
 deepr doctor
 ```
 
-Results saved to `reports/` as markdown with citations. **You only need one API key to start**. Add more later and auto-mode routes to the best/cheapest model per task.
+Results saved to `data/reports/` as markdown with citations. **You only need one API key to start**. Add more later and auto-mode routes to the best/cheapest model per task.
 
 See [docs/QUICK_START.md](docs/QUICK_START.md) and [docs/INSTALL.md](docs/INSTALL.md) for guided setup, Windows notes, and extras.
 
@@ -110,7 +112,7 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) and [docs/INSTALL.md](docs/INSTAL
 
 ### Research
 
-Orchestrates deep research across providers. Auto mode routes by complexity — simple lookups at $0.01, deep analysis at $0.50-$2. Reports saved locally as markdown with citations.
+Orchestrates deep research across providers. Auto mode routes by complexity - simple lookups at $0.01, deep analysis at $0.50-$2. Reports saved locally as markdown with citations.
 
 ```bash
 deepr research "What bottlenecks could constrain NVIDIA Blackwell deployment at hyperscale?" --auto --explain
@@ -127,7 +129,7 @@ Deepr experts persist across sessions. They recognize knowledge gaps, research t
 # Create an expert with autonomous learning
 deepr expert make "AI Policy Expert" -d "EU AI Act enforcement timeline" --learn --budget 5
 
-# Chat with it — slash commands, chat modes, visible reasoning, approval flows
+# Chat with it - slash commands, chat modes, visible reasoning, approval flows
 deepr expert chat "AI Policy Expert" --budget 3
 
 # Fill the highest-value knowledge gaps
@@ -141,11 +143,11 @@ Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus
 
 See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
-### MCP Integration — Experts as Consultable Roles
+### MCP Integration - Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP — not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 26 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 26 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
-This matters most for the new generation of always-on agents: an agent that runs for months needs durable, verified, current domain knowledge with provenance — and a cheap way to re-sync ("what changed since I last consulted you?") instead of re-reading everything. Deepr experts are that knowledge layer; the host platform keeps the schedule, Deepr keeps the perspective.
+This matters most for the new generation of always-on agents: an agent that runs for months needs durable, verified, current domain knowledge with provenance - and a cheap way to re-sync ("what changed since I last consulted you?") instead of re-reading everything. Deepr experts are that knowledge layer; the host platform keeps the schedule, Deepr keeps the perspective.
 
 ### Web Dashboard
 
@@ -184,9 +186,9 @@ See [docs/MODELS.md](docs/MODELS.md) for provider comparison and pricing.
 
 Three patterns run through Deepr:
 
-- **Budgeted autonomy** — Every autonomous job runs under a contract: max spend, stop conditions, acceptable uncertainty, required citations, audit trail.
-- **Decision records as artifacts** — The system captures *why* it chose a model, trusted a source, stopped searching, or flagged a knowledge gap. These feed back into routing, expert learning, and cost optimization.
-- **Experts as roles, not tools** — Each expert is a persistent, named role with its own knowledge state, beliefs, and gaps. You don't "run Deepr" — you consult a domain expert. This makes experts composable: they can receive structured input from upstream agents, produce handoff-ready artifacts for downstream agents, and participate in multi-agent workflows without being the orchestrator. Think of each as a tailored second brain (note the plural): instead of one generic vault you organize by hand, you get a roster of domain-scoped knowledge bases that stay current on their topics, verify what they ingest, and deploy as an agent team.
+- **Budgeted autonomy** - Every autonomous job runs under a contract: max spend, stop conditions, acceptable uncertainty, required citations, audit trail.
+- **Decision records as artifacts** - The system captures *why* it chose a model, trusted a source, stopped searching, or flagged a knowledge gap. These feed back into routing, expert learning, and cost optimization.
+- **Experts as roles, not tools** - Each expert is a persistent, named role with its own knowledge state, beliefs, and gaps. You don't "run Deepr" - you consult a domain expert. This makes experts composable: they can receive structured input from upstream agents, produce handoff-ready artifacts for downstream agents, and participate in multi-agent workflows without being the orchestrator. Think of each as a tailored second brain (note the plural): instead of one generic vault you organize by hand, you get a roster of domain-scoped knowledge bases that stay current on their topics, verify what they ingest, and deploy as an agent team.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details.
 
@@ -203,7 +205,7 @@ deepr research --auto --batch queries.txt --dry-run # Preview costs before execu
 
 Set `DEEPR_COST_TRACKING_STRICT=1` to fail fast when cost events cannot be persisted to the canonical ledger.
 
-**Gemini large-context pricing note:** Gemini 3.1 Pro (the default Gemini pro model) charges 2x for prompts over 200K tokens ($4/$18 per 1M input/output vs $2/$12 under 200K). Most queries stay well under that threshold, but large document analysis (`--files` with big PDFs, 500+ page corpora) can cost ~2x more than shorter prompts — e.g., a 250K-token document analysis runs ~$1.18 vs ~$0.62 for a sub-200K prompt. Use `--dry-run` to preview costs before executing, and `--budget` to cap spend.
+**Gemini large-context pricing note:** Gemini 3.1 Pro (the default Gemini pro model) charges 2x for prompts over 200K tokens ($4/$18 per 1M input/output vs $2/$12 under 200K). Most queries stay well under that threshold, but large document analysis (`--files` with big PDFs, 500+ page corpora) can cost ~2x more than shorter prompts - e.g., a 250K-token document analysis runs ~$1.18 vs ~$0.62 for a sub-200K prompt. Use `--dry-run` to preview costs before executing, and `--budget` to cap spend.
 
 See [docs/FEATURES.md](docs/FEATURES.md) for the full cost command reference.
 
@@ -252,10 +254,10 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 
 - Python 3.12+ (tested on 3.12-3.14)
 - **One API key** from any supported provider:
-  - [OpenAI](https://platform.openai.com/api-keys) — deep research + GPT models
-  - [Gemini](https://aistudio.google.com/app/apikey) — cost-effective, large context
-  - [xAI Grok](https://console.x.ai/) — Grok 4.20 flagship + 4.1 Fast budget, real-time web search
-  - [Anthropic](https://console.anthropic.com/settings/keys) — complex reasoning
+  - [OpenAI](https://platform.openai.com/api-keys) - deep research + GPT models
+  - [Gemini](https://aistudio.google.com/app/apikey) - cost-effective, large context
+  - [xAI Grok](https://console.x.ai/) - Grok 4.20 flagship + 4.1 Fast budget, real-time web search
+  - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
 - Optional: More API keys for smarter auto-routing
 - Optional: Node.js 18+ for web dashboard development
 
@@ -275,7 +277,7 @@ Contributions welcome. Run `ruff check . && ruff format .` and `pytest` before s
 
 ---
 
-Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained in spare time. It started as a weekend experiment with deep research APIs and grew into an exploration of how autonomous research systems should work — budgets, reliability, memory, auditability. The patterns here are transferable beyond research, but at minimum it's useful tooling for people who need research that goes beyond a chat window.
+Deepr is an independent project by [Nick Seal](mailto:nick@pueo.io), maintained in spare time. It started as a weekend experiment with deep research APIs and grew into an exploration of how autonomous research systems should work - budgets, reliability, memory, auditability. The patterns here are transferable beyond research, but at minimum it's useful tooling for people who need research that goes beyond a chat window.
 
 No SLA or commercial backing. If you find it useful, great. If you hit a rough edge, [open an issue](https://github.com/blisspixel/deepr/issues) or [start a discussion](https://github.com/blisspixel/deepr/discussions).
 
