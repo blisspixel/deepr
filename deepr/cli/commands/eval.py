@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -55,6 +56,58 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
     result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise click.ClickException(f"Benchmark exited with status {result.returncode}")
+
+
+@evaluate.command("continuity")
+@click.argument("name")
+@click.option(
+    "--threshold",
+    type=float,
+    default=0.3,
+    show_default=True,
+    help="Effective-confidence floor for staleness checks.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def eval_continuity(name: str, threshold: float, json_output: bool):
+    """Measure an expert's continuity properties from stored state (cost $0).
+
+    Unlike `eval new/all`, this makes no API calls: it reads the expert's
+    belief store and scores four properties - staleness honesty, abstention
+    correctness, contradiction surfacing, and what-changed exactness -
+    deepr's own continuity surface rather than a borrowed memory benchmark.
+    """
+    from deepr.experts.beliefs import BeliefStore
+    from deepr.experts.continuity_metrics import measure_continuity
+
+    store = BeliefStore(name)
+    if not store.beliefs and not store.has_event_log:
+        raise click.ClickException(f"Expert '{name}' has no belief store to measure. Create or learn an expert first.")
+
+    report = measure_continuity(store, staleness_threshold=threshold, expert_name=name)
+
+    if json_output:
+        click.echo(json.dumps(report.to_dict(), indent=2))
+        return
+
+    overall = report.overall
+    click.echo(f"Continuity report for {name}  (methodology v{report.methodology_version})")
+    click.echo(f"Overall: {overall:.1%}" if overall is not None else "Overall: n/a (no applicable metrics)")
+    click.echo("")
+    for metric in report.metrics:
+        label = metric.name.replace("_", " ")
+        if not metric.applicable:
+            reason = metric.detail.get("reason", "not applicable")
+            click.echo(f"  - {label:24s}  n/a  ({reason})")
+            continue
+        click.echo(f"  - {label:24s}  {metric.score:6.1%}  (n={metric.sample_size})")
+        if metric.name == "staleness_honesty" and metric.detail.get("hidden_stale"):
+            click.echo(f"      WARNING: {metric.detail['hidden_stale']} aged belief(s) reported fresh")
+        if metric.name == "abstention_correctness" and metric.detail.get("over_asserted"):
+            click.echo(f"      WARNING: {len(metric.detail['over_asserted'])} ungrounded belief(s) over-asserted")
+        if metric.name == "contradiction_surfacing" and metric.detail.get("missed_pairs"):
+            click.echo(f"      WARNING: {len(metric.detail['missed_pairs'])} recorded contradiction(s) not surfaced")
+        if metric.name == "what_changed_exactness" and metric.detail.get("window_truncated"):
+            click.echo("      note: legacy bounded-window store - history truncated, not exact")
 
 
 @evaluate.command("status")
