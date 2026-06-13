@@ -110,6 +110,79 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
             click.echo("      note: legacy bounded-window store - history truncated, not exact")
 
 
+@evaluate.command("calibrate")
+@click.option(
+    "--from",
+    "from_file",
+    type=click.Path(exists=True, dir_okay=False),
+    help='Graded-pairs JSONL: one {"confidence": float, "grounded": bool} per line.',
+)
+@click.option(
+    "--model",
+    default="unknown",
+    show_default=True,
+    help="Extraction model the pairs were graded against (stamped in the report).",
+)
+@click.option(
+    "--target",
+    type=float,
+    default=0.8,
+    show_default=True,
+    help="Grounding rate the derived absorb threshold should guarantee.",
+)
+@click.option(
+    "--decision-threshold",
+    type=float,
+    default=0.6,
+    show_default=True,
+    help="Confidence at/above which a claim counts as a grounded prediction.",
+)
+@click.option(
+    "--out",
+    type=click.Path(dir_okay=False),
+    default="docs/CALIBRATION.md",
+    show_default=True,
+    help="Where to write the published report.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON instead of writing the doc.")
+def eval_calibrate(
+    from_file: str | None, model: str, target: float, decision_threshold: float, out: str, json_output: bool
+):
+    """Measure and publish absorb-confidence calibration from graded pairs (cost $0).
+
+    Does 0.7 extraction confidence mean ~70% grounded? This consumes graded
+    (confidence, grounded) pairs and produces the calibration curve, ECE,
+    Platt-scaled threshold, and docs/CALIBRATION.md. No API calls: the grading
+    run that produces the pairs (extraction + pre-grade over a corpus) is a
+    separate, budget-gated step.
+    """
+    from deepr.experts.calibration import measure_calibration, parse_graded_pairs, render_calibration_markdown
+
+    if not from_file:
+        raise click.ClickException(
+            "Provide --from <graded.jsonl> (the $0 publish path). The paid grading step that "
+            "produces graded pairs from a report corpus is a separate command."
+        )
+
+    pairs = parse_graded_pairs(Path(from_file).read_text(encoding="utf-8"))
+    if not pairs:
+        raise click.ClickException(f"No graded pairs found in {from_file}.")
+
+    report = measure_calibration(pairs, target_grounding=target, decision_threshold=decision_threshold)
+
+    if json_output:
+        click.echo(json.dumps(report.to_dict(), indent=2))
+        return
+
+    Path(out).write_text(render_calibration_markdown(report, model=model), encoding="utf-8")
+    threshold = "n/a" if report.derived_threshold is None else f"{report.derived_threshold:.3f}"
+    click.echo(
+        f"Calibration: n={report.sample_size}, ECE={report.ece:.3f} "
+        f"(Platt {report.ece_platt:.3f}), derived threshold={threshold}"
+    )
+    click.echo(f"Wrote {out}")
+
+
 @evaluate.command("status")
 def eval_status():
     """Show which models have benchmark data vs provisional rankings."""

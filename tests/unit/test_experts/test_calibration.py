@@ -85,6 +85,38 @@ class TestPrecisionRecall:
         assert abs(f1 - 0.8) < 1e-9
 
 
+class TestParseAndRender:
+    def test_parse_graded_pairs(self):
+        from deepr.experts.calibration import parse_graded_pairs
+
+        text = (
+            '{"confidence": 0.8, "grounded": true, "claim": "x"}\n'
+            "# a comment\n"
+            "\n"
+            '{"confidence": 1.5, "grounded": false}\n'  # clamped to 1.0
+        )
+        assert parse_graded_pairs(text) == [(0.8, True), (1.0, False)]
+
+    def test_render_markdown_has_key_fields(self):
+        from deepr.experts.calibration import render_calibration_markdown
+
+        report = measure_calibration(_pairs(lambda c: c))
+        md = render_calibration_markdown(report, model="gpt-5-mini")
+        assert md.startswith("# Calibration")
+        assert "gpt-5-mini" in md
+        assert "Reliability curve" in md
+        assert "Expected calibration error" in md
+        assert "| Confidence bin |" in md
+
+    def test_render_handles_no_threshold(self):
+        from deepr.experts.calibration import render_calibration_markdown
+
+        # All-fresh-ungrounded gives no positive discrimination -> threshold n/a.
+        report = measure_calibration([(0.9, False), (0.1, False)])
+        md = render_calibration_markdown(report, model="m")
+        assert "n/a" in md
+
+
 class TestReport:
     def test_empty_pairs(self):
         report = measure_calibration([])
