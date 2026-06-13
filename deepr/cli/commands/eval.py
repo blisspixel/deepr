@@ -110,6 +110,60 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
             click.echo("      note: legacy bounded-window store - history truncated, not exact")
 
 
+def _load_corpus(corpus_dir: str, sample: int) -> dict[str, str]:
+    """Load .md/.txt reports from a directory (optionally capped to `sample`)."""
+    paths = sorted(p for p in Path(corpus_dir).iterdir() if p.suffix.lower() in (".md", ".txt"))
+    if sample > 0:
+        paths = paths[:sample]
+    return {p.stem: p.read_text(encoding="utf-8") for p in paths}
+
+
+def _calibration_extract_fn(model: str):
+    """Reuse the absorb extraction (the model being calibrated) over raw text."""
+    import tempfile
+
+    from deepr.experts.beliefs import BeliefStore
+    from deepr.experts.profile import ExpertProfile
+    from deepr.experts.report_absorber import ReportAbsorber
+
+    profile = ExpertProfile(name="__calibration__", vector_store_id="", domain="general")
+    belief_store = BeliefStore("__calibration__", storage_dir=Path(tempfile.mkdtemp()) / "beliefs")
+    absorber = ReportAbsorber(profile, model=model, belief_store=belief_store)
+
+    async def extract(text: str) -> list[tuple[str, float]]:
+        cands = await absorber._extract_claims(text, 25)
+        return [(c.statement, c.confidence) for c in cands]
+
+    return extract
+
+
+def _calibration_grade_fn(grader_model: str):
+    """Strong-model pre-grader: is a claim grounded in its report? (spot-correct after)."""
+    import json as _json
+
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI()
+    system = (
+        "You judge whether a CLAIM is directly supported by a REPORT. Grounded means the report "
+        "states or directly entails the claim - not merely that the claim is plausible. "
+        'Answer ONLY JSON: {"grounded": true|false}.'
+    )
+
+    async def grade(claim: str, report_text: str) -> bool:
+        resp = await client.chat.completions.create(
+            model=grader_model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": f"REPORT:\n{report_text}\n\nCLAIM: {claim}\n\nIs the claim grounded?"},
+            ],
+            response_format={"type": "json_object"},
+        )
+        return bool(_json.loads(resp.choices[0].message.content or "{}").get("grounded", False))
+
+    return grade
+
+
 @evaluate.command("calibrate")
 @click.option(
     "--from",
@@ -118,10 +172,22 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
     help='Graded-pairs JSONL: one {"confidence": float, "grounded": bool} per line.',
 )
 @click.option(
+    "--corpus",
+    "corpus_dir",
+    type=click.Path(exists=True, file_okay=False),
+    help="Directory of report .md/.txt files to extract + pre-grade (PAID).",
+)
+@click.option("--grader-model", default="gpt-5", show_default=True, help="Strong model used to pre-grade grounding.")
+@click.option("--sample", type=int, default=0, help="Cap the number of corpus reports (0 = all).")
+@click.option(
+    "--max-cost", type=float, default=3.0, show_default=True, help="Abort if the estimate exceeds this (USD)."
+)
+@click.option("-y", "--yes", is_flag=True, help="Skip the spend confirmation.")
+@click.option(
     "--model",
     default="unknown",
     show_default=True,
-    help="Extraction model the pairs were graded against (stamped in the report).",
+    help="Extraction model (the one being calibrated). With --corpus, this model runs.",
 )
 @click.option(
     "--target",
@@ -146,27 +212,68 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
 )
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON instead of writing the doc.")
 def eval_calibrate(
-    from_file: str | None, model: str, target: float, decision_threshold: float, out: str, json_output: bool
+    from_file: str | None,
+    corpus_dir: str | None,
+    grader_model: str,
+    sample: int,
+    max_cost: float,
+    yes: bool,
+    model: str,
+    target: float,
+    decision_threshold: float,
+    out: str,
+    json_output: bool,
 ):
-    """Measure and publish absorb-confidence calibration from graded pairs (cost $0).
+    """Measure and publish absorb-confidence calibration.
 
-    Does 0.7 extraction confidence mean ~70% grounded? This consumes graded
-    (confidence, grounded) pairs and produces the calibration curve, ECE,
-    Platt-scaled threshold, and docs/CALIBRATION.md. No API calls: the grading
-    run that produces the pairs (extraction + pre-grade over a corpus) is a
-    separate, budget-gated step.
+    Does 0.7 extraction confidence mean ~70% grounded? With --from <graded.jsonl>
+    it publishes the curve from already-graded pairs (cost $0). With --corpus
+    <dir> it runs the PAID pipeline: extract claims (the --model being
+    calibrated) and pre-grade their grounding with --grader-model, then publish.
+    The pre-grade is a starting point - the saved <out>.graded.jsonl is meant to
+    be spot-corrected for a definitive curve.
     """
-    from deepr.experts.calibration import measure_calibration, parse_graded_pairs, render_calibration_markdown
+    import asyncio
 
-    if not from_file:
-        raise click.ClickException(
-            "Provide --from <graded.jsonl> (the $0 publish path). The paid grading step that "
-            "produces graded pairs from a report corpus is a separate command."
+    from deepr.experts.calibration import (
+        grade_corpus,
+        measure_calibration,
+        parse_graded_pairs,
+        render_calibration_markdown,
+    )
+
+    if not from_file and not corpus_dir:
+        raise click.ClickException("Provide --from <graded.jsonl> ($0) or --corpus <dir> (paid extraction + grading).")
+
+    if corpus_dir:
+        reports = _load_corpus(corpus_dir, sample)
+        if not reports:
+            raise click.ClickException(f"No .md/.txt reports found in {corpus_dir}.")
+        # Conservative estimate: per-report extraction + grading of ~10 claims.
+        estimate = len(reports) * (0.03 + 10 * 0.02)
+        click.echo(f"Corpus: {len(reports)} report(s); estimated cost up to ${estimate:.2f} (cap ${max_cost:.2f}).")
+        if estimate > max_cost:
+            raise click.ClickException(
+                f"Estimate ${estimate:.2f} exceeds --max-cost ${max_cost:.2f}. Raise it or --sample fewer."
+            )
+        if not yes and not click.confirm("Run paid extraction + grading?", default=False):
+            raise click.ClickException("Cancelled.")
+        pairs, records = asyncio.run(
+            grade_corpus(
+                reports,
+                extract_fn=_calibration_extract_fn(model),
+                grade_fn=_calibration_grade_fn(grader_model),
+                on_progress=lambda m: click.echo(f"  {m}"),
+            )
         )
+        graded_path = Path(out).with_suffix(".graded.jsonl")
+        graded_path.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+        click.echo(f"Wrote {graded_path} (spot-correct it, then re-publish with --from)")
+    else:
+        pairs = parse_graded_pairs(Path(from_file).read_text(encoding="utf-8"))
 
-    pairs = parse_graded_pairs(Path(from_file).read_text(encoding="utf-8"))
     if not pairs:
-        raise click.ClickException(f"No graded pairs found in {from_file}.")
+        raise click.ClickException("No graded pairs produced.")
 
     report = measure_calibration(pairs, target_grounding=target, decision_threshold=decision_threshold)
 
