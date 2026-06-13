@@ -240,15 +240,15 @@ class ExpertHealthChecker:
         store; failures are non-fatal - the audit must stay read-only.
         """
         try:
-            from pathlib import Path
-
-            from deepr.experts.beliefs import BeliefStore
-            from deepr.experts.perspective import contested as contested_query
 
             # BeliefStore.__init__ creates its directory; a read-only audit
             # must not create state, so only open stores that already exist
             # (same CWD-pollution class as the cost-ledger test bug).
-            beliefs_dir = Path("data/experts") / self.profile.name / "beliefs"
+            from deepr.config import experts_root
+            from deepr.experts.beliefs import BeliefStore
+            from deepr.experts.perspective import contested as contested_query
+
+            beliefs_dir = experts_root() / self.profile.name / "beliefs"
             if not beliefs_dir.exists():
                 return []
             recorded = contested_query(BeliefStore(self.profile.name), expert_name=self.profile.name)
@@ -372,11 +372,11 @@ class ExpertHealthChecker:
         create state, so only stores that already exist are opened.
         """
         try:
-            from pathlib import Path
 
+            from deepr.config import experts_root
             from deepr.experts.beliefs import BeliefStore
 
-            beliefs_dir = Path("data/experts") / self.profile.name / "beliefs"
+            beliefs_dir = experts_root() / self.profile.name / "beliefs"
             if not beliefs_dir.exists():
                 return []
             store = BeliefStore(self.profile.name)

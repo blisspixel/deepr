@@ -244,7 +244,9 @@ class ThoughtStream:
 
         # Set up log directory
         if log_dir is None:
-            log_dir = Path("data/experts") / expert_name / "logs"
+            from deepr.config import experts_root
+
+            log_dir = experts_root() / expert_name / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Create session log file
