@@ -50,6 +50,36 @@ class TestProviderErrorEnvelope:
         json.dumps(ProviderError("x", provider="grok", retryable=True).to_dict())
 
 
+class TestProviderErrorAutoClassification:
+    """ProviderError auto-classifies from original_error - so every adapter's
+    `raise ProviderError(..., original_error=e)` gets the envelope for free."""
+
+    def test_auto_classifies_rate_limit_from_original_error(self):
+        err = ProviderError("wrapped", provider="openai", original_error=_RateLimitError(retry_after=7))
+        d = err.to_dict()
+        assert d["category"] == "provider"
+        assert d["retryable"] is True
+        assert d["retry_after"] == 7
+
+    def test_auto_classifies_auth_from_original_error(self):
+        err = ProviderError("wrapped", provider="anthropic", original_error=_AuthenticationError())
+        assert err.category == "auth"
+        assert err.retryable is False
+
+    def test_explicit_values_override_auto_classification(self):
+        # An explicit retryable=False wins even over a transient original_error.
+        err = ProviderError(
+            "wrapped", provider="grok", original_error=_RateLimitError(retry_after=5), retryable=False
+        )
+        assert err.retryable is False
+
+    def test_no_original_error_keeps_provider_defaults(self):
+        err = ProviderError("plain", provider="gemini")
+        assert err.category == "provider"
+        assert err.retryable is False
+        assert err.retry_after is None
+
+
 class TestClassifyProviderException:
     def test_rate_limit_is_retryable_and_keeps_retry_after(self):
         category, retryable, retry_after = classify_provider_exception(_RateLimitError(retry_after=12))
