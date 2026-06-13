@@ -25,7 +25,7 @@ CEILING = 1000
 # remove its entry; if a file shrinks but stays over CEILING, lower its cap.
 GRANDFATHERED: dict[str, int] = {
     "deepr/web/app.py": 3992,
-    "deepr/cli/commands/semantic/experts.py": 3567,
+    "deepr/cli/commands/semantic/experts.py": 3338,
     "deepr/experts/chat.py": 2633,
     "deepr/experts/lazy_graph_rag.py": 2036,
     "deepr/mcp/server.py": 1937,
