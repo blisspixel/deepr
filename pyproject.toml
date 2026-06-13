@@ -38,6 +38,13 @@ dependencies = [
     "httpx>=0.23.0,<1.0.0",
     "requests>=2.28.0,<3.0.0",
     "aiohttp>=3.9.0,<4.0.0",
+    # numpy is imported at CLI startup (deepr.experts.embedding_cache, via the
+    # experts package __init__), so it is a core runtime dependency, not an
+    # optional extra. It was previously only in the `docs` extra, which made a
+    # plain `pip install deepr-research` ship a CLI that crashed on every
+    # command; `[full]`/dev installs masked it. A core-install smoke test in CI
+    # guards this class now.
+    "numpy>=1.24.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -69,7 +76,6 @@ azure-foundry = [
 docs = [
     "python-docx>=0.8.11,<2.0.0",
     "beautifulsoup4>=4.12.0,<5.0.0",
-    "numpy>=1.24.0,<3.0.0",
 ]
 
 # Full install with all features
