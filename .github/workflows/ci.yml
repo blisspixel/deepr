@@ -21,20 +21,28 @@ jobs:
       - name: Install lint tooling
         # No --system: setup-uv creates and activates a .venv, so install into
         # it and let the .venv's ruff/mypy/python resolve on PATH.
-        run: uv pip install ruff==0.15.1 "mypy>=1.13.0"
+        # ruff is pinned exactly so the Phase Q complexity/security ratchets
+        # (which count findings) are reproducible between local runs and CI.
+        run: uv pip install ruff==0.15.17 "mypy>=1.13.0"
 
       - name: Lint
         run: ruff check deepr/
 
-      - name: Security + complexity lint (advisory)
-        # Advisory only: surfaces S-rule (Bandit) and C901 (cyclomatic
-        # complexity > 10) findings in the CI log without failing the build.
-        # The codebase has known legacy S-rule findings (try/except/pass,
-        # partial executable paths) and ~134 functions over the complexity cap,
-        # all tracked in Phase E. This step keeps them visible during review
-        # and ratchets toward blocking as they are addressed.
+      - name: Security + complexity lint (advisory display)
+        # Advisory log of the S-rule (Bandit) and C901 (complexity > 10)
+        # findings. The counts are *enforced* (no-growth) by the ratchet step
+        # below; this keeps the individual findings visible during review.
         continue-on-error: true
         run: ruff check deepr/ --select S,C901
+
+      - name: Code-health ratchets (BLOCKING)
+        # Phase Q: the backlog may not grow. check_file_sizes.py fails on any
+        # new oversized deepr/*.py (existing large files grandfathered, shrink
+        # only); check_ratchets.py fails if the C901 or S finding count rises
+        # above its committed baseline. See docs/design/code-health.md.
+        run: |
+          python scripts/check_file_sizes.py
+          python scripts/check_ratchets.py
 
       - name: Format check
         run: ruff format --check deepr/
