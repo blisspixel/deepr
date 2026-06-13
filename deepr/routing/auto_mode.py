@@ -255,14 +255,16 @@ _SPEC_TO_TASK_TYPES: dict[str, list[str]] = {
 def _estimate_quality(cap) -> float:
     """Provisional quality for an unbenchmarked model (<= 0.78).
 
-    Prefer a published-benchmark-derived prior (``quality_prior``) when the
-    registry records one - that reflects real capability independent of price,
-    so a cheap-but-capable model is not under-ranked just for being cheap.
-    Fall back to the crude price-tier heuristic only when no prior exists.
-    Either way the result is capped at 0.78 so measured eval scores (up to 1.0)
-    always sort above provisional entries.
+    Prefer a published-benchmark-derived prior (``quality_priors``) when one
+    exists - that reflects real capability independent of price, so a
+    cheap-but-capable model is not under-ranked just for being cheap. Fall back
+    to the crude price-tier heuristic only when no prior exists. Either way the
+    result is capped at 0.78 so measured eval scores (up to 1.0) always sort
+    above provisional entries.
     """
-    prior = getattr(cap, "quality_prior", None)
+    from deepr.routing.quality_priors import get_quality_prior
+
+    prior = get_quality_prior(cap.provider, cap.model)
     if prior is not None:
         return min(0.78, max(0.0, float(prior)))
     output_cost = cap.output_cost_per_1m
