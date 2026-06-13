@@ -1001,6 +1001,22 @@ class AutonomousLearner:
 
                 except Exception as e:
                     self._log_progress(f"  {job_id[:20]}... Error: {e}", callback=callback)
+                    # Record the failure so the circuit breaker can trip on
+                    # persistent errors instead of polling this job forever.
+                    session.record_failure("research_poll", f"Job {job_id} status error: {e}")
+                    # A non-retryable failure (auth, bad request) will never
+                    # resolve by waiting - stop polling it now rather than
+                    # loop indefinitely. `retryable` comes from the provider
+                    # error envelope; default to True for unknown exceptions
+                    # so transient blips still get the breaker's bounded retries.
+                    if getattr(e, "retryable", True) is False:
+                        pending.remove(job_id)
+                        failed.add(job_id)
+                        if progress is not None:
+                            topic_title = progress.job_topics.get(job_id, job_id)
+                            if topic_title not in progress.failed_topics:
+                                progress.failed_topics.append(topic_title)
+                        await self._sync_job_status_in_queue(job_id, "failed")
 
             if pending:
                 elapsed = (datetime.now() - start_time).total_seconds() / 60
