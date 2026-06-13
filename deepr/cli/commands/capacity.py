@@ -24,14 +24,29 @@ _GROUP_ORDER = [
 
 @click.command(name="capacity")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
-def capacity(json_output: bool):
+@click.option("--probe", is_flag=True, help="Do a $0 round-trip to the local model to confirm it works.")
+def capacity(json_output: bool, probe: bool):
     """Show available research capacity (local, plan quota, metered API).
 
     Capacity-aware routing (v2.16) drains owned and prepaid capacity before any
     metered API call. This command makes that capacity visible; it runs no
-    research and spends nothing.
+    research and spends nothing. With --probe it does one tiny $0 round-trip to
+    the local Ollama model to confirm local execution actually works.
     """
     sources = detect_capacity()
+
+    if probe and not json_output:
+        from deepr.backends.local import probe_local
+        from deepr.cli.async_runner import run_async_command
+
+        result = run_async_command(probe_local())
+        if result["ok"]:
+            click.echo(
+                f"Local probe: OK - {result['model']} replied {result['reply']!r} "
+                f"in {result['latency_ms']}ms (cost $0)\n"
+            )
+        else:
+            click.echo(f"Local probe: FAILED - {result['error']}\n")
 
     if json_output:
         click.echo(_json.dumps([s.to_dict() for s in sources], indent=2))
