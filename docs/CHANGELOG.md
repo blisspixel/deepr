@@ -33,6 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file self-sufficient on any machine and in any test ordering.
 
 ### Added
+- Install / update QOL, matching modern CLI tooling (claude / codex / grok):
+  - `deepr upgrade` self-updates to the latest released version, detecting
+    how deepr was installed (pipx / pip / editable source checkout) and
+    running the right command. `deepr upgrade --check` reports whether a
+    newer version exists (via the PyPI JSON API) without installing;
+    degrades gracefully offline and for editable installs (prints git
+    steps). No new dependencies (urllib + subprocess).
+  - The install one-liners (`scripts/install.ps1`, `scripts/install.sh`)
+    are now idempotent: re-running updates an existing install instead of
+    failing, report the installed version, and support uninstall
+    (`-Uninstall` / `-- --uninstall`). `scripts/install.bat` is modernized
+    to delegate to install.ps1 (was stale: referenced Python 3.9).
 - Agent-classifiable error envelope across every error surface (RFC 9457 /
   agent-error pattern), so a consumer can classify a failure and drive
   backoff without scraping the message:
