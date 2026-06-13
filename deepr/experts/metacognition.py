@@ -61,9 +61,11 @@ class DomainConfidence:
 class MetaCognitionTracker:
     """Tracks expert's awareness of what it knows and doesn't know."""
 
-    def __init__(self, expert_name: str, base_path: str = "data/experts"):
+    def __init__(self, expert_name: str, base_path: str | None = None):
+        from deepr.config import experts_root
+
         self.expert_name = expert_name
-        self.base_path = Path(base_path)
+        self.base_path = Path(base_path) if base_path else experts_root()
         self.expert_dir = self._get_expert_dir()
         self.meta_file = self.expert_dir / "meta_knowledge.json"
 

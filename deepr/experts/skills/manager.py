@@ -46,7 +46,9 @@ class SkillManager:
             except Exception:
                 logger.warning("Skipping expert-local skills for invalid name %r", expert_name)
                 return
-            experts_root = Path("data/experts").resolve()
+            from deepr.config import experts_root as _config_experts_root
+
+            experts_root = _config_experts_root().resolve()
             expert_skills_dir = (experts_root / safe_name / "skills").resolve()
             try:
                 expert_skills_dir.relative_to(experts_root)
