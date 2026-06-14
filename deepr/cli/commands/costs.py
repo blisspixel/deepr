@@ -30,6 +30,43 @@ def costs():
 
 
 @costs.command()
+@click.argument("prompt")
+@click.option(
+    "--model",
+    "-m",
+    default="o4-mini-deep-research",
+    type=click.Choice(["o4-mini-deep-research", "o3-deep-research"]),
+    help="Research model",
+)
+@click.option("--web-search/--no-web-search", default=True, help="Enable web search")
+def estimate(prompt: str, model: str, web_search: bool):
+    """Estimate the cost of a research prompt before running it.
+
+    Example:
+        deepr costs estimate "What are AI trends?"
+        deepr costs estimate "Kubernetes guide" --model o3-deep-research
+    """
+    from deepr.core.costs import CostEstimator
+
+    try:
+        est = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=web_search)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise click.Abort() from e
+
+    console.print(
+        Panel(
+            f"Expected: [bold]${est.expected_cost:.2f}[/bold]\n"
+            f"Min: ${est.min_cost:.2f}    Max: ${est.max_cost:.2f}\n\n"
+            f"Model: {model}\n"
+            f"Web search: {'enabled' if web_search else 'disabled'}\n"
+            f"Prompt length: {len(prompt)} chars",
+            title="Cost Estimate",
+        )
+    )
+
+
+@costs.command()
 @click.option("--daily-limit", type=float, help="Daily spending limit")
 @click.option("--monthly-limit", type=float, help="Monthly spending limit")
 def show(daily_limit: float | None, monthly_limit: float | None):
