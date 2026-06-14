@@ -1005,31 +1005,31 @@ class BeliefStore:
         return [b for _, b in scored[:3]]
 
     def _find_contradictions(self, belief: Belief) -> list[Belief]:
-        """Find beliefs that might contradict.
+        """Find same-domain beliefs that may contradict the given one.
+
+        This is a high-recall *router*, not a verdict: it routes candidate
+        pairs into the model-based contradiction check, and must never be
+        treated as a confirmed contradiction on its own (see
+        docs/design/checks-deterministic-vs-agentic.md). It delegates the
+        single-pair test to the canonical
+        :meth:`ConflictResolver.beliefs_contradict` predicate so there is one
+        lexical heuristic, not a drifting second copy.
 
         Args:
             belief: Belief to check
 
         Returns:
-            List of potentially contradicting beliefs
+            List of candidate contradicting beliefs (lexical, unverified)
         """
-        # Simple heuristic: same domain, contains negation words
-        contradictions = []
-        negation_words = {"not", "no", "never", "false", "incorrect", "wrong"}
+        # Local import: conflict_resolver imports Belief from this module, so a
+        # top-level import would be circular.
+        from deepr.experts.conflict_resolver import ConflictResolver
 
-        belief_words = set(belief.claim.lower().split())
-        has_negation = bool(belief_words & negation_words)
-
-        for existing in self.get_beliefs_by_domain(belief.domain):
-            existing_words = set(existing.claim.lower().split())
-            existing_negation = bool(existing_words & negation_words)
-
-            # Check for opposite polarity on similar topics
-            content_overlap = len(belief_words & existing_words - negation_words)
-            if content_overlap > 2 and has_negation != existing_negation:
-                contradictions.append(existing)
-
-        return contradictions
+        return [
+            existing
+            for existing in self.get_beliefs_by_domain(belief.domain)
+            if existing.id != belief.id and ConflictResolver.beliefs_contradict(belief, existing)
+        ]
 
     def _resolve_conflict(self, existing: Belief, new: Belief) -> tuple[Belief, BeliefChange | None]:
         """Resolve conflict between beliefs.

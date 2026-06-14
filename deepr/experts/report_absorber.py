@@ -12,9 +12,13 @@ mistake." So absorption is gated, not blind:
    (One call regardless of claim count, so cost stays predictable.)
 2. Confidence gate: candidates below ``min_confidence`` are dropped.
 3. Contradiction gate (cost-$0): a candidate that contradicts an existing
-   belief - by the same free heuristic ``health-check`` uses - is never
-   silently absorbed. By default it becomes a *flagged contradiction*: stored
-   as a contested belief with contradiction edges both ways (contradiction-as-
+   belief - flagged by the same free heuristic ``health-check`` uses - is never
+   silently absorbed. The heuristic is a high-recall *router*, not a semantic
+   verdict (lexical overlap correlates near-zero with grounding judgments;
+   docs/design/checks-deterministic-vs-agentic.md), so each flag is recorded
+   ``verification="lexical_unverified"`` until a model pass confirms it. By
+   default the candidate becomes a *flagged contradiction*: stored as a
+   contested belief with contradiction edges both ways (contradiction-as-
    signal - the conflict is queryable and feeds ``expert resolve-conflicts``),
    while the existing belief is guaranteed untouched. The core safety property
    holds either way: a contradicting claim never overwrites a belief without
@@ -38,6 +42,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from deepr.experts.atomicity import AtomicityReport, atomicity_report
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.conflict_resolver import ConflictResolver
 
@@ -148,6 +153,14 @@ class FlaggedContradiction:
     # The candidate is always the newer side; better_sourced compares
     # report-grounded confidence so reviewers see which way the scale tips.
     better_sourced: str = "tie"  # "candidate" | "existing" | "tie"
+    # How the contradiction was detected. The free heuristic is a high-recall
+    # *router*, never a semantic verdict (lexical overlap correlates near-zero
+    # with grounding judgments - HANS, ROUGE; docs/design/
+    # checks-deterministic-vs-agentic.md), so a flag detected by it is
+    # "lexical_unverified" until a model pass confirms the conflict. Optional
+    # adjudication (below) is the model verdict; it does not change this field,
+    # which records the *detection basis*, not the resolution.
+    verification: str = "lexical_unverified"
     resolution: str = ""  # adjudication outcome when requested: a_wins | b_wins | merged | needs_human_review
     resolution_explanation: str = ""
 
@@ -162,6 +175,7 @@ class FlaggedContradiction:
             "outcome": self.outcome,
             "newer": "candidate",
             "better_sourced": self.better_sourced,
+            "verification": self.verification,
             "resolution": self.resolution,
             "resolution_explanation": self.resolution_explanation,
         }
@@ -180,6 +194,9 @@ class AbsorptionResult:
     flagged: list[FlaggedContradiction] = field(default_factory=list)
     insufficient: list[InsufficientGroundingClaim] = field(default_factory=list)
     estimated_cost: float = 0.0
+    # Telemetry only (DecompScore-style atomicity rate of the extractor's
+    # output). Never read by the gating path - see atomicity.py contracts.
+    atomicity: AtomicityReport | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
@@ -207,6 +224,7 @@ class AbsorptionResult:
             "flagged": [f.to_dict() for f in self.flagged],
             "insufficient": [i.to_dict() for i in self.insufficient],
             "estimated_cost": round(self.estimated_cost, 4),
+            "atomicity": self.atomicity.to_dict() if self.atomicity else None,
             "generated_at": self.generated_at.isoformat(),
         }
 
@@ -356,6 +374,10 @@ class ReportAbsorber:
             flagged=flagged,
             insufficient=insufficient,
             estimated_cost=ESTIMATED_EXTRACTION_COST,
+            # Telemetry over the extractor's raw output (every candidate, before
+            # gating), so the rate reflects the decomposer, not the survivors.
+            # Computed here, read by nothing in the gating loop above.
+            atomicity=atomicity_report([c.statement for c in candidates]),
         )
 
     async def _flag_contradiction(
