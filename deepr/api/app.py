@@ -5,7 +5,6 @@ This module provides the REST API for the Deepr research assistant,
 including OpenAPI documentation via Swagger UI at /api/docs.
 """
 
-import asyncio
 import hmac
 import logging
 import os
@@ -20,6 +19,10 @@ from deepr.api.middleware.errors import register_error_handlers
 
 # Import rate limiter middleware
 from deepr.api.middleware.rate_limiter import create_limiter, limit_job_status, limit_job_submit, limit_listing
+
+# The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
+# used throughout this module's request handlers.
+from deepr.utils.async_runner import run_async_command as run_async
 
 # Import rate limit constants for documentation
 
@@ -320,16 +323,6 @@ config = load_config()
 queue = SQLiteQueue(config["queue_db_path"])
 storage = LocalStorage(config["results_dir"])
 provider = OpenAIProvider(api_key=config["api_key"])
-
-
-def run_async(coro):
-    """Run async function in sync context."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
 
 
 @app.route("/api/jobs", methods=["GET"])
