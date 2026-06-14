@@ -37,6 +37,23 @@ class _FakeClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self._content))])
 
 
+class _SeqClient:
+    """Fake client whose first create() returns the extraction JSON and whose
+    subsequent calls return the contradiction-verdict word, so the two-stage
+    contradiction gate (extract, then entailment verdict) can be exercised."""
+
+    def __init__(self, extraction_json: str, verdict: str):
+        self._extraction = extraction_json
+        self._verdict = verdict
+        self._calls = 0
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    async def _create(self, **kwargs):
+        self._calls += 1
+        content = self._extraction if self._calls == 1 else self._verdict
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+
+
 def _claims_json(*claims: dict) -> str:
     return json.dumps({"claims": list(claims)})
 
@@ -298,6 +315,59 @@ async def test_flag_verification_marks_lexical_unverified(tmp_path):
 
     assert result.flagged[0].verification == "lexical_unverified"
     assert result.to_dict()["flagged"][0]["verification"] == "lexical_unverified"
+
+
+@pytest.mark.asyncio
+async def test_model_refuted_contradiction_is_absorbed_not_flagged(tmp_path):
+    """The entailment screen drops the lexical router's false positives.
+
+    The word-overlap heuristic flags this pair (opposite polarity + shared
+    words), but the model verdict says NO (not a genuine contradiction), so the
+    candidate is absorbed normally instead of recorded as a false contested
+    belief. This is the brittle-rule fix: lexical routes, the model concludes.
+    """
+    existing = Belief(claim="The database scales to many users without problems", confidence=0.9, domain="ai")
+    content = _claims_json(
+        {"statement": "The database does not scale to many users reliably", "confidence": 0.9, "evidence": []}
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "NO"), belief_store=store)
+
+    result = await absorber.absorb("rep1", "body")
+
+    assert result.flagged == []  # false positive NOT recorded as contested
+    assert len(result.absorbed) == 1  # absorbed normally instead
+
+
+@pytest.mark.asyncio
+async def test_model_confirmed_contradiction_is_flagged(tmp_path):
+    """A genuine contradiction the model confirms is flagged, marked model_confirmed."""
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "YES"), belief_store=store)
+
+    result = await absorber.absorb("rep1", "body")
+
+    assert len(result.flagged) == 1
+    assert result.flagged[0].verification == "model_confirmed"
+    # Existing belief still untouched (contested path bypasses merge/revision).
+    assert store.beliefs[existing.id].claim == existing.claim
+
+
+@pytest.mark.asyncio
+async def test_verify_off_keeps_lexical_only_flagging(tmp_path):
+    """verify_contradictions=False restores the old lexical-only flag."""
+    existing = Belief(claim="The system is memory safe by default", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "The system is not memory safe by default", "confidence": 0.9, "evidence": []})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+
+    result = await absorber.absorb("rep1", "body", verify_contradictions=False)
+
+    assert len(result.flagged) == 1
+    assert result.flagged[0].verification == "lexical_unverified"
 
 
 def test_get_client_without_key_raises(monkeypatch):
