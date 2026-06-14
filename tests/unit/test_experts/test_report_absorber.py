@@ -339,6 +339,11 @@ async def test_model_refuted_contradiction_is_absorbed_not_flagged(tmp_path):
     assert result.flagged == []  # false positive NOT recorded as contested
     assert len(result.absorbed) == 1  # absorbed normally instead
     assert result.contradictions_refuted == 1  # the model verdict is counted
+    # And the verdict is authoritative for the graph too: no lexical
+    # contradiction edge is re-created behind the model's back.
+    assert store.beliefs[existing.id].contradictions_with == []
+    for belief in store.beliefs.values():
+        assert belief.contradictions_with == []
 
 
 @pytest.mark.asyncio
