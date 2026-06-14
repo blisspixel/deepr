@@ -445,8 +445,24 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [x] Lossless archival (2026-06-12): archival events carry a full belief snapshot; `restore_belief` rebuilds from the log - reversibility executable, not aspirational
   - [x] Usage salience substrate (2026-06-12): per-belief retrieval counters, recordable only from already-mutating paths (read-side queries stay pure/$0; MCP READ_ONLY depends on that - regression-tested); usage only ever *protects* a belief from archival, never condemns one. First production producer lands with the chat worldview-to-BeliefStore bridge; absorb-merge already protects via `updated_at` movement.
   - [x] Consolidation pass (2026-06-12): health-check surfaces archive candidates (decayed below floor AND long-unevidenced AND unused AND not contested - the Rashomon rule: contested beliefs are never garbage-collected) with an `--archive-stale` action flag; dry-run default, event-logged with snapshot + thresholds; $0
-  - [ ] Entailment-shaped contradiction screen (v2.15): one cheap entailment call per flagged pair in the uncertain band only, merged with the selective-recalibration mechanism (lexical heuristics stay the free first pass; the claim-verification corpus shows lexical overlap has near-zero correlation with human grounding judgments)
-  - [ ] Atomic claim decomposition at absorb (v2.15): extraction prompt enforces one-assertion decontextualized claims (decomposition is worth 20+ F1 points in the verification literature); deterministic atomicity-rate check; calibration harness measures whether prompt-level enforcement suffices before any paid split pass
+  - [x] Entailment-shaped contradiction screen on the absorb gate (2026-06-14):
+    the lexical word-overlap heuristic stays a high-recall router; a cheap model
+    entailment verdict now concludes (`ReportAbsorber._verify_contradiction`,
+    `verify_contradictions=True` default). A refuted pair (phrasing-level false
+    positive) is absorbed normally instead of minting a false contested belief; a
+    confirmed pair is flagged `verification="model_confirmed"`; any failure stays
+    conservative (`lexical_unverified`, never drops a real contradiction). Reuses
+    the extraction client, preserves the existing-belief-never-overwritten safety
+    property. This is the brittle lexical-verdict fix the STOP banner demands.
+    Remaining: extend the same router->verdict pass to the health-check detection
+    surface; calibrate the verdict via the evidence layer.
+  - Atomic claim decomposition at absorb: extraction prompt already enforces
+    one-assertion claims (the model does the decomposition - correct). The
+    "deterministic atomicity-rate check" that was here is **CUT** - it is the
+    brittle-rule-for-meaning anti-pattern (atomicity is meaning; a regex/word
+    monitor was tried and removed 2026-06-14). If a cheap atomicity signal is
+    ever wanted it must be model-derived or live in the calibration harness, never
+    a standalone lexical pass (see AGENTIC_BALANCE.md and the STOP banner).
   - [ ] Outcome attribution (later): the second When-to-Forget counter (did the answer that used this belief succeed?) waits on an outcome signal - reflection verdicts or host-agent feedback as task-success proxy
 - [~] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
   - [x] `deepr expert absorb REPORT_ID` (v2.12) - promote a completed report into permanent beliefs with report provenance, instead of treating reports as terminal artifacts. CLI (`--dry-run` preview) + `deepr_expert_absorb` MCP tool. Deferred: the post-research "integrate this?" inline prompt.
@@ -806,12 +822,16 @@ Turns claims into measurements before any wider exposure. Design:
    threshold), `deepr eval calibrate --from`, and the FActScore/SAFE-shaped
    grading orchestrator (`grade_corpus`). Remaining: the paid `--corpus` run
    (extraction + strong-model pre-grade) and the published curve.
-4. Entailment-shaped contradiction screen + atomic claim decomposition
-   at absorb (the two cheap absorb-quality upgrades from the
-   claim-verification corpus; the screen shares the selective
-   recalibration budget and injection point). Atomicity prompt tightened
-   2026-06-13; deterministic-vs-agentic boundary set in
-   [docs/design/checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
+4. [x] Entailment-shaped contradiction screen at absorb (2026-06-14): the
+   lexical heuristic routes, a cheap model entailment verdict concludes, so the
+   brittle check no longer mints phrasing-level false contested beliefs
+   (`verify_contradictions` default on; refuted -> absorbed, confirmed ->
+   `model_confirmed`, failure -> conservative). The atomicity half is **CUT** -
+   atomic decomposition stays the extraction model's job; a deterministic
+   atomicity monitor is the brittle-rule anti-pattern (tried/removed 2026-06-14).
+   Boundary in [docs/design/checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md);
+   see the STOP banner. Remaining: same verdict on the health-check surface,
+   and calibrate the verdict via the evidence layer.
 5. Eval methodology v2 (expert-specific metrics + continuity-property
    metrics, versioned methodology); A/B shadow mode once there are
    metrics to compare. Continuity-property metrics shipped 2026-06-13
