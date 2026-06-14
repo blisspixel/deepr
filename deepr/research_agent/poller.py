@@ -5,8 +5,8 @@ import logging
 import re
 from datetime import datetime
 
-from ..config import load_config
 from ..core.costs import CostController
+from ..core.settings import get_settings
 from ..providers import create_provider
 from ..queue import create_queue
 from ..storage import create_storage
@@ -71,22 +71,23 @@ class JobPoller:
         self.socketio = socketio
         self.running = False
 
-        # Load config
-        config = load_config()
+        # Resolve configuration from typed settings (Q1.1).
+        settings = get_settings()
 
-        # Initialize components
-        self.queue = create_queue(
-            config.get("queue", "local"), db_path=config.get("queue_db_path", "queue/research_queue.db")
-        )
+        # Initialize components. queue is local with the canonical db path (both
+        # were hardcoded in the legacy config dict).
+        self.queue = create_queue("local", db_path="queue/research_queue.db")
 
-        self.storage = create_storage(config.get("storage", "local"), base_path=config.get("results_dir", "results"))
+        self.storage = create_storage(settings.storage.type.value, base_path=settings.storage.local_path)
 
-        self.provider = create_provider(config.get("provider", "openai"), api_key=config.get("api_key"))
+        # api_key is read from the env by each provider; default_provider is the
+        # canonical configured default (DEEPR_DEFAULT_PROVIDER).
+        self.provider = create_provider(settings.default_provider)
 
         self.cost_controller = CostController(
-            max_cost_per_job=float(config.get("max_cost_per_job", 5.0)),
-            max_daily_cost=float(config.get("max_daily_cost", 25.0)),
-            max_monthly_cost=float(config.get("max_monthly_cost", 200.0)),
+            max_cost_per_job=settings.budget.max_cost_per_job,
+            max_daily_cost=settings.budget.daily_limit,
+            max_monthly_cost=settings.budget.monthly_limit,
         )
 
     async def start(self):
