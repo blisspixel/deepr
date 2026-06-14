@@ -64,6 +64,11 @@ ESTIMATED_EXTRACTION_COST = 0.03
 # Source tag recorded on every absorbed belief.
 SOURCE_TYPE = "absorbed_report"
 
+# Above this router score a lexical dedup match is near-identical (clearly the
+# same claim), so it merges without a model verdict; only the uncertain band
+# (0.7, this] is verified, which bounds the dedup-verification cost.
+_DEDUP_VERIFY_CEILING = 0.92
+
 
 class ReportAbsorberError(Exception):
     """Raised when a report cannot be absorbed (empty text, bad model output)."""
@@ -273,6 +278,7 @@ class ReportAbsorber:
         max_claims: int = _MAX_CLAIMS,
         flag_contradictions: bool = True,
         verify_contradictions: bool = True,
+        verify_dedup: bool = True,
         adjudicate: bool = False,
     ) -> AbsorptionResult:
         """Extract, gate, and (unless dry_run) integrate report claims.
@@ -294,6 +300,13 @@ class ReportAbsorber:
                 absorbed normally instead of recorded as a false conflict. One
                 cheap call per flagged pair (flagged pairs are rare); reuses the
                 extraction client. False keeps the old lexical-only behavior.
+            verify_dedup: Before the lexical >0.7 word-overlap merges a candidate
+                into a similar existing belief, confirm with the model that they
+                are the SAME fact (not different facts that share words - e.g.
+                different numbers, dates, entities). Distinct claims are added
+                separately instead of silently merged into one (which loses
+                data). Cost-bounded: only the uncertain band (router score
+                <= 0.92) is verified; near-identical matches merge directly.
             adjudicate: Additionally run ``ConflictResolver.resolve`` on each
                 flagged pair (one paid LLM call per conflict) and record the
                 verdict on the flag. Advisory only - never mutates beliefs.
@@ -375,13 +388,19 @@ class ReportAbsorber:
                 existing.append(belief)
                 continue
 
+            # Dedup gate: the lexical >0.7 overlap is a router, not a merge
+            # verdict. In the uncertain band ask the model whether the claims are
+            # the SAME fact; if distinct, block the merge so we do not collapse
+            # two different facts that merely share words into one (data loss).
+            merge_blocked = await self._merge_would_lose_data(belief) if verify_dedup else False
+
             if dry_run:
                 absorbed.append(AbsorbedClaim(cand.statement, cand.confidence, belief.id, "would_add"))
                 existing.append(belief)
                 continue
 
             pre_ids = set(self.belief_store.beliefs)
-            stored, _change = self.belief_store.add_belief(belief, check_conflicts=True)
+            stored, _change = self.belief_store.add_belief(belief, check_conflicts=True, dedup=not merge_blocked)
             outcome = "merged" if stored.id in pre_ids else "added"
             absorbed.append(AbsorbedClaim(stored.claim, stored.confidence, stored.id, outcome))
             existing.append(stored)
@@ -431,6 +450,54 @@ class ReportAbsorber:
         if text.startswith("no"):
             return False
         return None  # ambiguous answer - stay conservative
+
+    async def _merge_would_lose_data(self, candidate: Belief) -> bool:
+        """True if the lexical dedup router would merge the candidate into an
+        existing belief the model says states a DIFFERENT fact.
+
+        The >0.7 word-overlap is a router, not a merge verdict (AGENTIC_BALANCE.md).
+        Only the uncertain band (router score <= ``_DEDUP_VERIFY_CEILING``) is sent
+        to the model; near-identical matches merge directly. A "same" or
+        unverifiable verdict does not block the merge - the conservative default
+        is the existing behavior.
+        """
+        match = self.belief_store.find_similar_with_score(candidate)
+        if match is None:
+            return False
+        similar, score = match
+        if score > _DEDUP_VERIFY_CEILING:
+            return False  # near-identical - clearly the same claim, merge as before
+        return await self._verify_same_claim(candidate, similar) is False
+
+    async def _verify_same_claim(self, candidate: Belief, existing: Belief) -> bool | None:
+        """Model verdict: do these two claims assert the SAME fact?
+
+        Returns True (same fact - safe to merge), False (different facts that
+        merely share words - keep both), or None (could not verify; the caller
+        keeps the existing merge behavior).
+        """
+        system = (
+            "You judge whether two statements assert the SAME fact - one a restatement or "
+            "paraphrase of the other - versus DIFFERENT facts that merely share words. "
+            "Different numbers, entities, dates, scope, or qualifiers mean DIFFERENT facts. "
+            "Answer one word: SAME or DIFFERENT."
+        )
+        user = f"Statement A: {existing.claim}\nStatement B: {candidate.claim}\n\nSame fact or different? Answer SAME or DIFFERENT."
+        try:
+            client = self._get_client()
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            )
+            text = (response.choices[0].message.content or "").strip().lower()
+        except Exception as exc:  # a verdict failure must not change merge behavior
+            logger.warning("Dedup verification failed for %s: %s", candidate.id, exc)
+            return None
+        if text.startswith("same"):
+            return True
+        if text.startswith("different"):
+            return False
+        return None
 
     async def _flag_contradiction(
         self,
