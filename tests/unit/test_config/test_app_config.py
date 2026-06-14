@@ -324,3 +324,77 @@ class TestLoadConfig:
         assert result["max_cost_per_job"] == 10.0
         assert result["max_daily_cost"] == 50.0
         assert result["max_monthly_cost"] == 500.0
+
+
+class TestLoadConfigContract:
+    """Characterization of deepr.config.load_config() before the Phase Q1.1
+    migration to typed get_settings().
+
+    These pin the exact contract the ~53 call sites depend on, so the migration
+    cannot silently change the dict's shape, the api-key redaction, or the
+    default cost limits. The last test pins the *divergence* from
+    deepr.core.settings.load_config() so a blind unification of the two fails
+    here deliberately rather than shipping a behavior change. See
+    docs/design/code-health.md Q1.1.
+    """
+
+    EXPECTED_KEYS = {
+        "provider",
+        "api_key",
+        "azure_endpoint",
+        "queue",
+        "queue_db_path",
+        "storage",
+        "results_dir",
+        "experts_dir",
+        "max_cost_per_job",
+        "max_daily_cost",
+        "max_monthly_cost",
+    }
+
+    def test_exact_key_set(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        assert set(load_config().keys()) == self.EXPECTED_KEYS
+
+    def test_api_key_is_always_redacted(self, monkeypatch):
+        # Security invariant: load_config never exposes a real key. Callers that
+        # need the real key fetch it elsewhere and treat "***" as a sentinel
+        # (see the comments in context_builder/curriculum/providers). The
+        # migration MUST preserve this - get_settings() returns the real key.
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-must-not-leak")
+        assert load_config()["api_key"] == "***"
+
+    def test_hardcoded_queue_fields(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        result = load_config()
+        assert result["queue"] == "local"
+        assert result["queue_db_path"] == "queue/research_queue.db"
+
+    def test_default_cost_limits_when_env_unset(self, monkeypatch):
+        for var in ("DEEPR_MAX_COST_PER_JOB", "DEEPR_MAX_COST_PER_DAY", "DEEPR_MAX_COST_PER_MONTH"):
+            monkeypatch.delenv(var, raising=False)
+        result = load_config()
+        assert result["max_cost_per_job"] == 5.0
+        assert result["max_daily_cost"] == 25.0
+        assert result["max_monthly_cost"] == 200.0
+
+    def test_results_dir_honors_reports_path_env(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_REPORTS_PATH", "custom/reports/here")
+        assert load_config()["results_dir"] == "custom/reports/here"
+
+    def test_diverges_from_settings_load_config(self, monkeypatch):
+        # HAZARD pin (Q1.1): the two load_config implementations disagree, so a
+        # blind unification must trip this test. config.py redacts api_key and
+        # carries experts_dir; core.settings.load_config does neither.
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        from deepr.core.settings import get_settings
+        from deepr.core.settings import load_config as settings_load_config
+
+        get_settings(reset=True)  # deterministic singleton state
+        cfg = load_config()
+        settings_cfg = settings_load_config()
+
+        assert cfg["api_key"] == "***"
+        assert "experts_dir" in cfg
+        assert "experts_dir" not in settings_cfg
+        assert settings_cfg["api_key"] != "***"  # settings does not redact
