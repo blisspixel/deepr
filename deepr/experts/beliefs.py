@@ -548,18 +548,26 @@ class BeliefStore:
                 events.append(change)
         return events
 
-    def add_belief(self, belief: Belief, check_conflicts: bool = True) -> tuple[Belief, BeliefChange | None]:
+    def add_belief(
+        self, belief: Belief, check_conflicts: bool = True, dedup: bool = True
+    ) -> tuple[Belief, BeliefChange | None]:
         """Add a belief to the store.
 
         Args:
             belief: Belief to add
             check_conflicts: Whether to check for conflicts
+            dedup: Whether to merge into a lexically-similar existing belief.
+                The >0.7 word-overlap is a router, not a merge verdict, so a
+                caller that has confirmed (e.g. with a model) the candidate is a
+                *distinct* fact passes ``dedup=False`` to add it separately
+                instead of collapsing two different facts into one
+                (AGENTIC_BALANCE.md).
 
         Returns:
             Tuple of (added/updated belief, change record)
         """
         # Check for existing similar belief
-        existing = self._find_similar(belief)
+        existing = self._find_similar(belief) if dedup else None
 
         if existing:
             # Resolve conflict
@@ -948,29 +956,29 @@ class BeliefStore:
         """
         return self.changes[-limit:]
 
-    def _find_similar(self, belief: Belief) -> Belief | None:
-        """Find similar existing belief.
+    def find_similar_with_score(self, belief: Belief) -> tuple[Belief, float] | None:
+        """Best same-domain word-overlap match and its similarity score, or None.
 
-        Args:
-            belief: Belief to compare
-
-        Returns:
-            Similar belief or None
+        A high-recall *router* (the >0.7 word-overlap), NOT a merge verdict -
+        deciding two claims are "the same" is meaning, the model's job, so a
+        caller that merges on this must confirm with a model first
+        (AGENTIC_BALANCE.md; docs/design/checks-deterministic-vs-agentic.md).
+        Returns the first match over the router threshold with its score.
         """
-        # Simple similarity: same domain and overlapping words
-        domain_beliefs = self.get_beliefs_by_domain(belief.domain)
-
         belief_words = set(belief.claim.lower().split())
-
-        for existing in domain_beliefs:
+        for existing in self.get_beliefs_by_domain(belief.domain):
             existing_words = set(existing.claim.lower().split())
             overlap = len(belief_words & existing_words)
             similarity = overlap / max(len(belief_words), len(existing_words), 1)
-
             if similarity > 0.7:
-                return existing
-
+                return existing, similarity
         return None
+
+    def _find_similar(self, belief: Belief) -> Belief | None:
+        """Find a similar existing belief (the lexical router; see caveat on
+        :meth:`find_similar_with_score`)."""
+        match = self.find_similar_with_score(belief)
+        return match[0] if match else None
 
     def _find_related(self, belief: Belief) -> list[Belief]:
         """Same-domain beliefs in the related-but-distinct similarity band.
