@@ -72,6 +72,27 @@ class TestOllamaProbe:
         assert "not reachable" in detail
 
 
+class TestAvailableLocalModels:
+    def test_unreachable_returns_empty_not_raise(self):
+        from deepr.backends.capacity import available_local_models
+
+        assert available_local_models("http://localhost:1", timeout=0.1) == []
+
+
+class TestPlanQuotaDetection:
+    def test_copilot_and_cursor_detected(self):
+        present = {"copilot", "cursor-agent"}
+        sources = detect_capacity(
+            ollama_probe=lambda: (False, ""),
+            which=lambda exe: f"/usr/bin/{exe}" if exe in present else None,
+            env={},
+        )
+        copilot = next(s for s in sources if s.name.startswith("Copilot"))
+        cursor = next(s for s in sources if s.name.startswith("Cursor"))
+        assert copilot.available and copilot.kind == BackendKind.PLAN_QUOTA
+        assert cursor.available and cursor.kind == BackendKind.PLAN_QUOTA
+
+
 class TestCapacityCommand:
     def test_runs_and_lists_groups(self):
         result = CliRunner().invoke(capacity, [])
