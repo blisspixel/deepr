@@ -74,6 +74,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     metered. The chosen backend and the reason are printed ("why did this
     run on X"). Admissions are machine-local (`DEEPR_CAPACITY_DATA_DIR`),
     not in the portable experts dir, since local capacity is per-machine.
+    Selection is admission-driven and verified against live availability: the
+    waterfall uses an admitted model only if Ollama currently has it loaded
+    (checked via a new `available_local_models()`), so it is robust to model
+    list order and does not depend on `DEEPR_LOCAL_MODEL` (which now only
+    breaks ties among several admitted+available models). Validated end to end
+    on a local 80B MoE (`qwen3-coder-next`): $0 context-grounded claim
+    extraction, admit -> auto-route -> local, admitted-but-unloaded ->
+    metered fallback.
+  - `deepr capacity` now also detects **GitHub Copilot CLI** (`copilot`) and
+    **Cursor CLI** (`cursor-agent`) as plan-quota sources, alongside Claude
+    Code / Codex / Antigravity / Kiro.
   Design: [capacity-waterfall.md](design/capacity-waterfall.md).
 - Evidence layer - making expert trust measurable rather than asserted:
   - `deepr eval continuity` scores staleness honesty, abstention,

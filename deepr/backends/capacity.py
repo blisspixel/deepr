@@ -88,6 +88,13 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
         "separate credit pool at API rates (2026-06-15); overflow must be off",
     ),
     ("Codex CLI", "codex", CostModel.ROLLING_WINDOW, "ChatGPT plan, 5h rolling windows"),
+    (
+        "Copilot CLI",
+        "copilot",
+        CostModel.CREDIT_POOL,
+        "GitHub plan, monthly AI credits (metered per token; overflow admin-capped)",
+    ),
+    ("Cursor CLI", "cursor-agent", CostModel.CREDIT_POOL, "Cursor plan; Auto model free, frontier models metered"),
     ("Antigravity", "agy", CostModel.CALENDAR_WINDOW, "Google AI plan, weekly compute caps"),
     ("Kiro CLI", "kiro", CostModel.CALENDAR_WINDOW, "monthly credits (overage risk - reserve floor)"),
 ]
@@ -118,6 +125,26 @@ def ollama_status(base_url: str | None = None, *, timeout: float = 0.5) -> tuple
         return True, "running, no models pulled (try: ollama pull llama3.1)"
     except Exception:
         return False, f"not reachable at {url} (start: ollama serve)"
+
+
+def available_local_models(base_url: str | None = None, *, timeout: float = 2.0) -> list[str]:
+    """Names of models the local Ollama server currently has. [] if unreachable.
+
+    Used by the waterfall to pick an admitted model that actually exists right
+    now, rather than guessing from list order or an env var. The timeout is more
+    forgiving than the status probe's because a false negative here silently
+    forfeits owned capacity to the metered API. Never raises.
+    """
+    url = (base_url or os.getenv("OLLAMA_HOST") or _OLLAMA_DEFAULT_URL).rstrip("/")
+    try:
+        import httpx
+
+        resp = httpx.get(f"{url}/api/tags", timeout=timeout)
+        resp.raise_for_status()
+        models = resp.json().get("models", [])
+        return [m["name"] for m in models if isinstance(m, dict) and m.get("name")]
+    except Exception:
+        return []
 
 
 def _detect_local(ollama_probe=ollama_status) -> list[CapacitySource]:
