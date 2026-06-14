@@ -38,11 +38,10 @@ def report(period: str):
         from collections import defaultdict
         from datetime import datetime, timedelta
 
-        from deepr.config import load_config
         from deepr.queue import create_queue
 
-        config = load_config()
-        queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
+        # queue db path was a hardcoded constant in the legacy config dict.
+        queue = create_queue("local", db_path="queue/research_queue.db")
 
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
@@ -148,10 +147,15 @@ def report(period: str):
             console.print(f"[warning]High failure rate detected ({failure_rate:.1f}%)[/warning]")
             console.print("   [dim]Consider reviewing failed jobs for patterns[/dim]")
 
-        if total_cost > config.get("max_cost_per_month", 1000.0) * 0.8:
+        # NOTE: the legacy config dict never had a "max_cost_per_month" key (it
+        # was "max_monthly_cost"), so this threshold was always the 1000.0
+        # default. Behavior preserved verbatim; the typo'd-key bug is tracked
+        # separately rather than folded into the config migration.
+        monthly_budget = 1000.0
+        if total_cost > monthly_budget * 0.8:
             console.print("[warning]Approaching monthly budget limit[/warning]")
             console.print(f"   Current: ${total_cost:.2f}")
-            console.print(f"   Limit: ${config.get('max_cost_per_month', 1000.0):.2f}")
+            console.print(f"   Limit: ${monthly_budget:.2f}")
 
         cheapest_model = min(
             by_model.items(), key=lambda x: x[1]["cost"] / x[1]["count"] if x[1]["count"] > 0 else float("inf")
@@ -185,11 +189,10 @@ def trends():
         from collections import defaultdict
         from datetime import datetime, timedelta
 
-        from deepr.config import load_config
         from deepr.queue import create_queue
 
-        config = load_config()
-        queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
+        # queue db path was a hardcoded constant in the legacy config dict.
+        queue = create_queue("local", db_path="queue/research_queue.db")
 
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
@@ -247,11 +250,10 @@ def failures():
     try:
         from collections import Counter
 
-        from deepr.config import load_config
         from deepr.queue import create_queue
 
-        config = load_config()
-        queue = create_queue("local", db_path=config.get("queue_db_path", "queue/research_queue.db"))
+        # queue db path was a hardcoded constant in the legacy config dict.
+        queue = create_queue("local", db_path="queue/research_queue.db")
 
         async def get_jobs():
             return await queue.list_jobs(limit=1000)
