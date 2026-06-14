@@ -68,9 +68,9 @@ class ContextIndex:
         """
         self.data_dir = Path(data_dir) if data_dir else Path("data")
         if reports_dir is None:
-            from deepr.core.settings import get_settings
+            from deepr.config import load_config
 
-            reports_dir = Path(get_settings().storage.local_path)
+            reports_dir = Path(load_config()["results_dir"])
         self.reports_dir = Path(reports_dir)
 
         self.data_dir.mkdir(parents=True, exist_ok=True)

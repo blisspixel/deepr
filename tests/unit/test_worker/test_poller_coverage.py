@@ -20,7 +20,7 @@ from deepr.worker.poller import JobPoller
 @pytest.fixture
 def poller():
     with (
-        patch("deepr.worker.poller.get_settings"),
+        patch("deepr.worker.poller.load_config", return_value={}),
         patch("deepr.worker.poller.create_queue"),
         patch("deepr.worker.poller.create_storage"),
         patch("deepr.worker.poller.create_provider"),
