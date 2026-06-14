@@ -456,6 +456,14 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
     property. This is the brittle lexical-verdict fix the STOP banner demands.
     Remaining: extend the same router->verdict pass to the health-check detection
     surface; calibrate the verdict via the evidence layer.
+  - [x] Dedup-merge verdict on the absorb gate (2026-06-14): the sibling brittle
+    verdict. `_find_similar`'s >0.7 word-overlap decided merges, so two different
+    facts that share words (e.g. "$10/M" vs "$30/M") silently merged into one,
+    losing data. Now the overlap routes; in the uncertain band (<= 0.92) a cheap
+    model verdict decides SAME vs DIFFERENT fact, and `add_belief(dedup=False)`
+    adds distinct claims separately. Cost-bounded, every existing caller
+    unchanged. Remaining: the same gate on other `add_belief` callers (chat
+    worldview bridge, sync) and `_find_similar_in_domain`.
   - Atomic claim decomposition at absorb: extraction prompt already enforces
     one-assertion claims (the model does the decomposition - correct). The
     "deterministic atomicity-rate check" that was here is **CUT** - it is the
