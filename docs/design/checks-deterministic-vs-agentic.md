@@ -108,7 +108,7 @@ queries $0 where the verdict is not safety-critical.
 | Contradiction detection (`beliefs_contradict`, duplicated `_find_contradictions`) | lexical negation + overlap | Semantic. Keep lexical only as a high-recall Stage-1 *router*; require an entailment/NLI verdict on the flagged band before recording a contradiction. Consolidate the duplicate into one predicate. (belief-lifecycle.md #5) |
 | Belief dedup / merge (`_find_similar`, `_find_similar_in_domain`, >0.7 overlap) | lexical | Semantic. Lexical is a router at best; the merge verdict should use embeddings (cosine, already in `gap_discovery._cosine_similarity`) or NLI, calibration-gated. Lower risk than contradiction; sequence after it. |
 | Claim grounding at absorb (report support self-rating) | extraction LLM, report-grounded | Model-based and grounded - correct direction. Strengthen with explicit entailment of claim vs its cited evidence span. |
-| Atomic claim decomposition | extraction LLM prompt | Model-based - correct (finding 3). Tighten the prompt (FActScore/SAFE style). Add a DecompScore-style atomicity-rate *monitor* as telemetry and a router signal, explicitly NOT a regex splitter or a gate on storage; the calibration harness validates whether the cheap signal tracks true atomicity before any paid split pass. |
+| Atomic claim decomposition | extraction LLM prompt | Model-based - correct (finding 3). Tighten the prompt (FActScore/SAFE style). Atomicity is *meaning*, so per AGENTIC_BALANCE.md it is an Agent surface: **do NOT add a standalone lexical/regex atomicity detector, even as "telemetry"** - a word-marker scan for "and/but/;" is exactly the brittle-rule anti-pattern (a 2026-06-14 attempt added one and it was removed). If a cheap atomicity signal is wanted, derive it from the model (have the extractor self-tag each claim's atomicity in the same call, $0 extra) or measure it in the calibration harness; never a separate regex pass on this surface. |
 | `validate`, reflection, council, conflict adjudication | LLM-as-judge | Keep, but calibrate and bias-mitigate (position/length/self-enhancement); the calibration harness (v2.15 #3) owns measuring and standardizing these. |
 
 ## Consequences for v2.15 #4 (atomicity + entailment screen)
@@ -118,10 +118,14 @@ finding 3: decomposition is the LLM's job. The corrected shape:
 
 1. **Decomposition stays in the extraction LLM**; tighten the prompt for
    atomic, decontextualized, single-assertion claims.
-2. **A $0 atomicity-rate monitor** (DecompScore-style) measures the
-   decomposer's output as telemetry and as a router that flags compound
-   claims - never as a splitter or a storage gate, and treated as a proxy
-   until the calibration harness shows it tracks true atomicity.
+2. **Atomicity measurement is model-derived, never a standalone lexical/regex
+   pass.** Atomicity is meaning (an Agent surface in AGENTIC_BALANCE.md), so a
+   "$0" monitor must not be a word-marker scan ("and/but/;") - that is the
+   rejected naive regex checker wearing a telemetry costume (tried and removed
+   2026-06-14). If a cheap signal is wanted, get it from the model that already
+   ran: have the extraction LLM self-tag each claim's atomicity in the same
+   call ($0 extra), or measure atomicity in the calibration harness against
+   ground truth. No separate deterministic detector on this surface.
 3. **The contradiction "screen"** becomes the Stage-2 entailment verdict on
    the Stage-1-routed band (sentence-level NLI first; retrieval-grounded LLM
    where NLI is too coarse), calibration-gated and budget-bounded.
