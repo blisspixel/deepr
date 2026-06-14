@@ -11,19 +11,22 @@ mistake." So absorption is gated, not blind:
    candidate claims, each self-rated for how strongly the report supports it.
    (One call regardless of claim count, so cost stays predictable.)
 2. Confidence gate: candidates below ``min_confidence`` are dropped.
-3. Contradiction gate (cost-$0): a candidate that contradicts an existing
-   belief - flagged by the same free heuristic ``health-check`` uses - is never
-   silently absorbed. The heuristic is a high-recall *router*, not a semantic
-   verdict (lexical overlap correlates near-zero with grounding judgments;
-   docs/design/checks-deterministic-vs-agentic.md), so each flag is recorded
-   ``verification="lexical_unverified"`` until a model pass confirms it. By
-   default the candidate becomes a *flagged contradiction*: stored as a
-   contested belief with contradiction edges both ways (contradiction-as-
-   signal - the conflict is queryable and feeds ``expert resolve-conflicts``),
-   while the existing belief is guaranteed untouched. The core safety property
-   holds either way: a contradicting claim never overwrites a belief without
-   adjudication or approval. Pass ``flag_contradictions=False`` for the legacy
-   silent drop.
+3. Contradiction gate (two-stage, router-then-verdict): the free word-overlap
+   heuristic is a high-recall *router*, not a semantic verdict (lexical overlap
+   correlates near-zero with grounding judgments; AGENTIC_BALANCE.md and
+   docs/design/checks-deterministic-vs-agentic.md). When ``verify_contradictions``
+   is on, each routed pair gets a cheap model entailment verdict: a confirmed
+   conflict is recorded ``verification="model_confirmed"``, while the heuristic's
+   phrasing-level *false positives* are dropped and the candidate is absorbed
+   normally - the brittle lexical check no longer mints false contested beliefs.
+   A confirmed (or unverifiable, ``lexical_unverified``) candidate becomes a
+   *flagged contradiction*: stored as a contested belief with contradiction edges
+   both ways (contradiction-as-signal - queryable, feeds
+   ``expert resolve-conflicts``), while the existing belief is guaranteed
+   untouched. The core safety property holds either way: a contradicting claim
+   never overwrites a belief without adjudication or approval. Pass
+   ``flag_contradictions=False`` for the legacy silent drop, or
+   ``verify_contradictions=False`` for the old lexical-only flagging.
 4. Dedup + integrate: survivors go through ``BeliefStore.add_belief``, which
    dedupes near-duplicates and integrates only the delta, with the report id
    recorded as provenance on every belief.
@@ -269,6 +272,7 @@ class ReportAbsorber:
         dry_run: bool = False,
         max_claims: int = _MAX_CLAIMS,
         flag_contradictions: bool = True,
+        verify_contradictions: bool = True,
         adjudicate: bool = False,
     ) -> AbsorptionResult:
         """Extract, gate, and (unless dry_run) integrate report claims.
@@ -282,6 +286,14 @@ class ReportAbsorber:
             flag_contradictions: Record contradicting candidates as contested
                 beliefs with contradiction edges (the signal) instead of
                 silently dropping them. False restores the legacy drop.
+            verify_contradictions: Route each lexically-flagged contradiction
+                through a model entailment verdict before recording it. The
+                word-overlap heuristic is a high-recall router, not a verdict
+                (AGENTIC_BALANCE.md: lexical rules never conclude on meaning), so
+                this drops its phrasing-level false positives - the candidate is
+                absorbed normally instead of recorded as a false conflict. One
+                cheap call per flagged pair (flagged pairs are rare); reuses the
+                extraction client. False keeps the old lexical-only behavior.
             adjudicate: Additionally run ``ConflictResolver.resolve`` on each
                 flagged pair (one paid LLM call per conflict) and record the
                 verdict on the flag. Advisory only - never mutates beliefs.
@@ -334,6 +346,17 @@ class ReportAbsorber:
             )
 
             conflict = self._contradicts_existing(belief, existing)
+            # The lexical hit is only a router; let the model decide whether it is
+            # a genuine contradiction before we record one. A refuted pair (a
+            # phrasing-level false positive) falls through to normal absorption.
+            verification = "lexical_unverified"
+            if conflict is not None and verify_contradictions:
+                verdict = await self._verify_contradiction(belief, conflict)
+                if verdict is True:
+                    verification = "model_confirmed"
+                elif verdict is False:
+                    conflict = None  # lexical false positive - not a real conflict
+
             if conflict is not None:
                 if not flag_contradictions:
                     rejected.append(
@@ -344,7 +367,11 @@ class ReportAbsorber:
                         )
                     )
                     continue
-                flagged.append(await self._flag_contradiction(belief, conflict, dry_run=dry_run, adjudicate=adjudicate))
+                flagged.append(
+                    await self._flag_contradiction(
+                        belief, conflict, dry_run=dry_run, adjudicate=adjudicate, verification=verification
+                    )
+                )
                 existing.append(belief)
                 continue
 
@@ -371,6 +398,40 @@ class ReportAbsorber:
             estimated_cost=ESTIMATED_EXTRACTION_COST,
         )
 
+    async def _verify_contradiction(self, candidate: Belief, existing: Belief) -> bool | None:
+        """Model entailment verdict: do these two claims genuinely contradict?
+
+        ``_contradicts_existing`` is a high-recall lexical *router* - it flags
+        opposite-polarity, word-overlapping pairs, many of which are phrasing-
+        level, not real conflicts. This is the model verdict on the routed pair
+        (AGENTIC_BALANCE.md: a lexical check may route but never conclude on
+        meaning). Returns True (genuine contradiction), False (lexical false
+        positive - absorb normally), or None (could not verify; the caller keeps
+        the conservative ``lexical_unverified`` flag rather than dropping it).
+        """
+        system = (
+            "You judge whether two statements genuinely contradict: they cannot both be "
+            "true at the same time and scope. Shared words or surface negation do NOT make "
+            "a contradiction; differing time, scope, qualifier, or aspect is not a "
+            "contradiction. Answer with one word: YES or NO."
+        )
+        user = f"Statement A: {existing.claim}\nStatement B: {candidate.claim}\n\nDo A and B genuinely contradict? Answer YES or NO."
+        try:
+            client = self._get_client()
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            )
+            text = (response.choices[0].message.content or "").strip().lower()
+        except Exception as exc:  # never let a verdict failure drop a contradiction
+            logger.warning("Contradiction verification failed for %s: %s", candidate.id, exc)
+            return None
+        if text.startswith("yes"):
+            return True
+        if text.startswith("no"):
+            return False
+        return None  # ambiguous answer - stay conservative
+
     async def _flag_contradiction(
         self,
         belief: Belief,
@@ -378,6 +439,7 @@ class ReportAbsorber:
         *,
         dry_run: bool,
         adjudicate: bool,
+        verification: str = "lexical_unverified",
     ) -> FlaggedContradiction:
         """Record a contradicting candidate as a contested belief (the signal).
 
@@ -387,6 +449,10 @@ class ReportAbsorber:
         with contradiction edges both ways so ``expert resolve-conflicts`` and
         health-check can adjudicate later. Optional adjudication is advisory -
         its verdict is recorded on the flag, never applied to the store.
+
+        ``verification`` records how the contradiction was established
+        ("model_confirmed" when the entailment verdict confirmed it, else
+        "lexical_unverified").
         """
         if belief.confidence > conflict.confidence:
             better = "candidate"
@@ -404,6 +470,7 @@ class ReportAbsorber:
             conflicts_with_confidence=conflict.confidence,
             outcome="would_flag" if dry_run else "flagged",
             better_sourced=better,
+            verification=verification,
         )
 
         if not dry_run:
