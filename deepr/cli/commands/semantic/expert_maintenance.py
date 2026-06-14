@@ -170,6 +170,11 @@ def absorb_report(
         f"Insufficient: {len(result.insufficient)}  "
         f"Rejected: {len(result.rejected)}  Flagged: {len(result.flagged)}"
     )
+    if result.contradictions_refuted or result.merges_blocked:
+        console.print(
+            f"[dim]Model verdicts caught {result.contradictions_refuted} false contradiction(s) "
+            f"and {result.merges_blocked} false merge(s) the word-overlap heuristic flagged.[/dim]"
+        )
 
     if result.absorbed:
         console.print()
