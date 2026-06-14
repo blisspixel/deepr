@@ -170,6 +170,11 @@ def absorb_report(
         f"Insufficient: {len(result.insufficient)}  "
         f"Rejected: {len(result.rejected)}  Flagged: {len(result.flagged)}"
     )
+    if result.atomicity and result.atomicity.total:
+        atom = result.atomicity
+        console.print(
+            f"[dim]Atomicity: {atom.rate:.0%} ({atom.atomic}/{atom.total} atomic) - lexical proxy, telemetry only[/dim]"
+        )
 
     if result.absorbed:
         console.print()
@@ -181,13 +186,19 @@ def absorb_report(
         console.print()
         print_section_header("Flagged contradictions (recorded as contested, existing beliefs untouched)")
         for f in result.flagged:
-            console.print(f"  [yellow]![/yellow] {f.statement}  [dim](conf {f.confidence:.2f}, {f.outcome})[/dim]")
+            tag = " unverified" if f.verification == "lexical_unverified" and not f.resolution else ""
+            console.print(f"  [yellow]![/yellow] {f.statement}  [dim](conf {f.confidence:.2f}, {f.outcome}{tag})[/dim]")
             console.print(
                 f"    [dim]contradicts {f.conflicts_with_id}: {f.conflicts_with_claim} "
                 f"(conf {f.conflicts_with_confidence:.2f}; better sourced: {f.better_sourced})[/dim]"
             )
             if f.resolution:
                 console.print(f"    [dim]adjudication: {f.resolution} - {f.resolution_explanation}[/dim]")
+        if any(f.verification == "lexical_unverified" and not f.resolution for f in result.flagged):
+            console.print(
+                "  [dim]'unverified' = flagged by the free lexical heuristic (high-recall router), "
+                "not a confirmed semantic contradiction. Adjudicate to get a model verdict.[/dim]"
+            )
 
     if result.insufficient:
         console.print()
