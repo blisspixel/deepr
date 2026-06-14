@@ -38,28 +38,59 @@ Quality gates run *before* the waterfall: a task above the backend's
 admitted quality ceiling skips ahead (free-but-wrong is not a bargain -
 the eval-gated admission below is what earns a backend its place).
 
-### Vendor adapters (June 2026 surfaces; verify before building)
+### Engine vs capacity (the key abstraction)
 
-**Verified 2026-06-13 (re-sequences the adapters):** Anthropic's June 15, 2026
-change moves `claude -p` headless + the Agent SDK off the flat subscription onto
-a *separate monthly credit pool* ($20 Pro / $100 Max 5x / $200 Max 20x) billed
-**at standard API rates**, that stops when exhausted unless overflow billing is
-on. So `cli-claude` is bounded-prepaid-at-API-rates, not free, with a real
-overflow-to-bill trap. Consequence: **`local-ollama` (genuinely $0) is the
-priority adapter** (shipped first); `cli-claude` drops in priority and its
-overflow-OFF / hard-stop guard is mandatory, not optional. Re-verify every CLI
-plan's headless economics immediately before building its adapter - this churns.
+Researching the June 2026 CLI field (survey below) surfaced a split the original
+single-adapter-per-vendor model missed: most CLIs are either an **execution
+engine** or a **capacity source**, and the two are separable.
 
-| Adapter | Mechanism | Quota model | Notes |
-|---|---|---|---|
-| `cli-claude` | `claude -p` headless | Separate credit pool, API rates (from 2026-06-15) | Stops/overflows when pool empties - overflow MUST be off; lower priority than local |
-| `cli-codex` | `codex exec` | 5h rolling windows + weekly cap | Sanctioned; window state probeable |
-| `cli-antigravity` | `agy` CLI headless | Weekly compute caps per tier | Gemini CLI dies 2026-06-18; re-verify agy after cutover |
-| `cli-kiro` | kiro CLI | Monthly credits, overage $0.04/credit | Overage risk: hard-stop before cap, never rely on vendor stop |
-| `local-ollama` | HTTP API | Owned hardware | Schedule-aware (shared GPU with work hours) |
+- **Engines** (Aider, opencode, Crush, Continue `cn`, Cline, Goose) are
+  open-source, bring-your-own-key drivers. Most accept an Anthropic- or
+  OpenAI-compatible base URL, so one engine can be pointed at *any* endpoint.
+- **Capacity sources** are subscriptions with included quota exposed over a
+  compatible endpoint (GLM Coding Plan, Qwen/Alibaba Coding Plan, Kimi Code,
+  Cursor in Auto mode), or first-party headless CLIs with their own pool
+  (Claude Code, Copilot CLI, Kiro).
 
-Grok consumer plans have no sanctioned headless path - excluded; xAI's
-data-sharing API credits flow through `api_metered` as a price override.
+So the adapter shape is a small matrix - an `engine` (how we drive it) times a
+`capacity` endpoint (whose quota pays) - not one bespoke adapter per product.
+That is less code, less churn, and lets a single GLM/Qwen/Kimi subscription be
+drained through whichever engine is installed. `local-ollama` remains the only
+genuine `$0 owned_hardware` source and stays the priority rung.
+
+### Vendor surfaces (verified 2026-06-13; re-verify before building - this churns monthly)
+
+`local-ollama` (genuine $0) ships first. Among prepaid rungs, Copilot CLI and
+Cursor (Auto mode) are the most automation-friendly; Claude Code's credit pool
+is the cleanest *hard-stoppable* budget. Every first-party CLI below has a
+hard-stop-able mode; the mandatory guard is to keep overflow/overage OFF and
+never rely on a vendor to stop billing.
+
+| Surface | Headless invocation | Cost model | Default exhaustion | Build priority |
+|---|---|---|---|---|
+| `local-ollama` | HTTP `/v1` | owned_hardware ($0) | n/a | 1 (shipped) |
+| Claude Code | `claude -p --output-format json` | credit_pool (separate monthly $, API rates, from 2026-06-15) | hard-stop; overflow opt-in, keep OFF | high |
+| GitHub Copilot CLI | `copilot -p --allow-all-tools` (`GH_TOKEN`) | credit_pool (monthly) -> admin-capped metered overage | hard-stop, admin-toggle | high |
+| Cursor CLI | `cursor-agent -p --output-format json` | credit_pool = plan price; **Auto model is free** | quota | high (Auto = free capacity) |
+| Codex CLI | `codex exec --json` (`CODEX_API_KEY`) | sub rolling+weekly; metered via API key | sub: 429; API: uncapped | medium (sub auth ToS-gray) |
+| Kimi Code | `kimi -p` | rolling_window (5h, ~$19/mo) | hard-stop | medium |
+| GLM Coding Plan | any engine + base-url/key | credit_pool, quarterly reset, no per-token | quota | medium (cleanest endpoint swap) |
+| Qwen Code | `qwen` headless + plan key | Coding Plan sub / metered | quota | low (free OAuth tier died 2026-04-15) |
+| Kiro | `kiro-cli chat --no-interactive` (`KIRO_API_KEY`) | credit_pool (monthly) + **uncapped** overage $0.04/cr | overage OFF by default; if ON, silent month-end bill | medium (mandatory reserve floor) |
+| Grok Build | `grok -p` (`XAI_API_KEY`) | metered (API); consumer-sub OAuth gray-area | spend-based | metered-only (no plan_quota rung) |
+| Antigravity (`agy`) | SDK `google.antigravity`; CLI `-p` unconfirmed | rolling (5h) + weekly hard cap; opt-in credit overage | up to 7-day lockout; overage off | low (quota-opaque, interactive auth) |
+
+Dropped from the plan since the first draft: **Gemini CLI** (retired for
+consumers 2026-06-18, enterprise-only after); **Amazon Q Developer CLI**
+(sunsetting into Kiro, signups blocked 2026-05-15); **Grok consumer
+subscriptions** (no sanctioned headless path - xAI's data-sharing API credits
+flow through `api_metered` as a price override). **Amp / OpenCode Zen /
+Goose+Tetrate** are prepaid-but-metered (zero markup) - no arbitrage over a
+plain API key, so not worth a plan_quota adapter. **Warp** has no clean local
+headless one-shot. Confidence caveats (each load-bearing claim is sourced in
+the 2026-06-13 research): exact quota numbers, subscription prices, and the
+gray-area ToS postures move monthly and must be re-checked against
+`--version` / vendor docs before being hard-coded.
 
 ### Quota ledger
 
@@ -90,17 +121,24 @@ No eval, no admission - "it's free" never overrides "it's good enough".
 
 ## Order of operations
 
-1. `ResearchBackend` + `CostModel` types; wrap today's provider path as
-   `api_metered` (pure refactor, no behavior change).
-2. Quota ledger + window/credit probes (read-only `deepr capacity` status
-   command - visibility before routing).
-3. First adapter: `cli-claude` (cleanest sanctioned surface, the
-   operator's own primary plan) behind an explicit opt-in flag.
-4. `local-ollama` + eval-gated admission (reuses `deepr eval`).
-5. Waterfall routing with per-task-class quality gates; `cli-codex`,
-   `cli-antigravity` (post-cutover), `cli-kiro` (with reserve floor).
-6. Multi-account pools (N accounts of the same vendor as one pooled
-   backend) - last, it multiplies an already-working mechanism.
+Steps 1-4 are shipped or substantially built (see Status at top); 5-7 remain.
+
+1. `CostModel`/`BackendKind` types + read-only `deepr capacity` detection. (done)
+2. `local-ollama` execution via the injectable seams + `--local`. (done)
+3. Eval-gated **local admission** + automatic owned-capacity-first selection
+   for `expert sync`/`absorb` (`deepr capacity admit`). (done - the local rung)
+4. `ResearchBackend` abstraction: wrap today's provider path as `api_metered`,
+   and model the `engine` x `capacity` matrix (one BYO-base-url engine driver,
+   many capacity endpoints) rather than one adapter per vendor.
+5. Quota ledger + window/credit probes per capacity source (extends
+   `deepr capacity` from detection to live remaining-estimate).
+6. First plan_quota rungs, in priority order from the survey: Copilot CLI and
+   Cursor (Auto mode), then Claude Code's credit pool (overflow OFF), then
+   Codex (API-key path), Kimi/GLM/Qwen via the engine matrix, Kiro (with the
+   mandatory reserve floor). Each behind an explicit opt-in and a "sanctioned
+   as of <date>" kill switch.
+7. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
+   it multiplies an already-working mechanism.
 
 ## Open questions
 
