@@ -535,8 +535,7 @@ def check_storage_locations() -> list[DiagnosticCheck]:
     These are the artifacts that follow you across machines when DEEPR_DATA_DIR
     points at a synced folder (ADR 0004). Informational, never a failure.
     """
-    from deepr.config import experts_root
-    from deepr.core.settings import get_settings
+    from deepr.config import experts_root, load_config
 
     experts = DiagnosticCheck("Experts", "Storage")
     experts.passed = True
@@ -545,7 +544,7 @@ def check_storage_locations() -> list[DiagnosticCheck]:
 
     reports = DiagnosticCheck("Research reports", "Storage")
     reports.passed = True
-    reports.message = str(get_settings().storage.local_path)
+    reports.message = str(load_config()["results_dir"])
 
     return [experts, reports]
 
