@@ -846,27 +846,14 @@ class Settings:
 
     def _find_config_file(self) -> Path | None:
         """Find configuration file in standard locations."""
-        locations = [
-            Path(".deepr/config.yaml"),
-            Path(".deepr/config.yml"),
-            Path(".deepr/config.json"),
-        ]
-        # User-level locations need a home directory. Path.home() raises
-        # RuntimeError when it cannot be determined (e.g. HOME/USERPROFILE
-        # unset, as in a stripped service env). A config loader must degrade
-        # gracefully - skip the user locations rather than crash, so loading
-        # settings stays as robust as the legacy load_config() it replaces.
-        home: Path | None
+        names = ("config.yaml", "config.yml", "config.json")
+        locations = [Path(".deepr") / n for n in names]
         try:
-            home = Path.home()
+            # Skip user-level config when the home dir is undeterminable
+            # (HOME/USERPROFILE unset) instead of letting Path.home() crash.
+            locations += [Path.home() / ".deepr" / n for n in names]
         except RuntimeError:
-            home = None
-        if home is not None:
-            locations += [
-                home / ".deepr" / "config.yaml",
-                home / ".deepr" / "config.yml",
-                home / ".deepr" / "config.json",
-            ]
+            pass
         for path in locations:
             if path.exists():
                 return path
