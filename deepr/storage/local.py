@@ -25,9 +25,9 @@ class LocalStorage(StorageBackend):
                 the same root.
         """
         if base_path is None:
-            from deepr.config import load_config
+            from deepr.core.settings import get_settings
 
-            base_path = load_config()["results_dir"]
+            base_path = get_settings().storage.local_path
         self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
 
