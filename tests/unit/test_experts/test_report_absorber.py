@@ -338,6 +338,7 @@ async def test_model_refuted_contradiction_is_absorbed_not_flagged(tmp_path):
 
     assert result.flagged == []  # false positive NOT recorded as contested
     assert len(result.absorbed) == 1  # absorbed normally instead
+    assert result.contradictions_refuted == 1  # the model verdict is counted
 
 
 @pytest.mark.asyncio
@@ -386,6 +387,7 @@ async def test_dedup_keeps_distinct_claims_that_share_words(tmp_path):
     assert len(result.absorbed) == 1
     assert len(store.beliefs) == 2  # both prices kept, not merged into one
     assert {b.claim for b in store.beliefs.values()} == {existing.claim, "GPT-5 costs $30 per million tokens"}
+    assert result.merges_blocked == 1  # the model verdict is counted
 
 
 @pytest.mark.asyncio

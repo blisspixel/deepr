@@ -462,8 +462,9 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
     losing data. Now the overlap routes; in the uncertain band (<= 0.92) a cheap
     model verdict decides SAME vs DIFFERENT fact, and `add_belief(dedup=False)`
     adds distinct claims separately. Cost-bounded, every existing caller
-    unchanged. Remaining: the same gate on other `add_belief` callers (chat
-    worldview bridge, sync) and `_find_similar_in_domain`.
+    unchanged. Covers chat + sync (they ingest through `ReportAbsorber.absorb`).
+    Only remaining lexical dedup is the low-stakes shared belief store
+    (`_find_similar_in_domain`, a no-client cross-expert copy).
   - Atomic claim decomposition at absorb: extraction prompt already enforces
     one-assertion claims (the model does the decomposition - correct). The
     "deterministic atomicity-rate check" that was here is **CUT** - it is the
