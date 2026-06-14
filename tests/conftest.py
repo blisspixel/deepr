@@ -74,6 +74,27 @@ def _isolate_budget_env(monkeypatch):
         monkeypatch.delenv(var, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _reset_settings_singleton():
+    """Reset the typed-settings singleton around every test.
+
+    get_settings() caches a process-wide Settings instance. Without a reset, a
+    value loaded by one test leaks into later ones - e.g. a test that sets
+    DEEPR_REPORTS_PATH would not see it reflected if an earlier test had already
+    loaded the singleton. Resetting before and after each test makes
+    get_settings() reflect the test's own env (the lazy reload happens on the
+    next access), matching the fresh-read semantics callers rely on and the
+    reports-root unification guarantee depends on. This is the standard
+    test-hygiene for a cached config singleton, and the enabler for migrating
+    load_config() callers onto get_settings() (Phase Q1.1).
+    """
+    from deepr.core.settings import Settings
+
+    Settings.reset()
+    yield
+    Settings.reset()
+
+
 @pytest.fixture
 def temp_dir(tmp_path):
     """Provide temporary directory for tests.
