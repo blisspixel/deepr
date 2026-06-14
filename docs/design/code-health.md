@@ -97,6 +97,23 @@ spending effort shrinking it. None of these change runtime behavior.
   one (or drop `experts_dir`) - the same silent-divergence family as the
   two-report-roots bug. (Third `load_config` in `core/constants.py` returns
   `None` and is unrelated - it loads env, not the config dict.)
+  *Progress 2026-06-14:* Step 0 + field-equivalence reconciliation landed
+  (`tests/unit/test_config/test_app_config.py`): 8 of 11 keys proven equal to
+  their `get_settings()` accessor, so those reads migrate mechanically. The 4
+  `results_dir`-only readers (LocalStorage, ContextIndex, doctor storage check,
+  `migrate consolidate`) are migrated; the reconciliation also surfaced and
+  fixed a real `get_settings()` crash on an undeterminable home dir.
+  *Two buckets for the rest:* **safe** = sites reading only equivalent fields
+  (results_dir, queue_db_path, storage, cost limits, azure_endpoint); **careful**
+  = the ~13 sites that read `config.get("provider", "openai")` and/or
+  `config.get("api_key")` (pollers, company_research, research/queue/jobs/vector/
+  prep/team/status/semantic-experts, api/web apps). The careful bucket needs a
+  deliberate decision, not a sweep, because (1) `provider` defaults to "openai"
+  in config but "xai" in Settings - a blind swap flips every `create_provider`
+  call; and (2) `api_key="***"` is a sentinel that `create_provider` maps to
+  None -> env-read, so those sites never use a real key from the dict; migrating
+  must preserve that env indirection (pass the resolved key or None), not pass
+  `get_settings().get_api_key()` blindly.
 - **Q1.2 Resolve `cost` vs `costs` (F6). DONE (2026-06-14).** `cost` is now a
   hidden, deprecated alias emitting a warning that names the replacement;
   `cost estimate` was ported to `costs estimate` (and its dead
