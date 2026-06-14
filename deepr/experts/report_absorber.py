@@ -42,7 +42,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from deepr.experts.atomicity import AtomicityReport, atomicity_report
 from deepr.experts.beliefs import Belief, BeliefStore
 from deepr.experts.conflict_resolver import ConflictResolver
 
@@ -194,9 +193,6 @@ class AbsorptionResult:
     flagged: list[FlaggedContradiction] = field(default_factory=list)
     insufficient: list[InsufficientGroundingClaim] = field(default_factory=list)
     estimated_cost: float = 0.0
-    # Telemetry only (DecompScore-style atomicity rate of the extractor's
-    # output). Never read by the gating path - see atomicity.py contracts.
-    atomicity: AtomicityReport | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
@@ -224,7 +220,6 @@ class AbsorptionResult:
             "flagged": [f.to_dict() for f in self.flagged],
             "insufficient": [i.to_dict() for i in self.insufficient],
             "estimated_cost": round(self.estimated_cost, 4),
-            "atomicity": self.atomicity.to_dict() if self.atomicity else None,
             "generated_at": self.generated_at.isoformat(),
         }
 
@@ -374,10 +369,6 @@ class ReportAbsorber:
             flagged=flagged,
             insufficient=insufficient,
             estimated_cost=ESTIMATED_EXTRACTION_COST,
-            # Telemetry over the extractor's raw output (every candidate, before
-            # gating), so the rate reflects the decomposer, not the survivors.
-            # Computed here, read by nothing in the gating loop above.
-            atomicity=atomicity_report([c.statement for c in candidates]),
         )
 
     async def _flag_contradiction(
