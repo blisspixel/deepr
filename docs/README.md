@@ -31,6 +31,9 @@ understand why it works the way it does.
 
 The reasoning behind contract-spanning choices, kept versioned with the code.
 
+- **[plans/AGENTIC_BALANCE.md](plans/AGENTIC_BALANCE.md)** - Cross-cutting
+  principle: workflow vs agent, what deepr hardcodes vs lets the model decide
+  (determinism on side-effects, not meaning).
 - **[design/](design/)** - Design notes (the why, with literature grounding):
   belief lifecycle, temporal knowledge graph, calibration and trust,
   deterministic-vs-agentic checks, capacity waterfall, hosted MCP endpoint,
