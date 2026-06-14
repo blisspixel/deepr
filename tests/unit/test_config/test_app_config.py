@@ -409,9 +409,12 @@ class TestLoadConfigSettingsEquivalence:
     a defined migration path (see test_provider_default_diverges below and the
     Q1.1 notes in docs/design/code-health.md):
       - provider: config reads DEEPR_PROVIDER (default "openai"); Settings reads
-        DEEPR_DEFAULT_PROVIDER (default "xai"). Inert - no call site reads
-        load_config()["provider"], so provider-needing code uses
-        get_settings().default_provider directly.
+        DEEPR_DEFAULT_PROVIDER (default "xai"). This IS consumed - ~13 sites do
+        create_provider(config.get("provider", "openai"), ...) - so the
+        divergence is a real migration hazard, NOT inert: those sites must
+        preserve the "openai" default (or the maintainer deliberately unifies on
+        Settings' "xai") rather than blindly switch to default_provider, which
+        would flip the provider for every create_provider call.
       - api_key: load_config redacts to "***"; get_settings returns the real
         key (sites reading it migrate with explicit care, not a blind swap).
       - experts_dir: absent from Settings; those sites migrate to experts_root()
@@ -484,11 +487,12 @@ class TestLoadConfigSettingsEquivalence:
         assert self._mismatches() == {}
 
     def test_provider_default_diverges(self, monkeypatch):
-        # Documented divergence: config.py reads DEEPR_PROVIDER (default
-        # "openai"); Settings reads DEEPR_DEFAULT_PROVIDER (default "xai"). This
-        # is inert for the migration because no call site reads
-        # load_config()["provider"] (verified 2026-06-14); provider-needing code
-        # uses get_settings().default_provider directly.
+        # Real, consumed divergence: config.py reads DEEPR_PROVIDER (default
+        # "openai"); Settings reads DEEPR_DEFAULT_PROVIDER (default "xai"). ~13
+        # sites read config.get("provider", "openai") (pollers, company_research,
+        # research/queue/jobs commands) and feed it to create_provider, so a
+        # blind migration to get_settings().default_provider would flip those
+        # from openai to xai. Provider/api_key sites are the careful bucket.
         monkeypatch.delenv("DEEPR_PROVIDER", raising=False)
         monkeypatch.delenv("DEEPR_DEFAULT_PROVIDER", raising=False)
         from deepr.core.settings import get_settings
