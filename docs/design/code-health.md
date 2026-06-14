@@ -83,6 +83,20 @@ spending effort shrinking it. None of these change runtime behavior.
   *Risk:* medium (53 sites; behavior must match). *Approach:* a thin compat
   shim first if needed; migrate + test per package; remove the shim last.
   *Done:* `load_config` gone; one config type; `get_settings` everywhere.
+  *Hazard found 2026-06-14 (characterize before touching any site):* there are
+  **two divergent `load_config()` dicts**, not one, and they disagree -
+  `deepr/config.py` returns `api_key="***"` (redacted), includes an
+  `experts_dir` key, and sources cost limits from `DEEPR_MAX_COST_*` env vars
+  (defaults 5/25/200); `deepr/core/settings.py` returns the **real** `api_key`,
+  has **no** `experts_dir`, and sources cost limits from `settings.budget`
+  (different defaults). So each call site depends on which `load_config` it
+  imports and which fields it reads. Step 0 is a characterization test pinning
+  both shapes per call site (api-key expectation, `experts_dir` presence,
+  cost-limit source) before any migration; reconcile the two dicts first, then
+  migrate. A blind swap to `get_settings()` would flip a redacted key to a real
+  one (or drop `experts_dir`) - the same silent-divergence family as the
+  two-report-roots bug. (Third `load_config` in `core/constants.py` returns
+  `None` and is unrelated - it loads env, not the config dict.)
 - **Q1.2 Resolve `cost` vs `costs` (F6). DONE (2026-06-14).** `cost` is now a
   hidden, deprecated alias emitting a warning that names the replacement;
   `cost estimate` was ported to `costs estimate` (and its dead
