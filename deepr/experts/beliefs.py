@@ -556,12 +556,9 @@ class BeliefStore:
         Args:
             belief: Belief to add
             check_conflicts: Whether to check for conflicts
-            dedup: Whether to merge into a lexically-similar existing belief.
-                The >0.7 word-overlap is a router, not a merge verdict, so a
-                caller that has confirmed (e.g. with a model) the candidate is a
-                *distinct* fact passes ``dedup=False`` to add it separately
-                instead of collapsing two different facts into one
-                (AGENTIC_BALANCE.md).
+            dedup: Merge into a lexically-similar existing belief. A caller that
+                confirmed the candidate is a *distinct* fact passes dedup=False
+                (the >0.7 overlap is a router, not a verdict; AGENTIC_BALANCE.md).
 
         Returns:
             Tuple of (added/updated belief, change record)
@@ -957,14 +954,7 @@ class BeliefStore:
         return self.changes[-limit:]
 
     def find_similar_with_score(self, belief: Belief) -> tuple[Belief, float] | None:
-        """Best same-domain word-overlap match and its similarity score, or None.
-
-        A high-recall *router* (the >0.7 word-overlap), NOT a merge verdict -
-        deciding two claims are "the same" is meaning, the model's job, so a
-        caller that merges on this must confirm with a model first
-        (AGENTIC_BALANCE.md; docs/design/checks-deterministic-vs-agentic.md).
-        Returns the first match over the router threshold with its score.
-        """
+        """First same-domain word-overlap match (>0.7) + score, or None (a high-recall router, not a merge verdict; AGENTIC_BALANCE.md)."""
         belief_words = set(belief.claim.lower().split())
         for existing in self.get_beliefs_by_domain(belief.domain):
             existing_words = set(existing.claim.lower().split())
@@ -975,8 +965,7 @@ class BeliefStore:
         return None
 
     def _find_similar(self, belief: Belief) -> Belief | None:
-        """Find a similar existing belief (the lexical router; see caveat on
-        :meth:`find_similar_with_score`)."""
+        """Lexical router; see :meth:`find_similar_with_score` for the caveat."""
         match = self.find_similar_with_score(belief)
         return match[0] if match else None
 
