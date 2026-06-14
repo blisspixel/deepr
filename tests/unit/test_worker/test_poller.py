@@ -10,23 +10,11 @@ class TestJobPoller:
     """Test JobPoller polling and job management."""
 
     @pytest.fixture
-    def mock_config(self):
-        return {
-            "queue": "local",
-            "queue_db_path": "test/queue.db",
-            "storage": "local",
-            "results_dir": "test/results",
-            "provider": "openai",
-            "api_key": "sk-test",
-            "max_cost_per_job": 5.0,
-            "max_daily_cost": 25.0,
-            "max_monthly_cost": 200.0,
-        }
-
-    @pytest.fixture
-    def poller(self, mock_config):
+    def poller(self):
+        # Config now comes from get_settings(); the factories are mocked, so the
+        # concrete settings values are irrelevant to these tests (Q1.1).
         with (
-            patch("deepr.worker.poller.load_config", return_value=mock_config),
+            patch("deepr.worker.poller.get_settings"),
             patch("deepr.worker.poller.create_queue") as mock_cq,
             patch("deepr.worker.poller.create_storage") as mock_cs,
             patch("deepr.worker.poller.create_provider") as mock_cp,
