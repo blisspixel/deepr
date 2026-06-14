@@ -371,6 +371,7 @@ class ReportAbsorber:
             # a genuine contradiction before we record one. A refuted pair (a
             # phrasing-level false positive) falls through to normal absorption.
             verification = "lexical_unverified"
+            contradiction_refuted = False
             if conflict is not None and verify_contradictions:
                 verdict = await self._verify_contradiction(belief, conflict)
                 if verdict is True:
@@ -378,6 +379,7 @@ class ReportAbsorber:
                 elif verdict is False:
                     conflict = None  # lexical false positive - not a real conflict
                     contradictions_refuted += 1
+                    contradiction_refuted = True
 
             if conflict is not None:
                 if not flag_contradictions:
@@ -410,8 +412,13 @@ class ReportAbsorber:
                 existing.append(belief)
                 continue
 
+            # When the model refuted the lexical contradiction, skip add_belief's
+            # contradiction-edge re-creation - the same heuristic would re-find the
+            # same false positive and re-add the edge the verdict just rejected.
             pre_ids = set(self.belief_store.beliefs)
-            stored, _change = self.belief_store.add_belief(belief, check_conflicts=True, dedup=not merge_blocked)
+            stored, _change = self.belief_store.add_belief(
+                belief, check_conflicts=not contradiction_refuted, dedup=not merge_blocked
+            )
             outcome = "merged" if stored.id in pre_ids else "added"
             absorbed.append(AbsorbedClaim(stored.claim, stored.confidence, stored.id, outcome))
             existing.append(stored)
