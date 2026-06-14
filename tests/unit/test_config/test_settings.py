@@ -141,6 +141,19 @@ class TestSettings:
         settings2 = Settings.load()
         assert settings1 is settings2
 
+    def test_load_robust_to_undeterminable_home(self):
+        """Q1.1 regression: loading must not crash when the home directory is
+        undeterminable (HOME/USERPROFILE unset, e.g. a stripped service env).
+
+        _find_config_file skips the user-level config locations instead of
+        letting Path.home() raise, so get_settings() stays as robust as the
+        legacy load_config() the config migration routes results_dir reads
+        through.
+        """
+        with patch.dict(os.environ, {}, clear=True):
+            settings = Settings.load(reset_singleton=True)
+        assert settings.storage.local_path == "data/reports"
+
     def test_load_with_reset(self):
         """Test load() with reset creates new instance."""
         settings1 = Settings.load()
