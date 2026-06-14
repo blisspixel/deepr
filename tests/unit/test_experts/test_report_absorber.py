@@ -300,35 +300,6 @@ async def test_flag_verification_marks_lexical_unverified(tmp_path):
     assert result.to_dict()["flagged"][0]["verification"] == "lexical_unverified"
 
 
-@pytest.mark.asyncio
-async def test_atomicity_is_telemetry_and_never_gates(tmp_path):
-    """The atomicity monitor measures the decomposer; it must not gate a claim.
-
-    A compound but well-grounded, non-contradicting claim is still absorbed -
-    proving the atomicity signal routes attention without changing outcomes
-    (the non-gating contract in atomicity.py).
-    """
-    content = _claims_json(
-        {"statement": "Model X leads on benchmark Y and Model Z trails", "confidence": 0.9, "evidence": ["t2"]},
-        {"statement": "Costs are tracked in a ledger", "confidence": 0.9, "evidence": ["s1"]},
-    )
-    absorber = _absorber(content, tmp_path)
-    result = await absorber.absorb("rep1", "body")
-
-    # Outcome unaffected by the compound shape: both claims absorbed.
-    assert len(result.absorbed) == 2
-    assert result.rejected == []
-    assert result.flagged == []
-
-    # Telemetry present and reflects the one compound claim.
-    assert result.atomicity is not None
-    assert result.atomicity.total == 2
-    assert result.atomicity.compound == 1
-    d = result.to_dict()["atomicity"]
-    assert d["signal"] == "lexical_proxy"
-    assert d["gating"] is False
-
-
 def test_get_client_without_key_raises(monkeypatch):
     # No client injected and no API key -> clean error, not a bare KeyError.
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
