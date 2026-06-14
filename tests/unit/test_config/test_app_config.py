@@ -398,3 +398,101 @@ class TestLoadConfigContract:
         assert "experts_dir" in cfg
         assert "experts_dir" not in settings_cfg
         assert settings_cfg["api_key"] != "***"  # settings does not redact
+
+
+class TestLoadConfigSettingsEquivalence:
+    """Q1.1 field-equivalence reconciliation: prove each load_config() value
+    equals its get_settings() accessor, so the per-site migration is mechanical
+    and behavior-preserving.
+
+    Three fields are knowingly NOT equivalent and are excluded here, each with
+    a defined migration path (see test_provider_default_diverges below and the
+    Q1.1 notes in docs/design/code-health.md):
+      - provider: config reads DEEPR_PROVIDER (default "openai"); Settings reads
+        DEEPR_DEFAULT_PROVIDER (default "xai"). Inert - no call site reads
+        load_config()["provider"], so provider-needing code uses
+        get_settings().default_provider directly.
+      - api_key: load_config redacts to "***"; get_settings returns the real
+        key (sites reading it migrate with explicit care, not a blind swap).
+      - experts_dir: absent from Settings; those sites migrate to experts_root()
+        directly, which is the canonical source load_config already wraps.
+    """
+
+    EQUIVALENT_KEYS = [
+        "azure_endpoint",
+        "queue",
+        "queue_db_path",
+        "storage",
+        "results_dir",
+        "max_cost_per_job",
+        "max_daily_cost",
+        "max_monthly_cost",
+    ]
+
+    @staticmethod
+    def _settings_value(settings, key):
+        if key == "azure_endpoint":
+            az = settings.providers.get("azure")
+            return az.azure_endpoint if az else None
+        if key == "queue":
+            return "local"
+        if key == "queue_db_path":
+            return "queue/research_queue.db"
+        if key == "storage":
+            return settings.storage.type.value
+        if key == "results_dir":
+            return settings.storage.local_path
+        if key == "max_cost_per_job":
+            return settings.budget.max_cost_per_job
+        if key == "max_daily_cost":
+            return settings.budget.daily_limit
+        if key == "max_monthly_cost":
+            return settings.budget.monthly_limit
+        raise KeyError(key)
+
+    def _mismatches(self):
+        from deepr.core.settings import get_settings
+
+        settings = get_settings(reset=True)
+        cfg = load_config()
+        return {
+            key: (cfg[key], self._settings_value(settings, key))
+            for key in self.EQUIVALENT_KEYS
+            if cfg[key] != self._settings_value(settings, key)
+        }
+
+    def test_equivalent_under_defaults(self, monkeypatch):
+        for var in (
+            "DEEPR_PROVIDER",
+            "DEEPR_STORAGE",
+            "DEEPR_REPORTS_PATH",
+            "DEEPR_MAX_COST_PER_JOB",
+            "DEEPR_MAX_COST_PER_DAY",
+            "DEEPR_MAX_COST_PER_MONTH",
+            "DEEPR_DAILY_LIMIT",
+            "DEEPR_MONTHLY_LIMIT",
+            "AZURE_OPENAI_ENDPOINT",
+        ):
+            monkeypatch.delenv(var, raising=False)
+        assert self._mismatches() == {}
+
+    def test_equivalent_under_overrides(self, monkeypatch):
+        monkeypatch.setenv("DEEPR_REPORTS_PATH", "x/y/reports")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_JOB", "7.0")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_DAY", "33.0")
+        monkeypatch.setenv("DEEPR_MAX_COST_PER_MONTH", "150.0")
+        assert self._mismatches() == {}
+
+    def test_provider_default_diverges(self, monkeypatch):
+        # Documented divergence: config.py reads DEEPR_PROVIDER (default
+        # "openai"); Settings reads DEEPR_DEFAULT_PROVIDER (default "xai"). This
+        # is inert for the migration because no call site reads
+        # load_config()["provider"] (verified 2026-06-14); provider-needing code
+        # uses get_settings().default_provider directly.
+        monkeypatch.delenv("DEEPR_PROVIDER", raising=False)
+        monkeypatch.delenv("DEEPR_DEFAULT_PROVIDER", raising=False)
+        from deepr.core.settings import get_settings
+
+        settings = get_settings(reset=True)
+        assert load_config()["provider"] == "openai"
+        assert settings.default_provider == "xai"
