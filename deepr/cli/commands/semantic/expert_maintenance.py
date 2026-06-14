@@ -170,11 +170,6 @@ def absorb_report(
         f"Insufficient: {len(result.insufficient)}  "
         f"Rejected: {len(result.rejected)}  Flagged: {len(result.flagged)}"
     )
-    if result.atomicity and result.atomicity.total:
-        atom = result.atomicity
-        console.print(
-            f"[dim]Atomicity: {atom.rate:.0%} ({atom.atomic}/{atom.total} atomic) - lexical proxy, telemetry only[/dim]"
-        )
 
     if result.absorbed:
         console.print()
