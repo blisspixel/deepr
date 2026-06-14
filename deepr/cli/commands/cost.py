@@ -5,13 +5,25 @@ from datetime import UTC
 import click
 
 from deepr.cli.async_runner import run_async_command
-from deepr.cli.colors import console, print_error, print_section_header
+from deepr.cli.colors import console, print_error, print_section_header, print_warning
 
 
 @click.group()
-def cost():
-    """Estimate and track research costs."""
-    pass
+@click.pass_context
+def cost(ctx: click.Context):
+    """[Deprecated] Use `deepr costs` instead.
+
+    Kept as a working alias for backward compatibility; it will be removed in a
+    future release (>= 2 releases after this deprecation, per the CLI
+    deprecation policy). `cost estimate` is now `costs estimate`; `cost summary`
+    is covered by `costs show` / `costs breakdown`.
+    """
+    # Warn on actual use, not on bare `--help` listing of the group itself.
+    if ctx.invoked_subcommand is not None:
+        replacement = "costs estimate" if ctx.invoked_subcommand == "estimate" else "costs"
+        print_warning(
+            f"`deepr cost` is deprecated; use `deepr {replacement}`. This alias will be removed in a future release."
+        )
 
 
 @cost.command()
@@ -35,7 +47,7 @@ def estimate(prompt: str, model: str, web_search: bool):
     print_section_header("Cost Estimation")
 
     try:
-        from deepr.services.cost_estimation import CostEstimator
+        from deepr.core.costs import CostEstimator
 
         estimate = CostEstimator.estimate_cost(prompt=prompt, model=model, enable_web_search=web_search)
 
