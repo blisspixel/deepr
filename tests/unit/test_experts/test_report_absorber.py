@@ -370,6 +370,53 @@ async def test_verify_off_keeps_lexical_only_flagging(tmp_path):
     assert result.flagged[0].verification == "lexical_unverified"
 
 
+@pytest.mark.asyncio
+async def test_dedup_keeps_distinct_claims_that_share_words(tmp_path):
+    """Data-loss fix: two different facts with high word overlap (different
+    numbers) are NOT merged when the model says they are different facts. The
+    lexical >0.7 overlap routes; the model concludes."""
+    existing = Belief(claim="GPT-5 costs $10 per million tokens", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "GPT-5 costs $30 per million tokens", "confidence": 0.9, "evidence": []})
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "DIFFERENT"), belief_store=store)
+
+    result = await absorber.absorb("rep1", "body")
+
+    assert len(result.absorbed) == 1
+    assert len(store.beliefs) == 2  # both prices kept, not merged into one
+    assert {b.claim for b in store.beliefs.values()} == {existing.claim, "GPT-5 costs $30 per million tokens"}
+
+
+@pytest.mark.asyncio
+async def test_dedup_merges_same_claim_after_verdict(tmp_path):
+    """A genuine restatement in the uncertain band still merges when the model
+    confirms it is the same fact."""
+    existing = Belief(claim="Python uses dynamic typing at runtime", confidence=0.7, domain="ai")
+    content = _claims_json(
+        {"statement": "Python performs dynamic typing at runtime", "confidence": 0.9, "evidence": []}
+    )
+    store = BeliefStore("Test Expert", storage_dir=tmp_path / "beliefs")
+    store.add_belief(existing, check_conflicts=False)
+    absorber = ReportAbsorber(_expert(), client=_SeqClient(content, "SAME"), belief_store=store)
+
+    await absorber.absorb("rep1", "body")
+
+    assert len(store.beliefs) == 1  # merged into the existing belief
+
+
+@pytest.mark.asyncio
+async def test_verify_dedup_off_merges_lexically(tmp_path):
+    """verify_dedup=False restores the old lexical-only merge (the data-loss path)."""
+    existing = Belief(claim="GPT-5 costs $10 per million tokens", confidence=0.9, domain="ai")
+    content = _claims_json({"statement": "GPT-5 costs $30 per million tokens", "confidence": 0.9, "evidence": []})
+    absorber = _absorber(content, tmp_path, beliefs=[existing])
+
+    await absorber.absorb("rep1", "body", verify_dedup=False)
+
+    assert len(absorber.belief_store.beliefs) == 1  # merged (old brittle behavior)
+
+
 def test_get_client_without_key_raises(monkeypatch):
     # No client injected and no API key -> clean error, not a bare KeyError.
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
