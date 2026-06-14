@@ -16,12 +16,13 @@ automatic path.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
 from deepr.backends import admission
-from deepr.backends.local import default_local_model
+from deepr.backends.capacity import available_local_models
 
 BACKEND_LOCAL = "local"
 BACKEND_API_METERED = "api_metered"
@@ -40,33 +41,48 @@ class BackendChoice:
         return self.backend == BACKEND_LOCAL
 
 
+def _metered(reason: str) -> BackendChoice:
+    return BackendChoice(BACKEND_API_METERED, None, reason)
+
+
 def choose_maintenance_backend(
     task_class: str,
     *,
     now: datetime | None = None,
-    local_model_fn: Callable[[], str | None] = default_local_model,
+    available_models_fn: Callable[[], list[str]] = available_local_models,
     admissions_path=None,
 ) -> BackendChoice:
-    """Pick local (if admitted and available) else metered API, for maintenance.
+    """Pick an admitted, currently-available local model else metered API.
 
-    ``local_model_fn`` resolves the available local model (probes Ollama by
-    default; injectable for tests). A local model is used only when it has a
-    live admission for ``task_class`` - the eval-gated rung of the waterfall.
+    Admission drives selection (not list order or an env var): of the local
+    models admitted for ``task_class``, use one that Ollama currently has. When
+    several qualify, ``DEEPR_LOCAL_MODEL`` breaks the tie if it is itself
+    admitted and available. No admission, or the admitted model not loaded,
+    falls through to the metered API - the explicit last resort.
     """
-    model = local_model_fn()
-    if not model:
-        return BackendChoice(BACKEND_API_METERED, None, "no local model available")
-    adm = admission.active_admission(model, task_class, now=now, path=admissions_path)
-    if adm is None:
-        return BackendChoice(
-            BACKEND_API_METERED,
-            None,
-            f"local model {model!r} not admitted for {task_class!r} "
-            f"(admit it: deepr capacity admit {model} --task-class {task_class})",
+    admitted = {a.model: a for a in admission.list_active(now=now, path=admissions_path) if a.task_class == task_class}
+    if not admitted:
+        return _metered(
+            f"no local model admitted for {task_class!r} "
+            f"(admit one: deepr capacity admit <model> --task-class {task_class})"
         )
+
+    available = set(available_models_fn())
+    if not available:
+        return _metered(f"local Ollama not reachable; admitted model(s) {sorted(admitted)} unavailable")
+
+    pref = os.getenv("DEEPR_LOCAL_MODEL")
+    if pref and pref in admitted and pref in available:
+        pick = pref
+    else:
+        pick = next((m for m in admitted if m in available), None)
+    if pick is None:
+        return _metered(f"admitted local model(s) {sorted(admitted)} not currently loaded in Ollama")
+
+    adm = admitted[pick]
     expiry = adm.expires_at.strftime("%Y-%m-%d") if adm.expires_at else "never"
     return BackendChoice(
         BACKEND_LOCAL,
-        model,
-        f"local model {model!r} admitted for {task_class!r} (expires {expiry}); owned capacity before metered API",
+        pick,
+        f"local model {pick!r} admitted for {task_class!r} (expires {expiry}); owned capacity before metered API",
     )
