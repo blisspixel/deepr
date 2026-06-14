@@ -2,18 +2,32 @@
 
 > Development priorities and planned features. Model and pricing facts come from the registry (`deepr/providers/registry.py`); see [docs/MODELS.md](docs/MODELS.md).
 
-> **STOP - rules vs agentic.** Any time you are about to add a rule or make
-> something agentic, read [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md)
-> first, and update that doc when a decision moves the boundary (it is a living
-> doc, not a one-time write-up). This is the single most repeated wrong turn in
-> this codebase: brittle rules that encode *meaning* (lexical/word-overlap checks
-> used as a verdict) are a fail driver that makes things worse. Determinism
-> belongs on form and side-effects (schema, types, ranges, spend, writes,
-> flowchartable control flow); model judgment owns meaning (contradiction,
-> grounding, atomicity, dedup), calibrated before it is trusted; a cheap lexical
-> check may *route* into a model check but never *conclude*. When unsure: is this
-> guarding form/side-effects (rule is fine) or encoding meaning (route to the
-> model instead)?
+> ## STOP - no brittle junk
+>
+> Before adding anything here, read [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md)
+> (keep it current when a decision moves the boundary). Two failure modes keep
+> dragging this project backward, and **both make the product worse**. Most items
+> below were audited against them; an item that trips either gets cut, not built.
+>
+> **1. Brittle rules that encode *meaning*.** Lexical / word-overlap / regex /
+> keyword / banned-word checks used as a *verdict* on contradiction, grounding,
+> atomicity, dedup, similarity, categorization, or writing quality. These are the
+> single most repeated wrong turn in this codebase: they feed false positives
+> straight into the experts, so the core gets *worse*. Determinism belongs on
+> form and side-effects (schema, types, ranges, spend, writes, flowchartable
+> control flow); **model judgment owns meaning**, calibrated before it is trusted.
+> A cheap lexical check may *route* into a model check but never *conclude*.
+>
+> **2. Low-value internal churn dressed as rigor.** Config migrations,
+> file-size / complexity / coverage / mutation ratchets, type-strictness sweeps,
+> decomposing files for tidiness - work no user feels, that breaks adjacent things
+> and diverts effort from the actual product (calibrated experts + the evidence
+> layer). When a "mechanical" refactor keeps surfacing breakage, **STOP** - the
+> juice is not worth the squeeze.
+>
+> **The test for any item:** does a user feel it? Is it guarding form/side-effects
+> (rule is fine) or encoding meaning (route to the model)? If it is neither of
+> those *and* a user does not feel it - **cut it.**
 
 ## Quick Links
 
@@ -157,6 +171,15 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 
 ### Planning Principles
 
+- **No brittle junk (the governing filter - see the STOP banner above).** Reject
+  on sight: (a) rules that encode *meaning* (lexical/keyword/regex/banned-word
+  verdicts on contradiction, grounding, dedup, similarity, categorization,
+  writing quality) - route to a calibrated model instead; and (b) low-value
+  internal churn no user feels (config migrations, coverage/complexity/mutation/
+  file-size ratchet-chasing, type-strictness sweeps). Every item earns its place
+  by user-felt value or by guarding form/side-effects. "Tidiness" and "rigor for
+  its own sake" are not justifications. When a refactor keeps breaking adjacent
+  things, stop - the juice is not worth the squeeze.
 - Prioritize research infrastructure over chat novelty.
 - Preserve budgeted autonomy, auditability, and provider portability.
 - Ship capabilities that improve measurable quality, cost-efficiency, and reliability.
@@ -168,11 +191,19 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Self-improvement is a verification problem (recursive self-improvement, bounded): Deepr runs improvement loops (knowledge: research -> verified absorb -> beliefs -> reflection -> re-research; routing: evals -> rankings -> picks -> outcomes; self-knowledge: health-check/what-changed/contested), and is the substrate for *other* agents' improvement loops (trusted memory + perspective deltas + contradiction surfacing + inference chains + bounded spend). The governing insight, proven live 2026-06-11 twice: an unverified improvement loop is a degradation loop - saturated eval scores "improved" routing into a nano model; a bypassable budget gate was no gate. The sign of the feedback is set by measurement integrity and gate integrity, so verification machinery is never overhead on the loops - it IS the loops. Unbounded self-modification stays a non-goal; machinery-level self-improvement (trace-based skill/prompt evolution) ships only behind tests, size limits, and human review.
 - Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
 - Autonomy earns trust incrementally: start supervised, prove reliability, then expand bounds.
-- Engineering standards are a feature: the kernel is meant to be embedded and the MCP server is meant to be installed by other agents, so reproducibility, type safety, and security posture are part of the product, not overhead.
+- Engineering standards are a feature *only where they protect the user*: money-path integrity (no surprise bills, append-only ledger), security/prompt-injection defense, and not shipping broken installs are part of the product. But ratchet-chasing for its own sake - coverage %, mutation score, file-size/complexity caps, whole-tree type-strictness - is the churn trap (Planning Principle 1b); it must never divert from the experts + evidence-layer core, and is explicitly deprioritized below it.
 
 ### Phase E: Engineering Standards and Code-Quality Elevation (foundational, continuous)
 
 Goal: hold every line of Deepr to a verifiable, reproducible, secure standard so the kernel is safe to embed and the platform scales across releases without regression. This track runs alongside feature work.
+
+> **Split this track by Planning Principle 1b.** KEEP (protects users, ship it):
+> the money-path invariants (no surprise bills, append-only ledger), security /
+> prompt-injection defense, dependency audit, not-shipping-broken-installs.
+> DEPRIORITIZE (churn, do only when cheap and isolated, never as a goal in
+> itself): whole-tree `mypy --strict` sweeps, mutation-score chasing, coverage-%
+> ratchets, the full SBOM/supply-chain apparatus. Standards serve the product;
+> they are not the product.
 
 The gate targets below are firm commitments, not a soft "raise it when convenient" ratchet. The one sequencing rule is honest: a blocking gate is only switched on once the code already satisfies it (you do not turn a 23k-line codebase red to make a point). So each gate lands in two moves - wire it in non-blocking to record a baseline, then flip it to blocking once the code is clean - and the flip is committed work, not aspiration.
 
@@ -223,21 +254,31 @@ The gate targets below are firm commitments, not a soft "raise it when convenien
 - [ ] Align tracing with OpenTelemetry semantic conventions; evaluate `structlog` for the logging surface
 - [ ] Extract a reusable CI workflow + Copier/template repo so sibling projects (recon, distillr, primr) inherit the same standard from day zero
 
-### Phase Q: Code-Health Hardening (foundational, continuous)
+### Phase Q: Code-Health Hardening (DEPRIORITIZED - this is the churn track)
 
-Goal: hold the whole codebase - not just the strict islands - to a standard
-a human or an AI could admire, and make it impossible to regress. Full
-assessment and rationale: [docs/design/code-health.md](docs/design/code-health.md).
-Sequenced ratchet-first (stop the backlog growing), then tidy duplication,
-then characterize, then decompose the large files, then pay down the
-complexity/security backlog. Audit numbers are from 2026-06-12.
+> **This whole phase is Planning Principle 1b territory: low-value internal work
+> no user feels.** Q0 (the un-regressable ratchets) shipped and stays. The rest
+> is explicitly *below* the experts + evidence-layer core and must never divert
+> from it. Do an item only when it is genuinely cheap and isolated; the moment a
+> "tidy" change starts breaking adjacent things, STOP and back out (that is the
+> trap - see the STOP banner). Do not chase coverage %, mutation scores, file-size
+> or complexity caps as goals in themselves.
+
+Full assessment: [docs/design/code-health.md](docs/design/code-health.md).
 
 - [x] **Q0 - Ratchets (un-regressable first, no behavior change)** - shipped 2026-06-12, blocking in CI, ruff pinned to 0.15.17 so counts are reproducible:
   - [x] Q0.1 File-size guard: `scripts/check_file_sizes.py` fails CI on any new `deepr/*.py` over 1000 lines; the 17 current over-ceiling files are grandfathered at their exact size (may shrink, never grow) - a debt register that only ratchets down
   - [x] Q0.2 Complexity ratchet: `scripts/check_ratchets.py` baselines the 146 C901-over-cap functions; CI fails if the count grows
   - [x] Q0.3 Security ratchet: same script baselines the 97 ruff `S` findings; CI fails on growth (drive toward flipping `S` into the blocking `select` in Q4)
 - [ ] **Q1 - One way to do each thing:**
-  - [ ] Q1.1 Finish the config migration: `load_config()` (53 sites, formally deprecated) -> typed `get_settings()` (14 sites), package by package, then delete `load_config`
+  - **Q1.1 config migration - ABANDONED (2026-06-14) as not worth the churn.**
+    Attempted `load_config()` -> `get_settings()`; it repeatedly broke adjacent
+    things (singleton caching vs ADR 0001's fresh-read reports-root guarantee,
+    file-size cap, property tests) and delivered nothing a user feels - the
+    textbook Planning-Principle-1b trap. Reverted. The one real nugget (the two
+    config systems default to different providers - openai vs xai) is a one-line
+    reconciliation if ever wanted, not a 53-site migration. Do NOT reopen this as
+    a migration.
   - [x] Q1.2 Resolve duplicate `cost` vs `costs` commands (2026-06-14): `cost`
     is now a hidden, deprecated alias that emits a warning naming the
     replacement on every use; the one command it had with no `costs` equivalent,
@@ -419,8 +460,16 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
 - [ ] Gap-driven discovery (audit proposes what is missing, not just what the user asked for):
   - [ ] Wire health-check coverage findings into auto-generated discovery queries: "you have 12 sources on X but zero on Y - preview candidates?" This is corpus-gap-driven, complementing the existing goal-driven discovery
   - [ ] Surface as previewable candidates with cost estimate; ingestion stays opt-in and budget-bounded
-- [ ] Output style contract for human-read artifacts (distinct from anti-hallucination rules):
-  - [ ] A register/anti-slop style guard for briefings and reports (banned filler, em-dash overuse, spelling consistency), separate from the provenance/grounding rules in the research prompts
+- [~] Output style for human-read artifacts (briefings, reports):
+  - **CUT (2026-06-14): the "register/anti-slop style guard" - a banned-filler /
+    em-dash-counting / spelling-rule lint - is exactly the brittle-rule-for-meaning
+    anti-pattern (writing quality is *meaning*; see the STOP banner and
+    AGENTIC_BALANCE.md). A rule list will mangle good prose and miss bad.**
+  - [ ] If output register needs improving, do it in the generation prompt (the
+    model writes to a stated register) and judge it with the calibrated reflection
+    pass - not a post-hoc lint. The house style (no em-dashes/emojis, direct tone)
+    already lives in AGENTS.md for *commits/docs the agent writes*, which is form,
+    not a quality verdict on model-generated prose.
 - [~] Expert freshness / watch (stay current on a topic over time):
   - [x] `deepr expert sync NAME` (v2.13.x) - researches each due subscription with a delta-only freshness prompt ("what changed since <last sync>; if nothing, say so"), absorbs through the verification-gated pipeline (dedup + contradiction flagging), and surfaces the perspective delta via `what_changed`. `subscribe`/`subscriptions` manage topics; `--dry-run` previews at $0; a "no significant changes" answer skips the paid extraction entirely.
   - [x] Per-topic refresh cadence and budget (`--every Nd --budget X`), run-level budget ceiling with skip-not-fail exhaustion, refuse-below-floor preflight; engine takes an injectable research function (unit-tested free)
@@ -428,6 +477,12 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] First-party instrument deltas as sync sources (distillr refresh, recon delta, primr delta) - the generic research-based sync ships first; instrument-specific delta verbs land when the siblings expose them (Phase 2b follow-on)
 - [ ] Dynamic tool selection via gap analysis:
   - [x] Gap-to-tool mapping engine (v2.13): `GapRouter` maps each gap to recon/distillr/primr/research by keyword signal, with installed-instrument detection and fallback. CLI `deepr expert route-gaps` + `deepr_route_gaps` MCP tool. Read-only advisory.
+  - [ ] **Brittle-heuristic debt (flagged 2026-06-14):** "by keyword signal" is a
+    lexical rule deciding *meaning* (which instrument fits a gap). It is tolerable
+    only while read-only advisory; it must NOT be the verdict on the `--execute`
+    path. Keep keywords as a high-recall prefilter and let the model pick the
+    route (or confirm it) before any spend. Do not extend the keyword map - that
+    is the trap (see AGENTIC_BALANCE.md).
   - [x] Value/cost estimation per gap-fill option (per-route cost estimate + ev_cost_ratio ordering)
   - [x] Strategic prioritization that actually *executes* (2026-06-11): `deepr expert route-gaps --execute [--budget X] [--dry-run]` runs the highest-value research-route fills (ev_cost_ratio ordering), absorbs findings through the verification-gated pipeline, per-gap budgets inside a run ceiling with skip-not-fail. Bounded autonomy by design: specialist-instrument routes (recon/distillr/primr) are DEFERRED with their command printed - approval-gated multi-minute paid jobs never start as a side effect of a sweep.
 - [x] Expert-as-guardrail mode:
