@@ -152,6 +152,9 @@ cli.add_command(status.list_alias)
 # Supporting commands
 cli.add_command(budget.budget)
 cli.add_command(capacity_cmd.capacity)
+# `cost` is a deprecated alias for `costs` (Phase Q1.2): functional but hidden
+# from --help, emits a deprecation warning on use.
+cost.cost.hidden = True
 cli.add_command(cost.cost)
 cli.add_command(interactive.interactive)
 cli.add_command(docs.docs)
