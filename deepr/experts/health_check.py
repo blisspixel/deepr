@@ -284,14 +284,19 @@ class ExpertHealthChecker:
         count = len(recorded_pairs) + len(heuristic_pairs)
         severity = "warning" if count else "ok"
         if count:
+            # Both sources are lexical-heuristic candidates (a high-recall
+            # router), not confirmed semantic contradictions - resolve-conflicts
+            # runs the model verdict (docs/design/checks-deterministic-vs-agentic.md).
             summary = (
-                f"{count} open contradiction(s): {len(recorded_pairs)} recorded (absorb/sync-time flags), "
-                f"{len(heuristic_pairs)} newly detected (heuristic)."
+                f"{count} candidate contradiction(s), lexical/unverified: {len(recorded_pairs)} recorded "
+                f"(absorb/sync-time flags), {len(heuristic_pairs)} newly detected (heuristic). "
+                "Adjudicate for a model verdict."
             )
         else:
             summary = "No belief contradictions detected (recorded + heuristic pass)."
         detail = {
             "count": count,
+            "verification": "lexical_unverified",
             "recorded": [
                 {
                     "a": p["a"]["claim"],
