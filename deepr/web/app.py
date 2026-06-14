@@ -23,6 +23,10 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
+# The shared sync-to-async bridge (Phase Q1.3), aliased to the historical name
+# used throughout this module's request handlers.
+from deepr.utils.async_runner import run_async_command as run_async
+
 load_dotenv()
 
 # Serve the Vite-built frontend from frontend/dist/
@@ -378,11 +382,6 @@ def _start_poller():
         t = threading.Thread(target=_run_poller_loop, daemon=True, name="job-poller")
         t.start()
         logger.info("Background job poller thread launched")
-
-
-def run_async(coro):
-    """Helper to run async code in sync Flask context."""
-    return asyncio.run(coro)
 
 
 @app.route("/")

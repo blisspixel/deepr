@@ -1,21 +1,10 @@
-"""Helpers for safely running async CLI command coroutines."""
+"""Back-compat re-export of the shared async runner.
 
-import asyncio
-from typing import Any
+The implementation moved to ``deepr.utils.async_runner`` (Phase Q1.3) so the
+CLI, web, and API surfaces share one helper. Existing
+``from deepr.cli.async_runner import run_async_command`` imports keep working.
+"""
 
+from deepr.utils.async_runner import run_async_command
 
-def run_async_command(coro, runner=None) -> Any:
-    """Run a coroutine and close it if a mocked runner doesn't consume it.
-
-    In unit tests, `asyncio.run` is often mocked to assert calls. That can
-    leave created coroutine objects unawaited, causing noisy RuntimeWarnings.
-    Closing an unconsumed coroutine is safe and preserves runtime behavior.
-    """
-    if runner is None:
-        runner = asyncio.run
-
-    try:
-        return runner(coro)
-    finally:
-        if asyncio.iscoroutine(coro) and getattr(coro, "cr_frame", None) is not None:
-            coro.close()
+__all__ = ["run_async_command"]
