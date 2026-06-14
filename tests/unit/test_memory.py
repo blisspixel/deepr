@@ -947,6 +947,15 @@ class TestMemoryTierConsistencyPropertyTests:
                 unrelated = Episode(query=f"Unrelated question {i}", response=f"Unrelated answer {i}")
                 memory.add_episode(unrelated)
 
+            # The store intentionally does not index stopwords or tokens of
+            # <= 2 chars (Episode.get_keywords). A generated keyword can be a
+            # stopword ("does", "did", ...), in which case nothing is indexable
+            # and retrieving zero results is correct, not a bug. The property
+            # only holds when at least one query keyword survives the same
+            # extraction the store uses, so skip the degenerate inputs.
+            indexable = memory._extract_keywords(keyword_str) & episode.get_keywords()
+            assume(indexable)
+
             # Retrieve with keywords
             results = memory.retrieve(keyword_str, top_k=5)
 
