@@ -16,6 +16,7 @@ Multi-provider research automation: routes each research question to the cheapes
 
 ## Hard rules
 
+- **Rules vs agentic: read [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) before adding a rule or making something agentic, and update it when a decision moves the boundary.** Brittle rules that encode *meaning* (lexical/word-overlap checks used as a verdict) are the most-repeated wrong turn here. Determinism guards form and side-effects (schema, types, ranges, spend, writes, flowchartable control flow); model judgment owns meaning (contradiction, grounding, atomicity, dedup), calibrated before trusted; a lexical check may *route* but never *conclude*.
 - **Never make paid API calls** (research runs, evals, embeddings) unless explicitly asked. Estimate cost first. Budgets are ceilings enforced in code - never weaken a gate to make a test pass.
 - The cost ledger is **append-only** and every spend source writes it. No silent-money paths.
 - Generated artifacts (expert digests, SKILL.md exports, reports) are **derived views**: regenerable from the structured belief store, never hand-edited as authoritative.
