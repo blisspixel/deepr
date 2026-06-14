@@ -97,23 +97,35 @@ spending effort shrinking it. None of these change runtime behavior.
   one (or drop `experts_dir`) - the same silent-divergence family as the
   two-report-roots bug. (Third `load_config` in `core/constants.py` returns
   `None` and is unrelated - it loads env, not the config dict.)
-  *Progress 2026-06-14:* Step 0 + field-equivalence reconciliation landed
+  *Progress 2026-06-14 (kept):* Step 0 + field-equivalence reconciliation landed
   (`tests/unit/test_config/test_app_config.py`): 8 of 11 keys proven equal to
-  their `get_settings()` accessor, so those reads migrate mechanically. The 4
-  `results_dir`-only readers (LocalStorage, ContextIndex, doctor storage check,
-  `migrate consolidate`) are migrated; the reconciliation also surfaced and
-  fixed a real `get_settings()` crash on an undeterminable home dir.
-  *Two buckets for the rest:* **safe** = sites reading only equivalent fields
-  (results_dir, queue_db_path, storage, cost limits, azure_endpoint); **careful**
-  = the ~13 sites that read `config.get("provider", "openai")` and/or
+  their `get_settings()` accessor. A real `get_settings()` crash on an
+  undeterminable home dir was found and fixed. The `analytics` sites migrated
+  cleanly (they read only the hardcoded `queue_db_path`, now a literal - no
+  `get_settings`).
+  ***Blocker found and the get_settings migrations reverted (commit Revert ...):***
+  the field-equivalence test proves *values* match, but `get_settings()` returns
+  a **cached singleton** while `load_config()`/`AppConfig.from_env()` reads the
+  env **fresh on every call**. ADR 0001 deliberately unified the reports root on
+  the fresh-read `load_config()["results_dir"]`, so routing those readers through
+  the singleton weakens that guarantee: `test_report_root_unification`'s
+  env-override test fails in the full suite (an earlier test loads the singleton
+  before the env is set) though it passes in isolation. **So load_config ->
+  get_settings is NOT a drop-in for env-sensitive reads** until this gap is
+  resolved - options: make `get_settings` reflect current env (drop/refresh the
+  singleton, or read env-backed fields live), or scope the migration to
+  non-env-sensitive uses. Resolve that first; then migrate.
+  *Two buckets for the eventual migration:* **safe** = equivalent-field-only
+  reads (results_dir, queue_db_path, storage, cost limits, azure_endpoint);
+  **careful** = the ~13 sites reading `config.get("provider", "openai")` and/or
   `config.get("api_key")` (pollers, company_research, research/queue/jobs/vector/
-  prep/team/status/semantic-experts, api/web apps). The careful bucket needs a
-  deliberate decision, not a sweep, because (1) `provider` defaults to "openai"
-  in config but "xai" in Settings - a blind swap flips every `create_provider`
-  call; and (2) `api_key="***"` is a sentinel that `create_provider` maps to
-  None -> env-read, so those sites never use a real key from the dict; migrating
-  must preserve that env indirection (pass the resolved key or None), not pass
-  `get_settings().get_api_key()` blindly.
+  prep/team/status/semantic-experts, api/web apps), because (1) `provider`
+  defaults to "openai" in config but "xai" in Settings - `DEEPR_DEFAULT_PROVIDER`
+  is the canonical mechanism, so unifying flips the unconfigured default to xai;
+  and (2) `api_key="***"` is a sentinel `create_provider` maps to None -> env, so
+  migration must preserve that indirection, not pass `get_api_key()` blindly.
+  `company_research` additionally exposes a public `config: dict` API, so it
+  needs an API decision too.
 - **Q1.2 Resolve `cost` vs `costs` (F6). DONE (2026-06-14).** `cost` is now a
   hidden, deprecated alias emitting a warning that names the replacement;
   `cost estimate` was ported to `costs estimate` (and its dead
