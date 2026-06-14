@@ -2,6 +2,19 @@
 
 > Development priorities and planned features. Model and pricing facts come from the registry (`deepr/providers/registry.py`); see [docs/MODELS.md](docs/MODELS.md).
 
+> **STOP - rules vs agentic.** Any time you are about to add a rule or make
+> something agentic, read [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md)
+> first, and update that doc when a decision moves the boundary (it is a living
+> doc, not a one-time write-up). This is the single most repeated wrong turn in
+> this codebase: brittle rules that encode *meaning* (lexical/word-overlap checks
+> used as a verdict) are a fail driver that makes things worse. Determinism
+> belongs on form and side-effects (schema, types, ranges, spend, writes,
+> flowchartable control flow); model judgment owns meaning (contradiction,
+> grounding, atomicity, dedup), calibrated before it is trusted; a cheap lexical
+> check may *route* into a model check but never *conclude*. When unsure: is this
+> guarding form/side-effects (rule is fine) or encoding meaning (route to the
+> model instead)?
+
 ## Quick Links
 
 | Document | Description |
@@ -10,6 +23,7 @@
 | [Experts](docs/EXPERTS.md) | Creating and using domain experts |
 | [Integrations](docs/INTEGRATIONS.md) | First-party tool integrations (recon, distillr, primr) |
 | [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
+| [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | **Read before adding a rule or making something agentic** - what deepr hardcodes vs lets the model decide |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
 | [Changelog](docs/CHANGELOG.md) | Release history with migration notes |
 | [Vision](docs/VISION.md) | Long-term direction (v3.0+) |
@@ -224,8 +238,22 @@ complexity/security backlog. Audit numbers are from 2026-06-12.
   - [x] Q0.3 Security ratchet: same script baselines the 97 ruff `S` findings; CI fails on growth (drive toward flipping `S` into the blocking `select` in Q4)
 - [ ] **Q1 - One way to do each thing:**
   - [ ] Q1.1 Finish the config migration: `load_config()` (53 sites, formally deprecated) -> typed `get_settings()` (14 sites), package by package, then delete `load_config`
-  - [ ] Q1.2 Resolve duplicate `cost` vs `costs` commands (deprecated alias + warning, >= 2 releases per the deprecation policy)
-  - [ ] Q1.3 Single shared `run_async` helper (3 duplicate definitions today)
+  - [x] Q1.2 Resolve duplicate `cost` vs `costs` commands (2026-06-14): `cost`
+    is now a hidden, deprecated alias that emits a warning naming the
+    replacement on every use; the one command it had with no `costs` equivalent,
+    `estimate`, was ported to `costs estimate` (and a latent dead import was
+    fixed - the old `cost estimate` imported a nonexistent
+    `deepr.services.cost_estimation` and silently aborted). Kept functional for
+    >= 2 releases per the deprecation policy. Regression-tested (warning emitted,
+    `costs estimate` canonical, `cost` hidden from `--help`).
+  - [x] Q1.3 Single shared `run_async` helper (2026-06-14): the canonical
+    `run_async_command` now lives in `deepr/utils/async_runner.py` (a low layer
+    both interfaces can import without crossing each other); `deepr/cli/async_runner.py`
+    re-exports it for back-compat, and `web/app.py` + `api/app.py` dropped their
+    private `def run_async` (the api copy's hand-rolled new-loop variant included)
+    in favor of `import ... as run_async`. One implementation, ~70 call sites
+    unchanged. (The test-only helper in `test_api/test_endpoints.py` is harness
+    scaffolding, left as-is.)
 - [ ] **Q2 - Coverage honesty:** characterization tests for the largest coverage-omitted files (`web/app.py`, `experts.py`), then shrink the omit list so the headline number covers the hard parts
 - [ ] **Q3 - Decompose the giant files (after Q2 characterization):** `web/app.py` -> Flask blueprints + app factory; `cli/.../experts.py` -> per-area modules; extract cohesive units from `chat.py` and `mcp/server.py` (mcp stays strict-clean)
 - [ ] **Q4 - Pay down the backlog:** refactor worst C901 offenders and ratchet the cap to 10 blocking; resolve/justify the `S` findings and flip `S` blocking; add a function-length signal (Google's ~40-line split heuristic) alongside the file-size guard; set a mutation-score target on kernel modules (mutmut is wired) since coverage % is a floor, not proof tests catch faults

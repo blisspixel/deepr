@@ -45,7 +45,7 @@ Recorded so the plan is proportional - this is not a rescue, it is a finish.
 | F3 | Complexity unenforced | **146** functions over the C901 cap (max-complexity 10); advisory only | Medium |
 | F4 | Security lint advisory | ruff `S` rules find **97** issues; run advisory, not ratcheting | Medium |
 | F5 | Coverage omits the hard parts | omit list excludes `web/*`, all `cli/commands/*`, `chat.py`, `curriculum.py`, `learner.py`, `lazy_graph_rag.py` - the largest, most complex files are unmeasured | Medium |
-| F6 | Duplicate verbs / helpers | top-level `cost` **and** `costs` commands; 3 separate `run_async` definitions | Low |
+| F6 | Duplicate verbs / helpers | ~~top-level `cost` **and** `costs` commands~~ (Q1.2 done 2026-06-14: `cost` deprecated-hidden alias); ~~3 separate `run_async` definitions~~ (Q1.3 done 2026-06-14: one helper in `utils/async_runner.py`) | Low |
 | F7 | Staleness defense | model-registry drift checks exist; no scheduled dependency-drift or standards-review cadence | Low |
 
 (F-class context: the reports-root 3-way split and the learner infinite-poll
@@ -83,12 +83,17 @@ spending effort shrinking it. None of these change runtime behavior.
   *Risk:* medium (53 sites; behavior must match). *Approach:* a thin compat
   shim first if needed; migrate + test per package; remove the shim last.
   *Done:* `load_config` gone; one config type; `get_settings` everywhere.
-- **Q1.2 Resolve `cost` vs `costs` (F6).** Make `cost` a *deprecated alias*
-  (move `cost estimate` to `costs estimate`), emit a deprecation warning
-  naming the replacement, keep it working >= 2 releases (kubectl policy,
-  per ADR practice). *Done:* one cost namespace; deprecation warning + test.
-- **Q1.3 One `run_async` helper (F6).** Extract to a shared util; delete the
-  duplicates. *Done:* single definition, imported by web + api.
+- **Q1.2 Resolve `cost` vs `costs` (F6). DONE (2026-06-14).** `cost` is now a
+  hidden, deprecated alias emitting a warning that names the replacement;
+  `cost estimate` was ported to `costs estimate` (and its dead
+  `deepr.services.cost_estimation` import fixed to `deepr.core.costs`). Kept
+  working >= 2 releases (kubectl policy). *Done:* one cost namespace;
+  deprecation warning + test (`test_cli/test_cost_deprecation.py`).
+- **Q1.3 One `run_async` helper (F6). DONE (2026-06-14).** Canonical
+  `run_async_command` moved to `deepr/utils/async_runner.py`;
+  `deepr/cli/async_runner.py` re-exports it, and `web/app.py` + `api/app.py`
+  dropped their private `def run_async` for `import ... as run_async`. *Done:*
+  single definition, imported by cli + web + api (test harness helper left as-is).
 
 ### Q2 - Coverage honesty (F5)
 
