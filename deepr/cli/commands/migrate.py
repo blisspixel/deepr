@@ -105,9 +105,9 @@ def consolidate(dry_run: bool, source: str):
     Directory collisions are merged one level deep; file collisions are
     skipped, never overwritten.
     """
-    from deepr.config import load_config
+    from deepr.core.settings import get_settings
 
-    target_root = Path(load_config()["results_dir"])
+    target_root = Path(get_settings().storage.local_path)
     source_root = Path(source)
 
     if not source_root.exists():
