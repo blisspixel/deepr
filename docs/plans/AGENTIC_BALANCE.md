@@ -7,6 +7,13 @@ instance of this principle is
 [checks-deterministic-vs-agentic.md](../design/checks-deterministic-vs-agentic.md);
 this doc is the general axis it sits under.
 
+**Living doc - keep it current.** This is the reference the roadmap points every
+rule-vs-agentic decision at, so it is only useful if it stays accurate. When you
+add a surface, change where a determinism boundary sits, or learn something new
+about what does or does not belong in a rule, update the surfaces table and the
+invariants below in the same change. A stale agentic-balance doc is itself a
+brittle rule - it encodes a boundary that no longer matches the code.
+
 ## The axis
 
 Anthropic draws the load-bearing distinction. A **workflow** is a system "where
