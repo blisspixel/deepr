@@ -201,6 +201,10 @@ class AbsorptionResult:
     flagged: list[FlaggedContradiction] = field(default_factory=list)
     insufficient: list[InsufficientGroundingClaim] = field(default_factory=list)
     estimated_cost: float = 0.0
+    # How many lexical false positives the model verdicts caught (the value of
+    # routing the brittle heuristics through a model - visible, not silent).
+    contradictions_refuted: int = 0
+    merges_blocked: int = 0
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
@@ -223,6 +227,8 @@ class AbsorptionResult:
             "rejected_count": len(self.rejected),
             "flagged_count": len(self.flagged),
             "insufficient_count": len(self.insufficient),
+            "contradictions_refuted": self.contradictions_refuted,
+            "merges_blocked": self.merges_blocked,
             "absorbed": [a.to_dict() for a in self.absorbed],
             "rejected": [r.to_dict() for r in self.rejected],
             "flagged": [f.to_dict() for f in self.flagged],
@@ -329,6 +335,8 @@ class ReportAbsorber:
         rejected: list[RejectedClaim] = []
         flagged: list[FlaggedContradiction] = []
         insufficient: list[InsufficientGroundingClaim] = []
+        contradictions_refuted = 0
+        merges_blocked = 0
 
         for cand in candidates:
             if cand.confidence < min_confidence:
@@ -369,6 +377,7 @@ class ReportAbsorber:
                     verification = "model_confirmed"
                 elif verdict is False:
                     conflict = None  # lexical false positive - not a real conflict
+                    contradictions_refuted += 1
 
             if conflict is not None:
                 if not flag_contradictions:
@@ -393,6 +402,8 @@ class ReportAbsorber:
             # the SAME fact; if distinct, block the merge so we do not collapse
             # two different facts that merely share words into one (data loss).
             merge_blocked = await self._merge_would_lose_data(belief) if verify_dedup else False
+            if merge_blocked:
+                merges_blocked += 1
 
             if dry_run:
                 absorbed.append(AbsorbedClaim(cand.statement, cand.confidence, belief.id, "would_add"))
@@ -415,6 +426,8 @@ class ReportAbsorber:
             flagged=flagged,
             insufficient=insufficient,
             estimated_cost=ESTIMATED_EXTRACTION_COST,
+            contradictions_refuted=contradictions_refuted,
+            merges_blocked=merges_blocked,
         )
 
     async def _verify_contradiction(self, candidate: Belief, existing: Belief) -> bool | None:
