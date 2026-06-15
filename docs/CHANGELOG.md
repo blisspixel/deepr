@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Absorb contradiction and dedup are now agentic, not brittle. The free
+  word-overlap heuristics only *route*; a cheap model verdict concludes
+  (`AGENTIC_BALANCE.md`). A phrasing-level false contradiction is absorbed
+  normally instead of recorded as a false contested belief, and two different
+  facts that merely share words (e.g. "$10/M" vs "$30/M") are no longer silently
+  merged into one (data loss). The verdict is authoritative for the graph too (no
+  lexical contradiction edge is re-created behind it), and the absorb result
+  reports how many false positives the verdicts caught (`contradictions_refuted`,
+  `merges_blocked`). Cost-bounded (uncertain band only), reuses the extraction
+  client, every existing caller unchanged.
+- Removed a regex "atomicity monitor" that classified claim atomicity with
+  word-markers: atomicity is meaning, the extraction model's job, not a lexical
+  rule (the brittle-rule-for-meaning anti-pattern).
+
 ### Fixed
+- No-surprise-bills: `ExpertChatSession` did `budget or 10.0`, so an explicit
+  `budget=0.0` ("do not spend") silently became a $10 ceiling (0.0 is falsy). A
+  `deepr expert chat --budget 0` caller, or an agent passing 0, got a real
+  budget. Now `None` means default ($10) and `0.0` is honored; the MCP
+  `query_expert` default flips `0.0 -> None` so unspecified still defaults sanely.
+- Tests polluted the user's real `data/experts/` (leaking `MagicMock`,
+  `test_expert`, and stray expert dirs): the experts root was the one isolation
+  the suite lacked. Added an autouse fixture pinning `DEEPR_DATA_DIR` to a
+  per-test tmp dir.
+- `eval continuity` on an expert that exists but has no beliefs yet wrongly said
+  "Create or learn an expert first", and a typo'd name created an empty belief
+  dir. Now checks the profile exists first (read-only) with accurate per-case
+  messages.
+- `costs doctor` reported "Issues found (1/3)" on a healthy ledger-only setup
+  because the *derived* `cost_log.json` view did not exist. The view is
+  regenerable from the canonical ledger, so its absence is informational, not a
+  failure.
 - Unified the reports root across every component. Config-driven writers
   (CLI `run`, web app) saved under `data/reports`, but `ContextIndex`
   scanned `./reports`, a no-arg `LocalStorage()` (used by `prep`, `team`,

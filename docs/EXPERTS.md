@@ -209,9 +209,13 @@ deepr expert resume "Azure Architect"
 
 ### Absorb a Report into Knowledge
 Promote a completed research report into the expert's permanent beliefs instead
-of leaving it a terminal artifact. Verification-gated: report-grounded claims
-are extracted, weak claims and any that contradict existing beliefs are
-rejected, and the rest are integrated (deduped) with the report id as provenance.
+of leaving it a terminal artifact. Verification-gated: report-grounded claims are
+extracted and weak claims dropped. The free word-overlap heuristics only *route*
+- a cheap model verdict concludes, so phrasing-level false contradictions are not
+recorded as contested beliefs and two different facts that merely share words
+(e.g. "$10/M" vs "$30/M") are not silently merged. Genuine conflicts are flagged
+contested (the existing belief is never overwritten without approval); the rest
+are integrated (deduped) with the report id as provenance.
 ```bash
 # Preview what would be absorbed (writes nothing)
 deepr expert absorb "Azure Architect" <job_id> --dry-run
