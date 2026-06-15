@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-06-14
+
 ### Changed
 - Absorb contradiction and dedup are now agentic, not brittle. The free
   word-overlap heuristics only *route*; a cheap model verdict concludes
