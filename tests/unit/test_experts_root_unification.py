@@ -48,6 +48,15 @@ class TestResolution:
         monkeypatch.setenv("DEEPR_EXPERTS_PATH", str(tmp_path / "custom"))
         assert experts_root() == tmp_path / "custom"
 
+    def test_suite_is_isolated_from_real_experts_root(self):
+        # Regression: the autouse _isolate_experts_root fixture (conftest) keeps
+        # the suite out of the user's real data/experts/. Tests leaked MagicMock,
+        # test_expert, and stray expert directories there before it existed. No
+        # env override here - it relies on the fixture being active.
+        root = experts_root()
+        assert root != pathlib.Path("data") / "experts"
+        assert root.resolve() != (pathlib.Path.cwd() / "data" / "experts").resolve()
+
 
 class TestComponentsHonorRoot:
     def test_belief_store_writes_under_configured_root(self, tmp_path, monkeypatch):
