@@ -401,11 +401,7 @@ class DeeprMCPServer:
         budget: float | None = None,
         agentic: bool = False,
     ) -> dict[str, Any]:
-        """Query an expert with a question.
-
-        ``budget`` is the agentic spend ceiling: ``None`` uses the default,
-        ``0.0`` means do not spend (honored now that chat distinguishes the two).
-        """
+        """Query an expert. budget: None = default ceiling; 0.0 = do not spend."""
         try:
             expert = self.store.load(expert_name)
             if not expert:
