@@ -78,10 +78,19 @@ def eval_continuity(name: str, threshold: float, json_output: bool):
     """
     from deepr.experts.beliefs import BeliefStore
     from deepr.experts.continuity_metrics import measure_continuity
+    from deepr.experts.profile import ExpertStore
+
+    # Check the expert exists before touching BeliefStore (whose constructor
+    # would otherwise create an empty dir for a typo'd name).
+    if ExpertStore().load(name) is None:
+        raise click.ClickException(f"Expert '{name}' not found. Create one: deepr expert make '{name}'.")
 
     store = BeliefStore(name)
     if not store.beliefs and not store.has_event_log:
-        raise click.ClickException(f"Expert '{name}' has no belief store to measure. Create or learn an expert first.")
+        raise click.ClickException(
+            f"Expert '{name}' has no beliefs yet to measure. Synthesize its documents into beliefs first: "
+            f"deepr expert refresh '{name}' --synthesize (or recreate it with --learn)."
+        )
 
     report = measure_continuity(store, staleness_threshold=threshold, expert_name=name)
 
