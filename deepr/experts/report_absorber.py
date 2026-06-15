@@ -366,20 +366,13 @@ class ReportAbsorber:
                 trust_class="tertiary",
             )
 
-            conflict = self._contradicts_existing(belief, existing)
-            # The lexical hit is only a router; let the model decide whether it is
-            # a genuine contradiction before we record one. A refuted pair (a
-            # phrasing-level false positive) falls through to normal absorption.
-            verification = "lexical_unverified"
-            contradiction_refuted = False
-            if conflict is not None and verify_contradictions:
-                verdict = await self._verify_contradiction(belief, conflict)
-                if verdict is True:
-                    verification = "model_confirmed"
-                elif verdict is False:
-                    conflict = None  # lexical false positive - not a real conflict
-                    contradictions_refuted += 1
-                    contradiction_refuted = True
+            # The lexical hit is only a router; the model decides whether it is a
+            # genuine contradiction (a refuted false positive absorbs normally).
+            conflict, verification, contradiction_refuted = await self._resolve_contradiction(
+                belief, existing, verify_contradictions
+            )
+            if contradiction_refuted:
+                contradictions_refuted += 1
 
             if conflict is not None:
                 if not flag_contradictions:
@@ -436,6 +429,27 @@ class ReportAbsorber:
             contradictions_refuted=contradictions_refuted,
             merges_blocked=merges_blocked,
         )
+
+    async def _resolve_contradiction(
+        self, belief: Belief, existing: list[Belief], verify_contradictions: bool
+    ) -> tuple[Belief | None, str, bool]:
+        """Lexical router then model verdict on contradiction.
+
+        Returns ``(conflict_or_None, verification, refuted)``: a lexical hit the
+        model refutes is dropped (conflict ``None``, refuted ``True``) so the
+        candidate absorbs normally; a confirmed hit is kept with verification
+        ``model_confirmed``; everything else stays ``lexical_unverified``.
+        """
+        conflict = self._contradicts_existing(belief, existing)
+        if conflict is None:
+            return None, "lexical_unverified", False
+        if verify_contradictions:
+            verdict = await self._verify_contradiction(belief, conflict)
+            if verdict is True:
+                return conflict, "model_confirmed", False
+            if verdict is False:
+                return None, "lexical_unverified", True
+        return conflict, "lexical_unverified", False
 
     async def _verify_contradiction(self, candidate: Belief, existing: Belief) -> bool | None:
         """Model entailment verdict: do these two claims genuinely contradict?
