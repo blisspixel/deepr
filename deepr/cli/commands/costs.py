@@ -407,9 +407,18 @@ def costs_doctor(drift_threshold: float, rebuild: bool):
 
     checks: list[tuple[str, bool, str]] = []
 
-    # Dashboard storage sanity
+    # The dashboard file is a DERIVED view, regenerable from the canonical
+    # ledger (via --rebuild), so its absence is not a problem - report it,
+    # never fail on it. The ledger checks below are the real health (don't
+    # cry wolf on a fresh/ledger-only setup).
     log_exists = dashboard.storage_path.exists()
-    checks.append(("Cost log exists", log_exists, str(dashboard.storage_path)))
+    checks.append(
+        (
+            "Cost dashboard view",
+            True,
+            f"{dashboard.storage_path} ({'present' if log_exists else 'absent - regenerates from the ledger'})",
+        )
+    )
 
     # Ledger storage sanity
     health = ledger.get_health()
