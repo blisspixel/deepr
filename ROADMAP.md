@@ -829,8 +829,17 @@ Turns claims into measurements before any wider exposure. Design:
    derived from the measured curve. Shipped 2026-06-13 ($0, tested): the
    measurement engine (reliability curve, ECE, numpy Platt scaling, derived
    threshold), `deepr eval calibrate --from`, and the FActScore/SAFE-shaped
-   grading orchestrator (`grade_corpus`). Remaining: the paid `--corpus` run
-   (extraction + strong-model pre-grade) and the published curve.
+   grading orchestrator (`grade_corpus`). Paid `--corpus` run executed
+   2026-06-14 (~$0.69, gpt-5 grader): it reproduced **saturation** - 100%
+   grounded, no derivable threshold. An adversarial over-reach probe
+   (`tests/data/calibration-hard/`, ~$0.04 extraction-only check) then showed
+   *why*: the extractor defuses planted traps by attributing/qualifying (78/78
+   grounded), so the saturation is **extraction faithfulness, not a measurement
+   gap**. Conclusion (don't chase this): confidence-vs-grounding calibration is
+   degenerate here because extraction is good; the trust story is carried by the
+   continuity metrics + absorb verdict transparency, not a calibration curve.
+   The cheap probe before the expensive grade is the frugal-validation discipline
+   working - it caught a doomed full run for $0.04. Details in docs/CALIBRATION.md.
 4. [x] Entailment-shaped contradiction screen at absorb (2026-06-14): the
    lexical heuristic routes, a cheap model entailment verdict concludes, so the
    brittle check no longer mints phrasing-level false contested beliefs
