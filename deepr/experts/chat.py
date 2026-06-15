@@ -93,10 +93,7 @@ class ExpertChatSession:
     ):
         self.agent_identity = agent_identity
         self.expert = expert
-        # Distinguish "unspecified" (None -> default $10) from an explicit
-        # budget=0.0 ("do not spend"). `budget or 10.0` silently turned a zero
-        # ceiling into $10 - a no-surprise-bills violation.
-        self.budget = 10.0 if budget is None else budget
+        self.budget = 10.0 if budget is None else budget  # None=default $10; explicit 0.0=no-spend (not falsy-coerced)
         self.agentic = agentic  # Enable research triggering
         self.cost_accumulated = 0.0
         self.messages: list[dict[str, Any]] = []
