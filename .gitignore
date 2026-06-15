@@ -73,6 +73,7 @@ DEPRECATED/
 # (held-out, versioned reports the calibration harness grades - ADR 0004 / v2.15).
 /tests/data/*
 !/tests/data/calibration/
+!/tests/data/calibration-hard/
 
 # Log files
 logs/
