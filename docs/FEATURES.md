@@ -524,6 +524,11 @@ deepr expert fill-gaps "Azure Architect" --budget 5 --top 3
 deepr expert resume "Azure Architect"
 
 # Absorb a completed report into permanent beliefs (verification-gated, deduped)
+# The free word-overlap heuristics only ROUTE; a cheap model verdict concludes -
+# it drops phrasing-level false contradictions and refuses to merge two different
+# facts that merely share words (e.g. "$10/M" vs "$30/M"). The result reports how
+# many false positives the verdicts caught. Pass --no-... equivalents in code via
+# verify_contradictions / verify_dedup to disable.
 deepr expert absorb "Azure Architect" <job_id> --dry-run   # preview
 deepr expert absorb "Azure Architect" <job_id>             # apply
 
