@@ -26,18 +26,18 @@ jobs:
         run: uv pip install ruff==0.15.17 "mypy>=1.13.0"
 
       - name: Lint
-        run: ruff check deepr/
+        run: ruff check src/deepr/
 
       - name: Security + complexity lint (advisory display)
         # Advisory log of the S-rule (Bandit) and C901 (complexity > 10)
         # findings. The counts are *enforced* (no-growth) by the ratchet step
         # below; this keeps the individual findings visible during review.
         continue-on-error: true
-        run: ruff check deepr/ --select S,C901
+        run: ruff check src/deepr/ --select S,C901
 
       - name: Code-health ratchets (BLOCKING)
         # Phase Q: the backlog may not grow. check_file_sizes.py fails on any
-        # new oversized deepr/*.py (existing large files grandfathered, shrink
+        # new oversized src/deepr/*.py (existing large files grandfathered, shrink
         # only); check_ratchets.py fails if the C901 or S finding count rises
         # above its committed baseline. See docs/design/code-health.md.
         run: |
@@ -45,7 +45,7 @@ jobs:
           python scripts/check_ratchets.py
 
       - name: Format check
-        run: ruff format --check deepr/
+        run: ruff format --check src/deepr/
 
       - name: Docs consistency (counts match source)
         run: python scripts/check_docs_consistency.py
@@ -68,7 +68,7 @@ jobs:
         # whether a `# type: ignore[import-untyped]` is "used" depends on which
         # third-party packages are present (e.g. PyYAML). Decouple the gate
         # from that so it is reproducible regardless of the install set.
-        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core deepr/providers deepr/mcp
+        run: mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp
 
   security:
     runs-on: ubuntu-latest
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: deepr/web/frontend
+        working-directory: src/deepr/web/frontend
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -146,7 +146,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: deepr/web/frontend/package-lock.json
+          cache-dependency-path: src/deepr/web/frontend/package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci
