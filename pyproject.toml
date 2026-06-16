@@ -27,7 +27,7 @@ keywords = ["research", "ai", "automation", "deep-research", "knowledge-graph", 
 # Core dependencies - minimal install for CLI research
 dependencies = [
     "anthropic>=0.40.0,<1.0.0",
-    "openai>=1.0.0,<2.0.0",
+    "openai>=1.0.0,<3.0.0",
     "google-genai>=1.0.0,<2.0.0",
     "python-dotenv>=1.0.0,<2.0.0",
     "click>=8.1.0,<9.0.0",
