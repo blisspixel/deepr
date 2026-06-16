@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-06-16
+
+Packaging, repo-hygiene, and security release.
+
+### Changed
+- Adopted the canonical PyPA **src layout**: the package now lives at
+  `src/deepr/` (import name `deepr` unchanged). This prevents accidentally
+  importing the package from the working directory instead of the installed
+  one. Packaging, CI, code-health scripts, and docs updated accordingly.
+
+### Fixed
+- Corrected `.mailmap`, which was reversed and relabelled the maintainer's own
+  commits as a third-party GitHub user on the contributor graph. Automation/AI
+  emails now coalesce onto the maintainer; no bot appears as a contributor.
+- Security: `BeliefStore` now containment-checks the expert name before using
+  it as a path component (it is constructed directly from MCP tool args), so a
+  traversal name cannot escape the experts root.
+- Security: web/API error responses no longer echo exception text to clients
+  (generic message client-side, detail logged server-side).
+
+### Security
+- Triaged all open CodeQL alerts (multi-agent triage + adversarial
+  verification): real findings fixed with tests, false positives dismissed with
+  documented reasons. Added `validate_identifier` + `safe_path_within` helpers
+  in `utils/security.py`.
+- Hardened GitHub Actions with least-privilege `permissions: contents: read`
+  on the CI and mutation workflows; all actions pinned to commit SHAs.
+
 ## [2.15.1] - 2026-06-16
 
 Security and maintenance release. No functional changes.
