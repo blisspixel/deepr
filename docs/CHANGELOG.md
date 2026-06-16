@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.1] - 2026-06-16
+
+Security and maintenance release. No functional changes.
+
+### Security
+- Cleared all 9 npm advisories in the web frontend (0 vulnerabilities
+  remaining): Vite 5 -> 8 with esbuild (GHSA-67mh-4wv8-2f99,
+  GHSA-gv7w-rqvm-qjhr), react-syntax-highlighter 15 -> 16 with prismjs
+  (GHSA-x7hr-w5r2-h6wg), ws 8.21 (GHSA-96hv-2xvq-fx4p), @babel/core 7.29.7
+  (GHSA-4x5r-pxfx-6jf8), and form-data 4.0.6 (GHSA-hmw2-7cc7-3qxx).
+- Python security bumps: aiohttp 3.13.5 -> 3.14.1, cryptography 48.0.0 ->
+  48.0.1.
+
+### Changed
+- Frontend dependency refresh, verified green (lint/tsc/build):
+  @vitejs/plugin-react 6, TypeScript 6, framer-motion 12, sonner 2,
+  tailwind-merge 3, zustand 5. Dropped the deprecated tsconfig `baseUrl`
+  (TS 6 resolves `paths` without it). Routine pip bumps: openai,
+  azure-cosmos, flask-limiter, rich, google-genai, react-markdown.
+
+### Build
+- Pinned all GitHub Actions to commit SHAs and normalized setup-uv to v7
+  (supply-chain hardening). Documented the branch, merge, and hygiene
+  policy in CONTRIBUTING.
+
 ## [2.15.0] - 2026-06-14
 
 ### Changed
