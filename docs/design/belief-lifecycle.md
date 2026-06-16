@@ -219,7 +219,7 @@ rate tracked per release.
    (one mechanism, two consumers).
 3. Atomicity enforcement in the extraction prompt + atomicity rate in
    the calibration harness.
-4. [x] Continuity metrics (2026-06-13): `deepr/experts/continuity_metrics.py`
+4. [x] Continuity metrics (2026-06-13): `src/deepr/experts/continuity_metrics.py`
    + `deepr eval continuity NAME` - the four properties of finding 6 scored
    from stored state at $0, each against ground truth derived independently
    of the surface it scores, methodology-versioned for run comparability.

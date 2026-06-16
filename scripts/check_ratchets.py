@@ -41,7 +41,7 @@ def _ruff_cmd() -> list[str]:
 def _count(rule: str) -> int:
     """Number of ruff findings for a single selected rule group over deepr/."""
     proc = subprocess.run(
-        [*_ruff_cmd(), "check", "deepr/", "--select", rule, "--output-format", "json"],
+        [*_ruff_cmd(), "check", "src/deepr/", "--select", rule, "--output-format", "json"],
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,

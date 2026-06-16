@@ -405,7 +405,7 @@ deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code
 ### Creating Custom Skills
 
 ```bash
-# Scaffold a new skill in ~/.deepr/skills/
+# Scaffold a new skill in ~/.src/deepr/skills/
 deepr skill create my-custom-skill
 ```
 
@@ -427,7 +427,7 @@ This creates:
 
 - **Progressive disclosure**: Skill summaries are always visible in the expert's system prompt. Full prompt and tools load only when a skill activates.
 - **Auto-activation**: Skills activate when user queries match keyword or regex triggers.
-- **Three-tier storage**: Built-in skills ship with Deepr, user skills live in `~/.deepr/skills/`, expert-local skills in `data/experts/{name}/skills/`. Later tiers override earlier ones.
+- **Three-tier storage**: Built-in skills ship with Deepr, user skills live in `~/.src/deepr/skills/`, expert-local skills in `data/experts/{name}/skills/`. Later tiers override earlier ones.
 - **MCP bridging**: Skills can connect experts to external MCP servers for tools no generic expert would have.
 
 ### Skill Definition Format
@@ -458,10 +458,10 @@ budget:
 ### Components
 
 ```
-deepr/core/
+src/deepr/core/
 ├── contracts.py    # Canonical types: Claim, Gap, DecisionRecord, ExpertManifest, Source
 
-deepr/experts/
+src/deepr/experts/
 ├── profile.py      # Expert metadata, usage tracking, get_manifest()
 ├── curriculum.py   # Learning plan generation
 ├── learner.py      # Autonomous learning execution

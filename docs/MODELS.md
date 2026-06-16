@@ -203,7 +203,7 @@ deepr research "Topic" --model gemini-deep-research
 - **Quick lookups**: Grok 4.20 Non-Reasoning ($0.01, when XAI_API_KEY available)
 
 ### Adaptive Routing
-Deepr's model router (`deepr/experts/router.py`) automatically selects models based on:
+Deepr's model router (`src/deepr/experts/router.py`) automatically selects models based on:
 - Query complexity
 - Budget remaining
 - Task type (factual vs reasoning)
@@ -230,7 +230,7 @@ Auto mode detects which keys are configured and routes accordingly. With one key
 
 ## Model Registry
 
-All model definitions live in `deepr/providers/registry.py`. This is the single source of truth.
+All model definitions live in `src/deepr/providers/registry.py`. This is the single source of truth.
 
 **When new models are released**: Update ONLY the registry. Never hardcode model names elsewhere in the codebase.
 

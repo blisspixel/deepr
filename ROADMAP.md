@@ -1,6 +1,6 @@
 # Deepr Roadmap
 
-> Development priorities and planned features. Model and pricing facts come from the registry (`deepr/providers/registry.py`); see [docs/MODELS.md](docs/MODELS.md).
+> Development priorities and planned features. Model and pricing facts come from the registry (`src/deepr/providers/registry.py`); see [docs/MODELS.md](docs/MODELS.md).
 
 > ## STOP - no brittle junk
 >
