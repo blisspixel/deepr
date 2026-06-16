@@ -12,7 +12,7 @@ a failure too, which keeps the allowlist honest.
 Canonical homes (see docs/README.md "Source of truth" table):
   - test count, coverage gate -> ROADMAP.md "Current Status"
   - MCP tool count            -> mcp/README.md (full tool tables + footer)
-  - model names / pricing      -> deepr/providers/registry.py (checked elsewhere)
+  - model names / pricing      -> src/deepr/providers/registry.py (checked elsewhere)
 
 Run from anywhere:  python scripts/check_docs_consistency.py
 Exit code 0 = all consistent, 1 = at least one drift detected.
@@ -71,7 +71,7 @@ def mcp_tool_count() -> int:
 
 
 def builtin_skill_count() -> int:
-    """Number of built-in expert skills (deepr/skills/*/skill.yaml)."""
+    """Number of built-in expert skills (src/deepr/skills/*/skill.yaml)."""
     skills_dir = REPO_ROOT / "src" / "deepr" / "skills"
     return sum(1 for _ in skills_dir.glob("*/skill.yaml"))
 

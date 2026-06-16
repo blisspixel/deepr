@@ -55,8 +55,8 @@ A change is done when all of these hold - not "the code works":
       `tests/integration/` needs API keys and one test can hang without them.
 - [ ] Coverage stays at or above the gate (80% branch, `fail_under` in
       `pyproject.toml`; ratcheting toward 95).
-- [ ] `ruff check deepr/` and `ruff format deepr/` clean.
-- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports deepr/core deepr/providers deepr/mcp`
+- [ ] `ruff check src/deepr/` and `ruff format src/deepr/` clean.
+- [ ] `mypy --strict --no-warn-unused-ignores --ignore-missing-imports src/deepr/core src/deepr/providers src/deepr/mcp`
       clean (the blocking strict islands; do not regress the wider baseline).
 - [ ] `python scripts/check_docs_consistency.py` passes (doc counts match
       source).
@@ -90,7 +90,7 @@ The repository stays tidy by rule, not by cleanup:
 - **Logging**: `logging.getLogger(__name__)` in library code, never
   `print()`. Specific exception types, not bare `except Exception`.
 - **Single sources of truth**: model pricing/capabilities in
-  `deepr/providers/registry.py`; version in `deepr/__init__.py`; the reports
+  `src/deepr/providers/registry.py`; version in `src/deepr/__init__.py`; the reports
   root from `load_config()["results_dir"]` (never hardcode a path).
 - **Parse, don't validate**: validate external data once at the boundary into
   rich types so core logic never sees raw, possibly-invalid input.
@@ -108,7 +108,7 @@ when a dev key happens to be set is a regression (it has happened twice).
 
 ## Project structure
 
-- `deepr/` - main package: `cli/` (Click commands), `core/` (orchestration,
+- `src/deepr/` - main package: `cli/` (Click commands), `core/` (orchestration,
   costs, context), `providers/` (model integrations), `experts/` (domain
   expert system), `mcp/` (MCP server), `services/`, `storage/`, `queue/`.
 - `docs/` - guides; `docs/design/` (feature design docs); `docs/decisions/`

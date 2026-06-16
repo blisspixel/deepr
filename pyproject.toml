@@ -276,7 +276,7 @@ python_version = "3.12"
 mypy_path = "src"
 files = ["src/deepr"]
 # Per-skill `tools/` resource dirs live under hyphenated skill folders
-# (e.g. deepr/skills/code-analysis/tools/) that are not importable packages,
+# (e.g. src/deepr/skills/code-analysis/tools/) that are not importable packages,
 # so mypy maps several of them to the same top-level module name "tools" and
 # aborts with a duplicate-module error before scanning anything. Exclude them
 # so the baseline reflects the real importable codebase.
