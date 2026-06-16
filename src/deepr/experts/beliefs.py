@@ -432,7 +432,17 @@ class BeliefStore:
         if storage_dir is None:
             from deepr.config import experts_root
 
-            storage_dir = experts_root() / expert_name / "beliefs"
+            # BeliefStore is constructed directly from untrusted MCP tool args,
+            # so containment-check the expert name before using it as a path
+            # component: a value like ``../python_expert`` must not build a path
+            # outside the experts root. The raw name is preserved (expert names
+            # legitimately contain spaces and punctuation), so beliefs land
+            # beside the rest of the expert's state, matching ExpertStore.
+            root = experts_root()
+            storage_dir = root / expert_name / "beliefs"
+            resolved, root_resolved = storage_dir.resolve(), root.resolve()
+            if root_resolved != resolved and root_resolved not in resolved.parents:
+                raise ValueError(f"expert name {expert_name!r} resolves outside the experts root")
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
