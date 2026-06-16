@@ -66,6 +66,22 @@ A change is done when all of these hold - not "the code works":
       messages.
 - [ ] CI green after push.
 
+## Branches, merges, and hygiene
+
+The repository stays tidy by rule, not by cleanup:
+
+- **One long-lived branch.** `main` is always releasable (GitHub Flow). Each
+  change gets a short-lived branch, a PR against `main`, and is deleted on
+  merge. Auto-delete is on, so no branches linger.
+- **Squash-merge.** The merge commit is the PR title and nothing else - no
+  body trailers. No machine attribution ever lands on `main`: no AI
+  attribution, and no bot `Co-authored-by` / `Signed-off-by` (including
+  Dependabot). Repo settings enforce the clean squash message.
+- **Dependencies.** Dependabot opens the PRs. Merge green minor/patch bumps
+  promptly; close major bumps that fail CI until they are compatible. Do not
+  leave dependency branches or PRs sitting open.
+- **Nothing merges red.** A green CI run is the gate for every merge.
+
 ## Code style
 
 - **Formatter / linter**: ruff (line length 120). Pre-commit enforces it.
