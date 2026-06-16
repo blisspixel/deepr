@@ -1,10 +1,20 @@
 """Security utilities for Deepr."""
 
 import ipaddress
+import logging
 import re
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
+# A safe path segment is either a slug (letters, digits, ``-``, ``_`` with no
+# leading/trailing separator) or a canonical UUID. This deliberately rejects
+# path separators, "..", null bytes, whitespace, and any other token that could
+# be used to traverse out of an intended directory.
+_SLUG_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 
 class SecurityError(Exception):
@@ -385,3 +395,101 @@ def sanitize_log_message(message: str) -> str:
         sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
 
     return sanitized
+
+
+def validate_identifier(value: str, *, kind: str = "identifier") -> str:
+    """Validate a user-supplied identifier used as a single path segment.
+
+    Intended for expert names, session ids, job ids, report ids and similar
+    tokens that are later joined into a filesystem path. The value must be a
+    slug (letters, digits, ``-``, ``_``, ``.`` - not leading/trailing) or a
+    canonical UUID. Path separators, ``..``, null bytes, whitespace, absolute
+    paths and empty values are rejected.
+
+    Args:
+        value: The raw identifier supplied by the caller or end user.
+        kind: Label for the identifier kind, used only in error messages
+            (for example "expert name" or "job id").
+
+    Returns:
+        The validated identifier, unchanged.
+
+    Raises:
+        ValueError: If the identifier is empty, not a string, or contains any
+            token that is unsafe to use as a path segment.
+
+    Examples:
+        >>> validate_identifier("my-expert_1")
+        'my-expert_1'
+        >>> validate_identifier("123e4567-e89b-12d3-a456-426614174000")
+        '123e4567-e89b-12d3-a456-426614174000'
+        >>> validate_identifier("../etc")  # doctest: +IGNORE_EXCEPTION_DETAIL
+        Traceback (most recent call last):
+            ...
+        ValueError: ...
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"{kind} must be a string, got {type(value).__name__}")
+    if not value:
+        raise ValueError(f"{kind} cannot be empty")
+    if "\x00" in value:
+        raise ValueError(f"{kind} contains a null byte")
+    if "/" in value or "\\" in value:
+        raise ValueError(f"{kind} {value!r} must not contain path separators")
+    if value in (".", ".."):
+        raise ValueError(f"{kind} {value!r} is a reserved path segment")
+    if _UUID_RE.match(value):
+        return value
+    if not _SLUG_RE.match(value):
+        raise ValueError(
+            f"{kind} {value!r} is not a valid slug or UUID "
+            "(allowed: letters, digits, '-', '_', '.' - not leading/trailing)"
+        )
+    return value
+
+
+def safe_path_within(base: str | Path, *parts: str) -> Path:
+    """Join ``parts`` under ``base`` and assert the result stays inside ``base``.
+
+    Resolves both ``base`` and the joined path to their real (symlink-resolved)
+    locations and verifies the result is contained within ``base``. This guards
+    against traversal via ``..``, absolute path segments, and symlink escapes.
+
+    Args:
+        base: The directory the resulting path must stay inside.
+        *parts: Path segments to join beneath ``base``.
+
+    Returns:
+        The resolved, validated path inside ``base``.
+
+    Raises:
+        ValueError: If the resolved path escapes ``base``, or if any segment is
+            empty.
+
+    Examples:
+        >>> safe_path_within("/data", "experts", "alice").name
+        'alice'
+        >>> safe_path_within("/data", "..", "etc")  # doctest: +IGNORE_EXCEPTION_DETAIL
+        Traceback (most recent call last):
+            ...
+        ValueError: ...
+    """
+    base_path = Path(base)
+    if not parts:
+        raise ValueError("at least one path segment is required")
+    for part in parts:
+        if not isinstance(part, str) or not part:
+            raise ValueError("path segments must be non-empty strings")
+
+    try:
+        base_real = base_path.resolve(strict=False)
+        candidate = base_path.joinpath(*parts).resolve(strict=False)
+    except (OSError, RuntimeError) as err:
+        # RuntimeError: symlink loop; OSError: other resolution failures.
+        raise ValueError(f"could not resolve path under {base!r}: {err}") from err
+
+    if base_real != candidate and base_real not in candidate.parents:
+        logger.warning("Blocked path escape attempt: parts=%r base=%s", parts, base_real)
+        raise ValueError(f"path {candidate} escapes base directory {base_real}")
+
+    return candidate
