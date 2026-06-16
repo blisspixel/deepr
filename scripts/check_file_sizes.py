@@ -44,6 +44,9 @@ GRANDFATHERED: dict[str, int] = {
 }
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+# Package lives under src/ (src layout). Paths are kept relative to src/ so the
+# GRANDFATHERED keys stay package-relative (deepr/...), independent of layout.
+_SRC_ROOT = _REPO_ROOT / "src"
 
 
 def _line_count(path: Path) -> int:
@@ -52,14 +55,14 @@ def _line_count(path: Path) -> int:
 
 
 def main() -> int:
-    pkg = _REPO_ROOT / "deepr"
+    pkg = _SRC_ROOT / "deepr"
     failures: list[str] = []
     nudges: list[str] = []
 
     seen_grandfathered: set[str] = set()
 
     for path in sorted(pkg.rglob("*.py")):
-        rel = path.relative_to(_REPO_ROOT).as_posix()
+        rel = path.relative_to(_SRC_ROOT).as_posix()
         lines = _line_count(path)
         cap = GRANDFATHERED.get(rel)
 

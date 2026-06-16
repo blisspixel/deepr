@@ -115,49 +115,49 @@ source = ["deepr"]
 branch = true
 omit = [
     # CLI commands and rendering — covered by end-to-end tests, not units.
-    "deepr/cli/commands/*",
-    "deepr/cli/realtime_progress.py",
-    "deepr/cli/startup_banner.py",
-    "deepr/cli/ui.py",
+    "src/deepr/cli/commands/*",
+    "src/deepr/cli/realtime_progress.py",
+    "src/deepr/cli/startup_banner.py",
+    "src/deepr/cli/ui.py",
     # Web app — large Flask surface, manually QA'd + smoke-tested.
-    "deepr/web/*",
+    "src/deepr/web/*",
     # WebSocket / SocketIO event handlers require a live Flask context.
-    "deepr/api/websockets/*",
+    "src/deepr/api/websockets/*",
     # HTTP webhook server — runs only in long-lived deployments.
-    "deepr/webhooks/*",
+    "src/deepr/webhooks/*",
     # S3 / blob storage — integration-tested against AWS.
-    "deepr/storage/blob.py",
+    "src/deepr/storage/blob.py",
     # Playwright/headless-browser backend.
-    "deepr/tools/browser_backend.py",
+    "src/deepr/tools/browser_backend.py",
     # Optional DSPy integration — gracefully degrades when the
     # ``dspy`` package isn't installed; covered by DSPy-specific tests.
-    "deepr/experts/dspy_pipeline.py",
+    "src/deepr/experts/dspy_pipeline.py",
     # Autonomous learning loop — long-running, integration-tested.
-    "deepr/experts/learner.py",
+    "src/deepr/experts/learner.py",
     # Slash-command dispatcher — covered by chat integration tests.
-    "deepr/experts/command_handlers.py",
+    "src/deepr/experts/command_handlers.py",
     # Skill execution wrapper — covered by skill integration tests.
-    "deepr/experts/skills/expert_skill.py",
-    "deepr/experts/skills/executor.py",
+    "src/deepr/experts/skills/expert_skill.py",
+    "src/deepr/experts/skills/executor.py",
     # Web scraper — covered by integration tests against live targets.
-    "deepr/utils/scrape/*",
+    "src/deepr/utils/scrape/*",
     # Image-generation provider for expert portraits (OpenAI/Gemini/XAI).
-    "deepr/experts/portraits.py",
+    "src/deepr/experts/portraits.py",
     # CLI timeline / colour / styling renderers (Rich-rendered display).
-    "deepr/observability/timeline_renderer.py",
-    "deepr/cli/colors.py",
+    "src/deepr/observability/timeline_renderer.py",
+    "src/deepr/cli/colors.py",
     # DOCX/PDF style helpers (heavy python-docx surface).
-    "deepr/formatting/style.py",
+    "src/deepr/formatting/style.py",
     # Research-agent poller (long-running background worker — covered by
     # integration runs against live providers).
-    "deepr/research_agent/poller.py",
+    "src/deepr/research_agent/poller.py",
     # MCP credential manager (interactive prompts + OS keyring integration).
-    "deepr/mcp/state/credential_manager.py",
+    "src/deepr/mcp/state/credential_manager.py",
     # Ad-hoc maintenance scripts.
-    "deepr/utils/check_expert_status.py",
-    "deepr/utils/download_expert_reports.py",
-    "deepr/utils/integrate_pending_research.py",
-    "deepr/utils/retrieve_expert_reports.py",
+    "src/deepr/utils/check_expert_status.py",
+    "src/deepr/utils/download_expert_reports.py",
+    "src/deepr/utils/integrate_pending_research.py",
+    "src/deepr/utils/retrieve_expert_reports.py",
 ]
 
 [tool.coverage.report]
@@ -223,7 +223,7 @@ max-complexity = 10
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["F811", "F841", "E712", "B005", "B017", "RUF006"]
 "tests/integration/**/*.py" = ["F401"]
-"deepr/cli/**/*.py" = ["B023"]
+"src/deepr/cli/**/*.py" = ["B023"]
 
 [tool.pytest.ini_options]
 python_files = ["test_*.py"]
@@ -269,13 +269,18 @@ markers = [
 # of real type errors, not import-resolution noise. Strictness is ratcheted up
 # package-by-package (core/, providers/, mcp/ first) as annotations land.
 python_version = "3.12"
-files = ["deepr"]
+# src layout: src is the package base, so src/deepr/foo maps to the module
+# deepr.foo (not src.deepr.foo). Without this, mypy names files passed by path
+# differently from how they are imported, and the same class reads as two
+# incompatible types.
+mypy_path = "src"
+files = ["src/deepr"]
 # Per-skill `tools/` resource dirs live under hyphenated skill folders
 # (e.g. deepr/skills/code-analysis/tools/) that are not importable packages,
 # so mypy maps several of them to the same top-level module name "tools" and
 # aborts with a duplicate-module error before scanning anything. Exclude them
 # so the baseline reflects the real importable codebase.
-exclude = ['^deepr/skills/[^/]+/tools/']
+exclude = ['^src/deepr/skills/[^/]+/tools/']
 namespace_packages = true
 explicit_package_bases = true
 ignore_missing_imports = true
@@ -301,7 +306,7 @@ no_implicit_optional = true
 # runs on a schedule / on demand (see .github/workflows/mutation.yml), never
 # per-PR. Scoped to the safety-critical kernel first (budget, cost, contracts),
 # where a surviving mutant is most dangerous.
-paths_to_mutate = ["deepr/core/", "deepr/observability/cost_ledger.py", "deepr/experts/cost_safety.py"]
+paths_to_mutate = ["src/deepr/core/", "src/deepr/observability/cost_ledger.py", "src/deepr/experts/cost_safety.py"]
 tests_dir = ["tests/unit/"]
 
 [tool.uv]
@@ -315,6 +320,6 @@ resolution = "highest"
 deepr = ["py.typed"]
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["deepr*"]
 exclude = ["tests*", "docs*"]

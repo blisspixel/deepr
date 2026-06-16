@@ -63,7 +63,7 @@ def coverage_gate() -> int:
 
 def mcp_tool_count() -> int:
     """Number of registered MCP tools (entries in server.py tool_dispatch)."""
-    text = (REPO_ROOT / "deepr" / "mcp" / "server.py").read_text(encoding="utf-8")
+    text = (REPO_ROOT / "src" / "deepr" / "mcp" / "server.py").read_text(encoding="utf-8")
     keys = set(re.findall(r'"(deepr_\w+)":\s*lambda', text))
     if not keys:
         raise RuntimeError("could not find tool_dispatch entries in server.py")
@@ -72,7 +72,7 @@ def mcp_tool_count() -> int:
 
 def builtin_skill_count() -> int:
     """Number of built-in expert skills (deepr/skills/*/skill.yaml)."""
-    skills_dir = REPO_ROOT / "deepr" / "skills"
+    skills_dir = REPO_ROOT / "src" / "deepr" / "skills"
     return sum(1 for _ in skills_dir.glob("*/skill.yaml"))
 
 
