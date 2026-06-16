@@ -92,12 +92,12 @@ scripts/expert_deepr_discussion.txt
 # ==============================================================================
 # Frontend
 # ==============================================================================
-deepr/web/frontend/node_modules/
-deepr/web/frontend/dist/
-deepr/web/frontend/.vite/
-deepr/web/frontend/screenshots/
-deepr/web/frontend/screenshot-qa.mjs
-deepr/web/frontend/playwright-report/
+src/deepr/web/frontend/node_modules/
+src/deepr/web/frontend/dist/
+src/deepr/web/frontend/.vite/
+src/deepr/web/frontend/screenshots/
+src/deepr/web/frontend/screenshot-qa.mjs
+src/deepr/web/frontend/playwright-report/
 
 # ==============================================================================
 # IDEs and Editors
