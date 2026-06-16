@@ -1721,7 +1721,8 @@ def generate_expert_portrait(name):
 
         return jsonify({"portrait_url": portrait_url})
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Portrait generation failed for %s: %s", name, e)
+        return jsonify({"error": "Portrait generation failed"}), 400
     except Exception as e:
         logger.error(f"Error generating portrait for {name}: {e}")
         return jsonify({"error": "Portrait generation failed"}), 500
@@ -1815,7 +1816,8 @@ def chat_with_expert(name):
     except ImportError:
         return jsonify({"error": "Expert system not available"}), 404
     except ValueError as e:
-        return jsonify({"error": str(e)}), 404
+        logger.warning("Chat error for expert %s: %s", name, e)
+        return jsonify({"error": "Expert not found"}), 404
     except Exception as e:
         logger.error(f"Error chatting with expert {name}: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -1854,7 +1856,7 @@ def expert_council():
         return jsonify(result)
     except Exception as e:
         logger.error(f"Council error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 def _restore_session_messages(session, expert_name: str, session_id: str):
