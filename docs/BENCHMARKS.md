@@ -243,7 +243,7 @@ Use this process whenever providers release new models.
 - Only consider models that match Deepr workflows: `deep_research`, `reasoning/synthesis`, or `cheap lookup/news/docs`.
 
 2. Registry update
-- Add model metadata in `deepr/providers/registry.py` (pricing, latency, context, strengths/weaknesses).
+- Add model metadata in `src/deepr/providers/registry.py` (pricing, latency, context, strengths/weaknesses).
 - Add provider alias/mapping support in provider implementation if model IDs differ from friendly names.
 
 3. Tier placement
@@ -264,7 +264,7 @@ Use this process whenever providers release new models.
 
 ## Adding New Models
 
-1. Add the model to `deepr/providers/registry.py` with pricing and capabilities
+1. Add the model to `src/deepr/providers/registry.py` with pricing and capabilities
 2. Add it to the appropriate tier list in `scripts/benchmark_models.py`:
    - `DEFAULT_MODELS` for chat tier
    - `NEWS_MODELS` for news tier

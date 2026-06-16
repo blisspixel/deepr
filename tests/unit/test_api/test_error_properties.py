@@ -24,7 +24,7 @@ from hypothesis import strategies as st
 
 # Get the correct path to the errors module
 project_root = Path(__file__).parent.parent.parent.parent
-errors_path = project_root / "deepr" / "api" / "middleware" / "errors.py"
+errors_path = project_root / "src" / "deepr" / "api" / "middleware" / "errors.py"
 
 spec = importlib.util.spec_from_file_location("errors", str(errors_path))
 errors_module = importlib.util.module_from_spec(spec)

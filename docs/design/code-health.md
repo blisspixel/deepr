@@ -87,7 +87,7 @@ spending effort shrinking it. None of these change runtime behavior.
   **two divergent `load_config()` dicts**, not one, and they disagree -
   `deepr/config.py` returns `api_key="***"` (redacted), includes an
   `experts_dir` key, and sources cost limits from `DEEPR_MAX_COST_*` env vars
-  (defaults 5/25/200); `deepr/core/settings.py` returns the **real** `api_key`,
+  (defaults 5/25/200); `src/deepr/core/settings.py` returns the **real** `api_key`,
   has **no** `experts_dir`, and sources cost limits from `settings.budget`
   (different defaults). So each call site depends on which `load_config` it
   imports and which fields it reads. Step 0 is a characterization test pinning
@@ -133,8 +133,8 @@ spending effort shrinking it. None of these change runtime behavior.
   working >= 2 releases (kubectl policy). *Done:* one cost namespace;
   deprecation warning + test (`test_cli/test_cost_deprecation.py`).
 - **Q1.3 One `run_async` helper (F6). DONE (2026-06-14).** Canonical
-  `run_async_command` moved to `deepr/utils/async_runner.py`;
-  `deepr/cli/async_runner.py` re-exports it, and `web/app.py` + `api/app.py`
+  `run_async_command` moved to `src/deepr/utils/async_runner.py`;
+  `src/deepr/cli/async_runner.py` re-exports it, and `web/app.py` + `api/app.py`
   dropped their private `def run_async` for `import ... as run_async`. *Done:*
   single definition, imported by cli + web + api (test harness helper left as-is).
 

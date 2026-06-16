@@ -46,7 +46,8 @@ class TestFileSizeGuard:
         """The debt register must stay honest: every entry exists, is genuinely
         over the ceiling, and has not grown past its recorded cap."""
         for rel, cap in file_sizes.GRANDFATHERED.items():
-            path = _REPO_ROOT / rel
+            # keys are package-relative (deepr/...); resolve under src/ (src layout)
+            path = file_sizes._SRC_ROOT / rel
             assert path.exists(), f"stale GRANDFATHERED entry (no such file): {rel}"
             assert cap > file_sizes.CEILING, f"{rel} cap {cap} is not above the ceiling - remove it"
             current = file_sizes._line_count(path)

@@ -81,7 +81,7 @@ graph TB
 ## Core Components
 
 ### 1. Research Engine
-- **Location**: `deepr/research_agent/`
+- **Location**: `src/deepr/research_agent/`
 - **Purpose**: Conducts multi-step research using AI models
 - **Modes** (via `ResearchMode` enum in `core/settings.py`):
   - `READ_ONLY`: Browse existing knowledge only
@@ -90,7 +90,7 @@ graph TB
   - `UNRESTRICTED`: Full autonomous research
 
 ### 2. Expert System
-- **Location**: `deepr/experts/`
+- **Location**: `src/deepr/experts/`
 - **Purpose**: Creates domain experts that learn and answer questions
 - **Components**:
   - `profile.py`: Expert metadata, usage tracking, provider config
@@ -122,7 +122,7 @@ graph TB
   - `cost_safety.py`: Budget controls and spending limits
 
 ### 3. Provider System
-- **Location**: `deepr/providers/`
+- **Location**: `src/deepr/providers/`
 - **Purpose**: Unified interface to AI providers
 - **Providers**:
   - OpenAI (o3/o4-mini deep research, GPT-5.2, GPT-5, GPT-4.1, GPT-4.1-mini)
@@ -133,7 +133,7 @@ graph TB
   - Anthropic (Claude Opus 4.6, Sonnet 4.5, Haiku 4.5)
 
 ### 4. Model Registry
-- **Location**: `deepr/providers/registry.py`
+- **Location**: `src/deepr/providers/registry.py`
 - **Purpose**: Single source of truth for model capabilities
 - **Contains**:
   - Model costs
@@ -144,14 +144,14 @@ graph TB
 **CRITICAL**: When new models are released (GPT-5.3, Grok 5, etc.), update ONLY the registry. Never hardcode model names elsewhere.
 
 ### 5. Queue System
-- **Location**: `deepr/queue/`
+- **Location**: `src/deepr/queue/`
 - **Purpose**: Manages research job execution
 - **Supports**:
   - Local queue (SQLite)
   - Azure Queue Storage (production)
 
 ### 6. Storage System
-- **Location**: `deepr/storage/`
+- **Location**: `src/deepr/storage/`
 - **Purpose**: Stores research results and expert knowledge
 - **Supports**:
   - Local filesystem
@@ -189,7 +189,7 @@ Expert ready to answer questions
 
 ## Model Selection
 
-**CRITICAL**: All models are defined in `deepr/providers/registry.py`. This is the SINGLE SOURCE OF TRUTH. When GPT-5.3 or Grok 5 are released, update ONLY the registry. Never hardcode model names.
+**CRITICAL**: All models are defined in `src/deepr/providers/registry.py`. This is the SINGLE SOURCE OF TRUTH. When GPT-5.3 or Grok 5 are released, update ONLY the registry. Never hardcode model names.
 
 ### Current Models
 
@@ -210,7 +210,7 @@ Models are selected based on:
 - **Speed**: Latency requirements
 - **Context size**: Amount of information to process
 
-See `deepr/providers/registry.py` for full model capabilities.
+See `src/deepr/providers/registry.py` for full model capabilities.
 
 ## Configuration
 
@@ -259,7 +259,7 @@ deepr/
 
 To add new capabilities:
 
-1. **New AI Provider**: Implement `BaseProvider` in `deepr/providers/`
+1. **New AI Provider**: Implement `BaseProvider` in `src/deepr/providers/`
 2. **New Model**: Add to `MODEL_CAPABILITIES` in `registry.py`
 3. **New Research Mode**: Extend `ResearchMode` enum
 4. **New Storage Backend**: Implement `BaseStorage` interface
@@ -317,7 +317,7 @@ logger.debug(f"Using key: {api_key}")  # Logged
 All file operations validate paths:
 
 ```python
-# deepr/storage/local.py
+# src/deepr/storage/local.py
 def _validate_path(self, path: Path) -> bool:
     """Ensure path is within allowed directory."""
     resolved = path.resolve()
@@ -340,7 +340,7 @@ User inputs are validated before use:
 
 #### Cost Safety
 
-Multiple layers prevent runaway costs. Implementation in `deepr/experts/cost_safety.py`.
+Multiple layers prevent runaway costs. Implementation in `src/deepr/experts/cost_safety.py`.
 
 **Hard Limits (Cannot Be Overridden):**
 - Per Operation: $10 maximum
@@ -420,7 +420,7 @@ For production deployments, consider:
 
 ## Observability
 
-The `deepr/observability/` module provides monitoring and cost management:
+The `src/deepr/observability/` module provides monitoring and cost management:
 
 ### Cost Dashboard (`costs.py`)
 - Per-job cost tracking with provider/model breakdown
