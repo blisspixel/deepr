@@ -1,5 +1,13 @@
-# Map AI assistant contributions to primary author
-# This prevents AI assistants from appearing as separate contributors on GitHub
+# Coalesce automation, AI-assistant, and tooling authorship to the maintainer
+# so the GitHub contributor graph reflects the human author. No bot or AI
+# assistant should appear as a separate contributor.
+#
+# Format (note the order): Proper-Name <proper-email> <commit-email>
+# i.e. the LEFT identity is the canonical one; the RIGHT email is the one
+# rewritten onto it. The previous version had this reversed and relabelled the
+# maintainer's own commits as "Claude".
 
-# Claude contributions are attributed to the actual developers
-Claude <noreply@anthropic.com> <32712898+blisspixel@users.noreply.github.com>
+Nick Seal <32712898+blisspixel@users.noreply.github.com> <nick@pueo.io>
+Nick Seal <32712898+blisspixel@users.noreply.github.com> <kilo@pueo.io>
+Nick Seal <32712898+blisspixel@users.noreply.github.com> <noreply@anthropic.com>
+Nick Seal <32712898+blisspixel@users.noreply.github.com> <49699333+dependabot[bot]@users.noreply.github.com>
