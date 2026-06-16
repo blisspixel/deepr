@@ -80,16 +80,17 @@ After the installer finishes, open a **new** terminal and run `deepr init` (guid
 If you are not using the one-line installer above, install from a clone. Pick
 the path that matches what you want to do.
 
-> **Nested path:** the project lives one level down, in `deepr/deepr/` (the
-> folder that contains `pyproject.toml`). After cloning, `cd` into it before
-> any install command, e.g. `cd C:\GitHub\deepr\deepr` (Windows) or
-> `cd deepr/deepr` (macOS/Linux). Running an install from the outer `deepr/`
-> fails with "does not appear to be a Python project".
+> **Where to run install:** `git clone` creates a `deepr/` directory with
+> `pyproject.toml` at its root - `cd deepr` and run install commands from
+> there. The package source lives under `src/deepr/` (src layout); you do not
+> `cd` into it. (If you cloned into a folder you also named `deepr`, your shell
+> path will read `deepr/deepr` - that outer level is just your clone location,
+> not part of the project.)
 
 **Just use `deepr` (recommended): a global command via pipx.**
 
 ```bash
-# from the repo root (the inner deepr/ if you cloned the repo)
+# from the repo root (the deepr/ directory you cloned)
 pipx install -e .
 # or, once released:  pipx install deepr-research
 ```
@@ -295,7 +296,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 | [Changelog](docs/CHANGELOG.md) | Release history |
 | [Roadmap](ROADMAP.md) | Development priorities and future plans |
 
-> **Note:** Model pricing changes frequently. The [model registry](deepr/providers/registry.py) is the source of truth for current pricing.
+> **Note:** Model pricing changes frequently. The [model registry](src/deepr/providers/registry.py) is the source of truth for current pricing.
 
 ## Requirements
 

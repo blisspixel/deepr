@@ -5,13 +5,12 @@ RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
 
 WORKDIR /app
 
-# Install dependencies first (cache layer)
-COPY pyproject.toml setup.py README.md ./
-COPY deepr/__init__.py deepr/__init__.py
+# Install the package (src layout: pyproject + README + src/ are all needed)
+COPY pyproject.toml README.md ./
+COPY src/ src/
 RUN pip install --no-cache-dir .
 
-# Copy application code
-COPY deepr/ deepr/
+# Supporting assets
 COPY skills/ skills/
 
 # Create data directory owned by deepr user
