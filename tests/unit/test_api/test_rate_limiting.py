@@ -24,7 +24,7 @@ from flask_limiter.util import get_remote_address
 
 # Get the correct path to the rate_limiter module
 project_root = Path(__file__).parent.parent.parent.parent
-rate_limiter_path = project_root / "deepr" / "api" / "middleware" / "rate_limiter.py"
+rate_limiter_path = project_root / "src" / "deepr" / "api" / "middleware" / "rate_limiter.py"
 
 spec = importlib.util.spec_from_file_location("rate_limiter", str(rate_limiter_path))
 rate_limiter_module = importlib.util.module_from_spec(spec)
