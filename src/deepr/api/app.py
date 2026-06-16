@@ -640,7 +640,7 @@ def submit_job():
         # should propagate and surface as a 500 instead of bypassing the
         # gate the way the previous broad except did.
         logger.warning("Cost guard input rejected: %s", _e)
-        return jsonify({"error": f"Invalid cost-guard input: {_e}"}), 400
+        return jsonify({"error": "Invalid request: cost estimation failed"}), 400
 
     # Create job
     job_id = str(uuid.uuid4())
