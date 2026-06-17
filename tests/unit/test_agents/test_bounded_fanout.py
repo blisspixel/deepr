@@ -57,6 +57,7 @@ async def test_cost_checker_cancels_tasks():
 
     assert result.success_count == 2
     assert result.cancelled_count == 3
+    assert all(task.coro is None for task in result.tasks.values())
     # Cancelled tasks should have error messages
     for task_id, task in result.tasks.items():
         if task.status == DispatchStatus.CANCELLED:
