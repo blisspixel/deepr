@@ -373,7 +373,7 @@ def _check_stuck(loop, job):
 def _start_poller():
     """Start the background poller thread on first request (runs once)."""
     global _poller_started
-    if _poller_started:
+    if app.config.get("TESTING") or _poller_started:
         return
     with _poller_lock:
         if _poller_started:

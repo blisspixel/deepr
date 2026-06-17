@@ -14,6 +14,7 @@ import json as _json
 import click
 
 from deepr.backends.capacity import BackendKind, detect_capacity
+from deepr.backends.quota_ledger import QuotaState, summarize_quota_state
 
 _GROUP_ORDER = [
     (BackendKind.LOCAL, "Local (free at the margin)"),
@@ -44,16 +45,39 @@ def capacity(ctx: click.Context, json_output: bool, probe: bool):
         return
 
     sources = detect_capacity()
+    quota_states = summarize_quota_state()
 
     if probe and not json_output:
         _print_local_probe()
 
     if json_output:
-        click.echo(_json.dumps([s.to_dict() for s in sources], indent=2))
+        click.echo(_json.dumps([_source_to_dict(s, quota_states) for s in sources], indent=2))
         return
 
     _print_sources(sources)
+    _print_quota_summary(quota_states)
     _print_admissions_summary()
+
+
+def _source_to_dict(source, quota_states: list[QuotaState]) -> dict[str, object]:
+    d = source.to_dict()
+    states = _quota_states_for(source.backend_id, quota_states)
+    state = _primary_quota_state(states)
+    d["quota_state"] = state.to_dict() if state else None
+    d["quota_states"] = [s.to_dict() for s in states]
+    return d
+
+
+def _quota_states_for(backend_id: str, quota_states: list[QuotaState]) -> list[QuotaState]:
+    if not backend_id:
+        return []
+    return [state for state in quota_states if state.backend_id == backend_id]
+
+
+def _primary_quota_state(quota_states: list[QuotaState]) -> QuotaState | None:
+    if not quota_states:
+        return None
+    return next((state for state in quota_states if not state.account_id), quota_states[0])
 
 
 def _print_local_probe() -> None:
@@ -94,6 +118,31 @@ def _print_sources(sources) -> None:
         )
     click.echo("Note: CLI 'available' means installed on PATH only - auth, quota window, and overflow")
     click.echo("state are verified by the adapter at run time. Only the local probe (--probe) round-trips.")
+
+
+def _print_quota_summary(quota_states: list[QuotaState]) -> None:
+    """Show latest observed quota state from the local append-only ledger."""
+    click.echo("")
+    if not quota_states:
+        click.echo("No plan quota observations recorded yet.")
+        return
+
+    click.echo("Observed quota state (local ledger):")
+    for state in quota_states:
+        event = state.latest_event
+        mark = "!" if state.exhausted or state.quarantined else "+"
+        status = "quarantined" if state.quarantined else "exhausted" if state.exhausted else event.event_type.value
+        remaining = _format_remaining(event.units_remaining, event.unit_name)
+        confidence = event.remaining_confidence.value
+        reset = f", resets {event.reset_at.isoformat()}" if event.reset_at else ""
+        detail = f" - {event.detail}" if event.detail else ""
+        click.echo(f"  [{mark}] {state.key:18s} {status:24s} {remaining} ({confidence}){reset}{detail}")
+
+
+def _format_remaining(units_remaining: float | None, unit_name: str) -> str:
+    if units_remaining is None:
+        return "remaining unknown"
+    return f"{units_remaining:g} {unit_name} remaining"
 
 
 def _print_admissions_summary() -> None:
