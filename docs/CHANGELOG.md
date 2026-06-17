@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.2] - 2026-06-17
+
+Capacity-ledger and CI reproducibility patch release.
+
+### Added
+- Added the append-only capacity quota ledger
+  (`data/capacity/quota_ledger.jsonl`, overrideable with
+  `DEEPR_CAPACITY_DATA_DIR`) and surfaced the latest observed quota state in
+  `deepr capacity` / `deepr capacity --json` without invoking vendor CLIs or
+  provider APIs.
+
+### Fixed
+- Prevented the web background poller from starting under Flask `TESTING`
+  mode, so the unit suite does not leave a daemon poller running during
+  interpreter shutdown.
+- Added the PyYAML type stub package to dev dependencies so the documented
+  strict mypy gate is reproducible from a fresh dev install.
+
 ## [2.16.1] - 2026-06-17
 
 Bug and security hardening patch release.

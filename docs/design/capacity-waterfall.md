@@ -1,17 +1,19 @@
 # Design: Plan-Quota and Local Backends (capacity waterfall)
 
-Target: v2.16 (Phase 6). Status: design, researched June 2026 (vendor
+Target: v2.16 (Phase 6). Status: implementation in progress, researched June 2026 (vendor
 surfaces verified; re-verify at implementation - this market moves
 monthly).
 
-Shipped so far (2026-06-13): `CostModel`/`BackendKind` types and read-only
+Shipped so far (2026-06-17): `CostModel`/`BackendKind` types and read-only
 `deepr capacity` detection (step 2); the `local-ollama` backend and `--local`
 execution (step 4 substrate); and eval-gated **local admission** with automatic
 owned-capacity-first selection for expert maintenance - `deepr capacity admit`
 / `admissions` / `revoke`, and `expert sync`/`absorb` auto-routing to an
 admitted local model at $0 before metered API (the local rung of step 5, with
-`--local`/`--api` overrides). Not yet built: the plan-quota CLI adapters and
-their quota ledger, and per-task-class quality gates beyond the admission flag.
+`--local`/`--api` overrides); plus the append-only `quota_ledger.jsonl`
+substrate and `deepr capacity` quota-state visibility. Not yet built: the
+plan-quota CLI adapters, live window/credit probes, and per-task-class quality
+gates beyond the admission flag.
 
 ## Problem
 
@@ -101,6 +103,14 @@ Invariants: when remaining-confidence is low, treat the window as
 exhausted; a `plan_quota` backend whose vendor bills overage (Kiro) gets a
 hard reserve floor (default 10%) that the waterfall never dips into.
 
+Shipped 2026-06-17: the ledger substrate exists as
+`data/capacity/quota_ledger.jsonl` (or `DEEPR_CAPACITY_DATA_DIR`) with typed
+events for usage, window sightings, exhaustion, overage state, reset
+observations, and quarantine. `deepr capacity` reads and summarizes the latest
+local observation per backend/account without invoking vendor CLIs. Remaining
+work is adapter-side probes that populate the ledger and scheduler decisions
+that consume it.
+
 ### Eval-gated local admission
 
 `local` backends are admitted per task-class only after `deepr eval` runs
@@ -121,7 +131,8 @@ No eval, no admission - "it's free" never overrides "it's good enough".
 
 ## Order of operations
 
-Steps 1-4 are shipped or substantially built (see Status at top); 5-7 remain.
+Steps 1-5 are shipped or substantially built (see Status at top); adapter and
+scheduler work remains.
 
 1. `CostModel`/`BackendKind` types + read-only `deepr capacity` detection. (done)
 2. `local-ollama` execution via the injectable seams + `--local`. (done)
@@ -130,8 +141,8 @@ Steps 1-4 are shipped or substantially built (see Status at top); 5-7 remain.
 4. `ResearchBackend` abstraction: wrap today's provider path as `api_metered`,
    and model the `engine` x `capacity` matrix (one BYO-base-url engine driver,
    many capacity endpoints) rather than one adapter per vendor.
-5. Quota ledger + window/credit probes per capacity source (extends
-   `deepr capacity` from detection to live remaining-estimate).
+5. Quota ledger substrate + `deepr capacity` quota-state visibility. (done)
+   Window/credit probes per capacity source remain.
 6. First plan_quota rungs, in priority order from the survey: Copilot CLI and
    Cursor (Auto mode), then Claude Code's credit pool (overflow OFF), then
    Codex (API-key path), Kimi/GLM/Qwen via the engine matrix, Kiro (with the
