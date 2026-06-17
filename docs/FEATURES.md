@@ -793,8 +793,8 @@ See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacit
 
 ```bash
 # Estimate before submitting
-deepr cost estimate "Your prompt"
-deepr cost estimate "Prompt" --model o3-deep-research
+deepr costs estimate "Your prompt"
+deepr costs estimate "Prompt" --model o3-deep-research
 ```
 
 ### Cost Dashboard
@@ -1049,8 +1049,7 @@ deepr run          # Low-level research modes (focus, docs, project, team)
 deepr jobs         # Job management (list, status, get, cancel)
 deepr vector       # Vector store management
 deepr prep         # Campaign management
-deepr cost         # Cost estimation
-deepr costs        # Cost dashboard (show, history, breakdown, timeline, alerts, expert)
+deepr costs        # Cost estimation and dashboard (show, history, breakdown, timeline, alerts, expert)
 deepr config       # Configuration
 deepr analytics    # Usage analytics
 deepr doctor       # System diagnostics
@@ -1090,7 +1089,7 @@ deepr jobs list --status completed
 deepr jobs list --status pending
 
 # Cost monitoring
-deepr cost summary --period today
+deepr costs show
 ```
 
 ### Best Practices
@@ -1152,7 +1151,7 @@ deepr jobs status <job-id>  # Detailed status
 **High costs:**
 ```bash
 deepr analytics report --period month
-deepr cost summary --period week
+deepr costs breakdown --period week
 # Consider using o4-mini model for routine queries
 ```
 
