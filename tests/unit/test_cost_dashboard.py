@@ -7,7 +7,7 @@ Tests cover:
 """
 
 import tempfile
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -83,7 +83,7 @@ class TestCostEntry:
         assert entry.total_tokens == 2000
 
     def test_date_property(self):
-        """Date property should return date portion of timestamp."""
+        """Date property should return UTC date portion of timestamp."""
         timestamp = datetime(2025, 1, 15, 10, 30, 0)
         entry = CostEntry(
             operation="research",
@@ -93,6 +93,13 @@ class TestCostEntry:
         )
 
         assert entry.date == date(2025, 1, 15)
+
+    def test_date_property_normalizes_offset_to_utc(self):
+        """Offset timestamps should bucket by UTC day."""
+        timestamp = datetime(2026, 6, 11, 17, 50, tzinfo=timezone(timedelta(hours=-7)))
+        entry = CostEntry(operation="research", provider="openai", cost=0.10, timestamp=timestamp)
+
+        assert entry.date == date(2026, 6, 12)
 
     def test_to_dict_serialization(self):
         """Cost entry should serialize to dictionary correctly."""
@@ -544,6 +551,25 @@ class TestCostAggregator:
         total = sum(e.cost for e in filtered)
         assert abs(total - 0.50) < 0.0001
 
+    def test_filter_by_date_normalizes_offset_timestamps(self):
+        """Range filtering should compare instants, not timestamp-local dates."""
+        entries = [
+            CostEntry(
+                operation="test",
+                provider="openai",
+                cost=0.20,
+                timestamp=datetime(2026, 6, 11, 17, 50, tzinfo=timezone(timedelta(hours=-7))),
+            )
+        ]
+        aggregator = CostAggregator(entries)
+
+        filtered = aggregator._filter_by_date(
+            start_date=datetime(2026, 6, 12, 0, 0, tzinfo=UTC),
+            end_date=datetime(2026, 6, 12, 1, 0, tzinfo=UTC),
+        )
+
+        assert len(filtered) == 1
+
     def test_aggregate_by_field_generic(self):
         """_aggregate_by_field should work with any key function."""
         entries = [
@@ -674,6 +700,21 @@ class TestCostDashboard:
         yesterday_total = dashboard.get_daily_total(yesterday.date())
         assert abs(yesterday_total - 0.20) < 0.0001
 
+    def test_get_daily_total_buckets_offset_timestamps_by_utc_date(self, temp_storage):
+        """Daily totals should not depend on the timestamp's original offset."""
+        dashboard = CostDashboard(storage_path=temp_storage)
+        dashboard.entries.append(
+            CostEntry(
+                operation="research",
+                provider="openai",
+                cost=0.20,
+                timestamp=datetime(2026, 6, 11, 17, 50, tzinfo=timezone(timedelta(hours=-7))),
+            )
+        )
+
+        assert dashboard.get_daily_total(date(2026, 6, 11)) == 0.0
+        assert dashboard.get_daily_total(date(2026, 6, 12)) == 0.20
+
     def test_get_monthly_total(self, temp_storage):
         """Monthly total should sum current month's costs."""
         dashboard = CostDashboard(storage_path=temp_storage)
@@ -684,6 +725,21 @@ class TestCostDashboard:
         total = dashboard.get_monthly_total()
 
         assert total == 0.75
+
+    def test_get_monthly_total_buckets_offset_timestamps_by_utc_month(self, temp_storage):
+        """Monthly totals should use the same UTC boundary as daily totals."""
+        dashboard = CostDashboard(storage_path=temp_storage)
+        dashboard.entries.append(
+            CostEntry(
+                operation="research",
+                provider="openai",
+                cost=0.20,
+                timestamp=datetime(2026, 6, 30, 17, 30, tzinfo=timezone(timedelta(hours=-7))),
+            )
+        )
+
+        assert dashboard.get_monthly_total(2026, 6) == 0.0
+        assert dashboard.get_monthly_total(2026, 7) == 0.20
 
     def test_get_breakdown_by_provider(self, temp_storage):
         """Breakdown by provider should group costs correctly."""

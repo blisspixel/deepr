@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.1] - 2026-06-17
+
+Bug and security hardening patch release.
+
+### Fixed
+- Prevented rapid back-to-back belief events from being skipped on
+  filesystems or clocks with equal timestamp granularity by making event
+  timestamps monotonic per store.
+- Normalized offset-aware cost ledger timestamps to UTC before daily, monthly,
+  and custom range bucketing.
+- Closed unstarted dispatcher coroutines on dependency failure, cancellation,
+  timeout, and fanout shutdown so cancelled task graphs do not leak runtime
+  warnings.
+- Corrected stale docs and CLI references from deprecated `deepr cost` to
+  `deepr costs`.
+
+### Security
+- Hardened Azure blob storage report paths by validating job IDs and filenames
+  before blob name construction and skipping malformed legacy blob names during
+  listing.
+- Tightened local report storage filename validation and removed
+  substring-based report directory lookup so unrelated readable report names
+  cannot be selected by crafted IDs or prompt slugs.
+
 ## [2.16.0] - 2026-06-16
 
 Packaging, repo-hygiene, and security release.

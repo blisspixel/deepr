@@ -448,11 +448,8 @@ class BeliefStore:
 
         self.storage_path = self.storage_dir / "beliefs.json"
         self.changes_path = self.storage_dir / "changes.json"
-        # Append-only belief event log (TKG step 1, see
-        # docs/design/temporal-knowledge-graph.md): every change is appended
-        # here unbounded, so temporal queries (what_changed) are exact instead
-        # of limited to the 100-record changes.json window. The legacy
-        # changes list is still written for one release (dual-write).
+        # Append-only belief event log (TKG step 1): every change is kept here
+        # while changes.json remains a capped legacy window.
         self.events_path = self.storage_dir / "events.jsonl"
 
         self.beliefs: dict[str, Belief] = {}
@@ -517,11 +514,14 @@ class BeliefStore:
         return self.events_path.exists()
 
     def _record_change(self, change: BeliefChange) -> None:
-        """Record a belief change in both the legacy window and the event log.
+        """Record a belief change in both the legacy window and event log."""
+        if change.timestamp.tzinfo is None:
+            change.timestamp = change.timestamp.replace(tzinfo=UTC)
+        if self.changes:
+            latest = self.changes[-1].timestamp
+            latest = latest if latest.tzinfo else latest.replace(tzinfo=UTC)
+            change.timestamp = max(change.timestamp, latest + timedelta(microseconds=1))
 
-        The JSONL append happens immediately (not deferred to _save) so the
-        event survives even if a later step in the calling operation fails.
-        """
         self.changes.append(change)
         with open(self.events_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(change.to_dict()) + "\n")

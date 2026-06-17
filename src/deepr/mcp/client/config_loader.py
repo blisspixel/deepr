@@ -177,7 +177,7 @@ PRIMR_PROFILE_TEMPLATE: dict[str, Any] = {
 def _resolve_env_vars(value: str) -> str:
     """Resolve ``${VAR_NAME}`` patterns from process environment.
 
-    Raises ``ValueError`` when a referenced variable is missing — the
+    Raises ``ValueError`` when a referenced variable is missing; the
     previous silent-empty behaviour produced confusing downstream
     errors (e.g. spawning an MCP server with ``API_KEY=""`` and seeing
     a 401 instead of "OPENAI_API_KEY not set").
@@ -332,7 +332,7 @@ class ConfigLoader:
 
         if config_path.exists():
             try:
-                import yaml  # type: ignore[import-untyped]
+                import yaml
             except ImportError as e:
                 raise ImportError("PyYAML is required for config loading: pip install pyyaml") from e
 
