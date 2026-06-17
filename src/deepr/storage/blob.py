@@ -7,6 +7,8 @@ from typing import Any
 from azure.core.exceptions import AzureError, ResourceNotFoundError
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
+from deepr.utils.security import InvalidInputError, PathTraversalError, sanitize_name
+
 from .base import ReportMetadata, StorageBackend, StorageError
 
 
@@ -52,7 +54,7 @@ class AzureBlobStorage(StorageBackend):
 
         self.container_client: ContainerClient | None = None
 
-    async def _ensure_container(self):
+    async def _ensure_container(self) -> None:
         """Ensure container exists, create if necessary."""
         if self.container_client is None:
             self.container_client = self.client.get_container_client(self.container_name)
@@ -62,9 +64,45 @@ class AzureBlobStorage(StorageBackend):
                 # Container doesn't exist, create it
                 await self.container_client.create_container()
 
+    async def _container(self) -> ContainerClient:
+        """Return an initialized container client."""
+        await self._ensure_container()
+        if self.container_client is None:
+            raise StorageError(
+                message="Blob container client is not initialized",
+                storage_type="blob",
+                original_error=None,
+            )
+        return self.container_client
+
     def _get_blob_name(self, job_id: str, filename: str) -> str:
         """Generate blob name from job_id and filename."""
-        return f"{job_id}/{filename}"
+        return f"{self._validate_job_id(job_id)}/{self._validate_filename(filename)}"
+
+    def _validate_job_id(self, job_id: str) -> str:
+        """Validate job_id before using it as a blob namespace prefix."""
+        try:
+            if ".." in job_id or "/" in job_id or "\\" in job_id:
+                raise PathTraversalError(f"Invalid job_id contains path traversal: {job_id}")
+            return sanitize_name(job_id, allowed_chars=r"a-zA-Z0-9_-")
+        except (PathTraversalError, InvalidInputError) as e:
+            raise StorageError(message=f"Invalid job_id: {e!s}", storage_type="blob", original_error=e) from e
+
+    def _validate_filename(self, filename: str) -> str:
+        """Validate a report filename before using it in a blob name."""
+        if not filename or not filename.strip() or filename in {".", ".."} or "\x00" in filename:
+            raise StorageError(
+                message=f"Invalid filename: {filename!r}",
+                storage_type="blob",
+                original_error=None,
+            )
+        if "/" in filename or "\\" in filename or ".." in filename:
+            raise StorageError(
+                message=f"Invalid filename contains path components: {filename}",
+                storage_type="blob",
+                original_error=None,
+            )
+        return filename
 
     async def save_report(
         self,
@@ -76,15 +114,17 @@ class AzureBlobStorage(StorageBackend):
     ) -> ReportMetadata:
         """Save report to Azure Blob Storage."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
-            blob_name = self._get_blob_name(job_id, filename)
-            blob_client = self.container_client.get_blob_client(blob_name)
+            validated_job_id = self._validate_job_id(job_id)
+            validated_filename = self._validate_filename(filename)
+            blob_name = self._get_blob_name(validated_job_id, validated_filename)
+            blob_client = container.get_blob_client(blob_name)
 
             # Prepare blob metadata
-            blob_metadata = metadata or {}
-            blob_metadata["job_id"] = job_id
-            blob_metadata["filename"] = filename
+            blob_metadata = dict(metadata or {})
+            blob_metadata["job_id"] = validated_job_id
+            blob_metadata["filename"] = validated_filename
 
             # Upload blob
             await blob_client.upload_blob(content, content_type=content_type, metadata=blob_metadata, overwrite=True)
@@ -93,11 +133,11 @@ class AzureBlobStorage(StorageBackend):
             props = await blob_client.get_blob_properties()
 
             # Determine format from filename
-            format_ext = filename.split(".")[-1] if "." in filename else ""
+            format_ext = validated_filename.split(".")[-1] if "." in validated_filename else ""
 
             return ReportMetadata(
-                job_id=job_id,
-                filename=filename,
+                job_id=validated_job_id,
+                filename=validated_filename,
                 format=format_ext,
                 size_bytes=props.size,
                 created_at=props.last_modified.replace(tzinfo=UTC),
@@ -115,10 +155,10 @@ class AzureBlobStorage(StorageBackend):
     async def get_report(self, job_id: str, filename: str) -> bytes:
         """Retrieve report from Azure Blob Storage."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
             blob_name = self._get_blob_name(job_id, filename)
-            blob_client = self.container_client.get_blob_client(blob_name)
+            blob_client = container.get_blob_client(blob_name)
 
             # Download blob
             stream = await blob_client.download_blob()
@@ -142,17 +182,23 @@ class AzureBlobStorage(StorageBackend):
     async def list_reports(self, job_id: str | None = None) -> list[ReportMetadata]:
         """List reports in Azure Blob Storage."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
-            reports = []
-            prefix = f"{job_id}/" if job_id else ""
+            reports: list[ReportMetadata] = []
+            prefix = f"{self._validate_job_id(job_id)}/" if job_id else ""
 
-            async for blob in self.container_client.list_blobs(name_starts_with=prefix):
+            async for blob in container.list_blobs(name_starts_with=prefix):
                 # Parse job_id and filename from blob name
                 parts = blob.name.split("/", 1)
                 if len(parts) == 2:
                     blob_job_id, blob_filename = parts
                 else:
+                    continue
+
+                try:
+                    blob_job_id = self._validate_job_id(blob_job_id)
+                    blob_filename = self._validate_filename(blob_filename)
+                except StorageError:
                     continue
 
                 # Determine format
@@ -165,7 +211,7 @@ class AzureBlobStorage(StorageBackend):
                         format=format_ext,
                         size_bytes=blob.size,
                         created_at=blob.last_modified.replace(tzinfo=UTC),
-                        url=f"{self.container_client.url}/{blob.name}",
+                        url=f"{container.url}/{blob.name}",
                         content_type=self.get_content_type(blob_filename),
                     )
                 )
@@ -182,20 +228,20 @@ class AzureBlobStorage(StorageBackend):
     async def delete_report(self, job_id: str, filename: str | None = None) -> bool:
         """Delete report(s) from Azure Blob Storage."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
             if filename:
                 # Delete specific blob
                 blob_name = self._get_blob_name(job_id, filename)
-                blob_client = self.container_client.get_blob_client(blob_name)
+                blob_client = container.get_blob_client(blob_name)
                 await blob_client.delete_blob()
                 return True
             else:
                 # Delete all blobs for this job
                 deleted = False
-                prefix = f"{job_id}/"
-                async for blob in self.container_client.list_blobs(name_starts_with=prefix):
-                    blob_client = self.container_client.get_blob_client(blob.name)
+                prefix = f"{self._validate_job_id(job_id)}/"
+                async for blob in container.list_blobs(name_starts_with=prefix):
+                    blob_client = container.get_blob_client(blob.name)
                     await blob_client.delete_blob()
                     deleted = True
                 return deleted
@@ -212,10 +258,10 @@ class AzureBlobStorage(StorageBackend):
     async def report_exists(self, job_id: str, filename: str) -> bool:
         """Check if report exists in Azure Blob Storage."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
             blob_name = self._get_blob_name(job_id, filename)
-            blob_client = self.container_client.get_blob_client(blob_name)
+            blob_client = container.get_blob_client(blob_name)
 
             await blob_client.get_blob_properties()
             return True
@@ -228,19 +274,20 @@ class AzureBlobStorage(StorageBackend):
     async def get_report_url(self, job_id: str, filename: str, expires_in: int = 3600) -> str:
         """Get signed URL for report access."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
             blob_name = self._get_blob_name(job_id, filename)
-            blob_client = self.container_client.get_blob_client(blob_name)
+            blob_client = container.get_blob_client(blob_name)
 
             # Generate SAS token for time-limited access
             from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
             # Get account info
             account_name = self.client.account_name
-            account_key = self.client.credential.account_key if hasattr(self.client.credential, "account_key") else None
+            credential = getattr(self.client, "credential", None)
+            account_key = getattr(credential, "account_key", None)
 
-            if account_key:
+            if isinstance(account_name, str) and isinstance(account_key, str) and account_key:
                 # Generate SAS token
                 sas_token = generate_blob_sas(
                     account_name=account_name,
@@ -266,14 +313,14 @@ class AzureBlobStorage(StorageBackend):
     async def cleanup_old_reports(self, days: int = 30) -> int:
         """Delete reports older than specified days from blob storage."""
         try:
-            await self._ensure_container()
+            container = await self._container()
 
             cutoff_date = datetime.now(UTC) - timedelta(days=days)
             deleted_count = 0
 
-            async for blob in self.container_client.list_blobs():
+            async for blob in container.list_blobs():
                 if blob.last_modified.replace(tzinfo=UTC) < cutoff_date:
-                    blob_client = self.container_client.get_blob_client(blob.name)
+                    blob_client = container.get_blob_client(blob.name)
                     await blob_client.delete_blob()
                     deleted_count += 1
 
@@ -286,6 +333,6 @@ class AzureBlobStorage(StorageBackend):
                 original_error=e,
             ) from e
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the blob service client."""
         await self.client.close()

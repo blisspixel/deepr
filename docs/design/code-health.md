@@ -42,7 +42,7 @@ Recorded so the plan is proportional - this is not a rescue, it is a finish.
 |---|---------|------------------------|----------|
 | F1 | Over-large files | `web/app.py` 3,992 lines; `cli/commands/semantic/experts.py` 3,567; `experts/chat.py` 2,633; `experts/lazy_graph_rag.py` 2,036; `mcp/server.py` 1,937; 6 more over 1,000 | High |
 | F2 | Two config systems | `load_config()` dict **53** call sites (formally "Deprecated: use get_settings()") vs typed `get_settings()` **14** sites - migration stalled | High |
-| F3 | Complexity unenforced | **146** functions over the C901 cap (max-complexity 10); advisory only | Medium |
+| F3 | Complexity unenforced | **144** functions over the C901 cap (max-complexity 10); advisory only | Medium |
 | F4 | Security lint advisory | ruff `S` rules find **97** issues; run advisory, not ratcheting | Medium |
 | F5 | Coverage omits the hard parts | omit list excludes `web/*`, all `cli/commands/*`, `chat.py`, `curriculum.py`, `learner.py`, `lazy_graph_rag.py` - the largest, most complex files are unmeasured | Medium |
 | F6 | Duplicate verbs / helpers | ~~top-level `cost` **and** `costs` commands~~ (Q1.2 done 2026-06-14: `cost` deprecated-hidden alias); ~~3 separate `run_async` definitions~~ (Q1.3 done 2026-06-14: one helper in `utils/async_runner.py`) | Low |

@@ -69,6 +69,12 @@ class DispatchedTask:
     depends_on: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def close_unstarted_coro(self) -> None:
+        """Close a coroutine that will never be awaited."""
+        if self.coro is not None:
+            self.coro.close()
+            self.coro = None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -153,6 +159,88 @@ class AsyncTaskDispatcher:
         self._active_tasks: dict[str, DispatchedTask] = {}
         self._cancel_event = asyncio.Event()
 
+    async def _report_progress(
+        self,
+        task: DispatchedTask,
+        on_progress: ProgressCallback | None,
+        progress: float,
+    ) -> None:
+        if on_progress:
+            await on_progress(task.id, progress)
+
+    async def _await_task_coro(self, task: DispatchedTask) -> None:
+        if task.coro is None:
+            return
+        coro = task.coro
+        task.coro = None
+        task.result = await coro
+
+    def _cancel_task(self, task: DispatchedTask, error: str | None = None) -> None:
+        task.status = DispatchStatus.CANCELLED
+        if error and task.error is None:
+            task.error = error
+        task.close_unstarted_coro()
+        task.completed_at = task.completed_at or _utc_now()
+
+    def _fail_task(self, task: DispatchedTask, error: Exception) -> None:
+        task.status = DispatchStatus.FAILED
+        task.error = str(error)
+
+    def _cancel_pending_task(self, task: DispatchedTask) -> None:
+        if task.status in {DispatchStatus.PENDING, DispatchStatus.BLOCKED}:
+            self._cancel_task(task)
+        else:
+            task.completed_at = task.completed_at or _utc_now()
+
+    def _check_cost_or_cancel(
+        self,
+        task: DispatchedTask,
+        cost_checker: Callable[[str], tuple[bool, str]] | None,
+    ) -> bool:
+        if cost_checker is None:
+            return True
+        allowed, reason = cost_checker(task.id)
+        if allowed:
+            return True
+        self._cancel_task(task, f"Cost check failed: {reason}")
+        return False
+
+    async def _execute_task_body(
+        self,
+        task: DispatchedTask,
+        on_progress: ProgressCallback | None,
+        on_success: Callable[[], None] | None = None,
+    ) -> None:
+        task.status = DispatchStatus.RUNNING
+        task.started_at = _utc_now()
+        await self._report_progress(task, on_progress, 0.0)
+
+        try:
+            await self._await_task_coro(task)
+        except asyncio.CancelledError:
+            self._cancel_task(task)
+        except Exception as e:
+            self._fail_task(task, e)
+        else:
+            task.status = DispatchStatus.COMPLETED
+            if on_success:
+                on_success()
+        finally:
+            task.completed_at = task.completed_at or _utc_now()
+            progress = 1.0 if task.status == DispatchStatus.COMPLETED else 0.5
+            await self._report_progress(task, on_progress, progress)
+
+    def _timeout_remaining(self, dispatched: dict[str, DispatchedTask]) -> None:
+        self._cancel_event.set()
+        for task in dispatched.values():
+            if task.status in {
+                DispatchStatus.PENDING,
+                DispatchStatus.BLOCKED,
+                DispatchStatus.CANCELLED,
+                DispatchStatus.RUNNING,
+            }:
+                self._cancel_task(task, task.error or "Timeout exceeded")
+
     async def dispatch(
         self,
         tasks: list[dict[str, Any]],
@@ -188,41 +276,18 @@ class AsyncTaskDispatcher:
 
         # Execute all tasks concurrently
         async def run_task(task: DispatchedTask) -> None:
-            async with self._semaphore:
-                if self._cancel_event.is_set():
-                    task.status = DispatchStatus.CANCELLED
-                    return
-
-                # Cost guard: check before starting
-                if cost_checker is not None:
-                    allowed, reason = cost_checker(task.id)
-                    if not allowed:
-                        task.status = DispatchStatus.CANCELLED
-                        task.error = f"Cost check failed: {reason}"
-                        task.completed_at = _utc_now()
+            try:
+                async with self._semaphore:
+                    if self._cancel_event.is_set():
+                        self._cancel_task(task)
                         return
 
-                task.status = DispatchStatus.RUNNING
-                task.started_at = _utc_now()
+                    if not self._check_cost_or_cancel(task, cost_checker):
+                        return
 
-                if on_progress:
-                    await on_progress(task.id, 0.0)
-
-                try:
-                    if task.coro:
-                        task.result = await task.coro
-                    task.status = DispatchStatus.COMPLETED
-                except asyncio.CancelledError:
-                    task.status = DispatchStatus.CANCELLED
-                except Exception as e:
-                    task.status = DispatchStatus.FAILED
-                    task.error = str(e)
-                finally:
-                    task.completed_at = task.completed_at or _utc_now()
-
-                    if on_progress:
-                        progress = 1.0 if task.status == DispatchStatus.COMPLETED else 0.5
-                        await on_progress(task.id, progress)
+                    await self._execute_task_body(task, on_progress)
+            except asyncio.CancelledError:
+                self._cancel_pending_task(task)
 
         # Run all tasks
         aws = [run_task(task) for task in dispatched.values()]
@@ -234,12 +299,7 @@ class AsyncTaskDispatcher:
                     timeout=timeout,
                 )
             except TimeoutError:
-                # Cancel remaining tasks
-                self._cancel_event.set()
-                for task in dispatched.values():
-                    if task.status == DispatchStatus.RUNNING:
-                        task.status = DispatchStatus.CANCELLED
-                        task.error = "Timeout exceeded"
+                self._timeout_remaining(dispatched)
         else:
             await asyncio.gather(*aws, return_exceptions=True)
 
@@ -325,51 +385,42 @@ class AsyncTaskDispatcher:
             return True
 
         async def run_task(task: DispatchedTask) -> None:
-            # Wait for dependencies *before* acquiring the concurrency slot.
-            # Holding the semaphore while awaiting a dependency that itself
-            # needs a slot deadlocks any chain of length > max_concurrent
-            # (e.g. max=2 with B→A, C→A, D→A: B and C hold both slots, A
-            # can never acquire one, B and C wait forever).
-            if self._cancel_event.is_set():
-                task.status = DispatchStatus.CANCELLED
-                completion_events[task.id].set()
-                return
-
-            if task.depends_on:
-                deps_ok = await wait_for_dependencies(task)
-                if not deps_ok:
-                    completion_events[task.id].set()
-                    return
-
-            async with self._semaphore:
+            try:
+                # Wait for dependencies before acquiring the concurrency slot.
+                # Holding the semaphore while awaiting a dependency that itself
+                # needs a slot deadlocks any chain of length > max_concurrent
+                # (e.g. max=2 with B -> A, C -> A, D -> A: B and C hold both
+                # slots, A can never acquire one, B and C wait forever).
                 if self._cancel_event.is_set():
-                    task.status = DispatchStatus.CANCELLED
+                    self._cancel_task(task)
                     completion_events[task.id].set()
                     return
 
-                task.status = DispatchStatus.RUNNING
-                task.started_at = _utc_now()
+                if task.depends_on:
+                    deps_ok = await wait_for_dependencies(task)
+                    if not deps_ok:
+                        task.close_unstarted_coro()
+                        task.completed_at = _utc_now()
+                        completion_events[task.id].set()
+                        return
 
-                if on_progress:
-                    await on_progress(task.id, 0.0)
+                async with self._semaphore:
+                    if self._cancel_event.is_set():
+                        self._cancel_task(task)
+                        completion_events[task.id].set()
+                        return
 
-                try:
-                    if task.coro:
-                        task.result = await task.coro
-                    task.status = DispatchStatus.COMPLETED
-                    completed_tasks.add(task.id)
-                except asyncio.CancelledError:
-                    task.status = DispatchStatus.CANCELLED
-                except Exception as e:
-                    task.status = DispatchStatus.FAILED
-                    task.error = str(e)
-                finally:
-                    task.completed_at = _utc_now()
-                    completion_events[task.id].set()
-
-                    if on_progress:
-                        progress = 1.0 if task.status == DispatchStatus.COMPLETED else 0.5
-                        await on_progress(task.id, progress)
+                    try:
+                        await self._execute_task_body(
+                            task,
+                            on_progress,
+                            on_success=lambda: completed_tasks.add(task.id),
+                        )
+                    finally:
+                        completion_events[task.id].set()
+            except asyncio.CancelledError:
+                self._cancel_pending_task(task)
+                completion_events[task.id].set()
 
         # Run all tasks (dependency waiting happens inside run_task)
         aws = [run_task(task) for task in dispatched.values()]
@@ -381,14 +432,12 @@ class AsyncTaskDispatcher:
                     timeout=timeout,
                 )
             except TimeoutError:
-                self._cancel_event.set()
+                self._timeout_remaining(dispatched)
                 # Signal all events to unblock waiting tasks
                 for event in completion_events.values():
                     event.set()
-                for task in dispatched.values():
-                    if task.status in {DispatchStatus.RUNNING, DispatchStatus.BLOCKED}:
-                        task.status = DispatchStatus.CANCELLED
-                        task.error = "Timeout exceeded"
+                for task_id in dispatched:
+                    completion_events[task_id].set()
         else:
             await asyncio.gather(*aws, return_exceptions=True)
 
@@ -417,6 +466,8 @@ class AsyncTaskDispatcher:
         self._cancel_event.set()
         for task in self._active_tasks.values():
             if task.status in {DispatchStatus.RUNNING, DispatchStatus.PENDING, DispatchStatus.BLOCKED}:
+                if task.status in {DispatchStatus.PENDING, DispatchStatus.BLOCKED}:
+                    task.close_unstarted_coro()
                 task.status = DispatchStatus.CANCELLED
 
     def get_active_tasks(self) -> list[DispatchedTask]:

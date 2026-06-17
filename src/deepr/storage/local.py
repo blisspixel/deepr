@@ -69,6 +69,12 @@ class LocalStorage(StorageBackend):
         Raises:
             StorageError: If filename contains directory separators
         """
+        if not filename or not filename.strip() or filename in {".", ".."} or "\x00" in filename:
+            raise StorageError(
+                message=f"Invalid filename: {filename!r}",
+                storage_type="local",
+                original_error=None,
+            )
         if "/" in filename or "\\" in filename or ".." in filename:
             raise StorageError(
                 message=f"Invalid filename contains path components: {filename}",
@@ -76,6 +82,46 @@ class LocalStorage(StorageBackend):
                 original_error=None,
             )
         return filename
+
+    @staticmethod
+    def _readable_lookup_suffix(job_id: str) -> str:
+        """Return the stable suffix used in generated readable directories."""
+        if job_id.startswith("campaign-"):
+            return job_id.replace("campaign-", "", 1)[:12]
+        return job_id.split("-")[-1][:8]
+
+    @classmethod
+    def _can_use_readable_dirname(cls, job_id: str) -> bool:
+        """Return True when the generated suffix is specific enough to find later."""
+        return len(cls._readable_lookup_suffix(job_id)) >= 8
+
+    def _find_readable_dir(self, root: Path, job_id: str, *, skip_campaigns: bool = False) -> Path | None:
+        """Find a generated readable directory by its stable suffix."""
+        if not root.exists() or not self._can_use_readable_dirname(job_id):
+            return None
+
+        suffix = f"_{self._readable_lookup_suffix(job_id)}"
+        for dir_path in root.iterdir():
+            if not dir_path.is_dir():
+                continue
+            if skip_campaigns and dir_path.name == "campaigns":
+                continue
+            if dir_path.name.endswith(suffix):
+                return dir_path
+        return None
+
+    def _ensure_within_base(self, job_id: str, job_dir: Path) -> Path:
+        """Resolve and validate a job directory without allowing path escape."""
+        try:
+            resolved = job_dir.resolve()
+            resolved.relative_to(self.base_path.resolve())
+        except ValueError as err:
+            raise StorageError(
+                message=f"Path escapes base directory: {job_id}",
+                storage_type="local",
+                original_error=PathTraversalError(f"Path escape: {job_dir}"),
+            ) from err
+        return job_dir
 
     def _create_readable_dirname(self, job_id: str, prompt: str, is_campaign: bool = False) -> str:
         """
@@ -114,10 +160,10 @@ class LocalStorage(StorageBackend):
         # Extract short ID (last 8 chars of UUID or campaign ID)
         if job_id.startswith("campaign-"):
             # For campaign IDs like "campaign-86285e7bcd24" or "campaign-1759970251"
-            short_id = job_id.replace("campaign-", "")[:12]
+            short_id = self._readable_lookup_suffix(job_id)
         else:
             # For UUIDs, take last segment
-            short_id = job_id.split("-")[-1][:8]
+            short_id = self._readable_lookup_suffix(job_id)
 
         return f"{timestamp}_{slug}_{short_id}"
 
@@ -140,56 +186,22 @@ class LocalStorage(StorageBackend):
         # Validate job_id at method entry
         validated_id = self._validate_job_id(job_id)
 
-        # First, check if this is already a full path (for new format)
-        if validated_id.startswith(str(self.base_path)):
-            job_dir = Path(validated_id)
-        # Check campaigns folder first (for campaign-* IDs)
-        elif validated_id.startswith("campaign-"):
-            job_dir = None
-            # Look in campaigns folder for matching directory
-            if self.campaigns_path.exists():
-                for dir_path in self.campaigns_path.iterdir():
-                    if dir_path.is_dir() and validated_id in dir_path.name:
-                        job_dir = dir_path
-                        break
-            # Fallback to direct path
-            if job_dir is None:
-                job_dir = self.campaigns_path / validated_id
-        else:
-            # For regular UUIDs, search ALL possible locations before falling back
-            # Check for human-readable directory containing job_id OR short_id
-            short_id = validated_id.split("-")[-1][:8] if "-" in validated_id else validated_id[:8]
-            job_dir = None
+        # First, check exact legacy directory names.
+        direct_path = self.base_path / validated_id
+        if direct_path.exists():
+            return self._ensure_within_base(job_id, direct_path)
 
-            if self.base_path.exists():
-                for dir_path in self.base_path.iterdir():
-                    if dir_path.is_dir() and dir_path.name != "campaigns":
-                        # Match full job_id or short_id in directory name
-                        if validated_id in dir_path.name or short_id in dir_path.name:
-                            job_dir = dir_path
-                            break
+        if validated_id.startswith("campaign-"):
+            readable_dir = self._find_readable_dir(self.campaigns_path, validated_id)
+            job_dir = readable_dir or self.campaigns_path / validated_id
+            return self._ensure_within_base(job_id, job_dir)
 
-            if job_dir is None:
-                # Try direct match (legacy format) as fallback
-                direct_path = self.base_path / validated_id
-                if direct_path.exists():
-                    job_dir = direct_path
-                else:
-                    # If not found anywhere, return the job_id as-is (will be created on save)
-                    job_dir = self.base_path / validated_id
+        # For regular UUIDs, search generated readable directories before
+        # falling back to the exact job_id path that will be created on save.
+        readable_dir = self._find_readable_dir(self.base_path, validated_id, skip_campaigns=True)
+        job_dir = readable_dir or direct_path
 
-        # Final validation: ensure path is within base_path
-        try:
-            resolved = job_dir.resolve()
-            resolved.relative_to(self.base_path.resolve())
-        except ValueError as err:
-            raise StorageError(
-                message=f"Path escapes base directory: {job_id}",
-                storage_type="local",
-                original_error=PathTraversalError(f"Path escape: {job_dir}"),
-            ) from err
-
-        return job_dir
+        return self._ensure_within_base(job_id, job_dir)
 
     def _get_report_path(self, job_id: str, filename: str) -> Path:
         """Get full path for a specific report file with validation.
@@ -237,7 +249,7 @@ class LocalStorage(StorageBackend):
             job_dir = self._get_job_dir(job_id)
 
             # If directory doesn't exist, create with readable name
-            if not job_dir.exists() and metadata and "prompt" in metadata:
+            if not job_dir.exists() and metadata and "prompt" in metadata and self._can_use_readable_dirname(job_id):
                 prompt = metadata["prompt"]
                 is_campaign = job_id.startswith("campaign-")
                 readable_name = self._create_readable_dirname(job_id, prompt, is_campaign)

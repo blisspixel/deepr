@@ -217,7 +217,7 @@ Add to CI/CD:
 1. **Start small:** Use 1 doc + 1 quick for initial testing
 2. **Use --no-discovery:** Faster, cheaper, good for testing
 3. **Validate immediately:** Run validation script right after creation
-4. **Check costs:** Use `deepr cost summary` to track spending
+4. **Check costs:** Use `deepr costs show` to track spending
 5. **Clean up:** Delete test experts and vector stores
 
 ## Next Steps

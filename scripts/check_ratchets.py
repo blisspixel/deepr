@@ -23,10 +23,10 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Baselines measured 2026-06-12 with ruff 0.15.17 over deepr/. These are
+# Baselines measured with ruff 0.15.17 over deepr/. These are
 # ceilings: the count may fall (then lower the baseline) but never rise.
 BASELINES: dict[str, int] = {
-    "C901": 146,  # functions over the mccabe complexity cap (max-complexity 10)
+    "C901": 144,  # functions over the mccabe complexity cap (max-complexity 10)
     "S": 97,  # flake8-bandit security findings
 }
 
