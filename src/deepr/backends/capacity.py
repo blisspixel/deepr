@@ -50,6 +50,7 @@ class CapacitySource:
     cost_model: CostModel
     available: bool
     detail: str = ""
+    backend_id: str = ""
 
     @property
     def marginal_cost(self) -> str:
@@ -61,6 +62,7 @@ class CapacitySource:
             "kind": self.kind.value,
             "cost_model": self.cost_model.value,
             "available": self.available,
+            "backend_id": self.backend_id,
             "marginal_cost": self.marginal_cost,
             "detail": self.detail,
         }
@@ -96,7 +98,7 @@ _CLI_BACKENDS: list[tuple[str, str, CostModel, str]] = [
     ),
     ("Cursor CLI", "cursor-agent", CostModel.CREDIT_POOL, "Cursor plan; Auto model free, frontier models metered"),
     ("Antigravity", "agy", CostModel.CALENDAR_WINDOW, "Google AI plan, weekly compute caps"),
-    ("Kiro CLI", "kiro", CostModel.CALENDAR_WINDOW, "monthly credits (overage risk - reserve floor)"),
+    ("Kiro CLI", "kiro-cli", CostModel.CALENDAR_WINDOW, "monthly credits (overage risk - reserve floor)"),
 ]
 
 _OLLAMA_DEFAULT_URL = "http://localhost:11434"
@@ -156,6 +158,7 @@ def _detect_local(ollama_probe=ollama_status) -> list[CapacitySource]:
             cost_model=CostModel.OWNED_HARDWARE,
             available=running,
             detail=detail,
+            backend_id="ollama",
         )
     ]
 
@@ -172,6 +175,7 @@ def _detect_plan_quota(which=shutil.which) -> list[CapacitySource]:
                 # overflow state are verified by the adapter at run time, not here.
                 available=present,
                 cost_model=cost_model,
+                backend_id=exe,
                 detail=(f"installed (auth/quota checked at run) - {hint}" if present else f"not installed - {hint}"),
             )
         )
@@ -189,6 +193,7 @@ def _detect_metered(env=None) -> list[CapacitySource]:
                 kind=BackendKind.API_METERED,
                 cost_model=CostModel.METERED,
                 available=configured,
+                backend_id=var.lower().removesuffix("_api_key"),
                 detail=("API key configured" if configured else f"set {var} to enable"),
             )
         )
