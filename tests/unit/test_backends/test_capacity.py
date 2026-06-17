@@ -16,6 +16,7 @@ from deepr.backends.capacity import (
     detect_capacity,
     ollama_status,
 )
+from deepr.backends.quota_ledger import QuotaEventType, QuotaLedgerEvent, record_quota_event
 from deepr.cli.commands.capacity import capacity
 
 
@@ -61,6 +62,7 @@ class TestDetection:
         assert d["kind"] == "local"
         assert d["cost_model"] == "owned_hardware"
         assert d["available"] is True
+        assert d["backend_id"] == ""
         assert d["marginal_cost"] == "$0 (local)"
 
 
@@ -92,6 +94,16 @@ class TestPlanQuotaDetection:
         assert copilot.available and copilot.kind == BackendKind.PLAN_QUOTA
         assert cursor.available and cursor.kind == BackendKind.PLAN_QUOTA
 
+    def test_kiro_uses_documented_executable_name(self):
+        sources = detect_capacity(
+            ollama_probe=lambda: (False, ""),
+            which=lambda exe: "C:/bin/kiro-cli.exe" if exe == "kiro-cli" else None,
+            env={},
+        )
+        kiro = next(s for s in sources if s.name.startswith("Kiro CLI"))
+        assert kiro.available
+        assert kiro.backend_id == "kiro-cli"
+
 
 class TestCapacityCommand:
     def test_runs_and_lists_groups(self):
@@ -108,6 +120,67 @@ class TestCapacityCommand:
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert any(item["kind"] == "api_metered" for item in data)
+
+    def test_json_output_includes_quota_state_when_observed(self, tmp_path):
+        record_quota_event(
+            QuotaLedgerEvent(
+                backend_id="codex",
+                event_type=QuotaEventType.EXHAUSTED,
+                units_remaining=0,
+                unit_name="compute_units",
+                detail="test exhaustion",
+            ),
+            path=tmp_path / "cap" / "quota_ledger.jsonl",
+        )
+        result = CliRunner().invoke(
+            capacity,
+            ["--json"],
+            env={"DEEPR_CAPACITY_DATA_DIR": str(tmp_path / "cap")},
+        )
+        assert result.exit_code == 0, result.output
+        import json
+
+        data = json.loads(result.output)
+        codex = next(item for item in data if item["backend_id"] == "codex")
+        assert codex["quota_state"]["exhausted"] is True
+        assert codex["quota_states"][0]["exhausted"] is True
+        assert codex["quota_state"]["detail"] == "test exhaustion"
+
+    def test_json_output_includes_account_scoped_quota_states(self, tmp_path):
+        cap = tmp_path / "cap"
+        record_quota_event(
+            QuotaLedgerEvent(
+                backend_id="agy",
+                account_id="personal",
+                event_type=QuotaEventType.USAGE_OBSERVED,
+                units_remaining=3,
+                unit_name="compute_units",
+            ),
+            path=cap / "quota_ledger.jsonl",
+        )
+        result = CliRunner().invoke(capacity, ["--json"], env={"DEEPR_CAPACITY_DATA_DIR": str(cap)})
+        assert result.exit_code == 0, result.output
+        import json
+
+        data = json.loads(result.output)
+        agy = next(item for item in data if item["backend_id"] == "agy")
+        assert agy["quota_state"]["account_id"] == "personal"
+        assert agy["quota_states"][0]["account_id"] == "personal"
+
+    def test_text_output_includes_quota_summary_when_observed(self, tmp_path):
+        record_quota_event(
+            QuotaLedgerEvent(
+                backend_id="kiro-cli",
+                event_type=QuotaEventType.QUARANTINED,
+                detail="overage state unknown",
+            ),
+            path=tmp_path / "cap" / "quota_ledger.jsonl",
+        )
+        result = CliRunner().invoke(capacity, [], env={"DEEPR_CAPACITY_DATA_DIR": str(tmp_path / "cap")})
+        assert result.exit_code == 0, result.output
+        assert "Observed quota state" in result.output
+        assert "kiro-cli" in result.output
+        assert "overage state unknown" in result.output
 
 
 class TestAdmissionCommands:

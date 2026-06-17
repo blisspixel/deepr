@@ -3,7 +3,7 @@
 [![CI](https://github.com/blisspixel/deepr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/deepr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.16.1-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.16.1)
+[![Version](https://img.shields.io/badge/version-2.16.2-blue)](https://github.com/blisspixel/deepr/releases/tag/v2.16.2)
 
 **Domain experts, not another chat window.**
 
@@ -195,7 +195,7 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` is a guided, non-interactive-friendly setup: it detects existing API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage, with a severity-ranked next step. `deepr capacity` shows what you can actually run with - owned/prepaid capacity first (local Ollama, plan-based CLIs), metered APIs last - so you spend owned capacity before paying per token.
+`deepr init` is a guided, non-interactive-friendly setup: it detects existing API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage, with a severity-ranked next step. `deepr capacity` shows what you can actually run with - owned/prepaid capacity first (local Ollama, plan-based CLIs), metered APIs last - and summarizes any locally observed plan-quota state from the append-only quota ledger.
 
 ```bash
 deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, portable data
