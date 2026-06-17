@@ -8,7 +8,7 @@ Examples:
     deepr research status <job-id>
     deepr queue list
     deepr prep plan "Meeting scenario"
-    deepr cost estimate "Research prompt"
+    deepr costs estimate "Research prompt"
 
 Interactive Mode:
     deepr interactive

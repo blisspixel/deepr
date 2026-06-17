@@ -78,6 +78,10 @@ valid_filenames = st.text(
 malicious_filenames = st.one_of(
     st.sampled_from(
         [
+            "",
+            "   ",
+            ".",
+            "bad\x00.txt",
             "../secret.txt",
             "..\\secret.txt",
             "subdir/file.txt",

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from deepr.experts.beliefs import Belief, BeliefStore
+from deepr.experts.beliefs import Belief, BeliefChange, BeliefStore
 from deepr.experts.perspective import contested, what_changed
 
 
@@ -211,6 +211,32 @@ class TestBeliefEventLog:
 
         events = store.iter_events(since=cutoff)
         assert [e.new_claim for e in events] == ["After"]
+
+    def test_equal_event_timestamps_are_made_queryable(self, tmp_path):
+        store = _store(tmp_path)
+        timestamp = datetime(2026, 1, 1, tzinfo=UTC)
+        store._record_change(
+            BeliefChange(
+                belief_id="before",
+                change_type="created",
+                new_claim="Before",
+                new_confidence=0.8,
+                timestamp=timestamp,
+            )
+        )
+        store._record_change(
+            BeliefChange(
+                belief_id="after",
+                change_type="created",
+                new_claim="After",
+                new_confidence=0.8,
+                timestamp=timestamp,
+            )
+        )
+
+        all_events = store.iter_events()
+        assert all_events[1].timestamp > all_events[0].timestamp
+        assert [e.new_claim for e in store.iter_events(since=timestamp)] == ["After"]
 
 
 class TestTypedEdges:
