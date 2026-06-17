@@ -18,5 +18,26 @@ from deepr.backends.capacity import (
     CostModel,
     detect_capacity,
 )
+from deepr.backends.quota_ledger import (
+    QuotaConfidence,
+    QuotaEventType,
+    QuotaLedger,
+    QuotaLedgerEvent,
+    QuotaState,
+    QuotaWindowKind,
+    summarize_quota_state,
+)
 
-__all__ = ["BackendKind", "CapacitySource", "CostModel", "detect_capacity"]
+__all__ = [
+    "BackendKind",
+    "CapacitySource",
+    "CostModel",
+    "QuotaConfidence",
+    "QuotaEventType",
+    "QuotaLedger",
+    "QuotaLedgerEvent",
+    "QuotaState",
+    "QuotaWindowKind",
+    "detect_capacity",
+    "summarize_quota_state",
+]

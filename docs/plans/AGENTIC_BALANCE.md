@@ -110,7 +110,7 @@ itself a hidden nondeterminism.
 
 | Surface | Setting | Why |
 |---|---|---|
-| Budget enforcement, cost ledger, daily/monthly caps | **Workflow** (deterministic, gated) | Irreversible spend; the audit promise breaks if model-driven |
+| Budget enforcement, cost ledger, quota ledger, daily/monthly caps | **Workflow** (deterministic, gated) | Irreversible spend and quota exhaustion; the audit promise breaks if model-driven |
 | Belief/knowledge persistence, archival, restore | **Workflow** | State writes; reversibility must be executable, not judged |
 | Permission/approval flows, capacity admission | **Workflow** | Gate the irreversible action (spend, exec), not the reasoning (NVIDIA) |
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | **Workflow** ("parse, don't validate") | Form is decidable from structure alone |
