@@ -70,6 +70,22 @@ class TestSaveGetList:
         assert got == b"body"
 
     @pytest.mark.asyncio
+    async def test_short_job_id_does_not_match_unrelated_readable_dir(self, storage):
+        jid = "aaaabbbb-cccc-dddd-eeee-ffff00001111"
+        await storage.save_report(jid, "report.md", b"private body", "text/markdown", {"prompt": "alpha report"})
+
+        with pytest.raises(StorageError):
+            await storage.get_report("a", "report.md")
+
+    @pytest.mark.asyncio
+    async def test_job_id_does_not_match_prompt_slug_substring(self, storage):
+        jid = "11111111-2222-3333-4444-555566667777"
+        await storage.save_report(jid, "report.md", b"private body", "text/markdown", {"prompt": "quantum market"})
+
+        with pytest.raises(StorageError):
+            await storage.get_report("quantum", "report.md")
+
+    @pytest.mark.asyncio
     async def test_get_missing_raises(self, storage):
         with pytest.raises(StorageError):
             await storage.get_report("nope-nope-nope-nope-nope", "report.md")

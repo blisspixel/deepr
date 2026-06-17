@@ -5,7 +5,7 @@ the concurrency slot yet.
 Previously ``run_task`` did ``async with self._semaphore`` *before*
 awaiting dependencies, so with max_concurrent=N and N tasks all
 depending on an N+1th task, all N slots were held by waiters and the
-dependency could never run — classic deadlock.
+dependency could never run, creating a classic deadlock.
 """
 
 from __future__ import annotations
@@ -53,3 +53,28 @@ async def test_no_deadlock_when_many_tasks_depend_on_single_root():
     assert len(result.tasks) == 4
     for task_id in ("A", "B", "C", "D"):
         assert result.tasks[task_id].status.value == "completed"
+
+
+@pytest.mark.asyncio
+async def test_failed_dependency_closes_blocked_coroutine():
+    """Blocked coroutines should be closed when their dependency fails."""
+
+    async def fail() -> str:
+        raise RuntimeError("boom")
+
+    async def work() -> str:
+        return "done"
+
+    dispatcher = AsyncTaskDispatcher(max_concurrent=2)
+    tasks = [
+        {"id": "A", "coro": fail()},
+        {"id": "B", "coro": work()},
+    ]
+    dependencies = {"A": [], "B": ["A"]}
+
+    result = await dispatcher.dispatch_with_dependencies(tasks=tasks, dependencies=dependencies)
+
+    assert result.tasks["A"].status.value == "failed"
+    assert result.tasks["B"].status.value == "failed"
+    assert result.tasks["B"].error == "Dependency A failed"
+    assert result.tasks["B"].coro is None

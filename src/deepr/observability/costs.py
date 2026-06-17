@@ -26,13 +26,15 @@ from typing import Any
 
 from deepr.observability.cost_ledger import CostLedger
 
-# Module logger for debugging persistence and validation issues
 logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
-    """Return current UTC time (timezone-aware)."""
     return datetime.now(UTC)
+
+
+def _as_utc(value: datetime) -> datetime:
+    return (value if value.tzinfo else value.replace(tzinfo=UTC)).astimezone(UTC)
 
 
 # Configuration constants
@@ -74,7 +76,7 @@ class CostEntry:
     @property
     def date(self) -> date:
         """Get date of entry."""
-        return self.timestamp.date()
+        return _as_utc(self.timestamp).date()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -292,11 +294,7 @@ class AlertManager:
 class CostAggregator:
     """Handles cost aggregation and breakdown calculations.
 
-    Extracted from CostDashboard to follow Single Responsibility Principle.
     Provides efficient single-pass aggregation for multiple breakdown types.
-
-    Attributes:
-        entries: Reference to the list of cost entries to aggregate
     """
 
     def __init__(self, entries: list[CostEntry]):
@@ -337,7 +335,7 @@ class CostAggregator:
         if month is None:
             month = now.month
 
-        return sum(e.cost for e in self._entries if e.timestamp.year == year and e.timestamp.month == month)
+        return sum(e.cost for e in self._entries if e.date.year == year and e.date.month == month)
 
     def get_breakdown_by_provider(
         self, start_date: datetime | None = None, end_date: datetime | None = None
@@ -437,10 +435,12 @@ class CostAggregator:
         entries = self._entries
 
         if start_date:
-            entries = [e for e in entries if e.timestamp >= start_date]
+            start_date = _as_utc(start_date)
+            entries = [e for e in entries if _as_utc(e.timestamp) >= start_date]
 
         if end_date:
-            entries = [e for e in entries if e.timestamp <= end_date]
+            end_date = _as_utc(end_date)
+            entries = [e for e in entries if _as_utc(e.timestamp) <= end_date]
 
         return entries
 
