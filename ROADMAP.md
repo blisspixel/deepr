@@ -64,7 +64,7 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5700+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
-**Current main (v2.16 capacity track):** the evidence layer is available (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **$0 local-model execution** (Ollama backend; `expert sync`/`absorb --local`) and **capacity visibility** (`deepr capacity`) are wired toward routing on owned/prepaid capacity before metered API, including the append-only `quota_ledger.jsonl` substrate for observed plan-quota state (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)); **portable experts** - one data dir (`DEEPR_DATA_DIR`) relocates experts + research to a synced folder so they follow you across machines ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)); routing **quality priors** keep auto mode useful without paid evals; and guided setup (`deepr init`) is stable. Remaining capacity work before the reach release is plan-quota adapters, live window/credit probes, per-task-class quality gates, and broader capacity-waterfall routing. The cross-cutting principle for what deepr hardcodes vs lets the model decide (workflow vs agent, determinism on side-effects not meaning) is set in [AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md); the boundary for which checks specifically are deterministic vs model-based is its instance in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
+**Current main (v2.16 capacity track):** the evidence layer is available (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **$0 local-model execution** (Ollama backend; `expert sync`/`absorb --local`) and **capacity visibility** (`deepr capacity`) are wired toward routing on owned/prepaid capacity before metered API, including the normalized `ResearchBackend` profile and append-only `quota_ledger.jsonl` substrate for observed plan-quota state (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)); **portable experts** - one data dir (`DEEPR_DATA_DIR`) relocates experts + research to a synced folder so they follow you across machines ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)); routing **quality priors** keep auto mode useful without paid evals; and guided setup (`deepr init`) is stable. Remaining capacity work is plan-quota adapters, live window/credit probes, per-task-class quality gates, and broader capacity-waterfall routing. Next after capacity is a verified expert-loop and OKF interchange release: make the already-shipped loops observable, resumable, and portable without making OKF the source of truth. The cross-cutting principle for what deepr hardcodes vs lets the model decide (workflow vs agent, determinism on side-effects not meaning) is set in [AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md); the boundary for which checks specifically are deterministic vs model-based is its instance in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
 
 ### Stable (Production-Ready)
 
@@ -91,7 +91,7 @@ These features work but APIs or behavior may change:
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
 - **MCP server**: Functional with 26 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` - autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
-- **Local-model execution + capacity** (v2.16, in progress): `deepr capacity` (+ `--probe`) shows owned/prepaid capacity (local Ollama, plan CLIs, metered APIs) and summarizes locally observed plan-quota state from `quota_ledger.jsonl`; a local Ollama backend runs research at $0 via the injectable seams (`expert sync`/`absorb --local`). The first waterfall rung is wired: eval-gated local **admission** (`deepr capacity admit`/`admissions`/`revoke`) makes `expert sync`/`absorb` drain an admitted local model at $0 before any metered API call, with `--local`/`--api` overrides. Still to come: plan-quota CLI adapters, live quota probes, and per-task-class quality gates. Design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)
+- **Local-model execution + capacity** (v2.16, in progress): `deepr capacity` (+ `--probe`) shows owned/prepaid capacity (local Ollama, plan CLIs, metered APIs) and summarizes locally observed plan-quota state from `quota_ledger.jsonl`; a local Ollama backend runs research at $0 via the injectable seams (`expert sync`/`absorb --local`). The first waterfall rung is wired: eval-gated local **admission** (`deepr capacity admit`/`admissions`/`revoke`) makes `expert sync`/`absorb` drain an admitted local model at $0 before any metered API call, with `--local`/`--api` overrides. The normalized `ResearchBackend` profile is in place for routing, logging, and quota decisions. Still to come: plan-quota CLI adapters, live quota probes, and per-task-class quality gates. Design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)
 - **Evidence layer** (v2.15): `deepr eval continuity` (staleness honesty / abstention / contradiction-surfacing / what-changed exactness, measured from stored state at $0) and `deepr eval calibrate` (does extraction confidence track grounding? reliability curve + ECE + Platt threshold; `--from` graded pairs at $0, `--corpus` runs the paid extraction + pre-grade). First curve in [docs/CALIBRATION.md](docs/CALIBRATION.md)
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -187,7 +187,8 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Design for composability: experts are roles that receive input, produce handoff-ready output, and participate in multi-agent teams without owning the workflow.
 - Experts are tailored second brains, not one generic vault. The unit of knowledge is the expert: a domain-scoped knowledge base (beliefs, confidence, gaps, citations) that stays current on its topic and deploys as part of an agent team. Deepr gives you second brains with an s, not a single undifferentiated brain, and the value compounds when those brains are consulted as a team.
 - Make experts genuinely agentic: they plan, reflect, self-correct, and learn - not just wrap LLM calls.
-- Close the loop before widening it (loop engineering): an advisory surface (health-check proposes, route-gaps recommends, reflection emits follow-up queries) is half a loop - the value compounds when it graduates to scheduled, budget-bounded *execution* that persists across process restarts. Prioritize loop closers (expert sync, auto re-research, autonomous gap-fill, durable learner jobs) over adding more advisory surfaces; the trade of tokens for human time is what Phase 6's prepaid/local capacity makes affordable.
+- Close the loop before widening it (loop engineering): an advisory surface (health-check proposes, route-gaps recommends, reflection emits follow-up queries) is half a loop - the value compounds when it graduates to scheduled, budget-bounded *execution* that persists across process restarts. Prioritize loop closers (expert sync, auto re-research, autonomous gap-fill, durable learner jobs) over adding more advisory surfaces; the trade of tokens for human time is what Phase 6's prepaid/local capacity makes affordable. A Deepr loop is not just `while not done`: it has durable state, a budget/capacity contract, an independent verifier, a resumable run record, and a clear stop condition.
+- Treat portable knowledge formats as interchange, not authority. OKF fits Deepr as an export/import contract (Markdown concepts, YAML frontmatter, `index.md`, `log.md`, bundle links) because agents can read it anywhere. It must remain a derived view or an ingestion source: canonical truth stays in the structured belief/event/edge store, and OKF import goes through the same verify/absorb pipeline as any other corpus. Do not let an agent-maintained wiki bypass source trust, contradiction checks, or the generated-artifact regeneration invariant.
 - Self-improvement is a verification problem (recursive self-improvement, bounded): Deepr runs improvement loops (knowledge: research -> verified absorb -> beliefs -> reflection -> re-research; routing: evals -> rankings -> picks -> outcomes; self-knowledge: health-check/what-changed/contested), and is the substrate for *other* agents' improvement loops (trusted memory + perspective deltas + contradiction surfacing + inference chains + bounded spend). The governing insight, proven live 2026-06-11 twice: an unverified improvement loop is a degradation loop - saturated eval scores "improved" routing into a nano model; a bypassable budget gate was no gate. The sign of the feedback is set by measurement integrity and gate integrity, so verification machinery is never overhead on the loops - it IS the loops. Unbounded self-modification stays a non-goal; machinery-level self-improvement (trace-based skill/prompt evolution) ships only behind tests, size limits, and human review.
 - Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
 - Autonomy earns trust incrementally: start supervised, prove reliability, then expand bounds.
@@ -413,6 +414,32 @@ tools, reusing the same free contradiction heuristic. **Next up:**
 
 Reflection loop and graph memory are the larger, higher-risk items and come after.
 
+**2026-06-18 loop/OKF research update.** The useful part of the current loop
+engineering push is narrower than the hype: long-running agents work when the
+harness makes context, reviewer checks, handoff artifacts, stop conditions, and
+tool execution explicit. OKF v0.1 adds a portable Markdown/YAML knowledge-bundle
+shape that other agents can read directly. Deepr should absorb the pattern, not
+become a generic orchestrator: experts run verified knowledge loops, expose
+machine-readable loop state, and export/import portable knowledge without
+letting generated Markdown become authority over the belief store.
+
+- [ ] Verified expert-loop substrate:
+  - [ ] Define an `ExpertLoopRun` record for sync, gap-fill, reflection
+        follow-ups, health-check actions, and future campaigns: goal, expert,
+        triggering surface, budget/capacity source, verifier result, stop
+        reason, trace id, and resumable queue/job ids.
+  - [ ] Add `deepr expert loop-status NAME` (plus MCP read tool) showing last
+        run, due subscriptions, open gaps, stale/contested beliefs, verifier
+        failures, next action, and whether the next run can use local/plan
+        capacity or requires metered budget.
+  - [ ] Make loop completion evidence-based: a run is complete only when its
+        verifier passes, no due work remains under the current budget/capacity
+        contract, or a stop condition is recorded. Never trust a model's
+        self-declared "done" as the terminal state.
+  - [ ] Persist compact handoff artifacts between loop iterations so long runs
+        survive context resets and process restarts without re-reading every
+        report or source.
+
 - [~] Reflection loop (self-correction before delivery):
   - [x] Post-research quality evaluation (v2.13): `ReflectionEngine` scores grounding, completeness, calibration, directness; CLI `deepr expert reflect` + `deepr_reflect` MCP tool. The model scores per dimension; the verdict (accept/revise/re_research) is computed deterministically from thresholds.
   - [x] Reflection metadata in output (per-dimension scores + issues + overall + follow-up queries)
@@ -473,7 +500,7 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
     ever wanted it must be model-derived or live in the calibration harness, never
     a standalone lexical pass (see AGENTIC_BALANCE.md and the STOP banner).
   - [ ] Outcome attribution (later): the second When-to-Forget counter (did the answer that used this belief succeed?) waits on an outcome signal - reflection verdicts or host-agent feedback as task-success proxy
-- [~] Output-to-knowledge feedback loop (the compounding flywheel: day-1 basic, day-100 an asset):
+- [~] Output-to-knowledge feedback loop (the compounding flywheel: every verified output can strengthen the expert):
   - [x] `deepr expert absorb REPORT_ID` (v2.12) - promote a completed report into permanent beliefs with report provenance, instead of treating reports as terminal artifacts. CLI (`--dry-run` preview) + `deepr_expert_absorb` MCP tool. Deferred: the post-research "integrate this?" inline prompt.
   - [x] Verification-gated by design: extraction yields report-grounded candidate claims (each self-rated for report support), weak claims are dropped, and any claim contradicting an existing belief is held back by the same free heuristic health-check uses - so "the model writes something slightly wrong, you save it, the next answer builds on the mistake" cannot happen silently
   - [x] Dedup against existing beliefs and integrate the delta only (reuses `BeliefStore.add_belief`); consuming distillr's corpus-side `ask` verb with verification is the remaining follow-on
@@ -520,7 +547,22 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
   - [ ] One-command ingest of MD/JSON/JSONL bundles as permanent expert knowledge
   - [ ] Auto-gap detection and citation mapping on imported corpora
   - [ ] Works with any structured output (research reports, synthesis docs, company briefs)
+  - [ ] OKF bundle import (`deepr expert absorb-okf NAME PATH`): parse
+        conformant Markdown/YAML concept documents, preserve frontmatter and
+        cross-links as provenance, and route claims through the existing
+        verification-gated absorb pipeline rather than trusting the bundle text.
 - [x] Per-expert SKILL.md export (v2.13): `deepr expert export-skill NAME` builds `deepr/skills/expert_skill.build_expert_skill` on top of the generic `SkillPackager` - an expert-scoped SKILL.md whose triggers/instructions/tools are populated from one expert and whose body calls that expert via Deepr's MCP tools. The validated interoperability direction: Deepr is the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose, OpenClaw) *call*, not Deepr delegating execution outward. agentskills.io SKILL.md is broadly adopted, so one export reaches every major host.
+- [ ] OKF expert export (`deepr expert export-okf NAME PATH`):
+  - [ ] Generate a conformant OKF bundle from the structured belief store:
+        one concept file per belief cluster/topic, YAML frontmatter with
+        `type`, `title`, `description`, `tags`, `timestamp`, and Deepr-specific
+        confidence/trust extensions, plus `index.md` and `log.md`.
+  - [ ] Encode citations, support/contradict edges, gaps, and `what_changed`
+        history as Markdown sections and bundle-relative links. The export is a
+        derived view with the same regeneration marker discipline as expert
+        digests.
+  - [ ] Optionally emit `llms.txt` discovery instructions pointing hosts to the
+        exported OKF bundle and to the Deepr MCP tools for live queries.
 - [ ] Skill auto-generation from research artifacts:
   - [ ] `expert skill make "Topic" --from-report artifact.md` generates skill with tools and triggers
   - [ ] Dependency tracking between generated skills
@@ -557,7 +599,10 @@ own the outer workflow.
 
 ### Phase 4b: Autonomous Research Campaigns
 
-Goal: experts that run multi-day research investigations autonomously within budget bounds.
+Goal: experts that run extended research investigations autonomously within
+budget, evidence, and checkpoint bounds. Campaigns are not the first loop
+surface; they build on `ExpertLoopRun`, loop-status, capacity routing, and
+portable handoff artifacts after those are reliable on sync/gap-fill/reflection.
 
 - [ ] Campaign definition: goal, budget, duration, checkpoint frequency, stop conditions
 - [ ] Background campaign executor (queue-based, persists state, survives process restarts)
@@ -575,7 +620,13 @@ Goal: production posture for multi-user and autonomous deployments.
 
 - [ ] Structured handoff contracts:
   - [ ] Versioned JSON schemas for expert output (claims, confidence, citations, gaps, staleness)
+  - [ ] Versioned loop-status schema (`ExpertLoopRun`, next action, stop reason,
+        verifier result, budget/capacity source) so host agents can decide
+        whether to consult, wait, retry, or escalate without scraping prose.
   - [ ] Downstream agents can validate handoff artifacts against published schemas
+  - [ ] OKF profile: documented mapping from Deepr beliefs/events/edges/gaps to
+        OKF concept documents, including which fields are Deepr extensions and
+        which parts are derived views.
   - [ ] Schema registry with backward compatibility guarantees
 - [ ] Web operations analytics:
   - [ ] Cost-vs-quality frontier scatter (every routing decision plotted)
@@ -630,14 +681,14 @@ Vendor reality (verified June 2026 - revalidate before implementation, this chur
 
 - **Claude Code**: headless `claude -p` / Agent SDK usage bills a *separate monthly credit pool* per plan tier ($20 Pro / $100 Max 5x / $200 Max 20x) as of June 15, 2026; automation stops when the pool empties unless overflow billing is enabled. Bounded and predictable - exactly the no-surprise-bills shape - but Deepr must verify overflow billing is OFF. Interactive sessions draw from 5-hour rolling windows instead.
 - **Codex CLI**: `codex exec` is officially documented for scripting/CI; ChatGPT Plus/Pro quota is compute-equivalent units on a rolling 5-hour window, no rollover. Tiers: Plus ($20), Pro 5x, Pro 20x.
-- **Google Antigravity CLI** (`agy`): Gemini CLI and its 1,000 req/day plan quotas *stop serving on June 18, 2026* - the replacement is the closed-source Antigravity CLI under Google AI Pro ($20) / AI Ultra ($100, 5x) / AI Ultra top tier ($200) with **weekly compute-based caps** (heavy users report multi-day cooldowns). Headless agent creation and scheduled background tasks are first-class features, so the path is supported - but the weekly window math and opaque compute units make the observed-quota tracker mandatory here.
+- **Google Antigravity CLI** (`agy`): Gemini CLI and its 1,000 req/day plan quotas *stop serving on June 18, 2026* - the replacement is the closed-source Antigravity CLI under Google AI Pro ($20) / AI Ultra ($100, 5x) / AI Ultra top tier ($200) with **weekly compute-based caps** (heavy users report extended cooldowns). Headless agent creation and scheduled background tasks are first-class features, so the path is supported - but the weekly window math and opaque compute units make the observed-quota tracker mandatory here.
 - **Kiro CLI**: officially sanctioned for automation ("reviews during CI/CD"); credit plans from Free (50/mo) to Power ($200/mo, 10,000 credits). Caveat: **overage bills automatically at $0.04/credit at month-end** - the adapter must detect/require overage protection off, or cap usage below the credit ceiling, to honor no-surprise-bills.
 - **Grok**: consumer plans (including SuperGrok Heavy $300/mo) have *no officially supported headless plan-quota path* - the plan quota is locked to the grok.com/X surfaces. However, xAI's data-sharing program grants up to **$175/month in free API credits**, which is the same bounded-prepaid-pool shape; model it as a credit-pool cost source on the existing Grok API provider rather than a CLI adapter. (Grok Build CLI is early-access and API-metered, not plan-quota.)
 - **Local (Ollama)**: an RTX-class GPU runs open-weight models at genuinely $0 marginal cost - no quota window at all, just hardware availability. Two honest constraints: (1) quality - local models are not deep-research APIs, so local handles the quality-tolerant steps of the expert loop (absorption, summarization, contradiction heuristics, gap detection, draft synthesis) while quality-critical synthesis routes up the waterfall, with eval benchmarks deciding the floor per task type; (2) contention - the GPU is often shared with the user's interactive work (IDE agents, coding), so the adapter needs availability windows (e.g. off-hours) and an optional GPU-utilization probe before dispatch. For scheduled expert maintenance, neither constraint matters: the jobs are quality-tolerant and time-flexible by design.
 
 Design (builds on existing kernel primitives - cost ledger, budget contracts, provider registry, auto-mode routing):
 
-- [~] **Cost-source model**: extend provider profiles with `cost_source: api_metered | plan_quota | credit_pool | local`. Plan-quota and credit-pool backends report marginal cost $0 but consume quota/credit units; the append-only `quota_ledger.jsonl` substrate is shipped, while provider/profile integration remains.
+- [~] **Cost-source model**: `CostModel`/`BackendKind`, `backend_id` on detected sources, normalized `ResearchBackend` profiles, and the append-only `quota_ledger.jsonl` substrate are in place. Remaining: provider-profile integration and adapter writes that connect real plan-quota executions to those records. Plan-quota and credit-pool backends report marginal cost $0 but consume quota/credit units.
 - [~] **Quota window tracker**: per-account `QuotaWindow` (window type: rolling-5h / daily / weekly-compute / monthly-credit-pool; usage observed, never assumed; reset time). Shipped: durable observed events and `deepr capacity` summaries. Remaining: adapter-side live probes and scheduler decisions that mark exhaustion (429 / vendor error signature) and reschedule instead of failing the job. Vendors do not expose remaining quota reliably - treat limits as observed from exhaustion signals.
 - [ ] **Multi-account quota pools**: a user with several plans on one vendor (e.g. three Google accounts - personal + two work) registers one authenticated profile per account; each is an independent QuotaWindow and the scheduler drains across the pool before deferring. Only accounts the user owns/controls, each consuming strictly within its own plan limits - this is using paid seats fully, not circumventing a single account's cap. Per-account credential isolation (no shared auth state).
 - [ ] **CLI provider adapters** (each implements the existing `DeepResearchProvider` contract; subprocess invocation in JSON/headless mode; no API keys touched):
@@ -656,7 +707,7 @@ Design (builds on existing kernel primitives - cost ledger, budget contracts, pr
   - [ ] Overage/overflow detection per vendor: Claude overflow billing OFF, Kiro overage protection ON (or hard-stop below the credit ceiling) - checked before first use and on a cadence; a backend whose overage state cannot be verified is treated as metered.
   - [ ] Quota events land in the ledger as $0-cost entries with quota units, so `costs show` reflects reality and anomaly detection sees volume spikes even at $0.
 - [ ] **Quota-aware scheduling**: the queue learns window math - defer non-urgent jobs to the next reset, drain batches into open windows (overnight = free capacity), interleave across multiple plan backends *and accounts* before touching any metered API. This is the "auto-schedule around it" piece.
-- [ ] **Expert maintenance on plan quota** (the compounding payoff): scheduled `expert sync` / `health-check` / gap-fill runs (Phase 4) default to plan-quota backends when available, so a roster of experts stays current in the background on capacity the user already pays for; metered APIs remain reserved for interactive and deadline work.
+- [ ] **Expert maintenance on plan quota** (the compounding payoff): scheduled `expert sync` / `health-check` / gap-fill runs (Phase 4) default to plan-quota backends when available, so a roster of experts stays current in the background on capacity the user already pays for; metered APIs remain reserved for interactive and high-priority work.
 - [ ] **Auto-mode integration**: routing treats plan-quota backends as cost-0 candidates weighted by benchmarked quality (eval harness gains CLI-backend support); `--dry-run`/`--preview` show "plan quota (N units, resets HH:MM)" instead of dollars.
 - [ ] **ToS guardrail**: ship only backends whose vendors officially document headless plan usage (all three above do today); revalidate at implementation time and per release.
 
@@ -791,7 +842,8 @@ Most impactful work is on the intelligence layer (prompts, synthesis, expert lea
 | v2.14 | The perspective release: belief event log, typed edges, temporal query trio (what-changed/contested/why), regenerated digest, all five loop-closers (sync, gap-fill --execute, reflect --execute-followups, health-check flag actioning, durable learner jobs) | Complete |
 | v2.15 | The evidence release | Complete |
 | v2.16 | The capacity release | In progress |
-| v2.17 | The reach release | Planned |
+| v2.17 | The loop/interchange release | Planned |
+| v2.18 | The reach release | Planned |
 | v3.0 | The contract release - defined by criteria, not features | Future |
 
 ## Version Plan (logical order, not a calendar)
@@ -802,12 +854,14 @@ of false promise the rest of this roadmap avoids. Each release has a
 *theme* (the question it answers), its contents come from the phases above,
 and the order encodes a deliberate logic:
 
-**capability -> evidence -> capacity -> reach -> contract.**
+**capability -> evidence -> capacity -> verified loops/interchange -> reach -> contract.**
 
 Close the loops while the surface is small; measure before making claims;
-make tokens cheap before inviting always-on consumers; open the remote door
-only when what is behind it is measured and affordable; and promise
-stability last, because a contract freezes everything underneath it.
+make tokens cheap before running them routinely; make loop state and portable
+knowledge exports dependable before inviting always-on consumers; open the
+remote door only when what is behind it is measured, affordable, resumable, and
+portable; and promise stability last, because a contract freezes everything
+underneath it.
 
 ### v2.14 - The perspective release ("why do you believe that?")
 
@@ -889,17 +943,41 @@ pool), which makes **local the priority adapter**, not cli-claude. Shipped
 2026-06-17: append-only `quota_ledger.jsonl` quota observations and capacity
 summary visibility.
 
-1. [~] Backend abstraction + quota ledger + `deepr capacity` visibility (visibility and quota ledger shipped; the `ResearchBackend` abstraction and live vendor probes remain)
+1. [~] Backend abstraction + quota ledger + `deepr capacity` visibility (visibility, `ResearchBackend`, and quota ledger shipped; live vendor probes and adapter writes remain)
 2. [x] Local-first process validation (ollama-backed `research_fn` through the injectable seams) - shipped, the substrate the rest builds on
 3. [~] `local-ollama` shipped (+ `--local` wiring); `cli-claude` adapter and eval-gated admission remain (cli-claude deprioritized per the 2026-06-15 change)
 4. [ ] Capacity-waterfall routing with quality gates; remaining adapters (codex, antigravity post-cutover, kiro with reserve floor)
 5. [ ] Multi-account pools last (multiplies a working mechanism)
 
-### v2.17 - The reach release ("callable from anywhere")
+### v2.17 - The loop/interchange release ("keep it current, prove it, hand it off")
 
-Opens the remote door - after evidence (2.15) and cheap capacity (2.16),
-because a hosted endpoint invites always-on consumers who will exercise
-both. Design: [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md).
+Makes the loop-engineering promise explicit while staying inside Deepr's role:
+experts maintain verified knowledge state; they do not become a general-purpose
+workflow orchestrator. This release lands after capacity because routine loops
+need cheap/default-free execution, and before hosted reach because remote agents
+need a stable local contract to consume.
+
+1. [ ] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
+   durable loop records, stop reasons, verifier outcomes, budget/capacity source,
+   and next actions for sync, gap-fill, reflection follow-ups, health-check
+   actions, and future campaigns.
+2. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
+   under the current contract, budget/capacity exhaustion, human gate, or a typed
+   failure reason. No model self-declared completion on the critical path.
+3. [ ] OKF export/import: `export-okf` as a regenerated derived view over the
+   belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
+   `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,
+   and optional `llms.txt` discovery.
+4. [ ] Loop dashboard/API surface: freshness, gap velocity, contested/open
+   verifier failures, last sync result, next scheduled action, and capacity source
+   for the next run.
+
+### v2.18 - The reach release ("callable from anywhere")
+
+Opens the remote door after evidence (2.15), cheap capacity (2.16), and a local
+loop/interchange contract (2.17), because a hosted endpoint invites always-on
+consumers who will exercise all three. Design:
+[docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md).
 
 1. Streamable HTTP transport; scoped API keys (mode/expert/budget);
    tool-call audit log (doubles as the mutation audit trail)
@@ -916,6 +994,7 @@ organizational knowledge infrastructure *without the author in the loop*.
 The criteria, all measurable:
 
 - [ ] Handoff schemas versioned with a published deprecation policy
+- [ ] Loop-status and OKF profile schemas versioned with backward compatibility
 - [ ] Calibration published and current for the shipping extraction model
 - [ ] Hosted endpoint with scoped auth, per-key budgets, audit log
 - [ ] Multi-user safety: RBAC, workspace isolation, mutation audit trail

@@ -10,10 +10,11 @@ execution (step 4 substrate); and eval-gated **local admission** with automatic
 owned-capacity-first selection for expert maintenance - `deepr capacity admit`
 / `admissions` / `revoke`, and `expert sync`/`absorb` auto-routing to an
 admitted local model at $0 before metered API (the local rung of step 5, with
-`--local`/`--api` overrides); plus the append-only `quota_ledger.jsonl`
-substrate and `deepr capacity` quota-state visibility. Not yet built: the
-plan-quota CLI adapters, live window/credit probes, and per-task-class quality
-gates beyond the admission flag.
+`--local`/`--api` overrides); the normalized `ResearchBackend` profile; plus
+the append-only `quota_ledger.jsonl` substrate and `deepr capacity`
+quota-state visibility. Not yet built: the plan-quota CLI adapters, live
+window/credit probes, and per-task-class quality gates beyond the admission
+flag.
 
 ## Problem
 
@@ -140,7 +141,7 @@ scheduler work remains.
    for `expert sync`/`absorb` (`deepr capacity admit`). (done - the local rung)
 4. `ResearchBackend` abstraction: wrap today's provider path as `api_metered`,
    and model the `engine` x `capacity` matrix (one BYO-base-url engine driver,
-   many capacity endpoints) rather than one adapter per vendor.
+   many capacity endpoints) rather than one adapter per vendor. (done)
 5. Quota ledger substrate + `deepr capacity` quota-state visibility. (done)
    Window/credit probes per capacity source remain.
 6. First plan_quota rungs, in priority order from the survey: Copilot CLI and
