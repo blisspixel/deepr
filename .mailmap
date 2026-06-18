@@ -1,11 +1,9 @@
-# Coalesce automation, AI-assistant, and tooling authorship to the maintainer
-# so the GitHub contributor graph reflects the human author. No bot or AI
-# assistant should appear as a separate contributor.
+# Coalesce legacy automation and tooling author emails to the maintainer
+# so the GitHub contributor graph reflects the human author.
 #
 # Format (note the order): Proper-Name <proper-email> <commit-email>
 # i.e. the LEFT identity is the canonical one; the RIGHT email is the one
-# rewritten onto it. The previous version had this reversed and relabelled the
-# maintainer's own commits as "Claude".
+# rewritten onto it.
 
 Nick Seal <32712898+blisspixel@users.noreply.github.com> <nick@pueo.io>
 Nick Seal <32712898+blisspixel@users.noreply.github.com> <kilo@pueo.io>
