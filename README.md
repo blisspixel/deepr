@@ -195,7 +195,7 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows what you can run with: local hardware, plan-based CLIs, and metered APIs, with owned/prepaid capacity preferred before paid fallback.
+`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows what you can run with: local hardware, plan-based CLIs, and metered APIs. The routing gates prefer owned/prepaid capacity before paid fallback, with quota, quality, and budget checks defined before adapter execution.
 
 ```bash
 deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, portable data
@@ -210,7 +210,7 @@ deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 ```
 
-See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity) for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the routing model.
+See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity) for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the full routing model.
 
 ### Evidence and Calibration
 

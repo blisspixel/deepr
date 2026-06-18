@@ -8,9 +8,9 @@ ever touching a metered API - so research stays affordable on capacity users
 already have. Design: docs/design/capacity-waterfall.md.
 
 This package currently provides capacity *visibility*, normalized backend
-profiles, local admission, append-only quota observations, and pure eligibility
-decisions. Backend execution + full waterfall routing land in later v2.16
-increments.
+profiles, local admission, append-only quota observations, pure eligibility
+decisions, and deterministic backend selection. Backend execution lands in
+later v2.16 increments.
 """
 
 from deepr.backends.capacity import (
@@ -38,11 +38,24 @@ from deepr.backends.research_backend import (
     backend_from_capacity_source,
     discover_research_backends,
 )
+from deepr.backends.selection import (
+    BackendCandidate,
+    BackendQualityGate,
+    BackendQualityStatus,
+    BackendSelection,
+    BackendSelectionStatus,
+    select_capacity_backend,
+)
 
 __all__ = [
+    "BackendCandidate",
     "BackendEligibility",
     "BackendEligibilityStatus",
     "BackendKind",
+    "BackendQualityGate",
+    "BackendQualityStatus",
+    "BackendSelection",
+    "BackendSelectionStatus",
     "CapacitySource",
     "CostModel",
     "QuotaConfidence",
@@ -56,5 +69,6 @@ __all__ = [
     "detect_capacity",
     "discover_research_backends",
     "evaluate_backend_eligibility",
+    "select_capacity_backend",
     "summarize_quota_state",
 ]
