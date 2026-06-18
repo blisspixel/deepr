@@ -7,7 +7,7 @@
 
 **Domain experts, not another chat window.**
 
-In plain terms: you bring your own AI accounts (OpenAI, Gemini, Grok, Anthropic - any one is enough), and Deepr routes each research question to the cheapest model that can handle it, then builds experts that remember what they learned.
+In plain terms: you bring your own AI accounts for full API-backed research (OpenAI, Gemini, Grok, Anthropic - any one is enough), and Deepr routes each research question to the cheapest model that can handle it, then builds experts that remember what they learned. For $0 local expert maintenance, Deepr can also use a scored and admitted Ollama model without any provider API call.
 
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath - it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows - so your experts are always available as team members, not just tools you invoke manually.
 
@@ -121,7 +121,7 @@ deepr doctor               # verify connectivity
 deepr research "Your question here"
 ```
 
-Results saved to `data/reports/` as markdown with citations. **You only need one API key to start**. Add more later and auto-mode routes to the best/cheapest model per task.
+Results saved to `data/reports/` as markdown with citations. **You only need one API key to start API-backed research**. Add more later and auto-mode routes to the best/cheapest model per task. Local expert maintenance can run without provider keys once Ollama is installed and a local model has been evaluated and admitted.
 
 See [docs/QUICK_START.md](docs/QUICK_START.md) and [docs/INSTALL.md](docs/INSTALL.md) for guided setup, Windows notes, and extras.
 
@@ -201,15 +201,16 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows what you can run with: local hardware, plan-based CLIs, and metered APIs. The routing gates prefer owned/prepaid capacity before paid fallback, with quota, quality, and budget checks defined before adapter execution.
+`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at $0. Plan-quota CLIs are visible but not yet execution backends; their adapters and live quota probes are still on the roadmap.
 
 ```bash
 deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, portable data
 deepr doctor                                               # connectivity + storage health
 deepr capacity --probe                                     # what's available, incl. local models
+deepr capacity next --task-class sync                      # ranked next actions for cheap capacity
 ```
 
-Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint:
+Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint. This is the usable capacity waterfall rung today:
 
 ```bash
 deepr expert absorb "Platform Team Expert" report.md --local
@@ -217,6 +218,7 @@ deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
 deepr eval local --max-models 2 --max-prompts 2 --save
 deepr capacity admit --from-eval latest --task-class sync --yes
+deepr capacity next --task-class sync
 ```
 
 Local models do not browse on their own. `--fresh-context` builds a free-only
@@ -229,6 +231,9 @@ for the full routing model.
 Saved local eval artifacts can now be admitted directly. Use `--from-eval latest`
 to select the newest `data/benchmarks/local_compare_*.json` artifact, or pass a
 specific artifact path when you want to admit a named model from an older run.
+Automatic local routing requires a measured admission score that clears the
+quality floor; scoreless manual admissions stay visible but do not silently take
+over the automatic path. `--local` remains the explicit override.
 
 ### Evidence and Calibration
 
@@ -294,7 +299,7 @@ Optional env controls:
 
 **Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
 
-**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
+**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 
@@ -319,12 +324,14 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 ## Requirements
 
 - Python 3.12+ (tested on 3.12-3.14)
-- **One API key** from any supported provider:
+- For full API-backed research, **one API key** from any supported provider:
   - [OpenAI](https://platform.openai.com/api-keys) - deep research + GPT models
   - [Gemini](https://aistudio.google.com/app/apikey) - cost-effective, large context
   - [xAI Grok](https://console.x.ai/) - Grok 4.3 flagship, Grok 4.20 research/freshness tiers, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
-- Optional: More API keys for smarter auto-routing
+- For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
+- Plan-quota CLIs are optional and visible in `deepr capacity`, but they are not execution backends yet. Adapters and live quota probes are tracked in the roadmap.
+- Optional: More API keys for smarter auto-routing and fallback
 - Optional: Node.js 18+ for web dashboard development
 
 ## Contributing
