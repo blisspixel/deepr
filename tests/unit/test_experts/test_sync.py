@@ -143,6 +143,28 @@ class TestSyncEngine:
         assert store.subscriptions[0].last_synced is not None  # cadence advanced
 
     @pytest.mark.asyncio
+    async def test_empty_fresh_context_skips_absorb(self, tmp_path):
+        store = _sub_store(tmp_path, Subscription(topic="Quiet Topic"))
+        engine = _engine(
+            tmp_path,
+            store,
+            {
+                "Quiet Topic": {
+                    "answer": "Fresh context is unavailable, so no meaningful changes can be reported.",
+                    "cost": 0.0,
+                    "fresh_context": {"source_count": 0},
+                }
+            },
+        )
+
+        result = await engine.sync(budget=1.0)
+
+        assert result.outcomes[0].status == "no_changes"
+        assert "no sources" in result.outcomes[0].detail
+        assert len(engine.belief_store.beliefs) == 0
+        assert store.subscriptions[0].last_synced is not None
+
+    @pytest.mark.asyncio
     async def test_dry_run_spends_and_writes_nothing(self, tmp_path):
         store = _sub_store(tmp_path, Subscription(topic="Topic X"))
 
