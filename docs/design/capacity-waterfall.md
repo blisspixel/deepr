@@ -15,11 +15,12 @@ the append-only `quota_ledger.jsonl` substrate and `deepr capacity`
 quota-state visibility; and the pure backend eligibility gate over
 `ResearchBackend` plus `QuotaState`; and the pure backend selector that orders
 eligible capacity by the waterfall and enforces optional measured quality
-floors; and `deepr eval local`, a local-Ollama comparison with either a local
-LLM judge or an explicitly approved CLI judge for producing review evidence
-before admission. Not yet built: feeding saved eval artifacts into routing,
-the plan-quota CLI adapters, live window/credit probes, adapter writes, and
-scheduler integration.
+floors; `deepr eval local`, a local-Ollama comparison with either a local LLM
+judge or an explicitly approved CLI judge for producing review evidence before
+admission; and `deepr capacity admit --from-eval latest`, which turns saved
+zero-cost local eval artifacts into admission records. Not yet built: feeding
+admitted local scores into runtime quality-floor selection, the plan-quota CLI
+adapters, live window/credit probes, adapter writes, and scheduler integration.
 
 ## Problem
 
@@ -147,8 +148,16 @@ use a CLI judge with `--judge-cli grok` or `--judge-command`, but only with
 `--allow-cli-judge`; Deepr cannot prove whether a vendor CLI is backed by
 subscription quota, prepaid credits, or metered credentials. The judge decides
 semantic quality; Deepr validates JSON shape, score range, latency, Deepr
-metered cost, and artifact output. The score is evidence for a human admission
-decision and later for measured quality floors.
+metered cost, prompt failures, and artifact output. The score is evidence for a
+human admission decision and later for measured quality floors.
+
+`deepr capacity admit --from-eval` closes the manual evidence handoff. It loads
+a saved local comparison artifact, chooses the named model or the artifact
+winner, rejects nonzero-cost artifacts, enforces score ranges and a default
+minimum score, rejects failed prompt attempts, and writes the score plus artifact
+summary into the machine-local admission ledger only after the operator accepts
+the admission. `--from-eval latest` is the convenience path for the newest
+`data/benchmarks/local_compare_*.json` artifact.
 
 ### No-surprise-bills invariants
 
@@ -180,12 +189,14 @@ scheduler work remains.
 7. Backend selector over eligibility plus measured quality floors. (done)
 8. Local comparison with a local LLM judge or explicit CLI judge for admission
    evidence. (done)
-9. First plan_quota rungs, in priority order from the survey: Copilot CLI and
-   Cursor (Auto mode), then Claude Code's credit pool (overflow OFF), then
-   Codex (API-key path), Kimi/GLM/Qwen via the engine matrix, Kiro (with the
-   mandatory reserve floor). Each behind an explicit opt-in and a "sanctioned
-   as of <date>" kill switch.
-10. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
+9. Saved local eval artifacts feed admission with deterministic gates. (done)
+10. Feed admitted local scores into runtime quality-floor selection.
+11. Capacity quality-of-life path: ranked next actions, latest-artifact hints,
+   block-reason previews, and scheduler suggestions.
+12. First plan_quota rungs, in priority order from the vendor survey: the
+   highest-confidence first-party CLIs and endpoint-backed coding plans, each
+   behind an explicit opt-in and a "sanctioned as of <date>" kill switch.
+13. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
 ## Open questions
