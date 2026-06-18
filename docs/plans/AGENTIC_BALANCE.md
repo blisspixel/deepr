@@ -116,7 +116,7 @@ itself a hidden nondeterminism.
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | **Workflow** ("parse, don't validate") | Form is decidable from structure alone |
 | Capacity waterfall routing | **Workflow gate over agent work** | Admission, eligibility, selection, and numeric quality-floor gates guard metered spend, quota exhaustion, overage, reserve floors, and task class routing; evals and model review may produce quality evidence, but workflow code enforces the threshold |
 | Local model comparison | **Agent meaning, workflow envelope** | A local or explicit CLI judge scores semantic answer quality; deterministic code validates score shape/range, reports Deepr metered cost `$0`, records latency, requires CLI-judge opt-in, and keeps admission a human-reviewed gate |
-| Expert loop run state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but completion, budget/capacity stop, verifier pass/fail, and resumability are durable state |
+| Loop admission, ExpertLoopRun state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but admission, completion, budget/capacity stop, verifier pass/fail, acceptance metrics, and resumability are durable state |
 | OKF export/import | **Workflow envelope, agent meaning** | Markdown/YAML shape and source-trust gates are deterministic; claim extraction and contradiction/grounding stay calibrated model judgment |
 | Contradiction / grounding / atomicity / dedup | **Agent** (calibrated model judgment) | Meaning; lexical rules are brittle (checks doc) |
 | What to research next, gap selection, council adjudication | **Agent** | Open-ended; cannot be flowcharted in advance |
@@ -155,12 +155,30 @@ be hardcoded without becoming brittle - and then keep the deterministic gates on
 its side-effects, calibrate any judgment on the critical path, and prefer the
 least autonomy that solves the task.
 
+Use a **loop** only when all four are true:
+
+1. The task repeats often enough that automation removes recurring human work.
+2. Verification is automated and independent of the agent's self-report.
+3. Budget/capacity is explicit, capped, and observable before work starts.
+4. The agent has the tools, logs, and state needed to inspect failures.
+
+If any condition is missing, keep the surface advisory, one-shot, or
+human-gated. The minimum viable loop is an automation trigger, a reusable context
+package, durable state, and a verifier gate. Goal loops come before meta/team
+loops; Deepr only widens autonomy after the smaller loop has acceptance metrics
+and failure telemetry.
+
 ## Invariants
 
 - Determinism guards side-effects and flowchartable control flow; it never
   stands in for semantic judgment (no hardcoded meaning).
 - No self-declared "done" or "confident" on the critical path is trusted without
   ground-truth measurement (calibration, continuity, end-to-end verification).
+- No loop is admitted without a verifier gate, a budget/capacity envelope,
+  durable state, and a typed stop condition.
+- Acceptance rate and cost per accepted knowledge change are workflow metrics;
+  if the loop rejects most attempted changes, it stays supervised while prompts,
+  tools, or verifiers improve.
 - Every model judge is calibrated and bias-checked before its verdict is trusted.
 - Autonomy is set per surface at the lowest level that solves the task; raising
   it is a deliberate, reversible decision with the side-effect gates intact.
