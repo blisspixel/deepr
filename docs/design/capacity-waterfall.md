@@ -4,7 +4,7 @@ Target: v2.16 (Phase 6). Status: implementation in progress, researched June 202
 surfaces verified; re-verify at implementation - this market moves
 monthly).
 
-Shipped so far (2026-06-17): `CostModel`/`BackendKind` types and read-only
+Current implementation: `CostModel`/`BackendKind` types and read-only
 `deepr capacity` detection (step 2); the `local-ollama` backend and `--local`
 execution (step 4 substrate); and eval-gated **local admission** with automatic
 owned-capacity-first selection for expert maintenance - `deepr capacity admit`
@@ -12,9 +12,10 @@ owned-capacity-first selection for expert maintenance - `deepr capacity admit`
 admitted local model at $0 before metered API (the local rung of step 5, with
 `--local`/`--api` overrides); the normalized `ResearchBackend` profile; plus
 the append-only `quota_ledger.jsonl` substrate and `deepr capacity`
-quota-state visibility. Not yet built: the plan-quota CLI adapters, live
-window/credit probes, and per-task-class quality gates beyond the admission
-flag.
+quota-state visibility; and the pure backend eligibility gate over
+`ResearchBackend` plus `QuotaState`. Not yet built: the plan-quota CLI
+adapters, live window/credit probes, adapter writes, and per-task-class quality
+gates beyond the admission flag.
 
 ## Problem
 
@@ -104,13 +105,22 @@ Invariants: when remaining-confidence is low, treat the window as
 exhausted; a `plan_quota` backend whose vendor bills overage (Kiro) gets a
 hard reserve floor (default 10%) that the waterfall never dips into.
 
-Shipped 2026-06-17: the ledger substrate exists as
+The ledger substrate exists as
 `data/capacity/quota_ledger.jsonl` (or `DEEPR_CAPACITY_DATA_DIR`) with typed
 events for usage, window sightings, exhaustion, overage state, reset
 observations, and quarantine. `deepr capacity` reads and summarizes the latest
 local observation per backend/account without invoking vendor CLIs. Remaining
 work is adapter-side probes that populate the ledger and scheduler decisions
 that consume it.
+
+`evaluate_backend_eligibility` consumes a
+`ResearchBackend` and the observed `QuotaState` list before execution. It
+blocks unavailable backends, unsupported task classes, metered backends without
+an explicit budget gate, missing quota observations, unknown remaining quota,
+exhausted windows, quarantines, overage-enabled plan backends, and reserve-floor
+breaches. If a backend has multiple account-scoped quota states, the gate
+selects an eligible account when one exists; otherwise it returns the
+highest-priority block reason for the pool.
 
 ### Eval-gated local admission
 
@@ -132,7 +142,7 @@ No eval, no admission - "it's free" never overrides "it's good enough".
 
 ## Order of operations
 
-Steps 1-5 are shipped or substantially built (see Status at top); adapter and
+Steps 1-6 are shipped or substantially built (see Status at top); adapter and
 scheduler work remains.
 
 1. `CostModel`/`BackendKind` types + read-only `deepr capacity` detection. (done)
@@ -144,12 +154,14 @@ scheduler work remains.
    many capacity endpoints) rather than one adapter per vendor. (done)
 5. Quota ledger substrate + `deepr capacity` quota-state visibility. (done)
    Window/credit probes per capacity source remain.
-6. First plan_quota rungs, in priority order from the survey: Copilot CLI and
+6. Backend eligibility gate over `ResearchBackend` and observed `QuotaState`.
+   (done)
+7. First plan_quota rungs, in priority order from the survey: Copilot CLI and
    Cursor (Auto mode), then Claude Code's credit pool (overflow OFF), then
    Codex (API-key path), Kimi/GLM/Qwen via the engine matrix, Kiro (with the
    mandatory reserve floor). Each behind an explicit opt-in and a "sanctioned
    as of <date>" kill switch.
-7. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
+8. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
 ## Open questions
