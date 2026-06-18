@@ -161,6 +161,34 @@ def _print_admissions_summary() -> None:
         click.echo("`expert sync`/`absorb` use a local model automatically (review quality first).")
 
 
+@capacity.command(name="next")
+@click.option("--task-class", default="sync", show_default=True, help="Task class to plan for, e.g. sync or absorb.")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def capacity_next(task_class: str, json_output: bool):
+    """Show the next safe actions for using cheap capacity.
+
+    Read-only and $0: explains whether automatic local routing is ready, why it
+    is blocked, and which command most directly unblocks it.
+    """
+    from deepr.backends.capacity_actions import build_capacity_next_actions
+
+    actions = build_capacity_next_actions(task_class=task_class)
+    if json_output:
+        click.echo(_json.dumps([action.to_dict() for action in actions], indent=2))
+        return
+
+    click.echo(f"Capacity next actions for task class: {task_class}\n")
+    if not actions:
+        click.echo("No next actions found.")
+        return
+
+    for action in actions:
+        click.echo(f"{action.rank}. {action.title} [{action.status}]")
+        click.echo(f"   {action.detail}")
+        if action.command:
+            click.echo(f"   {action.command}")
+
+
 @capacity.command(name="admit")
 @click.argument("model", required=False)
 @click.option(
