@@ -110,11 +110,11 @@ itself a hidden nondeterminism.
 
 | Surface | Setting | Why |
 |---|---|---|
-| Budget enforcement, cost ledger, quota ledger, daily/monthly caps | **Workflow** (deterministic, gated) | Irreversible spend and quota exhaustion; the audit promise breaks if model-driven |
+| Budget enforcement, cost ledger, quota ledger, backend eligibility, daily/monthly caps | **Workflow** (deterministic, gated) | Irreversible spend and quota exhaustion; the audit promise breaks if model-driven |
 | Belief/knowledge persistence, archival, restore | **Workflow** | State writes; reversibility must be executable, not judged |
 | Permission/approval flows, capacity admission | **Workflow** | Gate the irreversible action (spend, exec), not the reasoning (NVIDIA) |
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | **Workflow** ("parse, don't validate") | Form is decidable from structure alone |
-| Capacity waterfall routing | **Workflow gate over agent work** | Admission gates the metered side-effect; the research itself is model-driven |
+| Capacity waterfall routing | **Workflow gate over agent work** | Admission and eligibility gates guard metered spend, quota exhaustion, overage, reserve floors, and task class routing; the research itself is model-driven |
 | Expert loop run state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but completion, budget/capacity stop, verifier pass/fail, and resumability are durable state |
 | OKF export/import | **Workflow envelope, agent meaning** | Markdown/YAML shape and source-trust gates are deterministic; claim extraction and contradiction/grounding stay calibrated model judgment |
 | Contradiction / grounding / atomicity / dedup | **Agent** (calibrated model judgment) | Meaning; lexical rules are brittle (checks doc) |
