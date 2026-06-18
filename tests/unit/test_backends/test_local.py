@@ -54,6 +54,35 @@ class TestResearchFn:
         result = await fn("what changed?", 5.0)
         assert result == {"answer": "the answer", "cost": 0.0}
 
+    async def test_injects_context_builder_output(self):
+        async def context_builder(query):
+            assert query == "what changed?"
+            return "## Fresh retrieval context\n[S1] Source\nURL: https://example.com\nnew facts"
+
+        client = _FakeClient(content="the answer")
+        fn = local.make_local_research_fn("qwen", client=client, context_builder=context_builder)
+        result = await fn("what changed?", 5.0)
+        prompt = client.chat.completions.calls[0]["messages"][0]["content"]
+        assert result == {"answer": "the answer", "cost": 0.0}
+        assert "Fresh retrieval context" in prompt
+        assert "what changed?" in prompt
+        assert "cite source labels" in prompt
+
+    async def test_reports_context_metadata(self):
+        class _Context:
+            def to_prompt_context(self):
+                return "ctx"
+
+            def to_metadata(self):
+                return {"source_count": 1}
+
+        async def context_builder(_query):
+            return _Context()
+
+        fn = local.make_local_research_fn("qwen", client=_FakeClient(content="ok"), context_builder=context_builder)
+        result = await fn("q", 1.0)
+        assert result["fresh_context"] == {"source_count": 1}
+
     async def test_errors_are_reported_not_raised(self):
         fn = local.make_local_research_fn("qwen", client=_FakeClient(error=RuntimeError("boom")))
         result = await fn("q", 1.0)
