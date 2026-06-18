@@ -17,10 +17,12 @@ quota-state visibility; and the pure backend eligibility gate over
 eligible capacity by the waterfall and enforces optional measured quality
 floors; `deepr eval local`, a local-Ollama comparison with either a local LLM
 judge or an explicitly approved CLI judge for producing review evidence before
-admission; and `deepr capacity admit --from-eval latest`, which turns saved
-zero-cost local eval artifacts into admission records. Not yet built: feeding
-admitted local scores into runtime quality-floor selection, the plan-quota CLI
-adapters, live window/credit probes, adapter writes, and scheduler integration.
+admission; `deepr capacity admit --from-eval latest`, which turns saved
+zero-cost local eval artifacts into admission records; runtime admitted-score
+quality-floor selection for expert maintenance; and `deepr capacity next` for
+ranked local setup, admission, eval refresh, and fallback guidance. Not yet
+built: the plan-quota CLI adapters, live window/credit probes, adapter writes,
+and scheduler integration.
 
 ## Problem
 
@@ -159,6 +161,18 @@ summary into the machine-local admission ledger only after the operator accepts
 the admission. `--from-eval latest` is the convenience path for the newest
 `data/benchmarks/local_compare_*.json` artifact.
 
+Automatic expert-maintenance routing consumes the admitted score at runtime.
+Each live admission becomes a normalized local `ResearchBackend`; the waterfall
+selector receives the admission score as measured quality evidence and enforces
+the same default floor (`0.70`). Scoreless manual admissions remain visible for
+audit, but they do not silently take over `expert sync` or `expert absorb`.
+`--local` remains the explicit operator override.
+
+`deepr capacity next` is the first quality-of-life surface over those gates. It
+does not run research or make provider calls; it ranks the current local-routing
+block reason, Ollama setup, latest usable eval-artifact admission, eval refresh,
+and explicit metered fallback for a task class.
+
 ### No-surprise-bills invariants
 
 1. Every backend declares its cost model; only `api_metered` may produce
@@ -190,9 +204,10 @@ scheduler work remains.
 8. Local comparison with a local LLM judge or explicit CLI judge for admission
    evidence. (done)
 9. Saved local eval artifacts feed admission with deterministic gates. (done)
-10. Feed admitted local scores into runtime quality-floor selection.
-11. Capacity quality-of-life path: ranked next actions, latest-artifact hints,
-   block-reason previews, and scheduler suggestions.
+10. Feed admitted local scores into runtime quality-floor selection. (done)
+11. Capacity quality-of-life path: ranked next actions and latest-artifact
+   hints are in place. Remaining: concrete job block-reason previews and
+   scheduler suggestions.
 12. First plan_quota rungs, in priority order from the vendor survey: the
    highest-confidence first-party CLIs and endpoint-backed coding plans, each
    behind an explicit opt-in and a "sanctioned as of <date>" kill switch.

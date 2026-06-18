@@ -754,6 +754,8 @@ deepr capacity admit qwen2.5:14b --from-eval data/benchmarks/local_compare_20260
 
 `--from-eval latest` resolves the newest `data/benchmarks/local_compare_*.json` artifact. Deepr only accepts zero-cost local eval artifacts, enforces score ranges, rejects failed prompt results, applies a default minimum score of `0.70`, and records the artifact summary in the machine-local admission ledger. Use `--min-score` to raise or lower the floor for a specific admission.
 
+Automatic local routing now uses the admitted score as runtime quality evidence. A scoreless manual admission is still visible in `deepr capacity admissions`, but it does not take over `expert sync` or `expert absorb` automatically because it cannot clear the measured quality floor. Use `--local` when you want an explicit one-off override.
+
 CLI judges are supported for plan or subscription tools when the operator explicitly approves them with `--allow-cli-judge`. The Grok preset expands to a headless prompt-file command; custom commands must include `{prompt_file}` and run with `shell=False`. Deepr still records metered cost `$0`, but the external CLI may consume its own quota or credits, so this path is never auto-selected.
 
 ### Evidence Evals (Continuity and Calibration)
@@ -789,6 +791,7 @@ deepr doctor
 # See what you can actually run with: owned/prepaid capacity first.
 deepr capacity            # local Ollama, plan CLIs, metered APIs + cost model
 deepr capacity --probe    # actively probe local endpoint and list models
+deepr capacity next       # ranked next actions for making cheap capacity usable
 deepr capacity --json
 ```
 
@@ -808,10 +811,13 @@ deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
 deepr capacity admissions          # what's admitted (and when it expires)
+deepr capacity next --task-class sync
 deepr capacity revoke llama3.1 --task-class absorb
 ```
 
-After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
+After scored admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
+
+`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, and explicit metered fallback. It is read-only, runs no research, and makes no provider API calls.
 
 Local models do not automatically have current web context. For sync runs that
 need freshness, add `--fresh-context` with `--local` or an admitted local sync
@@ -822,7 +828,7 @@ Deepr: it can fetch explicit URLs and can use DuckDuckGo when
 API-key search providers. If no fresh sources are available, the prompt tells
 the local model to say that current context is unavailable.
 
-Plan-quota adapters are still being wired, but their routing gates are already defined. Selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
+Plan-quota adapters are still being wired. `deepr capacity` can detect the relevant CLIs and show the cost model, but Deepr does not execute work through those plan quotas yet. Their routing gates are already defined: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 

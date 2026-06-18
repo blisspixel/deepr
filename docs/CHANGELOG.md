@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr capacity next`, a read-only `$0` guidance surface that ranks
+  the current capacity block reason, local setup steps, latest usable eval
+  artifact admission, eval refresh, and explicit metered fallback for a task
+  class.
 - Added saved local eval artifact admission:
   `deepr capacity admit --from-eval <path|latest> --task-class <task>` loads
   `deepr eval local --save` output, validates zero Deepr metered cost, score
@@ -40,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider APIs.
 
 ### Changed
+- Automatic local routing now feeds admitted scores into the runtime quality
+  floor. Scoreless manual admissions remain visible but no longer take over
+  `expert sync` or `expert absorb` automatically; `--local` remains the
+  explicit override.
 - Aligned the capacity README, roadmap, changelog, and design notes so the
   README stays as the front-door summary, the roadmap stays forward-facing, and
   release history remains in the changelog.
