@@ -728,9 +728,15 @@ deepr eval new --dry-run --tier all
 
 # Intentional larger run
 deepr eval new --max-estimated-cost 3
+
+# Local-only comparison at $0: candidates and judge all run through Ollama
+deepr eval local --model qwen2.5:14b --model qwen3-coder:30b --judge-model qwen2.5:14b
+deepr eval local --max-models 2 --max-prompts 2 --save
 ```
 
 Use `--tier all` full-catalog runs sparingly; they are for periodic baseline refreshes, not daily iteration.
+
+`deepr eval local` is the no-provider path for comparing local Ollama models before admitting one for automatic maintenance. It runs the built-in `agentic-loops` prompt set, asks a local judge model to score each answer against the rubric, reports the winner, latency, and cost `$0`, and can save JSON under `data/benchmarks`. The score is routing evidence, not ground truth: the judge handles semantic quality while Deepr validates response shape, score range, and cost.
 
 ### Evidence Evals (Continuity and Calibration)
 
@@ -778,12 +784,13 @@ deepr expert sync "Platform Team Expert" --api                 # force metered A
 
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
+deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
 deepr capacity admissions          # what's admitted (and when it expires)
 deepr capacity revoke llama3.1 --task-class absorb
 ```
 
-After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions expire (default 90 days) so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine.
+After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local` as the cheap review step before admitting a model.
 
 Plan-quota adapters are still being wired, but their routing gates are already defined. Selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 

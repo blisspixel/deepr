@@ -184,6 +184,9 @@ Deepr includes a cost-safe benchmark workflow for keeping routing current as mod
 # Evaluate only new/missing model+tier combinations (default $1 preflight cap)
 deepr eval new
 
+# Compare local Ollama models with a local judge at $0
+deepr eval local --model qwen2.5:14b --model qwen3-coder:30b --judge-model qwen2.5:14b
+
 # Estimate first, no spend
 deepr eval new --dry-run --tier all
 
@@ -191,7 +194,7 @@ deepr eval new --dry-run --tier all
 deepr eval new --max-estimated-cost 3
 ```
 
-The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks.
+The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model.
 
 ### Setup and Capacity
 
@@ -208,6 +211,7 @@ Local-model execution runs quality-tolerant expert maintenance at $0 against a l
 ```bash
 deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
+deepr eval local --max-models 2 --max-prompts 2
 ```
 
 See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity) for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the full routing model.
