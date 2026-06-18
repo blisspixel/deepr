@@ -187,7 +187,8 @@ This is the canonical plan for remaining work. Keep each item in one place only;
 - Design for composability: experts are roles that receive input, produce handoff-ready output, and participate in multi-agent teams without owning the workflow.
 - Experts are tailored second brains, not one generic vault. The unit of knowledge is the expert: a domain-scoped knowledge base (beliefs, confidence, gaps, citations) that stays current on its topic and deploys as part of an agent team. Deepr gives you second brains with an s, not a single undifferentiated brain, and the value compounds when those brains are consulted as a team.
 - Make experts genuinely agentic: they plan, reflect, self-correct, and learn - not just wrap LLM calls.
-- Close the loop before widening it (loop engineering): an advisory surface (health-check proposes, route-gaps recommends, reflection emits follow-up queries) is half a loop - the value compounds when it graduates to scheduled, budget-bounded *execution* that persists across process restarts. Prioritize loop closers (expert sync, auto re-research, autonomous gap-fill, durable learner jobs) over adding more advisory surfaces; the trade of tokens for human time is what Phase 6's prepaid/local capacity makes affordable. A Deepr loop is not just `while not done`: it has durable state, a budget/capacity contract, an independent verifier, a resumable run record, and a clear stop condition.
+- Close the loop before widening it (loop engineering): an advisory surface (health-check proposes, route-gaps recommends, reflection emits follow-up queries) is half a loop - the value compounds when it graduates to scheduled, budget-bounded *execution* that persists across process restarts. Prioritize loop closers (expert sync, auto re-research, autonomous gap-fill, durable learner jobs) over adding more advisory surfaces; the trade of tokens for human time is what Phase 6's prepaid/local capacity makes affordable. A Deepr loop is not just `while not done`: it has durable state, a budget/capacity contract, an independent verifier, a resumable run record, a clear stop condition, and acceptance metrics.
+- Admit loops only when the harness can prove progress: the task repeats, verification is automated, budget/capacity is explicit, and the agent has the tools/logs/state needed to inspect failures. If any of those are missing, keep the surface advisory, one-shot, or human-gated. The minimum viable Deepr loop is an automation trigger, a reusable expert context package, a durable state file/record, and a verifier gate. Goal loops come before meta/team loops; Deepr widens autonomy only after the closed loop has acceptable acceptance rate, cost per accepted knowledge change, and failure telemetry.
 - Treat portable knowledge formats as interchange, not authority. OKF fits Deepr as an export/import contract (Markdown concepts, YAML frontmatter, `index.md`, `log.md`, bundle links) because agents can read it anywhere. It must remain a derived view or an ingestion source: canonical truth stays in the structured belief/event/edge store, and OKF import goes through the same verify/absorb pipeline as any other corpus. Do not let an agent-maintained wiki bypass source trust, contradiction checks, or the generated-artifact regeneration invariant.
 - Self-improvement is a verification problem (recursive self-improvement, bounded): Deepr runs improvement loops (knowledge: research -> verified absorb -> beliefs -> reflection -> re-research; routing: evals -> rankings -> picks -> outcomes; self-knowledge: health-check/what-changed/contested), and is the substrate for *other* agents' improvement loops (trusted memory + perspective deltas + contradiction surfacing + inference chains + bounded spend). The governing insight, proven live 2026-06-11 twice: an unverified improvement loop is a degradation loop - saturated eval scores "improved" routing into a nano model; a bypassable budget gate was no gate. The sign of the feedback is set by measurement integrity and gate integrity, so verification machinery is never overhead on the loops - it IS the loops. Unbounded self-modification stays a non-goal; machinery-level self-improvement (trace-based skill/prompt evolution) ships only behind tests, size limits, and human review.
 - Speak every protocol: MCP for tools, A2A for agent-to-agent, agentskills.io for portability.
@@ -416,18 +417,24 @@ Reflection loop and graph memory are the larger, higher-risk items and come afte
 
 **2026-06-18 loop/OKF research update.** The useful part of the current loop
 engineering push is narrower than the hype: long-running agents work when the
-harness makes context, reviewer checks, handoff artifacts, stop conditions, and
-tool execution explicit. OKF v0.1 adds a portable Markdown/YAML knowledge-bundle
-shape that other agents can read directly. Deepr should absorb the pattern, not
-become a generic orchestrator: experts run verified knowledge loops, expose
-machine-readable loop state, and export/import portable knowledge without
-letting generated Markdown become authority over the belief store.
+harness makes context, reviewer checks, handoff artifacts, stop conditions, tool
+execution, and acceptance metrics explicit. OKF v0.1 adds a portable
+Markdown/YAML knowledge-bundle shape that other agents can read directly. Deepr
+should absorb the pattern, not become a generic orchestrator: experts run
+verified knowledge loops, expose machine-readable loop state, and export/import
+portable knowledge without letting generated Markdown become authority over the
+belief store. Detailed loop contract: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops.md).
 
 - [ ] Verified expert-loop substrate:
+  - [ ] Add a loop admission contract: no surface graduates from advisory to
+        autonomous until the task repeats, the verifier is automated, the
+        budget/capacity envelope is explicit, and the loop can inspect the
+        tools, logs, and state needed to diagnose failures.
   - [ ] Define an `ExpertLoopRun` record for sync, gap-fill, reflection
         follow-ups, health-check actions, and future campaigns: goal, expert,
         triggering surface, budget/capacity source, verifier result, stop
-        reason, trace id, and resumable queue/job ids.
+        reason, trace id, resumable queue/job ids, acceptance rate, accepted vs
+        rejected knowledge changes, and cost per accepted knowledge change.
   - [ ] Add `deepr expert loop-status NAME` (plus MCP read tool) showing last
         run, due subscriptions, open gaps, stale/contested beliefs, verifier
         failures, next action, and whether the next run can use local/plan
@@ -954,20 +961,26 @@ workflow orchestrator. This release lands after capacity because routine loops
 need cheap/default-free execution, and before hosted reach because remote agents
 need a stable local contract to consume.
 
-1. [ ] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
+Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops.md).
+
+1. [ ] Loop admission contract: no surface graduates from advisory to
+   autonomous until the task repeats, the verifier is automated, the
+   budget/capacity envelope is explicit, and the loop has tools/logs/state for
+   failure diagnosis.
+2. [ ] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
    durable loop records, stop reasons, verifier outcomes, budget/capacity source,
-   and next actions for sync, gap-fill, reflection follow-ups, health-check
-   actions, and future campaigns.
-2. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
+   acceptance metrics, and next actions for sync, gap-fill, reflection follow-ups,
+   health-check actions, and future campaigns.
+3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
    failure reason. No model self-declared completion on the critical path.
-3. [ ] OKF export/import: `export-okf` as a regenerated derived view over the
-   belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
-   `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,
-   and optional `llms.txt` discovery.
 4. [ ] Loop dashboard/API surface: freshness, gap velocity, contested/open
    verifier failures, last sync result, next scheduled action, and capacity source
    for the next run.
+5. [ ] OKF export/import: `export-okf` as a regenerated derived view over the
+   belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
+   `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,
+   and optional `llms.txt` discovery.
 
 ### v2.18 - The reach release ("callable from anywhere")
 
