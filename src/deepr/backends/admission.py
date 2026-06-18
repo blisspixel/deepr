@@ -120,56 +120,20 @@ def load_local_eval_evidence(
     range, requested model match, minimum score, and no failed prompt attempts.
     """
     _validate_probability("min_score", min_score)
-    try:
-        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise AdmissionEvidenceError(f"could not read eval artifact: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise AdmissionEvidenceError(f"eval artifact is not valid JSON: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise AdmissionEvidenceError("eval artifact must be a JSON object")
-
-    cost = _as_float(payload.get("cost"), "artifact cost")
-    if cost != 0.0:
-        raise AdmissionEvidenceError("only zero-cost local eval artifacts can be used for local admission")
+    payload = _load_eval_payload(artifact_path)
+    _validate_zero_cost(
+        payload.get("cost"),
+        "artifact cost",
+        "only zero-cost local eval artifacts can be used for local admission",
+    )
 
     comparisons = payload.get("comparisons")
     if not isinstance(comparisons, list) or not comparisons:
         raise AdmissionEvidenceError("eval artifact has no model comparisons")
 
     selected = _select_eval_comparison(comparisons, model=model, winner=str(payload.get("winner") or ""))
-    selected_model = _required_str(selected.get("model"), "comparison model")
-    selected_cost = _as_float(selected.get("cost"), f"{selected_model} comparison cost")
-    if selected_cost != 0.0:
-        raise AdmissionEvidenceError("only zero-cost local model comparisons can be used for local admission")
-    score = _as_float(selected.get("average_score"), f"{selected_model} average_score")
-    _validate_probability(f"{selected_model} average_score", score)
-    if score < min_score:
-        raise AdmissionEvidenceError(f"{selected_model} score {score:.3f} is below required minimum {min_score:.3f}")
-
-    prompt_results = selected.get("prompt_results")
-    if not isinstance(prompt_results, list) or not prompt_results:
-        raise AdmissionEvidenceError(f"{selected_model} has no prompt results")
-    errors = [
-        str(result.get("prompt_id") or "?")
-        for result in prompt_results
-        if isinstance(result, dict) and result.get("error")
-    ]
-    if errors:
-        raise AdmissionEvidenceError(f"{selected_model} has failed prompt results: {', '.join(errors)}")
-
-    task_classes: set[str] = set()
-    for index, result in enumerate(prompt_results, start=1):
-        if not isinstance(result, dict):
-            raise AdmissionEvidenceError(f"{selected_model} prompt result {index} is not an object")
-        verdict = result.get("verdict")
-        if not isinstance(verdict, dict):
-            raise AdmissionEvidenceError(f"{selected_model} prompt result {index} has no verdict")
-        verdict_score = _as_float(verdict.get("score"), f"{selected_model} prompt result {index} score")
-        _validate_probability(f"{selected_model} prompt result {index} score", verdict_score)
-        task_class = result.get("task_class")
-        if isinstance(task_class, str) and task_class:
-            task_classes.add(task_class)
+    selected_model, score, prompt_results = _extract_selected_eval_result(selected, min_score=min_score)
+    task_classes = _validate_prompt_results(selected_model, prompt_results)
 
     return LocalEvalAdmissionEvidence(
         model=selected_model,
@@ -179,10 +143,83 @@ def load_local_eval_evidence(
         methodology_version=str(payload.get("methodology_version") or "unknown"),
         generated_at=str(payload.get("generated_at") or ""),
         prompt_count=len(prompt_results),
-        task_classes=tuple(sorted(task_classes)),
+        task_classes=task_classes,
         artifact_path=artifact_path,
         winner=str(payload.get("winner") or ""),
     )
+
+
+def _load_eval_payload(artifact_path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise AdmissionEvidenceError(f"could not read eval artifact: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise AdmissionEvidenceError(f"eval artifact is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise AdmissionEvidenceError("eval artifact must be a JSON object")
+    return payload
+
+
+def _validate_zero_cost(value: Any, label: str, message: str) -> None:
+    cost = _as_float(value, label)
+    if cost != 0.0:
+        raise AdmissionEvidenceError(message)
+
+
+def _extract_selected_eval_result(
+    selected: dict[str, Any],
+    *,
+    min_score: float,
+) -> tuple[str, float, list[Any]]:
+    selected_model = _required_str(selected.get("model"), "comparison model")
+    _validate_zero_cost(
+        selected.get("cost"),
+        f"{selected_model} comparison cost",
+        "only zero-cost local model comparisons can be used for local admission",
+    )
+    score = _as_float(selected.get("average_score"), f"{selected_model} average_score")
+    _validate_probability(f"{selected_model} average_score", score)
+    if score < min_score:
+        raise AdmissionEvidenceError(f"{selected_model} score {score:.3f} is below required minimum {min_score:.3f}")
+
+    prompt_results = selected.get("prompt_results")
+    if not isinstance(prompt_results, list) or not prompt_results:
+        raise AdmissionEvidenceError(f"{selected_model} has no prompt results")
+    return selected_model, score, prompt_results
+
+
+def _validate_prompt_results(selected_model: str, prompt_results: list[Any]) -> tuple[str, ...]:
+    errors = _failed_prompt_ids(prompt_results)
+    if errors:
+        raise AdmissionEvidenceError(f"{selected_model} has failed prompt results: {', '.join(errors)}")
+
+    task_classes: set[str] = set()
+    for index, result in enumerate(prompt_results, start=1):
+        task_class = _validate_prompt_result(selected_model, index, result)
+        if task_class:
+            task_classes.add(task_class)
+    return tuple(sorted(task_classes))
+
+
+def _failed_prompt_ids(prompt_results: list[Any]) -> list[str]:
+    return [
+        str(result.get("prompt_id") or "?")
+        for result in prompt_results
+        if isinstance(result, dict) and result.get("error")
+    ]
+
+
+def _validate_prompt_result(selected_model: str, index: int, result: Any) -> str | None:
+    if not isinstance(result, dict):
+        raise AdmissionEvidenceError(f"{selected_model} prompt result {index} is not an object")
+    verdict = result.get("verdict")
+    if not isinstance(verdict, dict):
+        raise AdmissionEvidenceError(f"{selected_model} prompt result {index} has no verdict")
+    verdict_score = _as_float(verdict.get("score"), f"{selected_model} prompt result {index} score")
+    _validate_probability(f"{selected_model} prompt result {index} score", verdict_score)
+    task_class = result.get("task_class")
+    return task_class if isinstance(task_class, str) and task_class else None
 
 
 def _select_eval_comparison(comparisons: list[Any], *, model: str | None, winner: str) -> dict[str, Any]:
