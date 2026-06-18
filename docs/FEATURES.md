@@ -826,7 +826,8 @@ prompt and asks the model to cite source labels. This path is free-only inside
 Deepr: it can fetch explicit URLs and can use DuckDuckGo when
 `duckduckgo-search` is installed, but it does not use Brave, Tavily, or other
 API-key search providers. If no fresh sources are available, the prompt tells
-the local model to say that current context is unavailable.
+the local model to say that current context is unavailable, and sync records no
+changes instead of absorbing that uncertainty as permanent beliefs.
 
 Plan-quota adapters are still being wired. `deepr capacity` can detect the relevant CLIs and show the cost model, but Deepr does not execute work through those plan quotas yet. Their routing gates are already defined: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 
