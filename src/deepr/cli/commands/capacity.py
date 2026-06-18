@@ -247,7 +247,8 @@ def capacity_admit(
             click.echo("Cancelled.")
             return
 
-    assert model is not None
+    if model is None:
+        raise click.ClickException("MODEL is required unless --from-eval is provided.")
     adm = record_admission(model, task_class, days=lifetime, score=score, note=note)
     exp = adm.expires_at.strftime("%Y-%m-%d") if adm.expires_at else "never"
     click.echo(f"Admitted '{model}' for '{task_class}' until {exp}.")
