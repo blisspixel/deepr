@@ -63,18 +63,15 @@ adapter for scheduled expert maintenance.
 
 ## Build order from here
 
-1. Ingest saved `deepr eval local --save` artifacts into `deepr capacity admit`
-   so admission can be derived from reviewed local evidence instead of manual
-   score entry.
-2. Add a local freshness eval prompt set that compares local sync with and
+1. Add a local freshness eval prompt set that compares local sync with and
    without fresh context on time-sensitive questions.
-3. Persist fresh-context source packs as run artifacts so `ExpertLoopRun` can
+2. Persist fresh-context source packs as run artifacts so `ExpertLoopRun` can
    report which sources drove accepted or rejected changes.
-4. Teach scheduler integration to choose `--fresh-context` for due sync work
+3. Teach scheduler integration to choose `--fresh-context` for due sync work
    when the admitted local model is used for a freshness task.
-5. Add optional plan-quota retrieval adapters after the free path is measured,
+4. Add optional plan-quota retrieval adapters after the free path is measured,
    with quota observations written to the append-only quota ledger.
 
-The next immediate implementation slice is item 1: turn local eval artifacts
-into capacity admission evidence. That closes the manual gap between
-measurement and routing without widening autonomy.
+The eval-artifact admission slice has landed. The next immediate fresh-context
+slice is item 1: a local freshness eval prompt set. That gives the new
+retrieval loop an acceptance metric before schedulers choose it automatically.

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added saved local eval artifact admission:
+  `deepr capacity admit --from-eval <path|latest> --task-class <task>` loads
+  `deepr eval local --save` output, validates zero Deepr metered cost, score
+  ranges, minimum score, model match, and failed prompt results, then records
+  the selected model's score and artifact summary in the machine-local
+  admission ledger.
 - Added free-only fresh retrieval context for local expert sync:
   `deepr expert sync NAME --local --fresh-context` fetches explicit URLs and
   DuckDuckGo results when the optional package is installed, prepends bounded
