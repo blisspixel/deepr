@@ -732,11 +732,19 @@ deepr eval new --max-estimated-cost 3
 # Local-only comparison at $0: candidates and judge all run through Ollama
 deepr eval local --model qwen2.5:14b --model qwen3-coder:30b --judge-model qwen2.5:14b
 deepr eval local --max-models 2 --max-prompts 2 --save
+
+# Optional CLI judge: candidates stay local, judge runs through the approved CLI
+deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
+deepr eval local --model qwen2.5:14b \
+  --judge-command "grok --prompt-file {prompt_file} --output-format plain --disable-web-search --max-turns 1" \
+  --judge-name cli:grok --allow-cli-judge
 ```
 
 Use `--tier all` full-catalog runs sparingly; they are for periodic baseline refreshes, not daily iteration.
 
-`deepr eval local` is the no-provider path for comparing local Ollama models before admitting one for automatic maintenance. It runs the built-in `agentic-loops` prompt set, asks a local judge model to score each answer against the rubric, reports the winner, latency, and cost `$0`, and can save JSON under `data/benchmarks`. The score is routing evidence, not ground truth: the judge handles semantic quality while Deepr validates response shape, score range, and cost.
+`deepr eval local` is the no-provider path for comparing local Ollama models before admitting one for automatic maintenance. It runs the built-in `agentic-loops` prompt set, asks a local judge model to score each answer against the rubric, reports the winner, latency, and Deepr metered cost `$0`, and can save JSON under `data/benchmarks`. The score is routing evidence, not ground truth: the judge handles semantic quality while Deepr validates response shape, score range, and cost.
+
+CLI judges are supported for plan or subscription tools when the operator explicitly approves them with `--allow-cli-judge`. The Grok preset expands to a headless prompt-file command; custom commands must include `{prompt_file}` and run with `shell=False`. Deepr still records metered cost `$0`, but the external CLI may consume its own quota or credits, so this path is never auto-selected.
 
 ### Evidence Evals (Continuity and Calibration)
 
@@ -785,6 +793,7 @@ deepr expert sync "Platform Team Expert" --api                 # force metered A
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
 deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b
+deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
 deepr capacity admissions          # what's admitted (and when it expires)
 deepr capacity revoke llama3.1 --task-class absorb

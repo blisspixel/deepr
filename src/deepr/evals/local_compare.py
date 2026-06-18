@@ -8,8 +8,12 @@ and reporting.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import shlex
+import subprocess
+import tempfile
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -21,6 +25,7 @@ from deepr.backends.local import ollama_chat_client
 
 METHODOLOGY_VERSION = "1.0"
 PROMPT_SET_AGENTIC_LOOPS = "agentic-loops"
+GROK_JUDGE_COMMAND = "grok --prompt-file {prompt_file} --output-format plain --disable-web-search --max-turns 1"
 
 
 @dataclass(frozen=True)
@@ -51,6 +56,21 @@ class LocalJudgeVerdict:
 
     def to_dict(self) -> dict[str, Any]:
         return {"score": self.score, "reason": self.reason, "raw": self.raw}
+
+
+@dataclass(frozen=True)
+class CliJudgeCommand:
+    """Explicit non-API CLI judge command template."""
+
+    template: str
+    display_name: str = "cli"
+    timeout_seconds: float = 120.0
+
+    def __post_init__(self) -> None:
+        if "{prompt_file}" not in self.template:
+            raise ValueError("CLI judge command must include {prompt_file}")
+        if self.timeout_seconds <= 0:
+            raise ValueError("CLI judge timeout must be positive")
 
 
 @dataclass(frozen=True)
@@ -184,7 +204,8 @@ def default_prompts(prompt_set: str = PROMPT_SET_AGENTIC_LOOPS) -> tuple[LocalEv
 async def run_local_comparison(
     models: Sequence[str],
     *,
-    judge_model: str,
+    judge_model: str = "",
+    judge_command: CliJudgeCommand | None = None,
     prompts: Sequence[LocalEvalPrompt] | None = None,
     prompt_set: str = PROMPT_SET_AGENTIC_LOOPS,
     base_url: str | None = None,
@@ -197,7 +218,7 @@ async def run_local_comparison(
     """
     if not models:
         raise ValueError("at least one local model is required")
-    if not judge_model:
+    if judge_command is None and not judge_model:
         raise ValueError("judge_model is required")
 
     prompt_tuple = tuple(prompts) if prompts is not None else default_prompts(prompt_set)
@@ -205,16 +226,17 @@ async def run_local_comparison(
         raise ValueError("at least one prompt is required")
 
     chat = client if client is not None else ollama_chat_client(base_url)
+    judge_label = judge_command.display_name if judge_command else judge_model
     comparisons: list[LocalModelComparison] = []
     for model in models:
         prompt_results = []
         for prompt in prompt_tuple:
-            prompt_results.append(await _run_prompt(chat, model, judge_model, prompt))
+            prompt_results.append(await _run_prompt(chat, model, judge_model, prompt, judge_command=judge_command))
         comparisons.append(LocalModelComparison(model=model, prompt_results=tuple(prompt_results)))
 
     return LocalComparisonReport(
         prompt_set=prompt_set,
-        judge_model=judge_model,
+        judge_model=judge_label,
         prompts=prompt_tuple,
         comparisons=tuple(comparisons),
     )
@@ -230,7 +252,14 @@ def write_report(report: LocalComparisonReport, *, output_dir: Path | None = Non
     return path
 
 
-async def _run_prompt(chat: Any, model: str, judge_model: str, prompt: LocalEvalPrompt) -> LocalPromptResult:
+async def _run_prompt(
+    chat: Any,
+    model: str,
+    judge_model: str,
+    prompt: LocalEvalPrompt,
+    *,
+    judge_command: CliJudgeCommand | None = None,
+) -> LocalPromptResult:
     start = time.perf_counter()
     try:
         answer = await _complete(
@@ -260,7 +289,11 @@ async def _run_prompt(chat: Any, model: str, judge_model: str, prompt: LocalEval
             error=str(exc),
         )
 
-    verdict = await _judge_answer(chat, judge_model=judge_model, prompt=prompt, answer=answer)
+    verdict = (
+        await _judge_answer_with_cli(judge_command, prompt=prompt, answer=answer)
+        if judge_command
+        else await _judge_answer(chat, judge_model=judge_model, prompt=prompt, answer=answer)
+    )
     return LocalPromptResult(
         prompt_id=prompt.prompt_id,
         task_class=prompt.task_class,
@@ -296,6 +329,52 @@ async def _judge_answer(chat: Any, *, judge_model: str, prompt: LocalEvalPrompt,
     except Exception as exc:
         return LocalJudgeVerdict(score=0.0, reason=f"judge model failed: {exc}", raw="")
     return parse_judge_verdict(raw)
+
+
+async def _judge_answer_with_cli(
+    judge_command: CliJudgeCommand, *, prompt: LocalEvalPrompt, answer: str
+) -> LocalJudgeVerdict:
+    judge_prompt = _build_judge_prompt(prompt, answer)
+    try:
+        raw = await asyncio.to_thread(_run_cli_judge_command, judge_command, judge_prompt)
+    except Exception as exc:
+        return LocalJudgeVerdict(score=0.0, reason=f"CLI judge failed: {exc}", raw="")
+    return parse_judge_verdict(raw)
+
+
+def _build_judge_prompt(prompt: LocalEvalPrompt, answer: str) -> str:
+    return (
+        "You are a strict evaluator. Evaluate only the text below. Do not use web search or tools.\n"
+        "Return only JSON with keys score and reason. score must be a number from 0 to 1.\n\n"
+        f"PROMPT:\n{prompt.prompt}\n\nRUBRIC:\n{prompt.rubric}\n\n"
+        f"ANSWER:\n{answer}\n\nReturn JSON only."
+    )
+
+
+def _run_cli_judge_command(judge_command: CliJudgeCommand, judge_prompt: str) -> str:
+    with tempfile.TemporaryDirectory(prefix="deepr-cli-judge-") as tmp:
+        prompt_file = Path(tmp) / "judge_prompt.txt"
+        prompt_file.write_text(judge_prompt, encoding="utf-8")
+        args = _render_cli_judge_args(judge_command.template, prompt_file)
+        completed = subprocess.run(  # noqa: S603 - explicit CLI judge opt-in; shell disabled, prompt file only.
+            args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=judge_command.timeout_seconds,
+            check=False,
+            shell=False,
+        )
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()
+        raise RuntimeError(stderr or f"judge command exited with status {completed.returncode}")
+    return completed.stdout
+
+
+def _render_cli_judge_args(template: str, prompt_file: Path) -> list[str]:
+    parts = shlex.split(template)
+    return [part.replace("{prompt_file}", str(prompt_file)) for part in parts]
 
 
 async def _complete(chat: Any, *, model: str, messages: list[dict[str, str]], max_tokens: int) -> str:
