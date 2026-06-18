@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider APIs.
 
 ### Changed
+- `expert sync --local` now keeps the full maintenance loop local by passing a
+  local Ollama-backed absorber into the sync engine. Fresh-context syncs with
+  zero retrieved sources now record no changes instead of absorbing the local
+  model's uncertainty as beliefs.
 - Automatic local routing now feeds admitted scores into the runtime quality
   floor. Scoreless manual admissions remain visible but no longer take over
   `expert sync` or `expert absorb` automatically; `--local` remains the
