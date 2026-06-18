@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added pure backend eligibility decisions over `ResearchBackend` plus observed
+  `QuotaState`, covering unavailable backends, unsupported task classes,
+  metered budget gates, missing or unknown quota, exhausted windows,
+  quarantines, overage-enabled plan backends, reserve floors, and
+  multi-account eligible-account selection without invoking vendor CLIs or
+  provider APIs.
+
+### Changed
+- Aligned the capacity README, roadmap, changelog, and design notes so the
+  README stays as the front-door summary, the roadmap stays forward-facing, and
+  release history remains in the changelog.
+
 ## [2.16.2] - 2026-06-17
 
 Capacity-ledger and CI reproducibility patch release.
