@@ -36,8 +36,8 @@ The reasoning behind contract-spanning choices, kept versioned with the code.
   (determinism on side-effects, not meaning).
 - **[design/](design/)** - Design notes (the why, with literature grounding):
   belief lifecycle, temporal knowledge graph, calibration and trust,
-  deterministic-vs-agentic checks, capacity waterfall, hosted MCP endpoint,
-  code health, web UI refinement.
+  deterministic-vs-agentic checks, capacity waterfall, local fresh context,
+  verified expert loops, hosted MCP endpoint, code health, web UI refinement.
 - **[decisions/](decisions/)** - Architecture Decision Records (ADRs) and the
   [ADR log](decisions/README.md): the decision, and the alternatives rejected.
 

@@ -620,7 +620,7 @@ deepr skill create my-custom-skill
 deepr expert run-skill "Dev Lead" code-analysis complexity_report --args '{"code": "def foo(): pass"}'
 ```
 
-**Built-in skills:** `web-search-enhanced` (data extraction), `code-analysis` (dependencies + complexity), `financial-data` (ratio calculations), `data-visualization` (tables + charts).
+**Built-in skills:** `web-search-enhanced` (data extraction), `code-analysis` (dependencies + complexity), `financial-data` (ratio calculations), `data-visualization` (tables + charts), `recon` (infrastructure/email security), `distillr` (source ingestion), and `primr` (company strategy).
 
 Skills auto-activate when user queries match keyword or regex triggers. Full skill documentation loads only when activated (progressive disclosure).
 
@@ -789,6 +789,7 @@ Local-model execution runs quality-tolerant steps at $0 against a local Ollama e
 ```bash
 deepr expert absorb "Platform Team Expert" report.md --local   # force local, $0
 deepr expert sync "Platform Team Expert" --api                 # force metered API
+deepr expert sync "Platform Team Expert" --local --fresh-context # local model + free retrieval context
 
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
@@ -801,9 +802,18 @@ deepr capacity revoke llama3.1 --task-class absorb
 
 After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local` as the cheap review step before admitting a model.
 
+Local models do not automatically have current web context. For sync runs that
+need freshness, add `--fresh-context` with `--local` or an admitted local sync
+model. Deepr builds a bounded source pack first, then prepends it to the local
+prompt and asks the model to cite source labels. This path is free-only inside
+Deepr: it can fetch explicit URLs and can use DuckDuckGo when
+`duckduckgo-search` is installed, but it does not use Brave, Tavily, or other
+API-key search providers. If no fresh sources are available, the prompt tells
+the local model to say that current context is unavailable.
+
 Plan-quota adapters are still being wired, but their routing gates are already defined. Selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 
-See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and routing direction.
+See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
 ## Cost Management
 
