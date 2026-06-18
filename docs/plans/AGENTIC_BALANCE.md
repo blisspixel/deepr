@@ -115,6 +115,8 @@ itself a hidden nondeterminism.
 | Permission/approval flows, capacity admission | **Workflow** | Gate the irreversible action (spend, exec), not the reasoning (NVIDIA) |
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | **Workflow** ("parse, don't validate") | Form is decidable from structure alone |
 | Capacity waterfall routing | **Workflow gate over agent work** | Admission gates the metered side-effect; the research itself is model-driven |
+| Expert loop run state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but completion, budget/capacity stop, verifier pass/fail, and resumability are durable state |
+| OKF export/import | **Workflow envelope, agent meaning** | Markdown/YAML shape and source-trust gates are deterministic; claim extraction and contradiction/grounding stay calibrated model judgment |
 | Contradiction / grounding / atomicity / dedup | **Agent** (calibrated model judgment) | Meaning; lexical rules are brittle (checks doc) |
 | What to research next, gap selection, council adjudication | **Agent** | Open-ended; cannot be flowcharted in advance |
 | Completion / "is this expert current" | **Agent verified by workflow** | Never a self-declared flag; the evidence layer measures ground truth |
@@ -161,6 +163,8 @@ least autonomy that solves the task.
 - Every model judge is calibrated and bias-checked before its verdict is trusted.
 - Autonomy is set per surface at the lowest level that solves the task; raising
   it is a deliberate, reversible decision with the side-effect gates intact.
+- Generated portable artifacts (OKF bundles, digests, reports, skills) are
+  derived views or ingestion sources, never authoritative state.
 
 ## Sources
 
