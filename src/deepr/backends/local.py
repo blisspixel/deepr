@@ -27,6 +27,7 @@ from deepr.backends.capacity import _OLLAMA_DEFAULT_URL, ollama_status
 
 # research_fn seam contract (deepr/experts/sync.py): (query, budget) -> result.
 ResearchFn = Callable[[str, float], Awaitable[dict[str, Any]]]
+ContextBuilder = Callable[[str], Awaitable[Any]]
 
 
 def _base_url(base_url: str | None) -> str:
@@ -61,7 +62,31 @@ def default_local_model(base_url: str | None = None) -> str | None:
     return None
 
 
-def make_local_research_fn(model: str, *, base_url: str | None = None, client: Any | None = None) -> ResearchFn:
+def _local_prompt(query: str, context: Any | None) -> tuple[str, dict[str, Any] | None]:
+    if context is None:
+        return query, None
+    if hasattr(context, "to_prompt_context"):
+        prompt_context = context.to_prompt_context()
+        metadata = context.to_metadata() if hasattr(context, "to_metadata") else None
+    else:
+        prompt_context = str(context)
+        metadata = None
+    return (
+        f"{prompt_context}\n\n## User query\n{query}\n\n"
+        "Answer the query using the fresh retrieval context when it is relevant. "
+        "For current factual claims, cite source labels from the context. "
+        "If fresh context is unavailable or insufficient, say so.",
+        metadata,
+    )
+
+
+def make_local_research_fn(
+    model: str,
+    *,
+    base_url: str | None = None,
+    client: Any | None = None,
+    context_builder: ContextBuilder | None = None,
+) -> ResearchFn:
     """Build a ``research_fn`` that answers via a local Ollama model at $0.
 
     Satisfies the sync/gap-fill seam: ``(query, budget) -> {"answer", "cost"}``.
@@ -72,12 +97,17 @@ def make_local_research_fn(model: str, *, base_url: str | None = None, client: A
 
     async def research_fn(query: str, budget: float) -> dict[str, Any]:
         try:
+            context = await context_builder(query) if context_builder is not None else None
+            prompt, metadata = _local_prompt(query, context)
             response = await chat.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": query}],
+                messages=[{"role": "user", "content": prompt}],
             )
             answer = response.choices[0].message.content or ""
-            return {"answer": answer, "cost": 0.0}
+            result: dict[str, Any] = {"answer": answer, "cost": 0.0}
+            if metadata is not None:
+                result["fresh_context"] = metadata
+            return result
         except Exception as e:  # seam contract: report, do not raise
             return {"answer": "", "cost": 0.0, "error": f"local model error: {e}"}
 

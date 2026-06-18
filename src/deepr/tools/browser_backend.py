@@ -65,15 +65,26 @@ class BuiltinBrowserBackend:
     async def fetch_page(self, url: str) -> PageContent:
         """Fetch page using built-in scraper."""
         try:
-            from deepr.utils.scrape import scrape_url
+            from deepr.utils.scrape import ContentExtractor, ContentFetcher, ScrapeConfig
 
-            result = await scrape_url(url)
+            config = ScrapeConfig(max_pages=1, max_depth=0, try_selenium=False, try_pdf=False, try_archive=False)
+            result = ContentFetcher(config).fetch(url)
+            if not result.success:
+                return PageContent(
+                    url=url,
+                    title="Error",
+                    text=result.error or "Fetch failed",
+                    status_code=0,
+                )
+            html = result.html or result.content or ""
+            extractor = ContentExtractor()
+            metadata = extractor.extract_metadata(html) if html else {}
             return PageContent(
                 url=url,
-                title=result.get("title", ""),
-                text=result.get("text", ""),
-                html=result.get("html"),
-                status_code=result.get("status_code", 200),
+                title=metadata.get("title", ""),
+                text=extractor.extract_main_content(html) if html else "",
+                html=result.html,
+                status_code=200,
             )
         except Exception as e:
             return PageContent(

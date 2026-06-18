@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added free-only fresh retrieval context for local expert sync:
+  `deepr expert sync NAME --local --fresh-context` fetches explicit URLs and
+  DuckDuckGo results when the optional package is installed, prepends bounded
+  source context to the local Ollama prompt, and keeps Deepr metered cost at
+  `$0` without invoking API-key search providers.
 - Added `$0` local Ollama comparison via `deepr eval local`. It compares local
   models on an agentic-loop prompt set, uses a local model as the judge, reports
   score, latency, winner, and cost, and can save a JSON artifact under
@@ -32,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aligned the capacity README, roadmap, changelog, and design notes so the
   README stays as the front-door summary, the roadmap stays forward-facing, and
   release history remains in the changelog.
+
+### Fixed
+- Corrected the built-in search backend wrapper to pass structured query
+  arguments to `WebSearchTool` instead of a positional dict.
+- Corrected the built-in browser backend to use the existing scraper fetcher and
+  content extractor instead of a missing `scrape_url` helper.
 
 ## [2.16.2] - 2026-06-17
 

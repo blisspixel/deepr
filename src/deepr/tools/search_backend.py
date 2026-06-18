@@ -64,17 +64,20 @@ class BuiltinSearchBackend:
     Wraps the existing WebSearchTool to conform to the SearchBackend protocol.
     """
 
+    def __init__(self, *, web_backend: str = "auto") -> None:
+        self._web_backend = web_backend
+
     @property
     def name(self) -> str:
-        return "builtin"
+        return f"builtin:{self._web_backend}"
 
     async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
         """Search using built-in web search."""
         try:
             from deepr.tools.web_search import WebSearchTool
 
-            tool = WebSearchTool()
-            result = await tool.execute({"query": query, "num_results": num_results})
+            tool = WebSearchTool(backend=self._web_backend)
+            result = await tool.execute(query=query, num_results=num_results)
 
             if not result.success:
                 return []
