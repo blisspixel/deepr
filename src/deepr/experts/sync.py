@@ -54,6 +54,13 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "topic"
 
 
+def _fresh_context_has_no_sources(research: dict[str, Any]) -> bool:
+    metadata = research.get("fresh_context")
+    if not isinstance(metadata, dict):
+        return False
+    return metadata.get("source_count") == 0
+
+
 @dataclass
 class Subscription:
     """One topic an expert stays current on."""
@@ -266,60 +273,15 @@ class ExpertSyncEngine:
 
         remaining = budget
         for sub in targets:
-            per_topic = min(sub.budget, remaining)
-            if per_topic < MIN_PER_TOPIC_BUDGET:
-                result.outcomes.append(
-                    SyncOutcome(sub.topic, "skipped", detail=f"run budget exhausted (${remaining:.2f} left)")
-                )
-                continue
-
-            if dry_run:
-                result.outcomes.append(
-                    SyncOutcome(sub.topic, "would_sync", detail=self.build_freshness_query(sub)[:120])
-                )
-                continue
-
-            try:
-                research = await self._research(sub, per_topic)
-            except Exception as exc:
-                result.outcomes.append(SyncOutcome(sub.topic, "failed", detail=str(exc)))
-                continue
-
-            if "error" in research:
-                result.outcomes.append(SyncOutcome(sub.topic, "failed", detail=str(research["error"])))
-                continue
-
-            cost = float(research.get("cost", 0.0) or 0.0)
-            remaining -= cost
-            result.total_cost += cost
-            answer = (research.get("answer") or "").strip()
-
-            if not answer or answer.lower().startswith(_NO_CHANGES_MARKER):
-                sub.last_synced = datetime.now(UTC)
-                self.subscriptions.save()
-                result.outcomes.append(SyncOutcome(sub.topic, "no_changes", cost=cost))
-                continue
-
-            try:
-                report_id = f"sync:{_slug(sub.topic)}:{started_at.strftime('%Y%m%d')}"
-                absorption = await self._get_absorber().absorb(
-                    report_id,
-                    answer,
-                    flag_contradictions=True,
-                )
-                sub.last_synced = datetime.now(UTC)
-                self.subscriptions.save()
-                result.outcomes.append(
-                    SyncOutcome(
-                        sub.topic,
-                        "synced",
-                        cost=cost,
-                        absorbed=len(absorption.absorbed),
-                        flagged=len(absorption.flagged),
-                    )
-                )
-            except Exception as exc:
-                result.outcomes.append(SyncOutcome(sub.topic, "failed", cost=cost, detail=f"absorb failed: {exc}"))
+            outcome, spent = await self._sync_subscription(
+                sub,
+                budget=min(sub.budget, remaining),
+                started_at=started_at,
+                dry_run=dry_run,
+            )
+            remaining -= spent
+            result.total_cost += spent
+            result.outcomes.append(outcome)
 
         if not dry_run:
             # what_changed is strictly-after; nudge the window back 1ms so a
@@ -329,6 +291,83 @@ class ExpertSyncEngine:
             result.delta = what_changed(self.belief_store, since, expert_name=self.expert.name).to_dict()
 
         return result
+
+    async def _sync_subscription(
+        self,
+        subscription: Subscription,
+        *,
+        budget: float,
+        started_at: datetime,
+        dry_run: bool,
+    ) -> tuple[SyncOutcome, float]:
+        if budget < MIN_PER_TOPIC_BUDGET:
+            return SyncOutcome(subscription.topic, "skipped", detail=f"run budget exhausted (${budget:.2f} left)"), 0.0
+
+        if dry_run:
+            return SyncOutcome(
+                subscription.topic, "would_sync", detail=self.build_freshness_query(subscription)[:120]
+            ), 0.0
+
+        try:
+            research = await self._research(subscription, budget)
+        except Exception as exc:
+            return SyncOutcome(subscription.topic, "failed", detail=str(exc)), 0.0
+
+        if "error" in research:
+            return SyncOutcome(subscription.topic, "failed", detail=str(research["error"])), 0.0
+
+        cost = float(research.get("cost", 0.0) or 0.0)
+        answer = (research.get("answer") or "").strip()
+
+        if _fresh_context_has_no_sources(research):
+            return self._record_no_changes(
+                subscription,
+                cost,
+                detail="fresh context returned no sources",
+            ), cost
+
+        if not answer or answer.lower().startswith(_NO_CHANGES_MARKER):
+            return self._record_no_changes(subscription, cost), cost
+
+        return await self._absorb_sync_answer(subscription, answer, cost=cost, started_at=started_at), cost
+
+    def _record_no_changes(
+        self,
+        subscription: Subscription,
+        cost: float,
+        *,
+        detail: str = "",
+    ) -> SyncOutcome:
+        subscription.last_synced = datetime.now(UTC)
+        self.subscriptions.save()
+        return SyncOutcome(subscription.topic, "no_changes", cost=cost, detail=detail)
+
+    async def _absorb_sync_answer(
+        self,
+        subscription: Subscription,
+        answer: str,
+        *,
+        cost: float,
+        started_at: datetime,
+    ) -> SyncOutcome:
+        try:
+            report_id = f"sync:{_slug(subscription.topic)}:{started_at.strftime('%Y%m%d')}"
+            absorption = await self._get_absorber().absorb(
+                report_id,
+                answer,
+                flag_contradictions=True,
+            )
+            subscription.last_synced = datetime.now(UTC)
+            self.subscriptions.save()
+            return SyncOutcome(
+                subscription.topic,
+                "synced",
+                cost=cost,
+                absorbed=len(absorption.absorbed),
+                flagged=len(absorption.flagged),
+            )
+        except Exception as exc:
+            return SyncOutcome(subscription.topic, "failed", cost=cost, detail=f"absorb failed: {exc}")
 
     async def _research(self, subscription: Subscription, budget: float) -> dict[str, Any]:
         query = self.build_freshness_query(subscription)
