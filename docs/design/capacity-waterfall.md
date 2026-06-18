@@ -15,8 +15,10 @@ the append-only `quota_ledger.jsonl` substrate and `deepr capacity`
 quota-state visibility; and the pure backend eligibility gate over
 `ResearchBackend` plus `QuotaState`; and the pure backend selector that orders
 eligible capacity by the waterfall and enforces optional measured quality
-floors. Not yet built: the plan-quota CLI adapters, live window/credit probes,
-adapter writes, and scheduler integration.
+floors; and `deepr eval local`, a $0 local-Ollama comparison with a local LLM
+judge for producing review evidence before admission. Not yet built: the
+plan-quota CLI adapters, live window/credit probes, adapter writes, and
+scheduler integration.
 
 ## Problem
 
@@ -137,6 +139,12 @@ against them and the operator accepts the quality report. Models change;
 admission expires (configurable, default 90 days) and re-eval is prompted.
 No eval, no admission - "it's free" never overrides "it's good enough".
 
+`deepr eval local` is the first $0 eval path for this: candidate Ollama models
+answer a small prompt set, and a local judge model scores each answer against a
+rubric. The judge decides semantic quality; Deepr validates JSON shape, score
+range, latency, cost, and artifact output. The score is evidence for a human
+admission decision and later for measured quality floors.
+
 ### No-surprise-bills invariants
 
 1. Every backend declares its cost model; only `api_metered` may produce
@@ -165,12 +173,13 @@ scheduler work remains.
 6. Backend eligibility gate over `ResearchBackend` and observed `QuotaState`.
    (done)
 7. Backend selector over eligibility plus measured quality floors. (done)
-8. First plan_quota rungs, in priority order from the survey: Copilot CLI and
+8. `$0` local comparison with a local LLM judge for admission evidence. (done)
+9. First plan_quota rungs, in priority order from the survey: Copilot CLI and
    Cursor (Auto mode), then Claude Code's credit pool (overflow OFF), then
    Codex (API-key path), Kimi/GLM/Qwen via the engine matrix, Kiro (with the
    mandatory reserve floor). Each behind an explicit opt-in and a "sanctioned
    as of <date>" kill switch.
-9. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
+10. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
 ## Open questions
