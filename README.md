@@ -224,7 +224,9 @@ deepr capacity next --task-class sync
 Local models do not browse on their own. `--fresh-context` builds a free-only
 retrieval context pack before the local model call: explicit URLs and
 DuckDuckGo search when the optional package is installed, never Brave/Tavily
-API-key search. See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity)
+API-key search. If no fresh sources are retrieved, sync records no changes
+instead of absorbing the local model's uncertainty as expert beliefs. See
+[docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity)
 for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md)
 for the full routing model.
 

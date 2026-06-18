@@ -128,7 +128,7 @@ def absorb_report(
             sys.exit(2)
         absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
         cost_note = f"$0 (local model {local_model})"
-        if selection_note:
+        if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
     else:
         absorber = ReportAbsorber(profile, model=model or "gpt-5-mini")
@@ -325,13 +325,14 @@ def sync_cmd(
             return
 
     if use_local:
-        from deepr.backends.local import default_local_model, make_local_research_fn
+        from deepr.backends.local import default_local_model, make_local_research_fn, ollama_chat_client
+        from deepr.experts.report_absorber import ReportAbsorber
 
         local_model = default_local_model()
         if not local_model:
             print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
             sys.exit(2)
-        if selection_note:
+        if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
         context_builder = None
         if fresh_context:
@@ -341,8 +342,11 @@ def sync_cmd(
             console.print(
                 "[dim]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/dim]"
             )
+        absorber = ReportAbsorber(profile, model=local_model, client=ollama_chat_client())
         engine = ExpertSyncEngine(
-            profile, research_fn=make_local_research_fn(local_model, context_builder=context_builder)
+            profile,
+            research_fn=make_local_research_fn(local_model, context_builder=context_builder),
+            absorber=absorber,
         )
     elif fresh_context:
         print_warning("--fresh-context ignored because this run is using the metered API backend.")
