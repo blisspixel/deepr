@@ -44,7 +44,8 @@ pack before calling the local model. The first slice is intentionally narrow:
 - The local prompt includes source labels and asks for citations on current
   factual claims.
 - If no sources are retrieved, the prompt tells the model to say that current
-  context is unavailable.
+  context is unavailable, and sync records no changes rather than absorbing the
+  local model's uncertainty as expert beliefs.
 - The research result keeps Deepr metered cost at `$0` and carries fresh-context
   metadata for future loop records.
 
