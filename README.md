@@ -12,7 +12,7 @@ In plain terms: you bring your own AI accounts (OpenAI, Gemini, Grok, Anthropic 
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath - it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows - so your experts are always available as team members, not just tools you invoke manually.
 
 ```bash
-# Auto-routes to the best model per query: Grok 4.1 Fast ($0.01) -> GPT-5.4 -> o3-deep-research
+# Auto-routes to the best model per query: Grok 4.20 Non-Reasoning -> GPT-5.4 -> o3-deep-research
 # (--budget is a ceiling, not a price: most queries cost far less than the cap)
 deepr research "Will open-weight frontier models erode OpenAI/Anthropic enterprise margins by 2027?" --auto --budget 3
 
@@ -214,10 +214,16 @@ Local-model execution runs quality-tolerant expert maintenance at $0 against a l
 ```bash
 deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
+deepr expert sync "Platform Team Expert" --local --fresh-context
 deepr eval local --max-models 2 --max-prompts 2
 ```
 
-See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity) for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the full routing model.
+Local models do not browse on their own. `--fresh-context` builds a free-only
+retrieval context pack before the local model call: explicit URLs and
+DuckDuckGo search when the optional package is installed, never Brave/Tavily
+API-key search. See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity)
+for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md)
+for the full routing model.
 
 ### Evidence and Calibration
 
@@ -311,7 +317,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 - **One API key** from any supported provider:
   - [OpenAI](https://platform.openai.com/api-keys) - deep research + GPT models
   - [Gemini](https://aistudio.google.com/app/apikey) - cost-effective, large context
-  - [xAI Grok](https://console.x.ai/) - Grok 4.20 flagship + 4.1 Fast budget, real-time web search
+  - [xAI Grok](https://console.x.ai/) - Grok 4.3 flagship, Grok 4.20 research/freshness tiers, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
 - Optional: More API keys for smarter auto-routing
 - Optional: Node.js 18+ for web dashboard development

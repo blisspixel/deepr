@@ -242,7 +242,9 @@ class TestBuiltinSearchBackend:
         backend = BuiltinSearchBackend()
         with patch("deepr.tools.web_search.WebSearchTool.execute", autospec=True) as exec_:
 
-            async def fake_exec(self, *_args, **_kwargs):
+            async def fake_exec(self, *_args, **kwargs):
+                assert kwargs["query"] == "hi"
+                assert kwargs["num_results"] == 10
                 return ToolResult(
                     success=True,
                     data=[
@@ -285,7 +287,60 @@ class TestBuiltinSearchBackend:
         assert (await backend.health_check()) is True
 
     def test_name_is_builtin(self):
-        assert BuiltinSearchBackend().name == "builtin"
+        assert BuiltinSearchBackend().name == "builtin:auto"
+
+    def test_name_includes_backend(self):
+        assert BuiltinSearchBackend(web_backend="duckduckgo").name == "builtin:duckduckgo"
+
+
+class TestBuiltinBrowserBackend:
+    @pytest.mark.asyncio
+    async def test_fetch_page_returns_extracted_text(self):
+        from deepr.tools.browser_backend import BuiltinBrowserBackend
+
+        class _FetchResult:
+            success = True
+            html = "<html><head><title>T</title></head><body><main>Body text</main></body></html>"
+            content = html
+            error = None
+
+        class _Fetcher:
+            def __init__(self, _config):
+                pass
+
+            def fetch(self, url):
+                assert url == "https://example.com"
+                return _FetchResult()
+
+        with patch("deepr.utils.scrape.ContentFetcher", _Fetcher):
+            page = await BuiltinBrowserBackend().fetch_page("https://example.com")
+
+        assert page.title == "T"
+        assert page.text == "Body text"
+        assert page.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_fetch_page_reports_fetch_failure(self):
+        from deepr.tools.browser_backend import BuiltinBrowserBackend
+
+        class _FetchResult:
+            success = False
+            html = None
+            content = None
+            error = "blocked"
+
+        class _Fetcher:
+            def __init__(self, _config):
+                pass
+
+            def fetch(self, _url):
+                return _FetchResult()
+
+        with patch("deepr.utils.scrape.ContentFetcher", _Fetcher):
+            page = await BuiltinBrowserBackend().fetch_page("https://example.com")
+
+        assert page.status_code == 0
+        assert page.text == "blocked"
 
 
 class TestMCPSearchBackend:
