@@ -195,7 +195,7 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` is a guided, non-interactive-friendly setup: it detects existing API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage, with a severity-ranked next step. `deepr capacity` shows what you can actually run with - owned/prepaid capacity first (local Ollama, plan-based CLIs), metered APIs last - and summarizes any locally observed plan-quota state from the append-only quota ledger.
+`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows what you can run with: local hardware, plan-based CLIs, and metered APIs, with owned/prepaid capacity preferred before paid fallback.
 
 ```bash
 deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, portable data
@@ -203,14 +203,14 @@ deepr doctor                                               # connectivity + stor
 deepr capacity --probe                                     # what's available, incl. local models
 ```
 
-Local-model execution runs quality-tolerant steps (extraction, sync, draft synthesis) at $0 against a local Ollama endpoint:
+Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint:
 
 ```bash
 deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 ```
 
-See [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the capacity model and routing direction.
+See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity) for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md) for the routing model.
 
 ### Evidence and Calibration
 
@@ -276,7 +276,7 @@ Optional env controls:
 
 **Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
 
-**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility + local-model execution (`deepr capacity`, `--local` on expert sync/absorb), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
+**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 

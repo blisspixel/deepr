@@ -60,11 +60,11 @@ The kernel is designed to be embeddable in other agent projects. The primitives 
 
 ---
 
-## Current Status (v2.16.1)
+## Current Status (v2.16.2)
 
 Multi-provider research automation with expert system, domain-specific skills, MCP integration, native first-party instruments (Recon + Distillr + Primr; Phase 2b complete), and observability. 5700+ unit tests, 80% branch coverage enforced on Python 3.12/3.13/3.14 (all blocking). Toolchain managed by `uv` (`uv.lock` committed); pre-commit hooks with ruff; type checking (mypy) and dependency audit (`pip-audit`) wired into CI as ratcheting baselines (see [Phase E](#phase-e-engineering-standards-and-code-quality-elevation-foundational-continuous)).
 
-**Current main (v2.16 capacity track):** the evidence layer is available (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **$0 local-model execution** (Ollama backend; `expert sync`/`absorb --local`) and **capacity visibility** (`deepr capacity`) are wired toward routing on owned/prepaid capacity before metered API, including the normalized `ResearchBackend` profile and append-only `quota_ledger.jsonl` substrate for observed plan-quota state (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)); **portable experts** - one data dir (`DEEPR_DATA_DIR`) relocates experts + research to a synced folder so they follow you across machines ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)); routing **quality priors** keep auto mode useful without paid evals; and guided setup (`deepr init`) is stable. Remaining capacity work is plan-quota adapters, live window/credit probes, per-task-class quality gates, and broader capacity-waterfall routing. Next after capacity is a verified expert-loop and OKF interchange release: make the already-shipped loops observable, resumable, and portable without making OKF the source of truth. The cross-cutting principle for what deepr hardcodes vs lets the model decide (workflow vs agent, determinism on side-effects not meaning) is set in [AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md); the boundary for which checks specifically are deterministic vs model-based is its instance in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
+**Current main (v2.16 capacity track):** the evidence layer is available (`deepr eval continuity` + the calibration harness `eval calibrate`, design: [calibration-and-trust.md](docs/design/calibration-and-trust.md)); **$0 local-model execution** (Ollama backend; `expert sync`/`absorb --local`) and **capacity visibility** (`deepr capacity`) are wired toward routing on owned/prepaid capacity before metered API, including the normalized `ResearchBackend` profile, append-only `quota_ledger.jsonl` substrate, and pure backend eligibility gate for observed plan-quota state (design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)); **portable experts** - one data dir (`DEEPR_DATA_DIR`) relocates experts + research to a synced folder so they follow you across machines ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)); routing **quality priors** keep auto mode useful without paid evals; and guided setup (`deepr init`) is stable. Remaining capacity work is plan-quota adapters, live window/credit probes, adapter writes, per-task-class quality gates, scheduler integration, and broader capacity-waterfall routing. Next after capacity is a verified expert-loop and OKF interchange release: make the existing loops observable, resumable, and portable without making OKF the source of truth. The cross-cutting principle for what deepr hardcodes vs lets the model decide (workflow vs agent, determinism on side-effects not meaning) is set in [AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md); the boundary for which checks specifically are deterministic vs model-based is its instance in [checks-deterministic-vs-agentic.md](docs/design/checks-deterministic-vs-agentic.md).
 
 ### Stable (Production-Ready)
 
@@ -91,7 +91,7 @@ These features work but APIs or behavior may change:
 - **Native Primr instrument** (v2.12): auto-discovered when `pip install primr` is present (`primr-mcp` on PATH); strategic company deep-dives (positioning, hiring signals, initiatives, tech stack) absorbed across infrastructure + strategic categories with report provenance; long-running, budget-capped, every paid run approval-gated (estimate first, `quick_lookup` for fast context)
 - **MCP server**: Functional with 26 tools, but MCP spec itself is still maturing
 - **Agentic expert chat**: enabled by default in `expert chat` - autonomous research with slash commands, chat modes, visible reasoning, approval flows, expert council, and task planning. Pass `--no-research` to disable autonomous research triggers.
-- **Local-model execution + capacity** (v2.16, in progress): `deepr capacity` (+ `--probe`) shows owned/prepaid capacity (local Ollama, plan CLIs, metered APIs) and summarizes locally observed plan-quota state from `quota_ledger.jsonl`; a local Ollama backend runs research at $0 via the injectable seams (`expert sync`/`absorb --local`). The first waterfall rung is wired: eval-gated local **admission** (`deepr capacity admit`/`admissions`/`revoke`) makes `expert sync`/`absorb` drain an admitted local model at $0 before any metered API call, with `--local`/`--api` overrides. The normalized `ResearchBackend` profile is in place for routing, logging, and quota decisions. Still to come: plan-quota CLI adapters, live quota probes, and per-task-class quality gates. Design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)
+- **Local-model execution + capacity** (v2.16, in progress): `deepr capacity` (+ `--probe`) shows owned/prepaid capacity (local Ollama, plan CLIs, metered APIs) and summarizes locally observed plan-quota state from `quota_ledger.jsonl`; a local Ollama backend runs research at $0 via the injectable seams (`expert sync`/`absorb --local`). The first waterfall rung is wired: eval-gated local **admission** (`deepr capacity admit`/`admissions`/`revoke`) makes `expert sync`/`absorb` drain an admitted local model at $0 before any metered API call, with `--local`/`--api` overrides. The normalized `ResearchBackend` profile and backend eligibility gate are in place for routing, logging, quota decisions, reserve floors, overage blocking, and no-observation stops. Still to come: plan-quota CLI adapters, live quota probes, adapter writes, and per-task-class quality gates. Design: [capacity-waterfall.md](docs/design/capacity-waterfall.md)
 - **Evidence layer** (v2.15): `deepr eval continuity` (staleness honesty / abstention / contradiction-surfacing / what-changed exactness, measured from stored state at $0) and `deepr eval calibrate` (does extraction confidence track grounding? reliability curve + ECE + Platt threshold; `--from` graded pairs at $0, `--corpus` runs the paid extraction + pre-grade). First curve in [docs/CALIBRATION.md](docs/CALIBRATION.md)
 - **Auto-fallback**: Provider failover works, but circuit breaker tuning is ongoing
 - **Cloud deployment templates**: AWS/Azure/GCP templates provided but not battle-tested at scale
@@ -688,8 +688,8 @@ Vendor reality (verified June 2026 - revalidate before implementation, this chur
 
 Design (builds on existing kernel primitives - cost ledger, budget contracts, provider registry, auto-mode routing):
 
-- [~] **Cost-source model**: `CostModel`/`BackendKind`, `backend_id` on detected sources, normalized `ResearchBackend` profiles, and the append-only `quota_ledger.jsonl` substrate are in place. Remaining: provider-profile integration and adapter writes that connect real plan-quota executions to those records. Plan-quota and credit-pool backends report marginal cost $0 but consume quota/credit units.
-- [~] **Quota window tracker**: per-account `QuotaWindow` (window type: rolling-5h / daily / weekly-compute / monthly-credit-pool; usage observed, never assumed; reset time). Shipped: durable observed events and `deepr capacity` summaries. Remaining: adapter-side live probes and scheduler decisions that mark exhaustion (429 / vendor error signature) and reschedule instead of failing the job. Vendors do not expose remaining quota reliably - treat limits as observed from exhaustion signals.
+- [~] **Cost-source model**: `CostModel`/`BackendKind`, `backend_id` on detected sources, normalized `ResearchBackend` profiles, the append-only `quota_ledger.jsonl` substrate, and backend eligibility decisions are in place. Remaining: provider-profile integration and adapter writes that connect real plan-quota executions to those records. Plan-quota and credit-pool backends report marginal cost $0 but consume quota/credit units.
+- [~] **Quota window tracker**: per-account `QuotaWindow` (window type: rolling-5h / daily / weekly-compute / monthly-credit-pool; usage observed, never assumed; reset time). Durable observed events, `deepr capacity` summaries, and eligibility stops are in place. Remaining: adapter-side live probes and scheduler decisions that mark exhaustion (429 / vendor error signature) and reschedule instead of failing the job. Vendors do not expose remaining quota reliably - treat limits as observed from exhaustion signals.
 - [ ] **Multi-account quota pools**: a user with several plans on one vendor (e.g. three Google accounts - personal + two work) registers one authenticated profile per account; each is an independent QuotaWindow and the scheduler drains across the pool before deferring. Only accounts the user owns/controls, each consuming strictly within its own plan limits - this is using paid seats fully, not circumventing a single account's cap. Per-account credential isolation (no shared auth state).
 - [ ] **CLI provider adapters** (each implements the existing `DeepResearchProvider` contract; subprocess invocation in JSON/headless mode; no API keys touched):
   - [ ] `cli-claude` (first - best structured output and tool control: `claude -p --output-format json --allowedTools ...`; bills the plan's monthly automation credit pool)
@@ -930,23 +930,18 @@ Phase 6 in full: plans and hardware people already pay for become bounded
 research capacity, making always-on freshness affordable. Design:
 [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md).
 
-**Shipped 2026-06-13 through 2026-06-17:** `deepr capacity` (+ `--probe`) visibility into
-owned/prepaid capacity; the **local-ollama backend** ($0 research through the
-engines' injectable seams, live-validated on owned hardware);
-`expert sync`/`absorb --local` for $0 background maintenance; published
-**routing quality priors** so auto mode routes sensibly without paid evals;
-and **portable experts + research via one data dir** (`experts_root()`
-unification across ~19 sites, `deepr init --data-dir`, `doctor` Storage
-section - [ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)).
-Verified the cli-claude economics change (2026-06-15: separate API-rate credit
-pool), which makes **local the priority adapter**, not cli-claude. Shipped
-2026-06-17: append-only `quota_ledger.jsonl` quota observations and capacity
-summary visibility.
+Current baseline: `deepr capacity` visibility, the local Ollama execution path,
+local admission, routing quality priors, portable experts/research via one data
+dir ([ADR 0004](docs/decisions/0004-one-experts-root-and-portable-data-dir.md)),
+normalized `ResearchBackend` profiles, the append-only `quota_ledger.jsonl`
+substrate, and backend eligibility decisions are in place. The remaining work
+connects real plan-quota adapters to that substrate and teaches schedulers to
+consume it. Completed release details live in [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
-1. [~] Backend abstraction + quota ledger + `deepr capacity` visibility (visibility, `ResearchBackend`, and quota ledger shipped; live vendor probes and adapter writes remain)
-2. [x] Local-first process validation (ollama-backed `research_fn` through the injectable seams) - shipped, the substrate the rest builds on
-3. [~] `local-ollama` shipped (+ `--local` wiring); `cli-claude` adapter and eval-gated admission remain (cli-claude deprioritized per the 2026-06-15 change)
-4. [ ] Capacity-waterfall routing with quality gates; remaining adapters (codex, antigravity post-cutover, kiro with reserve floor)
+1. [~] Backend abstraction + quota ledger + eligibility gate + `deepr capacity` visibility (visibility, `ResearchBackend`, quota ledger, and eligibility decisions are in place; live vendor probes and adapter writes remain)
+2. [x] Local-first process validation (ollama-backed `research_fn` through the injectable seams) - in place, the substrate the rest builds on
+3. [~] `local-ollama` + `--local` wiring are in place; `cli-claude` adapter and eval-gated admission remain (cli-claude deprioritized per the 2026-06-15 change)
+4. [~] Capacity-waterfall routing with quality gates; local rung and eligibility gate are in place, remaining adapters still to connect (codex, antigravity post-cutover, kiro with reserve floor)
 5. [ ] Multi-account pools last (multiplies a working mechanism)
 
 ### v2.17 - The loop/interchange release ("keep it current, prove it, hand it off")
