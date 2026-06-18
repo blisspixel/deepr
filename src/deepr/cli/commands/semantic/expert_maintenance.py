@@ -242,10 +242,23 @@ def absorb_report(
     help="Force sync research on the local Ollama model at $0 (no admission needed)",
 )
 @click.option("--api", is_flag=True, help="Force the metered API even if a local model is admitted")
+@click.option(
+    "--fresh-context",
+    is_flag=True,
+    help="For local sync, retrieve free web context before calling the local model",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
 def sync_cmd(
-    name: str, budget: float, sync_all: bool, dry_run: bool, local: bool, api: bool, yes: bool, json_output: bool
+    name: str,
+    budget: float,
+    sync_all: bool,
+    dry_run: bool,
+    local: bool,
+    api: bool,
+    fresh_context: bool,
+    yes: bool,
+    json_output: bool,
 ):
     """Pull deltas for NAME's due subscriptions and integrate what changed.
 
@@ -260,12 +273,16 @@ def sync_cmd(
       deepr expert sync "MCP Interop Expert"
       deepr expert sync "AI Policy Expert" --dry-run
       deepr expert sync "AI Policy Expert" --local -y
+      deepr expert sync "AI Policy Expert" --local --fresh-context -y
     """
     import json as _json
     import sys
 
     if local and api:
         print_error("Use either --local or --api, not both.")
+        sys.exit(2)
+    if fresh_context and api:
+        print_error("--fresh-context is only supported for local sync.")
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
@@ -316,7 +333,20 @@ def sync_cmd(
             sys.exit(2)
         if selection_note:
             console.print(f"[dim]{selection_note}[/dim]")
-        engine = ExpertSyncEngine(profile, research_fn=make_local_research_fn(local_model))
+        context_builder = None
+        if fresh_context:
+            from deepr.backends.fresh_context import make_free_fresh_context_builder
+
+            context_builder = make_free_fresh_context_builder()
+            console.print(
+                "[dim]Fresh context enabled: free-only web retrieval; API-key search providers are not used.[/dim]"
+            )
+        engine = ExpertSyncEngine(
+            profile, research_fn=make_local_research_fn(local_model, context_builder=context_builder)
+        )
+    elif fresh_context:
+        print_warning("--fresh-context ignored because this run is using the metered API backend.")
+        engine = ExpertSyncEngine(profile)
     else:
         engine = ExpertSyncEngine(profile)
     result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
