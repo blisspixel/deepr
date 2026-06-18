@@ -68,7 +68,35 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
 @click.option(
     "--judge-model",
     default=None,
-    help="Local Ollama model used as judge. Defaults to the first selected model.",
+    help="Local Ollama model used as judge. Defaults to the first selected model unless a CLI judge is used.",
+)
+@click.option(
+    "--judge-cli",
+    type=click.Choice(["grok"]),
+    default=None,
+    help="Use a known headless CLI judge preset. Requires --allow-cli-judge.",
+)
+@click.option(
+    "--judge-command",
+    default=None,
+    help="Custom CLI judge command template containing {prompt_file}. Requires --allow-cli-judge.",
+)
+@click.option(
+    "--judge-name",
+    default=None,
+    help="Display name for a custom CLI judge.",
+)
+@click.option(
+    "--judge-timeout",
+    type=float,
+    default=120.0,
+    show_default=True,
+    help="CLI judge timeout in seconds.",
+)
+@click.option(
+    "--allow-cli-judge",
+    is_flag=True,
+    help="Confirm the CLI judge is an intentional non-metered or bounded-capacity path.",
 )
 @click.option(
     "--prompt-set",
@@ -96,6 +124,11 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
 def eval_local(
     models: tuple[str, ...],
     judge_model: str | None,
+    judge_cli: str | None,
+    judge_command: str | None,
+    judge_name: str | None,
+    judge_timeout: float,
+    allow_cli_judge: bool,
     prompt_set: str,
     max_models: int,
     max_prompts: int,
@@ -106,15 +139,34 @@ def eval_local(
     from deepr.cli.async_runner import run_async_command
     from deepr.evals.local_compare import run_local_comparison, write_report
 
-    selected, judge, prompts = _resolve_local_eval_inputs(models, judge_model, prompt_set, max_models, max_prompts)
+    cli_judge = _build_cli_judge(judge_cli, judge_command, judge_name, judge_timeout, allow_cli_judge)
+    if cli_judge and judge_model:
+        raise click.ClickException("--judge-model is only for local Ollama judges; omit it when using a CLI judge.")
+
+    selected, judge, prompts = _resolve_local_eval_inputs(
+        models,
+        judge_model,
+        prompt_set,
+        max_models,
+        max_prompts,
+        require_local_judge=cli_judge is None,
+    )
+    judge_label = cli_judge.display_name if cli_judge else judge
 
     if not json_output:
         click.echo(
-            f"Running local comparison at $0: models={', '.join(selected)}; judge={judge}; prompts={len(prompts)}"
+            f"Running local comparison: models={', '.join(selected)}; judge={judge_label}; prompts={len(prompts)}"
         )
+        click.echo("Deepr metered cost: $0. CLI judges may still consume external quota.")
 
     report = run_async_command(
-        run_local_comparison(selected, judge_model=judge, prompts=prompts, prompt_set=prompt_set)
+        run_local_comparison(
+            selected,
+            judge_model=judge,
+            judge_command=cli_judge,
+            prompts=prompts,
+            prompt_set=prompt_set,
+        )
     )
 
     if save:
@@ -130,7 +182,13 @@ def eval_local(
 
 
 def _resolve_local_eval_inputs(
-    models: tuple[str, ...], judge_model: str | None, prompt_set: str, max_models: int, max_prompts: int
+    models: tuple[str, ...],
+    judge_model: str | None,
+    prompt_set: str,
+    max_models: int,
+    max_prompts: int,
+    *,
+    require_local_judge: bool = True,
 ):
     from deepr.backends.capacity import available_local_models
     from deepr.evals.local_compare import default_prompts
@@ -149,14 +207,48 @@ def _resolve_local_eval_inputs(
     if missing:
         raise click.ClickException(f"Local model(s) not installed: {', '.join(missing)}")
 
-    judge = judge_model or selected[0]
-    if judge not in installed:
+    judge = judge_model or (selected[0] if require_local_judge else "")
+    if judge and judge not in installed:
         raise click.ClickException(f"Judge model is not installed locally: {judge}")
 
     prompts = default_prompts(prompt_set)[:max_prompts]
     if not prompts:
         raise click.ClickException(f"No prompts available for prompt set {prompt_set!r}.")
     return selected, judge, prompts
+
+
+def _build_cli_judge(
+    judge_cli: str | None,
+    judge_command: str | None,
+    judge_name: str | None,
+    judge_timeout: float,
+    allow_cli_judge: bool,
+):
+    from deepr.evals.local_compare import GROK_JUDGE_COMMAND, CliJudgeCommand
+
+    if judge_cli and judge_command:
+        raise click.ClickException("Use --judge-cli or --judge-command, not both.")
+    if not judge_cli and not judge_command:
+        return None
+    if not allow_cli_judge:
+        raise click.ClickException(
+            "CLI judges can consume remote quota. Re-run with --allow-cli-judge after confirming the CLI is not a "
+            "metered API path."
+        )
+    try:
+        if judge_cli == "grok":
+            return CliJudgeCommand(
+                template=GROK_JUDGE_COMMAND,
+                display_name=judge_name or "cli:grok",
+                timeout_seconds=judge_timeout,
+            )
+        return CliJudgeCommand(
+            template=judge_command or "",
+            display_name=judge_name or "cli:custom",
+            timeout_seconds=judge_timeout,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def _emit_local_eval_json(report, path: Path | None) -> None:
