@@ -187,6 +187,9 @@ deepr eval new
 # Compare local Ollama models with a local judge at $0
 deepr eval local --model qwen2.5:14b --model qwen3-coder:30b --judge-model qwen2.5:14b
 
+# Or use an explicitly approved non-API CLI judge such as Grok
+deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
+
 # Estimate first, no spend
 deepr eval new --dry-run --tier all
 
@@ -194,7 +197,7 @@ deepr eval new --dry-run --tier all
 deepr eval new --max-estimated-cost 3
 ```
 
-The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model.
+The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model. CLI judges are explicit opt-in because Deepr cannot prove whether a vendor CLI is using subscription quota or metered credentials.
 
 ### Setup and Capacity
 
