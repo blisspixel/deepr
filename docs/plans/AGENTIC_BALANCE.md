@@ -115,6 +115,7 @@ itself a hidden nondeterminism.
 | Permission/approval flows, capacity admission | **Workflow** | Gate the irreversible action (spend, exec), not the reasoning (NVIDIA) |
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | **Workflow** ("parse, don't validate") | Form is decidable from structure alone |
 | Capacity waterfall routing | **Workflow gate over agent work** | Admission, eligibility, selection, and numeric quality-floor gates guard metered spend, quota exhaustion, overage, reserve floors, and task class routing; evals and model review may produce quality evidence, but workflow code enforces the threshold |
+| Local model comparison | **Agent meaning, workflow envelope** | A local judge scores semantic answer quality; deterministic code validates score shape/range, reports cost `$0`, records latency, and keeps admission a human-reviewed gate |
 | Expert loop run state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but completion, budget/capacity stop, verifier pass/fail, and resumability are durable state |
 | OKF export/import | **Workflow envelope, agent meaning** | Markdown/YAML shape and source-trust gates are deterministic; claim extraction and contradiction/grounding stay calibrated model judgment |
 | Contradiction / grounding / atomicity / dedup | **Agent** (calibrated model judgment) | Meaning; lexical rules are brittle (checks doc) |

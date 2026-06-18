@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `$0` local Ollama comparison via `deepr eval local`. It compares local
+  models on an agentic-loop prompt set, uses a local model as the judge, reports
+  score, latency, winner, and cost, and can save a JSON artifact under
+  `data/benchmarks` without invoking provider APIs.
 - Added pure backend selection for the capacity waterfall. The selector orders
   normalized backends `local -> plan_quota -> api_metered`, reuses eligibility
   decisions, enforces optional measured quality floors, and returns structured
