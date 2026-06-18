@@ -7,9 +7,9 @@ at the margin). The capacity-aware router drains owned/prepaid capacity before
 ever touching a metered API - so research stays affordable on capacity users
 already have. Design: docs/design/capacity-waterfall.md.
 
-This package currently provides capacity *visibility* (detection of what is
-available); the backend execution + waterfall routing land in later v2.16
-increments.
+This package currently provides capacity *visibility*, normalized backend
+profiles, local admission, and append-only quota observations. Backend
+execution + full waterfall routing land in later v2.16 increments.
 """
 
 from deepr.backends.capacity import (
@@ -27,6 +27,11 @@ from deepr.backends.quota_ledger import (
     QuotaWindowKind,
     summarize_quota_state,
 )
+from deepr.backends.research_backend import (
+    ResearchBackend,
+    backend_from_capacity_source,
+    discover_research_backends,
+)
 
 __all__ = [
     "BackendKind",
@@ -38,6 +43,9 @@ __all__ = [
     "QuotaLedgerEvent",
     "QuotaState",
     "QuotaWindowKind",
+    "ResearchBackend",
+    "backend_from_capacity_source",
     "detect_capacity",
+    "discover_research_backends",
     "summarize_quota_state",
 ]
