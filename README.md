@@ -215,7 +215,8 @@ Local-model execution runs quality-tolerant expert maintenance at $0 against a l
 deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
-deepr eval local --max-models 2 --max-prompts 2
+deepr eval local --max-models 2 --max-prompts 2 --save
+deepr capacity admit --from-eval latest --task-class sync --yes
 ```
 
 Local models do not browse on their own. `--fresh-context` builds a free-only
@@ -224,6 +225,10 @@ DuckDuckGo search when the optional package is installed, never Brave/Tavily
 API-key search. See [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity)
 for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md)
 for the full routing model.
+
+Saved local eval artifacts can now be admitted directly. Use `--from-eval latest`
+to select the newest `data/benchmarks/local_compare_*.json` artifact, or pass a
+specific artifact path when you want to admit a named model from an older run.
 
 ### Evidence and Calibration
 

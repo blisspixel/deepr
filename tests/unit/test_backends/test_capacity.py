@@ -6,6 +6,8 @@ network and no real subprocess/PATH dependency.
 
 from __future__ import annotations
 
+import json
+
 from click.testing import CliRunner
 
 from deepr.backends.capacity import (
@@ -115,8 +117,6 @@ class TestCapacityCommand:
     def test_json_output(self):
         result = CliRunner().invoke(capacity, ["--json"])
         assert result.exit_code == 0
-        import json
-
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert any(item["kind"] == "api_metered" for item in data)
@@ -138,8 +138,6 @@ class TestCapacityCommand:
             env={"DEEPR_CAPACITY_DATA_DIR": str(tmp_path / "cap")},
         )
         assert result.exit_code == 0, result.output
-        import json
-
         data = json.loads(result.output)
         codex = next(item for item in data if item["backend_id"] == "codex")
         assert codex["quota_state"]["exhausted"] is True
@@ -160,8 +158,6 @@ class TestCapacityCommand:
         )
         result = CliRunner().invoke(capacity, ["--json"], env={"DEEPR_CAPACITY_DATA_DIR": str(cap)})
         assert result.exit_code == 0, result.output
-        import json
-
         data = json.loads(result.output)
         agy = next(item for item in data if item["backend_id"] == "agy")
         assert agy["quota_state"]["account_id"] == "personal"
@@ -201,8 +197,6 @@ class TestAdmissionCommands:
     def test_admissions_json_empty(self, tmp_path):
         r = CliRunner().invoke(capacity, ["admissions", "--json"], env=self._env(tmp_path))
         assert r.exit_code == 0
-        import json
-
         assert json.loads(r.output) == []
 
     def test_admit_cancelled_without_yes(self, tmp_path):
@@ -211,8 +205,6 @@ class TestAdmissionCommands:
         assert r.exit_code == 0
         assert "Cancelled" in r.output
         r2 = CliRunner().invoke(capacity, ["admissions", "--json"], env=env)
-        import json
-
         assert json.loads(r2.output) == []
 
     def test_revoke(self, tmp_path):
@@ -223,8 +215,6 @@ class TestAdmissionCommands:
         assert r.exit_code == 0
         assert "Revoked" in r.output
         r2 = runner.invoke(capacity, ["admissions", "--json"], env=env)
-        import json
-
         assert json.loads(r2.output) == []
 
     def test_revoke_nothing_to_revoke(self, tmp_path):
@@ -236,3 +226,137 @@ class TestAdmissionCommands:
         r = CliRunner().invoke(capacity, ["admit", "m", "-y"], env=self._env(tmp_path))
         assert r.exit_code != 0
         assert "task-class" in r.output.lower()
+
+    def test_admit_from_eval_uses_artifact_winner(self, tmp_path):
+        artifact = self._local_eval_artifact(tmp_path)
+        env = self._env(tmp_path)
+
+        r = CliRunner().invoke(
+            capacity,
+            ["admit", "--from-eval", str(artifact), "--task-class", "sync", "-y"],
+            env=env,
+        )
+
+        assert r.exit_code == 0, r.output
+        assert "Admitted 'good-local' for 'sync'" in r.output
+        r2 = CliRunner().invoke(capacity, ["admissions", "--json"], env=env)
+        data = json.loads(r2.output)
+        assert data[0]["model"] == "good-local"
+        assert data[0]["score"] == 0.81
+        assert "local eval agentic-loops" in data[0]["note"]
+
+    def test_admit_from_eval_can_select_named_model(self, tmp_path):
+        artifact = self._local_eval_artifact(tmp_path)
+        env = self._env(tmp_path)
+
+        r = CliRunner().invoke(
+            capacity,
+            ["admit", "weak-local", "--from-eval", str(artifact), "--task-class", "sync", "--min-score", "0.1", "-y"],
+            env=env,
+        )
+
+        assert r.exit_code == 0, r.output
+        r2 = CliRunner().invoke(capacity, ["admissions", "--json"], env=env)
+        data = json.loads(r2.output)
+        assert data[0]["model"] == "weak-local"
+        assert data[0]["score"] == 0.2
+
+    def test_admit_from_eval_latest_uses_default_benchmarks_dir(self, tmp_path, monkeypatch):
+        artifact = self._local_eval_artifact(tmp_path)
+        bench = tmp_path / "data" / "benchmarks"
+        bench.mkdir(parents=True)
+        artifact.replace(bench / "local_compare_20260618_120000.json")
+        monkeypatch.chdir(tmp_path)
+        env = self._env(tmp_path)
+
+        r = CliRunner().invoke(
+            capacity,
+            ["admit", "--from-eval", "latest", "--task-class", "sync", "-y"],
+            env=env,
+        )
+
+        assert r.exit_code == 0, r.output
+        r2 = CliRunner().invoke(capacity, ["admissions", "--json"], env=env)
+        data = json.loads(r2.output)
+        assert data[0]["model"] == "good-local"
+
+    def test_admit_from_eval_rejects_low_score(self, tmp_path):
+        artifact = self._local_eval_artifact(tmp_path)
+
+        r = CliRunner().invoke(
+            capacity,
+            ["admit", "weak-local", "--from-eval", str(artifact), "--task-class", "sync", "-y"],
+            env=self._env(tmp_path),
+        )
+
+        assert r.exit_code != 0
+        assert "below required minimum" in r.output
+
+    def test_admit_requires_model_without_eval_artifact(self, tmp_path):
+        r = CliRunner().invoke(capacity, ["admit", "--task-class", "sync", "-y"], env=self._env(tmp_path))
+
+        assert r.exit_code != 0
+        assert "MODEL is required" in r.output
+
+    def test_admit_from_eval_rejects_manual_score(self, tmp_path):
+        artifact = self._local_eval_artifact(tmp_path)
+
+        r = CliRunner().invoke(
+            capacity,
+            ["admit", "--from-eval", str(artifact), "--task-class", "sync", "--score", "0.9", "-y"],
+            env=self._env(tmp_path),
+        )
+
+        assert r.exit_code != 0
+        assert "omit --score" in r.output
+
+    def _local_eval_artifact(self, tmp_path):
+        path = tmp_path / "local_compare.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "methodology_version": "1.0",
+                    "generated_at": "2026-06-18T00:00:00+00:00",
+                    "prompt_set": "agentic-loops",
+                    "judge_model": "judge-local",
+                    "winner": "good-local",
+                    "cost": 0.0,
+                    "comparisons": [
+                        {
+                            "model": "good-local",
+                            "average_score": 0.81,
+                            "average_latency_ms": 22,
+                            "cost": 0.0,
+                            "prompt_results": [
+                                {
+                                    "prompt_id": "p1",
+                                    "task_class": "agentic_loop",
+                                    "answer": "bounded answer",
+                                    "latency_ms": 22,
+                                    "verdict": {"score": 0.81, "reason": "ok", "raw": "{}"},
+                                    "error": "",
+                                }
+                            ],
+                        },
+                        {
+                            "model": "weak-local",
+                            "average_score": 0.2,
+                            "average_latency_ms": 20,
+                            "cost": 0.0,
+                            "prompt_results": [
+                                {
+                                    "prompt_id": "p1",
+                                    "task_class": "agentic_loop",
+                                    "answer": "weak answer",
+                                    "latency_ms": 20,
+                                    "verdict": {"score": 0.2, "reason": "weak", "raw": "{}"},
+                                    "error": "",
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
