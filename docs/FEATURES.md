@@ -785,7 +785,7 @@ deepr capacity revoke llama3.1 --task-class absorb
 
 After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions expire (default 90 days) so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine.
 
-Plan-quota adapters are still being wired, but their routing gate is already defined: no observed quota, unknown remaining quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, and metered fallbacks without a budget gate all stop routing before execution.
+Plan-quota adapters are still being wired, but their routing gates are already defined. Selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and routing direction.
 

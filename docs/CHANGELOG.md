@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added pure backend selection for the capacity waterfall. The selector orders
+  normalized backends `local -> plan_quota -> api_metered`, reuses eligibility
+  decisions, enforces optional measured quality floors, and returns structured
+  candidate reasons without invoking adapters, vendor CLIs, or provider APIs.
 - Added pure backend eligibility decisions over `ResearchBackend` plus observed
   `QuotaState`, covering unavailable backends, unsupported task classes,
   metered budget gates, missing or unknown quota, exhausted windows,

@@ -114,7 +114,7 @@ itself a hidden nondeterminism.
 | Belief/knowledge persistence, archival, restore | **Workflow** | State writes; reversibility must be executable, not judged |
 | Permission/approval flows, capacity admission | **Workflow** | Gate the irreversible action (spend, exec), not the reasoning (NVIDIA) |
 | Boundary parsing (provider payloads, config, MCP args, extraction JSON shape) | **Workflow** ("parse, don't validate") | Form is decidable from structure alone |
-| Capacity waterfall routing | **Workflow gate over agent work** | Admission and eligibility gates guard metered spend, quota exhaustion, overage, reserve floors, and task class routing; the research itself is model-driven |
+| Capacity waterfall routing | **Workflow gate over agent work** | Admission, eligibility, selection, and numeric quality-floor gates guard metered spend, quota exhaustion, overage, reserve floors, and task class routing; evals and model review may produce quality evidence, but workflow code enforces the threshold |
 | Expert loop run state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but completion, budget/capacity stop, verifier pass/fail, and resumability are durable state |
 | OKF export/import | **Workflow envelope, agent meaning** | Markdown/YAML shape and source-trust gates are deterministic; claim extraction and contradiction/grounding stay calibrated model judgment |
 | Contradiction / grounding / atomicity / dedup | **Agent** (calibrated model judgment) | Meaning; lexical rules are brittle (checks doc) |
@@ -132,9 +132,9 @@ itself a hidden nondeterminism.
   expert honestly declares its own staleness. Both replace a self-reported flag
   with measured ground truth - exactly what the long-running-harness guidance
   prescribes.
-- **The capacity waterfall** (v2.16) is a textbook application: the deterministic
-  gate sits on the metered side-effect (eval-gated admission), while the
-  research stays model-driven.
+- **The capacity waterfall** (v2.16) is a textbook application: deterministic
+  gates sit on spend, quota, selection, and numeric quality thresholds, while
+  research and quality judgment stay model-driven and calibrated.
 - **checks-deterministic-vs-agentic.md** is this principle applied to the
   data-quality layer (the lexical-router-then-model-verdict pattern).
 
