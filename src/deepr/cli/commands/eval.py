@@ -58,6 +58,133 @@ def eval_new(tier: str, dry_run: bool, quick: bool, no_judge: bool, max_estimate
         raise click.ClickException(f"Benchmark exited with status {result.returncode}")
 
 
+@evaluate.command("local")
+@click.option(
+    "--model",
+    "models",
+    multiple=True,
+    help="Local Ollama model to compare. Repeat for multiple models. Defaults to installed models.",
+)
+@click.option(
+    "--judge-model",
+    default=None,
+    help="Local Ollama model used as judge. Defaults to the first selected model.",
+)
+@click.option(
+    "--prompt-set",
+    type=click.Choice(["agentic-loops"]),
+    default="agentic-loops",
+    show_default=True,
+    help="Built-in $0 prompt set to run.",
+)
+@click.option(
+    "--max-models",
+    type=int,
+    default=2,
+    show_default=True,
+    help="Maximum installed models to compare when --model is omitted.",
+)
+@click.option(
+    "--max-prompts",
+    type=int,
+    default=2,
+    show_default=True,
+    help="Maximum prompts from the prompt set to run.",
+)
+@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def eval_local(
+    models: tuple[str, ...],
+    judge_model: str | None,
+    prompt_set: str,
+    max_models: int,
+    max_prompts: int,
+    save: bool,
+    json_output: bool,
+):
+    """Compare local Ollama models with a local LLM judge (cost $0)."""
+    from deepr.cli.async_runner import run_async_command
+    from deepr.evals.local_compare import run_local_comparison, write_report
+
+    selected, judge, prompts = _resolve_local_eval_inputs(models, judge_model, prompt_set, max_models, max_prompts)
+
+    if not json_output:
+        click.echo(
+            f"Running local comparison at $0: models={', '.join(selected)}; judge={judge}; prompts={len(prompts)}"
+        )
+
+    report = run_async_command(
+        run_local_comparison(selected, judge_model=judge, prompts=prompts, prompt_set=prompt_set)
+    )
+
+    if save:
+        path = write_report(report)
+    else:
+        path = None
+
+    if json_output:
+        _emit_local_eval_json(report, path)
+        return
+
+    _emit_local_eval_summary(report, path)
+
+
+def _resolve_local_eval_inputs(
+    models: tuple[str, ...], judge_model: str | None, prompt_set: str, max_models: int, max_prompts: int
+):
+    from deepr.backends.capacity import available_local_models
+    from deepr.evals.local_compare import default_prompts
+
+    if max_models <= 0:
+        raise click.ClickException("--max-models must be positive.")
+    if max_prompts <= 0:
+        raise click.ClickException("--max-prompts must be positive.")
+
+    installed = available_local_models()
+    if not installed:
+        raise click.ClickException("No local Ollama models available. Start Ollama and pull a model first.")
+
+    selected = list(models) if models else installed[:max_models]
+    missing = [model for model in selected if model not in installed]
+    if missing:
+        raise click.ClickException(f"Local model(s) not installed: {', '.join(missing)}")
+
+    judge = judge_model or selected[0]
+    if judge not in installed:
+        raise click.ClickException(f"Judge model is not installed locally: {judge}")
+
+    prompts = default_prompts(prompt_set)[:max_prompts]
+    if not prompts:
+        raise click.ClickException(f"No prompts available for prompt set {prompt_set!r}.")
+    return selected, judge, prompts
+
+
+def _emit_local_eval_json(report, path: Path | None) -> None:
+    data = report.to_dict()
+    if path:
+        data["saved_to"] = str(path)
+    click.echo(json.dumps(data, indent=2))
+
+
+def _emit_local_eval_summary(report, path: Path | None) -> None:
+    click.echo("")
+    click.echo(f"Winner: {report.winner or 'n/a'}")
+    click.echo("")
+    click.echo(f"{'Model':32s} {'Score':>7s} {'Latency':>10s} {'Cost':>7s}")
+    for comparison in sorted(
+        report.comparisons,
+        key=lambda item: (item.average_score, -item.average_latency_ms, item.model),
+        reverse=True,
+    ):
+        click.echo(
+            f"{comparison.model[:32]:32s} {comparison.average_score:7.3f} "
+            f"{comparison.average_latency_ms:8d}ms ${comparison.cost:5.2f}"
+        )
+    if path:
+        click.echo(f"\nSaved {path}")
+    click.echo("\nScores are local-judge estimates; use them as routing evidence, not ground truth.")
+
+
 @evaluate.command("continuity")
 @click.argument("name")
 @click.option(
