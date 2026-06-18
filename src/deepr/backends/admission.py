@@ -25,6 +25,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 # Task classes the maintenance commands admit against. Free-form strings are
 # allowed, but these are the canonical ones so admit/check sites agree.
@@ -32,6 +33,37 @@ TASK_CLASS_SYNC = "sync"
 TASK_CLASS_ABSORB = "absorb"
 
 DEFAULT_ADMISSION_DAYS = 90
+DEFAULT_LOCAL_EVAL_MIN_SCORE = 0.70
+DEFAULT_BENCHMARKS_DIR = Path("data/benchmarks")
+
+
+class AdmissionEvidenceError(ValueError):
+    """Raised when an eval artifact cannot support local admission."""
+
+
+@dataclass(frozen=True)
+class LocalEvalAdmissionEvidence:
+    """Validated evidence loaded from a saved local comparison artifact."""
+
+    model: str
+    score: float
+    prompt_set: str
+    judge_model: str
+    methodology_version: str
+    generated_at: str
+    prompt_count: int
+    task_classes: tuple[str, ...]
+    artifact_path: Path
+    winner: str
+
+    def note(self) -> str:
+        classes = ",".join(self.task_classes) if self.task_classes else "unknown"
+        return (
+            f"local eval {self.prompt_set} v{self.methodology_version}; "
+            f"judge={self.judge_model}; score={self.score:.3f}; "
+            f"prompts={self.prompt_count}; eval_task_classes={classes}; "
+            f"artifact={self.artifact_path.name}"
+        )
 
 
 def default_capacity_data_dir() -> Path:
@@ -51,6 +83,160 @@ def admissions_path(path: Path | None = None) -> Path:
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def resolve_local_eval_artifact(value: str, *, benchmarks_dir: Path = DEFAULT_BENCHMARKS_DIR) -> Path:
+    """Resolve an eval artifact path or the newest local comparison artifact."""
+    if value.strip().lower() == "latest":
+        return latest_local_eval_artifact(benchmarks_dir)
+    path = Path(value)
+    if not path.is_file():
+        raise AdmissionEvidenceError(f"eval artifact not found: {value}")
+    return path
+
+
+def latest_local_eval_artifact(benchmarks_dir: Path = DEFAULT_BENCHMARKS_DIR) -> Path:
+    """Return the newest ``deepr eval local --save`` artifact."""
+    candidates = sorted(
+        benchmarks_dir.glob("local_compare_*.json"),
+        key=lambda path: (path.stat().st_mtime, path.name),
+        reverse=True,
+    )
+    if not candidates:
+        raise AdmissionEvidenceError(f"no local eval artifacts found under {benchmarks_dir}")
+    return candidates[0]
+
+
+def load_local_eval_evidence(
+    artifact_path: Path,
+    *,
+    model: str | None = None,
+    min_score: float = DEFAULT_LOCAL_EVAL_MIN_SCORE,
+) -> LocalEvalAdmissionEvidence:
+    """Load admission evidence from ``deepr eval local --save`` output.
+
+    The model judge supplies semantic scoring. This loader only enforces the
+    deterministic envelope: artifact shape, zero Deepr metered cost, score
+    range, requested model match, minimum score, and no failed prompt attempts.
+    """
+    _validate_probability("min_score", min_score)
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise AdmissionEvidenceError(f"could not read eval artifact: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise AdmissionEvidenceError(f"eval artifact is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise AdmissionEvidenceError("eval artifact must be a JSON object")
+
+    cost = _as_float(payload.get("cost"), "artifact cost")
+    if cost != 0.0:
+        raise AdmissionEvidenceError("only zero-cost local eval artifacts can be used for local admission")
+
+    comparisons = payload.get("comparisons")
+    if not isinstance(comparisons, list) or not comparisons:
+        raise AdmissionEvidenceError("eval artifact has no model comparisons")
+
+    selected = _select_eval_comparison(comparisons, model=model, winner=str(payload.get("winner") or ""))
+    selected_model = _required_str(selected.get("model"), "comparison model")
+    selected_cost = _as_float(selected.get("cost"), f"{selected_model} comparison cost")
+    if selected_cost != 0.0:
+        raise AdmissionEvidenceError("only zero-cost local model comparisons can be used for local admission")
+    score = _as_float(selected.get("average_score"), f"{selected_model} average_score")
+    _validate_probability(f"{selected_model} average_score", score)
+    if score < min_score:
+        raise AdmissionEvidenceError(f"{selected_model} score {score:.3f} is below required minimum {min_score:.3f}")
+
+    prompt_results = selected.get("prompt_results")
+    if not isinstance(prompt_results, list) or not prompt_results:
+        raise AdmissionEvidenceError(f"{selected_model} has no prompt results")
+    errors = [
+        str(result.get("prompt_id") or "?")
+        for result in prompt_results
+        if isinstance(result, dict) and result.get("error")
+    ]
+    if errors:
+        raise AdmissionEvidenceError(f"{selected_model} has failed prompt results: {', '.join(errors)}")
+
+    task_classes: set[str] = set()
+    for index, result in enumerate(prompt_results, start=1):
+        if not isinstance(result, dict):
+            raise AdmissionEvidenceError(f"{selected_model} prompt result {index} is not an object")
+        verdict = result.get("verdict")
+        if not isinstance(verdict, dict):
+            raise AdmissionEvidenceError(f"{selected_model} prompt result {index} has no verdict")
+        verdict_score = _as_float(verdict.get("score"), f"{selected_model} prompt result {index} score")
+        _validate_probability(f"{selected_model} prompt result {index} score", verdict_score)
+        task_class = result.get("task_class")
+        if isinstance(task_class, str) and task_class:
+            task_classes.add(task_class)
+
+    return LocalEvalAdmissionEvidence(
+        model=selected_model,
+        score=score,
+        prompt_set=str(payload.get("prompt_set") or "unknown"),
+        judge_model=str(payload.get("judge_model") or "unknown"),
+        methodology_version=str(payload.get("methodology_version") or "unknown"),
+        generated_at=str(payload.get("generated_at") or ""),
+        prompt_count=len(prompt_results),
+        task_classes=tuple(sorted(task_classes)),
+        artifact_path=artifact_path,
+        winner=str(payload.get("winner") or ""),
+    )
+
+
+def _select_eval_comparison(comparisons: list[Any], *, model: str | None, winner: str) -> dict[str, Any]:
+    objects = [comparison for comparison in comparisons if isinstance(comparison, dict)]
+    if not objects:
+        raise AdmissionEvidenceError("eval artifact comparisons are not objects")
+
+    if model:
+        selected = next((comparison for comparison in objects if comparison.get("model") == model), None)
+        if selected is None:
+            raise AdmissionEvidenceError(f"model {model!r} was not found in eval artifact")
+        return selected
+
+    if winner:
+        selected = next((comparison for comparison in objects if comparison.get("model") == winner), None)
+        if selected is not None:
+            return selected
+
+    return max(
+        objects,
+        key=lambda comparison: (
+            _safe_score(comparison.get("average_score")),
+            -int(comparison.get("average_latency_ms") or 0),
+            str(comparison.get("model") or ""),
+        ),
+    )
+
+
+def _required_str(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise AdmissionEvidenceError(f"{label} is required")
+    return value
+
+
+def _as_float(value: Any, label: str) -> float:
+    if isinstance(value, bool):
+        raise AdmissionEvidenceError(f"{label} must be numeric")
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise AdmissionEvidenceError(f"{label} must be numeric") from exc
+
+
+def _safe_score(value: Any) -> float:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return -1.0
+    return score if 0.0 <= score <= 1.0 else -1.0
+
+
+def _validate_probability(label: str, value: float) -> None:
+    if isinstance(value, bool) or value < 0.0 or value > 1.0:
+        raise AdmissionEvidenceError(f"{label} must be between 0 and 1")
 
 
 @dataclass

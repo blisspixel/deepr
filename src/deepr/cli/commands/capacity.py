@@ -162,7 +162,7 @@ def _print_admissions_summary() -> None:
 
 
 @capacity.command(name="admit")
-@click.argument("model")
+@click.argument("model", required=False)
 @click.option(
     "--task-class",
     "task_class",
@@ -171,9 +171,31 @@ def _print_admissions_summary() -> None:
 )
 @click.option("--days", type=int, default=None, help="Admission lifetime in days (default 90).")
 @click.option("--score", type=float, default=None, help="Optional quality score from your review/eval.")
+@click.option(
+    "--from-eval",
+    "eval_path",
+    type=str,
+    default=None,
+    help="Use a saved `deepr eval local --save` artifact path, or 'latest'.",
+)
+@click.option(
+    "--min-score",
+    type=float,
+    default=None,
+    help="Minimum artifact score required with --from-eval (default 0.70).",
+)
 @click.option("--note", default="", help="Optional note (e.g. how you validated quality).")
 @click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt.")
-def capacity_admit(model: str, task_class: str, days: int | None, score: float | None, note: str, yes: bool):
+def capacity_admit(
+    model: str | None,
+    task_class: str,
+    days: int | None,
+    score: float | None,
+    eval_path: str | None,
+    min_score: float | None,
+    note: str,
+    yes: bool,
+):
     """Admit a local MODEL as good enough for TASK-CLASS (owned-capacity-first).
 
     Once admitted, `deepr expert sync`/`absorb` (without --local) run that task
@@ -186,8 +208,34 @@ def capacity_admit(model: str, task_class: str, days: int | None, score: float |
     EXAMPLES:
       deepr capacity admit llama3.1 --task-class sync
       deepr capacity admit qwen2.5:14b --task-class absorb --days 60 --score 0.74
+      deepr capacity admit --from-eval data/benchmarks/local_compare_20260618_120000.json --task-class sync
     """
-    from deepr.backends.admission import DEFAULT_ADMISSION_DAYS, record_admission
+    from deepr.backends.admission import (
+        DEFAULT_ADMISSION_DAYS,
+        DEFAULT_LOCAL_EVAL_MIN_SCORE,
+        AdmissionEvidenceError,
+        load_local_eval_evidence,
+        record_admission,
+        resolve_local_eval_artifact,
+    )
+
+    if not model and eval_path is None:
+        raise click.ClickException("MODEL is required unless --from-eval is provided.")
+    if eval_path is None and min_score is not None:
+        raise click.ClickException("--min-score is only used with --from-eval.")
+    if eval_path is not None and score is not None:
+        raise click.ClickException("--score is read from --from-eval; omit --score.")
+
+    if eval_path is not None:
+        threshold = min_score if min_score is not None else DEFAULT_LOCAL_EVAL_MIN_SCORE
+        try:
+            artifact_path = resolve_local_eval_artifact(eval_path)
+            evidence = load_local_eval_evidence(artifact_path, model=model, min_score=threshold)
+        except AdmissionEvidenceError as exc:
+            raise click.ClickException(str(exc)) from exc
+        model = evidence.model
+        score = evidence.score
+        note = f"{evidence.note()}; {note}" if note else evidence.note()
 
     lifetime = days if days is not None else DEFAULT_ADMISSION_DAYS
     if not yes:
@@ -199,6 +247,7 @@ def capacity_admit(model: str, task_class: str, days: int | None, score: float |
             click.echo("Cancelled.")
             return
 
+    assert model is not None
     adm = record_admission(model, task_class, days=lifetime, score=score, note=note)
     exp = adm.expires_at.strftime("%Y-%m-%d") if adm.expires_at else "never"
     click.echo(f"Admitted '{model}' for '{task_class}' until {exp}.")

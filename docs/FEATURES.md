@@ -742,7 +742,17 @@ deepr eval local --model qwen2.5:14b \
 
 Use `--tier all` full-catalog runs sparingly; they are for periodic baseline refreshes, not daily iteration.
 
-`deepr eval local` is the no-provider path for comparing local Ollama models before admitting one for automatic maintenance. It runs the built-in `agentic-loops` prompt set, asks a local judge model to score each answer against the rubric, reports the winner, latency, and Deepr metered cost `$0`, and can save JSON under `data/benchmarks`. The score is routing evidence, not ground truth: the judge handles semantic quality while Deepr validates response shape, score range, and cost.
+`deepr eval local` is the no-provider path for comparing local Ollama models before admitting one for automatic maintenance. It runs the built-in `agentic-loops` prompt set, asks a local judge model to score each answer against the rubric, reports the winner, latency, and Deepr metered cost `$0`, and can save JSON under `data/benchmarks`. The score is routing evidence, not ground truth: the judge handles semantic quality while Deepr validates response shape, score range, cost, and prompt failures.
+
+Saved artifacts can feed admission directly:
+
+```bash
+deepr eval local --max-models 2 --max-prompts 2 --save
+deepr capacity admit --from-eval latest --task-class sync --yes
+deepr capacity admit qwen2.5:14b --from-eval data/benchmarks/local_compare_20260618_120000.json --task-class absorb
+```
+
+`--from-eval latest` resolves the newest `data/benchmarks/local_compare_*.json` artifact. Deepr only accepts zero-cost local eval artifacts, enforces score ranges, rejects failed prompt results, applies a default minimum score of `0.70`, and records the artifact summary in the machine-local admission ledger. Use `--min-score` to raise or lower the floor for a specific admission.
 
 CLI judges are supported for plan or subscription tools when the operator explicitly approves them with `--allow-cli-judge`. The Grok preset expands to a headless prompt-file command; custom commands must include `{prompt_file}` and run with `shell=False`. Deepr still records metered cost `$0`, but the external CLI may consume its own quota or credits, so this path is never auto-selected.
 
@@ -795,12 +805,13 @@ deepr expert sync "Platform Team Expert" --local --fresh-context # local model +
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
 deepr eval local --model qwen2.5:14b --judge-model qwen2.5:14b
 deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
+deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
 deepr capacity admissions          # what's admitted (and when it expires)
 deepr capacity revoke llama3.1 --task-class absorb
 ```
 
-After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local` as the cheap review step before admitting a model.
+After admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
 
 Local models do not automatically have current web context. For sync runs that
 need freshness, add `--fresh-context` with `--local` or an admitted local sync
