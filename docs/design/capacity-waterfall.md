@@ -13,9 +13,10 @@ admitted local model at $0 before metered API (the local rung of step 5, with
 `--local`/`--api` overrides); the normalized `ResearchBackend` profile; plus
 the append-only `quota_ledger.jsonl` substrate and `deepr capacity`
 quota-state visibility; and the pure backend eligibility gate over
-`ResearchBackend` plus `QuotaState`. Not yet built: the plan-quota CLI
-adapters, live window/credit probes, adapter writes, and per-task-class quality
-gates beyond the admission flag.
+`ResearchBackend` plus `QuotaState`; and the pure backend selector that orders
+eligible capacity by the waterfall and enforces optional measured quality
+floors. Not yet built: the plan-quota CLI adapters, live window/credit probes,
+adapter writes, and scheduler integration.
 
 ## Problem
 
@@ -38,9 +39,9 @@ owned_hardware`. The router consults backends in waterfall order:
 
     local (if eval-admitted) -> plan_quota (if window open) -> api_metered (budget-gated)
 
-Quality gates run *before* the waterfall: a task above the backend's
-admitted quality ceiling skips ahead (free-but-wrong is not a bargain -
-the eval-gated admission below is what earns a backend its place).
+Measured quality gates are part of selection: a backend is routable only when
+its task score clears the floor. The selector enforces numeric evidence; evals
+and model-based review produce the score. Free-but-wrong is not a bargain.
 
 ### Engine vs capacity (the key abstraction)
 
@@ -122,6 +123,13 @@ breaches. If a backend has multiple account-scoped quota states, the gate
 selects an eligible account when one exists; otherwise it returns the
 highest-priority block reason for the pool.
 
+`select_capacity_backend` consumes normalized backends, quota states, an
+optional task class, and optional per-backend quality scores. It sorts candidates
+`local -> plan_quota -> api_metered`, applies eligibility, applies the measured
+quality floor, and returns a structured reason plus every candidate gate result.
+It performs no I/O, so schedulers can preview and log the decision before any
+adapter executes.
+
 ### Eval-gated local admission
 
 `local` backends are admitted per task-class only after `deepr eval` runs
@@ -142,7 +150,7 @@ No eval, no admission - "it's free" never overrides "it's good enough".
 
 ## Order of operations
 
-Steps 1-6 are shipped or substantially built (see Status at top); adapter and
+Steps 1-7 are shipped or substantially built (see Status at top); adapter and
 scheduler work remains.
 
 1. `CostModel`/`BackendKind` types + read-only `deepr capacity` detection. (done)
@@ -156,12 +164,13 @@ scheduler work remains.
    Window/credit probes per capacity source remain.
 6. Backend eligibility gate over `ResearchBackend` and observed `QuotaState`.
    (done)
-7. First plan_quota rungs, in priority order from the survey: Copilot CLI and
+7. Backend selector over eligibility plus measured quality floors. (done)
+8. First plan_quota rungs, in priority order from the survey: Copilot CLI and
    Cursor (Auto mode), then Claude Code's credit pool (overflow OFF), then
    Codex (API-key path), Kimi/GLM/Qwen via the engine matrix, Kiro (with the
    mandatory reserve floor). Each behind an explicit opt-in and a "sanctioned
    as of <date>" kill switch.
-8. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
+9. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
 ## Open questions
