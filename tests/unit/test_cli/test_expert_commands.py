@@ -361,7 +361,11 @@ class TestExpertHealthCheckCommand:
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_health_complete"}
+            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -374,14 +378,20 @@ class TestExpertHealthCheckCommand:
             assert "NEEDS ATTENTION" in out
             assert "freshness" in out
             assert "deepr expert refresh Test Expert" in out
+            assert mock_record.call_args.kwargs["verifier_outcome"] == "needs_attention"
 
     def test_health_check_json_output(self, runner):
         import json
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
 
         with (
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_health_complete"}
+            mock_record.return_value = loop_run
             mock_store = MagicMock()
             mock_store.load.return_value = MagicMock(name="Test Expert")
             mock_store_class.return_value = mock_store
@@ -394,6 +404,9 @@ class TestExpertHealthCheckCommand:
             assert payload["expert_name"] == "Test Expert"
             assert payload["status"] == "needs_attention"
             assert payload["findings"][0]["category"] == "freshness"
+            assert payload["loop_run"]["run_id"] == "loop_health_complete"
+            assert mock_record.call_args.kwargs["status"] == LoopRunStatus.WAITING
+            assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.CAPACITY_UNAVAILABLE
 
     def test_health_check_scheduled_json_includes_action_plan(self, runner):
         import json
@@ -502,6 +515,18 @@ class TestExpertHealthCheckCommand:
         assert payload["action"] == "archive_stale"
         assert payload["count"] == 1
         assert payload["loop_run"]["run_id"] == "loop_health_archive"
+
+    def test_completed_health_archive_records_accepted_changes(self):
+        from deepr.cli.commands.semantic.expert_health_loop import record_completed_health_archive
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+            record_completed_health_archive("Test Expert", archived_count=2)
+
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.COMPLETED
+        assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.VERIFIER_PASSED
+        assert mock_record.call_args.kwargs["accepted_changes"] == 2
+        assert mock_record.call_args.kwargs["capacity_source"] == "local"
 
 
 class TestExpertAbsorbCommand:
