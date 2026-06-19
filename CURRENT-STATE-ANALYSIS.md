@@ -115,12 +115,15 @@ and expert scope for `tools/call` before dispatch; `RemoteMCPAuditLog` appends
 creates, lists, and revokes scoped keys. The scoped HTTP transport now enforces
 per-key budget ceilings by summing prior audited `cost_usd`, blocking calls
 whose requested budget or fixed estimate exceeds the remaining key budget,
+failing closed when a metered remote tool has no deterministic estimate,
 injecting remaining budget into budget-aware tools when omitted, and recording
-successful response costs back to the audit log. It also enforces optional
-per-key calls-per-minute limits from recent audited calls, blocks over-limit
-calls before dispatch, returns retry metadata, and audits the denial. `deepr mcp
-serve --http` now runs the same MCP server over HTTP/SSE on loopback by default,
-with reachable binds protected by shared-token or scoped-key authentication.
+successful response costs back to the audit log. `deepr_expert_validate` is now
+advertised as a low-cost MCP tool to match its paid validation call. It also
+enforces optional per-key calls-per-minute limits from recent audited calls,
+blocks over-limit calls before dispatch, returns retry metadata, and audits the
+denial. `deepr mcp serve --http` now runs the same MCP server over HTTP/SSE on
+loopback by default, with reachable binds protected by shared-token or
+scoped-key authentication.
 `deepr mcp audit list` reviews the local append-only remote-call audit log with
 key, tool, outcome, limit, and JSON filters, while `deepr mcp audit summary`
 aggregates counts and audited cost by key, tool, and outcome. `deepr mcp

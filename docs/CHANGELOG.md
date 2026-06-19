@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   estimate exceeds the remaining key budget, injects remaining budget into
   budget-aware tools when omitted, and records successful response costs in the
   remote audit log.
+- Added fail-closed scoped-key spend coverage for metered remote MCP tools. If
+  a budgeted scoped call targets a metered tool without a deterministic estimate,
+  the transport denies it before handler dispatch with
+  `KEY_BUDGET_ESTIMATE_UNAVAILABLE`.
 - Added per-key rate limits for scoped HTTP MCP calls. Key records can now carry
   a calls-per-minute ceiling, `deepr mcp keys create --rate-limit` exposes it,
   and the HTTP transport blocks over-limit calls before tool dispatch with
@@ -181,6 +185,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider APIs.
 
 ### Changed
+- Corrected `deepr_expert_validate` tool discovery metadata from `free` to
+  `low` so the advertised MCP cost tier matches the implementation's paid
+  validation call.
 - `expert sync --local` now keeps the full maintenance loop local by passing a
   local Ollama-backed absorber into the sync engine. Fresh-context syncs with
   zero retrieved sources now record no changes instead of absorbing the local
