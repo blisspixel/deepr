@@ -82,6 +82,10 @@ deploy/
 │   ├── azure-container-apps/
 │   │   ├── main.bicep
 │   │   └── README.md
+│   ├── cloudflare-worker/
+│   │   ├── worker.mjs
+│   │   ├── wrangler.toml.example
+│   │   └── README.md
 │   └── gcp-cloud-run/
 │       ├── main.tf
 │       └── README.md
@@ -138,6 +142,12 @@ It runs the same container on Cloud Run, mounts a Cloud Storage bucket at
 `/data`, keeps scoped-key and audit state durable with single-writer defaults,
 and leaves provider API keys out of the template until paid tools are
 intentional.
+
+For an edge ingress variant, see
+[mcp-http/cloudflare-worker/](mcp-http/cloudflare-worker/). It fronts an
+existing HTTPS MCP origin, proxies only `/mcp` paths, caps request bodies at
+1 MiB, forwards scoped-key auth headers, and leaves budgets, rate limits,
+audit logs, and provider keys on the origin side.
 
 ### AWS
 
