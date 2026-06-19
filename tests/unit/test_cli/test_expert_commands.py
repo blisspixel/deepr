@@ -232,6 +232,8 @@ class TestExpertListCommand:
             output = result.output
             assert "Test Expert" in output
             assert "Test description" in output
+            assert "Name:" in output
+            assert "Description:" in output
             assert "5" in output  # Documents count
             assert "10" in output  # Conversations count
 
@@ -382,6 +384,7 @@ class TestExpertHealthCheckCommand:
 
     def test_health_check_json_output(self, runner):
         import json
+
         from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
 
         with (
