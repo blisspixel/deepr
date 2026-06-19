@@ -69,9 +69,10 @@ third-party agent host remains open.
   - `expert_allowlist`: optional - a key scoped to specific experts.
   - `budget`: per-key spend ceiling. The HTTP transport now sums prior audited
     `cost_usd` for the key, blocks budget-aware or fixed-estimate calls that
-    exceed the remaining key budget, injects remaining budget into tools that
-    accept a budget argument when callers omit it, and records successful
-    response costs back to the remote audit log. Canonical cost-ledger `key_id`
+    exceed the remaining key budget, denies metered remote tools that lack a
+    deterministic estimate, injects remaining budget into tools that accept a
+    budget argument when callers omit it, and records successful response costs
+    back to the remote audit log. Canonical cost-ledger `key_id`
     plumbing is still a deeper cost-session integration follow-up.
   - `rate_limit`: optional calls-per-minute ceiling. The HTTP transport counts
     recent audited calls for the authenticated key, blocks over-limit calls
@@ -113,7 +114,8 @@ third-party agent host remains open.
    public bind only). Shipped as `deepr mcp serve --http`.
 3. Key store + middleware (mode scoping reuses the allowlist; budget uses
    audited remote cost attribution plus deterministic estimates). Key store,
-   mode/expert middleware, and the transport budget guard are shipped.
+   mode/expert middleware, fail-closed metered-tool estimate coverage, and the
+   transport budget guard are shipped.
 4. Audit log + rate limits + size caps. Audit log, per-key rate limits, and
    size caps are shipped; global concurrency cap remains.
 5. Deployment guide; loopback restriction lifts only when a credential exists.

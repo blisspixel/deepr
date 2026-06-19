@@ -481,7 +481,7 @@ def create_default_registry() -> ToolRegistry:
                 "required": ["expert_name", "claim"],
             },
             category="experts",
-            cost_tier="free",
+            cost_tier="low",
         )
     )
 

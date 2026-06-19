@@ -43,8 +43,10 @@ from .scoped_keys import (
     constrain_scoped_mcp_budget_arguments,
     default_key_store_path,
     default_remote_audit_path,
+    requires_scoped_mcp_cost_estimate,
 )
 from .tool_allowlist import (
+    REMOTE_METERED_SPEND_METADATA_KEY,
     ResearchMode,
     ToolAllowlist,
     ToolCategory,
@@ -56,6 +58,7 @@ from .tool_allowlist import (
 __all__ = [
     "AUDIT_KIND",
     "AUDIT_SCHEMA_VERSION",
+    "REMOTE_METERED_SPEND_METADATA_KEY",
     "InstructionSigner",
     "OutputVerifier",
     "RemoteMCPAuditEvent",
@@ -89,6 +92,7 @@ __all__ = [
     "get_allowed_tools",
     "is_internal_ip",
     "is_tool_allowed",
+    "requires_scoped_mcp_cost_estimate",
     "sign_instruction",
     "verify_instruction",
 ]
