@@ -961,6 +961,12 @@ uses the same image with persistent `/data`, HTTPS-only ingress, scoped-key
 state, and remote-audit durability while leaving provider keys out until paid
 tools are intentionally enabled. Its `maxConcurrentRequests` parameter feeds
 both the app's in-process cap and the platform HTTP scale rule.
+An AWS ECS Fargate template under
+[../deploy/mcp-http/aws-ecs-fargate/](../deploy/mcp-http/aws-ecs-fargate/)
+uses the same image with EFS-backed `/data`, HTTPS ALB ingress, scoped-key
+state, and remote-audit durability while leaving provider keys out until paid
+tools are intentionally enabled. Its `MaxConcurrentRequests` parameter feeds
+both the app's in-process cap and `deepr mcp serve --max-concurrency`.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 

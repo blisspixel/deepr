@@ -1076,11 +1076,11 @@ consumers who will exercise all three. Design:
    `deploy/mcp-http/` now adds the
    container variant with scoped-key bootstrap, loopback-only host publishing,
    and `$0` smoke validation guidance. `deploy/mcp-http/azure-container-apps/`
-   now provides the first cloud-provider template, preserving persistent
-   `/data`, scoped-key state, HTTPS-only ingress, and remote-audit durability on
-   Azure Container Apps. Remaining work: additional cloud provider templates and
-   live registration smoke against a real hosted-agent platform. The key CLI is
-   shipped as `deepr mcp keys`.
+   now provides cloud-provider templates for Azure Container Apps and AWS ECS
+   Fargate, preserving persistent `/data`, scoped-key state, HTTPS-only ingress,
+   remote-audit durability, and the HTTP concurrency cap contract. Remaining
+   work: additional cloud provider templates and live registration smoke against
+   a real hosted-agent platform. The key CLI is shipped as `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,
