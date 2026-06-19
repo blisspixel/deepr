@@ -106,6 +106,7 @@ the verified absorb path.
 - Local Ollama capacity is only as available as the local machine and admitted
   model evidence.
 - Remote MCP endpoints must use HTTPS outside loopback, scoped keys per agent,
-  budget ceilings, rate limits, and audit review before widening key mode.
+  budget ceilings, deterministic estimates for metered tools, rate limits, and
+  audit review before widening key mode.
 - Cloud templates are deployment artifacts. Creating cloud resources can incur
   infrastructure cost even when Deepr itself makes no provider API calls.

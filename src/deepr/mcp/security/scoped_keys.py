@@ -13,7 +13,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
+from deepr.mcp.security.tool_allowlist import (
+    REMOTE_METERED_SPEND_METADATA_KEY,
+    ResearchMode,
+    ToolAllowlist,
+)
 
 KEY_SCHEMA_VERSION = "deepr-mcp-key-v1"
 AUDIT_SCHEMA_VERSION = "deepr-mcp-remote-audit-v1"
@@ -144,6 +148,15 @@ def estimate_scoped_mcp_tool_cost(tool_name: str, arguments: dict[str, Any]) -> 
         if depth <= 0:
             return 0.0
     return _FIXED_TOOL_COST_ESTIMATES_USD.get(tool_name)
+
+
+def requires_scoped_mcp_cost_estimate(tool_name: str, allowlist: ToolAllowlist | None = None) -> bool:
+    """Return whether a remote MCP tool must have a deterministic spend estimate."""
+    policy = allowlist or ToolAllowlist()
+    config = policy.get_tool_config(tool_name)
+    if not config:
+        return False
+    return bool(config.metadata.get(REMOTE_METERED_SPEND_METADATA_KEY))
 
 
 @dataclass(frozen=True)
@@ -466,6 +479,7 @@ def authorize_scoped_mcp_budget(
     tool_name: str,
     arguments: dict[str, Any],
     spent_usd: float,
+    allowlist: ToolAllowlist | None = None,
 ) -> ScopedMCPBudgetDecision:
     """Validate a scoped key's per-key budget before dispatch."""
     if context.budget_limit_usd is None:
@@ -476,10 +490,29 @@ def authorize_scoped_mcp_budget(
         )
     remaining = max(context.budget_limit_usd - spent_usd, 0.0)
     estimated_cost = estimate_scoped_mcp_tool_cost(tool_name, arguments)
-    if estimated_cost is None or estimated_cost <= 0:
+    if estimated_cost is None:
+        if requires_scoped_mcp_cost_estimate(tool_name, allowlist=allowlist):
+            return ScopedMCPBudgetDecision(
+                allowed=False,
+                reason=f"Scoped key budget cannot authorize {tool_name}: no deterministic spend estimate is available",
+                error_code="KEY_BUDGET_ESTIMATE_UNAVAILABLE",
+                budget_limit_usd=context.budget_limit_usd,
+                spent_usd=spent_usd,
+                remaining_usd=remaining,
+                estimated_cost_usd=None,
+            )
         return ScopedMCPBudgetDecision(
             allowed=True,
-            reason="Tool has no deterministic remote spend estimate",
+            reason="Tool has no configured remote spend path",
+            budget_limit_usd=context.budget_limit_usd,
+            spent_usd=spent_usd,
+            remaining_usd=remaining,
+            estimated_cost_usd=None,
+        )
+    if estimated_cost <= 0:
+        return ScopedMCPBudgetDecision(
+            allowed=True,
+            reason="Tool has a deterministic zero remote spend estimate",
             budget_limit_usd=context.budget_limit_usd,
             spent_usd=spent_usd,
             remaining_usd=remaining,

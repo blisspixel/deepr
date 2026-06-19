@@ -939,7 +939,9 @@ configured key stores authenticate Bearer or `X-Api-Key` requests, enforce
 key mode, expert allowlists, confirmation gates, per-key budget ceilings, and
 per-key rate limits before `tools/call` dispatch, and append
 `deepr-mcp-remote-audit-v1` records for remote calls with response cost
-attribution when available.
+attribution when available. Metered remote tools must have deterministic
+pre-dispatch estimates; scoped budget checks fail closed when that estimate is
+missing.
 Use `deepr mcp keys create/list/revoke` to manage those local key records, and
 `deepr mcp audit list` / `deepr mcp audit summary` to review and aggregate the
 local append-only remote-call audit log with key, tool, outcome, limit, and JSON

@@ -188,7 +188,9 @@ remote agents, an Azure Container Apps template under
 [deploy/mcp-http/azure-container-apps/](deploy/mcp-http/azure-container-apps/),
 `deepr mcp registration-manifest URL` for token-redacted remote host setup
 packets, plus `deepr mcp audit list` and `summary` for reviewing scoped-key
-remote-call audit records.
+remote-call audit records. Scoped-key budgets use audited spend plus
+deterministic tool estimates before dispatch, and fail closed for metered tools
+without an estimate.
 
 ### Web Dashboard
 

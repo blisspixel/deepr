@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+REMOTE_METERED_SPEND_METADATA_KEY = "remote_metered_spend"
+
 
 class ResearchMode(Enum):
     """Research mode determines tool availability."""
@@ -183,6 +185,14 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_expert_validate": ToolConfig(
+            name="deepr_expert_validate",
+            category=ToolCategory.SENSITIVE,
+            description="Validate a claim against expert knowledge with one small paid call",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
+        ),
         "deepr_rank_gaps": ToolConfig(
             name="deepr_rank_gaps",
             category=ToolCategory.SENSITIVE,
@@ -256,6 +266,7 @@ class ToolAllowlist:
             description="Self-evaluate a research report (quality gate, read-only)",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
         # Absorb MUTATES expert beliefs and runs a paid extraction call, so it
         # is WRITE: confirm in standard/extended, blocked in read-only.
@@ -265,22 +276,25 @@ class ToolAllowlist:
             description="Promote a research report into expert beliefs (verification-gated, mutating)",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
-        # Expert query — may return private knowledge. Sensitive.
+        # Expert query: may return private knowledge. Sensitive.
         "deepr_query_expert": ToolConfig(
             name="deepr_query_expert",
             category=ToolCategory.SENSITIVE,
             description="Query an expert's private knowledge",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
-        # Cost-incurring writes — paid provider calls and state changes.
+        # Cost-incurring writes: paid provider calls and state changes.
         "deepr_research": ToolConfig(
             name="deepr_research",
             category=ToolCategory.WRITE,
             description="Submit a paid research job to a provider",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
         "deepr_agentic_research": ToolConfig(
             name="deepr_agentic_research",
@@ -288,6 +302,7 @@ class ToolAllowlist:
             description="Autonomous multi-step research; $1-$10 per call",
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
         ),
         "deepr_cancel_job": ToolConfig(
             name="deepr_cancel_job",
@@ -471,6 +486,7 @@ class ToolAllowlist:
         description: str = "",
         requires_confirmation_in: set[ResearchMode] | None = None,
         blocked_in: set[ResearchMode] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ToolConfig:
         """Register a new tool.
 
@@ -480,6 +496,7 @@ class ToolAllowlist:
             description: Tool description
             requires_confirmation_in: Modes requiring confirmation
             blocked_in: Modes where tool is blocked
+            metadata: Extra deterministic policy metadata
 
         Returns:
             Created ToolConfig
@@ -490,6 +507,7 @@ class ToolAllowlist:
             description=description,
             requires_confirmation_in=requires_confirmation_in or set(),
             blocked_in=blocked_in or set(),
+            metadata=metadata or {},
         )
         self._tools[name] = config
         return config
