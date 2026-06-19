@@ -941,7 +941,8 @@ per-key rate limits before `tools/call` dispatch, and append
 `deepr-mcp-remote-audit-v1` records for remote calls with response cost
 attribution when available. Metered remote tools must have deterministic
 pre-dispatch estimates; scoped budget checks fail closed when that estimate is
-missing.
+missing. HTTP POST concurrency is capped at 32 by default and can be adjusted
+with `--max-concurrency` or `DEEPR_MCP_HTTP_MAX_CONCURRENCY`.
 Use `deepr mcp keys create/list/revoke` to manage those local key records, and
 `deepr mcp audit list` / `deepr mcp audit summary` to review and aggregate the
 local append-only remote-call audit log with key, tool, outcome, limit, and JSON
@@ -958,7 +959,8 @@ before the service starts. An Azure Container Apps template under
 [../deploy/mcp-http/azure-container-apps/](../deploy/mcp-http/azure-container-apps/)
 uses the same image with persistent `/data`, HTTPS-only ingress, scoped-key
 state, and remote-audit durability while leaving provider keys out until paid
-tools are intentionally enabled.
+tools are intentionally enabled. Its `maxConcurrentRequests` parameter feeds
+both the app's in-process cap and the platform HTTP scale rule.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 

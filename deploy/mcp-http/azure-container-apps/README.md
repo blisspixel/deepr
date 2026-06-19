@@ -15,9 +15,13 @@ commands during tests.
 - Container Apps managed environment.
 - Container App running `deepr mcp serve --http --host 0.0.0.0 --path /mcp`.
 - HTTPS-only ingress with optional public exposure and optional CIDR allowlist.
+- A `maxConcurrentRequests` parameter that feeds both Deepr's in-process HTTP
+  POST cap and the Container Apps HTTP scale rule.
 
 Provider API keys are intentionally absent. Add provider credentials only when a
 scoped key mode, budget ceiling, and rate limit intentionally allow paid tools.
+Keep the default concurrency cap until remote-host traffic patterns justify a
+larger value.
 
 ## Build And Push The Image
 
@@ -70,6 +74,7 @@ az deployment group create \
   --template-file deploy/mcp-http/azure-container-apps/main.bicep \
   --parameters \
     containerImage=ghcr.io/OWNER/deepr-mcp-http:TAG \
+    maxConcurrentRequests=32 \
     externalIngress=true \
     allowedIpRanges='["203.0.113.0/24"]'
 ```
@@ -117,5 +122,6 @@ Keep the same guardrails as the local container recipe:
 - Use one scoped key per remote agent.
 - Start read-only with `--budget 0`.
 - Set a per-key rate limit.
+- Keep `maxConcurrentRequests` bounded.
 - Upload and back up `security/mcp_keys.json` and audit logs as durable data.
 - Add provider API keys only when paid tools are intentional.

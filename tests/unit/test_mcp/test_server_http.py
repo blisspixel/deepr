@@ -72,13 +72,21 @@ async def test_run_http_server_starts_and_stops_transport():
         patch("deepr.mcp.http_server.mcp_server.DeeprMCPServer", return_value=server),
         patch("deepr.mcp.http_server.StreamingHttpTransport", FakeTransport),
     ):
-        await run_http_server(host="127.0.0.1", port=18888, path="/x", auth_token="token", stop_event=stop_event)
+        await run_http_server(
+            host="127.0.0.1",
+            port=18888,
+            path="/x",
+            auth_token="token",
+            max_concurrent_requests=11,
+            stop_event=stop_event,
+        )
 
     transport = created[0]
     assert transport.kwargs["host"] == "127.0.0.1"
     assert transport.kwargs["port"] == 18888
     assert transport.kwargs["path"] == "/x"
     assert transport.kwargs["auth_token"] == "token"
+    assert transport.kwargs["max_concurrent_requests"] == 11
     assert transport.on_message.called
     transport.start.assert_awaited_once()
     transport.stop.assert_awaited_once()
