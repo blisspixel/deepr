@@ -339,6 +339,7 @@ class TestExpertHealthCheckCommand:
         result = runner.invoke(cli, ["expert", "health-check", "--help"])
         assert result.exit_code == 0
         assert "audit" in result.output.lower()
+        assert "--scheduled" in result.output
 
     def test_health_check_requires_name(self, runner):
         result = runner.invoke(cli, ["expert", "health-check"])
@@ -392,6 +393,71 @@ class TestExpertHealthCheckCommand:
             assert payload["expert_name"] == "Test Expert"
             assert payload["status"] == "needs_attention"
             assert payload["findings"][0]["category"] == "freshness"
+
+    def test_health_check_scheduled_json_includes_action_plan(self, runner):
+        import json
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.health_check.ExpertHealthChecker") as mock_checker,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            mock_checker.return_value.run.return_value = self._stub_report()
+
+            result = runner.invoke(cli, ["expert", "health-check", "Test Expert", "--scheduled", "--json"])
+
+            assert result.exit_code == 0
+            payload = json.loads(result.output)
+            assert payload["scheduled"] is True
+            plan = payload["scheduled_action_plan"]
+            assert plan["status"] == "waiting_for_capacity"
+            assert plan["actions"][0]["scheduler_status"] == "waiting_for_capacity"
+
+    def test_scheduled_archive_waits_for_confirmation_without_mutating(self, runner, tmp_path):
+        import json
+        from datetime import UTC, datetime
+
+        beliefs_dir = tmp_path / "Test Expert" / "beliefs"
+        beliefs_dir.mkdir(parents=True)
+        candidate = MagicMock()
+        candidate.id = "b1"
+        candidate.claim = "Stale claim"
+        candidate.get_current_confidence.return_value = 0.12
+        candidate.updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+        candidate.retrieval_count = 0
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.config.experts_root", return_value=tmp_path),
+            patch("deepr.experts.beliefs.BeliefStore") as mock_belief_store_class,
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = MagicMock(name="Test Expert")
+            mock_store_class.return_value = mock_store
+            belief_store = MagicMock()
+            belief_store.archive_candidates.return_value = [candidate]
+            mock_belief_store_class.return_value = belief_store
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "health-check",
+                    "Test Expert",
+                    "--archive-stale",
+                    "--scheduled",
+                    "--json",
+                ],
+            )
+
+        assert result.exit_code == 0
+        belief_store.archive_stale.assert_not_called()
+        payload = json.loads(result.output)
+        assert payload["status"] == "waiting_for_confirmation"
+        assert payload["action"] == "archive_stale"
+        assert payload["count"] == 1
 
 
 class TestExpertAbsorbCommand:
