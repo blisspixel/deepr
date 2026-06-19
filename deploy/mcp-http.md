@@ -1,0 +1,133 @@
+# Hosted MCP HTTP Endpoint
+
+This recipe exposes Deepr's MCP server to remote agent hosts through
+Streamable HTTP while keeping Deepr itself bound to loopback. TLS, public
+DNS, and edge hardening belong at the reverse proxy. The Python process should
+not be the public TLS terminator.
+
+## Shape
+
+```
+remote agent host
+  -> HTTPS reverse proxy
+  -> http://127.0.0.1:8765/mcp
+  -> deepr mcp serve --http
+```
+
+Use scoped MCP keys for production. Shared tokens remain available for local
+testing and simple private networks, but scoped keys give each agent its own
+mode, expert allowlist, budget ceiling, rate limit, revocation state, and audit
+trail.
+
+## Prepare The Host
+
+Install Deepr on the machine that owns the experts and reports:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+pip install -e ".[dev,full]"
+deepr doctor
+```
+
+Keep provider API keys out of the proxy configuration. Put them in the Deepr
+process environment only when you intentionally allow paid research tools.
+Read-only and status smoke tests do not require provider keys.
+
+Create a scoped key store and mint one key per remote agent:
+
+```bash
+mkdir -p data/security
+deepr mcp keys create \
+  --mode read_only \
+  --rate-limit 30 \
+  --budget 0 \
+  --keys-path data/security/mcp_keys.json
+```
+
+The secret is printed once. Store it in the remote host secret manager. Do not
+commit it and do not put it in reverse-proxy access logs.
+
+Start Deepr on loopback:
+
+```bash
+deepr mcp serve \
+  --http \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --path /mcp \
+  --keys-path data/security/mcp_keys.json
+```
+
+## Caddy Reverse Proxy
+
+Caddy handles certificates automatically for a public DNS name:
+
+```caddyfile
+mcp.example.com {
+    reverse_proxy 127.0.0.1:8765
+}
+```
+
+Then validate from any machine that can reach the public endpoint:
+
+```bash
+deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+```
+
+The smoke command performs only `$0` structural checks:
+
+- `GET /health`
+- JSON-RPC `initialize`
+- JSON-RPC `tools/list`
+- JSON-RPC `tools/call` for `deepr_tool_search`
+
+It exits nonzero if authentication, routing, or dispatch is broken.
+
+## Nginx Reverse Proxy
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name mcp.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/mcp.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp.example.com/privkey.pem;
+
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8765;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Authorization $http_authorization;
+        proxy_buffering off;
+    }
+}
+```
+
+Validate with the same smoke command:
+
+```bash
+deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+```
+
+## Operational Rules
+
+- Keep Deepr bound to `127.0.0.1` unless you have a separate network boundary.
+- Use HTTPS for any non-loopback caller. Bearer tokens over plaintext HTTP are
+  visible on the network.
+- Use `read_only` keys for discovery, status, and handoff consumers.
+- Use `standard` or higher modes only for agents that are allowed to mutate
+  expert state or submit paid work, and pair them with a budget ceiling.
+- Set per-key rate limits for every remote agent.
+- Revoke a key immediately when an agent host is retired:
+
+```bash
+deepr mcp keys revoke <key-id> --keys-path data/security/mcp_keys.json
+```
+
+Remote calls made through scoped keys write append-only audit records. Inspect
+the audit file before widening the key mode or budget.

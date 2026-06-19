@@ -936,7 +936,9 @@ per-key rate limits before `tools/call` dispatch, and append
 attribution when available.
 Use `deepr mcp keys create/list/revoke` to manage those local key records, and
 `deepr mcp serve --http` to run the same MCP server over HTTP/SSE on loopback
-by default.
+by default. Use `deepr mcp smoke-http URL` to run `$0` health, initialize,
+tools/list, and free tool-search checks against a local or TLS-proxied HTTP MCP
+endpoint.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
