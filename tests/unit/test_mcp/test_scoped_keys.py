@@ -6,7 +6,9 @@ from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditLog,
     ScopedMCPKeyContext,
     ScopedMCPKeyStore,
+    authorize_scoped_mcp_budget,
     authorize_scoped_mcp_tool_call,
+    constrain_scoped_mcp_budget_arguments,
 )
 from deepr.mcp.security.tool_allowlist import ResearchMode
 
@@ -94,6 +96,54 @@ class TestScopedMCPAuthorization:
         assert not list_all.allowed
         assert list_all.error_code == "EXPERT_SCOPE_REQUIRED"
 
+    def test_key_budget_blocks_when_estimate_exceeds_remaining(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
+
+        decision = authorize_scoped_mcp_budget(
+            context,
+            "deepr_agentic_research",
+            {"budget": 0.75},
+            spent_usd=0.50,
+        )
+
+        assert not decision.allowed
+        assert decision.error_code == "KEY_BUDGET_EXCEEDED"
+        assert decision.remaining_usd == 0.5
+        assert decision.estimated_cost_usd == 0.75
+
+    def test_key_budget_injects_remaining_for_budget_aware_tool(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
+
+        arguments = constrain_scoped_mcp_budget_arguments(
+            context,
+            "deepr_agentic_research",
+            {"goal": "research"},
+            spent_usd=0.25,
+        )
+        decision = authorize_scoped_mcp_budget(context, "deepr_agentic_research", arguments, spent_usd=0.25)
+
+        assert arguments["budget"] == 0.75
+        assert decision.allowed
+        assert decision.estimated_cost_usd == 0.75
+
+    def test_fixed_cost_tool_uses_key_budget(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=0.04)
+
+        allowed = authorize_scoped_mcp_budget(context, "deepr_expert_absorb", {}, spent_usd=0.0)
+        denied = authorize_scoped_mcp_budget(context, "deepr_expert_absorb", {}, spent_usd=0.02)
+
+        assert allowed.allowed
+        assert not denied.allowed
+        assert denied.error_code == "KEY_BUDGET_EXCEEDED"
+
+    def test_plain_expert_query_defaults_to_cost_capable(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
+
+        decision = authorize_scoped_mcp_budget(context, "deepr_query_expert", {}, spent_usd=0.0)
+
+        assert not decision.allowed
+        assert decision.estimated_cost_usd == 10.0
+
 
 class TestRemoteMCPAuditLog:
     def test_records_tool_call_without_storing_arguments(self, tmp_path):
@@ -115,3 +165,15 @@ class TestRemoteMCPAuditLog:
         assert event.tool == "deepr_expert_handoff"
         assert event.trace_id == "trace-1"
         assert event.expert_names == ("alpha",)
+
+    def test_totals_actual_cost_by_key(self, tmp_path):
+        log = RemoteMCPAuditLog(tmp_path / "remote.jsonl")
+        first = ScopedMCPKeyContext("first", ResearchMode.UNRESTRICTED)
+        second = ScopedMCPKeyContext("second", ResearchMode.UNRESTRICTED)
+
+        log.record_tool_call(first, tool="deepr_query_expert", arguments={}, outcome="success", cost_usd=0.10)
+        log.record_tool_call(first, tool="deepr_query_expert", arguments={}, outcome="success", cost_usd=0.25)
+        log.record_tool_call(second, tool="deepr_query_expert", arguments={}, outcome="success", cost_usd=9.00)
+
+        assert log.total_cost_for_key("first") == 0.35
+        assert log.total_cost_for_key("second") == 9.0
