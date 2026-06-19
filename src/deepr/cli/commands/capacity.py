@@ -163,21 +163,59 @@ def _print_admissions_summary() -> None:
 
 @capacity.command(name="next")
 @click.option("--task-class", default="sync", show_default=True, help="Task class to plan for, e.g. sync or absorb.")
+@click.option(
+    "--expert", "expert_name", default="<expert>", show_default=True, help="Expert name for command previews."
+)
+@click.option("--report-id", default="<report_id>", show_default=True, help="Report id for absorb command previews.")
+@click.option(
+    "--context-mode",
+    type=click.Choice(["none", "fresh", "deep"]),
+    default="none",
+    show_default=True,
+    help="Concrete sync context mode to preview.",
+)
+@click.option("--scheduled", is_flag=True, help="Prefer wait guidance for recurring scheduler work.")
 @click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
-def capacity_next(task_class: str, json_output: bool):
+def capacity_next(
+    task_class: str,
+    expert_name: str,
+    report_id: str,
+    context_mode: str,
+    scheduled: bool,
+    json_output: bool,
+):
     """Show the next safe actions for using cheap capacity.
 
     Read-only and $0: explains whether automatic local routing is ready, why it
     is blocked, and which command most directly unblocks it.
     """
-    from deepr.backends.capacity_actions import build_capacity_next_actions
+    from deepr.backends.capacity_actions import CapacityJobContext, build_capacity_next_actions
 
-    actions = build_capacity_next_actions(task_class=task_class)
+    try:
+        job_context = CapacityJobContext(
+            task_class=task_class,
+            expert_name=expert_name,
+            report_id=report_id,
+            context_mode=context_mode,
+            scheduled=scheduled,
+        )
+        actions = build_capacity_next_actions(task_class=task_class, job_context=job_context)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
     if json_output:
-        click.echo(_json.dumps([action.to_dict() for action in actions], indent=2))
+        payload = {
+            "job_context": job_context.to_dict(),
+            "actions": [action.to_dict() for action in actions],
+        }
+        click.echo(_json.dumps(payload, indent=2))
         return
 
     click.echo(f"Capacity next actions for task class: {task_class}\n")
+    if context_mode != "none" or scheduled or expert_name != "<expert>" or report_id != "<report_id>":
+        click.echo(
+            f"Job preview: expert={expert_name}, report_id={report_id}, context={context_mode}, scheduled={scheduled}\n"
+        )
     if not actions:
         click.echo("No next actions found.")
         return
