@@ -9,6 +9,7 @@ from typing import Any
 
 from flask import Flask, jsonify, request
 
+from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.experts.profile_store import ExpertStore
 
@@ -39,6 +40,7 @@ def register_expert_loop_status_api(
 
             resolved_name = getattr(profile, "name", decoded_name) or decoded_name
             rollup = build_loop_status_rollup(str(resolved_name), limit=limit)
+            rollup["expert_state"] = build_expert_dashboard_telemetry(profile)
             return jsonify({"loop_status": rollup})
         except ImportError:
             return jsonify({"error": "Expert system not available"}), 404

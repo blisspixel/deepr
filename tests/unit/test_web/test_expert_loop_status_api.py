@@ -48,16 +48,25 @@ def test_loop_status_route_returns_rollup(client):
     with (
         patch("deepr.web.expert_loop_status_api.ExpertStore") as store_type,
         patch("deepr.web.expert_loop_status_api.build_loop_status_rollup") as build_rollup,
+        patch("deepr.web.expert_loop_status_api.build_expert_dashboard_telemetry") as build_telemetry,
     ):
         store_type.return_value.load.return_value = profile
         build_rollup.return_value = {"expert_name": "Platform Expert", "count": 1}
+        build_telemetry.return_value = {"freshness": {"status": "fresh"}}
 
         resp = client.get("/api/experts/Platform%20Expert/loop-status?limit=200")
 
     assert resp.status_code == 200
-    assert resp.get_json() == {"loop_status": {"expert_name": "Platform Expert", "count": 1}}
+    assert resp.get_json() == {
+        "loop_status": {
+            "expert_name": "Platform Expert",
+            "count": 1,
+            "expert_state": {"freshness": {"status": "fresh"}},
+        }
+    }
     store_type.return_value.load.assert_called_once_with("Platform Expert")
     build_rollup.assert_called_once_with("Platform Expert", limit=100)
+    build_telemetry.assert_called_once_with(profile)
 
 
 def test_loop_status_route_returns_404_for_missing_expert(client):
