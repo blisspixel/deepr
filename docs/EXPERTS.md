@@ -26,6 +26,9 @@ Deepr experts:
 # Create expert from documents
 deepr expert make "Azure Architect" --files docs/*.md
 
+# Create a local-only expert profile with no provider API calls
+deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
+
 # Chat with expert
 deepr expert chat "Azure Architect"
 
@@ -39,6 +42,20 @@ deepr expert chat "Azure Architect" --budget 5  # agentic by default
 ```bash
 deepr expert make "Expert Name" --files path/to/docs/*.md
 ```
+
+### Local-Only Creation
+```bash
+deepr expert make "Expert Name" --local -d "Domain description"
+deepr expert subscribe "Expert Name" "Domain topic"
+deepr expert sync "Expert Name" --local --fresh-context -y
+```
+
+`--local` creates the expert profile and local document folders without
+creating a provider vector store or uploading files. If you pass `--files`,
+Deepr copies the seed documents into the expert's local documents folder and
+records them in the profile. Local creation does not run the API-backed
+`--learn` curriculum; use subscriptions plus `expert sync --local` for $0
+maintenance.
 
 ### With Autonomous Learning
 ```bash

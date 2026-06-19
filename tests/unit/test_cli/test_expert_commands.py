@@ -65,6 +65,8 @@ class TestExpertMakeCommand:
         result = runner.invoke(cli, ["expert", "make", "--help"])
         assert result.exit_code == 0
         assert "make" in result.output.lower()
+        assert "--local" in result.output
+        assert "--local-model" in result.output
 
     def test_expert_make_requires_name(self, runner):
         """Test that 'expert make' requires a name argument."""
@@ -104,6 +106,76 @@ class TestExpertMakeCommand:
         # Should list available providers
         assert "openai" in output
         assert "gemini" in output or "azure" in output
+
+    def test_expert_make_local_creates_profile_without_provider(self, runner, monkeypatch):
+        """Local creation must not call provider vector store setup."""
+        from deepr.experts.profile import ExpertStore
+
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "test-local-model")
+
+        with patch("deepr.providers.create_provider") as create_provider:
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "make",
+                    "Local UX Expert",
+                    "--local",
+                    "-d",
+                    "UI/UX for local agentic research tools",
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Local expert created: Local UX Expert" in result.output
+        create_provider.assert_not_called()
+
+        profile = ExpertStore().load("Local UX Expert")
+        assert profile is not None
+        assert profile.provider == "local"
+        assert profile.model == "test-local-model"
+        assert profile.vector_store_id == "local-only:local_ux_expert"
+        assert profile.total_documents == 0
+        assert profile.monthly_learning_budget == 0.0
+
+    def test_expert_make_local_copies_seed_files(self, runner, tmp_path, monkeypatch):
+        """Seed documents become owned local expert documents."""
+        from pathlib import Path
+
+        from deepr.experts.profile import ExpertStore
+
+        monkeypatch.setenv("DEEPR_LOCAL_MODEL", "test-local-model")
+        source = tmp_path / "seed.md"
+        source.write_text("# Seed\n\nLocal source material.", encoding="utf-8")
+
+        result = runner.invoke(
+            cli,
+            [
+                "expert",
+                "make",
+                "Local Docs Expert",
+                "--local",
+                "--files",
+                str(source),
+            ],
+        )
+
+        assert result.exit_code == 0
+        profile = ExpertStore().load("Local Docs Expert")
+        assert profile is not None
+        assert profile.total_documents == 1
+        copied = Path(profile.source_files[0])
+        assert copied.name == "seed.md"
+        assert copied.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+        assert copied.parent == ExpertStore().get_documents_dir("Local Docs Expert")
+
+    def test_expert_make_local_rejects_api_backed_learning_options(self, runner):
+        """Local make is only profile setup; learning runs through sync."""
+        result = runner.invoke(cli, ["expert", "make", "Local Expert", "--local", "--learn", "--budget", "1"])
+
+        assert result.exit_code == 0
+        assert "--local creates a $0 profile only" in result.output
+        assert "expert sync" in result.output
 
 
 class TestExpertListCommand:
