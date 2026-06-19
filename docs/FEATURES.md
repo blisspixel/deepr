@@ -930,8 +930,9 @@ OKF interchange hints, and an additive compatibility contract. The schema is
 published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
 The MCP HTTP transport also has an experimental scoped-key primitive:
 configured key stores authenticate Bearer or `X-Api-Key` requests, enforce
-key mode, expert allowlists, and confirmation gates before `tools/call`
-dispatch, and append `deepr-mcp-remote-audit-v1` records for remote calls.
+key mode, expert allowlists, confirmation gates, and per-key budget ceilings
+before `tools/call` dispatch, and append `deepr-mcp-remote-audit-v1` records for
+remote calls with response cost attribution when available.
 Use `deepr mcp keys create/list/revoke` to manage those local key records.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.

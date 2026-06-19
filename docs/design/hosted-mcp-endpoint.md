@@ -2,8 +2,8 @@
 
 Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
-Status: design, with the first versioned handoff contract and scoped-key/audit
-primitive shipped.
+Status: design, with the first versioned handoff contract and scoped-key,
+budget, and audit primitives shipped.
 
 ## Problem
 
@@ -46,8 +46,8 @@ requirement before dispatch. `RemoteMCPAuditLog` writes append-only
 `deepr-mcp-remote-audit-v1` events with `{key_id, mode, tool, args_hash,
 trace_id, outcome, error_code, expert_names, cost_usd}`. `deepr mcp keys`
 creates, lists, and revokes those key records locally. This is not the full
-hosted endpoint yet: per-key cost sessions, rate limits, deployment docs, and
-remote smoke tests remain open.
+hosted endpoint yet: rate limits, deployment docs, and remote smoke tests remain
+open.
 
 - **Scoped API keys**, not one shared secret: each key carries
   `{key_id, mode, expert_allowlist, budget}`.
@@ -55,9 +55,12 @@ remote smoke tests remain open.
     (READ_ONLY keys cannot reach WRITE/EXECUTE/SENSITIVE tools - the
     enforcement layer already exists, keys just select it).
   - `expert_allowlist`: optional - a key scoped to specific experts.
-  - `budget`: per-key spend ceiling, enforced through the existing
-    CostSafetyManager session machinery (a key is a session); the
-    canonical cost ledger records `key_id` on every event.
+  - `budget`: per-key spend ceiling. The HTTP transport now sums prior audited
+    `cost_usd` for the key, blocks budget-aware or fixed-estimate calls that
+    exceed the remaining key budget, injects remaining budget into tools that
+    accept a budget argument when callers omit it, and records successful
+    response costs back to the remote audit log. Canonical cost-ledger `key_id`
+    plumbing is still a deeper cost-session integration follow-up.
 - Keys are hashed at rest with a salted one-way KDF. The key CLI shows each
   secret once at mint (`deepr mcp keys create --mode read_only --budget 5`),
   supports revocation (`keys revoke`), and lists last-used timestamps.
@@ -90,9 +93,9 @@ remote smoke tests remain open.
    MCP and the dashboard API. Shipped as `deepr-expert-handoff-v1`.
 2. HTTP transport on the existing server (loopback by default, authenticated
    public bind only).
-3. Key store + middleware (mode scoping reuses the allowlist; budget
-   reuses cost sessions). Key store and mode/expert middleware are shipped;
-   cost-session budget wiring remains.
+3. Key store + middleware (mode scoping reuses the allowlist; budget uses
+   audited remote cost attribution plus deterministic estimates). Key store,
+   mode/expert middleware, and the transport budget guard are shipped.
 4. Audit log + rate limits + size caps. Audit log and size caps are shipped;
    rate limits remain.
 5. Deployment guide; loopback restriction lifts only when a credential exists.
