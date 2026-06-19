@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   surfaces expose the four admission gates: repeat demand, automated
   verification, explicit budget/capacity, and failure-diagnosis state. Gap-fill
   remains supervised until gap-closure verifier evidence is recorded.
+- Added `deepr expert export-okf NAME PATH`, a `$0` regenerated OKF Markdown
+  bundle over structured expert state. It writes `index.md`, `log.md`, concept
+  pages, citations, typed relations, gaps, contested claims, and optional
+  `llms.txt`, with marker-based overwrite protection so the bundle remains an
+  interchange view rather than authoritative state.
 - Added `deepr expert health-check --scheduled`, which emits a scheduler action
   plan for recommended actions, and made `--archive-stale --scheduled` wait for
   explicit confirmation instead of prompting or mutating unless `--yes` is set.

@@ -90,6 +90,12 @@ exposed through the dashboard rollup as `admission_contracts`. Sync,
 reflection, and health-check are admitted under the four workflow gates;
 gap-fill remains supervised until gap-closure verifier evidence is recorded.
 
+`deepr expert export-okf NAME PATH` now starts the OKF interchange track. It
+regenerates a Markdown/YAML bundle from structured expert state at `$0`,
+including `index.md`, `log.md`, concept pages, citations, typed relations,
+gaps, contested claims, and optional `llms.txt`, with marker-based overwrite
+protection. The belief/event/edge store remains canonical.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -109,9 +115,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: start the OKF export/import track as a regenerated derived view over
-the belief/event/edge store, keeping generated Markdown out of the authoritative
-state path.
+Next slice: add `deepr expert absorb-okf NAME PATH` as a verified ingestion path
+that parses OKF Markdown/YAML and routes extracted claims through the existing
+absorb gates instead of trusting bundle text.
 
 ## Spend Ledger For This Run
 

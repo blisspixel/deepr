@@ -559,16 +559,16 @@ belief store. Detailed loop contract: [docs/design/verified-expert-loops.md](doc
         cross-links as provenance, and route claims through the existing
         verification-gated absorb pipeline rather than trusting the bundle text.
 - [x] Per-expert SKILL.md export (v2.13): `deepr expert export-skill NAME` builds `deepr/skills/expert_skill.build_expert_skill` on top of the generic `SkillPackager` - an expert-scoped SKILL.md whose triggers/instructions/tools are populated from one expert and whose body calls that expert via Deepr's MCP tools. The validated interoperability direction: Deepr is the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose, OpenClaw) *call*, not Deepr delegating execution outward. agentskills.io SKILL.md is broadly adopted, so one export reaches every major host.
-- [ ] OKF expert export (`deepr expert export-okf NAME PATH`):
-  - [ ] Generate a conformant OKF bundle from the structured belief store:
-        one concept file per belief cluster/topic, YAML frontmatter with
+- [~] OKF expert export (`deepr expert export-okf NAME PATH`):
+  - [x] Generate a conformant OKF bundle from the structured belief store:
+        one concept file per current belief, YAML frontmatter with
         `type`, `title`, `description`, `tags`, `timestamp`, and Deepr-specific
         confidence/trust extensions, plus `index.md` and `log.md`.
-  - [ ] Encode citations, support/contradict edges, gaps, and `what_changed`
+  - [x] Encode citations, support/contradict edges, gaps, and `what_changed`
         history as Markdown sections and bundle-relative links. The export is a
         derived view with the same regeneration marker discipline as expert
         digests.
-  - [ ] Optionally emit `llms.txt` discovery instructions pointing hosts to the
+  - [x] Optionally emit `llms.txt` discovery instructions pointing hosts to the
         exported OKF bundle and to the Deepr MCP tools for live queries.
 - [ ] Skill auto-generation from research artifacts:
   - [ ] `expert skill make "Topic" --from-report artifact.md` generates skill with tools and triggers
@@ -1003,10 +1003,12 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    latest run, last sync result, next scheduled action, capacity source, spend,
    acceptance metrics, verifier-failure counts, freshness telemetry, 7-day and
    30-day gap velocity, top open gaps, and contested/open claim state.
-5. [ ] OKF export/import: `export-okf` as a regenerated derived view over the
+5. [~] OKF export/import: `export-okf` as a regenerated derived view over the
    belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
    `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,
-   and optional `llms.txt` discovery.
+   and optional `llms.txt` discovery. Export is now implemented as a `$0`
+   derived bundle with marker-based overwrite protection; verified `absorb-okf`
+   ingestion remains open.
 
 ### v2.18 - The reach release ("callable from anywhere")
 
