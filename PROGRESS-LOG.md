@@ -44,4 +44,5 @@
 - Added `deepr mcp registration-manifest` plus `deepr-mcp-registration-manifest-v1`, a token-redacted hosted MCP endpoint packet with optional `$0` smoke results for remote host setup.
 - Added `docs/SUPPORTED_SURFACE.md`, documenting stable, experimental, visible/read-only, planned, export, and compatibility guarantees.
 - Added `deploy/mcp-http/cloudflare-worker/`, a Cloudflare Worker edge ingress recipe that requires an HTTPS MCP origin, proxies only `/mcp` paths, caps request bodies, forwards scoped-key auth headers, and keeps scoped-key enforcement, budgets, rate limits, audit logs, and provider keys on the origin side.
+- Added MCP allowlist enforcement contract tests across visible registry tools, dispatcher-only tools, every `ResearchMode`, scoped-key authorization, and JSON-RPC pre-dispatch gates.
 - Spend so far: `$0.00`.
