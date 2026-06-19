@@ -24,6 +24,7 @@ def test_mcp_http_compose_uses_safe_network_and_data_defaults():
     assert service["env_file"] == [{"path": ".env", "required": False}]
     assert service["environment"]["DEEPR_DATA_DIR"] == "/data"
     assert service["environment"]["DEEPR_MCP_KEYS_PATH"] == "/data/security/mcp_keys.json"
+    assert service["environment"]["DEEPR_MCP_HTTP_MAX_CONCURRENCY"] == "${DEEPR_MCP_HTTP_MAX_CONCURRENCY:-32}"
     assert service["restart"] == "unless-stopped"
 
 
@@ -53,6 +54,7 @@ def test_mcp_http_dockerfile_runs_as_cli_with_full_install():
     assert 'pip install --no-cache-dir ".[full]"' in dockerfile
     assert "USER deepr" in dockerfile
     assert "DEEPR_MCP_KEYS_PATH=/data/security/mcp_keys.json" in dockerfile
+    assert "DEEPR_MCP_HTTP_MAX_CONCURRENCY=32" in dockerfile
     assert 'ENTRYPOINT ["deepr"]' in dockerfile
     assert '"--host", "0.0.0.0"' in dockerfile
     assert '"--keys-path", "/data/security/mcp_keys.json"' in dockerfile
@@ -78,6 +80,8 @@ def test_mcp_http_azure_template_mounts_persistent_deepr_data():
     assert "mountPath: '/data'" in template
     assert "value: '/data/reports'" in template
     assert "value: '/data/security/mcp_keys.json'" in template
+    assert "name: 'DEEPR_MCP_HTTP_MAX_CONCURRENCY'" in template
+    assert "value: string(maxConcurrentRequests)" in template
 
 
 def test_mcp_http_azure_template_serves_with_http_guardrails():
@@ -94,6 +98,8 @@ def test_mcp_http_azure_template_serves_with_http_guardrails():
     assert "'0.0.0.0'" in template
     assert "'--keys-path'" in template
     assert "'/data/security/mcp_keys.json'" in template
+    assert "param maxConcurrentRequests int = 32" in template
+    assert "concurrentRequests: string(maxConcurrentRequests)" in template
     assert "path: '/mcp/health'" in template
 
 

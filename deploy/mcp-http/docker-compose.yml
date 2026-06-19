@@ -12,6 +12,7 @@ services:
     environment:
       DEEPR_DATA_DIR: /data
       DEEPR_MCP_KEYS_PATH: /data/security/mcp_keys.json
+      DEEPR_MCP_HTTP_MAX_CONCURRENCY: ${DEEPR_MCP_HTTP_MAX_CONCURRENCY:-32}
       DEEPR_LOG_LEVEL: INFO
       DEEPR_LOG_FORMAT: json
     command:

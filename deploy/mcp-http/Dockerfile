@@ -3,7 +3,8 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEEPR_DATA_DIR=/data \
-    DEEPR_MCP_KEYS_PATH=/data/security/mcp_keys.json
+    DEEPR_MCP_KEYS_PATH=/data/security/mcp_keys.json \
+    DEEPR_MCP_HTTP_MAX_CONCURRENCY=32
 
 RUN groupadd -r deepr && useradd -r -g deepr -u 1000 deepr
 

@@ -270,6 +270,8 @@ remote audit log. `deepr mcp audit list` reads that local append-only audit log
 with optional `--key-id`, `--tool`, `--outcome`, `--limit`, and `--json`
 filters.
 `deepr mcp audit summary` aggregates the same records by key, tool, and outcome.
+HTTP POST concurrency is capped at 32 by default. Override it with
+`DEEPR_MCP_HTTP_MAX_CONCURRENCY` or `deepr mcp serve --http --max-concurrency`.
 
 ## HTTP Serve Mode
 
@@ -278,7 +280,7 @@ run the same server over Streamable HTTP:
 
 ```bash
 deepr mcp keys create --mode read_only --rate-limit 30 --keys-path data/security/mcp_keys.json
-deepr mcp serve --http --host 127.0.0.1 --port 8765 --keys-path data/security/mcp_keys.json
+deepr mcp serve --http --host 127.0.0.1 --port 8765 --max-concurrency 32 --keys-path data/security/mcp_keys.json
 ```
 
 The HTTP listener binds to loopback by default. A reachable bind such as
