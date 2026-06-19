@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertManifest, Claim, ConversationSummary, DecisionRecord, ScoredGap, Skill, SourceValidation } from '../types'
+import type { Expert, ExpertChat, ExpertHistoryEvent, ExpertLoopStatusRollup, ExpertManifest, Claim, ConversationSummary, DecisionRecord, ScoredGap, Skill, SourceValidation } from '../types'
 
 export const expertsApi = {
   list: async () => {
@@ -28,6 +28,10 @@ export const expertsApi = {
   getHistory: async (name: string) => {
     const response = await apiClient.get<{ events: ExpertHistoryEvent[] }>(`/experts/${name}/history`)
     return response.data.events
+  },
+  getLoopStatus: async (name: string, limit = 20) => {
+    const response = await apiClient.get<{ loop_status: ExpertLoopStatusRollup }>(`/experts/${name}/loop-status`, { params: { limit } })
+    return response.data.loop_status
   },
   getManifest: async (name: string) => {
     const response = await apiClient.get<{ manifest: ExpertManifest }>(`/experts/${name}/manifest`)
