@@ -44,9 +44,10 @@ authenticate against per-key metadata, and `tools/call` is checked against the
 key's `ResearchMode`, optional `expert_allowlist`, and confirmation
 requirement before dispatch. `RemoteMCPAuditLog` writes append-only
 `deepr-mcp-remote-audit-v1` events with `{key_id, mode, tool, args_hash,
-trace_id, outcome, error_code, expert_names, cost_usd}`. This is not the full
-hosted endpoint yet: key CLI, per-key cost sessions, rate limits, deployment
-docs, and remote smoke tests remain open.
+trace_id, outcome, error_code, expert_names, cost_usd}`. `deepr mcp keys`
+creates, lists, and revokes those key records locally. This is not the full
+hosted endpoint yet: per-key cost sessions, rate limits, deployment docs, and
+remote smoke tests remain open.
 
 - **Scoped API keys**, not one shared secret: each key carries
   `{key_id, mode, expert_allowlist, budget}`.
@@ -57,8 +58,8 @@ docs, and remote smoke tests remain open.
   - `budget`: per-key spend ceiling, enforced through the existing
     CostSafetyManager session machinery (a key is a session); the
     canonical cost ledger records `key_id` on every event.
-- Keys are hashed at rest with a salted one-way KDF. The planned key CLI shows
-  each secret once at mint (`deepr mcp keys create --mode read-only --budget 5`),
+- Keys are hashed at rest with a salted one-way KDF. The key CLI shows each
+  secret once at mint (`deepr mcp keys create --mode read_only --budget 5`),
   supports revocation (`keys revoke`), and lists last-used timestamps.
 - OAuth/OIDC deferred to team features (Phase 5 proper) - the key model
   must not preclude it (auth is a middleware, not woven into dispatch).
@@ -94,8 +95,7 @@ docs, and remote smoke tests remain open.
    cost-session budget wiring remains.
 4. Audit log + rate limits + size caps. Audit log and size caps are shipped;
    rate limits remain.
-5. `keys` CLI + docs + deployment guide; loopback restriction lifts only
-   when a key exists.
+5. Deployment guide; loopback restriction lifts only when a credential exists.
 6. Platform smoke tests: register the endpoint with one real host
    (Anthropic Managed Agents connector first) and run the
    subscribe -> sync -> what_changed loop remotely.

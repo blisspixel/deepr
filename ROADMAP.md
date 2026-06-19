@@ -655,6 +655,9 @@ Goal: production posture for multi-user and autonomous deployments.
         budget metadata for HTTP MCP calls; the transport enforces mode,
         confirmation, and expert-scope denial before dispatch and writes
         append-only `deepr-mcp-remote-audit-v1` events.
+  - [x] Scoped-key CLI:
+        `deepr mcp keys create/list/revoke` mints secrets once, lists only
+        public metadata, and revokes keys without exposing stored hashes.
   - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
   - [ ] Per-key budget contracts and rate limits (reuses BudgetPropagator); read-only tool profile as the default exposure
   - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
@@ -1032,8 +1035,8 @@ consumers who will exercise all three. Design:
    transport already exists, and the first scoped-key/audit primitive now
    authenticates key records, enforces mode plus expert allowlists before tool
    dispatch, and records append-only remote-call audit events. Remaining work:
-   key CLI, per-key cost-session budget enforcement, rate limits, deployment
-   recipe, and remote smoke tests.
+   per-key cost-session budget enforcement, rate limits, deployment recipe, and
+   remote smoke tests. The key CLI is shipped as `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,
