@@ -121,9 +121,11 @@ successful response costs back to the audit log. `deepr_expert_validate` is now
 advertised as a low-cost MCP tool to match its paid validation call. It also
 enforces optional per-key calls-per-minute limits from recent audited calls,
 blocks over-limit calls before dispatch, returns retry metadata, and audits the
-denial. `deepr mcp serve --http` now runs the same MCP server over HTTP/SSE on
-loopback by default, with reachable binds protected by shared-token or
-scoped-key authentication.
+denial. The HTTP transport now also enforces a global POST concurrency cap,
+returning 429 with retry metadata before reading or dispatching excess requests.
+`deepr mcp serve --http` now runs the same MCP server over HTTP/SSE on loopback
+by default, with reachable binds protected by shared-token or scoped-key
+authentication.
 `deepr mcp audit list` reviews the local append-only remote-call audit log with
 key, tool, outcome, limit, and JSON filters, while `deepr mcp audit summary`
 aggregates counts and audited cost by key, tool, and outcome. `deepr mcp
@@ -134,9 +136,11 @@ with scoped-key bootstrap, loopback-only host publishing, a mounted Deepr data
 directory, and `$0` smoke validation guidance. The first cloud-provider template
 now lives at `deploy/mcp-http/azure-container-apps/`, using Azure Container Apps
 with persistent `/data`, HTTPS-only ingress, scoped-key state, and remote-audit
-durability. `deepr mcp registration-manifest` now emits a token-redacted
-`deepr-mcp-registration-manifest-v1` packet with endpoint metadata and optional
-smoke results for remote host setup. Additional cloud-provider templates and
+durability, with the same max-concurrency setting wired into both the container
+environment and HTTP scale rule. `deepr mcp registration-manifest` now emits a
+token-redacted `deepr-mcp-registration-manifest-v1` packet with endpoint
+metadata and optional smoke results for remote host setup. Additional
+cloud-provider templates and
 live third-party host registration remain open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`

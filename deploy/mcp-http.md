@@ -36,6 +36,8 @@ Read-only and status smoke tests do not require provider keys.
 Scoped-key budgets are enforced before tool dispatch from audited spend and
 deterministic estimates. Metered tools without an estimate are denied before
 they can run.
+HTTP POST concurrency is capped at 32 by default. Override it with
+`DEEPR_MCP_HTTP_MAX_CONCURRENCY` or `deepr mcp serve --http --max-concurrency`.
 
 Create a scoped key store and mint one key per remote agent:
 
@@ -59,6 +61,7 @@ deepr mcp serve \
   --host 127.0.0.1 \
   --port 8765 \
   --path /mcp \
+  --max-concurrency 32 \
   --keys-path data/security/mcp_keys.json
 ```
 
@@ -95,6 +98,8 @@ same hosted MCP container to Azure Container Apps, mounts an Azure Files share
 at `/data`, keeps `security/mcp_keys.json` and
 `security/mcp_remote_audit.jsonl` durable, and exposes HTTPS-only ingress with
 optional CIDR restrictions.
+The `maxConcurrentRequests` Bicep parameter feeds both the in-process HTTP cap
+and the Container Apps HTTP scale rule.
 
 This is a template, not a deployment run. Creating Azure resources can incur
 cloud cost. The repo validates the template shape locally and does not run `az`

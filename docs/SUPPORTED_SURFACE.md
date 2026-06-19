@@ -40,8 +40,8 @@ must not be described as usable capacity.
   flows.
 - Expert skills and first-party instruments.
 - MCP stdio server and MCP HTTP serve mode.
-- Scoped MCP keys, per-key budgets, per-key rate limits, HTTP smoke checks,
-  registration manifests, and remote-call audit review.
+- Scoped MCP keys, per-key budgets, per-key rate limits, HTTP concurrency caps,
+  HTTP smoke checks, registration manifests, and remote-call audit review.
 - `deepr_expert_handoff`, `deepr_expert_loop_status`, and adjacent versioned
   handoff contracts.
 - `deepr expert loop-status` and durable `ExpertLoopRun` records.
@@ -107,6 +107,6 @@ the verified absorb path.
   model evidence.
 - Remote MCP endpoints must use HTTPS outside loopback, scoped keys per agent,
   budget ceilings, deterministic estimates for metered tools, rate limits, and
-  audit review before widening key mode.
+  concurrency caps, plus audit review before widening key mode.
 - Cloud templates are deployment artifacts. Creating cloud resources can incur
   infrastructure cost even when Deepr itself makes no provider API calls.

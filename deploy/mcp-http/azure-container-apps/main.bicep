@@ -62,6 +62,11 @@ param minReplicas int = 0
 @maxValue(20)
 param maxReplicas int = 3
 
+@description('Maximum simultaneous HTTP POST requests per Deepr MCP container before returning 429. Also used by the Container Apps HTTP scale rule.')
+@minValue(1)
+@maxValue(1000)
+param maxConcurrentRequests int = 32
+
 @description('Azure Files quota for Deepr data, keys, reports, and audit logs.')
 @minValue(1)
 @maxValue(1024)
@@ -237,6 +242,10 @@ resource mcpContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: '/data/security/mcp_keys.json'
             }
             {
+              name: 'DEEPR_MCP_HTTP_MAX_CONCURRENCY'
+              value: string(maxConcurrentRequests)
+            }
+            {
               name: 'DEEPR_COST_TRACKING_STRICT'
               value: '1'
             }
@@ -292,7 +301,7 @@ resource mcpContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             name: 'http-concurrency'
             http: {
               metadata: {
-                concurrentRequests: '20'
+                concurrentRequests: string(maxConcurrentRequests)
               }
             }
           }
