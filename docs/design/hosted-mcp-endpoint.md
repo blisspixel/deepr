@@ -5,7 +5,7 @@ Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 Status: design, with the first versioned handoff contract, HTTP serve path,
 scoped-key, budget, rate-limit, audit primitives, hosted reverse-proxy recipe,
 local remote-smoke command, audit review CLI, HTTP concurrency cap, remote-audit
-schema, and first Azure Container Apps template shipped. A token-redacted
+schema, Azure Container Apps template, and AWS ECS Fargate template shipped. A token-redacted
 registration manifest now packages endpoint metadata and optional smoke results
 before live platform registration.
 
@@ -105,10 +105,10 @@ third-party agent host remains open.
 
 1. Home-lab / VPS: `deepr mcp --http` behind Caddy with a key per agent
    platform.
-2. The existing cloud templates gain an MCP service variant. The first is
-   `deploy/mcp-http/azure-container-apps/`, which runs the same hosted MCP
-   container on Azure Container Apps with persistent `/data` on Azure Files and
-   scoped-key/audit state kept durable.
+2. The existing cloud templates gain MCP service variants. The first two are
+   `deploy/mcp-http/azure-container-apps/` and
+   `deploy/mcp-http/aws-ecs-fargate/`, which run the same hosted MCP container
+   with persistent `/data` and scoped-key/audit state kept durable.
 3. Hosted-by-Deepr SaaS is explicitly out of scope (non-goal: no SLA).
 
 ## Order of operations
@@ -126,8 +126,8 @@ third-party agent host remains open.
 5. Deployment guide; loopback restriction lifts only when a credential exists.
    Shipped as [deploy/mcp-http.md](../../deploy/mcp-http.md) plus
    `deepr mcp smoke-http` for repeatable local/proxied endpoint validation.
-   The Azure Container Apps template is also shipped as a local deployment
-   artifact; live cloud registration remains separate.
+   The Azure Container Apps and AWS ECS Fargate templates are also shipped as
+   local deployment artifacts; live cloud registration remains separate.
 6. Platform smoke tests: register the endpoint with one real host
    (Anthropic Managed Agents connector first) and run the
    subscribe -> sync -> what_changed loop remotely.

@@ -76,6 +76,9 @@ deploy/
 │   ├── docker-compose.yml
 │   ├── .env.example
 │   ├── README.md
+│   ├── aws-ecs-fargate/
+│   │   ├── template.yaml
+│   │   └── README.md
 │   └── azure-container-apps/
 │       ├── main.bicep
 │       └── README.md
@@ -121,6 +124,11 @@ For an Azure Container Apps variant, see
 persistent Azure Files share at `/data`, keeps scoped-key and audit state in
 that share, exposes HTTPS-only ingress, and leaves provider API keys out of the
 template until a scoped key mode and budget intentionally allow paid tools.
+
+For an AWS variant, see [mcp-http/aws-ecs-fargate/](mcp-http/aws-ecs-fargate/).
+It runs the same container on ECS Fargate behind an HTTPS Application Load
+Balancer, mounts EFS at `/data`, keeps scoped-key and audit state durable, and
+leaves provider API keys out of the template until paid tools are intentional.
 
 ### AWS
 

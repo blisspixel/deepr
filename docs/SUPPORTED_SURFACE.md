@@ -49,8 +49,8 @@ must not be described as usable capacity.
   ingestion source that still passes through verified extraction.
 - Local Ollama expert maintenance, local evals, local context evals, and scored
   local admission.
-- Hosted MCP deployment recipes, including the local container and Azure
-  Container Apps template.
+- Hosted MCP deployment recipes, including the local container, Azure Container
+  Apps template, and AWS ECS Fargate template.
 
 ## Visible Or Planned Only
 

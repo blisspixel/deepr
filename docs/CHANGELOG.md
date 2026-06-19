@@ -76,6 +76,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deploy/mcp-http/azure-container-apps/`, an Azure Container Apps
   template for the hosted MCP HTTP container with persistent `/data` on Azure
   Files, HTTPS-only ingress, scoped-key state, and remote-audit durability.
+- Added `deploy/mcp-http/aws-ecs-fargate/`, an AWS ECS Fargate template for the
+  hosted MCP HTTP container with HTTPS ALB ingress, EFS-backed `/data`,
+  scoped-key state, remote-audit durability, and the same concurrency cap
+  contract as the local and Azure recipes.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
