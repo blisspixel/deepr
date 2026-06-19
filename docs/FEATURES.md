@@ -928,6 +928,10 @@ return the versioned `deepr-expert-handoff-v1` payload: profile summary,
 manifest counts, bounded claims/gaps, dashboard telemetry, loop-status rollup,
 OKF interchange hints, and an additive compatibility contract. The schema is
 published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
+The MCP HTTP transport also has an experimental scoped-key primitive:
+configured key stores authenticate Bearer or `X-Api-Key` requests, enforce
+key mode, expert allowlists, and confirmation gates before `tools/call`
+dispatch, and append `deepr-mcp-remote-audit-v1` records for remote calls.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 

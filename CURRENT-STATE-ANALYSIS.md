@@ -108,6 +108,14 @@ claims/gaps, dashboard telemetry, loop-status rollup, OKF interchange hints, and
 an additive compatibility contract. Hosted auth, per-key budgets, and audit logs
 remain open.
 
+The v2.18 reach track also has its first scoped-key and remote-audit primitive.
+`ScopedMCPKeyStore` persists one-way hashed key records with mode, expert
+allowlist, and budget metadata; the HTTP transport enforces mode, confirmation,
+and expert scope for `tools/call` before dispatch; `RemoteMCPAuditLog` appends
+`deepr-mcp-remote-audit-v1` events with hashed arguments. Key CLI, per-key cost
+session budget enforcement, rate limits, deployment docs, and remote smoke tests
+remain open.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -127,9 +135,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: continue the v2.18 reach track by adding the smallest scoped-key or
-audit-log primitive that can wrap the existing MCP HTTP transport without
-weakening sensitive read gating, budget ceilings, or mutation auditability.
+Next slice: continue the v2.18 reach track by adding the smallest remaining
+per-key budget or key-management surface around the scoped-key primitive without
+lifting the safe hosted-endpoint gates prematurely.
 
 ## Spend Ledger For This Run
 
