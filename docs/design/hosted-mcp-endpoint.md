@@ -2,8 +2,8 @@
 
 Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
-Status: design, with the first versioned handoff contract and scoped-key,
-budget, rate-limit, and audit primitives shipped.
+Status: design, with the first versioned handoff contract, HTTP serve path, and
+scoped-key, budget, rate-limit, and audit primitives shipped.
 
 ## Problem
 
@@ -21,8 +21,9 @@ it's dressed for."
 
 Streamable HTTP (the current MCP spec transport, SSE for streaming) on the
 existing 28-tool server - the tool surface, allowlist, and error model do
-not change. stdio remains the local default; HTTP is an additional
-listener (`deepr mcp --http :8400`), one process, same dispatch.
+not change. stdio remains the local default; HTTP is an additional listener
+(`deepr mcp serve --http --host 127.0.0.1 --port 8765`), one process, same
+dispatch.
 
 ### Handoff contract
 
@@ -94,7 +95,7 @@ hosted endpoint yet: deployment docs and remote smoke tests remain open.
 1. Versioned handoff payloads for downstream consumers, callable locally through
    MCP and the dashboard API. Shipped as `deepr-expert-handoff-v1`.
 2. HTTP transport on the existing server (loopback by default, authenticated
-   public bind only).
+   public bind only). Shipped as `deepr mcp serve --http`.
 3. Key store + middleware (mode scoping reuses the allowlist; budget uses
    audited remote cost attribution plus deterministic estimates). Key store,
    mode/expert middleware, and the transport budget guard are shipped.

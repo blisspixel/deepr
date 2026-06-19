@@ -137,7 +137,28 @@ def revoke_key(key_id: str, keys_path: str | None, as_json: bool):
 
 
 @mcp.command()
-def serve():
+@click.option("--http", "use_http", is_flag=True, help="Serve MCP over Streamable HTTP instead of stdio.")
+@click.option("--host", default="127.0.0.1", show_default=True, help="HTTP host to bind when --http is set.")
+@click.option("--port", default=8765, show_default=True, type=click.IntRange(min=1, max=65535), help="HTTP port.")
+@click.option("--path", "http_path", default="/mcp", show_default=True, help="HTTP MCP path.")
+@click.option("--auth-token", help="Shared HTTP auth token. Scoped keys are preferred for production.")
+@click.option(
+    "--keys-path", type=click.Path(dir_okay=False, path_type=str), help="Scoped-key store path for HTTP auth."
+)
+@click.option(
+    "--allow-unauthenticated-public-bind",
+    is_flag=True,
+    help="Allow public HTTP bind without a token or scoped key. Unsafe outside isolated tests.",
+)
+def serve(
+    use_http: bool,
+    host: str,
+    port: int,
+    http_path: str,
+    auth_token: str | None,
+    keys_path: str | None,
+    allow_unauthenticated_public_bind: bool,
+):
     """Start MCP server for AI agent integration.
 
     The MCP server exposes Deepr experts via stdin/stdout protocol,
@@ -166,6 +187,24 @@ def serve():
         "Ask my Azure Architect expert about Landing Zones"
     """
     try:
+        if use_http:
+            from deepr.mcp.http_server import run_http_server
+
+            click.echo(f"Starting Deepr MCP HTTP Server at http://{host}:{port}{http_path}")
+            click.echo("Press Ctrl+C to stop")
+            click.echo("")
+            run_async_command(
+                run_http_server(
+                    host=host,
+                    port=port,
+                    path=http_path,
+                    auth_token=auth_token,
+                    keys_path=keys_path,
+                    allow_unauthenticated_public_bind=allow_unauthenticated_public_bind,
+                )
+            )
+            return
+
         # Import and run server
         from deepr.mcp.server import main as run_server
 
