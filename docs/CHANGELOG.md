@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profile freshness, 7-day and 30-day gap velocity, top open gaps, and
   contested/open claim counts from manifest links and belief contradiction
   edges.
+- `ExpertLoopRun` now enforces the loop completion contract: completed, failed,
+  and cancelled runs require typed stop reasons, and waiting, completed, failed,
+  and cancelled states reject stop reasons that do not match their status.
 - Added `deepr expert health-check --scheduled`, which emits a scheduler action
   plan for recommended actions, and made `--archive-stale --scheduled` wait for
   explicit confirmation instead of prompting or mutating unless `--yes` is set.

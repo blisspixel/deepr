@@ -19,4 +19,5 @@
 - Instrumented `deepr expert health-check` and confirmed `--archive-stale` runs to append health-check loop-run snapshots with verifier outcome, action state, no-work stops, and accepted archive counts.
 - Added the read-only `/api/experts/{name}/loop-status` dashboard API rollup with latest run, last sync result, waiting scheduled action, failure, capacity source, spend, acceptance, and verifier failure metrics.
 - Extended the dashboard API rollup with `expert_state` telemetry for freshness, 7-day and 30-day gap velocity, top open gaps, and contested/open claim counts from manifest links and belief contradiction edges.
+- Enforced the loop completion contract in `ExpertLoopRun`: terminal records require typed stop reasons, and waiting/completed/failed/cancelled records reject stop reasons that do not match their status.
 - Spend so far: `$0.00`.

@@ -80,6 +80,11 @@ includes `expert_state` telemetry for freshness, 7-day and 30-day gap velocity,
 top open gaps, and contested/open claim counts from structured manifest links
 and belief contradiction edges.
 
+The loop completion contract is now enforced at the record layer.
+`ExpertLoopRun` rejects completed, failed, or cancelled records without a typed
+stop reason, and rejects waiting, completed, failed, or cancelled records when
+the stop reason does not match the status.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -99,9 +104,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: tighten the loop completion contract so closed loops consistently
-stop only on verifier pass, no due work, budget/capacity exhaustion, human gate,
-or a typed failure reason.
+Next slice: codify the loop admission contract so a surface can declare whether
+it has repeat demand, automated verification, explicit budget/capacity, and
+failure-diagnosis state before it graduates from advisory to autonomous.
 
 ## Spend Ledger For This Run
 
