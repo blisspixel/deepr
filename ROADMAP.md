@@ -1062,9 +1062,11 @@ consumers who will exercise all three. Design:
    from recent audited calls, and records append-only remote-call audit events
    with response cost attribution when available. `deepr mcp smoke-http` now
    validates local/proxied endpoints at `$0`, and `deploy/mcp-http.md`
-   documents the TLS reverse-proxy recipe. Remaining work: container/cloud
-   deployment variants and live registration smoke against a real hosted-agent
-   platform. The key CLI is shipped as `deepr mcp keys`.
+   documents the TLS reverse-proxy recipe. `deploy/mcp-http/` now adds the
+   container variant with scoped-key bootstrap, loopback-only host publishing,
+   and `$0` smoke validation guidance. Remaining work: cloud provider templates
+   and live registration smoke against a real hosted-agent platform. The key
+   CLI is shipped as `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,
