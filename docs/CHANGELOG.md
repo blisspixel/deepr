@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert sync --scheduled`, a scheduler-facing capacity gate that
+  waits with structured `capacity next` actions instead of falling through to
+  metered API when a due recurring sync lacks owned/prepaid capacity. Explicit
+  `--api` remains the operator override.
 - Added concrete job previews to `deepr capacity next`: `--expert`,
   `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled` fill the
   suggested command shape and show wait guidance when a fresh/deep scheduled

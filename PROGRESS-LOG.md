@@ -6,4 +6,5 @@
 - Created `CURRENT-STATE-ANALYSIS.md` to capture current alignment and the immediate next slice.
 - Selected the next atomic implementation target: concrete `deepr capacity next` job previews for `v2.16` capacity QOL.
 - Implemented the first capacity-preview slice: `--expert`, `--report-id`, `--context-mode`, and `--scheduled` for `deepr capacity next`, with local-required wait guidance for fresh/deep sync jobs.
+- Continued into scheduler integration: added `deepr expert sync --scheduled` so due recurring sync jobs consume `capacity next` guidance and wait with structured next actions instead of falling through to metered API when cheap capacity is blocked.
 - Spend so far: `$0.00`.
