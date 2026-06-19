@@ -974,6 +974,11 @@ binding, scoped-key state, and remote-audit durability while leaving provider
 keys out until paid tools are intentionally enabled. It defaults to one Cloud
 Run instance and one MCP POST at a time while key and audit files live on the
 object-backed mount.
+A Cloudflare Worker edge ingress recipe under
+[../deploy/mcp-http/cloudflare-worker/](../deploy/mcp-http/cloudflare-worker/)
+fronts an existing HTTPS MCP origin, proxies only `/mcp` paths, caps request
+bodies at 1 MiB, forwards scoped-key auth headers, and leaves scoped-key state,
+budgets, rate limits, audit logs, and provider keys on the origin side.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
