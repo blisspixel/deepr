@@ -157,6 +157,12 @@ documenting additive compatibility and deprecation rules for downstream agents.
 `docs/SUPPORTED_SURFACE.md` now states stable, experimental, visible/read-only,
 planned, export, and compatibility guarantees directly.
 
+The MCP allowlist enforcement gap from the panel review is now closed locally.
+Contract tests cover every visible registry tool and dispatcher-only tool
+across every `ResearchMode`, asserting the declared policy, scoped-key
+authorization behavior, and JSON-RPC pre-dispatch block or confirmation gate
+stay aligned.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
