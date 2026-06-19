@@ -7,10 +7,12 @@ deepr/cli/commands/semantic/expert_maintenance.py must stay registered on the
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from click.testing import CliRunner
 
+from deepr.backends.capacity_actions import CapacityNextAction
 from deepr.cli.commands.semantic.experts import expert
 
 
@@ -27,7 +29,7 @@ class TestRegistration:
 
     def test_sync_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["sync"].params}
-        assert {"local", "api", "fresh_context", "deep_context"} <= opts
+        assert {"local", "api", "fresh_context", "deep_context", "scheduled"} <= opts
 
     def test_absorb_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
@@ -144,6 +146,120 @@ class TestBackendFlagGuard:
 
         assert r.exit_code == 2
         assert "requires a local sync backend" in r.output
+
+    def test_scheduled_sync_waits_instead_of_using_metered_backend(self, monkeypatch):
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                assert name == "UI Experience Expert"
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                assert name == "UI Experience Expert"
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeChoice:
+            is_local = False
+            reason = "no local admission"
+
+        class ExplodingSyncEngine:
+            def __init__(self, *args, **kwargs):
+                raise AssertionError("scheduled wait must not start sync engine")
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", ExplodingSyncEngine)
+        monkeypatch.setattr("deepr.backends.waterfall.choose_maintenance_backend", lambda _task: FakeChoice())
+        monkeypatch.setattr(
+            "deepr.backends.capacity_actions.build_capacity_next_actions",
+            lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "scheduled wait")],
+        )
+
+        r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--scheduled", "--json"])
+
+        assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["status"] == "waiting_for_capacity"
+        assert payload["capacity_next"]["job_context"]["scheduled"] is True
+        assert payload["capacity_next"]["actions"][0]["status"] == "wait"
+
+    def test_scheduled_fresh_context_waits_with_context_preview(self, monkeypatch):
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                assert name == "UI Experience Expert"
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                assert name == "UI Experience Expert"
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeChoice:
+            is_local = False
+            reason = "no local admission"
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.backends.waterfall.choose_maintenance_backend", lambda _task: FakeChoice())
+        monkeypatch.setattr(
+            "deepr.backends.capacity_actions.build_capacity_next_actions",
+            lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "fresh context requires local")],
+        )
+
+        r = CliRunner().invoke(
+            expert,
+            ["sync", "UI Experience Expert", "--scheduled", "--fresh-context", "--json"],
+        )
+
+        assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["status"] == "waiting_for_capacity"
+        assert payload["capacity_next"]["job_context"]["context_mode"] == "fresh"
+        assert payload["capacity_next"]["job_context"]["requires_local"] is True
+
+    def test_scheduled_forced_local_waits_when_no_local_model(self, monkeypatch):
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                assert name == "UI Experience Expert"
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                assert name == "UI Experience Expert"
+
+            def due(self):
+                return list(self.subscriptions)
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: None)
+        monkeypatch.setattr(
+            "deepr.backends.capacity_actions.build_capacity_next_actions",
+            lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "start Ollama")],
+        )
+
+        r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--local", "--scheduled", "--json"])
+
+        assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["status"] == "waiting_for_capacity"
+        assert "running local model" in payload["detail"]
 
     def test_sync_deep_context_uses_deep_builder(self, monkeypatch):
         captured = {}

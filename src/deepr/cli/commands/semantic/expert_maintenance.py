@@ -231,6 +231,101 @@ def absorb_report(
             )
 
 
+def _sync_context_mode(*, fresh_context: bool, deep_context: bool) -> str:
+    if deep_context:
+        return "deep"
+    if fresh_context:
+        return "fresh"
+    return "none"
+
+
+def _build_sync_capacity_payload(
+    expert_name: str,
+    *,
+    context_mode: str,
+    scheduled: bool,
+    status: str,
+    detail: str,
+) -> dict:
+    from deepr.backends.admission import TASK_CLASS_SYNC
+    from deepr.backends.capacity_actions import CapacityJobContext, build_capacity_next_actions
+
+    job_context = CapacityJobContext(
+        task_class=TASK_CLASS_SYNC,
+        expert_name=expert_name,
+        context_mode=context_mode,
+        scheduled=scheduled,
+    )
+    actions = build_capacity_next_actions(task_class=TASK_CLASS_SYNC, job_context=job_context)
+    return {
+        "status": status,
+        "expert_name": expert_name,
+        "detail": detail,
+        "capacity_next": {
+            "job_context": job_context.to_dict(),
+            "actions": [action.to_dict() for action in actions],
+        },
+    }
+
+
+def _print_capacity_payload(payload: dict) -> None:
+    for action in payload["capacity_next"]["actions"]:
+        console.print(f"  [{action['rank']}] {action['status']}: {action['title']}")
+        if action.get("detail"):
+            console.print(f"      [dim]{action['detail']}[/dim]")
+        if action.get("command"):
+            console.print(f"      [dim]{action['command']}[/dim]")
+
+
+def _emit_scheduled_capacity_wait(
+    expert_name: str,
+    *,
+    context_mode: str,
+    json_output: bool,
+    detail: str,
+) -> None:
+    import json as _json
+
+    payload = _build_sync_capacity_payload(
+        expert_name,
+        context_mode=context_mode,
+        scheduled=True,
+        status="waiting_for_capacity",
+        detail=detail,
+    )
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        return
+
+    print_warning("Scheduled sync is waiting for cheap capacity.")
+    console.print(f"[dim]{detail}.[/dim]")
+    _print_capacity_payload(payload)
+
+
+def _emit_capacity_block(
+    expert_name: str,
+    *,
+    context_mode: str,
+    json_output: bool,
+    detail: str,
+) -> None:
+    import json as _json
+
+    payload = _build_sync_capacity_payload(
+        expert_name,
+        context_mode=context_mode,
+        scheduled=False,
+        status="capacity_blocked",
+        detail=detail,
+    )
+    if json_output:
+        click.echo(_json.dumps(payload, indent=2))
+        return
+
+    print_error(f"{detail}. Use --local or admit a local model first.")
+    _print_capacity_payload(payload)
+
+
 @expert.command(name="sync")
 @click.argument("name")
 @click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Total budget ceiling for this run")
@@ -252,6 +347,11 @@ def absorb_report(
     is_flag=True,
     help="For local sync, run multi-query free retrieval before calling the local model",
 )
+@click.option(
+    "--scheduled",
+    is_flag=True,
+    help="For recurring jobs, wait for cheap capacity instead of falling through to metered API",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
 def sync_cmd(
@@ -263,6 +363,7 @@ def sync_cmd(
     api: bool,
     fresh_context: bool,
     deep_context: bool,
+    scheduled: bool,
     yes: bool,
     json_output: bool,
 ):
@@ -281,6 +382,7 @@ def sync_cmd(
       deepr expert sync "AI Policy Expert" --local -y
       deepr expert sync "AI Policy Expert" --local --fresh-context -y
       deepr expert sync "AI Policy Expert" --local --deep-context -y
+      deepr expert sync "AI Policy Expert" --scheduled --fresh-context -y
     """
     import json as _json
     import sys
@@ -324,9 +426,41 @@ def sync_cmd(
         if use_local:
             selection_note = choice.reason
 
+    context_mode = _sync_context_mode(fresh_context=fresh_context, deep_context=deep_context)
+    if scheduled and not api and not use_local:
+        _emit_scheduled_capacity_wait(
+            name,
+            context_mode=context_mode,
+            json_output=json_output,
+            detail="scheduled sync is waiting for owned/prepaid capacity instead of using metered API",
+        )
+        return
+
     if (fresh_context or deep_context) and not use_local:
-        print_error("Fresh/deep context requires a local sync backend. Use --local or admit a local model first.")
+        _emit_capacity_block(
+            name,
+            context_mode=context_mode,
+            json_output=json_output,
+            detail="fresh/deep context requires a local sync backend",
+        )
         sys.exit(2)
+
+    local_model = None
+    if use_local:
+        from deepr.backends.local import default_local_model
+
+        local_model = default_local_model()
+        if not local_model:
+            if scheduled:
+                _emit_scheduled_capacity_wait(
+                    name,
+                    context_mode=context_mode,
+                    json_output=json_output,
+                    detail="scheduled local sync is waiting for a running local model",
+                )
+                return
+            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
+            sys.exit(2)
 
     if not dry_run and not yes:
         if use_local:
@@ -339,13 +473,9 @@ def sync_cmd(
             return
 
     if use_local:
-        from deepr.backends.local import default_local_model, make_local_research_fn, ollama_chat_client
+        from deepr.backends.local import make_local_research_fn, ollama_chat_client
         from deepr.experts.report_absorber import ReportAbsorber
 
-        local_model = default_local_model()
-        if not local_model:
-            print_error("No local model available. Is Ollama running? Check: deepr capacity --probe")
-            sys.exit(2)
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
         context_builder = None
