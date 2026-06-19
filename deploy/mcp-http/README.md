@@ -53,6 +53,13 @@ Provider API keys are optional. Leave them unset for read-only remote
 consumers. If a key mode or tool budget allows paid work, keep provider keys in
 `.env` or the host secret manager, not in proxy configuration.
 
+Review remote calls before widening key mode or budget:
+
+```bash
+docker compose run --rm deepr-mcp-http \
+  mcp audit list --audit-path /data/security/mcp_remote_audit.jsonl --limit 50
+```
+
 ## Reverse Proxy
 
 Keep the compose service published on `127.0.0.1:8765`. Terminate HTTPS at a

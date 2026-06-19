@@ -1060,9 +1060,11 @@ consumers who will exercise all three. Design:
    expert allowlists before tool dispatch, enforces per-key budget ceilings from
    audited spend plus deterministic tool estimates, enforces per-key rate limits
    from recent audited calls, and records append-only remote-call audit events
-   with response cost attribution when available. `deepr mcp smoke-http` now
-   validates local/proxied endpoints at `$0`, and `deploy/mcp-http.md`
-   documents the TLS reverse-proxy recipe. `deploy/mcp-http/` now adds the
+   with response cost attribution when available. `deepr mcp audit list` now
+   makes those local audit records operable with key, tool, outcome, limit, and
+   JSON filters. `deepr mcp smoke-http` now validates local/proxied endpoints at
+   `$0`, and `deploy/mcp-http.md` documents the TLS reverse-proxy recipe.
+   `deploy/mcp-http/` now adds the
    container variant with scoped-key bootstrap, loopback-only host publishing,
    and `$0` smoke validation guidance. Remaining work: cloud provider templates
    and live registration smoke against a real hosted-agent platform. The key

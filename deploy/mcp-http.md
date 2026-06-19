@@ -155,4 +155,8 @@ deepr mcp keys revoke <key-id> --keys-path data/security/mcp_keys.json
 ```
 
 Remote calls made through scoped keys write append-only audit records. Inspect
-the audit file before widening the key mode or budget.
+the audit log before widening the key mode or budget:
+
+```bash
+deepr mcp audit list --audit-path data/security/mcp_remote_audit.jsonl --limit 50
+```
