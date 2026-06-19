@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert make --local`, a provider-free expert creation path that
+  records `provider=local`, copies optional seed documents into the expert's
+  local documents folder, and prints the next `subscribe` plus
+  `sync --local --fresh-context` commands for $0 maintenance.
 - Added `deepr capacity next`, a read-only `$0` guidance surface that ranks
   the current capacity block reason, local setup steps, latest usable eval
   artifact admission, eval refresh, and explicit metered fallback for a task
@@ -48,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local Ollama-backed absorber into the sync engine. Fresh-context syncs with
   zero retrieved sources now record no changes instead of absorbing the local
   model's uncertainty as beliefs.
+- Clarified README, feature docs, roadmap, capacity design, and agent
+  instructions so local Ollama, APIs, plan CLIs, and explicit CLI judges are
+  described by their current shipped status instead of blended together.
 - Automatic local routing now feeds admitted scores into the runtime quality
   floor. Scoreless manual admissions remain visible but no longer take over
   `expert sync` or `expert absorb` automatically; `--local` remains the

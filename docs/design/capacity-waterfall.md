@@ -5,8 +5,9 @@ surfaces verified; re-verify at implementation - this market moves
 monthly).
 
 Current implementation: `CostModel`/`BackendKind` types and read-only
-`deepr capacity` detection (step 2); the `local-ollama` backend and `--local`
-execution (step 4 substrate); and eval-gated **local admission** with automatic
+`deepr capacity` detection (step 2); local-only expert creation with
+`expert make --local`; the `local-ollama` backend and `--local` execution
+(step 4 substrate); and eval-gated **local admission** with automatic
 owned-capacity-first selection for expert maintenance - `deepr capacity admit`
 / `admissions` / `revoke`, and `expert sync`/`absorb` auto-routing to an
 admitted local model at $0 before metered API (the local rung of step 5, with
@@ -69,13 +70,27 @@ That is less code, less churn, and lets a single GLM/Qwen/Kimi subscription be
 drained through whichever engine is installed. `local-ollama` remains the only
 genuine `$0 owned_hardware` source and stays the priority rung.
 
-### Vendor surfaces (verified 2026-06-13; re-verify before building - this churns monthly)
+### Shipped versus planned capacity
 
-`local-ollama` (genuine $0) ships first. Among prepaid rungs, Copilot CLI and
-Cursor (Auto mode) are the most automation-friendly; Claude Code's credit pool
-is the cleanest *hard-stoppable* budget. Every first-party CLI below has a
-hard-stop-able mode; the mandatory guard is to keep overflow/overage OFF and
-never rely on a vendor to stop billing.
+There are three distinct states, and docs must keep them separate:
+
+1. **Works now:** `local-ollama` for local expert setup and maintenance, plus
+   metered provider APIs behind budget gates.
+2. **Visible/read-only now:** plan CLIs and credit pools listed by
+   `deepr capacity` or modeled in this design.
+3. **Planned adapter:** a CLI can execute Deepr work only after the adapter
+   proves auth mode, live quota state, no-overage behavior, output contract,
+   teardown, tests, and cost/quota ledger writes.
+
+### Vendor surfaces (verified 2026-06-18; re-verify before building - this churns monthly)
+
+`local-ollama` (genuine $0) ships first and is the only automatic non-metered
+execution rung today. Among prepaid rungs, GitHub Copilot CLI has the cleanest
+programmatic surface, Antigravity is the Google consumer replacement for Gemini
+CLI, Claude Code and Codex expose plan/window limits, and Grok Build is a useful
+candidate surface for users with SuperGrok or X Premium Plus. Every first-party
+CLI adapter below must prove it can hard-stop before paid overage or it stays
+read-only.
 
 | Surface | Headless invocation | Cost model | Default exhaustion | Build priority |
 |---|---|---|---|---|
@@ -83,25 +98,25 @@ never rely on a vendor to stop billing.
 | Claude Code | `claude -p --output-format json` | credit_pool (separate monthly $, API rates, from 2026-06-15) | hard-stop; overflow opt-in, keep OFF | high |
 | GitHub Copilot CLI | `copilot -p --allow-all-tools` (`GH_TOKEN`) | credit_pool (monthly) -> admin-capped metered overage | hard-stop, admin-toggle | high |
 | Cursor CLI | `cursor-agent -p --output-format json` | credit_pool = plan price; **Auto model is free** | quota | high (Auto = free capacity) |
-| Codex CLI | `codex exec --json` (`CODEX_API_KEY`) | sub rolling+weekly; metered via API key | sub: 429; API: uncapped | medium (sub auth ToS-gray) |
+| Codex CLI | `codex exec --json` or equivalent local/cloud task invocation | shared plan window; API-key mode is metered | window exhausted; extra credits/API can bill | medium |
 | Kimi Code | `kimi -p` | rolling_window (5h, ~$19/mo) | hard-stop | medium |
 | GLM Coding Plan | any engine + base-url/key | credit_pool, quarterly reset, no per-token | quota | medium (cleanest endpoint swap) |
 | Qwen Code | `qwen` headless + plan key | Coding Plan sub / metered | quota | low (free OAuth tier died 2026-04-15) |
 | Kiro | `kiro-cli chat --no-interactive` (`KIRO_API_KEY`) | credit_pool (monthly) + **uncapped** overage $0.04/cr | overage OFF by default; if ON, silent month-end bill | medium (mandatory reserve floor) |
-| Grok Build | `grok -p` (`XAI_API_KEY`) | metered (API); consumer-sub OAuth gray-area | spend-based | metered-only (no plan_quota rung) |
-| Antigravity (`agy`) | SDK `google.antigravity`; CLI `-p` unconfirmed | rolling (5h) + weekly hard cap; opt-in credit overage | up to 7-day lockout; overage off | low (quota-opaque, interactive auth) |
+| Grok Build | CLI beta for signed-in SuperGrok and X Premium Plus users | consumer plan surface first; API-key mode is metered | beta/opaque, must probe | medium |
+| Antigravity (`agy`) | Antigravity CLI programmatic/background workflows | Google AI Pro/Ultra or Google Cloud project capacity | quota opaque, must probe | high |
 
 Dropped from the plan since the first draft: **Gemini CLI** (retired for
-consumers 2026-06-18, enterprise-only after); **Amazon Q Developer CLI**
-(sunsetting into Kiro, signups blocked 2026-05-15); **Grok consumer
-subscriptions** (no sanctioned headless path - xAI's data-sharing API credits
-flow through `api_metered` as a price override). **Amp / OpenCode Zen /
-Goose+Tetrate** are prepaid-but-metered (zero markup) - no arbitrage over a
-plain API key, so not worth a plan_quota adapter. **Warp** has no clean local
-headless one-shot. Confidence caveats (each load-bearing claim is sourced in
-the 2026-06-13 research): exact quota numbers, subscription prices, and the
-gray-area ToS postures move monthly and must be re-checked against
-`--version` / vendor docs before being hard-coded.
+consumers on 2026-06-18, enterprise/API-key paths remain); **Amazon Q Developer CLI**
+(sunsetting into Kiro, signups blocked 2026-05-15); plain **Grok chat
+subscriptions** without Grok Build as the sanctioned terminal surface; and
+**Amp / OpenCode Zen / Goose+Tetrate** where they are prepaid-but-metered with
+no arbitrage over a plain API key. API credit pools such as xAI data-sharing
+credits flow through the existing API provider path as bounded credits, not as
+CLI plan quota. **Warp** has no clean local headless one-shot. Confidence
+caveats: exact quota numbers, subscription prices, and ToS postures move
+monthly and must be re-checked against `--version` / vendor docs before being
+hard-coded.
 
 ### Quota ledger
 
@@ -190,7 +205,8 @@ Steps 1-7 are shipped or substantially built (see Status at top); adapter and
 scheduler work remains.
 
 1. `CostModel`/`BackendKind` types + read-only `deepr capacity` detection. (done)
-2. `local-ollama` execution via the injectable seams + `--local`. (done)
+2. Local-only expert setup plus `local-ollama` execution via the injectable
+   seams + `--local`. (done)
 3. Eval-gated **local admission** + automatic owned-capacity-first selection
    for `expert sync`/`absorb` (`deepr capacity admit`). (done - the local rung)
 4. `ResearchBackend` abstraction: wrap today's provider path as `api_metered`,
