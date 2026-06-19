@@ -158,6 +158,34 @@ async def test_run_local_context_eval_caps_invalid_source_labels():
     assert result.verdict.raw_score == 0.78
     assert result.verdict.score == 0.2
     assert result.verdict.adjustments == ("invalid source label",)
+    assert report.mode_scores == {"fresh": 0.2}
+    assert report.winner_mode == "fresh"
+
+
+def test_report_winner_ignores_unrun_modes():
+    report = LocalContextEvalReport(
+        model="local",
+        judge_model="judge",
+        prompt_set="local-freshness",
+        prompts=(_prompt(),),
+        results=(
+            LocalContextModeResult(
+                prompt_id="p1",
+                task_class="freshness",
+                mode="fresh",
+                answer="",
+                latency_ms=1,
+                source_count=0,
+                retrieved_source_count=0,
+                citation_count=0,
+                invalid_citation_labels=(),
+                verdict=LocalContextVerdict(score=0.0, raw_score=0.0, reason="failed", raw="{}"),
+            ),
+        ),
+    )
+
+    assert report.mode_scores == {"fresh": 0.0}
+    assert report.winner_mode == "fresh"
 
 
 async def test_run_local_context_eval_requires_prompts():
