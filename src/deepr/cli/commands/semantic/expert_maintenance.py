@@ -392,6 +392,8 @@ def sync_cmd(
             line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
         elif o.detail:
             line += f"  [dim]{o.detail[:90]}[/dim]"
+        if o.source_pack_artifact:
+            line += f"  [dim](sources {o.source_count}; {o.source_pack_artifact})[/dim]"
         console.print(line)
 
     if not dry_run:

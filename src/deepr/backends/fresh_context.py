@@ -131,6 +131,36 @@ class FreshContext:
             "errors": list(self.errors),
         }
 
+    def to_source_pack(self, *, max_excerpt_chars: int = 2000) -> dict[str, object]:
+        """Serialize retrieved sources as a bounded, portable run artifact."""
+        cfg = self.prompt_config or FreshContextConfig()
+        excerpt_limit = min(max_excerpt_chars, cfg.max_chars_per_source)
+        return {
+            "schema_version": "deepr.source_pack.v1",
+            "query": self.query,
+            "generated_at": self.generated_at,
+            "mode": self.mode,
+            "search_backend": self.search_backend,
+            "browser_backend": self.browser_backend,
+            "search_queries": list(self.search_queries),
+            "source_count": len([source for source in self.sources if source.excerpt(1)]),
+            "retrieved_source_count": len(self.sources),
+            "errors": list(self.errors),
+            "sources": [
+                {
+                    "label": f"S{index}",
+                    "title": source.title,
+                    "url": source.url,
+                    "source": source.source,
+                    "fetched": source.fetched,
+                    "error": source.error,
+                    "snippet": source.snippet,
+                    "excerpt": source.excerpt(excerpt_limit),
+                }
+                for index, source in enumerate(self.sources, start=1)
+            ],
+        }
+
 
 class FreshContextBuilder(Protocol):
     async def __call__(self, query: str) -> FreshContext | str:

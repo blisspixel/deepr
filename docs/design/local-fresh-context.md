@@ -1,6 +1,7 @@
 # Design: local fresh context
 
-Status: first two slices shipped in v2.16 main.
+Status: fresh/deep context, the local context eval, and source-pack sync
+artifacts are shipped in v2.16 main.
 
 Local Ollama execution gives Deepr a zero-dollar maintenance path, but local
 models do not automatically know what changed online. Freshness is a retrieval
@@ -26,6 +27,10 @@ then ask the local model to answer from that context and cite it.
 - Open local research projects converge on Ollama or another OpenAI-compatible
   local endpoint plus a search layer such as SearXNG, then repeat search,
   read, reflect, and synthesize for bounded cycles.
+- RAG eval practice separates faithfulness, response relevance, context
+  relevance, and retrieval coverage. Deepr mirrors that split locally: the judge
+  scores semantic quality, while code validates source counts, citation-label
+  shape, latency, and cost.
 - OKF reinforces the same context lesson: agents need portable, file-shaped
   knowledge with enough metadata to inspect source and freshness.
 
@@ -43,6 +48,8 @@ Primary references:
 - https://github.com/LearningCircuit/local-deep-research
 - https://docs.gptr.dev/docs/gpt-researcher/llms
 - https://docs.searxng.org/dev/search_api.html
+- https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/
+- https://developers.openai.com/cookbook/examples/evaluation/getting_started_with_openai_evals
 - https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing
 
 ## What shipped
@@ -69,6 +76,14 @@ single search is too thin.
   local model's uncertainty as expert beliefs.
 - The research result keeps Deepr metered cost at `$0` and carries fresh-context
   metadata for future loop records.
+- `deepr eval local-context` compares no context, fresh context, and deep
+  context for one local model with a local judge. It records mode scores,
+  source counts, retrieved-source counts, citation counts, invalid citation
+  labels, latency, and Deepr metered cost `$0`.
+- Context-bearing sync runs persist a bounded source-pack artifact under the
+  expert knowledge directory and include the artifact path, source count, and
+  context mode in `SyncOutcome`. If the artifact cannot be written, Deepr
+  refuses to absorb the context-grounded answer.
 
 This is not full local deep research yet. It is a retrieval-grounded local sync
 adapter with a deeper source-gathering mode for scheduled expert maintenance.
@@ -83,19 +98,16 @@ adapter with a deeper source-gathering mode for scheduled expert maintenance.
   and can fail, rate-limit, or return sparse snippets.
 - Search results are context, not authority. Absorb still goes through the same
   source-trust, contradiction, dedup, and confidence gates.
-- The source pack is disposable prompt context today. Canonical state remains
-  the belief/event/edge store.
+- Source-pack artifacts are derived run records. Canonical state remains the
+  belief/event/edge store.
 
 ## Build order from here
 
-1. Add a local freshness/deep-context eval prompt set that compares no context,
-   fresh context, and deep context on time-sensitive questions.
-2. Persist source packs as run artifacts so `ExpertLoopRun` can report which
-   sources drove accepted or rejected changes.
-3. Teach scheduler integration to choose fresh or deep context for due sync
+1. Teach scheduler integration to choose fresh or deep context for due sync
    work when the admitted local model is used for a freshness task.
-4. Add optional plan-quota retrieval adapters only after the free path is
+2. Add optional plan-quota retrieval adapters only after the free path is
    measured, with quota observations written to the append-only quota ledger.
 
-The next immediate local slice is item 1. That gives local deep context an
-acceptance metric before schedulers choose it automatically.
+The next immediate local slice is item 1. The scheduler can now rely on the
+local context eval and durable source-pack trail before choosing fresh/deep
+context automatically.
