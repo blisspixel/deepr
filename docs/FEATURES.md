@@ -903,7 +903,9 @@ fails the verifier, or exhausts the run budget. The dashboard API now exposes
 latest run, last sync result, next scheduled action, failure, capacity source,
 spend, acceptance, verifier failure metrics, and `expert_state` telemetry for
 freshness, gap velocity, and contested/open claims. Host agents can already
-read the durable loop state through `deepr_expert_loop_status`.
+read the durable loop state through `deepr_expert_loop_status`. Terminal loop
+records now require status-compatible typed stop reasons before they can be
+stored.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
