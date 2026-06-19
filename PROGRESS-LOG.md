@@ -45,4 +45,5 @@
 - Added `docs/SUPPORTED_SURFACE.md`, documenting stable, experimental, visible/read-only, planned, export, and compatibility guarantees.
 - Added `deploy/mcp-http/cloudflare-worker/`, a Cloudflare Worker edge ingress recipe that requires an HTTPS MCP origin, proxies only `/mcp` paths, caps request bodies, forwards scoped-key auth headers, and keeps scoped-key enforcement, budgets, rate limits, audit logs, and provider keys on the origin side.
 - Added MCP allowlist enforcement contract tests across visible registry tools, dispatcher-only tools, every `ResearchMode`, scoped-key authorization, and JSON-RPC pre-dispatch gates.
+- Audited expert chat circuit-breaker/session-budget coordination: session circuit trips block before fallback provider calls, deep research preserves session-budget metadata on preflight denials, and regression tests cover the blocked response paths.
 - Spend so far: `$0.00`.

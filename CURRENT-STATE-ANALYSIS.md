@@ -163,6 +163,12 @@ across every `ResearchMode`, asserting the declared policy, scoped-key
 authorization behavior, and JSON-RPC pre-dispatch block or confirmation gate
 stay aligned.
 
+The circuit-breaker/session-budget audit finding is also closed locally.
+Expert chat session circuit trips propagate through `CostSafetyManager` as
+blocked session reasons; standard research stops before fallback provider calls
+when the session circuit is open; and deep research now preserves
+session-specific budget or circuit metadata in blocked responses.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance

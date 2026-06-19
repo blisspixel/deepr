@@ -999,23 +999,23 @@ Budget remaining: ${budget_remaining:.2f}
         )
 
         if not allowed:
+            is_budget_denial = reason.startswith("Insufficient budget:")
+            session_denial = is_budget_denial or reason.startswith("Session circuit breaker open:")
+            error_prefix = "Session budget exceeded" if is_budget_denial else "Deep research blocked"
             return {
-                "error": f"Deep research blocked: {reason}",
+                "error": f"{error_prefix}: {reason}",
                 "mode": "deep_research",
                 "status": "blocked",
-                "daily_spent": self.cost_safety.daily_cost,
-                "daily_limit": self.cost_safety.max_daily,
-            }
-
-        # Check session budget
-        can_proceed, session_reason = self.cost_session.can_proceed(estimated_cost)
-        if not can_proceed:
-            return {
-                "error": f"Session budget exceeded: {session_reason}",
-                "mode": "deep_research",
-                "status": "blocked",
-                "session_spent": self.cost_session.total_cost,
-                "session_budget": self.budget,
+                **(
+                    {"session_spent": self.cost_session.total_cost, "session_budget": self.budget}
+                    if session_denial
+                    else {"daily_spent": self.cost_safety.daily_cost, "daily_limit": self.cost_safety.max_daily}
+                ),
+                **(
+                    {"session_circuit_breaker_open": self.cost_session.is_circuit_open}
+                    if reason.startswith("Session circuit breaker open:")
+                    else {}
+                ),
             }
 
         try:
