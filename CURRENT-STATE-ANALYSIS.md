@@ -44,6 +44,12 @@ the audit's recommended actions. Metered recommendations wait for capacity,
 confirm-gated local writes wait for confirmation, and `--archive-stale
 --scheduled` will not mutate unless `--yes` is explicit.
 
+Scheduled expert wait and action-plan surfaces now append durable
+`ExpertLoopRun` snapshots and include `loop_run` JSON. This covers sync,
+gap-fill route execution, reflection follow-ups, and health-check action plans,
+so blocked recurring maintenance is visible through `deepr expert loop-status`
+without repeating the job.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -52,14 +58,17 @@ health-check actioning all have explicit scheduled wait or action-plan behavior.
 The first `v2.17` durable loop slice is also in place: `ExpertLoopRun` defines
 schema-versioned loop records, typed stop reasons, acceptance metrics, cost per
 accepted change, append-only per-expert storage, and read-only
-`deepr expert loop-status`.
+`deepr expert loop-status`. Scheduled wait/action-plan instrumentation now feeds
+that store for the recurring expert surfaces that can safely stop before spend
+or mutation.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: instrument the scheduled expert surfaces to append `ExpertLoopRun`
-snapshots, or add the MCP read tool for the new loop-status records.
+Next slice: add the MCP read tool for loop-status records, or instrument
+successful execution paths so completed sync, gap-fill, reflection, and
+health-check work show the same durable lifecycle.
 
 ## Spend Ledger For This Run
 
