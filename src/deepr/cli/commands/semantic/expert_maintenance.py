@@ -339,6 +339,52 @@ def _emit_capacity_block(
     _print_capacity_payload(payload)
 
 
+def _record_completed_sync_loop(
+    expert_name: str,
+    result,
+    *,
+    budget: float,
+    scheduled: bool,
+    sync_all: bool,
+    use_local: bool,
+):
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    outcomes = list(getattr(result, "outcomes", []) or [])
+    failed = [o for o in outcomes if getattr(o, "status", "") == "failed"]
+    accepted = sum(
+        max(int(getattr(o, "absorbed", 0) or 0), 0) + max(int(getattr(o, "flagged", 0) or 0), 0) for o in outcomes
+    )
+    if failed:
+        status = LoopRunStatus.FAILED
+        stop_reason = LoopStopReason.TOOL_FAILURE
+        next_action = {
+            "status": "inspect",
+            "title": "Inspect failed sync outcomes",
+            "detail": f"{len(failed)} topic(s) failed during sync.",
+            "command": f'deepr expert sync "{expert_name}" --dry-run',
+        }
+    else:
+        status = LoopRunStatus.COMPLETED
+        stop_reason = LoopStopReason.VERIFIER_PASSED if accepted else LoopStopReason.NO_DUE_WORK
+        next_action = {}
+
+    return record_loop_run(
+        expert_name=expert_name,
+        loop_type="sync",
+        goal=f"Sync {'all' if sync_all else 'due'} subscriptions for {expert_name}",
+        trigger="scheduled" if scheduled else "manual",
+        status=status,
+        stop_reason=stop_reason,
+        next_action=next_action,
+        budget_limit=budget,
+        budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
+        capacity_source="local" if use_local else "api_metered",
+        accepted_changes=accepted,
+        rejected_changes=len(failed),
+    )
+
+
 @expert.command(name="sync")
 @click.argument("name")
 @click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Total budget ceiling for this run")
@@ -516,9 +562,24 @@ def sync_cmd(
     else:
         engine = ExpertSyncEngine(profile)
     result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))
+    loop_run = (
+        None
+        if dry_run
+        else _record_completed_sync_loop(
+            name,
+            result,
+            budget=budget,
+            scheduled=scheduled,
+            sync_all=sync_all,
+            use_local=use_local,
+        )
+    )
 
     if json_output:
-        click.echo(_json.dumps(result.to_dict(), indent=2))
+        payload = result.to_dict()
+        if loop_run is not None:
+            payload["loop_run"] = loop_run.to_dict()
+        click.echo(_json.dumps(payload, indent=2))
         return
 
     print_header(f"Sync: {name}")
