@@ -798,7 +798,7 @@ def validate_claim(
         print_success("Claim is consistent with expert knowledge.")
 
 
-def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool) -> None:
+def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool, scheduled: bool) -> None:
     """Execute the health-check archive-candidates action (the consolidation pass).
 
     $0, no LLM. Candidates pass every lifecycle gate (decayed below floor,
@@ -827,6 +827,12 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool) -> None:
             click.echo(_json.dumps({"expert": name, "archived": [], "count": 0}))
         else:
             print_success("No beliefs eligible for lifecycle archival.")
+        return
+
+    if scheduled and not yes:
+        from deepr.cli.commands.semantic.expert_health_schedule import emit_scheduled_archive_confirmation
+
+        emit_scheduled_archive_confirmation(name, candidates, json_output=json_output)
         return
 
     if not json_output:
@@ -873,8 +879,13 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool) -> None:
     is_flag=True,
     help="Archive the eligible stale beliefs (reversible; snapshots kept in the event log)",
 )
+@click.option(
+    "--scheduled",
+    is_flag=True,
+    help="Emit scheduler action state and avoid prompts or metered actions",
+)
 @click.option("--yes", "-y", is_flag=True, help="With --archive-stale: skip confirmation")
-def health_check(name: str, json_output: bool, archive_stale: bool, yes: bool):
+def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: bool, yes: bool):
     """Audit an expert's knowledge state. Read-only, costs nothing.
 
     Runs a set of free, read-side checks - knowledge freshness, belief
@@ -895,6 +906,7 @@ def health_check(name: str, json_output: bool, archive_stale: bool, yes: bool):
       deepr expert health-check "AI Strategy Expert"
       deepr expert health-check "AI Strategy Expert" --json
       deepr expert health-check "AI Strategy Expert" --archive-stale
+      deepr expert health-check "AI Strategy Expert" --scheduled --json
     """
     import json as _json
     import sys
@@ -910,12 +922,17 @@ def health_check(name: str, json_output: bool, archive_stale: bool, yes: bool):
         sys.exit(2)
 
     if archive_stale:
-        _archive_stale_beliefs(name, yes=yes, json_output=json_output)
+        _archive_stale_beliefs(name, yes=yes, json_output=json_output, scheduled=scheduled)
         return
 
     report = ExpertHealthChecker(profile).run()
 
     if json_output:
+        if scheduled:
+            from deepr.cli.commands.semantic.expert_health_schedule import scheduled_health_payload
+
+            click.echo(_json.dumps(scheduled_health_payload(report), indent=2))
+            return
         click.echo(_json.dumps(report.to_dict(), indent=2))
         return
 
@@ -948,6 +965,15 @@ def health_check(name: str, json_output: bool, archive_stale: bool, yes: bool):
     else:
         console.print()
         print_success("No corrective actions recommended.")
+
+    if scheduled:
+        from deepr.cli.commands.semantic.expert_health_schedule import (
+            print_scheduled_health_action_plan,
+            scheduled_health_action_plan,
+        )
+
+        console.print()
+        print_scheduled_health_action_plan(scheduled_health_action_plan(report))
 
     if report.status == "critical":
         print_warning("This expert needs attention before it should be relied on.")
