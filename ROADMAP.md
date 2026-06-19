@@ -650,6 +650,11 @@ Goal: production posture for multi-user and autonomous deployments.
         `deepr_expert_handoff` and `/api/experts/{name}/handoff` return
         `deepr-expert-handoff-v1` with bounded expert state, loop status, OKF
         hints, and additive compatibility.
+  - [x] Scoped-key and remote-call audit primitive:
+        `ScopedMCPKeyStore` authenticates per-key mode, expert allowlist, and
+        budget metadata for HTTP MCP calls; the transport enforces mode,
+        confirmation, and expert-scope denial before dispatch and writes
+        append-only `deepr-mcp-remote-audit-v1` events.
   - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
   - [ ] Per-key budget contracts and rate limits (reuses BudgetPropagator); read-only tool profile as the default exposure
   - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
@@ -1022,8 +1027,13 @@ loop/interchange contract (2.17), because a hosted endpoint invites always-on
 consumers who will exercise all three. Design:
 [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md).
 
-1. Streamable HTTP transport; scoped API keys (mode/expert/budget);
-   tool-call audit log (doubles as the mutation audit trail)
+1. [~] Streamable HTTP transport; scoped API keys (mode/expert/budget);
+   tool-call audit log (doubles as the mutation audit trail). The HTTP
+   transport already exists, and the first scoped-key/audit primitive now
+   authenticates key records, enforces mode plus expert allowlists before tool
+   dispatch, and records append-only remote-call audit events. Remaining work:
+   key CLI, per-key cost-session budget enforcement, rate limits, deployment
+   recipe, and remote smoke tests.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,
