@@ -59,6 +59,58 @@ def test_loop_run_validates_required_fields():
         )
 
 
+def test_terminal_loop_run_requires_typed_stop_reason():
+    with pytest.raises(ValueError, match="terminal loop runs require a typed stop_reason"):
+        ExpertLoopRun(
+            run_id="loop_1",
+            expert_name="Platform Expert",
+            loop_type="sync",
+            goal="refresh subscribed topics",
+            trigger="scheduled",
+            status=LoopRunStatus.COMPLETED,
+        )
+
+
+def test_pending_loop_run_can_omit_stop_reason():
+    run = ExpertLoopRun(
+        run_id="loop_1",
+        expert_name="Platform Expert",
+        loop_type="sync",
+        goal="refresh subscribed topics",
+        trigger="scheduled",
+        status=LoopRunStatus.PENDING,
+    )
+
+    assert run.stop_reason is None
+    assert run.is_terminal is False
+
+
+def test_completed_loop_run_rejects_wait_stop_reason():
+    with pytest.raises(ValueError, match="completed loop runs cannot use stop_reason capacity_unavailable"):
+        ExpertLoopRun(
+            run_id="loop_1",
+            expert_name="Platform Expert",
+            loop_type="sync",
+            goal="refresh subscribed topics",
+            trigger="scheduled",
+            status=LoopRunStatus.COMPLETED,
+            stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+        )
+
+
+def test_waiting_loop_run_rejects_completion_stop_reason():
+    with pytest.raises(ValueError, match="waiting loop runs cannot use stop_reason verifier_passed"):
+        ExpertLoopRun(
+            run_id="loop_1",
+            expert_name="Platform Expert",
+            loop_type="sync",
+            goal="refresh subscribed topics",
+            trigger="scheduled",
+            status=LoopRunStatus.WAITING,
+            stop_reason=LoopStopReason.VERIFIER_PASSED,
+        )
+
+
 def test_store_collapses_append_only_snapshots(tmp_path):
     path = tmp_path / "loop_runs.jsonl"
     store = ExpertLoopRunStore("Platform Expert", path=path)
