@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr-mcp-remote-audit-v1` and registered it in
   `docs/schemas/registry.json` so hosted MCP remote-call audit records have a
   published additive compatibility contract.
+- Added `docs/SUPPORTED_SURFACE.md`, a supported-surface statement covering
+  stable, experimental, visible/read-only, planned, export, and compatibility
+  guarantees for users and host agents.
 - Added the first hosted-MCP scoped-key primitive: `ScopedMCPKeyStore`, HTTP
   transport enforcement for key mode, expert allowlists, confirmation
   requirements, and append-only `deepr-mcp-remote-audit-v1` events for
