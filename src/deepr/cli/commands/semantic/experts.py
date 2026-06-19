@@ -559,9 +559,9 @@ def list_experts():
     console.print(f"Found {len(experts)} expert(s):\n")
 
     for expert in experts:
-        console.print(f"  [bold]{expert.name}[/bold]")
+        console.print(f"  [bold]Name:[/bold] {expert.name}")
         if expert.description:
-            console.print(f"    [dim]{expert.description}[/dim]")
+            console.print(f"    Description: [dim]{expert.description}[/dim]")
         console.print(f"    Documents: {expert.total_documents}")
         console.print(f"    Conversations: {expert.conversations}")
         if expert.research_triggered > 0:

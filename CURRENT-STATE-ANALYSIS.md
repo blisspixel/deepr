@@ -169,6 +169,11 @@ blocked session reasons; standard research stops before fallback provider calls
 when the session circuit is open; and deep research now preserves
 session-specific budget or circuit metadata in blocked responses.
 
+The live-validation CLI polish finding is closed locally. Bare `deepr search
+"query"` now routes to the query subcommand instead of returning a generic Click
+error, and `deepr expert list` labels the name and description fields so roster
+entries are easier to scan.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
