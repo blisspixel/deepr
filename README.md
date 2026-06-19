@@ -165,6 +165,7 @@ deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research 
 deepr expert subscribe "UI Experience Expert" "UI/UX for agentic research tools"
 deepr expert sync "UI Experience Expert" --local --fresh-context -y
 deepr expert sync "UI Experience Expert" --local --deep-context -y
+deepr expert loop-status "UI Experience Expert" --json
 ```
 
 Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition.
@@ -363,7 +364,7 @@ Optional env controls:
 
 **Production-ready:** Core research commands, cost controls, expert creation/chat, context discovery, auto mode routing, all providers, local SQLite storage, guided setup (`deepr init`/`deepr doctor`), and a portable data directory (one `DEEPR_DATA_DIR` relocates experts and research, so they follow you across machines via OneDrive/Dropbox/etc.). 5700+ tests (Python 3.12-3.14).
 
-**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
+**Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records (`deepr expert loop-status`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
 See [ROADMAP.md](ROADMAP.md) for detailed status.
 

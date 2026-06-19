@@ -49,17 +49,17 @@ confirm-gated local writes wait for confirmation, and `--archive-stale
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
 surfaces at the CLI contract level: sync, gap-fill, reflection follow-ups, and
 health-check actioning all have explicit scheduled wait or action-plan behavior.
-The next leverage point is either the remaining `v2.16` capacity substrate
-(plan-quota adapters, live probes, adapter writes) or the `v2.17`
-`ExpertLoopRun` record that makes these scheduled outcomes durable across hosts.
+The first `v2.17` durable loop slice is also in place: `ExpertLoopRun` defines
+schema-versioned loop records, typed stop reasons, acceptance metrics, cost per
+accepted change, append-only per-expert storage, and read-only
+`deepr expert loop-status`.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: choose the highest-leverage local-only increment between durable
-`ExpertLoopRun` records and any remaining capacity adapter substrate that can be
-implemented without paid calls.
+Next slice: instrument the scheduled expert surfaces to append `ExpertLoopRun`
+snapshots, or add the MCP read tool for the new loop-status records.
 
 ## Spend Ledger For This Run
 
