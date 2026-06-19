@@ -158,6 +158,7 @@ class TestDefaultRegistry:
         registry = create_default_registry()
         assert registry.get("deepr_list_experts") is not None
         assert registry.get("deepr_query_expert") is not None
+        assert registry.get("deepr_expert_loop_status") is not None
 
 
 class TestGatewayTool:

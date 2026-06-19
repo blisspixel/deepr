@@ -50,6 +50,9 @@ gap-fill route execution, reflection follow-ups, and health-check action plans,
 so blocked recurring maintenance is visible through `deepr expert loop-status`
 without repeating the job.
 
+The loop-status state is now available to host agents through the
+`deepr_expert_loop_status` MCP tool, with optional status and loop-type filters.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -60,15 +63,15 @@ schema-versioned loop records, typed stop reasons, acceptance metrics, cost per
 accepted change, append-only per-expert storage, and read-only
 `deepr expert loop-status`. Scheduled wait/action-plan instrumentation now feeds
 that store for the recurring expert surfaces that can safely stop before spend
-or mutation.
+or mutation. MCP read access is also in place for host agents.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: add the MCP read tool for loop-status records, or instrument
-successful execution paths so completed sync, gap-fill, reflection, and
-health-check work show the same durable lifecycle.
+Next slice: instrument successful execution paths so completed sync, gap-fill,
+reflection, and health-check work show the same durable lifecycle, or add the
+dashboard/API rollup over loop-status records.
 
 ## Spend Ledger For This Run
 

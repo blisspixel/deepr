@@ -174,7 +174,7 @@ See [docs/EXPERTS.md](docs/EXPERTS.md) for the full expert system guide.
 
 ### MCP Integration - Experts as Consultable Roles
 
-Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 26 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
+Your AI agents (Claude Code, Cursor, VS Code) can call Deepr experts via MCP - not as a generic "research tool" but as named domain roles. An agent working on a proposal can consult "AI Strategy Expert" for market context, then hand that context to a downstream agent for solution design. 27 MCP tools, resource subscriptions, prompt templates, budget propagation, and trace ID stitching across agent boundaries. See [mcp/README.md](mcp/README.md) for setup.
 
 This matters most for the new generation of always-on agents: an agent that runs for months needs durable, verified, current domain knowledge with provenance - and a cheap way to re-sync ("what changed since I last consulted you?") instead of re-reading everything. Deepr experts are that knowledge layer; the host platform keeps the schedule, Deepr keeps the perspective.
 
@@ -301,7 +301,8 @@ wait for capacity, confirm-gated local writes wait for confirmation, and
 `--archive-stale --scheduled` will not mutate unless `--yes` is explicit.
 These scheduled wait and action-plan payloads now include durable `loop_run`
 records, so `deepr expert loop-status NAME --json` can show the latest blocked
-or waiting maintenance work without re-running it.
+or waiting maintenance work without re-running it. Host agents can read the
+same state through `deepr_expert_loop_status`.
 
 ### Evidence and Calibration
 
