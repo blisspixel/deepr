@@ -45,6 +45,8 @@ class FreshSource:
     error: str = ""
 
     def excerpt(self, max_chars: int) -> str:
+        if max_chars <= 0:
+            return ""
         text = self.content.strip() or self.snippet.strip()
         if len(text) <= max_chars:
             return text
@@ -69,6 +71,9 @@ class FreshContext:
     def has_sources(self) -> bool:
         return any(source.excerpt(1) for source in self.sources)
 
+    def _citable_sources(self) -> tuple[FreshSource, ...]:
+        return tuple(source for source in self.sources if source.excerpt(1))
+
     def to_prompt_context(self, config: FreshContextConfig | None = None) -> str:
         cfg = config or self.prompt_config or FreshContextConfig()
         lines = [
@@ -90,8 +95,11 @@ class FreshContext:
             return "\n".join(lines)
 
         used_chars = 0
-        for index, source in enumerate(self.sources, start=1):
-            excerpt = source.excerpt(min(cfg.max_chars_per_source, cfg.max_total_chars - used_chars))
+        for index, source in enumerate(self._citable_sources(), start=1):
+            remaining = cfg.max_total_chars - used_chars
+            if remaining <= 0:
+                break
+            excerpt = source.excerpt(min(cfg.max_chars_per_source, remaining))
             if not excerpt:
                 continue
             used_chars += len(excerpt)
@@ -109,7 +117,7 @@ class FreshContext:
         return "\n".join(lines)
 
     def to_metadata(self) -> dict[str, object]:
-        usable_sources = [source for source in self.sources if source.excerpt(1)]
+        usable_sources = self._citable_sources()
         return {
             "generated_at": self.generated_at,
             "mode": self.mode,
@@ -135,6 +143,7 @@ class FreshContext:
         """Serialize retrieved sources as a bounded, portable run artifact."""
         cfg = self.prompt_config or FreshContextConfig()
         excerpt_limit = min(max_excerpt_chars, cfg.max_chars_per_source)
+        usable_sources = self._citable_sources()
         return {
             "schema_version": "deepr.source_pack.v1",
             "query": self.query,
@@ -143,7 +152,7 @@ class FreshContext:
             "search_backend": self.search_backend,
             "browser_backend": self.browser_backend,
             "search_queries": list(self.search_queries),
-            "source_count": len([source for source in self.sources if source.excerpt(1)]),
+            "source_count": len(usable_sources),
             "retrieved_source_count": len(self.sources),
             "errors": list(self.errors),
             "sources": [
@@ -157,7 +166,7 @@ class FreshContext:
                     "snippet": source.snippet,
                     "excerpt": source.excerpt(excerpt_limit),
                 }
-                for index, source in enumerate(self.sources, start=1)
+                for index, source in enumerate(usable_sources, start=1)
             ],
         }
 
