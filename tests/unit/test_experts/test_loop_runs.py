@@ -104,12 +104,18 @@ def test_record_loop_run_appends_snapshot():
             stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
             next_action={"status": "wait"},
             budget_limit=1.5,
+            budget_spent=0.25,
             capacity_source="owned/prepaid",
+            accepted_changes=2,
+            rejected_changes=1,
         )
 
     assert run.run_id.startswith("loop_")
     assert run.status == LoopRunStatus.WAITING
     assert run.stop_reason == LoopStopReason.CAPACITY_UNAVAILABLE
     assert run.next_action == {"status": "wait"}
+    assert run.budget_spent == 0.25
+    assert run.accepted_changes == 2
+    assert run.rejected_changes == 1
     store_class.assert_called_once_with("Platform Expert")
     store.append.assert_called_once_with(run)
