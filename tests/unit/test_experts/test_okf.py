@@ -6,7 +6,7 @@ import pytest
 
 from deepr.core.contracts import ExpertManifest, Gap
 from deepr.experts.beliefs import Belief, BeliefStore
-from deepr.experts.okf import OKF_MARKER, build_okf_bundle, write_okf_bundle
+from deepr.experts.okf import OKF_MARKER, build_okf_bundle, build_okf_ingestion_corpus, write_okf_bundle
 from deepr.experts.profile import ExpertProfile
 
 
@@ -107,3 +107,35 @@ def test_write_okf_bundle_refuses_to_overwrite_hand_edited_file(tmp_path):
     result = write_okf_bundle(bundle, output, force=True)
     assert "index.md" in result.files
     assert OKF_MARKER in (output / "index.md").read_text(encoding="utf-8")
+
+
+def test_build_okf_ingestion_corpus_uses_only_concept_documents(tmp_path):
+    store = _store(tmp_path)
+    store.add_belief(
+        Belief(
+            claim="OKF import must verify claims before persistence",
+            confidence=0.85,
+            domain="interop",
+            evidence_refs=["okf:concept"],
+        ),
+        check_conflicts=False,
+    )
+    bundle = build_okf_bundle(_profile(), store, manifest=_manifest())
+    output = tmp_path / "okf"
+    write_okf_bundle(bundle, output)
+
+    corpus = build_okf_ingestion_corpus(output)
+
+    assert corpus.concept_count == 1
+    assert corpus.report_id.startswith("okf:okf:")
+    assert "OKF import must verify claims before persistence" in corpus.report_text
+    assert '"evidence_refs": [' in corpus.report_text
+    assert "[Back to index](../index.md)" in corpus.report_text
+    assert "gaps.md" not in corpus.files
+
+
+def test_build_okf_ingestion_corpus_rejects_bundle_without_concepts(tmp_path):
+    (tmp_path / "index.md").write_text("# Not a concept\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="No OKF concept"):
+        build_okf_ingestion_corpus(tmp_path)
