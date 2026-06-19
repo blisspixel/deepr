@@ -811,6 +811,7 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool, scheduled
 
     # Opening a BeliefStore creates its directory; only open stores that
     # already exist so a typo'd name cannot create state.
+    from deepr.cli.commands.semantic.expert_health_loop import record_completed_health_archive
     from deepr.config import experts_root
     from deepr.experts.beliefs import BeliefStore
 
@@ -823,8 +824,9 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool, scheduled
     candidates = belief_store.archive_candidates()
 
     if not candidates:
+        loop_run = record_completed_health_archive(name, archived_count=0)
         if json_output:
-            click.echo(_json.dumps({"expert": name, "archived": [], "count": 0}))
+            click.echo(_json.dumps({"expert": name, "archived": [], "count": 0, "loop_run": loop_run.to_dict()}))
         else:
             print_success("No beliefs eligible for lifecycle archival.")
         return
@@ -847,9 +849,11 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool, scheduled
     if not yes:
         if not click.confirm(f"Archive {len(candidates)} belief(s)? (reversible - snapshots kept in the event log)"):
             click.echo("Cancelled. Nothing archived.")
+            record_completed_health_archive(name, archived_count=0, cancelled=True)
             return
 
     changes = belief_store.archive_stale()
+    loop_run = record_completed_health_archive(name, archived_count=len(changes))
 
     if json_output:
         click.echo(
@@ -858,6 +862,7 @@ def _archive_stale_beliefs(name: str, *, yes: bool, json_output: bool, scheduled
                     "expert": name,
                     "count": len(changes),
                     "archived": [{"belief_id": c.belief_id, "claim": c.old_claim, "reason": c.reason} for c in changes],
+                    "loop_run": loop_run.to_dict(),
                 }
             )
         )
@@ -911,6 +916,7 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
     import json as _json
     import sys
 
+    from deepr.cli.commands.semantic.expert_health_loop import record_completed_health_check
     from deepr.experts.health_check import ExpertHealthChecker
     from deepr.experts.profile import ExpertStore
 
@@ -933,7 +939,10 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
 
             click.echo(_json.dumps(scheduled_health_payload(report), indent=2))
             return
-        click.echo(_json.dumps(report.to_dict(), indent=2))
+        loop_run = record_completed_health_check(report)
+        payload = report.to_dict()
+        payload["loop_run"] = loop_run.to_dict()
+        click.echo(_json.dumps(payload, indent=2))
         return
 
     status_color = {"healthy": "green", "needs_attention": "yellow", "critical": "red"}.get(report.status, "white")
@@ -977,6 +986,7 @@ def health_check(name: str, json_output: bool, archive_stale: bool, scheduled: b
 
     if report.status == "critical":
         print_warning("This expert needs attention before it should be relied on.")
+    record_completed_health_check(report)
 
 
 @expert.command(name="what-changed")
