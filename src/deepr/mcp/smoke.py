@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import aiohttp
 
 from deepr.mcp.transport.http import HttpClient, HttpMessage
+
+REGISTRATION_MANIFEST_SCHEMA_VERSION = "deepr-mcp-registration-manifest-v1"
+REGISTRATION_MANIFEST_KIND = "deepr.mcp.registration_manifest"
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,58 @@ def _auth_headers(auth_token: str | None) -> dict[str, str]:
 
 def _health_url(base_url: str) -> str:
     return f"{base_url.rstrip('/')}/health"
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _format_timestamp(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def build_http_registration_manifest(
+    url: str,
+    *,
+    smoke_report: MCPHttpSmokeReport | None = None,
+    agent_name: str | None = None,
+    created_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a token-redacted registration manifest for a hosted HTTP MCP endpoint."""
+
+    endpoint = url.rstrip("/")
+    payload: dict[str, Any] = {
+        "schema_version": REGISTRATION_MANIFEST_SCHEMA_VERSION,
+        "kind": REGISTRATION_MANIFEST_KIND,
+        "created_at": _format_timestamp(created_at or _utc_now()),
+        "transport": {
+            "type": "streamable_http",
+            "url": endpoint,
+            "health_url": _health_url(endpoint),
+        },
+        "auth": {
+            "type": "bearer",
+            "header": "Authorization",
+            "alternate_header": "X-Api-Key",
+            "token_env_var": "DEEPR_MCP_KEY",
+            "secret_included": False,
+        },
+        "registration": {
+            "smoke_command": f'deepr mcp smoke-http "{endpoint}" --auth-token "$DEEPR_MCP_KEY"',
+            "free_smoke_tool": "deepr_tool_search",
+        },
+        "operational_contract": {
+            "scoped_keys_required": True,
+            "remote_audit_schema": "deepr-mcp-remote-audit-v1",
+            "paid_tools_require_provider_keys": True,
+            "provider_keys_included": False,
+        },
+    }
+    if agent_name:
+        payload["agent_name"] = agent_name
+    if smoke_report is not None:
+        payload["smoke"] = smoke_report.to_dict()
+    return payload
 
 
 async def _probe_health(base_url: str, auth_token: str | None, timeout_seconds: float) -> MCPHttpSmokeStep:

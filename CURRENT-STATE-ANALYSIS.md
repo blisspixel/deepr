@@ -131,14 +131,16 @@ with scoped-key bootstrap, loopback-only host publishing, a mounted Deepr data
 directory, and `$0` smoke validation guidance. The first cloud-provider template
 now lives at `deploy/mcp-http/azure-container-apps/`, using Azure Container Apps
 with persistent `/data`, HTTPS-only ingress, scoped-key state, and remote-audit
-durability. Additional cloud-provider templates and live third-party host
-registration remain open.
+durability. `deepr mcp registration-manifest` now emits a token-redacted
+`deepr-mcp-registration-manifest-v1` packet with endpoint metadata and optional
+smoke results for remote host setup. Additional cloud-provider templates and
+live third-party host registration remain open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`
 publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
-`deepr-okf-profile-v1`, and `deepr-mcp-remote-audit-v1`, with `registry.json`
-and a README documenting additive compatibility and deprecation rules for
-downstream agents.
+`deepr-okf-profile-v1`, `deepr-mcp-remote-audit-v1`, and
+`deepr-mcp-registration-manifest-v1`, with `registry.json` and a README
+documenting additive compatibility and deprecation rules for downstream agents.
 
 ## Active Gap
 
@@ -161,8 +163,8 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 Next slice: continue the v2.18 reach track with the next smallest local hosted
 operability gap, likely additional cloud-template packaging for the HTTP MCP
-service, remote host registration smoke scaffolding, or schema-backed contract
-tests for additional remote surfaces.
+service, live host registration smoke against a real platform, or schema-backed
+contract tests for additional remote surfaces.
 
 ## Spend Ledger For This Run
 

@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 import pytest
 
 from deepr.mcp import smoke
-from deepr.mcp.smoke import MCPHttpSmokeStep
+from deepr.mcp.smoke import (
+    REGISTRATION_MANIFEST_KIND,
+    REGISTRATION_MANIFEST_SCHEMA_VERSION,
+    MCPHttpSmokeReport,
+    MCPHttpSmokeStep,
+    build_http_registration_manifest,
+)
 from deepr.mcp.transport.http import HttpMessage
 
 
 class _FakeHttpClient:
-    instances: list["_FakeHttpClient"] = []
+    instances: list[_FakeHttpClient] = []
 
     def __init__(self, base_url: str, timeout: float = 30.0, auth_token: str | None = None):
         self.base_url = base_url
@@ -115,3 +120,26 @@ def test_smoke_report_serializes_status_code():
         "detail": "healthy",
         "status_code": 200,
     }
+
+
+def test_registration_manifest_redacts_auth_secret_and_embeds_smoke_report():
+    report = MCPHttpSmokeReport(
+        url="https://mcp.example.com/mcp",
+        steps=(MCPHttpSmokeStep("health", True, "healthy", status_code=200),),
+    )
+
+    manifest = build_http_registration_manifest(
+        "https://mcp.example.com/mcp/",
+        smoke_report=report,
+        agent_name="planner",
+    )
+
+    assert manifest["schema_version"] == REGISTRATION_MANIFEST_SCHEMA_VERSION
+    assert manifest["kind"] == REGISTRATION_MANIFEST_KIND
+    assert manifest["agent_name"] == "planner"
+    assert manifest["transport"]["url"] == "https://mcp.example.com/mcp"
+    assert manifest["transport"]["health_url"] == "https://mcp.example.com/mcp/health"
+    assert manifest["auth"]["secret_included"] is False
+    assert manifest["auth"]["token_env_var"] == "DEEPR_MCP_KEY"
+    assert manifest["smoke"]["ok"] is True
+    assert "test-token-value" not in json.dumps(manifest)

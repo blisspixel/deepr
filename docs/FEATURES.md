@@ -946,7 +946,9 @@ local append-only remote-call audit log with key, tool, outcome, limit, and JSON
 filters. Use `deepr mcp serve --http` to run the same MCP server over HTTP/SSE
 on loopback by default. Use `deepr mcp smoke-http URL` to run `$0` health,
 initialize, tools/list, and free tool-search checks against a local or
-TLS-proxied HTTP MCP endpoint. A
+TLS-proxied HTTP MCP endpoint. Use `deepr mcp registration-manifest URL` to
+write a token-redacted `deepr-mcp-registration-manifest-v1` packet with endpoint
+metadata and optional smoke results for remote host setup. A
 repeatable hosted container recipe lives in
 [../deploy/mcp-http/](../deploy/mcp-http/); it publishes only loopback by
 default, mounts one Deepr data directory at `/data`, and bootstraps scoped keys
