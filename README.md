@@ -184,8 +184,8 @@ For remote hosts, `deepr mcp serve --http` exposes the same server over
 HTTP/SSE, and `deepr mcp smoke-http URL` validates a local or TLS-proxied
 endpoint without provider calls. The hosted recipe includes a loopback
 container variant under [deploy/mcp-http/](deploy/mcp-http/) for reverse-proxied
-remote agents, plus `deepr mcp audit list` for reviewing scoped-key remote-call
-audit records.
+remote agents, plus `deepr mcp audit list` and `summary` for reviewing
+scoped-key remote-call audit records.
 
 ### Web Dashboard
 
