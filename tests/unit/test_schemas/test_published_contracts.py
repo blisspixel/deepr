@@ -11,6 +11,13 @@ from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunSt
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
 from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
 from deepr.mcp.security.tool_allowlist import ResearchMode
+from deepr.mcp.smoke import (
+    REGISTRATION_MANIFEST_KIND,
+    REGISTRATION_MANIFEST_SCHEMA_VERSION,
+    MCPHttpSmokeReport,
+    MCPHttpSmokeStep,
+    build_http_registration_manifest,
+)
 
 try:
     from jsonschema import Draft202012Validator
@@ -172,3 +179,23 @@ def test_mcp_remote_audit_schema_validates_runtime_event_payload():
     assert payload["schema_version"] == AUDIT_SCHEMA_VERSION
     assert payload["kind"] == AUDIT_KIND
     assert payload["args_hash"] == "a" * 64
+
+
+def test_mcp_registration_manifest_schema_validates_runtime_payload():
+    report = MCPHttpSmokeReport(
+        url="https://mcp.example.com/mcp",
+        steps=(MCPHttpSmokeStep("health", True, "healthy", status_code=200),),
+    )
+    payload = build_http_registration_manifest(
+        "https://mcp.example.com/mcp",
+        smoke_report=report,
+        agent_name="planner",
+        created_at=datetime(2026, 6, 19, 12, 0, tzinfo=UTC),
+    )
+    schema = _load_schema("mcp-registration-manifest-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == REGISTRATION_MANIFEST_SCHEMA_VERSION
+    assert payload["kind"] == REGISTRATION_MANIFEST_KIND
+    assert payload["auth"]["secret_included"] is False
+    assert payload["smoke"]["ok"] is True

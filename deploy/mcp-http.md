@@ -115,6 +115,10 @@ Then validate from any machine that can reach the public endpoint:
 
 ```bash
 deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+deepr mcp registration-manifest https://mcp.example.com/mcp \
+  --auth-token "$DEEPR_MCP_KEY" \
+  --agent-name planner \
+  --output mcp-registration.json
 ```
 
 The smoke command performs only `$0` structural checks:
@@ -125,6 +129,9 @@ The smoke command performs only `$0` structural checks:
 - JSON-RPC `tools/call` for `deepr_tool_search`
 
 It exits nonzero if authentication, routing, or dispatch is broken.
+The registration manifest wraps the same endpoint metadata and smoke result in
+the published `deepr-mcp-registration-manifest-v1` schema without writing the
+bearer token into the file.
 
 ## Nginx Reverse Proxy
 

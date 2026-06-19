@@ -37,6 +37,14 @@
       "path": "mcp-remote-audit-v1.json",
       "status": "experimental",
       "compatibility": "additive-within-v1"
+    },
+    {
+      "name": "mcp-registration-manifest",
+      "schema_version": "deepr-mcp-registration-manifest-v1",
+      "kind": "deepr.mcp.registration_manifest",
+      "path": "mcp-registration-manifest-v1.json",
+      "status": "experimental",
+      "compatibility": "additive-within-v1"
     }
   ]
 }
