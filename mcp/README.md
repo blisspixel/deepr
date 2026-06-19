@@ -256,6 +256,7 @@ Experimental HTTP MCP keys are local records used by the HTTP transport when
 deepr mcp keys create --mode read_only --expert "AI Strategy Expert" --rate-limit 30
 deepr mcp keys list
 deepr mcp keys revoke <key-id>
+deepr mcp audit list
 ```
 
 Created secrets are shown once. `list` never prints secrets or stored hashes.
@@ -263,7 +264,8 @@ Scoped HTTP calls enforce the stored budget ceiling before dispatch from prior
 audited spend and deterministic tool estimates. They also enforce the optional
 per-key calls-per-minute limit from recent audited calls, return retry metadata
 on rate-limit denials, and write successful response costs back to the remote
-audit log.
+audit log. `deepr mcp audit list` reads that local append-only audit log with
+optional `--key-id`, `--tool`, `--outcome`, `--limit`, and `--json` filters.
 
 ## HTTP Serve Mode
 
