@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr mcp keys create/list/revoke` for local scoped-key management.
   Created secrets are shown once, list output omits secrets and hashes, and
   revoked keys are rejected by the HTTP scoped-key authenticator.
+- Added per-key budget enforcement for scoped HTTP MCP calls. The transport now
+  sums prior audited key spend, blocks calls whose requested budget or fixed
+  estimate exceeds the remaining key budget, injects remaining budget into
+  budget-aware tools when omitted, and records successful response costs in the
+  remote audit log.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
@@ -160,6 +165,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected the built-in search backend wrapper to pass structured query
   arguments to `WebSearchTool` instead of a positional dict.
+- `deepr_query_expert` now passes the caller's budget into `ExpertChatSession`
+  for normal expert answers, not only for `agentic=true`, so remote scoped
+  budgets and explicit low ceilings cap model-token spend on plain expert
+  queries too.
 - Corrected the built-in browser backend to use the existing scraper fetcher and
   content extractor instead of a missing `scrape_url` helper.
 

@@ -105,16 +105,19 @@ The v2.18 reach track now has its first read-only contract. `deepr_expert_handof
 and `/api/experts/{name}/handoff` expose `deepr-expert-handoff-v1`: a `$0`
 versioned handoff payload with profile summary, manifest counts, bounded
 claims/gaps, dashboard telemetry, loop-status rollup, OKF interchange hints, and
-an additive compatibility contract. Hosted auth, per-key budgets, and audit logs
-remain open.
+an additive compatibility contract.
 
 The v2.18 reach track also has its first scoped-key and remote-audit primitive.
 `ScopedMCPKeyStore` persists one-way hashed key records with mode, expert
 allowlist, and budget metadata; the HTTP transport enforces mode, confirmation,
 and expert scope for `tools/call` before dispatch; `RemoteMCPAuditLog` appends
 `deepr-mcp-remote-audit-v1` events with hashed arguments. `deepr mcp keys`
-creates, lists, and revokes scoped keys. Per-key cost session budget
-enforcement, rate limits, deployment docs, and remote smoke tests remain open.
+creates, lists, and revokes scoped keys. The scoped HTTP transport now enforces
+per-key budget ceilings by summing prior audited `cost_usd`, blocking calls
+whose requested budget or fixed estimate exceeds the remaining key budget,
+injecting remaining budget into budget-aware tools when omitted, and recording
+successful response costs back to the audit log. Rate limits, deployment docs,
+and remote smoke tests remain open.
 
 ## Active Gap
 
@@ -136,8 +139,8 @@ That gap matters because it sits directly on the project promise: stop paying tw
 ## Next Work
 
 Next slice: continue the v2.18 reach track by adding the smallest remaining
-per-key budget or rate-limit surface around the scoped-key primitive without
-lifting the safe hosted-endpoint gates prematurely.
+rate-limit, deployment, or smoke-test surface around the scoped-key primitive
+without lifting the safe hosted-endpoint gates prematurely.
 
 ## Spend Ledger For This Run
 
