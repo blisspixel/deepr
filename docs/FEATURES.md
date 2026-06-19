@@ -931,6 +931,8 @@ published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
 The adjacent loop-status and OKF mapping contracts are published as
 [schemas/loop-status-v1.json](schemas/loop-status-v1.json) and
 [schemas/okf-profile-v1.json](schemas/okf-profile-v1.json), with the
+hosted MCP remote-audit contract published as
+[schemas/mcp-remote-audit-v1.json](schemas/mcp-remote-audit-v1.json), with the
 machine-readable registry in [schemas/registry.json](schemas/registry.json).
 The MCP HTTP transport also has an experimental scoped-key primitive:
 configured key stores authenticate Bearer or `X-Api-Key` requests, enforce

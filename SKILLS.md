@@ -35,3 +35,4 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Published downstream-agent schemas should be additive within a schema version. Add optional fields freely, but changing or removing required semantics needs a new schema_version and a new schema file.
 - Hosted MCP container recipes should publish only loopback on the host, mount a single Deepr data directory, and require scoped-key bootstrap before `up`. The container can bind `0.0.0.0` internally only because the host port stays loopback and the transport refuses startup without an active key.
 - Remote audit review is a workflow surface. Keep it read-only, local, and filter/summary-based over append-only JSONL records; never re-run a tool call or infer semantic quality from the audit log.
+- Remote audit records are a downstream contract. Add fields only additively within `deepr-mcp-remote-audit-v1`; required-field or meaning changes need a new schema version and a new schema file.

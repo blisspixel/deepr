@@ -1063,6 +1063,8 @@ consumers who will exercise all three. Design:
    with response cost attribution when available. `deepr mcp audit list` and
    `deepr mcp audit summary` now make those local audit records operable with
    filters, JSON output, and aggregate counts/costs by key, tool, and outcome.
+   `deepr-mcp-remote-audit-v1` is now published under `docs/schemas/` so the
+   append-only audit trail has a stable validation contract.
    `deepr mcp smoke-http` now validates local/proxied endpoints at `$0`, and
    `deploy/mcp-http.md` documents the TLS reverse-proxy recipe.
    `deploy/mcp-http/` now adds the
@@ -1077,8 +1079,9 @@ consumers who will exercise all three. Design:
    rollup, OKF interchange hints, and an additive compatibility contract.
    JSON Schema is published at `docs/schemas/expert-handoff-v1.json`.
    `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and
-   `docs/schemas/registry.json` now publish the adjacent loop and OKF mapping
-   contracts with additive compatibility policy.
+   `deepr-mcp-remote-audit-v1`, and `docs/schemas/registry.json` now publish
+   the adjacent loop, OKF mapping, and hosted remote-audit contracts with
+   additive compatibility policy.
 3. Expert Crews (Phase 4c) + autonomous research campaigns (Phase 4b) -
    the multi-expert deliverables, now consumable remotely
 4. Ops analytics: cost-vs-quality frontier, routing-drift and anomaly

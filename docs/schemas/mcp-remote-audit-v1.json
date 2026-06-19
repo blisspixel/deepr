@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-remote-audit-v1.json",
+  "title": "Deepr MCP Remote Audit Event v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "timestamp",
+    "key_id",
+    "mode",
+    "tool",
+    "args_hash",
+    "trace_id",
+    "outcome",
+    "error_code",
+    "expert_names",
+    "cost_usd"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-mcp-remote-audit-v1"
+    },
+    "kind": {
+      "const": "deepr.mcp.remote_audit"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["read_only", "standard", "extended", "unrestricted"]
+    },
+    "tool": {
+      "type": "string",
+      "minLength": 1
+    },
+    "args_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "error_code": {
+      "type": "string"
+    },
+    "expert_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cost_usd": {
+      "type": ["number", "null"],
+      "minimum": 0.0
+    }
+  }
+}
