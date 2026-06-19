@@ -10,10 +10,34 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEPLOY_DIR = REPO_ROOT / "deploy" / "mcp-http"
 AZURE_TEMPLATE = DEPLOY_DIR / "azure-container-apps" / "main.bicep"
+AWS_TEMPLATE = DEPLOY_DIR / "aws-ecs-fargate" / "template.yaml"
 
 
 def _load_compose() -> dict[str, Any]:
     return yaml.safe_load((DEPLOY_DIR / "docker-compose.yml").read_text(encoding="utf-8"))
+
+
+class _CloudFormationLoader(yaml.SafeLoader):
+    pass
+
+
+def _load_cloudformation_template() -> dict[str, Any]:
+    return yaml.load(AWS_TEMPLATE.read_text(encoding="utf-8"), Loader=_CloudFormationLoader)
+
+
+def _cloudformation_tag_constructor(
+    loader: _CloudFormationLoader, _tag_prefix: str, node: yaml.Node
+) -> str | list[Any] | dict[str, Any] | None:
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node)
+    return None
+
+
+_CloudFormationLoader.add_multi_constructor("!", _cloudformation_tag_constructor)
 
 
 def test_mcp_http_compose_uses_safe_network_and_data_defaults():
@@ -119,6 +143,75 @@ def test_mcp_http_azure_readme_documents_scoped_key_bootstrap():
     assert "mcp keys create" in readme
     assert "--budget 0" in readme
     assert "initialSharedAuthToken" in readme
+    assert "deepr mcp smoke-http" in readme
+    assert "only `$0` structural checks" in readme
+    assert "Add provider API keys only when paid tools are intentional" in readme
+
+
+def test_mcp_http_aws_template_mounts_persistent_deepr_data():
+    parsed = _load_cloudformation_template()
+    template = AWS_TEMPLATE.read_text(encoding="utf-8")
+
+    assert parsed["Resources"]["TaskDefinition"]["Properties"]["ContainerDefinitions"][0]["Name"] == "deepr-mcp-http"
+    assert "AWS::EFS::FileSystem" in template
+    assert "AWS::EFS::AccessPoint" in template
+    assert "AWS::EFS::MountTarget" in template
+    assert "BackupPolicy:" in template
+    assert "Status: ENABLED" in template
+    assert "Uid: '1000'" in template
+    assert "Gid: '1000'" in template
+    assert "Path: /deepr-data" in template
+    assert "ContainerPath: /data" in template
+    assert "TransitEncryption: ENABLED" in template
+    assert "AccessPointId: !Ref DataAccessPoint" in template
+    assert "Value: /data/reports" in template
+    assert "Value: /data/security/mcp_keys.json" in template
+
+
+def test_mcp_http_aws_template_serves_with_https_guardrails():
+    template = AWS_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "AWS::ElasticLoadBalancingV2::LoadBalancer" in template
+    assert "AWS::ElasticLoadBalancingV2::Listener" in template
+    assert "Port: 443" in template
+    assert "Protocol: HTTPS" in template
+    assert "CertificateArn: !Ref CertificateArn" in template
+    assert "HealthCheckPath: /mcp/health" in template
+    assert "HealthCheckProtocol: HTTP" in template
+    assert "TargetType: ip" in template
+    assert "AWS::EC2::SecurityGroupIngress" in template
+    assert "AWS::EC2::SecurityGroupEgress" in template
+    assert "SecurityGroupEgress: []" in template
+    assert "- mcp" in template
+    assert "- serve" in template
+    assert "- --http" in template
+    assert "- --host" in template
+    assert "- 0.0.0.0" in template
+    assert "- --keys-path" in template
+    assert "- /data/security/mcp_keys.json" in template
+    assert "- --max-concurrency" in template
+    assert "Name: DEEPR_MCP_HTTP_MAX_CONCURRENCY" in template
+    assert "Value: !Sub '${MaxConcurrentRequests}'" in template
+
+
+def test_mcp_http_aws_template_keeps_provider_keys_out_of_infra():
+    template = AWS_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "OPENAI_API_KEY" not in template
+    assert "GOOGLE_API_KEY" not in template
+    assert "XAI_API_KEY" not in template
+    assert "ANTHROPIC_API_KEY" not in template
+    assert "DEEPR_MCP_AUTH_TOKEN" in template
+    assert "InitialSharedAuthToken" in template
+
+
+def test_mcp_http_aws_readme_documents_scoped_key_bootstrap():
+    readme = (DEPLOY_DIR / "aws-ecs-fargate" / "README.md").read_text(encoding="utf-8")
+
+    assert "mcp keys create" in readme
+    assert "--budget 0" in readme
+    assert "InitialSharedAuthToken" in readme
+    assert "aws cloudformation deploy" in readme
     assert "deepr mcp smoke-http" in readme
     assert "only `$0` structural checks" in readme
     assert "Add provider API keys only when paid tools are intentional" in readme

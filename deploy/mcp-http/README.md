@@ -93,3 +93,8 @@ For Azure Container Apps, see
 [azure-container-apps/](azure-container-apps/). That template uses the same
 image and command, mounts Azure Files at `/data`, and keeps scoped-key plus audit
 state durable across revisions.
+
+For AWS ECS Fargate, see [aws-ecs-fargate/](aws-ecs-fargate/). That template
+uses the same image and command, mounts EFS at `/data`, exposes HTTPS through an
+Application Load Balancer, and keeps scoped-key plus audit state durable across
+task restarts.

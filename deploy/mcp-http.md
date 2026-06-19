@@ -109,6 +109,23 @@ Use scoped keys for production. The template includes an optional
 `initialSharedAuthToken` only as a first-boot escape hatch; it should be removed
 after the scoped-key file is uploaded to the mounted share.
 
+## AWS ECS Fargate Variant
+
+The second cloud-provider template lives in
+[mcp-http/aws-ecs-fargate/](mcp-http/aws-ecs-fargate/). It deploys the same
+hosted MCP container to ECS Fargate behind an HTTPS Application Load Balancer,
+mounts EFS at `/data`, keeps `security/mcp_keys.json` and
+`security/mcp_remote_audit.jsonl` durable, and wires `MaxConcurrentRequests`
+into both the container environment and `deepr mcp serve --max-concurrency`.
+
+This is a template, not a deployment run. Creating AWS resources can incur
+cloud cost. The repo validates the template shape locally and does not run
+`aws` or register with a hosted agent platform during CI.
+
+Use scoped keys for production. The template includes an optional
+`InitialSharedAuthToken` only as a first-boot escape hatch; it should be removed
+after the scoped-key file is present on EFS.
+
 ## Caddy Reverse Proxy
 
 Caddy handles certificates automatically for a public DNS name:
