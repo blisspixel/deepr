@@ -198,6 +198,9 @@ deepr eval new
 # Compare local Ollama models with a local judge at $0
 deepr eval local --model qwen2.5:14b --model qwen3-coder:30b --judge-model qwen2.5:14b
 
+# Compare no context, fresh context, and deep context for one local model
+deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
+
 # Or use an explicitly approved non-API CLI judge such as Grok
 deepr eval local --model qwen2.5:14b --judge-cli grok --allow-cli-judge
 
@@ -208,7 +211,7 @@ deepr eval new --dry-run --tier all
 deepr eval new --max-estimated-cost 3
 ```
 
-The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model. CLI judges are explicit opt-in because Deepr cannot prove whether a vendor CLI is using subscription quota or metered credentials.
+The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-task best quality and best value picks. Local comparison artifacts can be saved under `data/benchmarks` for review before admitting a local model. Local context eval artifacts compare whether no context, fresh context, or deep context is the right envelope for a model before schedulers use that mode automatically. CLI judges are explicit opt-in because Deepr cannot prove whether a vendor CLI is using subscription quota or metered credentials.
 
 ### Setup and Capacity
 
@@ -218,7 +221,7 @@ Current capacity support:
 
 | Capacity source | Deepr status today | Best use |
 |---|---|---|
-| Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `sync --local --fresh-context`, `sync --local --deep-context`, `eval local`, and scored local admission | High-volume `$0` expert maintenance and validation loops |
+| Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `sync --local --fresh-context`, `sync --local --deep-context`, `eval local`, `eval local-context`, and scored local admission | High-volume `$0` expert maintenance and validation loops |
 | Provider APIs | Works for full research when you provide keys and a budget ceiling | Deep research, high-quality synthesis, fallback |
 | Plan CLIs such as Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, and Kiro | Detected or modeled, but not execution backends yet | Future plan-quota adapters and quota-aware scheduling |
 | Explicit CLI judge | Opt-in only for local evals with `--allow-cli-judge` | Human-approved comparison signal, not automatic routing |
@@ -239,6 +242,7 @@ deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
 deepr expert sync "Platform Team Expert" --local --deep-context
 deepr eval local --max-models 2 --max-prompts 2 --save
+deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity next --task-class sync
 ```
@@ -250,7 +254,11 @@ fetch explicit URLs, can use a configured self-hosted SearXNG endpoint
 (`DEEPR_SEARXNG_URL`), and otherwise fall back to DuckDuckGo when the optional
 package is installed. They never use Brave/Tavily API-key search. If no fresh
 sources are retrieved, sync records no changes instead of absorbing the local
-model's uncertainty as expert beliefs. See
+model's uncertainty as expert beliefs. Use `deepr eval local-context` to
+measure that context envelope before relying on it in automation. Context-bearing
+sync runs also write a bounded source-pack artifact into the expert knowledge
+directory, and absorption is blocked if that source trail cannot be persisted.
+See
 [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity)
 for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md)
 for the full routing model.
@@ -266,7 +274,8 @@ The QOL goal is one command that explains the cheapest safe route for the job in
 front of you. `deepr capacity next` is the first slice. It does not run work, but
 it tells you whether local is blocked by setup, missing eval evidence, expired
 admission, or quality floor. The next slices are concrete job dry-runs and
-scheduler suggestions that wait for local or plan capacity instead of paying now.
+scheduler suggestions that pick fresh/deep local context or wait for plan
+capacity instead of paying now.
 
 ### Evidence and Calibration
 
@@ -362,7 +371,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
   - [Gemini](https://aistudio.google.com/app/apikey) - cost-effective, large context
   - [xAI Grok](https://console.x.ai/) - Grok 4.3 flagship, Grok 4.20 research/freshness tiers, real-time web search
   - [Anthropic](https://console.anthropic.com/settings/keys) - complex reasoning
-- For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, `expert make --local`, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
+- For $0 local expert maintenance, optional [Ollama](https://ollama.com/) plus a local model. This supports `deepr capacity`, `deepr eval local` with a local judge, `deepr eval local-context`, `expert make --local`, explicit `expert sync`/`absorb --local`, and automatic local maintenance after scored admission.
 - Plan-quota CLIs are optional and visible in `deepr capacity`, but they are not execution backends yet. Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and similar tools need adapters, quota probes, and no-surprise-bills guards before Deepr can run through them automatically.
 - Optional: More API keys for smarter auto-routing and fallback
 - Optional: Node.js 18+ for web dashboard development

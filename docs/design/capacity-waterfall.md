@@ -226,9 +226,9 @@ scheduler work remains.
 11. Capacity quality-of-life path: ranked next actions and latest-artifact
    hints are in place. Remaining: concrete job block-reason previews and
    scheduler suggestions.
-12. Local retrieval quality loop: freshness/deep-context evals, source-pack
-   run artifacts, and scheduler rules for when to choose `--fresh-context` or
-   `--deep-context`.
+12. Local retrieval quality loop: no/fresh/deep context eval and source-pack
+   run artifacts are done. Remaining: scheduler rules for when to choose
+   `--fresh-context` or `--deep-context`.
 13. First plan_quota rungs, in priority order from the vendor survey: the
    highest-confidence first-party CLIs and endpoint-backed coding plans, each
    behind an explicit opt-in and a "sanctioned as of <date>" kill switch.
