@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a calls-per-minute ceiling, `deepr mcp keys create --rate-limit` exposes it,
   and the HTTP transport blocks over-limit calls before tool dispatch with
   retry metadata and an audited denial.
+- Added `deepr mcp audit list`, a read-only local CLI for reviewing
+  `deepr-mcp-remote-audit-v1` remote-call audit records with key, tool, outcome,
+  limit, and JSON filters.
 - Added `deepr mcp serve --http`, a Streamable HTTP/SSE serve mode for the
   existing MCP server. It defaults to loopback and relies on the HTTP
   transport's shared-token or scoped-key gates for reachable binds.
