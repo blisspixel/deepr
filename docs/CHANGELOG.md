@@ -80,6 +80,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hosted MCP HTTP container with HTTPS ALB ingress, EFS-backed `/data`,
   scoped-key state, remote-audit durability, and the same concurrency cap
   contract as the local and Azure recipes.
+- Added `deploy/mcp-http/gcp-cloud-run/`, a GCP Cloud Run template for the
+  hosted MCP HTTP container with a Cloud Storage FUSE-backed `/data`, scoped-key
+  state, remote-audit durability, optional public invoker binding, and
+  single-writer defaults for object-backed key and audit files.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
