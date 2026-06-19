@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from deepr.experts.loop_admission import known_loop_admission_contracts
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 
 
@@ -82,5 +83,6 @@ def build_loop_status_rollup(
         "acceptance_rate": _round_metric(accepted_total / attempted_total) if attempted_total else 0.0,
         "cost_per_accepted_change": _round_metric(budget_spent_total / accepted_total) if accepted_total else 0.0,
         "verifier_failure_count": stop_reason_counts.get(LoopStopReason.VERIFIER_FAILED.value, 0),
+        "admission_contracts": known_loop_admission_contracts(),
         "runs": [run.to_dict() for run in runs],
     }

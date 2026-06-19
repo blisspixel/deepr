@@ -976,10 +976,13 @@ need a stable local contract to consume.
 
 Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops.md).
 
-1. [ ] Loop admission contract: no surface graduates from advisory to
+1. [x] Loop admission contract: no surface graduates from advisory to
    autonomous until the task repeats, the verifier is automated, the
    budget/capacity envelope is explicit, and the loop has tools/logs/state for
-   failure diagnosis.
+   failure diagnosis. The contract is now codified in `LoopAdmissionContract`
+   and exposed through the loop-status dashboard API. Sync, reflection, and
+   health-check are admitted; gap-fill remains supervised until gap-closure
+   verifier evidence is recorded.
 2. [x] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
    schema-versioned loop-run records, typed stop reasons, append-only
    per-expert storage, acceptance metrics, cost per accepted change, and
