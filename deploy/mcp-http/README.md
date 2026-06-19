@@ -9,6 +9,8 @@ The service refuses to bind inside the container until a shared token or active
 scoped key exists. This recipe uses scoped keys because they give each remote
 agent its own mode, expert allowlist, budget ceiling, rate limit, revocation
 state, and audit trail.
+Budgeted scoped calls are checked before handler dispatch from audited spend and
+deterministic estimates. Metered tools without an estimate fail closed.
 
 ## Bootstrap
 
