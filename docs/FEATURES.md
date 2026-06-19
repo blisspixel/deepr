@@ -905,7 +905,8 @@ spend, acceptance, verifier failure metrics, and `expert_state` telemetry for
 freshness, gap velocity, and contested/open claims. Host agents can already
 read the durable loop state through `deepr_expert_loop_status`. Terminal loop
 records now require status-compatible typed stop reasons before they can be
-stored.
+stored. The dashboard API also exposes `admission_contracts` for repeat demand,
+automated verification, explicit budget/capacity, and failure-diagnosis state.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
