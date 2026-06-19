@@ -27,7 +27,7 @@ class TestRegistration:
 
     def test_sync_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["sync"].params}
-        assert {"local", "api"} <= opts
+        assert {"local", "api", "fresh_context", "deep_context"} <= opts
 
     def test_absorb_has_local_and_api_flags(self):
         opts = {p.name for p in expert.commands["absorb"].params}
@@ -109,3 +109,102 @@ class TestBackendFlagGuard:
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
         assert captured["sync_kwargs"]["budget"] == 2.0
+
+    def test_sync_deep_context_rejects_api(self):
+        r = CliRunner().invoke(expert, ["sync", "Whoever", "--api", "--deep-context"])
+        assert r.exit_code == 2
+        assert "--deep-context is only supported for local sync" in r.output
+
+    def test_sync_fresh_context_requires_local_backend(self, monkeypatch):
+        profile = SimpleNamespace(name="UI Experience Expert")
+
+        class FakeExpertStore:
+            def load(self, name):
+                assert name == "UI Experience Expert"
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                assert name == "UI Experience Expert"
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeChoice:
+            is_local = False
+            reason = "no local admission"
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.backends.waterfall.choose_maintenance_backend", lambda _task: FakeChoice())
+
+        r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--fresh-context", "-y"])
+
+        assert r.exit_code == 2
+        assert "requires a local sync backend" in r.output
+
+    def test_sync_deep_context_uses_deep_builder(self, monkeypatch):
+        captured = {}
+        profile = SimpleNamespace(name="UI Experience Expert")
+        client = object()
+        deep_context_builder = object()
+        research_fn = object()
+
+        class FakeExpertStore:
+            def load(self, name):
+                assert name == "UI Experience Expert"
+                return profile
+
+        class FakeSubscriptionStore:
+            subscriptions = [SimpleNamespace(topic="UI/UX for agentic research tools")]
+
+            def __init__(self, name):
+                assert name == "UI Experience Expert"
+
+            def due(self):
+                return list(self.subscriptions)
+
+        class FakeReportAbsorber:
+            def __init__(self, loaded_profile, *, model, client):
+                captured["absorber_profile"] = loaded_profile
+                captured["absorber_model"] = model
+                captured["absorber_client"] = client
+                captured["absorber"] = self
+
+        class FakeSyncResult:
+            def to_dict(self):
+                return {"total_cost": 0.0, "outcomes": []}
+
+        class FakeSyncEngine:
+            def __init__(self, loaded_profile, *, research_fn, absorber):
+                captured["engine_profile"] = loaded_profile
+                captured["research_fn"] = research_fn
+                captured["engine_absorber"] = absorber
+
+            async def sync(self, **kwargs):
+                captured["sync_kwargs"] = kwargs
+                return FakeSyncResult()
+
+        monkeypatch.setattr("deepr.experts.profile.ExpertStore", FakeExpertStore)
+        monkeypatch.setattr("deepr.experts.sync.SubscriptionStore", FakeSubscriptionStore)
+        monkeypatch.setattr("deepr.experts.sync.ExpertSyncEngine", FakeSyncEngine)
+        monkeypatch.setattr("deepr.backends.local.default_local_model", lambda: "qwen-local")
+        monkeypatch.setattr("deepr.backends.local.ollama_chat_client", lambda: client)
+        monkeypatch.setattr("deepr.backends.fresh_context.make_free_deep_context_builder", lambda: deep_context_builder)
+
+        def fake_local_research_fn(model, *, context_builder=None):
+            captured["research_model"] = model
+            captured["context_builder"] = context_builder
+            return research_fn
+
+        monkeypatch.setattr("deepr.backends.local.make_local_research_fn", fake_local_research_fn)
+        monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+
+        r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--local", "--deep-context", "-y", "--json"])
+
+        assert r.exit_code == 0
+        assert captured["context_builder"] is deep_context_builder
+        assert captured["research_fn"] is research_fn
+        assert captured["engine_absorber"] is captured["absorber"]

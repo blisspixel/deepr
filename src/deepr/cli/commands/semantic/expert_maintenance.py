@@ -247,6 +247,11 @@ def absorb_report(
     is_flag=True,
     help="For local sync, retrieve free web context before calling the local model",
 )
+@click.option(
+    "--deep-context",
+    is_flag=True,
+    help="For local sync, run multi-query free retrieval before calling the local model",
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--json", "json_output", is_flag=True, help="Output JSON")
 def sync_cmd(
@@ -257,6 +262,7 @@ def sync_cmd(
     local: bool,
     api: bool,
     fresh_context: bool,
+    deep_context: bool,
     yes: bool,
     json_output: bool,
 ):
@@ -274,6 +280,7 @@ def sync_cmd(
       deepr expert sync "AI Policy Expert" --dry-run
       deepr expert sync "AI Policy Expert" --local -y
       deepr expert sync "AI Policy Expert" --local --fresh-context -y
+      deepr expert sync "AI Policy Expert" --local --deep-context -y
     """
     import json as _json
     import sys
@@ -283,6 +290,9 @@ def sync_cmd(
         sys.exit(2)
     if fresh_context and api:
         print_error("--fresh-context is only supported for local sync.")
+        sys.exit(2)
+    if deep_context and api:
+        print_error("--deep-context is only supported for local sync.")
         sys.exit(2)
 
     from deepr.experts.profile import ExpertStore
@@ -314,6 +324,10 @@ def sync_cmd(
         if use_local:
             selection_note = choice.reason
 
+    if (fresh_context or deep_context) and not use_local:
+        print_error("Fresh/deep context requires a local sync backend. Use --local or admit a local model first.")
+        sys.exit(2)
+
     if not dry_run and not yes:
         if use_local:
             prompt = f"Sync {len(targets)} topic(s) on the local model at $0?"
@@ -335,7 +349,15 @@ def sync_cmd(
         if selection_note and not json_output:
             console.print(f"[dim]{selection_note}[/dim]")
         context_builder = None
-        if fresh_context:
+        if deep_context:
+            from deepr.backends.fresh_context import make_free_deep_context_builder
+
+            context_builder = make_free_deep_context_builder()
+            console.print(
+                "[dim]Deep context enabled: multi-query free-only web retrieval; "
+                "API-key search providers are not used.[/dim]"
+            )
+        elif fresh_context:
             from deepr.backends.fresh_context import make_free_fresh_context_builder
 
             context_builder = make_free_fresh_context_builder()
@@ -348,9 +370,6 @@ def sync_cmd(
             research_fn=make_local_research_fn(local_model, context_builder=context_builder),
             absorber=absorber,
         )
-    elif fresh_context:
-        print_warning("--fresh-context ignored because this run is using the metered API backend.")
-        engine = ExpertSyncEngine(profile)
     else:
         engine = ExpertSyncEngine(profile)
     result = asyncio.run(engine.sync(budget=budget, only_due=not sync_all, dry_run=dry_run))

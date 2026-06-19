@@ -48,6 +48,7 @@ deepr expert make "Expert Name" --files path/to/docs/*.md
 deepr expert make "Expert Name" --local -d "Domain description"
 deepr expert subscribe "Expert Name" "Domain topic"
 deepr expert sync "Expert Name" --local --fresh-context -y
+deepr expert sync "Expert Name" --local --deep-context -y
 ```
 
 `--local` creates the expert profile and local document folders without
@@ -56,6 +57,13 @@ Deepr copies the seed documents into the expert's local documents folder and
 records them in the profile. Local creation does not run the API-backed
 `--learn` curriculum; use subscriptions plus `expert sync --local` for $0
 maintenance.
+
+Use `--fresh-context` when a local sync needs current web grounding. Use
+`--deep-context` when the topic needs broader source coverage before the local
+model synthesizes. Both modes stay free inside Deepr: explicit URLs are fetched,
+`DEEPR_SEARXNG_URL` can point at a self-hosted SearXNG instance, and DuckDuckGo
+is used only when the optional package is installed. API-key search backends are
+not used.
 
 ### With Autonomous Learning
 ```bash

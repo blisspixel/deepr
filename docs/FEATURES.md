@@ -804,7 +804,7 @@ Capacity source status:
 
 | Source | Status | Notes |
 |---|---|---|
-| Local Ollama | Execution works for local expert setup, local sync, local absorb, local eval, and scored admission | $0 marginal cost, quality-gated before automatic routing |
+| Local Ollama | Execution works for local expert setup, local sync, deep/fresh local context, local absorb, local eval, and scored admission | `$0` marginal cost, quality-gated before automatic routing |
 | OpenAI, Gemini, Grok, Anthropic, Azure APIs | Execution works when configured with API keys and budget ceilings | Full research path, cost ledger writes every spend source |
 | Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and other plan CLIs | Visible or modeled, not execution backends yet | Adapter work must include auth-mode detection, quota probes, no-overage checks, and tests |
 | CLI judge for local eval | Explicit opt-in only | `--allow-cli-judge` is required because Deepr cannot prove the vendor CLI's billing source |
@@ -816,6 +816,7 @@ deepr expert make "Platform Team Expert" --local -d "Platform engineering knowle
 deepr expert absorb "Platform Team Expert" report.md --local   # force local, $0
 deepr expert sync "Platform Team Expert" --api                 # force metered API
 deepr expert sync "Platform Team Expert" --local --fresh-context # local model + free retrieval context
+deepr expert sync "Platform Team Expert" --local --deep-context  # multi-query free retrieval context
 
 # Review local quality first, then admit it for automatic use.
 deepr expert absorb "Platform Team Expert" report.md --local --dry-run
@@ -833,14 +834,18 @@ After scored admission, `deepr expert sync`/`absorb` (with no backend flag) run 
 `deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, and explicit metered fallback. It is read-only, runs no research, and makes no provider API calls.
 
 Local models do not automatically have current web context. For sync runs that
-need freshness, add `--fresh-context` with `--local` or an admitted local sync
-model. Deepr builds a bounded source pack first, then prepends it to the local
-prompt and asks the model to cite source labels. This path is free-only inside
-Deepr: it can fetch explicit URLs and can use DuckDuckGo when
-`duckduckgo-search` is installed, but it does not use Brave, Tavily, or other
-API-key search providers. If no fresh sources are available, the prompt tells
-the local model to say that current context is unavailable, and sync records no
-changes instead of absorbing that uncertainty as permanent beliefs.
+need freshness, add `--fresh-context`; for broader source coverage, add
+`--deep-context`. Both require a local sync backend, either explicit `--local`
+or an admitted local model, so a freshness request cannot silently fall through
+to metered APIs. Deepr builds a bounded source pack first, then prepends it to
+the local prompt and asks the model to cite source labels. This path is
+free-only inside Deepr: it can fetch explicit URLs, can use a configured
+self-hosted SearXNG endpoint (`DEEPR_SEARXNG_URL`), and otherwise can use
+DuckDuckGo when `duckduckgo-search` is installed. It does not use Brave, Tavily,
+or other API-key search providers. If no fresh sources are available, the
+prompt tells the local model to say that current context is unavailable, and
+sync records no changes instead of absorbing that uncertainty as permanent
+beliefs.
 
 Plan-quota adapters are still being wired. `deepr capacity` can detect or model the relevant CLIs and show the cost model, but Deepr does not execute work through those plan quotas yet. Their routing gates are already defined: selection orders local, plan-quota, and metered backends, then blocks execution on missing or unknown quota, exhaustion, quarantine, overage, reserve-floor breaches, unsupported task classes, missing measured quality, and metered fallback without a budget gate.
 

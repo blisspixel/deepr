@@ -67,6 +67,7 @@ class TestResearchFn:
         assert "Fresh retrieval context" in prompt
         assert "what changed?" in prompt
         assert "cite source labels" in prompt
+        assert "name meaningful gaps" in prompt
 
     async def test_reports_context_metadata(self):
         class _Context:
