@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profile summary, manifest counts, bounded claims/gaps, dashboard telemetry,
   loop-status rollup, OKF interchange hints, and an additive compatibility
   contract, with JSON Schema published under `docs/schemas/`.
+- Added the first hosted-MCP scoped-key primitive: `ScopedMCPKeyStore`, HTTP
+  transport enforcement for key mode, expert allowlists, confirmation
+  requirements, and append-only `deepr-mcp-remote-audit-v1` events for
+  authenticated remote tool calls.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
