@@ -123,3 +123,84 @@ def test_mcp_smoke_http_exits_nonzero_on_failure():
     assert result.exit_code == 1
     assert "[fail] tools/call: Denied" in result.output
     assert "Result: failed" in result.output
+
+
+def test_mcp_registration_manifest_outputs_token_redacted_json():
+    calls: list[dict] = []
+    report = MCPHttpSmokeReport(
+        url="https://mcp.example.com/mcp",
+        steps=(MCPHttpSmokeStep("health", True, "healthy", status_code=200),),
+    )
+
+    def fake_run_http_smoke(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return "registration-smoke-coro"
+
+    with (
+        patch("deepr.mcp.smoke.run_http_smoke", new=fake_run_http_smoke),
+        patch("deepr.cli.commands.mcp.run_async_command", return_value=report),
+    ):
+        result = CliRunner().invoke(
+            mcp,
+            [
+                "registration-manifest",
+                "https://mcp.example.com/mcp",
+                "--agent-name",
+                "planner",
+                "--auth-token",
+                "test-token-value",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        {
+            "url": "https://mcp.example.com/mcp",
+            "auth_token": "test-token-value",
+            "timeout_seconds": 10.0,
+        }
+    ]
+    assert '"schema_version": "deepr-mcp-registration-manifest-v1"' in result.output
+    assert '"agent_name": "planner"' in result.output
+    assert '"secret_included": false' in result.output
+    assert "test-token-value" not in result.output
+
+
+def test_mcp_registration_manifest_writes_output_file(tmp_path):
+    output_path = tmp_path / "manifest.json"
+
+    with patch("deepr.cli.commands.mcp.run_async_command") as run_async:
+        result = CliRunner().invoke(
+            mcp,
+            [
+                "registration-manifest",
+                "https://mcp.example.com/mcp",
+                "--skip-smoke",
+                "--output",
+                str(output_path),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    run_async.assert_not_called()
+    assert "Wrote MCP registration manifest" in result.output
+    assert '"url": "https://mcp.example.com/mcp"' in output_path.read_text(encoding="utf-8")
+
+
+def test_mcp_registration_manifest_exits_nonzero_on_failed_smoke():
+    report = MCPHttpSmokeReport(
+        url="https://mcp.example.com/mcp",
+        steps=(MCPHttpSmokeStep("tools/call", False, "Denied"),),
+    )
+
+    def fake_run_http_smoke(url, **kwargs):
+        return "registration-smoke-coro"
+
+    with (
+        patch("deepr.mcp.smoke.run_http_smoke", new=fake_run_http_smoke),
+        patch("deepr.cli.commands.mcp.run_async_command", return_value=report),
+    ):
+        result = CliRunner().invoke(mcp, ["registration-manifest", "https://mcp.example.com/mcp"])
+
+    assert result.exit_code == 1
+    assert '"ok": false' in result.output

@@ -432,6 +432,55 @@ def smoke_http(url: str, auth_token: str | None, timeout_seconds: float, as_json
         sys.exit(1)
 
 
+@mcp.command("registration-manifest")
+@click.argument("url")
+@click.option("--agent-name", help="Optional remote agent or host label.")
+@click.option("--auth-token", help="Bearer token or scoped-key secret used only for the smoke check.")
+@click.option("--timeout", "timeout_seconds", default=10.0, show_default=True, type=click.FloatRange(min=0.1))
+@click.option("--skip-smoke", is_flag=True, help="Build the manifest without probing the endpoint.")
+@click.option("--output", type=click.Path(dir_okay=False, path_type=str), help="Write the manifest JSON to a file.")
+@click.option("--json", "as_json", is_flag=True, help="Print JSON even when --output is provided.")
+def registration_manifest(
+    url: str,
+    agent_name: str | None,
+    auth_token: str | None,
+    timeout_seconds: float,
+    skip_smoke: bool,
+    output: str | None,
+    as_json: bool,
+):
+    """Build a token-redacted hosted MCP registration manifest."""
+    import json
+    from pathlib import Path
+
+    from deepr.mcp.smoke import build_http_registration_manifest, run_http_smoke
+
+    try:
+        report = None
+        if not skip_smoke:
+            report = run_async_command(
+                run_http_smoke(
+                    url,
+                    auth_token=auth_token,
+                    timeout_seconds=timeout_seconds,
+                )
+            )
+        payload = build_http_registration_manifest(url, smoke_report=report, agent_name=agent_name)
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if output:
+        Path(output).write_text(text, encoding="utf-8")
+        if not as_json:
+            click.echo(f"Wrote MCP registration manifest: {output}")
+    if as_json or not output:
+        click.echo(text, nl=False)
+
+    if report is not None and not report.ok:
+        sys.exit(1)
+
+
 @mcp.command()
 def test():
     """Test MCP server with sample requests.
