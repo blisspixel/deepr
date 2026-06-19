@@ -554,12 +554,12 @@ belief store. Detailed loop contract: [docs/design/verified-expert-loops.md](doc
   - [ ] One-command ingest of MD/JSON/JSONL bundles as permanent expert knowledge
   - [ ] Auto-gap detection and citation mapping on imported corpora
   - [ ] Works with any structured output (research reports, synthesis docs, company briefs)
-  - [ ] OKF bundle import (`deepr expert absorb-okf NAME PATH`): parse
+  - [x] OKF bundle import (`deepr expert absorb-okf NAME PATH`): parse
         conformant Markdown/YAML concept documents, preserve frontmatter and
         cross-links as provenance, and route claims through the existing
         verification-gated absorb pipeline rather than trusting the bundle text.
 - [x] Per-expert SKILL.md export (v2.13): `deepr expert export-skill NAME` builds `deepr/skills/expert_skill.build_expert_skill` on top of the generic `SkillPackager` - an expert-scoped SKILL.md whose triggers/instructions/tools are populated from one expert and whose body calls that expert via Deepr's MCP tools. The validated interoperability direction: Deepr is the MCP server / SKILL.md that hosts (Claude Cowork, Copilot agent mode, Cursor, Goose, OpenClaw) *call*, not Deepr delegating execution outward. agentskills.io SKILL.md is broadly adopted, so one export reaches every major host.
-- [~] OKF expert export (`deepr expert export-okf NAME PATH`):
+- [x] OKF expert export (`deepr expert export-okf NAME PATH`):
   - [x] Generate a conformant OKF bundle from the structured belief store:
         one concept file per current belief, YAML frontmatter with
         `type`, `title`, `description`, `tags`, `timestamp`, and Deepr-specific
@@ -1003,12 +1003,13 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    latest run, last sync result, next scheduled action, capacity source, spend,
    acceptance metrics, verifier-failure counts, freshness telemetry, 7-day and
    30-day gap velocity, top open gaps, and contested/open claim state.
-5. [~] OKF export/import: `export-okf` as a regenerated derived view over the
+5. [x] OKF export/import: `export-okf` as a regenerated derived view over the
    belief/event/edge store; `absorb-okf` as a verified ingestion path. Include
    `index.md`, `log.md`, bundle-relative links, citations, gaps, contested claims,
    and optional `llms.txt` discovery. Export is now implemented as a `$0`
-   derived bundle with marker-based overwrite protection; verified `absorb-okf`
-   ingestion remains open.
+   derived bundle with marker-based overwrite protection; `absorb-okf` parses
+   OKF concept documents into source text and routes them through the existing
+   extraction, grounding, dedup, and contradiction gates.
 
 ### v2.18 - The reach release ("callable from anywhere")
 
