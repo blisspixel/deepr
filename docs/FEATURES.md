@@ -596,6 +596,12 @@ deepr expert digest "Azure Architect" --print
 # Codex, Cursor, VS Code Copilot, OpenClaw, ...). Consults the expert via MCP.
 deepr expert export-skill "Azure Architect"
 deepr expert export-skill "Azure Architect" --print   # preview
+
+# Export a portable OKF Markdown bundle generated from structured expert state.
+# Includes index.md, log.md, concept pages, citations, relations, gaps,
+# contested claims, and llms.txt discovery. Cost $0, no model call.
+deepr expert export-okf "Azure Architect" ./okf/azure-architect
+deepr expert export-okf "Azure Architect" ./okf/azure-architect --json
 ```
 
 ### Expert Skills
@@ -637,6 +643,9 @@ deepr expert export "Azure Architect" --output ./exports/
 
 # Import expert from corpus
 deepr expert import "New Expert" --corpus ./exports/azure_architect/
+
+# OKF import is intentionally separate and remains verification-gated work:
+# exported OKF is an interchange view, not authoritative expert state.
 ```
 
 ## Vector Store Management
