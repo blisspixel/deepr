@@ -602,6 +602,12 @@ deepr expert export-skill "Azure Architect" --print   # preview
 # contested claims, and llms.txt discovery. Cost $0, no model call.
 deepr expert export-okf "Azure Architect" ./okf/azure-architect
 deepr expert export-okf "Azure Architect" ./okf/azure-architect --json
+
+# Absorb OKF concepts through the same verified report absorber. The bundle is
+# parsed as source text, then extraction, grounding, dedup, and contradiction
+# gates decide what enters the belief store.
+deepr expert absorb-okf "Azure Architect" ./okf/azure-architect --dry-run
+deepr expert absorb-okf "Azure Architect" ./okf/azure-architect --local -y
 ```
 
 ### Expert Skills
@@ -644,8 +650,8 @@ deepr expert export "Azure Architect" --output ./exports/
 # Import expert from corpus
 deepr expert import "New Expert" --corpus ./exports/azure_architect/
 
-# OKF import is intentionally separate and remains verification-gated work:
-# exported OKF is an interchange view, not authoritative expert state.
+# OKF import is verification-gated:
+deepr expert absorb-okf "Existing Expert" ./okf/azure-architect --dry-run
 ```
 
 ## Vector Store Management

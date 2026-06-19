@@ -11,6 +11,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,25 @@ class OKFWriteResult:
         }
 
 
+@dataclass(frozen=True)
+class OKFIngestionCorpus:
+    """Parsed OKF concept documents prepared for verified absorption."""
+
+    source_path: Path
+    report_id: str
+    report_text: str
+    files: list[str]
+    concept_count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_path": str(self.source_path),
+            "report_id": self.report_id,
+            "files": list(self.files),
+            "concept_count": self.concept_count,
+        }
+
+
 def _aware(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -96,6 +116,43 @@ def _frontmatter(fields: dict[str, Any]) -> str:
         lines.append(f"{key}: {_yaml_value(value)}")
     lines.append("---")
     return "\n".join(lines)
+
+
+def _parse_frontmatter_value(value: str) -> Any:
+    value = value.strip()
+    if not value:
+        return ""
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value.strip("\"'")
+
+
+def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    lines = text.splitlines()
+    start = 0
+    while start < len(lines):
+        stripped = lines[start].strip()
+        if not stripped or stripped.startswith("<!--"):
+            start += 1
+            continue
+        break
+    if start >= len(lines) or lines[start].strip() != "---":
+        return {}, text
+
+    end = start + 1
+    while end < len(lines) and lines[end].strip() != "---":
+        end += 1
+    if end >= len(lines):
+        return {}, text
+
+    fields: dict[str, Any] = {}
+    for line in lines[start + 1 : end]:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        fields[key.strip()] = _parse_frontmatter_value(value)
+    return fields, "\n".join(lines[end + 1 :]).strip()
 
 
 def _doc(fields: dict[str, Any], body: list[str]) -> str:
@@ -423,6 +480,80 @@ def _build_llms(profile: Any, bundle_name: str) -> str:
             f'For live state, prefer Deepr MCP tools for "{profile.name}" when available.',
             "",
         ]
+    )
+
+
+def _iter_markdown_files(path: Path) -> tuple[Path, list[Path]]:
+    root = path.resolve()
+    if root.is_file():
+        return root.parent, [root]
+    if root.is_dir():
+        return root, sorted(root.rglob("*.md"))
+    raise ValueError(f"OKF path not found: {path}")
+
+
+def _is_concept_doc(relative_path: str, fields: dict[str, Any]) -> bool:
+    doc_type = str(fields.get("type", ""))
+    return doc_type.endswith(".concept") or relative_path.startswith("concepts/")
+
+
+def build_okf_ingestion_corpus(path: Path) -> OKFIngestionCorpus:
+    """Parse OKF concept Markdown into source text for ReportAbsorber."""
+    base, markdown_files = _iter_markdown_files(path)
+    concepts: list[tuple[str, dict[str, Any], str]] = []
+    digest = sha256()
+
+    for file_path in markdown_files:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        relative_path = file_path.resolve().relative_to(base).as_posix()
+        fields, body = _split_frontmatter(text)
+        if not _is_concept_doc(relative_path, fields):
+            continue
+        concepts.append((relative_path, fields, body))
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(text.encode("utf-8", errors="replace"))
+        digest.update(b"\0")
+
+    if not concepts:
+        raise ValueError(f"No OKF concept documents found in {path}")
+
+    report_id = f"okf:{base.name}:{digest.hexdigest()[:12]}"
+    lines = [
+        "# OKF Import Corpus",
+        "",
+        f"Source path: {base}",
+        f"Concept documents: {len(concepts)}",
+        "",
+        "These OKF concept documents are source text for Deepr's verified absorb gate.",
+        "Only claims grounded in the concept body or frontmatter citations should be absorbed.",
+        "",
+    ]
+    for relative_path, fields, body in concepts:
+        title = str(fields.get("title") or fields.get("description") or Path(relative_path).stem)
+        lines.extend(
+            [
+                f"## OKF concept: {title}",
+                "",
+                f"Source file: {relative_path}",
+                "",
+                "Frontmatter:",
+                "```json",
+                json.dumps(fields, indent=2, sort_keys=True),
+                "```",
+                "",
+                "Body:",
+                body or "(empty)",
+                "",
+            ]
+        )
+
+    return OKFIngestionCorpus(
+        source_path=base,
+        report_id=report_id,
+        report_text="\n".join(lines),
+        files=[relative_path for relative_path, _, _ in concepts],
+        concept_count=len(concepts),
     )
 
 

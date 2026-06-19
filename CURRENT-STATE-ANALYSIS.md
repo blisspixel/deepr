@@ -96,6 +96,11 @@ including `index.md`, `log.md`, concept pages, citations, typed relations,
 gaps, contested claims, and optional `llms.txt`, with marker-based overwrite
 protection. The belief/event/edge store remains canonical.
 
+`deepr expert absorb-okf NAME PATH` now closes the OKF interchange loop. It
+parses OKF concept Markdown and frontmatter into source text, then sends that
+text through `ReportAbsorber` so extraction, grounding, dedup, and contradiction
+gates decide what becomes persistent belief state.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -115,9 +120,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: add `deepr expert absorb-okf NAME PATH` as a verified ingestion path
-that parses OKF Markdown/YAML and routes extracted claims through the existing
-absorb gates instead of trusting bundle text.
+Next slice: start the v2.18 reach track by defining the smallest hosted
+contract that can expose existing read-only expert state without weakening
+budget, loop-status, or OKF invariants.
 
 ## Spend Ledger For This Run
 
