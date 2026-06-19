@@ -12,6 +12,9 @@ DEPLOY_DIR = REPO_ROOT / "deploy" / "mcp-http"
 AZURE_TEMPLATE = DEPLOY_DIR / "azure-container-apps" / "main.bicep"
 AWS_TEMPLATE = DEPLOY_DIR / "aws-ecs-fargate" / "template.yaml"
 GCP_TEMPLATE = DEPLOY_DIR / "gcp-cloud-run" / "main.tf"
+CLOUDFLARE_DIR = DEPLOY_DIR / "cloudflare-worker"
+CLOUDFLARE_WORKER = CLOUDFLARE_DIR / "worker.mjs"
+CLOUDFLARE_WRANGLER = CLOUDFLARE_DIR / "wrangler.toml.example"
 
 
 def _load_compose() -> dict[str, Any]:
@@ -283,3 +286,55 @@ def test_mcp_http_gcp_readme_documents_scoped_key_bootstrap():
     assert "deepr mcp smoke-http" in readme
     assert "only `$0` structural checks" in readme
     assert "Add provider API keys only when paid tools are intentional" in readme
+
+
+def test_mcp_http_cloudflare_worker_is_edge_guard_only():
+    worker = CLOUDFLARE_WORKER.read_text(encoding="utf-8")
+
+    assert "DEEPR_MCP_ORIGIN" in worker
+    assert 'url.protocol !== "https:"' in worker
+    assert "ORIGIN_REQUIRES_HTTPS" in worker
+    assert "pathname === MCP_PATH_PREFIX || pathname.startsWith(`${MCP_PATH_PREFIX}/`)" in worker
+    assert 'jsonError(404, "NOT_FOUND"' in worker
+    assert "MAX_BODY_BYTES = 1048576" in worker
+    assert 'jsonError(413, "REQUEST_TOO_LARGE"' in worker
+    assert 'headers.set("X-Forwarded-Proto", "https")' in worker
+    assert 'headers.set("X-Forwarded-Host", requestUrl.host)' in worker
+    assert "CF-Connecting-IP" in worker
+
+
+def test_mcp_http_cloudflare_worker_preserves_origin_enforcement():
+    worker = CLOUDFLARE_WORKER.read_text(encoding="utf-8")
+
+    assert "fetch(new Request(targetUrl, init))" in worker
+    assert 'normalized === "host"' in worker
+    assert "HOP_BY_HOP_HEADERS" in worker
+    assert "request.arrayBuffer()" in worker
+    assert "ScopedMCPKeyStore" not in worker
+    assert "RemoteMCPAuditLog" not in worker
+    assert "OPENAI_API_KEY" not in worker
+    assert "GOOGLE_API_KEY" not in worker
+    assert "XAI_API_KEY" not in worker
+    assert "ANTHROPIC_API_KEY" not in worker
+
+
+def test_mcp_http_cloudflare_wrangler_example_requires_https_origin():
+    wrangler = CLOUDFLARE_WRANGLER.read_text(encoding="utf-8")
+
+    assert 'main = "worker.mjs"' in wrangler
+    assert 'compatibility_date = "2026-06-19"' in wrangler
+    assert "DEEPR_MCP_ORIGIN" in wrangler
+    assert "https://mcp-origin.example.com/mcp" in wrangler
+    assert "refuses plaintext origins" in wrangler
+
+
+def test_mcp_http_cloudflare_readme_documents_zero_spend_validation():
+    readme = (CLOUDFLARE_DIR / "README.md").read_text(encoding="utf-8")
+
+    assert "edge ingress and proxy only" in readme
+    assert "origin still owns scoped-key auth" in readme
+    assert "Request bodies are capped at 1 MiB" in readme
+    assert "Provider API keys, scoped-key stores, and remote-audit files do not belong" in readme
+    assert "node --check worker.mjs" in readme
+    assert "deepr mcp smoke-http https://mcp.example.com/mcp" in readme
+    assert "The checked-in recipe and CI validation are local-only" in readme

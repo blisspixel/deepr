@@ -140,10 +140,14 @@ preserving persistent `/data`, HTTPS ingress, scoped-key state, remote-audit
 durability, and the same max-concurrency contract across Azure Container Apps,
 AWS ECS Fargate, and GCP Cloud Run. The GCP variant stays single-writer by
 default while key and audit files live on an object-backed mount.
+`deploy/mcp-http/cloudflare-worker/` now adds the edge ingress recipe in front
+of an existing HTTPS origin. It proxies only `/mcp` paths, caps request bodies,
+forwards scoped-key auth headers, and keeps scoped-key enforcement, budgets,
+rate limits, audit logs, and provider keys on the origin side.
 `deepr mcp registration-manifest` now emits a token-redacted
 `deepr-mcp-registration-manifest-v1` packet with endpoint metadata and optional
-smoke results for remote host setup. Edge/provider variants and live
-third-party host registration remain open.
+smoke results for remote host setup. Live third-party host registration remains
+open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`
 publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
@@ -172,10 +176,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: continue the v2.18 reach track with the next smallest local hosted
-operability gap, likely additional cloud-template packaging for the HTTP MCP
-service, live host registration smoke against a real platform, or schema-backed
-contract tests for additional remote surfaces.
+Next slice: continue the v2.18 reach track with live host registration smoke
+against a real platform or schema-backed contract tests for additional remote
+surfaces, while keeping all local validation at `$0`.
 
 ## Spend Ledger For This Run
 
