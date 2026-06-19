@@ -285,7 +285,10 @@ def record_loop_run(
     stop_reason: LoopStopReason | None,
     next_action: dict[str, Any] | None = None,
     budget_limit: float | None = None,
+    budget_spent: float = 0.0,
     capacity_source: str = "",
+    accepted_changes: int = 0,
+    rejected_changes: int = 0,
 ) -> ExpertLoopRun:
     run = ExpertLoopRun(
         run_id=new_loop_run_id(),
@@ -297,6 +300,9 @@ def record_loop_run(
         stop_reason=stop_reason,
         next_action=next_action or {},
         budget_limit=budget_limit,
+        budget_spent=budget_spent,
         capacity_source=capacity_source,
+        accepted_changes=accepted_changes,
+        rejected_changes=rejected_changes,
     )
     return ExpertLoopRunStore(expert_name).append(run)

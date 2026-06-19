@@ -302,7 +302,9 @@ wait for capacity, confirm-gated local writes wait for confirmation, and
 These scheduled wait and action-plan payloads now include durable `loop_run`
 records, so `deepr expert loop-status NAME --json` can show the latest blocked
 or waiting maintenance work without re-running it. Host agents can read the
-same state through `deepr_expert_loop_status`.
+same state through `deepr_expert_loop_status`. Successful `deepr expert sync`
+runs also record completed loop snapshots with spend, capacity source, and
+accepted-change counts.
 
 ### Evidence and Calibration
 
