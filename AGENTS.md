@@ -18,6 +18,11 @@ Multi-provider research automation: routes each research question to the cheapes
 
 - **Rules vs agentic: read [docs/plans/AGENTIC_BALANCE.md](docs/plans/AGENTIC_BALANCE.md) before adding a rule or making something agentic, and update it when a decision moves the boundary.** Brittle rules that encode *meaning* (lexical/word-overlap checks used as a verdict) are the most-repeated wrong turn here. Determinism guards form and side-effects (schema, types, ranges, spend, writes, flowchartable control flow); model judgment owns meaning (contradiction, grounding, atomicity, dedup), calibrated before trusted; a lexical check may *route* but never *conclude*.
 - **Never make paid API calls** (research runs, evals, embeddings) unless explicitly asked. Estimate cost first. Budgets are ceilings enforced in code - never weaken a gate to make a test pass.
+- Capacity sources must be described honestly:
+  - Works now: API-backed research with user keys and budget gates; local Ollama expert setup and maintenance via `expert make --local`, `expert sync --local`, `expert absorb --local`, `eval local`, and scored `capacity admit`.
+  - Visible/read-only today: plan CLIs and quota sources shown by `deepr capacity`. Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, Kiro, and similar plan CLIs are not Deepr execution backends until their adapters, quota probes, no-surprise-bills guards, and tests ship.
+  - Explicit opt-in only: CLI judges such as Grok for `deepr eval local --judge-cli ... --allow-cli-judge`. Do not imply Deepr can prove whether a vendor CLI used subscription quota, credits, or metered credentials.
+  - Roadmap language must distinguish `works now`, `visible/read-only`, and `planned adapter`. Do not market roadmap capacity as shipped UX.
 - The cost ledger is **append-only** and every spend source writes it. No silent-money paths.
 - Generated artifacts (expert digests, SKILL.md exports, reports) are **derived views**: regenerable from the structured belief store, never hand-edited as authoritative.
 - The reports root is config-sourced: `load_config()["results_dir"]` (env `DEEPR_REPORTS_PATH`, default `data/reports`). Never hardcode a `reports/` path - divergent roots was a real shipped bug.
