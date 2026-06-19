@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   DuckDuckGo results when the optional package is installed, prepends bounded
   source context to the local Ollama prompt, and keeps Deepr metered cost at
   `$0` without invoking API-key search providers.
+- Added bounded local deep context for expert sync:
+  `deepr expert sync NAME --local --deep-context` runs multi-query free
+  retrieval before the local Ollama call, de-duplicates URLs, records source
+  pack metadata, supports `DEEPR_SEARXNG_URL` for a self-hosted SearXNG search
+  endpoint, and keeps the no-source path as `no_changes` instead of absorbing
+  unsupported local claims.
 - Added `$0` local Ollama comparison via `deepr eval local`. It compares local
   models on an agentic-loop prompt set, uses a local model as the judge, reports
   score, latency, winner, and cost, and can save a JSON artifact under
@@ -52,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local Ollama-backed absorber into the sync engine. Fresh-context syncs with
   zero retrieved sources now record no changes instead of absorbing the local
   model's uncertainty as beliefs.
+- Fresh/deep context flags now require a local sync backend. If no admitted
+  local model is available and `--local` was not provided, Deepr stops instead
+  of silently falling through to a metered API backend.
 - Clarified README, feature docs, roadmap, capacity design, and agent
   instructions so local Ollama, APIs, plan CLIs, and explicit CLI judges are
   described by their current shipped status instead of blended together.
