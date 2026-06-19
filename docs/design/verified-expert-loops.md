@@ -1,6 +1,6 @@
 # Design: verified expert loops
 
-Status: planned for v2.17.
+Status: active for v2.17.
 
 Deepr already has loop-shaped surfaces: expert sync, absorb, reflection,
 health-check, gap routing, and future campaigns. The next step is not a generic
