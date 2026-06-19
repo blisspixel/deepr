@@ -33,6 +33,9 @@ deepr doctor
 Keep provider API keys out of the proxy configuration. Put them in the Deepr
 process environment only when you intentionally allow paid research tools.
 Read-only and status smoke tests do not require provider keys.
+Scoped-key budgets are enforced before tool dispatch from audited spend and
+deterministic estimates. Metered tools without an estimate are denied before
+they can run.
 
 Create a scoped key store and mint one key per remote agent:
 

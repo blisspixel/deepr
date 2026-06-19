@@ -262,11 +262,13 @@ deepr mcp audit summary
 
 Created secrets are shown once. `list` never prints secrets or stored hashes.
 Scoped HTTP calls enforce the stored budget ceiling before dispatch from prior
-audited spend and deterministic tool estimates. They also enforce the optional
-per-key calls-per-minute limit from recent audited calls, return retry metadata
-on rate-limit denials, and write successful response costs back to the remote
-audit log. `deepr mcp audit list` reads that local append-only audit log with
-optional `--key-id`, `--tool`, `--outcome`, `--limit`, and `--json` filters.
+audited spend and deterministic tool estimates. Metered tools without an
+estimate are denied before handler dispatch. Scoped HTTP calls also enforce the
+optional per-key calls-per-minute limit from recent audited calls, return retry
+metadata on rate-limit denials, and write successful response costs back to the
+remote audit log. `deepr mcp audit list` reads that local append-only audit log
+with optional `--key-id`, `--tool`, `--outcome`, `--limit`, and `--json`
+filters.
 `deepr mcp audit summary` aggregates the same records by key, tool, and outcome.
 
 ## HTTP Serve Mode
