@@ -58,6 +58,8 @@ Review remote calls before widening key mode or budget:
 ```bash
 docker compose run --rm deepr-mcp-http \
   mcp audit list --audit-path /data/security/mcp_remote_audit.jsonl --limit 50
+docker compose run --rm deepr-mcp-http \
+  mcp audit summary --audit-path /data/security/mcp_remote_audit.jsonl
 ```
 
 ## Reverse Proxy

@@ -159,4 +159,5 @@ the audit log before widening the key mode or budget:
 
 ```bash
 deepr mcp audit list --audit-path data/security/mcp_remote_audit.jsonl --limit 50
+deepr mcp audit summary --audit-path data/security/mcp_remote_audit.jsonl
 ```
