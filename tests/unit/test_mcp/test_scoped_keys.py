@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from deepr.mcp.search.registry import create_default_registry
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditEvent,
     RemoteMCPAuditLog,
@@ -13,8 +14,15 @@ from deepr.mcp.security.scoped_keys import (
     authorize_scoped_mcp_rate_limit,
     authorize_scoped_mcp_tool_call,
     constrain_scoped_mcp_budget_arguments,
+    estimate_scoped_mcp_tool_cost,
+    requires_scoped_mcp_cost_estimate,
 )
-from deepr.mcp.security.tool_allowlist import ResearchMode
+from deepr.mcp.security.tool_allowlist import (
+    REMOTE_METERED_SPEND_METADATA_KEY,
+    ResearchMode,
+    ToolAllowlist,
+    ToolCategory,
+)
 
 
 class TestScopedMCPKeyStore:
@@ -149,6 +157,35 @@ class TestScopedMCPAuthorization:
 
         assert not decision.allowed
         assert decision.estimated_cost_usd == 10.0
+
+    def test_metered_tool_without_estimate_fails_closed(self):
+        context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, budget_limit_usd=1.0)
+        allowlist = ToolAllowlist()
+        allowlist.register_tool(
+            "custom_metered_tool",
+            ToolCategory.WRITE,
+            metadata={REMOTE_METERED_SPEND_METADATA_KEY: True},
+        )
+
+        decision = authorize_scoped_mcp_budget(
+            context,
+            "custom_metered_tool",
+            {},
+            spent_usd=0.0,
+            allowlist=allowlist,
+        )
+
+        assert not decision.allowed
+        assert decision.error_code == "KEY_BUDGET_ESTIMATE_UNAVAILABLE"
+
+    def test_non_free_default_mcp_tools_have_scoped_key_budget_estimates(self):
+        registry = create_default_registry()
+        metered_tools = sorted(tool.name for tool in registry.all_tools() if tool.cost_tier != "free")
+
+        assert metered_tools
+        for tool_name in metered_tools:
+            assert requires_scoped_mcp_cost_estimate(tool_name), tool_name
+            assert estimate_scoped_mcp_tool_cost(tool_name, {}) is not None, tool_name
 
     def test_key_rate_limit_blocks_at_limit(self):
         context = ScopedMCPKeyContext("agent", ResearchMode.UNRESTRICTED, rate_limit_per_minute=2)
