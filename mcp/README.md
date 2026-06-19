@@ -265,6 +265,20 @@ per-key calls-per-minute limit from recent audited calls, return retry metadata
 on rate-limit denials, and write successful response costs back to the remote
 audit log.
 
+## HTTP Serve Mode
+
+Stdio remains the default MCP transport. For a remote-capable local endpoint,
+run the same server over Streamable HTTP:
+
+```bash
+deepr mcp keys create --mode read_only --rate-limit 30 --keys-path data/security/mcp_keys.json
+deepr mcp serve --http --host 127.0.0.1 --port 8765 --keys-path data/security/mcp_keys.json
+```
+
+The HTTP listener binds to loopback by default. A reachable bind such as
+`--host 0.0.0.0` must have a shared token or at least one active scoped key,
+otherwise startup is refused.
+
 ---
 
 ## Architecture

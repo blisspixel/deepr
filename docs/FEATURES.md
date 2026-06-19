@@ -934,7 +934,9 @@ key mode, expert allowlists, confirmation gates, per-key budget ceilings, and
 per-key rate limits before `tools/call` dispatch, and append
 `deepr-mcp-remote-audit-v1` records for remote calls with response cost
 attribution when available.
-Use `deepr mcp keys create/list/revoke` to manage those local key records.
+Use `deepr mcp keys create/list/revoke` to manage those local key records, and
+`deepr mcp serve --http` to run the same MCP server over HTTP/SSE on loopback
+by default.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
