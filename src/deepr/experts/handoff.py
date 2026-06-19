@@ -7,7 +7,7 @@ from typing import Any
 
 from deepr.experts.dashboard_telemetry import build_expert_dashboard_telemetry
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
-from deepr.experts.okf import OKF_SCHEMA_VERSION
+from deepr.experts.okf import OKF_PROFILE_SCHEMA_VERSION, OKF_SCHEMA_VERSION
 
 HANDOFF_SCHEMA_VERSION = "deepr-expert-handoff-v1"
 HANDOFF_KIND = "deepr.expert.handoff"
@@ -148,6 +148,8 @@ def build_expert_handoff(
         "loop_status": resolved_loop_status,
         "okf": {
             "schema_version": OKF_SCHEMA_VERSION,
+            "profile_schema_version": OKF_PROFILE_SCHEMA_VERSION,
+            "profile_schema_url": "docs/schemas/okf-profile-v1.json",
             "canonical": False,
             "export_command": f"deepr expert export-okf {resolved_name!r} ./okf/{resolved_name}",
             "absorb_command": f"deepr expert absorb-okf {resolved_name!r} ./okf/{resolved_name} --dry-run",

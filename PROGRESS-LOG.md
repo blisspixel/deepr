@@ -31,4 +31,5 @@
 - Added `deepr mcp serve --http` so the existing MCP server can run over HTTP/SSE on loopback by default, with reachable binds protected by shared-token or scoped-key authentication.
 - Added `deepr mcp smoke-http`, a `$0` local/proxied endpoint smoke command for HTTP MCP health, initialize, tools/list, and free tool-search dispatch.
 - Added `deploy/mcp-http.md`, documenting scoped-key setup, loopback service binding, Caddy/nginx TLS reverse proxying, smoke validation, revocation, and operational guardrails for hosted MCP.
+- Published `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and `docs/schemas/registry.json` with additive compatibility rules for downstream agent contracts.
 - Spend so far: `$0.00`.

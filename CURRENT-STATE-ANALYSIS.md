@@ -126,6 +126,11 @@ with reachable binds protected by shared-token or scoped-key authentication.
 shape. Container/cloud-template variants and live third-party host registration
 remain open.
 
+The contract surface is now broader than the handoff payload. `docs/schemas/`
+publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
+`deepr-okf-profile-v1`, with `registry.json` and a README documenting additive
+compatibility and deprecation rules for downstream agents.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -147,7 +152,7 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 Next slice: continue the v2.18 reach track with the next smallest local hosted
 operability gap, likely container/cloud-template packaging for the HTTP MCP
-service or schema/versioning around the loop-status and OKF read contracts.
+service or schema-backed contract tests for additional remote surfaces.
 
 ## Spend Ledger For This Run
 

@@ -121,6 +121,7 @@ itself a hidden nondeterminism.
 | Loop admission, ExpertLoopRun state, loop-status, stop reasons | **Workflow around agent work** | The agent can propose work, but admission, completion, budget/capacity stop, verifier pass/fail, acceptance metrics, and resumability are durable state |
 | OKF export/import | **Workflow envelope, agent meaning** | Markdown/YAML shape and source-trust gates are deterministic; claim extraction and contradiction/grounding stay calibrated model judgment |
 | Versioned expert handoff | **Workflow** | Remote consumers need one stable read contract; serialization, payload bounds, schema version, compatibility policy, and sensitive-read gating are deterministic and never semantic verdicts |
+| Published schema registry | **Workflow** | Schema version constants, required fields, additive compatibility policy, and deprecation rules are consumer contracts; they describe structure, not semantic truth |
 | Scoped remote MCP keys and audit | **Workflow** | Authentication, mode/expert scope, confirmation gates, per-key budget ceilings, per-key rate limits, argument hashing, response-cost attribution, and append-only remote-call audit events guard tool access, spend, and observability; they never judge the semantic quality of an expert answer |
 | Contradiction / grounding / atomicity / dedup | **Agent** (calibrated model judgment) | Meaning; lexical rules are brittle (checks doc) |
 | What to research next, gap selection, council adjudication | **Agent** | Open-ended; cannot be flowcharted in advance |
