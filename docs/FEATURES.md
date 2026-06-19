@@ -802,6 +802,7 @@ deepr capacity --probe    # actively probe local endpoint and list models
 deepr capacity next       # ranked next actions for making cheap capacity usable
 deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
+deepr expert route-gaps "Platform Team Expert" --execute --scheduled --json
 deepr capacity --json
 ```
 
@@ -836,12 +837,13 @@ deepr capacity admissions          # what's admitted (and when it expires)
 deepr capacity next --task-class sync
 deepr capacity next --task-class sync --context-mode deep --expert "Platform Team Expert" --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
+deepr expert route-gaps "Platform Team Expert" --execute --scheduled --json
 deepr capacity revoke llama3.1 --task-class absorb
 ```
 
 After scored admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
 
-`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls. `deepr expert sync --scheduled` consumes the same preview automatically for due subscription syncs: when a recurring job would otherwise fall through to metered API, or when fresh/deep context needs local capacity, it exits successfully with a wait payload and next actions instead of spending.
+`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls. `deepr expert sync --scheduled` consumes the same preview automatically for due subscription syncs: when a recurring job would otherwise fall through to metered API, or when fresh/deep context needs local capacity, it exits successfully with a wait payload and next actions instead of spending. `deepr expert route-gaps --execute --scheduled` uses the same scheduler default for gap-fill sweeps by returning pending routes and a wait state instead of starting metered research.
 
 Local models do not automatically have current web context. For sync runs that
 need freshness, add `--fresh-context`; for broader source coverage, add
@@ -877,8 +879,10 @@ The intended QOL is simple: ask for a job, see the cheapest safe route, and get 
 clear reason if Deepr should wait rather than pay. `deepr capacity next` is
 read-only today and now accepts enough job context to preview sync context mode
 and recurring scheduler intent. `deepr expert sync --scheduled` now consumes
-that preview before launching due subscription syncs. Remaining scheduler work is
-to reuse the same contract across the other recurring expert maintenance loops.
+that preview before launching due subscription syncs. `route-gaps --execute
+--scheduled` now gives gap-fill sweeps the same no-surprise-spend wait behavior.
+Remaining scheduler work is to reuse the contract for reflection follow-up and
+health-check actioning.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
