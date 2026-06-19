@@ -19,7 +19,19 @@ from deepr.cli.colors import (
 )
 
 
-@click.group()
+class SearchGroup(click.Group):
+    """Route bare search terms to the query command."""
+
+    def resolve_command(self, ctx, args):
+        try:
+            return super().resolve_command(ctx, args)
+        except click.UsageError:
+            if args and not args[0].startswith("-"):
+                return "query", self.commands["query"], args
+            raise
+
+
+@click.group(cls=SearchGroup)
 def search():
     """Search and discover related research.
 
