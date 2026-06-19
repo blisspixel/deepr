@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added concrete job previews to `deepr capacity next`: `--expert`,
+  `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled` fill the
+  suggested command shape and show wait guidance when a fresh/deep scheduled
+  sync should wait for cheap local capacity instead of falling through to
+  metered API.
 - Added `deepr expert make --local`, a provider-free expert creation path that
   records `provider=local`, copies optional seed documents into the expert's
   local documents folder, and prints the next `subscribe` plus

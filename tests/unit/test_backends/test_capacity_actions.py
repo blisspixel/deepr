@@ -9,7 +9,7 @@ from click.testing import CliRunner
 
 from deepr.backends.admission import record_admission
 from deepr.backends.capacity import BackendKind, CapacitySource, CostModel
-from deepr.backends.capacity_actions import CapacityNextAction, build_capacity_next_actions
+from deepr.backends.capacity_actions import CapacityJobContext, CapacityNextAction, build_capacity_next_actions
 from deepr.cli.commands.capacity import capacity
 
 T0 = datetime(2026, 6, 18, tzinfo=UTC)
@@ -88,7 +88,30 @@ class TestCapacityNextActions:
 
         assert [action.status for action in actions] == ["ready"]
         assert "Automatic local routing is ready" == actions[0].title
+        assert actions[0].command == 'deepr expert sync "<expert>" -y'
+
+    def test_ready_sync_preview_includes_fresh_context_and_expert_name(self, tmp_path):
+        p = tmp_path / "adm.jsonl"
+        record_admission("good-local", "sync", score=0.82, now=T0, path=p)
+
+        actions = build_capacity_next_actions(
+            task_class="sync",
+            job_context=CapacityJobContext(
+                task_class="sync",
+                expert_name="AI Strategy Expert",
+                context_mode="fresh",
+            ),
+            now=T0,
+            capacity_sources=[_local_source()],
+            local_models=["good-local"],
+            admissions_path=p,
+            benchmarks_dir=tmp_path / "benchmarks",
+        )
+
+        assert actions[0].status == "ready"
         assert "--fresh-context" in actions[0].command
+        assert '"AI Strategy Expert"' in actions[0].command
+        assert "fresh local context requested" in actions[0].detail
 
     def test_scoreless_admission_prompts_eval(self, tmp_path):
         p = tmp_path / "adm.jsonl"
@@ -182,6 +205,74 @@ class TestCapacityNextActions:
 
         assert any(action.status == "fallback" and "--api" in action.command for action in actions)
 
+    def test_fresh_context_preview_waits_instead_of_metered_fallback(self, tmp_path):
+        actions = build_capacity_next_actions(
+            task_class="sync",
+            job_context=CapacityJobContext(task_class="sync", context_mode="fresh"),
+            now=T0,
+            capacity_sources=[_local_source(), _metered_source()],
+            local_models=["good-local"],
+            admissions_path=tmp_path / "adm.jsonl",
+            benchmarks_dir=tmp_path / "benchmarks",
+        )
+
+        assert any(action.status == "wait" for action in actions)
+        assert not any(action.status == "fallback" for action in actions)
+
+    def test_scheduled_preview_adds_wait_guidance(self, tmp_path):
+        actions = build_capacity_next_actions(
+            task_class="sync",
+            job_context=CapacityJobContext(task_class="sync", scheduled=True),
+            now=T0,
+            capacity_sources=[_local_source(), _metered_source()],
+            local_models=["good-local"],
+            admissions_path=tmp_path / "adm.jsonl",
+            benchmarks_dir=tmp_path / "benchmarks",
+        )
+
+        assert any(action.status == "wait" for action in actions)
+        assert any(action.status == "fallback" for action in actions)
+
+    def test_absorb_preview_fills_report_id(self, tmp_path):
+        actions = build_capacity_next_actions(
+            task_class="absorb",
+            job_context=CapacityJobContext(task_class="absorb", expert_name="Policy Expert", report_id="job-123"),
+            now=T0,
+            capacity_sources=[_local_source(), _metered_source()],
+            local_models=["good-local"],
+            admissions_path=tmp_path / "adm.jsonl",
+            benchmarks_dir=tmp_path / "benchmarks",
+        )
+
+        fallback = next(action for action in actions if action.status == "fallback")
+        assert fallback.command == 'deepr expert absorb "Policy Expert" job-123 --api -y'
+
+    def test_context_mode_rejected_for_absorb(self):
+        try:
+            build_capacity_next_actions(
+                task_class="absorb",
+                job_context=CapacityJobContext(task_class="absorb", context_mode="fresh"),
+                capacity_sources=[],
+                local_models=[],
+            )
+        except ValueError as exc:
+            assert "only supported for sync" in str(exc)
+        else:
+            raise AssertionError("expected ValueError")
+
+    def test_job_context_task_class_must_match(self):
+        try:
+            build_capacity_next_actions(
+                task_class="sync",
+                job_context=CapacityJobContext(task_class="absorb"),
+                capacity_sources=[],
+                local_models=[],
+            )
+        except ValueError as exc:
+            assert "must match" in str(exc)
+        else:
+            raise AssertionError("expected ValueError")
+
 
 class TestCapacityNextCommand:
     def test_prints_ranked_actions(self, monkeypatch):
@@ -219,4 +310,38 @@ class TestCapacityNextCommand:
         result = CliRunner().invoke(capacity, ["next", "--json"])
 
         assert result.exit_code == 0
-        assert json.loads(result.output)[0]["status"] == "blocked"
+        payload = json.loads(result.output)
+        assert payload["job_context"]["task_class"] == "sync"
+        assert payload["actions"][0]["status"] == "blocked"
+
+    def test_prints_job_preview_context(self, monkeypatch):
+        from deepr.backends import capacity_actions
+
+        monkeypatch.setattr(
+            capacity_actions,
+            "build_capacity_next_actions",
+            lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "wait")],
+        )
+
+        result = CliRunner().invoke(
+            capacity,
+            [
+                "next",
+                "--task-class",
+                "sync",
+                "--expert",
+                "AI Strategy Expert",
+                "--context-mode",
+                "fresh",
+                "--scheduled",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Job preview: expert=AI Strategy Expert" in result.output
+
+    def test_rejects_context_mode_for_absorb(self):
+        result = CliRunner().invoke(capacity, ["next", "--task-class", "absorb", "--context-mode", "fresh"])
+
+        assert result.exit_code != 0
+        assert "context_mode is only supported for sync" in result.output
