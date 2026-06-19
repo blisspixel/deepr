@@ -939,10 +939,12 @@ per-key rate limits before `tools/call` dispatch, and append
 `deepr-mcp-remote-audit-v1` records for remote calls with response cost
 attribution when available.
 Use `deepr mcp keys create/list/revoke` to manage those local key records, and
-`deepr mcp serve --http` to run the same MCP server over HTTP/SSE on loopback
-by default. Use `deepr mcp smoke-http URL` to run `$0` health, initialize,
-tools/list, and free tool-search checks against a local or TLS-proxied HTTP MCP
-endpoint. A repeatable hosted container recipe lives in
+`deepr mcp audit list` to review the local append-only remote-call audit log
+with key, tool, outcome, limit, and JSON filters. Use `deepr mcp serve --http`
+to run the same MCP server over HTTP/SSE on loopback by default. Use
+`deepr mcp smoke-http URL` to run `$0` health, initialize, tools/list, and free
+tool-search checks against a local or TLS-proxied HTTP MCP endpoint. A
+repeatable hosted container recipe lives in
 [../deploy/mcp-http/](../deploy/mcp-http/); it publishes only loopback by
 default, mounts one Deepr data directory at `/data`, and bootstraps scoped keys
 before the service starts.
