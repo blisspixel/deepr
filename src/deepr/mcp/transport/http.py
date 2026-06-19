@@ -19,7 +19,7 @@ import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +32,9 @@ from deepr.mcp.security.scoped_keys import (
     ScopedMCPBudgetDecision,
     ScopedMCPKeyContext,
     ScopedMCPKeyStore,
+    ScopedMCPRateLimitDecision,
     authorize_scoped_mcp_budget,
+    authorize_scoped_mcp_rate_limit,
     authorize_scoped_mcp_tool_call,
     constrain_scoped_mcp_budget_arguments,
 )
@@ -325,6 +327,47 @@ class StreamingHttpTransport:
             },
         )
 
+    def _scoped_rate_limit_denial_message(
+        self,
+        message: HttpMessage,
+        decision: ScopedMCPRateLimitDecision,
+    ) -> HttpMessage:
+        return HttpMessage(
+            id=message.id,
+            error={
+                "code": -32005,
+                "message": decision.reason,
+                "data": {
+                    "error_code": decision.error_code,
+                    "limit_per_minute": decision.limit_per_minute,
+                    "calls_in_window": decision.calls_in_window,
+                    "window_seconds": decision.window_seconds,
+                    "retry_after_seconds": decision.retry_after_seconds,
+                },
+            },
+        )
+
+    def _scoped_rate_limit_decision(self, context: ScopedMCPKeyContext) -> ScopedMCPRateLimitDecision:
+        if not self._audit_log:
+            return authorize_scoped_mcp_rate_limit(context, 0)
+        now = datetime.now(UTC)
+        window_seconds = 60
+        calls_in_window = self._audit_log.count_for_key_since(
+            context.key_id,
+            now - timedelta(seconds=window_seconds),
+        )
+        retry_after = self._audit_log.retry_after_seconds_for_key(
+            context.key_id,
+            now=now,
+            window_seconds=window_seconds,
+        )
+        return authorize_scoped_mcp_rate_limit(
+            context,
+            calls_in_window,
+            window_seconds=window_seconds,
+            retry_after_seconds=retry_after or None,
+        )
+
     def _scoped_key_spent(self, context: ScopedMCPKeyContext) -> float:
         if not self._audit_log:
             return 0.0
@@ -431,6 +474,19 @@ class StreamingHttpTransport:
                     if not decision.allowed:
                         denied = self._scoped_denial_message(message, decision)
                         self._record_remote_call(auth_context, message, denied, error_code=decision.error_code)
+                        response_data = json.dumps(denied.to_dict())
+                        self._stats.bytes_sent += len(response_data)
+                        self._stats.responses_sent += 1
+                        return web.Response(text=response_data, content_type="application/json")
+                    rate_limit_decision = self._scoped_rate_limit_decision(auth_context)
+                    if not rate_limit_decision.allowed:
+                        denied = self._scoped_rate_limit_denial_message(message, rate_limit_decision)
+                        self._record_remote_call(
+                            auth_context,
+                            message,
+                            denied,
+                            error_code=rate_limit_decision.error_code,
+                        )
                         response_data = json.dumps(denied.to_dict())
                         self._stats.bytes_sent += len(response_data)
                         self._stats.responses_sent += 1

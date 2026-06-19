@@ -213,6 +213,52 @@ class TestStreamingHttpScopedKeys:
         assert audit.total_cost_for_key("agent") == 0.12
 
     @pytest.mark.asyncio
+    async def test_scoped_key_blocks_over_rate_limit_before_handler(self, tmp_path):
+        store = ScopedMCPKeyStore(tmp_path / "keys.json")
+        secret, _record = store.create_key(
+            "agent",
+            mode=ResearchMode.UNRESTRICTED,
+            rate_limit_per_minute=1,
+            secret="secret",
+        )
+        audit = RemoteMCPAuditLog(tmp_path / "audit.jsonl")
+        transport = StreamingHttpTransport(scoped_key_store=store, audit_log=audit)
+        handler = AsyncMock(return_value=HttpMessage(id="1", result={"ok": True}))
+        transport.on_message(handler)
+
+        first = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "tools/call",
+                    "params": {"name": "deepr_status", "arguments": {"trace_id": "trace-1"}},
+                },
+                secret,
+            )
+        )
+        second = await transport._handle_post(
+            _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "2",
+                    "method": "tools/call",
+                    "params": {"name": "deepr_status", "arguments": {"trace_id": "trace-2"}},
+                },
+                secret,
+            )
+        )
+
+        assert first.status == 200
+        assert second.status == 200
+        payload = json.loads(second.text)
+        assert payload["error"]["data"]["error_code"] == "KEY_RATE_LIMIT_EXCEEDED"
+        assert payload["error"]["data"]["limit_per_minute"] == 1
+        assert payload["error"]["data"]["calls_in_window"] == 1
+        assert handler.await_count == 1
+        assert audit.read_recent()[-1].error_code == "KEY_RATE_LIMIT_EXCEEDED"
+
+    @pytest.mark.asyncio
     async def test_public_bind_with_active_scoped_key_succeeds_without_shared_token(self, tmp_path):
         store = ScopedMCPKeyStore(tmp_path / "keys.json")
         store.create_key("agent", secret="secret")

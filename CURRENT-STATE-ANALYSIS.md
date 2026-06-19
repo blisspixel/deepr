@@ -116,8 +116,10 @@ creates, lists, and revokes scoped keys. The scoped HTTP transport now enforces
 per-key budget ceilings by summing prior audited `cost_usd`, blocking calls
 whose requested budget or fixed estimate exceeds the remaining key budget,
 injecting remaining budget into budget-aware tools when omitted, and recording
-successful response costs back to the audit log. Rate limits, deployment docs,
-and remote smoke tests remain open.
+successful response costs back to the audit log. It also enforces optional
+per-key calls-per-minute limits from recent audited calls, blocks over-limit
+calls before dispatch, returns retry metadata, and audits the denial. Deployment
+docs and remote smoke tests remain open.
 
 ## Active Gap
 
@@ -139,8 +141,8 @@ That gap matters because it sits directly on the project promise: stop paying tw
 ## Next Work
 
 Next slice: continue the v2.18 reach track by adding the smallest remaining
-rate-limit, deployment, or smoke-test surface around the scoped-key primitive
-without lifting the safe hosted-endpoint gates prematurely.
+deployment or remote-smoke-test surface around the scoped-key primitive without
+lifting the safe hosted-endpoint gates prematurely.
 
 ## Spend Ledger For This Run
 
