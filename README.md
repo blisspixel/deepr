@@ -234,6 +234,7 @@ deepr capacity next --task-class sync                      # ranked next actions
 deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
 deepr expert route-gaps "Platform Team Expert" --execute --scheduled --json
+deepr expert reflect "Platform Team Expert" <job_id> --execute-followups --scheduled --json
 ```
 
 Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint. This is the usable capacity waterfall rung today:
@@ -250,6 +251,7 @@ deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity next --task-class sync
 deepr capacity next --task-class sync --context-mode deep --expert "Platform Team Expert" --scheduled
+deepr expert reflect "Platform Team Expert" <job_id> --execute-followups --scheduled --json
 ```
 
 Local models do not browse on their own. `--fresh-context` builds a small
@@ -287,7 +289,10 @@ actions when owned/prepaid capacity is blocked, unless the operator explicitly
 chooses `--api`. `deepr expert route-gaps --execute --scheduled` applies the
 same scheduler default to gap-fill sweeps: it returns pending routes and a wait
 state instead of starting metered research until a cheap gap-fill backend exists
-or the operator reruns the command without `--scheduled`.
+or the operator reruns the command without `--scheduled`. `deepr expert reflect
+--scheduled` waits before the reflection evaluator runs, so recurring
+reflection follow-up jobs never make a metered evaluation call or start
+follow-up research unless the operator removes `--scheduled`.
 
 ### Evidence and Calibration
 
