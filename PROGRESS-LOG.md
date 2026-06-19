@@ -32,4 +32,5 @@
 - Added `deepr mcp smoke-http`, a `$0` local/proxied endpoint smoke command for HTTP MCP health, initialize, tools/list, and free tool-search dispatch.
 - Added `deploy/mcp-http.md`, documenting scoped-key setup, loopback service binding, Caddy/nginx TLS reverse proxying, smoke validation, revocation, and operational guardrails for hosted MCP.
 - Published `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and `docs/schemas/registry.json` with additive compatibility rules for downstream agent contracts.
+- Added `deploy/mcp-http/`, a containerized hosted MCP HTTP recipe with a dedicated Dockerfile, compose service, scoped-key bootstrap, loopback-only host publishing, and `$0` smoke validation guidance.
 - Spend so far: `$0.00`.
