@@ -242,7 +242,7 @@ Common error codes: `BUDGET_EXCEEDED`, `JOB_NOT_FOUND`, `EXPERT_NOT_FOUND`, `PRO
 | `AZURE_OPENAI_API_KEY` | No | Azure OpenAI API key |
 | `DEEPR_LOG_LEVEL` | No | Logging level (default: INFO) |
 | `DEEPR_LOG_FORMAT` | No | `text` or `json` (default: text) |
-| `DEEPR_MCP_KEYS_PATH` | No | Experimental scoped-key store for HTTP MCP auth; enables per-key mode, expert-scope, and budget checks before `tools/call` dispatch |
+| `DEEPR_MCP_KEYS_PATH` | No | Experimental scoped-key store for HTTP MCP auth; enables per-key mode, expert-scope, budget, and rate-limit checks before `tools/call` dispatch |
 | `DEEPR_MCP_AUTH_TOKEN` | No | Shared-token fallback for HTTP MCP auth |
 
 ---
@@ -253,15 +253,17 @@ Experimental HTTP MCP keys are local records used by the HTTP transport when
 `DEEPR_MCP_KEYS_PATH` points at a key store:
 
 ```bash
-deepr mcp keys create --mode read_only --expert "AI Strategy Expert"
+deepr mcp keys create --mode read_only --expert "AI Strategy Expert" --rate-limit 30
 deepr mcp keys list
 deepr mcp keys revoke <key-id>
 ```
 
 Created secrets are shown once. `list` never prints secrets or stored hashes.
 Scoped HTTP calls enforce the stored budget ceiling before dispatch from prior
-audited spend and deterministic tool estimates, and successful response costs
-are written back to the remote audit log.
+audited spend and deterministic tool estimates. They also enforce the optional
+per-key calls-per-minute limit from recent audited calls, return retry metadata
+on rate-limit denials, and write successful response costs back to the remote
+audit log.
 
 ---
 
