@@ -242,6 +242,8 @@ Common error codes: `BUDGET_EXCEEDED`, `JOB_NOT_FOUND`, `EXPERT_NOT_FOUND`, `PRO
 | `AZURE_OPENAI_API_KEY` | No | Azure OpenAI API key |
 | `DEEPR_LOG_LEVEL` | No | Logging level (default: INFO) |
 | `DEEPR_LOG_FORMAT` | No | `text` or `json` (default: text) |
+| `DEEPR_MCP_KEYS_PATH` | No | Experimental scoped-key store for HTTP MCP auth; enables per-key mode and expert-scope checks before `tools/call` dispatch |
+| `DEEPR_MCP_AUTH_TOKEN` | No | Shared-token fallback for HTTP MCP auth |
 
 ---
 
