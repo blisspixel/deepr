@@ -279,6 +279,16 @@ The HTTP listener binds to loopback by default. A reachable bind such as
 `--host 0.0.0.0` must have a shared token or at least one active scoped key,
 otherwise startup is refused.
 
+Validate a local or proxied endpoint without provider calls:
+
+```bash
+deepr mcp smoke-http http://127.0.0.1:8765/mcp
+deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+```
+
+For a hosted reverse-proxy recipe with TLS and scoped-key guidance, see
+[deploy/mcp-http.md](../deploy/mcp-http.md).
+
 ---
 
 ## Architecture

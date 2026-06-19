@@ -671,7 +671,15 @@ Goal: production posture for multi-user and autonomous deployments.
         `deepr mcp serve --http` runs the existing MCP server over HTTP/SSE,
         loopback by default, with shared-token fallback or scoped-key auth for
         reachable binds.
-  - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
+  - [x] Local/proxied remote smoke command:
+        `deepr mcp smoke-http URL` performs `$0` health, initialize,
+        tools/list, and free tool-search checks against a local or TLS-proxied
+        HTTP MCP endpoint.
+  - [~] Deploy recipe:
+        [deploy/mcp-http.md](deploy/mcp-http.md) documents the loopback service
+        plus Caddy/nginx TLS reverse-proxy shape. Remaining: container and
+        cloud-template variants so a user can stand up "my experts, reachable
+        by my cloud agents" in one command.
   - Rationale: cloud-hosted always-on agents (Autopilots, Workspace Agents, Managed Agents, AgentCore) cannot reach a stdio server on a laptop; a reachable endpoint is the price of admission to every host platform, and it is transport + auth around tools that already exist.
 - [ ] Team features (auth, workspaces, RBAC, audit log)
 - [ ] Permission boundaries (`--allow-write`, tool allowlists, budget policy enforcement)
@@ -1048,8 +1056,11 @@ consumers who will exercise all three. Design:
    expert allowlists before tool dispatch, enforces per-key budget ceilings from
    audited spend plus deterministic tool estimates, enforces per-key rate limits
    from recent audited calls, and records append-only remote-call audit events
-   with response cost attribution when available. Remaining work: deployment
-   recipe and remote smoke tests. The key CLI is shipped as `deepr mcp keys`.
+   with response cost attribution when available. `deepr mcp smoke-http` now
+   validates local/proxied endpoints at `$0`, and `deploy/mcp-http.md`
+   documents the TLS reverse-proxy recipe. Remaining work: container/cloud
+   deployment variants and live registration smoke against a real hosted-agent
+   platform. The key CLI is shipped as `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,

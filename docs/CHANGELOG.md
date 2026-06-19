@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr mcp serve --http`, a Streamable HTTP/SSE serve mode for the
   existing MCP server. It defaults to loopback and relies on the HTTP
   transport's shared-token or scoped-key gates for reachable binds.
+- Added `deepr mcp smoke-http`, a `$0` HTTP MCP endpoint smoke check covering
+  health, initialize, tools/list, and free `deepr_tool_search` dispatch for
+  local or TLS-proxied endpoints.
+- Added `deploy/mcp-http.md`, a hosted MCP reverse-proxy recipe covering
+  scoped keys, loopback service binding, Caddy/nginx TLS termination, smoke
+  validation, revocation, and operational guardrails.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
