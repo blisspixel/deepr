@@ -953,116 +953,6 @@ def health_check(name: str, json_output: bool, archive_stale: bool, yes: bool):
         print_warning("This expert needs attention before it should be relied on.")
 
 
-@expert.command(name="route-gaps")
-@click.argument("name")
-@click.option("--top", "-t", "top_n", type=int, default=5, show_default=True, help="How many top gaps to route")
-@click.option("--json", "json_output", is_flag=True, help="Emit the structured routes as JSON")
-@click.option("--execute", "execute_fills", is_flag=True, help="Execute the research-route fills (budget-bounded)")
-@click.option("--budget", "-b", type=float, default=2.0, show_default=True, help="Run budget ceiling for --execute")
-@click.option("--dry-run", is_flag=True, help="With --execute: show what would run; no spend")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
-def route_gaps(name: str, top_n: int, json_output: bool, execute_fills: bool, budget: float, dry_run: bool, yes: bool):
-    """Route an expert's knowledge gaps to the best instrument to fill each.
-
-    Advisory by default (read-only, $0): maps each gap to recon
-    (infrastructure), distillr (academic), primr (strategic), or general
-    research, with availability and cost estimates.
-
-    With --execute, the loop closes: the highest-value research-route
-    fills actually run (ordered by value-per-dollar), findings absorb
-    through the verification-gated pipeline, and budgets bound the sweep
-    (per-gap inside a run ceiling, skip-not-fail). Specialist-instrument
-    routes are deliberately DEFERRED with their command printed - paid
-    multi-minute jobs must not start as a side effect of a sweep.
-
-    EXAMPLES:
-      deepr expert route-gaps "AI Strategy Expert"
-      deepr expert route-gaps "AI Strategy Expert" --execute --dry-run
-      deepr expert route-gaps "AI Strategy Expert" --execute --budget 1 -y
-    """
-    import asyncio
-    import json as _json
-    import sys
-
-    from deepr.experts.gap_router import GapRouter
-    from deepr.experts.profile import ExpertStore
-
-    store = ExpertStore()
-    profile = store.load(name)
-    if not profile:
-        print_error(f"Expert not found: {name}")
-        click.echo("List available experts: deepr expert list")
-        sys.exit(2)
-
-    gaps = profile.get_manifest().top_gaps(top_n)
-    routes = GapRouter().route(gaps)
-
-    if execute_fills:
-        from deepr.experts.gap_fill import GapFillEngine
-
-        research_routes = [r for r in routes if r.instrument == "research"]
-        if not routes:
-            print_success("No open knowledge gaps to fill.")
-            return
-        if not dry_run and not yes:
-            est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
-            if not click.confirm(
-                f"Execute up to {len(research_routes)} research fill(s), estimated up to ${est:.2f} "
-                f"(ceiling ${budget:.2f})? Specialist routes are deferred.",
-                default=False,
-            ):
-                print_warning("Cancelled.")
-                return
-
-        engine = GapFillEngine(profile)
-        result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=dry_run))
-
-        if json_output:
-            click.echo(_json.dumps(result.to_dict(), indent=2))
-            return
-
-        print_header(f"Gap fill: {name}")
-        marker = {
-            "filled": "[green]filled[/green]",
-            "deferred": "[yellow]deferred[/yellow]",
-            "would_fill": "[yellow]would fill[/yellow]",
-            "skipped": "[yellow]skipped[/yellow]",
-            "failed": "[red]failed[/red]",
-        }
-        for o in result.outcomes:
-            line = f"  {marker.get(o.status, o.status)}  {o.topic}"
-            if o.status == "filled":
-                line += f"  [dim](+{o.absorbed} beliefs, {o.flagged} contested, ${o.cost:.3f})[/dim]"
-            elif o.detail:
-                line += f"  [dim]{o.detail[:100]}[/dim]"
-            console.print(line)
-        if not dry_run:
-            console.print(f"\nTotal cost: ${result.total_cost:.3f}")
-            if any(o.flagged for o in result.outcomes):
-                print_warning(f"Contested beliefs recorded. Review: deepr expert contested '{name}'")
-        return
-
-    if json_output:
-        click.echo(_json.dumps({"expert_name": profile.name, "routes": [r.to_dict() for r in routes]}, indent=2))
-        return
-
-    print_header(f"Gap routing: {profile.name}")
-    if not routes:
-        print_success("No open knowledge gaps to route.")
-        return
-
-    color = {"recon": "cyan", "distillr": "magenta", "primr": "yellow", "research": "white"}
-    for r in routes:
-        avail = "" if r.available else " [red](not installed)[/red]"
-        inst = color.get(r.instrument, "white")
-        console.print(
-            f"[bold {inst}]{r.instrument}[/bold {inst}]{avail}  ~${r.estimated_cost:.2f}  [dim]{r.topic}[/dim]"
-        )
-        console.print(f"    {r.rationale}")
-        console.print(f"    [white]{r.suggestion}[/white]")
-        console.print()
-
-
 @expert.command(name="what-changed")
 @click.argument("name")
 @click.option("--since", default="7d", help="ISO 8601 timestamp, or relative shorthand like 7d / 24h / 30m")
@@ -3334,4 +3224,5 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
 # Maintenance commands (absorb, sync) live in a sibling module so this file
 # stays under the size ceiling; importing it registers them on the `expert`
 # group (Phase Q3 decomposition).
+from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401
