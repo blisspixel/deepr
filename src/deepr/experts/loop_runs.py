@@ -273,3 +273,30 @@ class ExpertLoopRunStore:
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                 continue
         return snapshots
+
+
+def record_loop_run(
+    *,
+    expert_name: str,
+    loop_type: str,
+    goal: str,
+    trigger: str,
+    status: LoopRunStatus,
+    stop_reason: LoopStopReason | None,
+    next_action: dict[str, Any] | None = None,
+    budget_limit: float | None = None,
+    capacity_source: str = "",
+) -> ExpertLoopRun:
+    run = ExpertLoopRun(
+        run_id=new_loop_run_id(),
+        expert_name=expert_name,
+        loop_type=loop_type,
+        goal=goal,
+        trigger=trigger,
+        status=status,
+        stop_reason=stop_reason,
+        next_action=next_action or {},
+        budget_limit=budget_limit,
+        capacity_source=capacity_source,
+    )
+    return ExpertLoopRunStore(expert_name).append(run)

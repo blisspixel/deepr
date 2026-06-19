@@ -12,3 +12,4 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Reflection follow-ups cannot be scheduled safely after the model verdict because the reflection evaluator is the first possible spend. Put `--scheduled` before evaluator construction and return pending reflection plus follow-up work.
 - Free local writes still need their approval tier honored. In scheduled health-check loops, a reversible archive is $0 but confirm-gated, so scheduled mode reports `waiting_for_confirmation` unless `--yes` is explicit.
 - Append-only loop-run storage records snapshots. Collapse by `run_id` to the latest snapshot before filtering by status, or stale intermediate states will look current.
+- Scheduled wait/action-plan commands should include a `loop_run` object in JSON and append through the shared recorder. CLI tests should stub the recorder so command tests do not write to the real expert data directory.
