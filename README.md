@@ -231,6 +231,7 @@ deepr init --yes --budget 5 --data-dir ~/OneDrive/deepr   # scripted setup, port
 deepr doctor                                               # connectivity + storage health
 deepr capacity --probe                                     # what's available, incl. local models
 deepr capacity next --task-class sync                      # ranked next actions for cheap capacity
+deepr capacity next --task-class sync --context-mode fresh --scheduled
 ```
 
 Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint. This is the usable capacity waterfall rung today:
@@ -245,6 +246,7 @@ deepr eval local --max-models 2 --max-prompts 2 --save
 deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity next --task-class sync
+deepr capacity next --task-class sync --context-mode deep --expert "Platform Team Expert" --scheduled
 ```
 
 Local models do not browse on their own. `--fresh-context` builds a small
@@ -271,11 +273,12 @@ quality floor; scoreless manual admissions stay visible but do not silently take
 over the automatic path. `--local` remains the explicit override.
 
 The QOL goal is one command that explains the cheapest safe route for the job in
-front of you. `deepr capacity next` is the first slice. It does not run work, but
-it tells you whether local is blocked by setup, missing eval evidence, expired
-admission, or quality floor. The next slices are concrete job dry-runs and
-scheduler suggestions that pick fresh/deep local context or wait for plan
-capacity instead of paying now.
+front of you. `deepr capacity next` does not run work, but it tells you whether
+local is blocked by setup, missing eval evidence, expired admission, or quality
+floor. It also accepts concrete job context such as `--context-mode fresh` /
+`deep`, `--expert`, `--report-id`, and `--scheduled`, so recurring jobs can see
+when to use fresh/deep local context, wait for cheap capacity, or deliberately
+fall back to metered API behind a budget gate.
 
 ### Evidence and Calibration
 

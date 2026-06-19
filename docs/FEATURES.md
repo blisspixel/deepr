@@ -800,6 +800,7 @@ deepr doctor
 deepr capacity            # local Ollama, plan CLIs, metered APIs + cost model
 deepr capacity --probe    # actively probe local endpoint and list models
 deepr capacity next       # ranked next actions for making cheap capacity usable
+deepr capacity next --task-class sync --context-mode fresh --scheduled
 deepr capacity --json
 ```
 
@@ -832,12 +833,13 @@ deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity admit llama3.1 --task-class absorb --days 60 --score 0.74
 deepr capacity admissions          # what's admitted (and when it expires)
 deepr capacity next --task-class sync
+deepr capacity next --task-class sync --context-mode deep --expert "Platform Team Expert" --scheduled
 deepr capacity revoke llama3.1 --task-class absorb
 ```
 
 After scored admission, `deepr expert sync`/`absorb` (with no backend flag) run on the admitted local model at $0 and print why. Admissions use a 90-day default expiry so they are re-earned as models change, and are machine-local (`DEEPR_CAPACITY_DATA_DIR`) since local capacity differs per machine. Use `deepr eval local --save` as the cheap review step before admitting a model, then `deepr capacity admit --from-eval latest` to turn that reviewed artifact into the admission record.
 
-`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, and explicit metered fallback. It is read-only, runs no research, and makes no provider API calls.
+`deepr capacity next` is the guided path when the safe cheap route is not ready. It ranks the current block reason, local setup commands, latest usable eval-artifact admission, eval refresh, scheduled-job wait guidance, and explicit metered fallback. It can preview a concrete job shape with `--expert`, `--report-id`, `--context-mode none|fresh|deep`, and `--scheduled`. It is read-only, runs no research, and makes no provider API calls.
 
 Local models do not automatically have current web context. For sync runs that
 need freshness, add `--fresh-context`; for broader source coverage, add
@@ -871,9 +873,9 @@ Plan-quota adapters are still being wired. `deepr capacity` can detect or model 
 
 The intended QOL is simple: ask for a job, see the cheapest safe route, and get a
 clear reason if Deepr should wait rather than pay. `deepr capacity next` is
-read-only today. The next steps are per-job dry-run previews and scheduler
-suggestions that explain whether fresh/deep local context, plan quota, or
-metered API is the right choice for that run.
+read-only today and now accepts enough job context to preview sync context mode
+and recurring scheduler intent. The next step is scheduler integration that
+consumes the same preview automatically before launching a run.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
