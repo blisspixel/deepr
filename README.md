@@ -232,6 +232,7 @@ deepr doctor                                               # connectivity + stor
 deepr capacity --probe                                     # what's available, incl. local models
 deepr capacity next --task-class sync                      # ranked next actions for cheap capacity
 deepr capacity next --task-class sync --context-mode fresh --scheduled
+deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
 ```
 
 Local-model execution runs quality-tolerant expert maintenance at $0 against a local Ollama endpoint. This is the usable capacity waterfall rung today:
@@ -242,6 +243,7 @@ deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
 deepr expert sync "Platform Team Expert" --local --deep-context
+deepr expert sync "Platform Team Expert" --scheduled --fresh-context -y
 deepr eval local --max-models 2 --max-prompts 2 --save
 deepr eval local-context --model qwen2.5:14b --judge-model qwen2.5:14b --save
 deepr capacity admit --from-eval latest --task-class sync --yes
@@ -278,7 +280,10 @@ local is blocked by setup, missing eval evidence, expired admission, or quality
 floor. It also accepts concrete job context such as `--context-mode fresh` /
 `deep`, `--expert`, `--report-id`, and `--scheduled`, so recurring jobs can see
 when to use fresh/deep local context, wait for cheap capacity, or deliberately
-fall back to metered API behind a budget gate.
+fall back to metered API behind a budget gate. `deepr expert sync --scheduled`
+now consumes the same guidance: a due scheduled sync waits with structured next
+actions when owned/prepaid capacity is blocked, unless the operator explicitly
+chooses `--api`.
 
 ### Evidence and Calibration
 
