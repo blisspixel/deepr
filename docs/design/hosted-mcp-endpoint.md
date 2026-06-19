@@ -3,7 +3,7 @@
 Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
 Status: design, with the first versioned handoff contract and scoped-key,
-budget, and audit primitives shipped.
+budget, rate-limit, and audit primitives shipped.
 
 ## Problem
 
@@ -46,11 +46,10 @@ requirement before dispatch. `RemoteMCPAuditLog` writes append-only
 `deepr-mcp-remote-audit-v1` events with `{key_id, mode, tool, args_hash,
 trace_id, outcome, error_code, expert_names, cost_usd}`. `deepr mcp keys`
 creates, lists, and revokes those key records locally. This is not the full
-hosted endpoint yet: rate limits, deployment docs, and remote smoke tests remain
-open.
+hosted endpoint yet: deployment docs and remote smoke tests remain open.
 
 - **Scoped API keys**, not one shared secret: each key carries
-  `{key_id, mode, expert_allowlist, budget}`.
+  `{key_id, mode, expert_allowlist, budget, rate_limit}`.
   - `mode`: maps to the existing `ResearchMode` tool allowlist
     (READ_ONLY keys cannot reach WRITE/EXECUTE/SENSITIVE tools - the
     enforcement layer already exists, keys just select it).
@@ -61,6 +60,9 @@ open.
     accept a budget argument when callers omit it, and records successful
     response costs back to the remote audit log. Canonical cost-ledger `key_id`
     plumbing is still a deeper cost-session integration follow-up.
+  - `rate_limit`: optional calls-per-minute ceiling. The HTTP transport counts
+    recent audited calls for the authenticated key, blocks over-limit calls
+    before tool dispatch, returns retry metadata, and audits the denial.
 - Keys are hashed at rest with a salted one-way KDF. The key CLI shows each
   secret once at mint (`deepr mcp keys create --mode read_only --budget 5`),
   supports revocation (`keys revoke`), and lists last-used timestamps.
@@ -71,8 +73,8 @@ open.
 
 - TLS required (terminate at a reverse proxy; document the nginx/Caddy
   shape rather than embedding TLS).
-- Per-key rate limits (flask-limiter pattern already used by the portrait
-  endpoint) + global concurrency cap.
+- Per-key rate limits are shipped as a transport-level calls-per-minute guard
+  over audited remote tool calls. Global concurrency cap remains open.
 - Request size limits; tool-call audit log `{key_id, tool, args_hash,
   cost, trace_id, timestamp}` - this doubles as the expert mutation audit
   log the architect review asked for, scoped to remote calls first.
@@ -96,8 +98,8 @@ open.
 3. Key store + middleware (mode scoping reuses the allowlist; budget uses
    audited remote cost attribution plus deterministic estimates). Key store,
    mode/expert middleware, and the transport budget guard are shipped.
-4. Audit log + rate limits + size caps. Audit log and size caps are shipped;
-   rate limits remain.
+4. Audit log + rate limits + size caps. Audit log, per-key rate limits, and
+   size caps are shipped; global concurrency cap remains.
 5. Deployment guide; loopback restriction lifts only when a credential exists.
 6. Platform smoke tests: register the endpoint with one real host
    (Anthropic Managed Agents connector first) and run the

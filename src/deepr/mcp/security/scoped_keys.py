@@ -9,7 +9,7 @@ import os
 import secrets
 import threading
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,12 @@ def _parse_dt(value: Any) -> datetime | None:
     if isinstance(value, str):
         return datetime.fromisoformat(value)
     raise ValueError("timestamp must be an ISO datetime string")
+
+
+def _as_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _hash_secret(secret: str, *, salt: str | None = None, iterations: int = _HASH_ITERATIONS) -> str:
@@ -148,6 +154,7 @@ class ScopedMCPKeyRecord:
     mode: ResearchMode = ResearchMode.STANDARD
     expert_allowlist: tuple[str, ...] = ()
     budget_limit_usd: float | None = None
+    rate_limit_per_minute: int | None = None
     revoked: bool = False
     schema_version: str = KEY_SCHEMA_VERSION
     created_at: datetime = field(default_factory=_utc_now)
@@ -159,8 +166,17 @@ class ScopedMCPKeyRecord:
             raise ValueError("key_id must not be empty")
         if self.budget_limit_usd is not None and self.budget_limit_usd < 0:
             raise ValueError("budget_limit_usd must be non-negative")
+        rate_limit = None
+        if self.rate_limit_per_minute is not None:
+            try:
+                rate_limit = int(self.rate_limit_per_minute)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("rate_limit_per_minute must be an integer when set") from exc
+            if rate_limit < 1:
+                raise ValueError("rate_limit_per_minute must be positive when set")
         experts = tuple(str(item).strip() for item in self.expert_allowlist if str(item).strip())
         object.__setattr__(self, "key_id", key_id)
+        object.__setattr__(self, "rate_limit_per_minute", rate_limit)
         object.__setattr__(self, "expert_allowlist", experts)
 
     def to_dict(self, *, include_secret_hash: bool = True) -> dict[str, Any]:
@@ -170,6 +186,7 @@ class ScopedMCPKeyRecord:
             "mode": self.mode.value,
             "expert_allowlist": list(self.expert_allowlist),
             "budget_limit_usd": self.budget_limit_usd,
+            "rate_limit_per_minute": self.rate_limit_per_minute,
             "revoked": self.revoked,
             "created_at": self.created_at.isoformat(),
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
@@ -188,6 +205,7 @@ class ScopedMCPKeyRecord:
             mode=mode,
             expert_allowlist=tuple(str(item) for item in data.get("expert_allowlist", [])),
             budget_limit_usd=data.get("budget_limit_usd"),
+            rate_limit_per_minute=data.get("rate_limit_per_minute"),
             revoked=bool(data.get("revoked", False)),
             created_at=_parse_dt(data.get("created_at")) or _utc_now(),
             last_used_at=_parse_dt(data.get("last_used_at")),
@@ -199,6 +217,7 @@ class ScopedMCPKeyRecord:
             mode=self.mode,
             expert_allowlist=self.expert_allowlist,
             budget_limit_usd=self.budget_limit_usd,
+            rate_limit_per_minute=self.rate_limit_per_minute,
         )
 
 
@@ -210,6 +229,7 @@ class ScopedMCPKeyContext:
     mode: ResearchMode
     expert_allowlist: tuple[str, ...] = ()
     budget_limit_usd: float | None = None
+    rate_limit_per_minute: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -217,6 +237,7 @@ class ScopedMCPKeyContext:
             "mode": self.mode.value,
             "expert_allowlist": list(self.expert_allowlist),
             "budget_limit_usd": self.budget_limit_usd,
+            "rate_limit_per_minute": self.rate_limit_per_minute,
         }
 
     @classmethod
@@ -226,6 +247,7 @@ class ScopedMCPKeyContext:
             mode=ResearchMode(str(data["mode"])),
             expert_allowlist=tuple(str(item) for item in data.get("expert_allowlist", [])),
             budget_limit_usd=data.get("budget_limit_usd"),
+            rate_limit_per_minute=data.get("rate_limit_per_minute"),
         )
 
 
@@ -249,6 +271,17 @@ class ScopedMCPBudgetDecision:
     estimated_cost_usd: float | None = None
 
 
+@dataclass(frozen=True)
+class ScopedMCPRateLimitDecision:
+    allowed: bool
+    reason: str
+    error_code: str = ""
+    limit_per_minute: int | None = None
+    calls_in_window: int = 0
+    window_seconds: int = 60
+    retry_after_seconds: int | None = None
+
+
 class ScopedMCPKeyStore:
     """Local JSON key store for remote MCP API keys."""
 
@@ -263,6 +296,7 @@ class ScopedMCPKeyStore:
         mode: ResearchMode = ResearchMode.STANDARD,
         expert_allowlist: list[str] | tuple[str, ...] | None = None,
         budget_limit_usd: float | None = None,
+        rate_limit_per_minute: int | None = None,
         secret: str | None = None,
     ) -> tuple[str, ScopedMCPKeyRecord]:
         resolved_id = key_id or f"mcp_{secrets.token_hex(6)}"
@@ -273,6 +307,7 @@ class ScopedMCPKeyStore:
             mode=mode,
             expert_allowlist=tuple(expert_allowlist or ()),
             budget_limit_usd=budget_limit_usd,
+            rate_limit_per_minute=rate_limit_per_minute,
         )
         with self._lock:
             records = {item.key_id: item for item in self.list_keys()}
@@ -307,6 +342,7 @@ class ScopedMCPKeyStore:
                     mode=record.mode,
                     expert_allowlist=record.expert_allowlist,
                     budget_limit_usd=record.budget_limit_usd,
+                    rate_limit_per_minute=record.rate_limit_per_minute,
                     revoked=record.revoked,
                     schema_version=record.schema_version,
                     created_at=record.created_at,
@@ -329,6 +365,7 @@ class ScopedMCPKeyStore:
                         mode=record.mode,
                         expert_allowlist=record.expert_allowlist,
                         budget_limit_usd=record.budget_limit_usd,
+                        rate_limit_per_minute=record.rate_limit_per_minute,
                         revoked=True,
                         schema_version=record.schema_version,
                         created_at=record.created_at,
@@ -469,6 +506,43 @@ def authorize_scoped_mcp_budget(
     )
 
 
+def authorize_scoped_mcp_rate_limit(
+    context: ScopedMCPKeyContext,
+    calls_in_window: int,
+    *,
+    window_seconds: int = 60,
+    retry_after_seconds: int | None = None,
+) -> ScopedMCPRateLimitDecision:
+    """Validate a scoped key's per-minute call rate before dispatch."""
+    limit = context.rate_limit_per_minute
+    observed = max(int(calls_in_window), 0)
+    if limit is None:
+        return ScopedMCPRateLimitDecision(
+            allowed=True,
+            reason="No per-key rate limit configured",
+            calls_in_window=observed,
+            window_seconds=window_seconds,
+        )
+    if observed >= limit:
+        return ScopedMCPRateLimitDecision(
+            allowed=False,
+            reason=f"Scoped key rate limit exceeded: {observed}/{limit} calls in the last {window_seconds} seconds",
+            error_code="KEY_RATE_LIMIT_EXCEEDED",
+            limit_per_minute=limit,
+            calls_in_window=observed,
+            window_seconds=window_seconds,
+            retry_after_seconds=retry_after_seconds if retry_after_seconds is not None else window_seconds,
+        )
+    return ScopedMCPRateLimitDecision(
+        allowed=True,
+        reason="Scoped key rate limit allows this tool call",
+        limit_per_minute=limit,
+        calls_in_window=observed,
+        window_seconds=window_seconds,
+        retry_after_seconds=retry_after_seconds,
+    )
+
+
 @dataclass(frozen=True)
 class RemoteMCPAuditEvent:
     key_id: str
@@ -566,6 +640,39 @@ class RemoteMCPAuditLog:
                     )
                 )
         return events[-limit:]
+
+    def count_for_key_since(self, key_id: str, since: datetime) -> int:
+        """Return audited remote-call count for a key since the given timestamp."""
+        threshold = _as_aware_utc(since)
+        total = 0
+        for event in self.read_recent(limit=1_000_000):
+            if event.key_id == key_id and _as_aware_utc(event.timestamp) >= threshold:
+                total += 1
+        return total
+
+    def retry_after_seconds_for_key(
+        self,
+        key_id: str,
+        *,
+        now: datetime | None = None,
+        window_seconds: int = 60,
+    ) -> int:
+        """Return seconds until the oldest in-window key call leaves the window."""
+        resolved_now = _as_aware_utc(now or _utc_now())
+        threshold = resolved_now - timedelta(seconds=window_seconds)
+        oldest: datetime | None = None
+        for event in self.read_recent(limit=1_000_000):
+            if event.key_id != key_id:
+                continue
+            timestamp = _as_aware_utc(event.timestamp)
+            if timestamp < threshold:
+                continue
+            if oldest is None or timestamp < oldest:
+                oldest = timestamp
+        if oldest is None:
+            return 0
+        seconds = (oldest + timedelta(seconds=window_seconds) - resolved_now).total_seconds()
+        return max(int(seconds) + (1 if seconds % 1 else 0), 1)
 
     def total_cost_for_key(self, key_id: str) -> float:
         """Return audited actual spend for a scoped key."""
