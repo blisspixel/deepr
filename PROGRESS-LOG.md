@@ -34,4 +34,5 @@
 - Published `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and `docs/schemas/registry.json` with additive compatibility rules for downstream agent contracts.
 - Added `deploy/mcp-http/`, a containerized hosted MCP HTTP recipe with a dedicated Dockerfile, compose service, scoped-key bootstrap, loopback-only host publishing, and `$0` smoke validation guidance.
 - Added `deepr mcp audit list`, a read-only local review surface for hosted MCP remote-call audit records with key, tool, outcome, limit, and JSON filters.
+- Added `deepr mcp audit summary`, a read-only aggregate view over hosted MCP remote-call audit records with counts and audited cost by key, tool, and outcome.
 - Spend so far: `$0.00`.

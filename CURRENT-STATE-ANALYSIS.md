@@ -122,13 +122,14 @@ calls before dispatch, returns retry metadata, and audits the denial. `deepr mcp
 serve --http` now runs the same MCP server over HTTP/SSE on loopback by default,
 with reachable binds protected by shared-token or scoped-key authentication.
 `deepr mcp audit list` reviews the local append-only remote-call audit log with
-key, tool, outcome, limit, and JSON filters. `deepr mcp smoke-http` validates
-local and TLS-proxied endpoints at `$0`, and `deploy/mcp-http.md` documents the
-scoped-key plus reverse-proxy deployment shape. `deploy/mcp-http/` now provides
-the containerized local service variant with scoped-key bootstrap, loopback-only
-host publishing, a mounted Deepr data directory, and `$0` smoke validation
-guidance. Cloud provider templates and live third-party host registration
-remain open.
+key, tool, outcome, limit, and JSON filters, while `deepr mcp audit summary`
+aggregates counts and audited cost by key, tool, and outcome. `deepr mcp
+smoke-http` validates local and TLS-proxied endpoints at `$0`, and
+`deploy/mcp-http.md` documents the scoped-key plus reverse-proxy deployment
+shape. `deploy/mcp-http/` now provides the containerized local service variant
+with scoped-key bootstrap, loopback-only host publishing, a mounted Deepr data
+directory, and `$0` smoke validation guidance. Cloud provider templates and live
+third-party host registration remain open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`
 publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
