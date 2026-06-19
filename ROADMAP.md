@@ -980,10 +980,12 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    autonomous until the task repeats, the verifier is automated, the
    budget/capacity envelope is explicit, and the loop has tools/logs/state for
    failure diagnosis.
-2. [ ] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
-   durable loop records, stop reasons, verifier outcomes, budget/capacity source,
-   acceptance metrics, and next actions for sync, gap-fill, reflection follow-ups,
-   health-check actions, and future campaigns.
+2. [~] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
+   schema-versioned loop-run records, typed stop reasons, append-only
+   per-expert storage, acceptance metrics, cost per accepted change, and
+   read-only CLI status are in place. Remaining work is the MCP read tool,
+   instrumentation from sync, gap-fill, reflection, and health-check runs, plus
+   dashboard/API rollups.
 3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
    failure reason. No model self-declared completion on the critical path.

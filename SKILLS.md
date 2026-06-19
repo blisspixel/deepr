@@ -11,3 +11,4 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - When a recurring maintenance surface has no cheap execution backend yet, do not fake readiness through the capacity preview. Return a structured wait with pending work and make the operator rerun without `--scheduled` if they intentionally want the metered path.
 - Reflection follow-ups cannot be scheduled safely after the model verdict because the reflection evaluator is the first possible spend. Put `--scheduled` before evaluator construction and return pending reflection plus follow-up work.
 - Free local writes still need their approval tier honored. In scheduled health-check loops, a reversible archive is $0 but confirm-gated, so scheduled mode reports `waiting_for_confirmation` unless `--yes` is explicit.
+- Append-only loop-run storage records snapshots. Collapse by `run_id` to the latest snapshot before filtering by status, or stale intermediate states will look current.
