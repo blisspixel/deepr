@@ -118,10 +118,13 @@ whose requested budget or fixed estimate exceeds the remaining key budget,
 injecting remaining budget into budget-aware tools when omitted, and recording
 successful response costs back to the audit log. It also enforces optional
 per-key calls-per-minute limits from recent audited calls, blocks over-limit
-calls before dispatch, returns retry metadata, and audits the denial. Deployment
-docs and remote smoke tests remain open. `deepr mcp serve --http` now runs the
-same MCP server over HTTP/SSE on loopback by default, with reachable binds
-protected by shared-token or scoped-key authentication.
+calls before dispatch, returns retry metadata, and audits the denial. `deepr mcp
+serve --http` now runs the same MCP server over HTTP/SSE on loopback by default,
+with reachable binds protected by shared-token or scoped-key authentication.
+`deepr mcp smoke-http` validates local and TLS-proxied endpoints at `$0`, and
+`deploy/mcp-http.md` documents the scoped-key plus reverse-proxy deployment
+shape. Container/cloud-template variants and live third-party host registration
+remain open.
 
 ## Active Gap
 
@@ -142,9 +145,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: continue the v2.18 reach track by adding the smallest remaining
-deployment or remote-smoke-test surface around the HTTP/scoped-key primitive
-without lifting the safe hosted-endpoint gates prematurely.
+Next slice: continue the v2.18 reach track with the next smallest local hosted
+operability gap, likely container/cloud-template packaging for the HTTP MCP
+service or schema/versioning around the loop-status and OKF read contracts.
 
 ## Spend Ledger For This Run
 

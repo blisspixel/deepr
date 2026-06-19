@@ -97,6 +97,16 @@ The shared library (`deploy/shared/deepr_api_common/`) provides reusable validat
 
 Each cloud has three standardized scripts: `deploy.sh`, `validate.sh`, and `destroy.sh`.
 
+### Hosted MCP HTTP Endpoint
+
+Remote agent hosts can call Deepr through the Streamable HTTP MCP endpoint.
+Use the local service plus reverse-proxy recipe in [mcp-http.md](mcp-http.md),
+then verify the endpoint with:
+
+```bash
+deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
+```
+
 ### AWS
 
 ```bash
