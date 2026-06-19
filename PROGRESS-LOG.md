@@ -29,6 +29,7 @@
 - Added scoped HTTP MCP per-key budget enforcement: remote calls now sum audited key spend, block over-budget requests before dispatch, inject remaining budget into budget-aware tools when omitted, and write successful response costs back to the remote audit log.
 - Hardened scoped HTTP MCP budget coverage: metered remote tools now require deterministic estimates before dispatch, missing estimates fail closed, and `deepr_expert_validate` is advertised as low-cost instead of free.
 - Added scoped HTTP MCP per-key rate limits: key records can carry a calls-per-minute ceiling, `deepr mcp keys create --rate-limit` exposes it, and over-limit calls are denied before dispatch with retry metadata and an audited denial.
+- Added a global HTTP MCP concurrency cap: `deepr mcp serve --http` now defaults to 32 simultaneous POST requests, exposes `--max-concurrency`, returns 429 when full, and wires the same setting through the container and Azure templates.
 - Added `deepr mcp serve --http` so the existing MCP server can run over HTTP/SSE on loopback by default, with reachable binds protected by shared-token or scoped-key authentication.
 - Added `deepr mcp smoke-http`, a `$0` local/proxied endpoint smoke command for HTTP MCP health, initialize, tools/list, and free tool-search dispatch.
 - Added `deploy/mcp-http.md`, documenting scoped-key setup, loopback service binding, Caddy/nginx TLS reverse proxying, smoke validation, revocation, and operational guardrails for hosted MCP.

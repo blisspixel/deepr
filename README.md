@@ -190,7 +190,8 @@ remote agents, an Azure Container Apps template under
 packets, plus `deepr mcp audit list` and `summary` for reviewing scoped-key
 remote-call audit records. Scoped-key budgets use audited spend plus
 deterministic tool estimates before dispatch, and fail closed for metered tools
-without an estimate.
+without an estimate. HTTP serve mode also has a global POST concurrency cap
+configured by `--max-concurrency` or `DEEPR_MCP_HTTP_MAX_CONCURRENCY`.
 
 ### Web Dashboard
 
