@@ -79,8 +79,11 @@ deploy/
 │   ├── aws-ecs-fargate/
 │   │   ├── template.yaml
 │   │   └── README.md
-│   └── azure-container-apps/
-│       ├── main.bicep
+│   ├── azure-container-apps/
+│   │   ├── main.bicep
+│   │   └── README.md
+│   └── gcp-cloud-run/
+│       ├── main.tf
 │       └── README.md
 ├── aws/                # AWS SAM/CloudFormation deployment
 │   ├── template.yaml   # SAM template
@@ -129,6 +132,12 @@ For an AWS variant, see [mcp-http/aws-ecs-fargate/](mcp-http/aws-ecs-fargate/).
 It runs the same container on ECS Fargate behind an HTTPS Application Load
 Balancer, mounts EFS at `/data`, keeps scoped-key and audit state durable, and
 leaves provider API keys out of the template until paid tools are intentional.
+
+For a GCP variant, see [mcp-http/gcp-cloud-run/](mcp-http/gcp-cloud-run/).
+It runs the same container on Cloud Run, mounts a Cloud Storage bucket at
+`/data`, keeps scoped-key and audit state durable with single-writer defaults,
+and leaves provider API keys out of the template until paid tools are
+intentional.
 
 ### AWS
 

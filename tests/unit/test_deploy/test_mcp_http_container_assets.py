@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEPLOY_DIR = REPO_ROOT / "deploy" / "mcp-http"
 AZURE_TEMPLATE = DEPLOY_DIR / "azure-container-apps" / "main.bicep"
 AWS_TEMPLATE = DEPLOY_DIR / "aws-ecs-fargate" / "template.yaml"
+GCP_TEMPLATE = DEPLOY_DIR / "gcp-cloud-run" / "main.tf"
 
 
 def _load_compose() -> dict[str, Any]:
@@ -212,6 +213,73 @@ def test_mcp_http_aws_readme_documents_scoped_key_bootstrap():
     assert "--budget 0" in readme
     assert "InitialSharedAuthToken" in readme
     assert "aws cloudformation deploy" in readme
+    assert "deepr mcp smoke-http" in readme
+    assert "only `$0` structural checks" in readme
+    assert "Add provider API keys only when paid tools are intentional" in readme
+
+
+def test_mcp_http_gcp_template_mounts_persistent_deepr_data():
+    template = GCP_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'resource "google_storage_bucket" "data"' in template
+    assert 'public_access_prevention    = "enforced"' in template
+    assert "uniform_bucket_level_access = true" in template
+    assert "versioning {" in template
+    assert "enabled = true" in template
+    assert 'role   = "roles/storage.objectAdmin"' in template
+    assert "volume_mounts {" in template
+    assert 'mount_path = "/data"' in template
+    assert "gcs {" in template
+    assert "bucket    = google_storage_bucket.data.name" in template
+    assert "read_only = false" in template
+    assert 'name  = "DEEPR_REPORTS_PATH"' in template
+    assert 'value = "/data/reports"' in template
+    assert 'name  = "DEEPR_MCP_KEYS_PATH"' in template
+    assert 'value = "/data/security/mcp_keys.json"' in template
+
+
+def test_mcp_http_gcp_template_serves_with_single_writer_guardrails():
+    template = GCP_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'resource "google_cloud_run_v2_service" "mcp"' in template
+    assert 'ingress  = "INGRESS_TRAFFIC_ALL"' in template
+    assert 'resource "google_cloud_run_v2_service_iam_member" "public_invoker"' in template
+    assert 'role     = "roles/run.invoker"' in template
+    assert 'member   = "allUsers"' in template
+    assert "max_instance_request_concurrency = var.max_concurrent_requests" in template
+    assert "condition     = var.max_instances == 1" in template
+    assert "condition     = var.max_concurrent_requests == 1" in template
+    assert '"mcp",' in template
+    assert '"serve",' in template
+    assert '"--http",' in template
+    assert '"--host",' in template
+    assert '"0.0.0.0",' in template
+    assert '"--keys-path",' in template
+    assert '"/data/security/mcp_keys.json",' in template
+    assert '"--max-concurrency",' in template
+    assert 'name  = "DEEPR_MCP_HTTP_MAX_CONCURRENCY"' in template
+    assert "value = tostring(var.max_concurrent_requests)" in template
+    assert 'path = "/mcp/health"' in template
+
+
+def test_mcp_http_gcp_template_keeps_provider_keys_out_of_infra():
+    template = GCP_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "OPENAI_API_KEY" not in template
+    assert "GOOGLE_API_KEY" not in template
+    assert "XAI_API_KEY" not in template
+    assert "ANTHROPIC_API_KEY" not in template
+    assert "DEEPR_MCP_AUTH_TOKEN" not in template
+
+
+def test_mcp_http_gcp_readme_documents_scoped_key_bootstrap():
+    readme = (DEPLOY_DIR / "gcp-cloud-run" / "README.md").read_text(encoding="utf-8")
+
+    assert "mcp keys create" in readme
+    assert "--budget 0" in readme
+    assert "gcloud storage cp" in readme
+    assert "allow_public_invoker=false" in readme
+    assert "allow_public_invoker=true" in readme
     assert "deepr mcp smoke-http" in readme
     assert "only `$0` structural checks" in readme
     assert "Add provider API keys only when paid tools are intentional" in readme
