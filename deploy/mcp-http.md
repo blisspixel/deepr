@@ -59,6 +59,31 @@ deepr mcp serve \
   --keys-path data/security/mcp_keys.json
 ```
 
+## Container Variant
+
+For a repeatable local service, use the compose recipe in
+[mcp-http/](mcp-http/). It builds a dedicated HTTP MCP image, mounts one Deepr
+data directory at `/data`, publishes only `127.0.0.1:8765`, and starts with the
+same scoped-key store path used above.
+
+Bootstrap it before the first `up` so the non-loopback container bind has an
+active scoped key:
+
+```bash
+cd deploy/mcp-http
+cp .env.example .env
+mkdir -p ../../data/security
+docker compose build
+docker compose run --rm deepr-mcp-http \
+  mcp keys create \
+  --mode read_only \
+  --rate-limit 30 \
+  --budget 0 \
+  --keys-path /data/security/mcp_keys.json
+docker compose up -d
+deepr mcp smoke-http http://127.0.0.1:8765/mcp --auth-token "$DEEPR_MCP_KEY"
+```
+
 ## Caddy Reverse Proxy
 
 Caddy handles certificates automatically for a public DNS name:
