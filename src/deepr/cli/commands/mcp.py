@@ -19,6 +19,12 @@ def keys():
     pass
 
 
+@mcp.group()
+def audit():
+    """Review append-only HTTP MCP remote-call audit records."""
+    pass
+
+
 def _load_key_store(keys_path: str | None):
     from pathlib import Path
 
@@ -27,11 +33,38 @@ def _load_key_store(keys_path: str | None):
     return ScopedMCPKeyStore(Path(keys_path)) if keys_path else ScopedMCPKeyStore()
 
 
+def _load_remote_audit_log(audit_path: str | None):
+    from pathlib import Path
+
+    from deepr.mcp.security.scoped_keys import RemoteMCPAuditLog
+
+    return RemoteMCPAuditLog(Path(audit_path)) if audit_path else RemoteMCPAuditLog()
+
+
 def _key_record_payload(record, *, include_secret: str | None = None):
     payload = record.to_dict(include_secret_hash=False)
     if include_secret is not None:
         payload["secret"] = include_secret
     return payload
+
+
+def _audit_record_payload(record):
+    return record.to_dict()
+
+
+def _format_audit_cost(cost_usd: float | None) -> str:
+    return "none" if cost_usd is None else f"${cost_usd:.4f}"
+
+
+def _filter_audit_records(records, *, key_id: str | None, tool_name: str | None, outcome: str | None):
+    filtered = records
+    if key_id:
+        filtered = [record for record in filtered if record.key_id == key_id]
+    if tool_name:
+        filtered = [record for record in filtered if record.tool == tool_name]
+    if outcome:
+        filtered = [record for record in filtered if record.outcome == outcome]
+    return filtered
 
 
 @keys.command("create")
@@ -134,6 +167,62 @@ def revoke_key(key_id: str, keys_path: str | None, as_json: bool):
     if not changed:
         raise click.ClickException(f"MCP key not found or already revoked: {key_id}")
     click.echo(f"Revoked MCP key: {key_id}")
+
+
+@audit.command("list")
+@click.option("--audit-path", type=click.Path(dir_okay=False, path_type=str), help="Override remote audit JSONL path.")
+@click.option("--key-id", help="Show records for one scoped key id.")
+@click.option("--tool", "tool_name", help="Show records for one MCP tool name.")
+@click.option("--outcome", help="Show records for one outcome, such as success or error.")
+@click.option(
+    "--limit", default=20, show_default=True, type=click.IntRange(min=1, max=1000), help="Max records to show."
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def list_audit(
+    audit_path: str | None,
+    key_id: str | None,
+    tool_name: str | None,
+    outcome: str | None,
+    limit: int,
+    as_json: bool,
+):
+    """List scoped HTTP MCP remote-call audit records."""
+    import json
+
+    audit_log = _load_remote_audit_log(audit_path)
+    records = _filter_audit_records(
+        audit_log.read_recent(limit=1_000_000),
+        key_id=key_id,
+        tool_name=tool_name,
+        outcome=outcome,
+    )[-limit:]
+    payload = {
+        "audit_path": str(audit_log.path),
+        "filters": {
+            "key_id": key_id,
+            "tool": tool_name,
+            "outcome": outcome,
+            "limit": limit,
+        },
+        "count": len(records),
+        "events": [_audit_record_payload(record) for record in records],
+    }
+    if as_json:
+        click.echo(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    if not records:
+        click.echo(f"No MCP remote audit records found at {audit_log.path}.")
+        return
+    click.echo(f"MCP remote audit records: {audit_log.path}")
+    click.echo("timestamp\tkey_id\tmode\toutcome\ttool\tcost\texperts\terror_code\ttrace_id")
+    for record in records:
+        experts = ",".join(record.expert_names) if record.expert_names else "-"
+        error_code = record.error_code or "-"
+        trace_id = record.trace_id or "-"
+        click.echo(
+            f"{record.timestamp.isoformat()}\t{record.key_id}\t{record.mode.value}\t{record.outcome}\t"
+            f"{record.tool}\t{_format_audit_cost(record.cost_usd)}\t{experts}\t{error_code}\t{trace_id}"
+        )
 
 
 @mcp.command()
