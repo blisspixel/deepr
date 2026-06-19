@@ -667,7 +667,10 @@ Goal: production posture for multi-user and autonomous deployments.
         scoped HTTP calls count recent audited calls for the authenticated key,
         block over-limit calls before tool dispatch, return retry metadata, and
         audit the denial.
-  - [ ] Streamable HTTP/SSE transport for the existing MCP server behind authenticated access (API key first; OAuth later with team features)
+  - [x] Streamable HTTP/SSE serve path:
+        `deepr mcp serve --http` runs the existing MCP server over HTTP/SSE,
+        loopback by default, with shared-token fallback or scoped-key auth for
+        reachable binds.
   - [ ] Deploy recipe (container + the existing cloud templates) so a user can stand up "my experts, reachable by my cloud agents" in one command
   - Rationale: cloud-hosted always-on agents (Autopilots, Workspace Agents, Managed Agents, AgentCore) cannot reach a stdio server on a laptop; a reachable endpoint is the price of admission to every host platform, and it is transport + auth around tools that already exist.
 - [ ] Team features (auth, workspaces, RBAC, audit log)
@@ -1039,14 +1042,14 @@ consumers who will exercise all three. Design:
 [docs/design/hosted-mcp-endpoint.md](docs/design/hosted-mcp-endpoint.md).
 
 1. [~] Streamable HTTP transport; scoped API keys (mode/expert/budget/rate);
-   tool-call audit log (doubles as the mutation audit trail). The HTTP
-   transport already exists, and the first scoped-key/audit primitive now
-   authenticates key records, enforces mode plus expert allowlists before tool
-   dispatch, enforces per-key budget ceilings from audited spend plus
-   deterministic tool estimates, enforces per-key rate limits from recent
-   audited calls, and records append-only remote-call audit events with response
-   cost attribution when available. Remaining work: deployment recipe and
-   remote smoke tests. The key CLI is shipped as `deepr mcp keys`.
+   tool-call audit log (doubles as the mutation audit trail). `deepr mcp serve
+   --http` now runs the existing MCP server over HTTP/SSE, and the
+   scoped-key/audit primitive authenticates key records, enforces mode plus
+   expert allowlists before tool dispatch, enforces per-key budget ceilings from
+   audited spend plus deterministic tool estimates, enforces per-key rate limits
+   from recent audited calls, and records append-only remote-call audit events
+   with response cost attribution when available. Remaining work: deployment
+   recipe and remote smoke tests. The key CLI is shipped as `deepr mcp keys`.
 2. [~] Versioned handoff schemas (downstream agents get stability guarantees):
    `deepr_expert_handoff` and `/api/experts/{name}/handoff` now return the
    `$0`, read-only `deepr-expert-handoff-v1` payload with profile summary,

@@ -29,3 +29,4 @@ This file captures repo-specific operating lessons from autonomous work cycles.
 - Key-management CLIs should show a remote API secret exactly once, list only public metadata, and revoke by changing key state rather than deleting audit-relevant records.
 - Remote scoped-key budgets should be enforced before dispatch from deterministic inputs: prior audited `cost_usd`, caller budget ceilings, fixed small-tool estimates, and response cost fields. Inject remaining budget only for tools that already accept a budget argument.
 - Remote scoped-key rate limits should use the append-only remote audit log as the source of recent-call truth. Block before dispatch, include retry metadata, and audit the denial so repeated abuse stays visible.
+- Remote HTTP serve paths should keep stdio as the default, bind HTTP to loopback by default, and refuse reachable binds unless a shared token or active scoped key is configured.
