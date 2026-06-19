@@ -7,7 +7,12 @@
 
 **Domain experts, not another chat window.**
 
-In plain terms: you bring your own AI accounts for full API-backed research (OpenAI, Gemini, Grok, Anthropic - any one is enough), and Deepr routes each research question to the cheapest model that can handle it, then builds experts that remember what they learned. For $0 local expert maintenance, Deepr can also use a scored and admitted Ollama model without any provider API call.
+In plain terms: you bring the capacity you already have. Cloud APIs give Deepr
+the strongest full research path when you provide keys and a budget ceiling.
+Plan-quota agent services are modeled as prepaid capacity and are being wired
+behind quota probes. Local Ollama gives Deepr a true `$0` marginal-cost path for
+high-volume expert maintenance. Deepr routes each research question toward the
+cheapest capable option, then builds experts that remember what they learned.
 
 ChatGPT, Gemini, and Copilot each give you deep research from one vendor behind a chat UI. Deepr is the layer underneath - it routes across all of them and builds persistent expert agents that learn over time. Each expert is a named role ("AI Strategy Expert", "Security Specialist", "Fabric Architect") that accumulates domain knowledge, tracks its own gaps, and can be consulted by humans or other agents alike. Deepr runs from scripts, cron jobs, and AI agent workflows - so your experts are always available as team members, not just tools you invoke manually.
 
@@ -159,6 +164,7 @@ deepr expert make "Platform Team Expert" --files docs/*.md
 deepr expert make "UI Experience Expert" --local -d "UI/UX for agentic research tools"
 deepr expert subscribe "UI Experience Expert" "UI/UX for agentic research tools"
 deepr expert sync "UI Experience Expert" --local --fresh-context -y
+deepr expert sync "UI Experience Expert" --local --deep-context -y
 ```
 
 Agentic chat supports 27 slash commands (`/ask`, `/research`, `/advise`, `/focus`, `/council`, `/plan`, `/compact`, and more), visible reasoning, human-in-the-loop approval for expensive operations, multi-expert council, and hierarchical task decomposition.
@@ -206,13 +212,13 @@ The dashboard reads `data/benchmarks/routing_preferences.json` and shows per-tas
 
 ### Setup and Capacity
 
-`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at $0. Plan-quota CLIs are visible but not yet execution backends; their adapters and live quota probes are still on the roadmap.
+`deepr init` detects API keys, writes `.env`, sets a budget ceiling, and can point your data at a synced folder. `deepr doctor` verifies connectivity and storage. `deepr capacity` shows local hardware, plan-based CLIs, and metered APIs. Automatic execution is local-first today: a scored, admitted Ollama model can run expert maintenance at `$0`. Plan-quota CLIs are visible but not yet execution backends; their adapters and live quota probes are still on the roadmap.
 
 Current capacity support:
 
 | Capacity source | Deepr status today | Best use |
 |---|---|---|
-| Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `eval local`, and scored local admission | $0 expert maintenance and validation loops |
+| Local Ollama | Works for local expert profiles, `sync`/`absorb --local`, `sync --local --fresh-context`, `sync --local --deep-context`, `eval local`, and scored local admission | High-volume `$0` expert maintenance and validation loops |
 | Provider APIs | Works for full research when you provide keys and a budget ceiling | Deep research, high-quality synthesis, fallback |
 | Plan CLIs such as Claude Code, Codex, Antigravity, Grok Build, GitHub Copilot CLI, and Kiro | Detected or modeled, but not execution backends yet | Future plan-quota adapters and quota-aware scheduling |
 | Explicit CLI judge | Opt-in only for local evals with `--allow-cli-judge` | Human-approved comparison signal, not automatic routing |
@@ -231,16 +237,20 @@ deepr expert make "Platform Team Expert" --local -d "Platform engineering knowle
 deepr expert absorb "Platform Team Expert" report.md --local
 deepr expert sync "Platform Team Expert" --local
 deepr expert sync "Platform Team Expert" --local --fresh-context
+deepr expert sync "Platform Team Expert" --local --deep-context
 deepr eval local --max-models 2 --max-prompts 2 --save
 deepr capacity admit --from-eval latest --task-class sync --yes
 deepr capacity next --task-class sync
 ```
 
-Local models do not browse on their own. `--fresh-context` builds a free-only
-retrieval context pack before the local model call: explicit URLs and
-DuckDuckGo search when the optional package is installed, never Brave/Tavily
-API-key search. If no fresh sources are retrieved, sync records no changes
-instead of absorbing the local model's uncertainty as expert beliefs. See
+Local models do not browse on their own. `--fresh-context` builds a small
+free-only retrieval pack before the local model call. `--deep-context` does a
+bounded multi-query retrieval pass for topics that need more coverage. Both can
+fetch explicit URLs, can use a configured self-hosted SearXNG endpoint
+(`DEEPR_SEARXNG_URL`), and otherwise fall back to DuckDuckGo when the optional
+package is installed. They never use Brave/Tavily API-key search. If no fresh
+sources are retrieved, sync records no changes instead of absorbing the local
+model's uncertainty as expert beliefs. See
 [docs/FEATURES.md#setup-and-capacity](docs/FEATURES.md#setup-and-capacity)
 for commands and [docs/design/capacity-waterfall.md](docs/design/capacity-waterfall.md)
 for the full routing model.

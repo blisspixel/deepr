@@ -75,7 +75,9 @@ def _local_prompt(query: str, context: Any | None) -> tuple[str, dict[str, Any] 
         f"{prompt_context}\n\n## User query\n{query}\n\n"
         "Answer the query using the fresh retrieval context when it is relevant. "
         "For current factual claims, cite source labels from the context. "
-        "If fresh context is unavailable or insufficient, say so.",
+        "For deep-context runs, synthesize across sources, name meaningful gaps, "
+        "and avoid unsupported claims. If fresh context is unavailable or "
+        "insufficient, say so.",
         metadata,
     )
 
