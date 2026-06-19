@@ -210,6 +210,13 @@ class ToolAllowlist:
             requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
             blocked_in={ResearchMode.READ_ONLY},
         ),
+        "deepr_expert_loop_status": ToolConfig(
+            name="deepr_expert_loop_status",
+            category=ToolCategory.SENSITIVE,
+            description="Durable loop-run status and next actions for an expert",
+            requires_confirmation_in={ResearchMode.STANDARD, ResearchMode.EXTENDED},
+            blocked_in={ResearchMode.READ_ONLY},
+        ),
         # Temporal perspective queries - cost-$0 and read-only, but they
         # surface belief content (claims, evidence, conflicts), so SENSITIVE
         # like health_check rather than plain READ.

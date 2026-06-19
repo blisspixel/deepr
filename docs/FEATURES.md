@@ -893,8 +893,9 @@ metered run. `expert health-check --scheduled` adds an action plan, and
 `--archive-stale --scheduled` waits for confirmation instead of prompting or
 mutating unless `--yes` is explicit. These scheduled wait/action-plan payloads
 append `ExpertLoopRun` snapshots and include `loop_run` JSON. Successful-run
-instrumentation, MCP read access, and dashboard/API rollups remain in the v2.17
-loop-status track.
+instrumentation and dashboard/API rollups remain in the v2.17 loop-status
+track. Host agents can already read the durable loop state through
+`deepr_expert_loop_status`.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
