@@ -304,10 +304,11 @@ records, so `deepr expert loop-status NAME --json` can show the latest blocked
 or waiting maintenance work without re-running it. Host agents can read the
 same state through `deepr_expert_loop_status`. Successful `deepr expert sync`
 runs, non-dry `deepr expert route-gaps --execute` runs, and `deepr expert
-reflect` runs also record loop snapshots with spend, capacity source,
+reflect` runs also record loop snapshots. `deepr expert health-check` and
+confirmed `--archive-stale` runs now do the same, with spend, capacity source,
 verifier outcome, accepted-change counts where applicable, and typed stop
 actions for failures, deferred specialist routes, weak verifier results,
-human gates, or exhausted budgets.
+human gates, no corrective work, or exhausted budgets.
 
 ### Evidence and Calibration
 
