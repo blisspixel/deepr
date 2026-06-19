@@ -45,10 +45,17 @@ def _key_record_payload(record, *, include_secret: str | None = None):
 )
 @click.option("--expert", "experts", multiple=True, help="Restrict this key to one expert. Repeatable.")
 @click.option("--budget", type=click.FloatRange(min=0.0), help="Per-key budget ceiling metadata in USD.")
+@click.option("--rate-limit", type=click.IntRange(min=1), help="Maximum HTTP MCP tool calls per minute for this key.")
 @click.option("--keys-path", type=click.Path(dir_okay=False, path_type=str), help="Override key-store path.")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def create_key(
-    key_id: str | None, mode: str, experts: tuple[str, ...], budget: float | None, keys_path: str | None, as_json: bool
+    key_id: str | None,
+    mode: str,
+    experts: tuple[str, ...],
+    budget: float | None,
+    rate_limit: int | None,
+    keys_path: str | None,
+    as_json: bool,
 ):
     """Create a scoped HTTP MCP key and print the secret once."""
     import json
@@ -61,6 +68,7 @@ def create_key(
             mode=ResearchMode(mode.lower()),
             expert_allowlist=experts,
             budget_limit_usd=budget,
+            rate_limit_per_minute=rate_limit,
         )
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
@@ -76,6 +84,8 @@ def create_key(
         click.echo(f"Experts: {', '.join(record.expert_allowlist)}")
     if record.budget_limit_usd is not None:
         click.echo(f"Budget ceiling: ${record.budget_limit_usd:.2f}")
+    if record.rate_limit_per_minute is not None:
+        click.echo(f"Rate limit: {record.rate_limit_per_minute}/minute")
     click.echo("")
     click.echo("Secret, shown once:")
     click.echo(secret)
@@ -101,8 +111,10 @@ def list_keys(keys_path: str | None, as_json: bool):
         experts = ", ".join(record.expert_allowlist) if record.expert_allowlist else "all"
         last_used = record.last_used_at.isoformat() if record.last_used_at else "never"
         budget = f"${record.budget_limit_usd:.2f}" if record.budget_limit_usd is not None else "none"
+        rate_limit = f"{record.rate_limit_per_minute}/min" if record.rate_limit_per_minute is not None else "none"
         click.echo(
-            f"{record.key_id}\t{status}\tmode={record.mode.value}\texperts={experts}\tbudget={budget}\tlast_used={last_used}"
+            f"{record.key_id}\t{status}\tmode={record.mode.value}\texperts={experts}\tbudget={budget}\t"
+            f"rate_limit={rate_limit}\tlast_used={last_used}"
         )
 
 
