@@ -34,23 +34,27 @@ wait state instead of starting metered gap-fill research from recurring
 schedulers. This does not pretend gap-fill has a cheap backend yet; it exposes
 the pending work and waits.
 
+`deepr expert reflect --scheduled` now validates the report lookup and returns a
+structured wait before the reflection evaluator or follow-up research can run.
+This keeps recurring reflection follow-up jobs honest while cheap evaluator
+capacity is still planned.
+
 ## Active Gap
 
 The highest-leverage current gap is still in `v2.16`, not `v2.17`: capacity QOL
 needs the same scheduler-facing contract reused across the other recurring expert
 maintenance loops. `expert sync` and `route-gaps --execute` now have the first
-integrations. Reflection follow-up execution and health-check actioning still
-need durable wait/run/blocked behavior before the project widens into the
-`v2.17` `ExpertLoopRun` substrate.
+integrations, and `expert reflect --scheduled` now adds the safe reflection
+wait contract. Health-check actioning still needs durable wait/run/blocked
+behavior before the project widens into the `v2.17` `ExpertLoopRun` substrate.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: apply the same deterministic scheduler wait contract to reflection
-follow-up execution or health-check actioning. Reflection follow-ups are likely
-next because they already reuse `GapFillEngine`, making the wait contract
-parallel to `route-gaps --execute --scheduled`.
+Next slice: apply the same deterministic scheduler wait contract to health-check
+actioning, then graduate the recurring surfaces into the `ExpertLoopRun`
+substrate.
 
 ## Spend Ledger For This Run
 
