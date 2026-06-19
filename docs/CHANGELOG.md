@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deepr_expert_loop_status`, a read-only MCP tool for host agents to
   inspect durable expert loop runs, stop reasons, budget/capacity source,
   verifier fields, acceptance metrics, and next actions.
+- Added `deepr_expert_handoff` and `/api/experts/{name}/handoff`, a `$0`
+  read-only `deepr-expert-handoff-v1` payload for downstream agents. It includes
+  profile summary, manifest counts, bounded claims/gaps, dashboard telemetry,
+  loop-status rollup, OKF interchange hints, and an additive compatibility
+  contract, with JSON Schema published under `docs/schemas/`.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.

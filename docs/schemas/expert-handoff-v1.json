@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/expert-handoff-v1.json",
+  "title": "Deepr Expert Handoff v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "generated_at",
+    "contract",
+    "expert",
+    "summary",
+    "manifest",
+    "expert_state",
+    "loop_status",
+    "okf",
+    "recommended_mcp_tools"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-expert-handoff-v1"
+    },
+    "kind": {
+      "const": "deepr.expert.handoff"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "contract": {
+      "type": "object",
+      "required": ["read_only", "cost_usd", "stability", "compatibility"],
+      "properties": {
+        "read_only": {"const": true},
+        "cost_usd": {"const": 0.0},
+        "stability": {"type": "string"},
+        "compatibility": {
+          "type": "object",
+          "required": ["additive_fields", "breaking_changes_require_new_schema_version", "deprecation_policy"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "expert": {
+      "type": "object",
+      "required": ["name", "domain", "created_at", "updated_at"],
+      "properties": {
+        "name": {"type": "string"},
+        "domain": {"type": "string"},
+        "description": {"type": ["string", "null"]},
+        "created_at": {"type": ["string", "null"], "format": "date-time"},
+        "updated_at": {"type": ["string", "null"], "format": "date-time"},
+        "knowledge_cutoff": {"type": ["string", "null"], "format": "date-time"},
+        "last_knowledge_refresh": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "claim_count",
+        "open_gap_count",
+        "decision_count",
+        "avg_confidence",
+        "contested_open_count",
+        "loop_run_count"
+      ],
+      "properties": {
+        "claim_count": {"type": "integer", "minimum": 0},
+        "open_gap_count": {"type": "integer", "minimum": 0},
+        "decision_count": {"type": "integer", "minimum": 0},
+        "avg_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "contested_open_count": {"type": "integer", "minimum": 0},
+        "loop_run_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["policies", "claim_count", "open_gap_count", "avg_confidence"],
+      "additionalProperties": true
+    },
+    "expert_state": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "loop_status": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "okf": {
+      "type": "object",
+      "required": ["schema_version", "canonical", "export_command", "absorb_command"],
+      "properties": {
+        "schema_version": {"type": "string"},
+        "canonical": {"const": false},
+        "export_command": {"type": "string"},
+        "absorb_command": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "recommended_mcp_tools": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "claims": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "gaps": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "decisions": {
+      "type": "array",
+      "items": {"type": "object"}
+    }
+  }
+}
