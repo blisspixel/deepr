@@ -1758,9 +1758,17 @@ def resume_expert_learning(name: str, budget: float | None, yes: bool):
     help="Run the follow-up queries reflection emits (budget-bounded; findings absorb verification-gated)",
 )
 @click.option("--budget", "-b", type=float, default=1.0, show_default=True, help="Budget ceiling for follow-ups")
+@click.option("--scheduled", is_flag=True, help="Wait instead of spending from recurring reflection jobs")
 @click.option("--yes", "-y", is_flag=True, help="Skip follow-up confirmation")
 def reflect_report(
-    name: str, report_id: str, depth: int, json_output: bool, execute_followups: bool, budget: float, yes: bool
+    name: str,
+    report_id: str,
+    depth: int,
+    json_output: bool,
+    execute_followups: bool,
+    budget: float,
+    scheduled: bool,
+    yes: bool,
 ):
     """Self-evaluate a research report before relying on or absorbing it.
 
@@ -1778,12 +1786,12 @@ def reflect_report(
     EXAMPLES:
       deepr expert reflect "AI Strategy Expert" <job_id>
       deepr expert reflect "AI Strategy Expert" <job_id> --execute-followups --budget 1 -y
+      deepr expert reflect "AI Strategy Expert" <job_id> --execute-followups --scheduled --json
     """
     import json as _json
     import sys
 
     from deepr.experts.profile import ExpertStore
-    from deepr.experts.reflection import ReflectionEngine, ReflectionError
     from deepr.services.context_index import ContextIndex
 
     store = ExpertStore()
@@ -1800,6 +1808,23 @@ def reflect_report(
         print_error(f"No report found for id: {report_id}")
         click.echo("Find report/job IDs with: deepr search")
         sys.exit(2)
+
+    if scheduled:
+        from deepr.cli.commands.semantic.expert_reflect_schedule import emit_scheduled_reflection_wait
+
+        profile_name = profile.name if isinstance(getattr(profile, "name", None), str) and profile.name else name
+        emit_scheduled_reflection_wait(
+            profile_name,
+            report_id,
+            result.prompt,
+            depth=depth,
+            execute_followups=execute_followups,
+            budget=budget,
+            json_output=json_output,
+        )
+        return
+
+    from deepr.experts.reflection import ReflectionEngine, ReflectionError
 
     engine = ReflectionEngine()
     try:

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `deepr expert reflect --scheduled`, which validates the local report
+  lookup and then returns a structured wait payload before any reflection
+  evaluator or follow-up research can run from a recurring scheduler job.
 - Added `deepr expert route-gaps --execute --scheduled`, which returns pending
   routes plus a wait state instead of starting metered gap-fill research from a
   recurring scheduler run.
