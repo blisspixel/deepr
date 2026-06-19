@@ -10,10 +10,18 @@ See docs/mcp-client-architecture.md for the full design.
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
+
+
+def _score(value: object) -> float:
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 @dataclass
@@ -106,6 +114,60 @@ class BuiltinSearchBackend:
         except Exception as exc:
             logger.warning("Builtin search backend health check failed: %s", exc)
             return False
+
+
+class SearXNGSearchBackend:
+    """Free search backend for a self-hosted or user-selected SearXNG instance."""
+
+    def __init__(self, base_url: str | None = None, *, timeout: float = 10.0) -> None:
+        self._base_url = (base_url or os.getenv("DEEPR_SEARXNG_URL") or "").rstrip("/")
+        self._timeout = timeout
+
+    @property
+    def name(self) -> str:
+        return "searxng"
+
+    async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
+        """Search SearXNG JSON results without any provider API key."""
+        if not self._base_url:
+            return []
+
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(follow_redirects=True, timeout=self._timeout) as client:
+                response = await client.get(
+                    f"{self._base_url}/search",
+                    params={"q": query, "format": "json"},
+                )
+                response.raise_for_status()
+                data = response.json()
+        except Exception as exc:
+            logger.warning("SearXNG search backend failed for query %r: %s", query, exc)
+            return []
+
+        results: list[SearchResult] = []
+        for item in data.get("results", [])[:num_results]:
+            url = item.get("url") or ""
+            if not url:
+                continue
+            engine = item.get("engine") or item.get("source") or "searxng"
+            results.append(
+                SearchResult(
+                    title=item.get("title") or url,
+                    url=url,
+                    snippet=item.get("content") or item.get("snippet") or "",
+                    score=_score(item.get("score")),
+                    source=f"searxng:{engine}",
+                )
+            )
+        return results
+
+    async def health_check(self) -> bool:
+        """Check that the configured SearXNG endpoint returns JSON search results."""
+        if not self._base_url:
+            return False
+        return bool(await self.search("deepr", num_results=1))
 
 
 class MCPSearchBackend:

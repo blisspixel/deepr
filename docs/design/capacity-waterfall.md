@@ -11,8 +11,10 @@ Current implementation: `CostModel`/`BackendKind` types and read-only
 owned-capacity-first selection for expert maintenance - `deepr capacity admit`
 / `admissions` / `revoke`, and `expert sync`/`absorb` auto-routing to an
 admitted local model at $0 before metered API (the local rung of step 5, with
-`--local`/`--api` overrides); the normalized `ResearchBackend` profile; plus
-the append-only `quota_ledger.jsonl` substrate and `deepr capacity`
+`--local`/`--api` overrides); free local retrieval context for sync
+(`--fresh-context` and bounded multi-query `--deep-context`, with optional
+SearXNG); the normalized `ResearchBackend` profile; plus the append-only
+`quota_ledger.jsonl` substrate and `deepr capacity`
 quota-state visibility; and the pure backend eligibility gate over
 `ResearchBackend` plus `QuotaState`; and the pure backend selector that orders
 eligible capacity by the waterfall and enforces optional measured quality
@@ -224,10 +226,13 @@ scheduler work remains.
 11. Capacity quality-of-life path: ranked next actions and latest-artifact
    hints are in place. Remaining: concrete job block-reason previews and
    scheduler suggestions.
-12. First plan_quota rungs, in priority order from the vendor survey: the
+12. Local retrieval quality loop: freshness/deep-context evals, source-pack
+   run artifacts, and scheduler rules for when to choose `--fresh-context` or
+   `--deep-context`.
+13. First plan_quota rungs, in priority order from the vendor survey: the
    highest-confidence first-party CLIs and endpoint-backed coding plans, each
    behind an explicit opt-in and a "sanctioned as of <date>" kill switch.
-13. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
+14. Multi-account pools (N accounts of one vendor as one pooled backend) - last,
    it multiplies an already-working mechanism.
 
 ## Open questions
