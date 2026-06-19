@@ -1,0 +1,87 @@
+"""Tests for durable ExpertLoopRun records."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from deepr.experts.loop_runs import (
+    ExpertLoopRun,
+    ExpertLoopRunStore,
+    LoopRunStatus,
+    LoopStopReason,
+)
+
+
+def _run(run_id: str = "loop_1", *, status: LoopRunStatus = LoopRunStatus.WAITING) -> ExpertLoopRun:
+    return ExpertLoopRun(
+        run_id=run_id,
+        expert_name="Platform Expert",
+        loop_type="sync",
+        goal="refresh subscribed topics",
+        trigger="scheduled",
+        status=status,
+        updated_at=datetime(2026, 6, 19, tzinfo=UTC),
+        budget_limit=2.0,
+        budget_spent=0.0,
+        capacity_source="local",
+        accepted_changes=2,
+        rejected_changes=1,
+        stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+        next_action={"status": "wait", "title": "Wait for cheap capacity"},
+    )
+
+
+def test_loop_run_round_trips_metrics():
+    run = _run()
+
+    payload = run.to_dict()
+    restored = ExpertLoopRun.from_dict(payload)
+
+    assert restored == run
+    assert payload["acceptance_rate"] == 0.6667
+    assert payload["cost_per_accepted_change"] == 0.0
+    assert payload["stop_reason"] == "capacity_unavailable"
+
+
+def test_loop_run_validates_required_fields():
+    with pytest.raises(ValueError, match="goal is required"):
+        ExpertLoopRun(
+            run_id="loop_1",
+            expert_name="Platform Expert",
+            loop_type="sync",
+            goal=" ",
+            trigger="scheduled",
+        )
+
+
+def test_store_collapses_append_only_snapshots(tmp_path):
+    path = tmp_path / "loop_runs.jsonl"
+    store = ExpertLoopRunStore("Platform Expert", path=path)
+    first = _run(status=LoopRunStatus.WAITING)
+    second = replace(
+        first,
+        status=LoopRunStatus.COMPLETED,
+        updated_at=first.updated_at + timedelta(minutes=5),
+        stop_reason=LoopStopReason.NO_DUE_WORK,
+    )
+
+    store.append(first)
+    store.append(second)
+
+    runs = store.list_runs()
+    assert len(runs) == 1
+    assert runs[0].status == LoopRunStatus.COMPLETED
+    assert runs[0].stop_reason == LoopStopReason.NO_DUE_WORK
+    assert store.list_runs(status=LoopRunStatus.WAITING) == []
+
+
+def test_store_ignores_corrupt_lines(tmp_path):
+    path = tmp_path / "loop_runs.jsonl"
+    store = ExpertLoopRunStore("Platform Expert", path=path)
+    store.append(_run())
+    path.write_text(path.read_text(encoding="utf-8") + "not json\n", encoding="utf-8")
+
+    assert len(store.list_runs()) == 1
