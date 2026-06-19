@@ -75,7 +75,10 @@ The dashboard API now exposes `/api/experts/{name}/loop-status`, a read-only
 rollup over the same durable run records. It returns the latest run, last sync
 result, waiting scheduled action, latest failure, status and loop-type counts,
 capacity-source counts, spend totals, acceptance metrics, cost per accepted
-change, verifier-failure count, and recent run records.
+change, verifier-failure count, and recent run records. The same response now
+includes `expert_state` telemetry for freshness, 7-day and 30-day gap velocity,
+top open gaps, and contested/open claim counts from structured manifest links
+and belief contradiction edges.
 
 ## Active Gap
 
@@ -89,16 +92,16 @@ accepted change, append-only per-expert storage, and read-only
 that store for the recurring expert surfaces that can safely stop before spend
 or mutation. MCP read access is also in place for host agents, and completed
 sync, gap-fill execution, reflection, and health-check runs now feed the same
-lifecycle. The web API can summarize those records for the dashboard without
-rerunning work or spending.
+lifecycle. The web API can summarize those records and adjacent expert-state
+telemetry for the dashboard without rerunning work or spending.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: add the remaining dashboard telemetry writers for freshness deltas,
-gap velocity, and contested/open claim state, then surface those fields through
-the loop dashboard API.
+Next slice: tighten the loop completion contract so closed loops consistently
+stop only on verifier pass, no due work, budget/capacity exhaustion, human gate,
+or a typed failure reason.
 
 ## Spend Ledger For This Run
 

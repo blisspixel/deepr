@@ -311,7 +311,8 @@ actions for failures, deferred specialist routes, weak verifier results,
 human gates, no corrective work, or exhausted budgets. The dashboard API now
 exposes `/api/experts/{name}/loop-status`, a read-only rollup over the same
 records with latest run, last sync result, waiting scheduled action, failure,
-capacity source, spend, acceptance, and verifier failure metrics.
+capacity source, spend, acceptance, verifier failure metrics, and `expert_state`
+telemetry for freshness, gap velocity, and contested/open claims.
 
 ### Evidence and Calibration
 
