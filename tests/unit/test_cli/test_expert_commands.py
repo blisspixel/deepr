@@ -580,6 +580,7 @@ class TestExpertRouteGapsCommand:
         result = runner.invoke(cli, ["expert", "route-gaps", "--help"])
         assert result.exit_code == 0
         assert "route" in result.output.lower()
+        assert "--scheduled" in result.output
 
     def test_nonexistent_expert(self, runner):
         with patch("deepr.experts.profile.ExpertStore") as mock_store_class:
@@ -614,6 +615,54 @@ class TestExpertRouteGapsCommand:
             payload = json.loads(result.output)
             assert payload["expert_name"] == "AI Strategy Expert"
             assert payload["routes"][0]["instrument"] == "primr"
+
+    def test_scheduled_execute_waits_without_starting_gap_fill_engine(self, runner):
+        from deepr.core.contracts import ExpertManifest, Gap
+        from deepr.experts.gap_router import GapRoute
+
+        expert = MagicMock()
+        expert.name = "AI Strategy Expert"
+        expert.get_manifest.return_value = ExpertManifest(
+            expert_name="AI Strategy Expert",
+            domain="ai",
+            gaps=[Gap.create(topic="open model benchmark drift", ev_cost_ratio=2.0)],
+        )
+        route = GapRoute(
+            topic="open model benchmark drift",
+            instrument="research",
+            available=True,
+            estimated_cost=0.25,
+            rationale="general research",
+            suggestion="",
+            ev_cost_ratio=2.0,
+        )
+
+        class ExplodingGapFillEngine:
+            def __init__(self, *args, **kwargs):
+                raise AssertionError("scheduled wait must not start gap-fill execution")
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.experts.gap_router.GapRouter") as mock_router_class,
+            patch("deepr.experts.gap_fill.GapFillEngine", ExplodingGapFillEngine),
+        ):
+            mock_store = MagicMock()
+            mock_store.load.return_value = expert
+            mock_store_class.return_value = mock_store
+            mock_router_class.return_value.route.return_value = [route]
+
+            result = runner.invoke(
+                cli,
+                ["expert", "route-gaps", "AI Strategy Expert", "--execute", "--scheduled", "--json"],
+            )
+
+        assert result.exit_code == 0
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["status"] == "waiting_for_capacity"
+        assert payload["routes"][0]["topic"] == "open model benchmark drift"
+        assert payload["next_actions"][0]["status"] == "wait"
 
 
 class TestExpertExportSkillCommand:

@@ -29,24 +29,28 @@ metered API, or if fresh/deep context needs local capacity, the command returns 
 wait payload with next actions instead of spending. Explicit `--api` remains the
 operator override.
 
+`deepr expert route-gaps --execute --scheduled` now returns pending routes and a
+wait state instead of starting metered gap-fill research from recurring
+schedulers. This does not pretend gap-fill has a cheap backend yet; it exposes
+the pending work and waits.
+
 ## Active Gap
 
 The highest-leverage current gap is still in `v2.16`, not `v2.17`: capacity QOL
 needs the same scheduler-facing contract reused across the other recurring expert
-maintenance loops. `expert sync` now has the first integration. Gap-fill,
-reflection follow-up execution, and health-check actioning still need durable
-wait/run/blocked behavior before the project widens into the `v2.17`
-`ExpertLoopRun` substrate.
+maintenance loops. `expert sync` and `route-gaps --execute` now have the first
+integrations. Reflection follow-up execution and health-check actioning still
+need durable wait/run/blocked behavior before the project widens into the
+`v2.17` `ExpertLoopRun` substrate.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: identify the smallest existing recurring maintenance path after
-`expert sync` and apply the same deterministic scheduler wait contract there.
-The likely candidates are health-check actioning or gap-fill execution, because
-both are already loop-closer surfaces in the roadmap and both can be gated before
-spend or writes.
+Next slice: apply the same deterministic scheduler wait contract to reflection
+follow-up execution or health-check actioning. Reflection follow-ups are likely
+next because they already reuse `GapFillEngine`, making the wait contract
+parallel to `route-gaps --execute --scheduled`.
 
 ## Spend Ledger For This Run
 
