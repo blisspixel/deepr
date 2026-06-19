@@ -181,6 +181,72 @@ def eval_local(
     _emit_local_eval_summary(report, path)
 
 
+@evaluate.command("local-context")
+@click.option(
+    "--model",
+    default=None,
+    help="Local Ollama model to evaluate. Defaults to the first installed model.",
+)
+@click.option(
+    "--judge-model",
+    default=None,
+    help="Local Ollama model used as judge. Defaults to --model.",
+)
+@click.option(
+    "--prompt-set",
+    type=click.Choice(["local-freshness"]),
+    default="local-freshness",
+    show_default=True,
+    help="Built-in $0 context prompt set to run.",
+)
+@click.option(
+    "--max-prompts",
+    type=int,
+    default=2,
+    show_default=True,
+    help="Maximum prompts from the prompt set to run.",
+)
+@click.option("--save", is_flag=True, help="Save JSON artifact under data/benchmarks.")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable JSON.")
+def eval_local_context(
+    model: str | None,
+    judge_model: str | None,
+    prompt_set: str,
+    max_prompts: int,
+    save: bool,
+    json_output: bool,
+):
+    """Compare no/fresh/deep local context modes with a local judge (cost $0)."""
+    from deepr.cli.async_runner import run_async_command
+    from deepr.evals.local_context import run_local_context_eval, write_context_report
+
+    selected, judge, prompts = _resolve_local_context_eval_inputs(model, judge_model, prompt_set, max_prompts)
+
+    if not json_output:
+        click.echo(f"Running local context eval: model={selected}; judge={judge}; prompts={len(prompts)}")
+        click.echo("Modes: none, fresh, deep. Deepr metered cost: $0.")
+
+    report = run_async_command(
+        run_local_context_eval(
+            selected,
+            judge_model=judge,
+            prompts=prompts,
+            prompt_set=prompt_set,
+        )
+    )
+
+    if save:
+        path = write_context_report(report)
+    else:
+        path = None
+
+    if json_output:
+        _emit_local_eval_json(report, path)
+        return
+
+    _emit_local_context_eval_summary(report, path)
+
+
 def _resolve_local_eval_inputs(
     models: tuple[str, ...],
     judge_model: str | None,
@@ -212,6 +278,36 @@ def _resolve_local_eval_inputs(
         raise click.ClickException(f"Judge model is not installed locally: {judge}")
 
     prompts = default_prompts(prompt_set)[:max_prompts]
+    if not prompts:
+        raise click.ClickException(f"No prompts available for prompt set {prompt_set!r}.")
+    return selected, judge, prompts
+
+
+def _resolve_local_context_eval_inputs(
+    model: str | None,
+    judge_model: str | None,
+    prompt_set: str,
+    max_prompts: int,
+):
+    from deepr.backends.capacity import available_local_models
+    from deepr.evals.local_context import default_context_prompts
+
+    if max_prompts <= 0:
+        raise click.ClickException("--max-prompts must be positive.")
+
+    installed = available_local_models()
+    if not installed:
+        raise click.ClickException("No local Ollama models available. Start Ollama and pull a model first.")
+
+    selected = model or installed[0]
+    if selected not in installed:
+        raise click.ClickException(f"Local model is not installed: {selected}")
+
+    judge = judge_model or selected
+    if judge not in installed:
+        raise click.ClickException(f"Judge model is not installed locally: {judge}")
+
+    prompts = default_context_prompts(prompt_set)[:max_prompts]
     if not prompts:
         raise click.ClickException(f"No prompts available for prompt set {prompt_set!r}.")
     return selected, judge, prompts
@@ -275,6 +371,26 @@ def _emit_local_eval_summary(report, path: Path | None) -> None:
     if path:
         click.echo(f"\nSaved {path}")
     click.echo("\nScores are local-judge estimates; use them as routing evidence, not ground truth.")
+
+
+def _emit_local_context_eval_summary(report, path: Path | None) -> None:
+    click.echo("")
+    click.echo(f"Winner mode: {report.winner_mode or 'n/a'}")
+    click.echo("")
+    click.echo(f"{'Mode':10s} {'Score':>7s} {'Sources':>9s} {'Cites':>7s} {'Latency':>10s} {'Cost':>7s}")
+    scores = report.mode_scores
+    for mode in ("none", "fresh", "deep"):
+        results = [result for result in report.results if result.mode == mode]
+        source_count = round(sum(result.source_count for result in results) / len(results)) if results else 0
+        citation_count = sum(result.citation_count for result in results)
+        latency = round(sum(result.latency_ms for result in results) / len(results)) if results else 0
+        click.echo(
+            f"{mode:10s} {scores.get(mode, 0.0):7.3f} {source_count:9d} "
+            f"{citation_count:7d} {latency:8d}ms ${report.cost:5.2f}"
+        )
+    if path:
+        click.echo(f"\nSaved {path}")
+    click.echo("\nScores are local-judge estimates; use them as context-routing evidence, not ground truth.")
 
 
 @evaluate.command("continuity")

@@ -79,6 +79,12 @@ async def test_retrieve_fresh_context_searches_and_fetches_sources():
     assert "new pricing tier" in prompt
     assert context.to_metadata()["source_count"] == 1
     assert context.to_metadata()["mode"] == "fresh"
+    pack = context.to_source_pack(max_excerpt_chars=12)
+    assert pack["schema_version"] == "deepr.source_pack.v1"
+    assert pack["source_count"] == 1
+    assert pack["sources"][0]["label"] == "S1"
+    assert pack["sources"][0]["url"] == "https://example.com/release"
+    assert pack["sources"][0]["excerpt"] == "The relea..."
 
 
 async def test_retrieve_fresh_context_uses_explicit_urls_without_search():
