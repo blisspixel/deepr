@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transport enforcement for key mode, expert allowlists, confirmation
   requirements, and append-only `deepr-mcp-remote-audit-v1` events for
   authenticated remote tool calls.
+- Added `deepr mcp keys create/list/revoke` for local scoped-key management.
+  Created secrets are shown once, list output omits secrets and hashes, and
+  revoked keys are rejected by the HTTP scoped-key authenticator.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
