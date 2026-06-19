@@ -81,3 +81,8 @@ deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
 
 See [../mcp-http.md](../mcp-http.md) for the full hosted endpoint recipe,
 including nginx, revocation, and operational rules.
+
+For Azure Container Apps, see
+[azure-container-apps/](azure-container-apps/). That template uses the same
+image and command, mounts Azure Files at `/data`, and keeps scoped-key plus audit
+state durable across revisions.
