@@ -24,7 +24,7 @@ def _quote_cli_arg(value: str) -> str:
 def _scheduled_gap_fill_wait_payload(profile_name: str, routes: list[Any], *, budget: float, top_n: int) -> dict:
     research_routes = [r for r in routes if r.instrument == "research"]
     est = min(sum(max(r.estimated_cost, 0.05) for r in research_routes), budget)
-    return {
+    payload = {
         "status": "waiting_for_capacity",
         "expert_name": profile_name,
         "detail": "scheduled gap fill is waiting for owned/prepaid capacity instead of using metered research",
@@ -48,6 +48,21 @@ def _scheduled_gap_fill_wait_payload(profile_name: str, routes: list[Any], *, bu
             },
         ],
     }
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    loop_run = record_loop_run(
+        expert_name=profile_name,
+        loop_type="gap_fill",
+        goal=f"Fill routed knowledge gaps for {profile_name}",
+        trigger="scheduled",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.CAPACITY_UNAVAILABLE,
+        next_action=payload["next_actions"][0],
+        budget_limit=budget,
+        capacity_source="owned/prepaid",
+    )
+    payload["loop_run"] = loop_run.to_dict()
+    return payload
 
 
 def _emit_scheduled_gap_fill_wait(profile_name: str, routes: list[Any], *, budget: float, top_n: int) -> None:

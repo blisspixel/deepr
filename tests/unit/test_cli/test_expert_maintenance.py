@@ -180,6 +180,10 @@ class TestBackendFlagGuard:
             "deepr.backends.capacity_actions.build_capacity_next_actions",
             lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "scheduled wait")],
         )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **_: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync"}),
+        )
 
         r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--scheduled", "--json"])
 
@@ -188,6 +192,7 @@ class TestBackendFlagGuard:
         assert payload["status"] == "waiting_for_capacity"
         assert payload["capacity_next"]["job_context"]["scheduled"] is True
         assert payload["capacity_next"]["actions"][0]["status"] == "wait"
+        assert payload["loop_run"]["run_id"] == "loop_sync"
 
     def test_scheduled_fresh_context_waits_with_context_preview(self, monkeypatch):
         profile = SimpleNamespace(name="UI Experience Expert")
@@ -217,6 +222,10 @@ class TestBackendFlagGuard:
             "deepr.backends.capacity_actions.build_capacity_next_actions",
             lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "fresh context requires local")],
         )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **_: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync"}),
+        )
 
         r = CliRunner().invoke(
             expert,
@@ -228,6 +237,7 @@ class TestBackendFlagGuard:
         assert payload["status"] == "waiting_for_capacity"
         assert payload["capacity_next"]["job_context"]["context_mode"] == "fresh"
         assert payload["capacity_next"]["job_context"]["requires_local"] is True
+        assert payload["loop_run"]["run_id"] == "loop_sync"
 
     def test_scheduled_forced_local_waits_when_no_local_model(self, monkeypatch):
         profile = SimpleNamespace(name="UI Experience Expert")
@@ -253,6 +263,10 @@ class TestBackendFlagGuard:
             "deepr.backends.capacity_actions.build_capacity_next_actions",
             lambda **_: [CapacityNextAction(8, "wait", "Wait for cheap capacity", "start Ollama")],
         )
+        monkeypatch.setattr(
+            "deepr.experts.loop_runs.record_loop_run",
+            lambda **_: SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync"}),
+        )
 
         r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--local", "--scheduled", "--json"])
 
@@ -260,6 +274,7 @@ class TestBackendFlagGuard:
         payload = json.loads(r.output)
         assert payload["status"] == "waiting_for_capacity"
         assert "running local model" in payload["detail"]
+        assert payload["loop_run"]["run_id"] == "loop_sync"
 
     def test_sync_deep_context_uses_deep_builder(self, monkeypatch):
         captured = {}

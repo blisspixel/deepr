@@ -983,9 +983,10 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
 2. [~] `ExpertLoopRun` substrate + `deepr expert loop-status` + MCP read tool:
    schema-versioned loop-run records, typed stop reasons, append-only
    per-expert storage, acceptance metrics, cost per accepted change, and
-   read-only CLI status are in place. Remaining work is the MCP read tool,
-   instrumentation from sync, gap-fill, reflection, and health-check runs, plus
-   dashboard/API rollups.
+   read-only CLI status are in place. Scheduled wait and action-plan surfaces
+   for sync, gap-fill, reflection, and health-check now append loop-run
+   snapshots and return `loop_run` JSON. Remaining work is the MCP read tool,
+   successful-run instrumentation, plus dashboard/API rollups.
 3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
    failure reason. No model self-declared completion on the critical path.
