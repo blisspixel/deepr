@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pages, citations, typed relations, gaps, contested claims, and optional
   `llms.txt`, with marker-based overwrite protection so the bundle remains an
   interchange view rather than authoritative state.
+- Added `deepr expert absorb-okf NAME PATH`, which parses OKF concept Markdown
+  and frontmatter into source text for `ReportAbsorber`. The existing
+  extraction, grounding, dedup, and contradiction gates decide what enters the
+  belief store, so OKF Markdown is never trusted as canonical state.
 - Added `deepr expert health-check --scheduled`, which emits a scheduler action
   plan for recommended actions, and made `--archive-stale --scheduled` wait for
   explicit confirmation instead of prompting or mutating unless `--yes` is set.
