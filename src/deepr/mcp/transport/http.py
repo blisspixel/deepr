@@ -20,10 +20,19 @@ import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import aiohttp
 from aiohttp import web
+
+from deepr.mcp.security.scoped_keys import (
+    RemoteMCPAuditLog,
+    ScopedMCPAuthzDecision,
+    ScopedMCPKeyContext,
+    ScopedMCPKeyStore,
+    authorize_scoped_mcp_tool_call,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +56,11 @@ def _extract_bearer(request: "web.Request") -> str | None:
             return token
     api_key: str = request.headers.get("X-Api-Key", "").strip()
     return api_key or None
+
+
+def _scoped_key_store_from_env() -> ScopedMCPKeyStore | None:
+    path = os.getenv("DEEPR_MCP_KEYS_PATH", "").strip()
+    return ScopedMCPKeyStore(Path(path)) if path else None
 
 
 @dataclass
@@ -129,6 +143,8 @@ class StreamingHttpTransport:
         path: str = "/mcp",
         auth_token: str | None = None,
         allow_unauthenticated_public_bind: bool = False,
+        scoped_key_store: ScopedMCPKeyStore | None = None,
+        audit_log: RemoteMCPAuditLog | None = None,
     ):
         """Initialize the streaming HTTP transport.
 
@@ -143,12 +159,20 @@ class StreamingHttpTransport:
             allow_unauthenticated_public_bind: Set True to bind a non-loopback
                 interface without auth. Refused otherwise so the unauthenticated
                 MCP tool surface is not silently exposed.
+            scoped_key_store: Optional scoped-key store for remote MCP callers.
+                When configured, requests authenticate against per-key mode,
+                expert, and budget metadata instead of only a shared token.
+            audit_log: Optional append-only audit sink for scoped-key calls.
         """
         self._host = host
         self._port = port
         self._path = path
         self._auth_token = auth_token or os.getenv("MCP_AUTH_TOKEN") or os.getenv("DEEPR_MCP_AUTH_TOKEN") or None
         self._allow_unauthenticated_public_bind = allow_unauthenticated_public_bind
+        self._scoped_key_store = scoped_key_store or _scoped_key_store_from_env()
+        self._audit_log = (
+            audit_log if audit_log is not None else RemoteMCPAuditLog() if self._scoped_key_store else None
+        )
         self._handler: Callable[[HttpMessage], Awaitable[HttpMessage | None]] | None = None
         self._app: web.Application | None = None
         self._runner: web.AppRunner | None = None
@@ -174,13 +198,20 @@ class StreamingHttpTransport:
             return
 
         loopback = _is_loopback_host(self._host)
-        if not loopback and not self._auth_token and not self._allow_unauthenticated_public_bind:
+        has_scoped_keys = bool(self._scoped_key_store and self._scoped_key_store.has_active_keys())
+        if (
+            not loopback
+            and not self._auth_token
+            and not has_scoped_keys
+            and not self._allow_unauthenticated_public_bind
+        ):
             raise RuntimeError(
-                f"Refusing to bind MCP HTTP transport to {self._host!r} without an auth token. "
+                f"Refusing to bind MCP HTTP transport to {self._host!r} without an auth token or scoped key. "
                 "Set MCP_AUTH_TOKEN (or DEEPR_MCP_AUTH_TOKEN), pass auth_token=..., "
+                "configure DEEPR_MCP_KEYS_PATH with at least one active key, "
                 "or set allow_unauthenticated_public_bind=True if you accept the risk."
             )
-        if not loopback and not self._auth_token:
+        if not loopback and not self._auth_token and not has_scoped_keys:
             logger.warning(
                 "MCP HTTP transport binding %s without authentication. Any reachable peer can "
                 "invoke MCP tools (research submission, expert queries) and consume provider budget.",
@@ -215,6 +246,35 @@ class StreamingHttpTransport:
         if self._runner:
             await self._runner.cleanup()
 
+    def _unauthorized_response(self) -> web.Response:
+        return web.json_response(
+            {"jsonrpc": "2.0", "error": {"code": -32001, "message": "Unauthorized"}, "id": None},
+            status=401,
+        )
+
+    def _shared_token_matches(self, provided: str | None) -> bool:
+        token = self._auth_token
+        if not token or not provided:
+            return False
+        try:
+            return hmac.compare_digest(provided, token)
+        except TypeError:
+            return False
+
+    def _authenticate_request(self, request: "web.Request") -> tuple[ScopedMCPKeyContext | None, web.Response | None]:
+        """Authenticate a request and return scoped context when a key matched."""
+        provided = _extract_bearer(request)
+        if self._scoped_key_store:
+            context = self._scoped_key_store.authenticate(provided)
+            if context:
+                return context, None
+            if self._shared_token_matches(provided):
+                return None, None
+            return None, self._unauthorized_response()
+        if self._auth_token and not self._shared_token_matches(provided):
+            return None, self._unauthorized_response()
+        return None, None
+
     def _check_auth(self, request: "web.Request") -> web.Response | None:
         """Return an unauthorized response if auth fails, else None.
 
@@ -223,30 +283,59 @@ class StreamingHttpTransport:
         are allowed (local-dev mode). When the transport is bound to a
         non-loopback interface, configuring a token is enforced at start().
         """
-        token = self._auth_token
-        if not token:
-            return None
-        provided = _extract_bearer(request)
-        # hmac.compare_digest raises TypeError on str inputs that contain
-        # non-ASCII characters; treat that as Unauthorized so a malformed
-        # Authorization / X-Api-Key header cannot escape into the generic
-        # 500 handler (same fix as deepr/web/app.py and deepr/api/app.py).
-        ok = False
-        if provided:
-            try:
-                ok = hmac.compare_digest(provided, token)
-            except TypeError:
-                ok = False
-        if not ok:
-            return web.json_response(
-                {"jsonrpc": "2.0", "error": {"code": -32001, "message": "Unauthorized"}, "id": None},
-                status=401,
-            )
-        return None
+        return self._authenticate_request(request)[1]
+
+    def _tool_call_parts(self, message: HttpMessage) -> tuple[str, dict[str, Any]]:
+        if message.method != "tools/call" or not isinstance(message.params, dict):
+            return message.method or "", {}
+        tool_name = str(message.params.get("name") or "")
+        arguments = message.params.get("arguments", {})
+        return tool_name, dict(arguments) if isinstance(arguments, dict) else {}
+
+    def _scoped_denial_message(self, message: HttpMessage, decision: ScopedMCPAuthzDecision) -> HttpMessage:
+        return HttpMessage(
+            id=message.id,
+            error={
+                "code": -32003,
+                "message": decision.reason,
+                "data": {
+                    "error_code": decision.error_code,
+                    "requires_confirmation": decision.requires_confirmation,
+                    "requested_experts": list(decision.requested_experts),
+                },
+            },
+        )
+
+    def _record_remote_call(
+        self,
+        context: ScopedMCPKeyContext | None,
+        message: HttpMessage,
+        response: HttpMessage | None,
+        *,
+        error_code: str = "",
+    ) -> None:
+        if not context or not self._audit_log:
+            return
+        tool_name, arguments = self._tool_call_parts(message)
+        if not tool_name:
+            return
+        outcome = "error" if error_code or (response and response.error) else "success"
+        resolved_error = error_code
+        if response and response.error and not resolved_error:
+            data = response.error.get("data")
+            if isinstance(data, dict):
+                resolved_error = str(data.get("error_code") or "")
+        self._audit_log.record_tool_call(
+            context,
+            tool=tool_name,
+            arguments=arguments,
+            outcome=outcome,
+            error_code=resolved_error,
+        )
 
     async def _handle_post(self, request: web.Request) -> web.Response:
         """Handle incoming POST requests (JSON-RPC messages)."""
-        unauthorized = self._check_auth(request)
+        auth_context, unauthorized = self._authenticate_request(request)
         if unauthorized is not None:
             self._stats.errors += 1
             return unauthorized
@@ -258,8 +347,23 @@ class StreamingHttpTransport:
             data = json.loads(body.decode("utf-8"))
             message = HttpMessage.from_dict(data)
 
+            if auth_context:
+                tool_name, arguments = self._tool_call_parts(message)
+                if tool_name:
+                    decision = authorize_scoped_mcp_tool_call(auth_context, tool_name, arguments)
+                    if not decision.allowed:
+                        denied = self._scoped_denial_message(message, decision)
+                        self._record_remote_call(auth_context, message, denied, error_code=decision.error_code)
+                        response_data = json.dumps(denied.to_dict())
+                        self._stats.bytes_sent += len(response_data)
+                        self._stats.responses_sent += 1
+                        return web.Response(text=response_data, content_type="application/json")
+                if isinstance(message.params, dict):
+                    message.params = {**message.params, "_scoped_key": auth_context.to_dict()}
+
             if self._handler:
                 response = await self._handler(message)
+                self._record_remote_call(auth_context, message, response)
 
                 if response:
                     response_data = json.dumps(response.to_dict())

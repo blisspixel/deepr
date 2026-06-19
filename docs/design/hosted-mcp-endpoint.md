@@ -2,7 +2,8 @@
 
 Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
-Status: design, with the first versioned handoff contract shipped.
+Status: design, with the first versioned handoff contract and scoped-key/audit
+primitive shipped.
 
 ## Problem
 
@@ -31,10 +32,21 @@ read-only, bounded by caller-provided limits, and generated from the shared
 `build_expert_handoff` serializer so MCP and web responses cannot drift. The
 payload includes profile summary, manifest counts, bounded claims/gaps,
 dashboard telemetry, loop-status rollup, OKF interchange hints, and an additive
-compatibility contract. Detailed expert state remains `SENSITIVE` in MCP
-allowlists until scoped keys exist.
+compatibility contract. Detailed expert state remains `SENSITIVE`; scoped keys
+must still satisfy key mode, expert scope, and confirmation gates before it is
+returned remotely.
 
 ### Auth and scoping (API-key first, OAuth later)
+
+`ScopedMCPKeyStore` and the HTTP transport now provide the first local
+primitive. When a store is configured, Bearer or `X-Api-Key` requests
+authenticate against per-key metadata, and `tools/call` is checked against the
+key's `ResearchMode`, optional `expert_allowlist`, and confirmation
+requirement before dispatch. `RemoteMCPAuditLog` writes append-only
+`deepr-mcp-remote-audit-v1` events with `{key_id, mode, tool, args_hash,
+trace_id, outcome, error_code, expert_names, cost_usd}`. This is not the full
+hosted endpoint yet: key CLI, per-key cost sessions, rate limits, deployment
+docs, and remote smoke tests remain open.
 
 - **Scoped API keys**, not one shared secret: each key carries
   `{key_id, mode, expert_allowlist, budget}`.
@@ -45,9 +57,9 @@ allowlists until scoped keys exist.
   - `budget`: per-key spend ceiling, enforced through the existing
     CostSafetyManager session machinery (a key is a session); the
     canonical cost ledger records `key_id` on every event.
-- Keys are hashed at rest (argon2), shown once at mint
-  (`deepr mcp keys create --mode read-only --budget 5`), revocable
-  (`keys revoke`), listed with last-used timestamps.
+- Keys are hashed at rest with a salted one-way KDF. The planned key CLI shows
+  each secret once at mint (`deepr mcp keys create --mode read-only --budget 5`),
+  supports revocation (`keys revoke`), and lists last-used timestamps.
 - OAuth/OIDC deferred to team features (Phase 5 proper) - the key model
   must not preclude it (auth is a middleware, not woven into dispatch).
 
@@ -60,8 +72,9 @@ allowlists until scoped keys exist.
 - Request size limits; tool-call audit log `{key_id, tool, args_hash,
   cost, trace_id, timestamp}` - this doubles as the expert mutation audit
   log the architect review asked for, scoped to remote calls first.
-- No key, no socket: the HTTP listener refuses to start with zero keys
-  minted.
+- No credential, no public socket: the HTTP listener refuses public bind with
+  neither an active scoped key nor the legacy shared-token fallback. Production
+  deployment should use scoped keys.
 
 ### Deployment shapes (documented, not productized)
 
@@ -74,11 +87,13 @@ allowlists until scoped keys exist.
 
 1. Versioned handoff payloads for downstream consumers, callable locally through
    MCP and the dashboard API. Shipped as `deepr-expert-handoff-v1`.
-2. HTTP transport on the existing server (no auth, loopback-only bind,
-   integration-tested against a real MCP client).
+2. HTTP transport on the existing server (loopback by default, authenticated
+   public bind only).
 3. Key store + middleware (mode scoping reuses the allowlist; budget
-   reuses cost sessions) - the bulk of the new code, all unit-testable.
-4. Audit log + rate limits + size caps.
+   reuses cost sessions). Key store and mode/expert middleware are shipped;
+   cost-session budget wiring remains.
+4. Audit log + rate limits + size caps. Audit log and size caps are shipped;
+   rate limits remain.
 5. `keys` CLI + docs + deployment guide; loopback restriction lifts only
    when a key exists.
 6. Platform smoke tests: register the endpoint with one real host
