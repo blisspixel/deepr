@@ -100,3 +100,54 @@ def test_mcp_audit_list_reports_empty_log(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert f"No MCP remote audit records found at {audit_path}." in result.output
+
+
+def test_mcp_audit_summary_outputs_json_totals(tmp_path):
+    audit_path = tmp_path / "audit.jsonl"
+    _record_sample_events(audit_path)
+
+    result = CliRunner().invoke(
+        mcp,
+        [
+            "audit",
+            "summary",
+            "--audit-path",
+            str(audit_path),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    summary = payload["summary"]
+    assert summary["count"] == 2
+    assert summary["cost_usd"] == 0.0
+    assert summary["costed_records"] == 1
+    assert summary["by_key"]["agent-alpha"] == {"count": 1, "cost_usd": 0.0}
+    assert summary["by_tool"]["deepr_query_expert"] == {"count": 1, "cost_usd": 0.0}
+    assert summary["by_outcome"]["error"] == {"count": 1, "cost_usd": 0.0}
+
+
+def test_mcp_audit_summary_respects_filters_and_outputs_table(tmp_path):
+    audit_path = tmp_path / "audit.jsonl"
+    _record_sample_events(audit_path)
+
+    result = CliRunner().invoke(
+        mcp,
+        [
+            "audit",
+            "summary",
+            "--audit-path",
+            str(audit_path),
+            "--outcome",
+            "error",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "MCP remote audit summary:" in result.output
+    assert "Records: 1" in result.output
+    assert "Records with cost: 0" in result.output
+    assert "  error\t1\t$0.0000" in result.output
+    assert "  agent-beta\t1\t$0.0000" in result.output
+    assert "agent-alpha" not in result.output
