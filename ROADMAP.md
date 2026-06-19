@@ -991,9 +991,11 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    verifier-failed, or human-gated loop snapshots with spend, verifier outcome,
    and accepted-change metrics where applicable. The dashboard API now exposes
    `/api/experts/{name}/loop-status` as a read-only rollup over those records.
-3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
+3. [x] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
-   failure reason. No model self-declared completion on the critical path.
+   failure reason. `ExpertLoopRun` now rejects terminal records without a typed
+   stop reason and rejects stop reasons that do not match the run status, so
+   model self-declared completion cannot enter the durable loop record.
 4. [x] Loop dashboard/API surface: `/api/experts/{name}/loop-status` returns the
    latest run, last sync result, next scheduled action, capacity source, spend,
    acceptance metrics, verifier-failure counts, freshness telemetry, 7-day and
