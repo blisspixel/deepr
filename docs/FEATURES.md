@@ -932,6 +932,7 @@ The MCP HTTP transport also has an experimental scoped-key primitive:
 configured key stores authenticate Bearer or `X-Api-Key` requests, enforce
 key mode, expert allowlists, and confirmation gates before `tools/call`
 dispatch, and append `deepr-mcp-remote-audit-v1` records for remote calls.
+Use `deepr mcp keys create/list/revoke` to manage those local key records.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 
