@@ -77,6 +77,9 @@ class TestBackendFlagGuard:
                 captured["absorber"] = self
 
         class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+
             def to_dict(self):
                 return {"total_cost": 0.0, "outcomes": []}
 
@@ -101,9 +104,20 @@ class TestBackendFlagGuard:
         )
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
 
+        def fake_record_loop_run(**kwargs):
+            captured["loop_run_kwargs"] = kwargs
+            return SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"})
+
+        monkeypatch.setattr("deepr.experts.loop_runs.record_loop_run", fake_record_loop_run)
+
         r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--local", "-y", "--json"])
 
         assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["loop_run"]["run_id"] == "loop_sync_complete"
+        assert captured["loop_run_kwargs"]["status"].value == "completed"
+        assert captured["loop_run_kwargs"]["stop_reason"].value == "no_due_work"
+        assert captured["loop_run_kwargs"]["capacity_source"] == "local"
         assert captured["absorber_profile"] is profile
         assert captured["absorber_model"] == "qwen-local"
         assert captured["absorber_client"] is client
@@ -305,6 +319,9 @@ class TestBackendFlagGuard:
                 captured["absorber"] = self
 
         class FakeSyncResult:
+            total_cost = 0.0
+            outcomes = []
+
             def to_dict(self):
                 return {"total_cost": 0.0, "outcomes": []}
 
@@ -332,10 +349,16 @@ class TestBackendFlagGuard:
 
         monkeypatch.setattr("deepr.backends.local.make_local_research_fn", fake_local_research_fn)
         monkeypatch.setattr("deepr.experts.report_absorber.ReportAbsorber", FakeReportAbsorber)
+        def fake_record_loop_run(**kwargs):
+            captured["loop_run_kwargs"] = kwargs
+            return SimpleNamespace(to_dict=lambda: {"run_id": "loop_sync_complete"})
+
+        monkeypatch.setattr("deepr.experts.loop_runs.record_loop_run", fake_record_loop_run)
 
         r = CliRunner().invoke(expert, ["sync", "UI Experience Expert", "--local", "--deep-context", "-y", "--json"])
 
         assert r.exit_code == 0
+        assert captured["loop_run_kwargs"]["status"].value == "completed"
         assert captured["context_builder"] is deep_context_builder
         assert captured["research_fn"] is research_fn
         assert captured["engine_absorber"] is captured["absorber"]
