@@ -20,6 +20,18 @@ AUDIT_SCHEMA_VERSION = "deepr-mcp-remote-audit-v1"
 _HASH_ALGORITHM = "pbkdf2_sha256"
 _HASH_ITERATIONS = 210_000
 _EXPERT_ARG_NAMES = ("expert_name", "name")
+_BUDGET_ARGUMENT_TOOLS = frozenset(
+    {
+        "deepr_agentic_research",
+        "deepr_query_expert",
+        "deepr_research",
+    }
+)
+_FIXED_TOOL_COST_ESTIMATES_USD = {
+    "deepr_expert_absorb": 0.03,
+    "deepr_expert_validate": 0.02,
+    "deepr_reflect": 0.02,
+}
 
 
 def _utc_now() -> datetime:
@@ -75,6 +87,56 @@ def _verify_secret(secret: str, encoded_hash: str) -> bool:
 def hash_arguments(arguments: dict[str, Any]) -> str:
     encoded = json.dumps(arguments, sort_keys=True, default=str, ensure_ascii=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _coerce_nonnegative_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        resolved = float(value)
+    except (TypeError, ValueError):
+        return None
+    if resolved < 0:
+        return None
+    return resolved
+
+
+def _estimate_research_cost(arguments: dict[str, Any]) -> float:
+    model = str(arguments.get("model") or "o4-mini-deep-research")
+    try:
+        from deepr.providers.registry import get_cost_estimate
+
+        registry_cost = get_cost_estimate(model)
+    except Exception:
+        registry_cost = 0.20
+    if "o4-mini" in model:
+        return max(0.15, registry_cost)
+    if "o3" in model:
+        return max(0.50, registry_cost)
+    if "deep-research" in model:
+        return max(registry_cost, 1.00)
+    return max(registry_cost, 0.20)
+
+
+def estimate_scoped_mcp_tool_cost(tool_name: str, arguments: dict[str, Any]) -> float | None:
+    """Return deterministic estimated spend for a scoped remote MCP call."""
+    requested_budget = _coerce_nonnegative_float(arguments.get("budget"))
+    if requested_budget is not None and tool_name in _BUDGET_ARGUMENT_TOOLS:
+        return requested_budget
+    if tool_name == "deepr_research":
+        return _estimate_research_cost(arguments)
+    if tool_name == "deepr_agentic_research":
+        return 5.0
+    if tool_name == "deepr_query_expert":
+        return 10.0
+    if tool_name == "deepr_reflect":
+        try:
+            depth = int(arguments.get("depth", 1) or 1)
+        except (TypeError, ValueError):
+            depth = 1
+        if depth <= 0:
+            return 0.0
+    return _FIXED_TOOL_COST_ESTIMATES_USD.get(tool_name)
 
 
 @dataclass(frozen=True)
@@ -174,6 +236,17 @@ class ScopedMCPAuthzDecision:
     error_code: str = ""
     requires_confirmation: bool = False
     requested_experts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScopedMCPBudgetDecision:
+    allowed: bool
+    reason: str
+    error_code: str = ""
+    budget_limit_usd: float | None = None
+    spent_usd: float = 0.0
+    remaining_usd: float | None = None
+    estimated_cost_usd: float | None = None
 
 
 class ScopedMCPKeyStore:
@@ -335,6 +408,67 @@ def authorize_scoped_mcp_tool_call(
     )
 
 
+def constrain_scoped_mcp_budget_arguments(
+    context: ScopedMCPKeyContext,
+    tool_name: str,
+    arguments: dict[str, Any],
+    spent_usd: float,
+) -> dict[str, Any]:
+    """Inject the remaining key budget into budget-aware tools when omitted."""
+    if context.budget_limit_usd is None or tool_name not in _BUDGET_ARGUMENT_TOOLS or "budget" in arguments:
+        return arguments
+    remaining = max(context.budget_limit_usd - spent_usd, 0.0)
+    if remaining <= 0:
+        return arguments
+    return {**arguments, "budget": round(remaining, 4)}
+
+
+def authorize_scoped_mcp_budget(
+    context: ScopedMCPKeyContext,
+    tool_name: str,
+    arguments: dict[str, Any],
+    spent_usd: float,
+) -> ScopedMCPBudgetDecision:
+    """Validate a scoped key's per-key budget before dispatch."""
+    if context.budget_limit_usd is None:
+        return ScopedMCPBudgetDecision(
+            allowed=True,
+            reason="No per-key budget ceiling configured",
+            spent_usd=spent_usd,
+        )
+    remaining = max(context.budget_limit_usd - spent_usd, 0.0)
+    estimated_cost = estimate_scoped_mcp_tool_cost(tool_name, arguments)
+    if estimated_cost is None or estimated_cost <= 0:
+        return ScopedMCPBudgetDecision(
+            allowed=True,
+            reason="Tool has no deterministic remote spend estimate",
+            budget_limit_usd=context.budget_limit_usd,
+            spent_usd=spent_usd,
+            remaining_usd=remaining,
+            estimated_cost_usd=estimated_cost,
+        )
+    if estimated_cost > remaining:
+        return ScopedMCPBudgetDecision(
+            allowed=False,
+            reason=(
+                f"Scoped key budget would be exceeded: estimated ${estimated_cost:.2f}, remaining ${remaining:.2f}"
+            ),
+            error_code="KEY_BUDGET_EXCEEDED",
+            budget_limit_usd=context.budget_limit_usd,
+            spent_usd=spent_usd,
+            remaining_usd=remaining,
+            estimated_cost_usd=estimated_cost,
+        )
+    return ScopedMCPBudgetDecision(
+        allowed=True,
+        reason="Scoped key budget allows this tool call",
+        budget_limit_usd=context.budget_limit_usd,
+        spent_usd=spent_usd,
+        remaining_usd=remaining,
+        estimated_cost_usd=estimated_cost,
+    )
+
+
 @dataclass(frozen=True)
 class RemoteMCPAuditEvent:
     key_id: str
@@ -348,6 +482,10 @@ class RemoteMCPAuditEvent:
     error_code: str = ""
     expert_names: tuple[str, ...] = ()
     cost_usd: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.cost_usd is not None:
+            object.__setattr__(self, "cost_usd", max(float(self.cost_usd), 0.0))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -428,3 +566,11 @@ class RemoteMCPAuditLog:
                     )
                 )
         return events[-limit:]
+
+    def total_cost_for_key(self, key_id: str) -> float:
+        """Return audited actual spend for a scoped key."""
+        total = 0.0
+        for event in self.read_recent(limit=1_000_000):
+            if event.key_id == key_id and event.cost_usd is not None:
+                total += event.cost_usd
+        return round(total, 10)

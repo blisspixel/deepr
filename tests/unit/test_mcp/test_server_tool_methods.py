@@ -468,10 +468,12 @@ class TestExpertTools:
             "budget_remaining": 1.0,
             "research_jobs_triggered": 0,
         }
-        with patch("deepr.mcp.server.ExpertChatSession", return_value=session):
-            out = await mock_server.query_expert("e1", "what?")
+        with patch("deepr.mcp.server.ExpertChatSession", return_value=session) as session_cls:
+            out = await mock_server.query_expert("e1", "what?", budget=0.25)
         assert out["answer"] == "answer"
         assert out["cost"] == 0.05
+        assert session_cls.call_args.kwargs["budget"] == 0.25
+        assert session_cls.call_args.kwargs["agentic"] is False
 
     @pytest.mark.asyncio
     async def test_query_expert_wraps_errors(self, mock_server):
