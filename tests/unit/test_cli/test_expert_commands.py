@@ -663,9 +663,15 @@ class TestExpertReflectCommand:
             patch("deepr.experts.profile.ExpertStore") as mock_store_class,
             patch("deepr.services.context_index.ContextIndex") as mock_idx,
             patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
         ):
+            loop_run = MagicMock()
+            loop_run.to_dict.return_value = {"run_id": "loop_reflect_complete"}
+            mock_record.return_value = loop_run
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
             mock_store = MagicMock()
-            mock_store.load.return_value = MagicMock(domain="ai")
+            mock_store.load.return_value = profile
             mock_store_class.return_value = mock_store
             mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
             mock_idx.return_value.get_report_content.return_value = "report body"
@@ -677,7 +683,13 @@ class TestExpertReflectCommand:
             assert result.exit_code == 0
             import json
 
-            assert json.loads(result.output)["verdict"] == "accept"
+            payload = json.loads(result.output)
+            assert payload["verdict"] == "accept"
+            assert payload["loop_run"]["run_id"] == "loop_reflect_complete"
+            assert mock_record.call_args.kwargs["status"].value == "completed"
+            assert mock_record.call_args.kwargs["stop_reason"].value == "verifier_passed"
+            assert mock_record.call_args.kwargs["verifier_outcome"] == "accept"
+            assert mock_record.call_args.kwargs["verifier_score"] == 0.84
 
     def test_scheduled_json_waits_before_reflection_engine(self, runner):
         with (
@@ -721,6 +733,98 @@ class TestExpertReflectCommand:
         assert payload["pending_work"] == ["reflection_evaluation", "followup_research"]
         assert payload["next_actions"][0]["status"] == "wait"
         assert payload["loop_run"]["run_id"] == "loop_reflect"
+
+    def test_execute_followups_records_reflection_loop_metrics(self, runner):
+        from deepr.experts.reflection import ReflectionReport
+
+        stub = ReflectionReport(
+            question="Will X?",
+            verdict="accept",
+            overall_score=0.9,
+            dimensions=[],
+            followups=["alpha follow-up"],
+        )
+        fill_outcome = SimpleNamespace(
+            status="filled",
+            topic="alpha follow-up",
+            absorbed=1,
+            flagged=1,
+            cost=0.05,
+            detail="",
+        )
+        fill_result = SimpleNamespace(outcomes=[fill_outcome], total_cost=0.05)
+
+        class FakeGapFillEngine:
+            def __init__(self, profile):
+                assert profile.name == "AI Expert"
+
+            async def execute(self, routes, **kwargs):
+                assert [route.topic for route in routes] == ["alpha follow-up"]
+                assert kwargs["budget"] == 0.5
+                return fill_result
+
+        with (
+            patch("deepr.experts.profile.ExpertStore") as mock_store_class,
+            patch("deepr.services.context_index.ContextIndex") as mock_idx,
+            patch("deepr.experts.reflection.ReflectionEngine") as mock_engine,
+            patch("deepr.experts.gap_fill.GapFillEngine", FakeGapFillEngine),
+            patch("deepr.experts.loop_runs.record_loop_run") as mock_record,
+        ):
+            profile = MagicMock(domain="ai")
+            profile.name = "AI Expert"
+            mock_store = MagicMock()
+            mock_store.load.return_value = profile
+            mock_store_class.return_value = mock_store
+            mock_idx.return_value.get_report_by_job_id.return_value = MagicMock(prompt="Will X?")
+            mock_idx.return_value.get_report_content.return_value = "report body"
+            inst = MagicMock()
+            inst.reflect = AsyncMock(return_value=stub)
+            mock_engine.return_value = inst
+
+            result = runner.invoke(
+                cli,
+                [
+                    "expert",
+                    "reflect",
+                    "AI Expert",
+                    "job1",
+                    "--execute-followups",
+                    "--budget",
+                    "0.50",
+                    "--yes",
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Follow-up execution" in result.output
+        assert mock_record.call_args.kwargs["status"].value == "completed"
+        assert mock_record.call_args.kwargs["stop_reason"].value == "verifier_passed"
+        assert mock_record.call_args.kwargs["accepted_changes"] == 2
+        assert mock_record.call_args.kwargs["budget_spent"] == 0.05
+
+    def test_research_reflection_verdict_records_verifier_failure(self):
+        from deepr.cli.commands.semantic.expert_reflection_loop import record_completed_reflection_loop
+        from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason
+
+        report = SimpleNamespace(
+            verdict="re_research",
+            overall_score=0.32,
+            model="gpt-5-mini",
+        )
+
+        with patch("deepr.experts.loop_runs.record_loop_run") as mock_record:
+            record_completed_reflection_loop(
+                "AI Expert",
+                "job1",
+                report,
+                budget=1.0,
+                execute_followups=False,
+            )
+
+        assert mock_record.call_args.kwargs["status"] == LoopRunStatus.FAILED
+        assert mock_record.call_args.kwargs["stop_reason"] == LoopStopReason.VERIFIER_FAILED
+        assert mock_record.call_args.kwargs["rejected_changes"] == 1
+        assert mock_record.call_args.kwargs["next_action"]["status"] == "revise_or_research"
 
 
 class TestExpertRouteGapsCommand:
