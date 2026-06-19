@@ -382,6 +382,7 @@ class TestLegacyMethods:
             "deepr_expert_validate",
             "deepr_rank_gaps",
             "deepr_expert_health_check",
+            "deepr_expert_loop_status",
             "deepr_expert_absorb",
             "deepr_route_gaps",
             "deepr_reflect",
