@@ -1,0 +1,47 @@
+services:
+  deepr-mcp-http:
+    build:
+      context: ../..
+      dockerfile: deploy/mcp-http/Dockerfile
+    image: deepr-mcp-http:latest
+    container_name: deepr-mcp-http
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DEEPR_DATA_DIR: /data
+      DEEPR_MCP_KEYS_PATH: /data/security/mcp_keys.json
+      DEEPR_LOG_LEVEL: INFO
+      DEEPR_LOG_FORMAT: json
+    command:
+      - mcp
+      - serve
+      - --http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8765"
+      - --path
+      - /mcp
+      - --keys-path
+      - /data/security/mcp_keys.json
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ${DEEPR_HOST_DATA_DIR:-../../data}:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/mcp/health', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - deepr-mcp
+
+networks:
+  deepr-mcp:
+    driver: bridge
