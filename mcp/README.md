@@ -247,6 +247,21 @@ Common error codes: `BUDGET_EXCEEDED`, `JOB_NOT_FOUND`, `EXPERT_NOT_FOUND`, `PRO
 
 ---
 
+## Scoped HTTP Keys
+
+Experimental HTTP MCP keys are local records used by the HTTP transport when
+`DEEPR_MCP_KEYS_PATH` points at a key store:
+
+```bash
+deepr mcp keys create --mode read_only --expert "AI Strategy Expert"
+deepr mcp keys list
+deepr mcp keys revoke <key-id>
+```
+
+Created secrets are shown once. `list` never prints secrets or stored hashes.
+
+---
+
 ## Architecture
 
 ```
