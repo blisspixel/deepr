@@ -58,7 +58,32 @@ def scheduled_health_action_plan(report: Any) -> dict[str, Any]:
 def scheduled_health_payload(report: Any) -> dict[str, Any]:
     payload = report.to_dict()
     payload["scheduled"] = True
-    payload["scheduled_action_plan"] = scheduled_health_action_plan(report)
+    plan = scheduled_health_action_plan(report)
+    payload["scheduled_action_plan"] = plan
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    if plan["status"] == "waiting_for_confirmation":
+        status = LoopRunStatus.WAITING
+        stop_reason = LoopStopReason.HUMAN_GATE_REQUIRED
+    elif plan["status"] == "waiting_for_capacity":
+        status = LoopRunStatus.WAITING
+        stop_reason = LoopStopReason.CAPACITY_UNAVAILABLE
+    elif plan["status"] == "no_actions":
+        status = LoopRunStatus.COMPLETED
+        stop_reason = LoopStopReason.NO_DUE_WORK
+    else:
+        status = LoopRunStatus.PENDING
+        stop_reason = None
+    loop_run = record_loop_run(
+        expert_name=report.expert_name,
+        loop_type="health_check",
+        goal=f"Audit health-check actions for {report.expert_name}",
+        trigger="scheduled",
+        status=status,
+        stop_reason=stop_reason,
+        next_action=plan["actions"][0] if plan["actions"] else {},
+    )
+    payload["loop_run"] = loop_run.to_dict()
     return payload
 
 
@@ -72,7 +97,7 @@ def print_scheduled_health_action_plan(plan: dict[str, Any]) -> None:
 
 
 def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[Any]) -> dict[str, Any]:
-    return {
+    payload = {
         "status": "waiting_for_confirmation",
         "expert": expert_name,
         "action": "archive_stale",
@@ -98,6 +123,19 @@ def scheduled_archive_confirmation_payload(expert_name: str, candidates: list[An
             }
         ],
     }
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    loop_run = record_loop_run(
+        expert_name=expert_name,
+        loop_type="health_check",
+        goal=f"Archive stale beliefs for {expert_name}",
+        trigger="scheduled",
+        status=LoopRunStatus.WAITING,
+        stop_reason=LoopStopReason.HUMAN_GATE_REQUIRED,
+        next_action=payload["next_actions"][0],
+    )
+    payload["loop_run"] = loop_run.to_dict()
+    return payload
 
 
 def emit_scheduled_archive_confirmation(expert_name: str, candidates: list[Any], *, json_output: bool) -> None:
