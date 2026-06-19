@@ -186,8 +186,9 @@ endpoint without provider calls. The hosted recipe includes a loopback
 container variant under [deploy/mcp-http/](deploy/mcp-http/) for reverse-proxied
 remote agents, an Azure Container Apps template under
 [deploy/mcp-http/azure-container-apps/](deploy/mcp-http/azure-container-apps/),
-plus `deepr mcp audit list` and `summary` for reviewing scoped-key remote-call
-audit records.
+`deepr mcp registration-manifest URL` for token-redacted remote host setup
+packets, plus `deepr mcp audit list` and `summary` for reviewing scoped-key
+remote-call audit records.
 
 ### Web Dashboard
 

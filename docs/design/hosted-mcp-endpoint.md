@@ -5,7 +5,9 @@ Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 Status: design, with the first versioned handoff contract, HTTP serve path,
 scoped-key, budget, rate-limit, audit primitives, hosted reverse-proxy recipe,
 local remote-smoke command, audit review CLI, remote-audit schema, and first
-Azure Container Apps template shipped.
+Azure Container Apps template shipped. A token-redacted registration manifest
+now packages endpoint metadata and optional smoke results before live platform
+registration.
 
 ## Problem
 
@@ -52,6 +54,10 @@ cost_usd}`. The schema is published under `docs/schemas/`.
 `deepr mcp keys` creates, lists, and revokes those key records locally.
 `deepr mcp audit list` and `deepr mcp audit summary` review the local audit log.
 `deepr mcp smoke-http` now verifies a local or proxied HTTP endpoint at `$0`.
+`deepr mcp registration-manifest` emits a
+`deepr-mcp-registration-manifest-v1` packet with endpoint, auth-header,
+scoped-key, audit-schema, and optional smoke-result metadata without serializing
+bearer secrets.
 This is not the full hosted endpoint yet: live registration against a
 third-party agent host remains open.
 
@@ -118,6 +124,8 @@ third-party agent host remains open.
 6. Platform smoke tests: register the endpoint with one real host
    (Anthropic Managed Agents connector first) and run the
    subscribe -> sync -> what_changed loop remotely.
+   Local registration manifests are shipped, but live host registration remains
+   the unproven external test.
 
 ## Open questions
 

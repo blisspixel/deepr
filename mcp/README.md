@@ -290,6 +290,21 @@ deepr mcp smoke-http http://127.0.0.1:8765/mcp
 deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
 ```
 
+For remote host setup, emit a token-redacted registration manifest after the
+same `$0` smoke checks pass:
+
+```bash
+deepr mcp registration-manifest https://mcp.example.com/mcp \
+  --auth-token "$DEEPR_MCP_KEY" \
+  --agent-name planner \
+  --output mcp-registration.json
+```
+
+The manifest uses `deepr-mcp-registration-manifest-v1`, includes endpoint,
+auth-header, scoped-key, audit-schema, and smoke-result metadata, and never
+serializes the bearer token itself. Use `--skip-smoke` only to draft a manifest
+before the endpoint is reachable.
+
 For a hosted reverse-proxy recipe with TLS and scoped-key guidance, see
 [deploy/mcp-http.md](../deploy/mcp-http.md). For a repeatable containerized
 local service, use [deploy/mcp-http/](../deploy/mcp-http/) and bootstrap a

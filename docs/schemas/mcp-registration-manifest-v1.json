@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blisspixel/deepr/docs/schemas/mcp-registration-manifest-v1.json",
+  "title": "Deepr MCP Registration Manifest v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "created_at",
+    "transport",
+    "auth",
+    "registration",
+    "operational_contract"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "deepr-mcp-registration-manifest-v1"
+    },
+    "kind": {
+      "const": "deepr.mcp.registration_manifest"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agent_name": {
+      "type": "string"
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "url", "health_url"],
+      "properties": {
+        "type": {
+          "const": "streamable_http"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "health_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "header", "alternate_header", "token_env_var", "secret_included"],
+      "properties": {
+        "type": {
+          "const": "bearer"
+        },
+        "header": {
+          "const": "Authorization"
+        },
+        "alternate_header": {
+          "const": "X-Api-Key"
+        },
+        "token_env_var": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secret_included": {
+          "const": false
+        }
+      }
+    },
+    "registration": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["smoke_command", "free_smoke_tool"],
+      "properties": {
+        "smoke_command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "free_smoke_tool": {
+          "const": "deepr_tool_search"
+        }
+      }
+    },
+    "operational_contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "scoped_keys_required",
+        "remote_audit_schema",
+        "paid_tools_require_provider_keys",
+        "provider_keys_included"
+      ],
+      "properties": {
+        "scoped_keys_required": {
+          "const": true
+        },
+        "remote_audit_schema": {
+          "const": "deepr-mcp-remote-audit-v1"
+        },
+        "paid_tools_require_provider_keys": {
+          "const": true
+        },
+        "provider_keys_included": {
+          "const": false
+        }
+      }
+    },
+    "smoke": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["url", "ok", "steps"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["name", "ok", "detail"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              },
+              "status_code": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
