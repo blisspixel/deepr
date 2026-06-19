@@ -62,6 +62,10 @@ Non-dry `deepr expert route-gaps --execute` runs now append gap-fill
 capacity source, accepted-change count, typed failure stops, and concrete next
 actions for failed outcomes, deferred specialist routes, or budget exhaustion.
 
+`deepr expert reflect` now appends reflection `ExpertLoopRun` snapshots with
+verifier outcome, score, model version, typed verifier-failed stops, and
+follow-up absorption metrics when `--execute-followups` runs.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -73,15 +77,14 @@ accepted change, append-only per-expert storage, and read-only
 `deepr expert loop-status`. Scheduled wait/action-plan instrumentation now feeds
 that store for the recurring expert surfaces that can safely stop before spend
 or mutation. MCP read access is also in place for host agents, and completed
-sync and gap-fill execution runs now feed the same lifecycle.
+sync, gap-fill execution, and reflection runs now feed the same lifecycle.
 
 That gap matters because it sits directly on the project promise: stop paying twice, make the cheapest safe route obvious, and never hide gates. It is also a workflow surface, so it can be improved deterministically without violating agentic-balance.
 
 ## Next Work
 
-Next slice: instrument successful reflection or health-check paths so they show
-the same durable lifecycle, or add the dashboard/API rollup over loop-status
-records.
+Next slice: instrument successful health-check paths so they show the same
+durable lifecycle, or add the dashboard/API rollup over loop-status records.
 
 ## Spend Ledger For This Run
 
