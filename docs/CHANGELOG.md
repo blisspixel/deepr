@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ExpertLoopRun` snapshots with trigger, budget spent, capacity source,
   accepted changes, typed failure stops, and human-gate or budget stop actions
   when routed gaps are deferred or skipped.
+- `deepr expert reflect` now appends reflection `ExpertLoopRun` snapshots with
+  verifier outcome, score, model version, typed verifier-failed stops, and
+  follow-up absorption metrics when `--execute-followups` runs.
 - Added `deepr expert health-check --scheduled`, which emits a scheduler action
   plan for recommended actions, and made `--archive-stale --scheduled` wait for
   explicit confirmation instead of prompting or mutating unless `--yes` is set.

@@ -985,11 +985,12 @@ Design: [docs/design/verified-expert-loops.md](docs/design/verified-expert-loops
    per-expert storage, acceptance metrics, cost per accepted change, and
    read-only CLI and MCP status are in place. Scheduled wait and action-plan
    surfaces for sync, gap-fill, reflection, and health-check now append
-   loop-run snapshots and return `loop_run` JSON. Successful sync and
-   non-dry gap-fill execution runs also record completed, failed, budget-stopped,
-   or human-gated loop snapshots with spend and accepted-change metrics.
-   Remaining work is successful-run instrumentation for reflection and
-   health-check, plus dashboard/API rollups.
+   loop-run snapshots and return `loop_run` JSON. Successful sync, non-dry
+   gap-fill execution, and reflection runs also record completed, failed,
+   budget-stopped, verifier-failed, or human-gated loop snapshots with spend,
+   verifier outcome, and accepted-change metrics where applicable. Remaining
+   work is successful-run instrumentation for health-check plus dashboard/API
+   rollups.
 3. [ ] Loop completion contract: a loop closes only on verifier pass, no due work
    under the current contract, budget/capacity exhaustion, human gate, or a typed
    failure reason. No model self-declared completion on the critical path.
