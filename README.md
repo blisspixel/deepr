@@ -314,7 +314,9 @@ records with latest run, last sync result, waiting scheduled action, failure,
 capacity source, spend, acceptance, verifier failure metrics, and `expert_state`
 telemetry for freshness, gap velocity, and contested/open claims. Terminal loop
 records now require status-compatible typed stop reasons before they can be
-stored.
+stored. The same API includes `admission_contracts` for the four autonomy gates:
+repeat demand, automated verification, explicit budget/capacity, and
+failure-diagnosis state.
 
 ### Evidence and Calibration
 

@@ -85,6 +85,11 @@ The loop completion contract is now enforced at the record layer.
 stop reason, and rejects waiting, completed, failed, or cancelled records when
 the stop reason does not match the status.
 
+The loop admission contract is now codified in `LoopAdmissionContract` and
+exposed through the dashboard rollup as `admission_contracts`. Sync,
+reflection, and health-check are admitted under the four workflow gates;
+gap-fill remains supervised until gap-closure verifier evidence is recorded.
+
 ## Active Gap
 
 The capacity QOL item in `v2.16` now covers the recurring expert maintenance
@@ -104,9 +109,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 
 ## Next Work
 
-Next slice: codify the loop admission contract so a surface can declare whether
-it has repeat demand, automated verification, explicit budget/capacity, and
-failure-diagnosis state before it graduates from advisory to autonomous.
+Next slice: start the OKF export/import track as a regenerated derived view over
+the belief/event/edge store, keeping generated Markdown out of the authoritative
+state path.
 
 ## Spend Ledger For This Run
 
