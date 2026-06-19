@@ -412,7 +412,7 @@ class DeeprMCPServer:
             if session_key not in self.sessions:
                 self.sessions[session_key] = ExpertChatSession(
                     expert,
-                    budget=budget if agentic else None,
+                    budget=budget,
                     agentic=agentic,
                 )
 

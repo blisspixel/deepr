@@ -29,9 +29,12 @@ from aiohttp import web
 from deepr.mcp.security.scoped_keys import (
     RemoteMCPAuditLog,
     ScopedMCPAuthzDecision,
+    ScopedMCPBudgetDecision,
     ScopedMCPKeyContext,
     ScopedMCPKeyStore,
+    authorize_scoped_mcp_budget,
     authorize_scoped_mcp_tool_call,
+    constrain_scoped_mcp_budget_arguments,
 )
 
 logger = logging.getLogger(__name__)
@@ -306,6 +309,79 @@ class StreamingHttpTransport:
             },
         )
 
+    def _scoped_budget_denial_message(self, message: HttpMessage, decision: ScopedMCPBudgetDecision) -> HttpMessage:
+        return HttpMessage(
+            id=message.id,
+            error={
+                "code": -32004,
+                "message": decision.reason,
+                "data": {
+                    "error_code": decision.error_code,
+                    "budget_limit_usd": decision.budget_limit_usd,
+                    "spent_usd": decision.spent_usd,
+                    "remaining_usd": decision.remaining_usd,
+                    "estimated_cost_usd": decision.estimated_cost_usd,
+                },
+            },
+        )
+
+    def _scoped_key_spent(self, context: ScopedMCPKeyContext) -> float:
+        if not self._audit_log:
+            return 0.0
+        return self._audit_log.total_cost_for_key(context.key_id)
+
+    def _payload_from_tool_response(self, response: HttpMessage | None) -> dict[str, Any] | None:
+        if not response or response.error or not isinstance(response.result, dict):
+            return None
+        if response.result.get("isError") is True:
+            return None
+        content = response.result.get("content")
+        if isinstance(content, list) and content:
+            first = content[0]
+            if isinstance(first, dict) and isinstance(first.get("text"), str):
+                try:
+                    payload = json.loads(first["text"])
+                except json.JSONDecodeError:
+                    return None
+                return payload if isinstance(payload, dict) else None
+        return response.result
+
+    def _response_cost_usd(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        response: HttpMessage | None,
+    ) -> float | None:
+        payload = self._payload_from_tool_response(response)
+        if not payload or "error_code" in payload:
+            return None
+
+        def read_cost(field: str) -> float | None:
+            value = payload.get(field)
+            if value is None or isinstance(value, bool):
+                return None
+            try:
+                resolved = float(value)
+            except (TypeError, ValueError):
+                return None
+            return max(resolved, 0.0)
+
+        if tool_name == "deepr_get_result":
+            return read_cost("cost_final")
+        if tool_name == "deepr_query_expert":
+            return read_cost("cost")
+        if tool_name == "deepr_expert_absorb":
+            return read_cost("estimated_cost")
+        if tool_name == "deepr_expert_validate":
+            return 0.02
+        if tool_name == "deepr_reflect":
+            try:
+                depth = int(arguments.get("depth", 1) or 1)
+            except (TypeError, ValueError):
+                depth = 1
+            return 0.02 if depth > 0 else 0.0
+        return None
+
     def _record_remote_call(
         self,
         context: ScopedMCPKeyContext | None,
@@ -331,6 +407,7 @@ class StreamingHttpTransport:
             arguments=arguments,
             outcome=outcome,
             error_code=resolved_error,
+            cost_usd=self._response_cost_usd(tool_name, arguments, response),
         )
 
     async def _handle_post(self, request: web.Request) -> web.Response:
@@ -358,6 +435,18 @@ class StreamingHttpTransport:
                         self._stats.bytes_sent += len(response_data)
                         self._stats.responses_sent += 1
                         return web.Response(text=response_data, content_type="application/json")
+                    spent_usd = self._scoped_key_spent(auth_context)
+                    arguments = constrain_scoped_mcp_budget_arguments(auth_context, tool_name, arguments, spent_usd)
+                    budget_decision = authorize_scoped_mcp_budget(auth_context, tool_name, arguments, spent_usd)
+                    if not budget_decision.allowed:
+                        denied = self._scoped_budget_denial_message(message, budget_decision)
+                        self._record_remote_call(auth_context, message, denied, error_code=budget_decision.error_code)
+                        response_data = json.dumps(denied.to_dict())
+                        self._stats.bytes_sent += len(response_data)
+                        self._stats.responses_sent += 1
+                        return web.Response(text=response_data, content_type="application/json")
+                    if isinstance(message.params, dict):
+                        message.params = {**message.params, "arguments": arguments}
                 if isinstance(message.params, dict):
                     message.params = {**message.params, "_scoped_key": auth_context.to_dict()}
 
