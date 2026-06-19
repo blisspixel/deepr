@@ -39,6 +39,7 @@
 | [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
 | [Agentic Balance](docs/plans/AGENTIC_BALANCE.md) | **Read before adding a rule or making something agentic** - what deepr hardcodes vs lets the model decide |
 | [Architecture](docs/ARCHITECTURE.md) | Technical details, security, observability |
+| [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |
 | [Changelog](docs/CHANGELOG.md) | Release history with migration notes |
 | [Vision](docs/VISION.md) | Long-term direction (v3.0+) |
 
@@ -1105,7 +1106,7 @@ The criteria, all measurable:
 - [ ] Calibration published and current for the shipping extraction model
 - [ ] Hosted endpoint with scoped auth, per-key budgets/rate limits, audit log
 - [ ] Multi-user safety: RBAC, workspace isolation, mutation audit trail
-- [ ] A documented supported-surface statement (what is stable, what is
+- [x] A documented supported-surface statement (what is stable, what is
       experimental, what export guarantees exist if the project stops)
 - [ ] Zero known silent-money paths (every spend source writes the
       canonical ledger; proven by fault-injection, not assertion)

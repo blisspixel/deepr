@@ -405,7 +405,8 @@ Optional env controls:
 
 **Experimental:** Web dashboard, agentic expert chat (slash commands, modes, reasoning, approval, council, task planning), expert skills, MCP server, HTTP serve, scoped-key CLIs, HTTP smoke validation, per-key budget and rate guards, and remote-call audit primitives, auto-fallback circuit breakers, cloud deployment templates, capacity visibility, local-model execution, capacity next actions (`deepr capacity next`), quota eligibility gates (`deepr capacity`, `--local` on expert sync/absorb), loop status records and API rollups (`deepr expert loop-status`, `/api/experts/{name}/loop-status`), versioned expert handoff (`/api/experts/{name}/handoff`, `deepr_expert_handoff`), OKF export/import (`deepr expert export-okf`, `deepr expert absorb-okf`), and the evidence layer (`deepr eval continuity`, `deepr eval calibrate`).
 
-See [ROADMAP.md](ROADMAP.md) for detailed status.
+See [docs/SUPPORTED_SURFACE.md](docs/SUPPORTED_SURFACE.md) for the supported
+contract and [ROADMAP.md](ROADMAP.md) for detailed status.
 
 ## Documentation
 
@@ -419,6 +420,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status.
 | [MCP Integration](mcp/README.md) | MCP server setup and agent integration |
 | [Integrations](docs/INTEGRATIONS.md) | First-party tool integrations (recon, distillr, primr) |
 | [Agentic Vision](docs/AGENTIC_VISION.md) | Agentic architecture, A2A, reflection, campaigns |
+| [Supported Surface](docs/SUPPORTED_SURFACE.md) | Stable, experimental, planned, and export guarantees |
 | [Deployment](deploy/README.md) | Cloud deployment (AWS, Azure, GCP) |
 | [Changelog](docs/CHANGELOG.md) | Release history |
 | [Roadmap](ROADMAP.md) | Development priorities and future plans |

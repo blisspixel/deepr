@@ -141,6 +141,8 @@ publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
 `deepr-okf-profile-v1`, `deepr-mcp-remote-audit-v1`, and
 `deepr-mcp-registration-manifest-v1`, with `registry.json` and a README
 documenting additive compatibility and deprecation rules for downstream agents.
+`docs/SUPPORTED_SURFACE.md` now states stable, experimental, visible/read-only,
+planned, export, and compatibility guarantees directly.
 
 ## Active Gap
 
