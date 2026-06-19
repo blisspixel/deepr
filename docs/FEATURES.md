@@ -942,7 +942,10 @@ Use `deepr mcp keys create/list/revoke` to manage those local key records, and
 `deepr mcp serve --http` to run the same MCP server over HTTP/SSE on loopback
 by default. Use `deepr mcp smoke-http URL` to run `$0` health, initialize,
 tools/list, and free tool-search checks against a local or TLS-proxied HTTP MCP
-endpoint.
+endpoint. A repeatable hosted container recipe lives in
+[../deploy/mcp-http/](../deploy/mcp-http/); it publishes only loopback by
+default, mounts one Deepr data directory at `/data`, and bootstraps scoped keys
+before the service starts.
 
 See [design/capacity-waterfall.md](design/capacity-waterfall.md) for the capacity model and [design/local-fresh-context.md](design/local-fresh-context.md) for the fresh-context loop.
 

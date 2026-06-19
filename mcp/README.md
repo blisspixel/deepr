@@ -287,7 +287,9 @@ deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
 ```
 
 For a hosted reverse-proxy recipe with TLS and scoped-key guidance, see
-[deploy/mcp-http.md](../deploy/mcp-http.md).
+[deploy/mcp-http.md](../deploy/mcp-http.md). For a repeatable containerized
+local service, use [deploy/mcp-http/](../deploy/mcp-http/) and bootstrap a
+scoped key before `docker compose up`.
 
 ---
 
