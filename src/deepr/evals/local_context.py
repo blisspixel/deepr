@@ -128,9 +128,9 @@ class LocalContextEvalReport:
 
     @property
     def mode_scores(self) -> dict[str, float]:
-        scores: dict[str, list[float]] = {mode: [] for mode in CONTEXT_MODES}
+        scores: dict[str, list[float]] = {}
         for result in self.results:
-            scores[result.mode].append(result.verdict.score)
+            scores.setdefault(result.mode, []).append(result.verdict.score)
         return {mode: _average(values) for mode, values in scores.items()}
 
     @property
@@ -138,7 +138,7 @@ class LocalContextEvalReport:
         scores = self.mode_scores
         if not scores:
             return ""
-        return max(scores, key=lambda mode: (scores[mode], -CONTEXT_MODES.index(mode)))
+        return max(scores, key=lambda mode: (scores[mode], -_mode_order(mode)))
 
     def to_dict(self) -> dict[str, Any]:
         generated_at = self.generated_at or datetime.now(UTC)
@@ -234,7 +234,7 @@ def write_context_report(report: LocalContextEvalReport, *, output_dir: Path | N
     """Write a local context eval artifact under ``data/benchmarks``."""
     root = output_dir or Path("data/benchmarks")
     root.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     path = root / f"local_context_{timestamp}.json"
     path.write_text(json.dumps(report.to_dict(), indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     return path
@@ -476,3 +476,10 @@ def _average(values: Sequence[float]) -> float:
     if not values:
         return 0.0
     return sum(values) / len(values)
+
+
+def _mode_order(mode: str) -> int:
+    for index, candidate in enumerate(CONTEXT_MODES):
+        if candidate == mode:
+            return index
+    return len(CONTEXT_MODES)
