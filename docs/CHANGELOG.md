@@ -234,6 +234,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected the built-in search backend wrapper to pass structured query
   arguments to `WebSearchTool` instead of a positional dict.
+- `deepr search "query"` now dispatches to `deepr search query "query"` instead
+  of surfacing Click's generic "No such command" message, and `deepr expert
+  list` labels names and descriptions so roster output is easier to scan.
 - `deepr_query_expert` now passes the caller's budget into `ExpertChatSession`
   for normal expert answers, not only for `agentic=true`, so remote scoped
   budgets and explicit low ceilings cap model-token spend on plain expert
