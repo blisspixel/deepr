@@ -8,6 +8,8 @@ from typing import Any
 from deepr.experts.loop_admission import known_loop_admission_contracts
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 
+LOOP_STATUS_SCHEMA_VERSION = "deepr-loop-status-v1"
+
 
 def _round_metric(value: float) -> float:
     return round(value, 4)
@@ -65,6 +67,18 @@ def build_loop_status_rollup(
     )
 
     return {
+        "schema_version": LOOP_STATUS_SCHEMA_VERSION,
+        "kind": "deepr.expert.loop_status",
+        "contract": {
+            "read_only": True,
+            "cost_usd": 0.0,
+            "stability": "experimental",
+            "compatibility": {
+                "additive_fields": True,
+                "breaking_changes_require_new_schema_version": True,
+                "deprecation_policy": "Fields in this v1 payload are additive within v1; removals use a new schema.",
+            },
+        },
         "expert_name": expert_name,
         "count": len(runs),
         "window": {"limit": limit, "summarized_runs": len(runs)},

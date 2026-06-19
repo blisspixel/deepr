@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profile summary, manifest counts, bounded claims/gaps, dashboard telemetry,
   loop-status rollup, OKF interchange hints, and an additive compatibility
   contract, with JSON Schema published under `docs/schemas/`.
+- Added `deepr-loop-status-v1`, `deepr-okf-profile-v1`, and
+  `docs/schemas/registry.json` so downstream agents can validate durable loop
+  status and the OKF mapping contract with an additive compatibility policy.
 - Added the first hosted-MCP scoped-key primitive: `ScopedMCPKeyStore`, HTTP
   transport enforcement for key mode, expert allowlists, confirmation
   requirements, and append-only `deepr-mcp-remote-audit-v1` events for

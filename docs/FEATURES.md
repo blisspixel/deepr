@@ -928,6 +928,10 @@ return the versioned `deepr-expert-handoff-v1` payload: profile summary,
 manifest counts, bounded claims/gaps, dashboard telemetry, loop-status rollup,
 OKF interchange hints, and an additive compatibility contract. The schema is
 published at [schemas/expert-handoff-v1.json](schemas/expert-handoff-v1.json).
+The adjacent loop-status and OKF mapping contracts are published as
+[schemas/loop-status-v1.json](schemas/loop-status-v1.json) and
+[schemas/okf-profile-v1.json](schemas/okf-profile-v1.json), with the
+machine-readable registry in [schemas/registry.json](schemas/registry.json).
 The MCP HTTP transport also has an experimental scoped-key primitive:
 configured key stores authenticate Bearer or `X-Api-Key` requests, enforce
 key mode, expert allowlists, confirmation gates, per-key budget ceilings, and
