@@ -75,7 +75,10 @@ deploy/
 │   ├── Dockerfile
 │   ├── docker-compose.yml
 │   ├── .env.example
-│   └── README.md
+│   ├── README.md
+│   └── azure-container-apps/
+│       ├── main.bicep
+│       └── README.md
 ├── aws/                # AWS SAM/CloudFormation deployment
 │   ├── template.yaml   # SAM template
 │   ├── deploy.sh       # Build + deploy + validate
@@ -112,6 +115,12 @@ then verify the endpoint with:
 ```bash
 deepr mcp smoke-http https://mcp.example.com/mcp --auth-token "$DEEPR_MCP_KEY"
 ```
+
+For an Azure Container Apps variant, see
+[mcp-http/azure-container-apps/](mcp-http/azure-container-apps/). It mounts a
+persistent Azure Files share at `/data`, keeps scoped-key and audit state in
+that share, exposes HTTPS-only ingress, and leaves provider API keys out of the
+template until a scoped key mode and budget intentionally allow paid tools.
 
 ### AWS
 

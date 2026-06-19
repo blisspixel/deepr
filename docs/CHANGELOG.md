@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `deploy/mcp-http/`, a hosted MCP HTTP container recipe with a dedicated
   Dockerfile, compose service, `.env.example`, scoped-key bootstrap steps,
   loopback-only host publishing, and `$0` smoke validation guidance.
+- Added `deploy/mcp-http/azure-container-apps/`, an Azure Container Apps
+  template for the hosted MCP HTTP container with persistent `/data` on Azure
+  Files, HTTPS-only ingress, scoped-key state, and remote-audit durability.
 - Scheduled expert wait and action-plan surfaces now append `ExpertLoopRun`
   snapshots and include a `loop_run` object in JSON output for `sync`,
   `route-gaps`, `reflect`, and `health-check`.
