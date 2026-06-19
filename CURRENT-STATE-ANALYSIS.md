@@ -133,15 +133,17 @@ smoke-http` validates local and TLS-proxied endpoints at `$0`, and
 `deploy/mcp-http.md` documents the scoped-key plus reverse-proxy deployment
 shape. `deploy/mcp-http/` now provides the containerized local service variant
 with scoped-key bootstrap, loopback-only host publishing, a mounted Deepr data
-directory, and `$0` smoke validation guidance. The first two cloud-provider
-templates now live at `deploy/mcp-http/azure-container-apps/` and
-`deploy/mcp-http/aws-ecs-fargate/`, preserving persistent `/data`, HTTPS-only
-ingress, scoped-key state, remote-audit durability, and the same
-max-concurrency contract across Azure Container Apps and AWS ECS Fargate.
+directory, and `$0` smoke validation guidance. The first three cloud-provider
+templates now live at `deploy/mcp-http/azure-container-apps/`,
+`deploy/mcp-http/aws-ecs-fargate/`, and `deploy/mcp-http/gcp-cloud-run/`,
+preserving persistent `/data`, HTTPS ingress, scoped-key state, remote-audit
+durability, and the same max-concurrency contract across Azure Container Apps,
+AWS ECS Fargate, and GCP Cloud Run. The GCP variant stays single-writer by
+default while key and audit files live on an object-backed mount.
 `deepr mcp registration-manifest` now emits a token-redacted
 `deepr-mcp-registration-manifest-v1` packet with endpoint metadata and optional
-smoke results for remote host setup. Additional cloud-provider templates and
-live third-party host registration remain open.
+smoke results for remote host setup. Edge/provider variants and live
+third-party host registration remain open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`
 publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and

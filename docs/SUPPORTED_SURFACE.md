@@ -50,7 +50,7 @@ must not be described as usable capacity.
 - Local Ollama expert maintenance, local evals, local context evals, and scored
   local admission.
 - Hosted MCP deployment recipes, including the local container, Azure Container
-  Apps template, and AWS ECS Fargate template.
+  Apps template, AWS ECS Fargate template, and GCP Cloud Run template.
 
 ## Visible Or Planned Only
 
