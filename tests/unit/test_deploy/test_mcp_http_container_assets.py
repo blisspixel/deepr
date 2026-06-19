@@ -9,6 +9,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEPLOY_DIR = REPO_ROOT / "deploy" / "mcp-http"
+AZURE_TEMPLATE = DEPLOY_DIR / "azure-container-apps" / "main.bicep"
 
 
 def _load_compose() -> dict[str, Any]:
@@ -65,3 +66,53 @@ def test_mcp_http_readme_documents_zero_spend_bootstrap_and_smoke():
     assert "docker compose up -d" in readme
     assert "deepr mcp smoke-http http://127.0.0.1:8765/mcp" in readme
     assert "only `$0` structural checks" in readme
+
+
+def test_mcp_http_azure_template_mounts_persistent_deepr_data():
+    template = AZURE_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "Microsoft.App/managedEnvironments/storages@2024-03-01" in template
+    assert "Microsoft.Storage/storageAccounts/fileServices/shares@2023-05-01" in template
+    assert "storageType: 'AzureFile'" in template
+    assert "storageName: environmentStorage.name" in template
+    assert "mountPath: '/data'" in template
+    assert "value: '/data/reports'" in template
+    assert "value: '/data/security/mcp_keys.json'" in template
+
+
+def test_mcp_http_azure_template_serves_with_http_guardrails():
+    template = AZURE_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "Microsoft.App/containerApps@2024-03-01" in template
+    assert "external: externalIngress" in template
+    assert "allowInsecure: false" in template
+    assert "ipSecurityRestrictions: [for (range, i) in allowedIpRanges:" in template
+    assert "'mcp'" in template
+    assert "'serve'" in template
+    assert "'--http'" in template
+    assert "'--host'" in template
+    assert "'0.0.0.0'" in template
+    assert "'--keys-path'" in template
+    assert "'/data/security/mcp_keys.json'" in template
+    assert "path: '/mcp/health'" in template
+
+
+def test_mcp_http_azure_template_keeps_provider_keys_out_of_infra():
+    template = AZURE_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "OPENAI_API_KEY" not in template
+    assert "GOOGLE_API_KEY" not in template
+    assert "XAI_API_KEY" not in template
+    assert "ANTHROPIC_API_KEY" not in template
+    assert "DEEPR_MCP_AUTH_TOKEN" in template
+
+
+def test_mcp_http_azure_readme_documents_scoped_key_bootstrap():
+    readme = (DEPLOY_DIR / "azure-container-apps" / "README.md").read_text(encoding="utf-8")
+
+    assert "mcp keys create" in readme
+    assert "--budget 0" in readme
+    assert "initialSharedAuthToken" in readme
+    assert "deepr mcp smoke-http" in readme
+    assert "only `$0` structural checks" in readme
+    assert "Add provider API keys only when paid tools are intentional" in readme

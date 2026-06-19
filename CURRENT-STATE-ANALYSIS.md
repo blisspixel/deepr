@@ -128,8 +128,11 @@ smoke-http` validates local and TLS-proxied endpoints at `$0`, and
 `deploy/mcp-http.md` documents the scoped-key plus reverse-proxy deployment
 shape. `deploy/mcp-http/` now provides the containerized local service variant
 with scoped-key bootstrap, loopback-only host publishing, a mounted Deepr data
-directory, and `$0` smoke validation guidance. Cloud provider templates and live
-third-party host registration remain open.
+directory, and `$0` smoke validation guidance. The first cloud-provider template
+now lives at `deploy/mcp-http/azure-container-apps/`, using Azure Container Apps
+with persistent `/data`, HTTPS-only ingress, scoped-key state, and remote-audit
+durability. Additional cloud-provider templates and live third-party host
+registration remain open.
 
 The contract surface is now broader than the handoff payload. `docs/schemas/`
 publishes `deepr-expert-handoff-v1`, `deepr-loop-status-v1`, and
@@ -157,9 +160,9 @@ That gap matters because it sits directly on the project promise: stop paying tw
 ## Next Work
 
 Next slice: continue the v2.18 reach track with the next smallest local hosted
-operability gap, likely cloud-template packaging for the HTTP MCP service,
-remote host registration smoke scaffolding, or schema-backed contract tests for
-additional remote surfaces.
+operability gap, likely additional cloud-template packaging for the HTTP MCP
+service, remote host registration smoke scaffolding, or schema-backed contract
+tests for additional remote surfaces.
 
 ## Spend Ledger For This Run
 
