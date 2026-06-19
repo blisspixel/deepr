@@ -77,6 +77,68 @@ def _emit_scheduled_gap_fill_wait(profile_name: str, routes: list[Any], *, budge
             console.print(f"      [dim]{action['command']}[/dim]")
 
 
+def _record_completed_gap_fill_loop(profile_name: str, result: Any, *, budget: float, scheduled: bool):
+    from deepr.experts.loop_runs import LoopRunStatus, LoopStopReason, record_loop_run
+
+    outcomes = list(getattr(result, "outcomes", []) or [])
+    failed = [o for o in outcomes if getattr(o, "status", "") == "failed"]
+    deferred = [o for o in outcomes if getattr(o, "status", "") == "deferred"]
+    skipped = [o for o in outcomes if getattr(o, "status", "") == "skipped"]
+    accepted = sum(
+        max(int(getattr(o, "absorbed", 0) or 0), 0) + max(int(getattr(o, "flagged", 0) or 0), 0) for o in outcomes
+    )
+
+    if failed:
+        status = LoopRunStatus.FAILED
+        stop_reason = LoopStopReason.TOOL_FAILURE
+        next_action = {
+            "status": "inspect",
+            "title": "Inspect failed gap-fill outcomes",
+            "detail": f"{len(failed)} routed gap(s) failed during fill execution.",
+            "command": f'deepr expert route-gaps "{profile_name}" --execute --dry-run',
+        }
+        rejected = len(failed)
+    elif deferred:
+        status = LoopRunStatus.WAITING
+        stop_reason = LoopStopReason.HUMAN_GATE_REQUIRED
+        next_action = {
+            "status": "human_gate_required",
+            "title": "Run deferred specialist routes",
+            "detail": f"{len(deferred)} routed gap(s) require approval-gated specialist instruments.",
+        }
+        rejected = 0
+    elif skipped:
+        status = LoopRunStatus.WAITING
+        stop_reason = LoopStopReason.BUDGET_EXHAUSTED
+        next_action = {
+            "status": "increase_budget",
+            "title": "Rerun with enough budget",
+            "detail": f"{len(skipped)} routed gap(s) were skipped after the run budget was exhausted.",
+            "command": f'deepr expert route-gaps "{profile_name}" --execute --budget {budget:.2f}',
+        }
+        rejected = 0
+    else:
+        status = LoopRunStatus.COMPLETED
+        stop_reason = LoopStopReason.VERIFIER_PASSED if accepted else LoopStopReason.NO_DUE_WORK
+        next_action = {}
+        rejected = 0
+
+    return record_loop_run(
+        expert_name=profile_name,
+        loop_type="gap_fill",
+        goal=f"Fill routed knowledge gaps for {profile_name}",
+        trigger="scheduled" if scheduled else "manual",
+        status=status,
+        stop_reason=stop_reason,
+        next_action=next_action,
+        budget_limit=budget,
+        budget_spent=float(getattr(result, "total_cost", 0.0) or 0.0),
+        capacity_source="api_metered",
+        accepted_changes=accepted,
+        rejected_changes=rejected,
+    )
+
+
 @expert.command(name="route-gaps")
 @click.argument("name")
 @click.option("--top", "-t", "top_n", type=int, default=5, show_default=True, help="How many top gaps to route")
@@ -154,9 +216,22 @@ def route_gaps(
 
         engine = GapFillEngine(profile)
         result = asyncio.run(engine.execute(routes, budget=budget, top=top_n, dry_run=dry_run))
+        loop_run = (
+            None
+            if dry_run
+            else _record_completed_gap_fill_loop(
+                profile.name,
+                result,
+                budget=budget,
+                scheduled=scheduled,
+            )
+        )
 
         if json_output:
-            click.echo(_json.dumps(result.to_dict(), indent=2))
+            payload = result.to_dict()
+            if loop_run is not None:
+                payload["loop_run"] = loop_run.to_dict()
+            click.echo(_json.dumps(payload, indent=2))
             return
 
         print_header(f"Gap fill: {name}")
