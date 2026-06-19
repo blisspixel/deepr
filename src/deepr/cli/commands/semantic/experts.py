@@ -3276,4 +3276,5 @@ def run_skill_cmd(name: str, skill_name: str, tool_name: str, tool_args: str):
 # stays under the size ceiling; importing it registers them on the `expert`
 # group (Phase Q3 decomposition).
 from deepr.cli.commands.semantic import expert_gap_routes as _expert_gap_routes  # noqa: F401
+from deepr.cli.commands.semantic import expert_loop_status as _expert_loop_status  # noqa: F401
 from deepr.cli.commands.semantic import expert_maintenance as _expert_maintenance  # noqa: F401

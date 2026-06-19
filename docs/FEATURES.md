@@ -563,6 +563,8 @@ deepr expert subscribe "Azure Architect" "Azure Landing Zone updates" --every 7 
 deepr expert subscriptions "Azure Architect"
 deepr expert sync "Azure Architect" --dry-run
 deepr expert sync "Azure Architect" -y
+deepr expert loop-status "Azure Architect"
+deepr expert loop-status "Azure Architect" --json
 
 # Run the follow-up queries reflection emits for weak reports
 deepr expert reflect "Azure Architect" <job_id> --execute-followups --budget 1 -y
