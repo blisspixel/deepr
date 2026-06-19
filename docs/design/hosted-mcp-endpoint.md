@@ -4,7 +4,7 @@ Target: v2.18. Roadmap: Phase 5 (promoted from backlog 2026-06-11 -
 "cloud-hosted autopilots cannot call a stdio server on a laptop").
 Status: design, with the first versioned handoff contract, HTTP serve path,
 scoped-key, budget, rate-limit, audit primitives, hosted reverse-proxy recipe,
-and local remote-smoke command shipped.
+local remote-smoke command, audit review CLI, and remote-audit schema shipped.
 
 ## Problem
 
@@ -45,12 +45,14 @@ primitive. When a store is configured, Bearer or `X-Api-Key` requests
 authenticate against per-key metadata, and `tools/call` is checked against the
 key's `ResearchMode`, optional `expert_allowlist`, and confirmation
 requirement before dispatch. `RemoteMCPAuditLog` writes append-only
-`deepr-mcp-remote-audit-v1` events with `{key_id, mode, tool, args_hash,
-trace_id, outcome, error_code, expert_names, cost_usd}`. `deepr mcp keys`
-creates, lists, and revokes those key records locally. `deepr mcp smoke-http`
-now verifies a local or proxied HTTP endpoint at `$0`. This is not the full
-hosted endpoint yet: live registration against a third-party agent host remains
-open.
+`deepr-mcp-remote-audit-v1` events with `{schema_version, kind, timestamp,
+key_id, mode, tool, args_hash, trace_id, outcome, error_code, expert_names,
+cost_usd}`. The schema is published under `docs/schemas/`.
+`deepr mcp keys` creates, lists, and revokes those key records locally.
+`deepr mcp audit list` and `deepr mcp audit summary` review the local audit log.
+`deepr mcp smoke-http` now verifies a local or proxied HTTP endpoint at `$0`.
+This is not the full hosted endpoint yet: live registration against a
+third-party agent host remains open.
 
 - **Scoped API keys**, not one shared secret: each key carries
   `{key_id, mode, expert_allowlist, budget, rate_limit}`.

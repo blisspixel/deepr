@@ -9,6 +9,8 @@ from typing import Any
 
 from deepr.experts.loop_runs import ExpertLoopRun, ExpertLoopRunStore, LoopRunStatus, LoopStopReason
 from deepr.experts.loop_status_rollup import build_loop_status_rollup
+from deepr.mcp.security.scoped_keys import AUDIT_KIND, AUDIT_SCHEMA_VERSION, RemoteMCPAuditEvent
+from deepr.mcp.security.tool_allowlist import ResearchMode
 
 try:
     from jsonschema import Draft202012Validator
@@ -148,3 +150,25 @@ def test_okf_profile_schema_validates_mapping_payload():
     _validate(schema, payload)
     assert payload["derived_view"]["authoritative"] is False
     assert payload["extensions"]["frontmatter_key"] == "deepr"
+
+
+def test_mcp_remote_audit_schema_validates_runtime_event_payload():
+    event = RemoteMCPAuditEvent(
+        key_id="agent-alpha",
+        mode=ResearchMode.READ_ONLY,
+        tool="deepr_expert_handoff",
+        args_hash="a" * 64,
+        trace_id="trace-1",
+        outcome="success",
+        error_code="",
+        expert_names=("AI Strategy Expert",),
+        cost_usd=0.0,
+        timestamp=datetime(2026, 6, 19, 12, 0, tzinfo=UTC),
+    )
+    payload = event.to_dict()
+    schema = _load_schema("mcp-remote-audit-v1.json")
+
+    _validate(schema, payload)
+    assert payload["schema_version"] == AUDIT_SCHEMA_VERSION
+    assert payload["kind"] == AUDIT_KIND
+    assert payload["args_hash"] == "a" * 64

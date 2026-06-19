@@ -17,6 +17,7 @@ from deepr.mcp.security.tool_allowlist import ResearchMode, ToolAllowlist
 
 KEY_SCHEMA_VERSION = "deepr-mcp-key-v1"
 AUDIT_SCHEMA_VERSION = "deepr-mcp-remote-audit-v1"
+AUDIT_KIND = "deepr.mcp.remote_audit"
 _HASH_ALGORITHM = "pbkdf2_sha256"
 _HASH_ITERATIONS = 210_000
 _EXPERT_ARG_NAMES = ("expert_name", "name")
@@ -551,6 +552,7 @@ class RemoteMCPAuditEvent:
     outcome: str
     timestamp: datetime = field(default_factory=_utc_now)
     schema_version: str = AUDIT_SCHEMA_VERSION
+    kind: str = AUDIT_KIND
     mode: ResearchMode = ResearchMode.STANDARD
     trace_id: str = ""
     error_code: str = ""
@@ -564,6 +566,7 @@ class RemoteMCPAuditEvent:
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
+            "kind": self.kind,
             "timestamp": self.timestamp.isoformat(),
             "key_id": self.key_id,
             "mode": self.mode.value,
@@ -637,6 +640,7 @@ class RemoteMCPAuditLog:
                         cost_usd=data.get("cost_usd"),
                         timestamp=_parse_dt(data.get("timestamp")) or _utc_now(),
                         schema_version=str(data.get("schema_version", AUDIT_SCHEMA_VERSION)),
+                        kind=str(data.get("kind", AUDIT_KIND)),
                     )
                 )
         return events[-limit:]

@@ -35,4 +35,5 @@
 - Added `deploy/mcp-http/`, a containerized hosted MCP HTTP recipe with a dedicated Dockerfile, compose service, scoped-key bootstrap, loopback-only host publishing, and `$0` smoke validation guidance.
 - Added `deepr mcp audit list`, a read-only local review surface for hosted MCP remote-call audit records with key, tool, outcome, limit, and JSON filters.
 - Added `deepr mcp audit summary`, a read-only aggregate view over hosted MCP remote-call audit records with counts and audited cost by key, tool, and outcome.
+- Published `deepr-mcp-remote-audit-v1` under `docs/schemas/` and registered it so hosted MCP remote-call audit records have an additive validation contract.
 - Spend so far: `$0.00`.
